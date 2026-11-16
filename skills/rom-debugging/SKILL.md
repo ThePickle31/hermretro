@@ -124,9 +124,8 @@ Distinguish authored source, typechecks or generated imagery, static dialogue or
 art previews, a compiled native cartridge, and actual observed runtime frames.
 Neither sampled images nor host-side throughput prove audio, saves, physical
 hardware behavior, or cartridge CPU-cycle performance. Report what ran, what
-the frames showed, and what remains unverified. For host-specific setup, see
-[Windows setup](../setup/references/windows-setup.md); Windows x64 is experimental and
-other-platform results do not validate it.
+the frames showed, and what remains unverified. hermretro runs on Linux and macOS
+only.
 
 ## In hermretro
 

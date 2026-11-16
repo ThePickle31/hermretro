@@ -28,7 +28,7 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import paths
+from . import host_os, paths
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
@@ -71,11 +71,28 @@ class ProvisionError(RuntimeError):
         self.code = code
 
 
+def _node_platform() -> tuple[str, str] | None:
+    """(platform, arch) as the Node.js that runs the engine reports them. The engine picks the CLI it accepts
+    from its own ``process.platform``/``process.arch``, so a download must match Node, not this Python
+    (they differ when one of them runs under Rosetta)."""
+    node = paths.find_node()
+    if not node.get("path"):
+        return None
+    try:
+        out = subprocess.run([node["path"], "-p", "process.platform + ' ' + process.arch"], capture_output=True,
+                             text=True, timeout=10).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (out[0], out[1]) if len(out) == 2 else None
+
+
 def host_target() -> dict:
     """The engine's name for this computer, or why ModRetro's CLI cannot run here."""
     system, machine = platform.system(), platform.machine().lower()
-    arch = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}.get(machine)
-    name = {"Linux": "linux", "Darwin": "darwin", "Windows": "win32"}.get(system)
+    reported = _node_platform()
+    node_system, node_arch = reported if reported else (host_os.system_name(), host_os.native_arch())
+    arch = {"x64": "x64", "arm64": "arm64"}.get(node_arch)
+    name = {"linux": "linux", "darwin": "darwin"}.get(node_system)
     if not arch or not name:
         return {"target": None, "reason": f"ModRetro publishes no Chromatic CLI for {system} {machine}."}
     if name == "linux":

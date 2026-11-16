@@ -55,7 +55,7 @@ Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated 
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
 
-Qualified so far only on local Linux x64.
+Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests and a real broker in CI.
 
 ## How it is built
 
@@ -88,6 +88,12 @@ Qualified so far only on local Linux x64.
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
 - `skills/` — agent skills.
 - `schemas/`, `release/` — pinned contracts, engine manifest and test evidence.
+
+## Supported systems
+
+Linux and macOS, on Apple Silicon (arm64) and Intel (x64), with the same features on both. Windows is not
+supported: there the plugin loads nothing and `hermes plugins list` says why. On a Mac, run the Apple Silicon
+build of Hermes; under Rosetta everything works but builds are slower.
 
 ## Where your games and downloads live
 

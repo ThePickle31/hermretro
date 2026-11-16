@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 from pathlib import Path
+
+from . import host_os
 
 # What the engine's managed setup fetches for ["build", "emulator"]. Versions are the pins in
 # engine/modretro-chromatic/scripts/dependency-catalog.mjs (tests/test_onboarding.py keeps them in
@@ -48,10 +49,7 @@ _DOWNLOAD_DIRS = ("downloads", "cache")
 
 
 def host_target() -> str:
-    machine = platform.machine().lower()
-    arch = "arm64" if machine in ("arm64", "aarch64") else "x64" if machine in ("x86_64", "amd64") else machine
-    system = platform.system().lower()
-    return f"{'win32' if system == 'windows' else system}-{arch}"
+    return f"{host_os.system_name()}-{host_os.native_arch()}"
 
 
 def manifest() -> dict:

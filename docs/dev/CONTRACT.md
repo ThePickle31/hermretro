@@ -26,7 +26,8 @@ The page's copy of these names is `desktop-src/core/rpc.js`; the agent tool name
 {
   "ok": true,
   "plugin": { "id": "hermretro", "version": "0.0.4" },
-  "platform": { "system": "linux", "machine": "x86_64", "qualified": true },
+  "platform": { "system": "linux | darwin", "machine": "x64 | arm64", "rosetta": false, "supported": true,
+                "qualified": true },
   "node": { "found": true, "version": "26.13.0", "required": "22" },
   "engine": { "present": true, "version": "1.0.34", "verified": true, "detail": "" },
   "hardware_enabled": false,

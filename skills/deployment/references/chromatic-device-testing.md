@@ -213,7 +213,7 @@ does not prove that a driver is missing or that installing one fixed access.
 | Windows | arm64, x64 | Gowin USB driver, Visual C++ runtime (`VCRUNTIME140.dll`), and Universal C Runtime. |
 
 These are vendor binary targets, not full-plugin qualification claims.
-[Windows x64 remains experimental and full-plugin Windows ARM64 is unsupported](../../setup/references/windows-setup.md).
+hermretro itself runs on Linux and macOS only; it does not support Windows.
 Windows runtime libraries are not bundled or installed by the driver command.
 A missing runtime or denied elevation can fail before the vendor starts.
 The tool retains the original result without retrying.

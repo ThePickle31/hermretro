@@ -16,8 +16,7 @@ result separately. Neither a successful generic compiler check nor an import
 probe proves that the user's ROM has run.
 
 If the emulator is missing or unhealthy, follow the [setup skill](../../setup/SKILL.md)
-and [Packaged setup](../../setup/references/setup.md) or
-[Windows setup](../../setup/references/windows-setup.md): use the bundled entrypoint
+and [Packaged setup](../../setup/references/setup.md): use the bundled entrypoint
 directly and review a plan for an external owned root. Use existing task
 authorization for necessary setup; ask only for missing scope or required
 platform approval before `apply --yes`. If setup remains unavailable, report

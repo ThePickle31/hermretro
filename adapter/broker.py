@@ -20,16 +20,14 @@ import json
 import os
 import secrets
 import signal
-import socket
 import socketserver
-import struct
 import sys
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 
-from . import games, leases, onboarding, paths
+from . import games, host_os, leases, onboarding, paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 from . import provision
 
@@ -869,8 +867,8 @@ class Broker:
 class Handler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         broker: Broker = self.server.broker  # type: ignore[attr-defined]
-        creds = self.request.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
-        peer_pid, uid, _gid = struct.unpack("3i", creds)
+        # Kernel-reported; None when the system will not say (the run folder is private and the token secret).
+        peer_pid, uid = host_os.peer_credentials(self.request)
         authenticated = False
         with broker.connections_lock:
             broker.connections += 1
@@ -880,7 +878,7 @@ class Handler(socketserver.StreamRequestHandler):
                 broker.last_activity = time.monotonic()
                 try:
                     request = json.loads(raw)
-                    if uid != os.getuid():
+                    if uid is not None and uid != os.getuid():
                         raise Denied("FORBIDDEN", "Peer is not the broker's user.")
                     if not authenticated:
                         if request.get("op") != "hello" or request.get("protocol") != paths.PROTOCOL or \

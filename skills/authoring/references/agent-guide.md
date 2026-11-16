@@ -36,10 +36,7 @@ project, or generated image for the user's actual project or running game.
 
 ## Recognize platform and setup boundaries
 
-macOS and Linux support x64 and arm64. Native Windows x64 support remains
-experimental; a complete native setup/build/installed-plugin/gameplay pass is
-still required. Do not claim Windows ARM64 compatibility or report portable
-tests or macOS/Linux execution as Windows evidence.
+macOS and Linux support x64 and arm64. hermretro does not support Windows.
 
 Targeted Linux distributions require GNU/Linux with glibc 2.39+ for runtime
 preparation and MCP startup, including authoring-only use. Universal packages
