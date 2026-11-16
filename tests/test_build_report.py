@@ -8,7 +8,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import contracts, hermes_host  # noqa: E402
+from adapter import contracts, hermes_host, host_assets, host_tools  # noqa: E402
 
 GOOD = {"title": "  Robin in the sky ", "summary": "The robin now flies.\n  Press A to flap.",
         "changes": [{"kind": "added", "text": "Flying robin sprite", "asset": "assets/sprites/robin.png"},
@@ -25,8 +25,8 @@ class BuildReport(unittest.TestCase):
         (self.root / "assets" / "sprites").mkdir(parents=True)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"\x89PNG\r\n\x1a\n")
         (self.base / "elsewhere.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-        self.patches = [mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)),
-                        mock.patch.object(hermes_host, "_keep_paths")]
+        self.patches = [mock.patch.object(host_tools, "_chat_project", lambda *_ids: str(self.root)),
+                        mock.patch.object(host_assets, "_keep_paths")]
         for patch in self.patches:
             patch.start()
 
@@ -94,7 +94,7 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(len(answer["warnings"]), 3)
 
     def test_without_a_project_only_absolute_assets_are_kept(self):
-        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
+        with mock.patch.object(host_tools, "_chat_project", lambda *_ids: None):
             answer = self.report({**GOOD, "changes": [
                 {"kind": "added", "text": "a", "asset": str(self.base / "elsewhere.png")},
                 {"kind": "added", "text": "b", "asset": "assets/robin.png"}]})
@@ -119,7 +119,7 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(answer["code"], "PARENT_ONLY")
 
     def test_the_handler_never_raises(self):
-        with mock.patch.object(hermes_host, "_report_text", side_effect=RuntimeError("bad")):
+        with mock.patch.object(host_tools, "_report_text", side_effect=RuntimeError("bad")):
             self.assertEqual(self.report(dict(GOOD))["code"], "ADAPTER_ERROR")
         self.assertEqual(self.report(None)["code"], "INVALID_REPORT")
 

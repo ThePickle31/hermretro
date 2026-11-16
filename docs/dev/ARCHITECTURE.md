@@ -20,7 +20,11 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
 | Module | Job |
 |---|---|
 | `__init__.py` | `register()`: the page's RPCs everywhere; tools, skills, hooks and the prompt section only in the `hermretro` profile |
-| `adapter/hermes_host.py` | Everything that touches Hermes: tool handlers, RPC methods, hooks, the prompt section |
+| `adapter/hermes_host.py` | Everything that touches Hermes: engine tool handlers, hooks, the prompt section, the helpers the modules below share (data folder, profile, library, broker client); re-exports their names, so `hermes_host.<name>` reaches every RPC and tool |
+| `adapter/host_setup.py` | Setup page RPCs: `status`, `install`, `remove_tools`, `studio_profile`, `activity`, `doctor` |
+| `adapter/host_tools.py` | The plugin-owned tools: `chromatic_studio_device_cli`, `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` |
+| `adapter/host_games.py` | Games, Build and Emulator page RPCs (library, game ↔ conversation binding, build history, player, captures), the Build conversation's context, the build snapshot hook |
+| `adapter/host_assets.py` | Game images for the Build page (`asset`, `asset_info`, `asset_restore`, `assets`) and the kept versions of each image |
 | `adapter/contracts.py` | The engine's pinned tool contracts (`schemas/upstream/<v>/tools.json`) turned into Hermes schemas (`chromatic_*`) |
 | `adapter/results.py` | A broker answer turned into a Hermes tool result without losing what the engine said (images saved, content-addressed) |
 | `adapter/client.py` | Finds or starts the broker; refuses a stale one (code fingerprint) |
