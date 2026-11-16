@@ -30,9 +30,15 @@ class BrokerSocket(unittest.TestCase):
             raise unittest.SkipTest("Node.js 22 or newer is not installed")
         cls.base = Path(tempfile.mkdtemp(prefix="hs-", dir="/tmp")).resolve()  # short: socket paths are capped
         cls.state = cls.base / "run"
-        with mock.patch.dict(os.environ, {"HERMRETRO_HOME": str(cls.base / "home"),
-                                          "HERMRETRO_BROKER_IDLE_SECONDS": "20"}):  # a leaked one exits soon
-            cls.broker = client.ensure_broker(cls.state, wait=30)
+        environment = {k: v for k, v in os.environ.items() if k != "INVOCATION_ID"}  # no systemd scope in tests
+        environment.update({"HERMRETRO_HOME": str(cls.base / "home"),
+                            "HERMRETRO_BROKER_IDLE_SECONDS": "20"})  # a leaked one exits soon
+        try:
+            with mock.patch.dict(os.environ, environment, clear=True):
+                cls.broker = client.ensure_broker(cls.state, wait=30)
+        except Exception:
+            shutil.rmtree(cls.base, ignore_errors=True)
+            raise
         cls.pid = cls.broker.hello["pid"]
 
     @classmethod
@@ -102,6 +108,7 @@ class BrokerSocket(unittest.TestCase):
         self.assertEqual(self.ask({"op": "stats"})["lanes"], [], "a denied call starts no worker")
 
     def test_4_denials_are_traced(self):
+        self.ask({"op": "call", "owner": None, "tool": "session_status", "arguments": {}})
         events = [json.loads(line) for line in (self.state / "trace.jsonl").read_text().splitlines()]
         self.assertIn("broker_started", [event.get("event") for event in events])
         self.assertTrue(any(event.get("event") == "denied" and event.get("code") == "IDENTITY_REQUIRED"

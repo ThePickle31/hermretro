@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from . import games, leases, paths, provision
-from .broker_control import ControlMixin, _prepare_failure  # noqa: F401 - re-exported
+from .broker_control import ControlMixin
 from .broker_lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
 
