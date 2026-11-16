@@ -29,6 +29,25 @@ capped at 104 bytes on macOS).
 - **The emulator lease is stuck** (`recordingAccessFailure`). The broker clears it only when its owner is dead
   (`adapter/leases.py`); the trace says so.
 
+## Environment variables
+
+For development, tests and unusual setups; users need none of them.
+
+| Variable | What it does |
+|---|---|
+| `HERMRETRO_HOME` | Moves the whole hermretro folder (default `~/.hermes/hermretro`) |
+| `HERMRETRO_GAMES_DIR` | Moves only the games folder |
+| `HERMRETRO_LIBRARY_DIR` | Moves only the library (the Games shelf) |
+| `HERMRETRO_RUNTIME_DIR` | Moves the broker's run folder (socket, token, lock, trace) |
+| `HERMRETRO_DEPS_ROOT` | Uses another downloaded-tools folder (`.cache`); "Remove downloaded tools" then refuses |
+| `HERMRETRO_NODE` | The Node.js executable to use, tried first |
+| `HERMRETRO_EVERY_PROFILE` | `1`: register the agent side in every profile, not only `hermretro` (development) |
+| `HERMRETRO_BROKER_IDLE_SECONDS` | How long an idle broker stays (default 600) |
+| `HERMRETRO_LANE_IDLE_SECONDS` | How long an idle chat's engine worker stays (default 1800) |
+| `HERMRETRO_WRITER_HANDOFF_SECONDS` | How long a chat keeps a project's writer lease while idle (default 45) |
+
+`tests/test_lockstep.py` checks that every `HERMRETRO_*` variable the adapter reads is in this table.
+
 ## Stopping the broker by hand
 
 Send `{"op": "shutdown", "force": true}` through `adapter.client.ensure_broker()` (or stop the process). Workers

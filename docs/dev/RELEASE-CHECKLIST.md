@@ -2,12 +2,14 @@
 
 CI proves the code on Linux, Apple Silicon and Intel macOS runners, including the real engine. What it cannot
 prove is the desktop app on a real machine. Before a stable release (and after any change to setup, the
-broker or `adapter/host_os.py`), run this on a MacBook, and on Linux when the release touched the page.
+broker or `adapter/host_os.py`), run this on a MacBook and on a Linux desktop.
 
 ## On the machine
 
 1. Update Hermes Desktop to the newest version, then install or update hermretro (`hermes plugins update
-   hermretro`, or Rescan in Capabilities > Plugins). The install asks no questions about scanner findings.
+   hermretro` in the profile it was installed into, or Rescan in Capabilities > Plugins). The install asks no
+   questions about scanner findings. After an update, the page asks for a restart: quit and reopen the app,
+   and the message is gone.
 2. Open the hermretro page. Setup lists the downloads; run the install. It finishes, and Setup shows every step
    green. Note the time.
 3. Make a game from an idea on Home. The Build page shows the chat, the steps get words (no raw tool names), a
