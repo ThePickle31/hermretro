@@ -39,6 +39,10 @@ async function load() {
   for (const signal of ['SIGINT', 'SIGTERM']) {
     process.once(signal, () => { rmSync(work, { recursive: true, force: true }); process.exit(130) })
   }
+  // A crash outside the scenario's own try (an unhandled rejection, an error thrown in a timer): clean up, fail.
+  for (const event of ['uncaughtException', 'unhandledRejection']) {
+    process.once(event, error => { console.error(error); rmSync(work, { recursive: true, force: true }); process.exit(1) })
+  }
   try {
     symlinkSync(modules, path.join(work, 'node_modules'), 'dir')
     cpSync(path.join(here, 'sdk-stub.mjs'), path.join(work, 'sdk-stub.mjs'))
@@ -46,7 +50,15 @@ async function load() {
       readFileSync(path.join(here, '..', '..', 'desktop', 'plugin.js'), 'utf8').replace(/(['"])@hermes\/plugin-sdk\1/g, "'./sdk-stub.mjs'"))
     writeFileSync(path.join(work, 'run.mjs'), `
       import { JSDOM } from 'jsdom'
-      const dom = new JSDOM('<!doctype html><div id="root"></div>')
+      import { VirtualConsole } from 'jsdom'
+      // An error thrown inside the page (a React event handler, a timer) reaches only jsdom's console: fail on it.
+      const virtualConsole = new VirtualConsole()
+      virtualConsole.forwardTo(console, { jsdomErrors: 'none' })
+      virtualConsole.on('jsdomError', error => {
+        if (/Not implemented/.test(String(error?.message))) return   // canvas and friends: jsdom has none
+        console.error(error); process.exitCode = 1; globalThis.__pageErrors = (globalThis.__pageErrors ?? 0) + 1
+      })
+      const dom = new JSDOM('<!doctype html><div id="root"></div>', { virtualConsole })
       globalThis.window = dom.window; globalThis.document = dom.window.document
       globalThis.IS_REACT_ACT_ENVIRONMENT = true
       const { createRoot } = await import('react-dom/client')
@@ -154,6 +166,7 @@ export async function runScenario(body) {
   try {
     const env = environment(loaded)
     await body(env)
+    if (globalThis.__pageErrors) throw new Error(`${globalThis.__pageErrors} error(s) were thrown inside the page (see above)`)
     console.log(JSON.stringify({ passed: true, checks: env.checks.length, names: env.checks }, null, 1))
   } catch (error) {
     console.error(error)

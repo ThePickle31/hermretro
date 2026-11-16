@@ -72,6 +72,26 @@ await runScenario(async ({ act, dom, emit, scenario, page, text, click, settle, 
       animations: [{ slot: 0, name: 'Idle', frames: [[{ x: 0, y: 0, sliceX: 0, sliceY: 0 }, { x: 8, y: 0, sliceX: 8, sliceY: 0 }]] }] },
     usedIn: [], scenes: [] })
 
+  // Part one also sent a change from the image viewer in Frog Post's conversation and got a reply: replay that
+  // turn, so the checks below run with an earlier live turn between the build and the newest reply, as before.
+  {
+    const frog = await mount(page)
+    await settle(100)
+    await act(async () => { frog.node.querySelector('.cs-b-wk-assets').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+    await settle(30)
+    await click('Change', frog.node.querySelector('.cs-v-tabs'))
+    await typeInto(frog.node.querySelector('.cs-v-input'), 'make it green')
+    await click('Send to HermRetro', frog.node.querySelector('.cs-v'))
+    await settle()
+    if (!/make it green$/.test([...frog.node.querySelectorAll('.cs-b-user')].at(-1)?.textContent ?? '')) {
+      throw new Error('replaying part one: the viewer change was not sent')
+    }
+    await key('keydown', 'Escape')
+    await act(async () => { emit({ type: 'message.complete', session_id: 'rt-of-st-old', payload: { text: 'Greener now.' } }) })
+    await settle()
+    await frog.close()
+  }
+
   // A long turn: Simple shows five plain groups, Technical every step; a reply's pictures are small cards.
   const resume14b = scenario.byMethod['session.resume']
   const lib14Session = lib14[0].session
