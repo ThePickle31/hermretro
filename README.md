@@ -149,8 +149,8 @@ hermes -p hermretro tools list                           # the chromatic toolset
 it reports every tool and hook as "declared but not registered". That is expected; `clean_install_check.py`
 checks registration where it matters.
 
-The page test glob already includes `wizard_test.mjs`; run that file on its own only to read its full
-output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
+The page test glob already includes the page scenario files (`tests/desktop/page-*.test.mjs`, sharing
+`tests/desktop/harness.mjs`); run one on its own only to read its full output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
 folder: its Unix socket path must stay under 104 characters (macOS's limit; Linux allows 108).
 
 The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like everything in `notes/`).

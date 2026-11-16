@@ -6,7 +6,7 @@
 |---|---|---|---|
 | unit | `python tools/check.py unit` | ~3 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `desktop-src/` |
-| page | `python tools/check.py page` | ~9 s | The built page in jsdom (`tests/desktop/wizard_test.mjs`, 225 checks) and the inline player |
+| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/desktop/page-*.test.mjs`, 226 checks over five files run in parallel) and the inline player |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | acceptance | `python tools/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
 | clean install | `python tools/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
