@@ -22,7 +22,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `schemas/`, `release/` | Pinned engine tool contracts and the engine's file manifest |
 | `tests/` | Python unit tests, `tests/desktop/` page tests, `tests/acceptance/` real-engine run |
 | `tools/` | `check.py` (all checks), `bundle.mjs` (page build), `dev/` (pinned npm tools for development only) |
-| `docs/dev/` | `ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md` |
+| `docs/dev/` | `ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
 | `CONTRIBUTING.md`, `SECURITY.md` | For people opening pull requests or reporting problems |
 
 ## Checks
@@ -86,9 +86,11 @@ CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 The version lives only in `plugin.yaml` (`tests/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
 
-1. A pull request `chore/release-0.0.N` that changes only the `version:` line; merge it into `dev` when green.
-2. Fast-forward `main` to that `dev` commit: `git push origin <sha>:main` (never a merge commit or force).
-3. `git tag v0.0.N <sha>`, `git push origin v0.0.N`, then
+1. Run `docs/dev/RELEASE-CHECKLIST.md` on a real machine (a MacBook at least), or say in the release notes that
+   it was not run.
+2. A pull request `chore/release-0.0.N` that changes only the `version:` line; merge it into `dev` when green.
+3. Fast-forward `main` to that `dev` commit: `git push origin <sha>:main` (never a merge commit or force).
+4. `git tag v0.0.N <sha>`, `git push origin v0.0.N`, then
    `gh release create v0.0.N --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`
    (grouped by `.github/release.yml`). Read the draft, then publish it: releases are immutable once published.
-4. For a release candidate: tag `v0.0.N-rc.M` on a `dev` commit and add `--prerelease`; `main` does not move.
+5. For a release candidate: tag `v0.0.N-rc.M` on a `dev` commit and add `--prerelease`; `main` does not move.
