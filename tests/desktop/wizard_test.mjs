@@ -1,8 +1,8 @@
 // Drives the real hermretro page in jsdom: the header nav, the setup wizard (one step per
 // page, automatic advance when a step verifies) and the Home, Prompts, Games and Emulator pages.
 // It loads the built desktop/plugin.js (what ships); after editing desktop-src/ run node tools/bundle.mjs first.
-// Needs react, react-dom and jsdom from a Hermes Desktop checkout:
-//   node tests/desktop/wizard_test.mjs [path to apps/desktop/node_modules]
+// Needs react, react-dom and jsdom (tools/node-modules.mjs says where they come from):
+//   node tests/desktop/wizard_test.mjs [path to a node_modules folder]
 // Assert DOM presence and identity as booleans so failures do not inspect React's object graph.
 import assert from 'node:assert/strict'
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -11,6 +11,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { staleReasons } from '../../tools/bundle.mjs'
+import { findModules, MISSING_HINT } from '../../tools/node-modules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 // The page under test is the built bundle: never test one that no longer matches desktop-src/.
@@ -21,8 +22,12 @@ if (stale.length) {
   process.exit(1)
 }
 
-const modules = process.argv[2] || process.env.HERMES_DESKTOP_NODE_MODULES ||
-  path.join(os.homedir(), '.hermes', 'hermes-agent', 'apps', 'desktop', 'node_modules')
+const modules = process.argv[2] || findModules(['react', 'react-dom', 'jsdom'])
+
+if (!modules) {
+  console.error(`react, react-dom and jsdom were not found; ${MISSING_HINT}`)
+  process.exit(1)
+}
 const work = mkdtempSync(path.join(os.tmpdir(), 'chromatic-wizard-'))
 
 try {

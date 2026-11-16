@@ -1,0 +1,14 @@
+# Keeps the pinned GitHub Actions current; its pull requests go to dev like everyone else's.
+# The dev tools in tools/dev are updated by hand: esbuild's version is recorded in the generated page
+# bundle, so it moves only together with Hermes Desktop's. Security-update pull requests for tools/dev may
+# open against main: close them and redo the bump on a branch from dev.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

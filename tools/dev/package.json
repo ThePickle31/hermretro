@@ -1,0 +1,13 @@
+{
+  "name": "hermretro-dev-tools",
+  "private": true,
+  "description": "Tools for working on hermretro: building the page bundle and running the page tests. Never needed to use the plugin. Install with: npm ci --prefix tools/dev --ignore-scripts",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "29.1.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "6.0.3"
+  }
+}

@@ -218,7 +218,7 @@ class EngineStub:
 class AutoSelect(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
+        self.base = Path(self.tmp.name).resolve()  # macOS: /var is a link to /private/var
         self.registry = games.Registry(self.base / "lib")
         self.frog = make_project(self.base, "Frog Post")
         self.registry.upsert(str(self.frog))

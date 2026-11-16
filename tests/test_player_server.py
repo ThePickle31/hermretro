@@ -237,7 +237,7 @@ class Pieces(unittest.TestCase):
 class PlayerRpcs(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        base = Path(self.tmp.name)
+        base = Path(self.tmp.name).resolve()  # macOS: /var is a link to /private/var
         self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(base / "lib")}),
                         mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))]
         for patch in self.patches:
