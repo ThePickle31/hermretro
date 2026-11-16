@@ -132,8 +132,14 @@ python -m unittest discover -s tests                     # fast unit tests (no H
 node tools/bundle.mjs --check                            # the generated files match desktop-src/
 node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
-hermes -p hermretro plugins doctor hermretro            # registration check (85 tools only in that profile)
+python tools/prepare_toolchain.py                        # install the toolchain the acceptance run needs
+python tools/clean_install_check.py                      # clean install into a throwaway Hermes home
+hermes -p hermretro tools list                           # the chromatic toolset, only in that profile
 ```
+
+`hermes plugins doctor` registers the plugin in a temporary Hermes home that is not the `hermretro` profile, so
+it reports every tool and hook as "declared but not registered". That is expected; `clean_install_check.py`
+checks registration where it matters.
 
 The page test glob already includes `wizard_test.mjs`; run that file on its own only to read its full
 output. Run the acceptance test with a short temporary folder (`TMPDIR=$XDG_RUNTIME_DIR` on Linux,

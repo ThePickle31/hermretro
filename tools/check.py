@@ -146,8 +146,8 @@ def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from adapter import paths  # noqa: E402  (the adapter decides where setup put the toolchain)
     if not paths.setup_root().is_dir():
-        raise Skip(f"no toolchain at {paths.setup_root()}; run setup (the hermretro page or "
-                   "chromatic_toolchain_prepare), or point HERMRETRO_DEPS_ROOT at a folder that has one")
+        raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/prepare_toolchain.py (about a minute), "
+                   "or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
     result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())

@@ -1,0 +1,33 @@
+name: Hermes at a ref
+description: >-
+  Fetches hermes-agent at a ref and builds an isolated runtime with Hermes's own toolchain (as Hermes's
+  plugin-validate action does). Exports HERMES_CLI (the command that runs it) and HERMES_SOURCE (the checkout).
+
+inputs:
+  ref:
+    description: hermes-agent commit, tag or branch
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch hermes-agent and prepare its Python
+      shell: bash
+      env:
+        REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        source="$RUNNER_TEMP/hermes-agent"
+        rm -rf "$source"
+        git init -q "$source"
+        git -C "$source" fetch -q --depth=1 https://github.com/NousResearch/hermes-agent.git "$REF"
+        git -C "$source" checkout -q --detach FETCH_HEAD
+        echo "Hermes at $(git -C "$source" rev-parse HEAD)"
+        python3 -S "$source/scripts/ci/setup_toolchain.py" prepare --toolchain python --home "$source/.build/pm"
+        python3 -S "$source/scripts/ci/setup_toolchain.py" install --toolchain python --home "$source/.build/pm"
+        echo "HERMES_CHECKOUT=$source" >> "$GITHUB_ENV"
+    - name: Build the Hermes runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+        "$HERMES_PYTHON" "$GITHUB_WORKSPACE/tools/hermes_runtime.py" "$HERMES_CHECKOUT"

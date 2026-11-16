@@ -1,0 +1,49 @@
+# Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
+# verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
+# and Intel macOS. A failure here opens nothing by itself: read the run, then fix it in a pull request.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  latest-hermes:
+    name: Newest Hermes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/hermes
+        with:
+          ref: main
+      - name: hermes plugins validate
+        run: $HERMES_CLI plugins validate .
+      - name: python tools/check.py scan (newest scanner)
+        run: python3 tools/check.py scan --strict --hermes-source "$HERMES_SOURCE"
+      - name: python tools/clean_install_check.py
+        run: python3 tools/clean_install_check.py --hermes "$HERMES_CLI"
+
+  integration:
+    name: Integration
+    uses: ./.github/workflows/integration.yml
+    with:
+      systems: '["ubuntu-latest", "macos-latest", "macos-15-intel"]'
