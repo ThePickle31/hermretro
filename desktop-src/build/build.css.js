@@ -1,6 +1,8 @@
 export const BUILD_CSS = `
 /* build: games rail · the conversation with the agent (the game plays inside it) */
 .cs-pad.build { gap: 0; padding: 0; }
+.cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
+.cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
 .cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
 .cs-b-game { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 7px 8px; text-align: left; transition: background .12s ease; }
 .cs-b-game[aria-current] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); color: var(--ui-text-primary); }

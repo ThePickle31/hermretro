@@ -1,12 +1,12 @@
 // The game ↔ conversation binding (backend: `build` RPC, `games[].session`, `pending`).
-import { callStudio, describeRequestError } from '../core/backend.js'
+import { callStudioOnly, describeRequestError } from '../core/backend.js'
 import { RPC_BUILD } from '../core/rpc.js'
 
 /** Ask the backend to record a binding. An older backend without the RPC answers -32601: the page then
  *  keeps the binding for this visit only and names the project in the first message instead. */
 export async function buildRpc(params) {
   try {
-    const answer = await callStudio(RPC_BUILD, params)
+    const answer = await callStudioOnly(RPC_BUILD, params)
 
     if (answer && answer.ok === false) {
       throw Object.assign(new Error(answer.error || 'The backend refused.'), { code: answer.code })

@@ -49,6 +49,12 @@ def profile_name(home: Path) -> str:
     return home.name if home.parent.name == "profiles" else "default"
 
 
+def is_studio(name: str | None) -> bool:
+    """Whether the plugin's tools, skills, hooks and prompt belong in this profile: only the studio
+    profile, unless ``HERMRETRO_EVERY_PROFILE=1`` (plugin development only, never for users)."""
+    return name == STUDIO_PROFILE or os.environ.get("HERMRETRO_EVERY_PROFILE") == "1"
+
+
 def studio_dir() -> Path:
     from hermes_cli.profiles import get_profile_dir
     return get_profile_dir(STUDIO_PROFILE)

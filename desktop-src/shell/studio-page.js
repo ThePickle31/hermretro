@@ -16,9 +16,10 @@ import {
 import { ART_DATA } from '../art/index.js'
 import { injectBuildDraft } from '../build-chat/store.js'
 import { BuildPage } from '../build/build-page.js'
+import { StudioNeeded } from '../build/studio-needed.js'
 import { callStudio, describeRequestError, useBackend } from '../core/backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from '../core/ids.js'
-import { routing } from '../core/routing.js'
+import { forgetRoute, routing, studioTarget } from '../core/routing.js'
 import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from '../core/rpc.js'
 import { EmulatorBar } from '../emulator/emulator-bar.js'
 import { COVER_PROMPT } from '../games/game-card.js'
@@ -73,6 +74,11 @@ export function StudioPage({ ctx }) {
   const pinnedStep = running ? (steps.find(step => step.id === pinned) ?? null) : null
   const shown = pinnedStep ?? (choosing ? null : auto)
   const viaProfile = running ? (status.data.via_profile ?? null) : null
+  // The app itself is on the hermretro profile: Build chats and prompts use its own connection.
+  // Only an answer changes it: one failed poll must not swap a running Build chat for the repair panel.
+  if (running) {
+    routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio)
+  }
   const hardwareOn = Boolean(status.data?.hardware_enabled)
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn
   const gameReady = running && steps.filter(step => !step.hardware).every(step => step.complete)
@@ -190,9 +196,7 @@ export function StudioPage({ ctx }) {
 
   const refresh = () => {
     routing.scannedAt = 0 // look through the profiles again
-    routing.route = null // and forget a profile that may have been removed or stopped
-    routing.profile = null
-    routing.studio = false
+    forgetRoute() // and forget a profile that may have been removed or stopped
     void queryClient.invalidateQueries({ queryKey: [ID] })
   }
 
@@ -366,6 +370,8 @@ export function StudioPage({ ctx }) {
       storage: ctx.storage
     }, 'prompts')
     ]
+  } else if (page === 'build' && !studioTarget()) {
+    body = [jsx(StudioNeeded, { status }, 'studio-needed')]
   } else if (page === 'build') {
     body = [
       jsx(BuildPage, {

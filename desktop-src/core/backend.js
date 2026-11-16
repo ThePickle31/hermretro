@@ -1,7 +1,7 @@
 // Calls to the hermretro backend through the gateway, and the status / doctor queries.
 import { host, useQuery, useValue } from '../sdk.js'
 import { ID, STUDIO_PROFILE } from './ids.js'
-import { adoptStudioRoute, findRoute, ROUTE_SCAN_EVERY_MS, routeProfile, routing } from './routing.js'
+import { adoptStudioRoute, findRoute, ROUTE_SCAN_EVERY_MS, routeProfile, routing, StudioProfileMissing, studioTarget } from './routing.js'
 import { RPC_DOCTOR, RPC_STATUS } from './rpc.js'
 
 /** A rejected `host.request` (backend not loaded, unknown method, gateway down). */
@@ -157,6 +157,18 @@ export function nodeState(node) {
  *  backend that predates them answers -32601, which the pages report as "needs an update". */
 export async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs)
+}
+
+/** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*): the hermretro
+ *  profile only, like the Build chats themselves, never whichever profile answered `status`. */
+export async function callStudioOnly(method, params = {}, timeoutMs) {
+  const target = studioTarget()
+
+  if (!target) {
+    throw new StudioProfileMissing()
+  }
+
+  return target.route ? host.requestProfile(target.route, method, params, timeoutMs) : host.request(method, params, timeoutMs)
 }
 
 export function studioError(error, what) {

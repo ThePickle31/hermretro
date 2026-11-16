@@ -1,7 +1,7 @@
 // What the asset viewer loads about a file.
 import { useEffect, useState } from '../sdk.js'
 import { assetEntry } from '../build-assets/cache.js'
-import { callStudio } from '../core/backend.js'
+import { callStudioOnly } from '../core/backend.js'
 import { RPC_ASSET_INFO } from '../core/rpc.js'
 
 export const VIEWER_KIND = { cover: 'Game cover', sprite: 'Sprite', background: 'Background', ui: 'Interface', frame: 'Playtest frame', capture: 'Capture', image: 'Image' }
@@ -18,7 +18,7 @@ export function useAssetInfo(path, refresh) {
 
     let live = true
 
-    callStudio(RPC_ASSET_INFO, { path }, 20_000)
+    callStudioOnly(RPC_ASSET_INFO, { path }, 20_000)
       .then(answer => live && setInfo(answer?.ok ? answer : null))
       .catch(() => live && setInfo(null))
 

@@ -1,7 +1,7 @@
 // What the user can do with a Build conversation: open, send, stop, resume, answer.
 import { host } from '../sdk.js'
 import { describeRequestError } from '../core/backend.js'
-import { routing } from '../core/routing.js'
+import { studioTarget } from '../core/routing.js'
 import { attachmentLine } from './attachments.js'
 import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
@@ -285,8 +285,10 @@ export async function answerBuildPrompt(stored, item, answer) {
 }
 
 export function openInFullChat(stored) {
-  if (typeof host.openSession === 'function') {
-    void host.openSession(stored, routing.profile ? { profile: routing.profile } : {}).catch(error =>
+  const target = studioTarget()
+
+  if (target && typeof host.openSession === 'function') {
+    void host.openSession(stored, target.profile ? { profile: target.profile } : {}).catch(error =>
       host.notify({ kind: 'error', message: `Could not open the chat: ${describeRequestError(error).message}` })
     )
   }

@@ -192,9 +192,9 @@ try {
   })
   scenario.calls.length = 0; scenario.inserted.length = 0
   await click('Ask Hermes to fix it'); await settle()
-  check('Ask Hermes opens a new chat with the error in the prompt (not sent)', () => {
-    assert.ok(scenario.calls.some(call => call[0] === 'newChat'))
-    assert.match(scenario.inserted.at(-1)[1], /stopped with this error:\ncli: yarn: ENOTFOUND/)
+  check('before the hermretro profile exists, Ask Hermes opens no chat in another profile: it copies the prompt and says why', () => {
+    assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
+    assert.match(scenario.notices.at(-1).message, /hermretro profile is not set up yet.*prompt is copied/)
   })
   scenario.install = installAnswer({ state: 'done', started_at: 1, fraction: 1 })
   scenario.status = answered(status()); scenario.doctor = answered(doctor([]))
@@ -403,9 +403,9 @@ try {
   scenario.calls.length = 0
   await click('Use in chat')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('"Use in chat" opens a chat in that profile, never the current composer', () => {
-    assert.deepEqual(scenario.calls[0], ['newChat', 'chromatic-dev'])
-    assert.ok(!scenario.calls.some(call => call[0] === 'insert' && call[1] !== 'new'))
+  check('"Use in chat" never opens a chat outside the hermretro profile, nor uses the current composer', () => {
+    assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
+    assert.match(scenario.notices.at(-1).message, /hermretro profile is not set up yet/)
   })
   scenario.ambient = complete
   const direct = await scenario.fns.status()
@@ -429,6 +429,34 @@ try {
   check('ready page explains the studio and drops the Setup card', () => {
     assert.match(text(), /Build your game by chatting/); assert.ok(!text().includes('Check what is already installed'))
   })
+
+  // 8a. The Build page runs only in the hermretro profile: no fallback to the profile the app is on.
+  scenario.status = answered(status({ profile: { name: 'default', is_studio: false, create: { name: 'hermretro' },
+    studio: { name: 'hermretro', exists: true, installed: false, ours: true } } }))
+  scenario.calls.length = 0
+  await render(); await tab('Build')
+  check('without a working hermretro profile, Build shows a repair panel and starts no session anywhere', () => {
+    assert.match(text(), /The hermretro profile needs repair/); assert.ok(button('Repair'))
+    assert.ok(!dom.window.document.querySelector('.cs-b'), 'no Build conversation')
+    assert.ok(!scenario.calls.some(call => call[1] === 'session.create' || call[2] === 'session.create'))
+  })
+  scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true, profile: 'hermretro' })
+  scenario.calls.length = 0
+  await act(async () => { dom.window.document.querySelector('.cs-studio-needed button').click() }); await settle()
+  check('Repair finishes the existing profile again (no second profile is created)', () => {
+    const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
+    assert.ok(requests.includes('plugin.hermretro.studio_profile')); assert.ok(!requests.includes('profiles.create'))
+  })
+  scenario.status = answered(status({ profile: { name: 'default', is_studio: false, create: { name: 'hermretro' },
+    studio: { name: 'hermretro', exists: true, installed: true, ours: true } } }))
+  await render()
+  check('a finished profile that never answers still offers Repair while it waits', () => {
+    assert.match(text(), /Waiting for Hermes to start it/)
+    assert.ok(dom.window.document.querySelector('.cs-studio-needed button'))
+  })
+  delete scenario.byMethod['plugin.hermretro.studio_profile']
+  scenario.status = answered(complete)
+  await render(); await tab('Home')
   await act(async () => { root.unmount() })
 
   // 9. No panes beside the chat: the agent's work and the game live on the Build page.

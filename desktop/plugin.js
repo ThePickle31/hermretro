@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 7fef8dbcd76e28db779847a51688e638008403b95d9dbfd12171b87a94809510
- * body: sha256 726ca25926df5acb05196c33819b66607c5d73273fa9825be8d2d5c82e048447
+ * sources: sha256 5d9ad709a06b05e0d13608d7b77e546b5da7d7cc5e2c3c9a59098853b47b9431
+ * body: sha256 893551ecc3aa517f2b9c1ab95e44fadc93cd13581fb9395a7700f9ce022ac3ae
  */
 // desktop-src/sdk.js
 import {
@@ -64,7 +64,31 @@ var RPC_BUILD_RESTORE = `plugin.${ID}.build_restore`;
 var RPC_ASSETS = `plugin.${ID}.assets`;
 
 // desktop-src/core/routing.js
-var routing = { route: null, profile: null, scannedAt: 0, studio: false };
+var routing = { route: null, profile: null, scannedAt: 0, studio: false, ambientStudio: false };
+var StudioProfileMissing = class extends Error {
+  constructor() {
+    super("The hermretro profile is not set up. Repair it from the Build page or Setup.");
+    this.code = "STUDIO_PROFILE_MISSING";
+  }
+};
+function studioTarget() {
+  if (routing.studio && routing.route) {
+    return { route: routing.route, profile: STUDIO_PROFILE };
+  }
+  return routing.ambientStudio || activeProfile() === STUDIO_PROFILE ? { route: null, profile: null } : null;
+}
+function activeProfile() {
+  try {
+    return host.state.profile?.get?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+function forgetRoute() {
+  routing.route = null;
+  routing.profile = null;
+  routing.studio = false;
+}
 var ROUTE_SCAN_EVERY_MS = 3e4;
 function routeProfile(route) {
   return typeof route === "string" ? route : route?.targetProfile ?? route?.profile ?? null;
@@ -229,6 +253,13 @@ function nodeState(node) {
 }
 async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function callStudioOnly(method, params = {}, timeoutMs) {
+  const target = studioTarget();
+  if (!target) {
+    throw new StudioProfileMissing();
+  }
+  return target.route ? host.requestProfile(target.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
 }
 function studioError(error, what) {
   const { message, notLoaded } = describeRequestError(error);
@@ -703,11 +734,8 @@ var BUILD_EVENTS = [
   "session.info"
 ];
 var newId = () => typeof randomUuid === "function" ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-function chatRoute() {
-  return routing.route ?? null;
-}
 async function retainChatRoute() {
-  const route = chatRoute();
+  const route = studioTarget()?.route;
   if (!route || typeof host.retainProfile !== "function") {
     return;
   }
@@ -722,7 +750,11 @@ async function retainChatRoute() {
   }
 }
 async function chatRequest(method, params = {}, timeoutMs) {
-  const route = chatRoute();
+  const target = studioTarget();
+  if (!target) {
+    throw new StudioProfileMissing();
+  }
+  const { route } = target;
   return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
 }
 function patchChat(stored, change) {
@@ -1038,8 +1070,9 @@ async function answerBuildPrompt(stored, item, answer) {
   }
 }
 function openInFullChat(stored) {
-  if (typeof host.openSession === "function") {
-    void host.openSession(stored, routing.profile ? { profile: routing.profile } : {}).catch(
+  const target = studioTarget();
+  if (target && typeof host.openSession === "function") {
+    void host.openSession(stored, target.profile ? { profile: target.profile } : {}).catch(
       (error) => host.notify({ kind: "error", message: `Could not open the chat: ${describeRequestError(error).message}` })
     );
   }
@@ -2255,7 +2288,7 @@ function assetEntry(path, version) {
         try {
           const at = typeof version === "string" && version.startsWith("reply:") ? Number(version.slice(6)) || null : null;
           const kept = typeof version === "string" && version.startsWith("kept:") ? version.slice(5) : null;
-          const answer = await callStudio(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 2e4);
+          const answer = await callStudioOnly(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 2e4);
           entry.value = answer?.ok && typeof answer.dataUrl === "string" ? answer : null;
         } catch {
           entry.value = null;
@@ -2577,7 +2610,7 @@ function useProjectAssets(gameId, refresh) {
       return void 0;
     }
     let live = true;
-    callStudio(RPC_ASSETS, { game: gameId }, 2e4).then((answer) => live && setList(answer?.ok && Array.isArray(answer.assets) ? answer.assets : false)).catch(() => live && setList(false));
+    callStudioOnly(RPC_ASSETS, { game: gameId }, 2e4).then((answer) => live && setList(answer?.ok && Array.isArray(answer.assets) ? answer.assets : false)).catch(() => live && setList(false));
     return () => {
       live = false;
     };
@@ -3374,7 +3407,16 @@ async function insertWhenMounted(ctx, target, text2) {
 }
 var promptAdded = () => host.notify({ kind: "success", message: "Prompt added to the composer" });
 async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
-  const profile = routing.profile;
+  const target = studioTarget();
+  if (!target) {
+    const copied2 = await ctx.os.writeClipboard(prompt).catch(() => false);
+    host.notify({
+      kind: "warning",
+      message: `The hermretro profile is not set up yet, so no chat can use this prompt. Create it on Setup (Profile step), then ask Hermes there${copied2 ? "; the prompt is copied" : ""}.`
+    });
+    return;
+  }
+  const profile = target.profile;
   if (!profile && !fresh) {
     if (await insertText(null, prompt)) {
       promptAdded();
@@ -3403,11 +3445,13 @@ async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
 }
 async function openGameChat(game) {
   const stored = game?.chat?.sessionId;
-  if (!stored || typeof host.openSession !== "function") {
+  const target = studioTarget();
+  const inStudio = game?.chat?.profile ? game.chat.profile === STUDIO_PROFILE : true;
+  if (!stored || !target || !inStudio || typeof host.openSession !== "function") {
     return false;
   }
   try {
-    await host.openSession(stored, routing.profile ? { profile: routing.profile } : {});
+    await host.openSession(stored, target.profile ? { profile: target.profile } : {});
     return true;
   } catch {
     return false;
@@ -5358,7 +5402,7 @@ function useAssetInfo(path, refresh) {
       return void 0;
     }
     let live = true;
-    callStudio(RPC_ASSET_INFO, { path }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
+    callStudioOnly(RPC_ASSET_INFO, { path }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
     return () => {
       live = false;
     };
@@ -5699,7 +5743,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root,
     }
     setRestoring(true);
     try {
-      const answer = await callStudio(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 2e4);
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 2e4);
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be restored.");
       }
@@ -6064,7 +6108,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const undo = async () => {
     setState("busy");
     try {
-      const answer = await callStudio(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 2e4);
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 2e4);
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be put back.");
       }
@@ -6924,7 +6968,7 @@ var sideKey = (id) => `${ID}.emulator.${id}`;
 // desktop-src/build/binding.js
 async function buildRpc(params) {
   try {
-    const answer = await callStudio(RPC_BUILD, params);
+    const answer = await callStudioOnly(RPC_BUILD, params);
     if (answer && answer.ok === false) {
       throw Object.assign(new Error(answer.error || "The backend refused."), { code: answer.code });
     }
@@ -7005,7 +7049,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       return void 0;
     }
     let live = true;
-    callStudio(RPC_BUILDS, { game: game.id }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
+    callStudioOnly(RPC_BUILDS, { game: game.id }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
         setOpen(false);
@@ -7914,7 +7958,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       return false;
     }
     try {
-      const answer = await callStudio(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 6e4);
+      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 6e4);
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "The build could not be restored.");
       }
@@ -8076,6 +8120,152 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     ]
   });
   return jsx("div", { className: "cs-b", children: main });
+}
+
+// desktop-src/install/installer.js
+async function fetchInstall() {
+  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
+}
+var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
+function useInstall({ enabled }) {
+  return useQuery({
+    queryKey: [ID, "install"],
+    queryFn: fetchInstall,
+    enabled,
+    refetchInterval: enabled ? installInterval : false,
+    staleTime: 1e3,
+    retry: false
+  });
+}
+async function createStudioProfile(profile) {
+  if (!profile.studio?.exists) {
+    await host.request("profiles.create", profile.create);
+  }
+  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
+  if (!data?.ok) {
+    throw new Error(data?.error || "The profile could not be set up.");
+  }
+}
+var profileCreation = null;
+function createStudioProfileOnce(profile) {
+  profileCreation ??= createStudioProfile(profile).finally(() => {
+    profileCreation = null;
+  });
+  return profileCreation;
+}
+function useInstaller({ ctx, status, install, toolchainDone }) {
+  const [starting, setStarting] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
+  const [elsewhere, setElsewhere] = useState(false);
+  const data = install.data;
+  const unsupported = install.isError && describeRequestError(install.error).notLoaded;
+  const state = data?.install?.state ?? "idle";
+  const profile = status.data?.profile;
+  const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
+  const node = nodeState(status.data?.node);
+  const makeProfile = () => {
+    if (!needsProfile) {
+      return;
+    }
+    setProfileWork({ state: "running", error: null });
+    createStudioProfileOnce(profile).then(
+      () => {
+        setProfileWork({ state: "done", error: null });
+        status.refetch?.();
+      },
+      (error) => setProfileWork({ state: "failed", error: String(error?.message ?? error) })
+    );
+  };
+  const start = async () => {
+    if (starting) {
+      return;
+    }
+    setStarting(true);
+    setFailure(null);
+    makeProfile();
+    try {
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
+      if (answer?.code === "OPERATION_IN_PROGRESS") {
+        setElsewhere(true);
+        return;
+      }
+      if (!answer?.ok) {
+        throw new Error(answer?.error || "The install could not start.");
+      }
+      setElsewhere(false);
+      await install.refetch?.();
+    } catch (error) {
+      setFailure(describeRequestError(error).message || String(error?.message ?? error));
+    } finally {
+      setStarting(false);
+    }
+  };
+  const ask = () => sendPromptToChat(
+    ctx,
+    `${SETUP_PROMPT}
+
+The install on the hermretro page stopped with this error:
+${failure ?? data?.install?.error ?? "unknown error"}`,
+    { fresh: true }
+  );
+  const verifying = (state === "done" || elsewhere) && !toolchainDone;
+  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
+  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
+}
+
+// desktop-src/build/studio-needed.js
+function StudioNeeded({ status }) {
+  const profile = status.data?.profile;
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const exists = Boolean(profile?.studio?.exists);
+  const starting = Boolean(profile?.studio?.installed) && !working;
+  const repair = async () => {
+    if (working || !profile) {
+      return;
+    }
+    setWorking(true);
+    setFailure(null);
+    try {
+      await createStudioProfileOnce(profile);
+      host.notify({ kind: "success", message: "hermretro profile ready" });
+      status.refetch?.();
+    } catch (error) {
+      setFailure(String(error?.message ?? error));
+    } finally {
+      setWorking(false);
+    }
+  };
+  return jsxs("section", {
+    className: "cs-studio-needed cs-content",
+    role: "status",
+    children: [
+      jsx("h2", { children: exists ? "The hermretro profile needs repair" : "The hermretro profile is not set up" }),
+      jsx(Lede, {
+        children: "Build chats run only in the hermretro profile, where the game-making tools and skills live. " + (exists ? "It exists but is not answering as it should." : "It has not been created yet.")
+      }),
+      working ? jsx(Working, { children: exists ? "Repairing the profile…" : "Creating the profile…" }) : jsxs("div", {
+        className: "cs-col",
+        children: [
+          // Finished but not answering yet: usually Hermes is still starting it; Repair stays offered,
+          // because a profile whose plugin was turned off never answers.
+          starting ? jsx(Working, { children: "The profile is set up. Waiting for Hermes to start it…" }) : null,
+          jsx("div", {
+            className: "cs-actions",
+            children: jsx(Button, {
+              disabled: !profile,
+              onClick: repair,
+              size: "sm",
+              variant: starting ? "ghost" : "default",
+              children: exists ? "Repair" : "Set up the profile"
+            })
+          })
+        ]
+      }),
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
 }
 
 // desktop-src/ui/art.js
@@ -8780,98 +8970,6 @@ function HomePage({ ctx, steps, auto, autoId, choosing, status, doctor, memory, 
       })
     ]
   });
-}
-
-// desktop-src/install/installer.js
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
-}
-var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
-function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, "install"],
-    queryFn: fetchInstall,
-    enabled,
-    refetchInterval: enabled ? installInterval : false,
-    staleTime: 1e3,
-    retry: false
-  });
-}
-async function createStudioProfile(profile) {
-  if (!profile.studio?.exists) {
-    await host.request("profiles.create", profile.create);
-  }
-  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
-  if (!data?.ok) {
-    throw new Error(data?.error || "The profile could not be set up.");
-  }
-}
-var profileCreation = null;
-function createStudioProfileOnce(profile) {
-  profileCreation ??= createStudioProfile(profile).finally(() => {
-    profileCreation = null;
-  });
-  return profileCreation;
-}
-function useInstaller({ ctx, status, install, toolchainDone }) {
-  const [starting, setStarting] = useState(false);
-  const [failure, setFailure] = useState(null);
-  const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
-  const [elsewhere, setElsewhere] = useState(false);
-  const data = install.data;
-  const unsupported = install.isError && describeRequestError(install.error).notLoaded;
-  const state = data?.install?.state ?? "idle";
-  const profile = status.data?.profile;
-  const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
-  const node = nodeState(status.data?.node);
-  const makeProfile = () => {
-    if (!needsProfile) {
-      return;
-    }
-    setProfileWork({ state: "running", error: null });
-    createStudioProfileOnce(profile).then(
-      () => {
-        setProfileWork({ state: "done", error: null });
-        status.refetch?.();
-      },
-      (error) => setProfileWork({ state: "failed", error: String(error?.message ?? error) })
-    );
-  };
-  const start = async () => {
-    if (starting) {
-      return;
-    }
-    setStarting(true);
-    setFailure(null);
-    makeProfile();
-    try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
-      if (answer?.code === "OPERATION_IN_PROGRESS") {
-        setElsewhere(true);
-        return;
-      }
-      if (!answer?.ok) {
-        throw new Error(answer?.error || "The install could not start.");
-      }
-      setElsewhere(false);
-      await install.refetch?.();
-    } catch (error) {
-      setFailure(describeRequestError(error).message || String(error?.message ?? error));
-    } finally {
-      setStarting(false);
-    }
-  };
-  const ask = () => sendPromptToChat(
-    ctx,
-    `${SETUP_PROMPT}
-
-The install on the hermretro page stopped with this error:
-${failure ?? data?.install?.error ?? "unknown error"}`,
-    { fresh: true }
-  );
-  const verifying = (state === "done" || elsewhere) && !toolchainDone;
-  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
-  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
 }
 
 // desktop-src/core/format.js
@@ -10824,6 +10922,8 @@ var BUILD_RESPONSIVE_CSS = `
 var BUILD_CSS = `
 /* build: games rail · the conversation with the agent (the game plays inside it) */
 .cs-pad.build { gap: 0; padding: 0; }
+.cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
+.cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
 .cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
 .cs-b-game { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 7px 8px; text-align: left; transition: background .12s ease; }
 .cs-b-game[aria-current] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); color: var(--ui-text-primary); }
@@ -11678,6 +11778,9 @@ function StudioPage({ ctx }) {
   const pinnedStep = running ? steps.find((step) => step.id === pinned) ?? null : null;
   const shown = pinnedStep ?? (choosing ? null : auto);
   const viaProfile = running ? status.data.via_profile ?? null : null;
+  if (running) {
+    routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio);
+  }
   const hardwareOn = Boolean(status.data?.hardware_enabled);
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn;
   const gameReady = running && steps.filter((step) => !step.hardware).every((step) => step.complete);
@@ -11752,9 +11855,7 @@ function StudioPage({ ctx }) {
   };
   const refresh = () => {
     routing.scannedAt = 0;
-    routing.route = null;
-    routing.profile = null;
-    routing.studio = false;
+    forgetRoute();
     void queryClient.invalidateQueries({ queryKey: [ID] });
   };
   const pick = (id) => setPinned(id === autoId ? null : id);
@@ -11891,6 +11992,8 @@ function StudioPage({ ctx }) {
         storage: ctx.storage
       }, "prompts")
     ];
+  } else if (page === "build" && !studioTarget()) {
+    body = [jsx(StudioNeeded, { status }, "studio-needed")];
   } else if (page === "build") {
     body = [
       jsx(BuildPage, {

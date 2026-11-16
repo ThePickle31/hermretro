@@ -2,7 +2,7 @@
 import { jsx, jsxs, useEffect, useState } from '../sdk.js'
 import { useAsset } from '../build-assets/cache.js'
 import { SheetFrame } from '../build-assets/images.js'
-import { callStudio } from '../core/backend.js'
+import { callStudioOnly } from '../core/backend.js'
 import { AGENT } from '../core/ids.js'
 import { RPC_ASSETS } from '../core/rpc.js'
 
@@ -55,7 +55,7 @@ export function useProjectAssets(gameId, refresh) {
 
     let live = true
 
-    callStudio(RPC_ASSETS, { game: gameId }, 20_000)
+    callStudioOnly(RPC_ASSETS, { game: gameId }, 20_000)
       .then(answer => live && setList(answer?.ok && Array.isArray(answer.assets) ? answer.assets : false))
       .catch(() => live && setList(false))
 

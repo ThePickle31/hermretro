@@ -1,6 +1,6 @@
 // Project files (art) loaded through the `asset` RPC, cached per version.
 import { useEffect, useState } from '../sdk.js'
-import { callStudio } from '../core/backend.js'
+import { callStudioOnly } from '../core/backend.js'
 import { RPC_ASSET } from '../core/rpc.js'
 
 export const assetCache = new Map()
@@ -43,7 +43,7 @@ export function assetEntry(path, version) {
           const at = typeof version === 'string' && version.startsWith('reply:') ? Number(version.slice(6)) || null : null
           // The viewer's version strip asks for one kept version by id.
           const kept = typeof version === 'string' && version.startsWith('kept:') ? version.slice(5) : null
-          const answer = await callStudio(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 20_000)
+          const answer = await callStudioOnly(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 20_000)
 
           entry.value = answer?.ok && typeof answer.dataUrl === 'string' ? answer : null
         } catch {

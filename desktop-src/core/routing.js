@@ -7,8 +7,43 @@ import { RPC_STATUS } from './rpc.js'
 // does not have it, use a profile that does (without switching the app to it) and send
 // "Use in chat" prompts to that profile.
 // `studio` is set when the route is the dedicated hermretro profile: it is then preferred
-// over the profile the app is on, even when that one has the plugin too.
-export const routing = { route: null, profile: null, scannedAt: 0, studio: false }
+// over the profile the app is on, even when that one has the plugin too. `ambientStudio` is set when the
+// app itself is on the hermretro profile (no route needed).
+export const routing = { route: null, profile: null, scannedAt: 0, studio: false, ambientStudio: false }
+
+/** Thrown by anything that must run in the hermretro profile when that profile is not ready. */
+export class StudioProfileMissing extends Error {
+  constructor() {
+    super('The hermretro profile is not set up. Repair it from the Build page or Setup.')
+    this.code = 'STUDIO_PROFILE_MISSING'
+  }
+}
+
+/** Where Build chats, game chats and prompts go: ONLY the hermretro profile (its tools and prompt exist
+ *  nowhere else). `{ route, profile }` for a routed call, `{ route: null, profile: null }` when the app is on
+ *  that profile itself, or null when it is not ready: never another profile. */
+export function studioTarget() {
+  if (routing.studio && routing.route) {
+    return { route: routing.route, profile: STUDIO_PROFILE }
+  }
+
+  return routing.ambientStudio || activeProfile() === STUDIO_PROFILE ? { route: null, profile: null } : null
+}
+
+function activeProfile() {
+  try {
+    return host.state.profile?.get?.() ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Forget the found route (ambientStudio follows the status the page renders, so it stays). */
+export function forgetRoute() {
+  routing.route = null
+  routing.profile = null
+  routing.studio = false
+}
 export const ROUTE_SCAN_EVERY_MS = 30_000
 
 export function routeProfile(route) {

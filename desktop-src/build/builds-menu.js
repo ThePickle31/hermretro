@@ -1,6 +1,6 @@
 // The Build header: where the game stands, and its builds.
 import { Button, Codicon, jsx, jsxs, Tip, useEffect, useRef, useState } from '../sdk.js'
-import { callStudio } from '../core/backend.js'
+import { callStudioOnly } from '../core/backend.js'
 import { AGENT } from '../core/ids.js'
 import { RPC_BUILDS } from '../core/rpc.js'
 import { timeOfDay } from '../core/time.js'
@@ -85,7 +85,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
 
     let live = true
 
-    callStudio(RPC_BUILDS, { game: game.id }, 20_000)
+    callStudioOnly(RPC_BUILDS, { game: game.id }, 20_000)
       .then(answer => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false))
       .catch(() => live && setSnapshots(false))
 
