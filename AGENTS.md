@@ -30,7 +30,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 One-time setup for page work: `npm ci --prefix tools/dev --ignore-scripts` (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, page, scan (about 25 s)
+python tools/check.py            # fast: unit, bundle, page, scan (together, about 11 s)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 node tools/bundle.mjs            # rebuild the generated page files after editing desktop-src/
