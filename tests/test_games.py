@@ -229,7 +229,8 @@ class GamesRpc(unittest.TestCase):
         home = self.base / "hermes" / "profiles" / "studio"
         (home / "plugin-data" / "hermretro").mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib")}),
+            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
             mock.patch.object(hermes_host, "_data_dir", lambda: home / "plugin-data" / "hermretro"),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
         ]

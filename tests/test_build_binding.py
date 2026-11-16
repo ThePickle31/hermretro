@@ -274,7 +274,8 @@ class RpcAndContext(unittest.TestCase):
         home = self.base / "hermes" / "profiles" / "studio" / "plugin-data" / "hermretro"
         home.mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib")}),
+            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
             mock.patch.object(hermes_host, "_data_dir", lambda: home),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
         ]
@@ -336,7 +337,8 @@ class AssetRpc(unittest.TestCase):
         self.home = self.base / "plugin-data"
         (self.home / "frames").mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib")}),
+            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
             mock.patch.object(hermes_host, "_data_dir", lambda: self.home),
         ]
         for patch in self.patches:

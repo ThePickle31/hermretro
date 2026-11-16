@@ -96,12 +96,17 @@ Qualified so far only on local Linux x64.
 ## Test
 
 ```sh
-python -m unittest discover -s tests                     # fast unit tests
-python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~20 s)
+python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
+node tools/bundle.mjs --check                            # the generated files match desktop-src/
+node --test tests/desktop/                               # page tests, including the built page in jsdom
+python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
 hermes plugins doctor .                                  # Hermes's own registration check
-node tools/bundle.mjs --check                            # desktop/plugin.js matches desktop-src/
-node tests/desktop/wizard_test.mjs                       # the built page, driven in jsdom
 ```
+
+`node --test tests/desktop/` already runs `wizard_test.mjs`; run that file on its own only to read its full
+output. Run the acceptance test with a short temporary folder (`TMPDIR=$XDG_RUNTIME_DIR` on Linux,
+`TMPDIR=/tmp` on macOS; plain `/tmp` works anywhere): its Unix socket path must stay under 104 characters
+(macOS's limit; Linux allows 108).
 
 The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like everything in `notes/`).
 

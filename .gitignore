@@ -7,3 +7,5 @@ deps/
 /games/
 # Local notes, evidence, mockups and temp files: never committed
 /notes/
+# Worktrees Hermes makes for parallel work (Desktop's New worktree, /worktree new)
+/.worktrees/

@@ -16,8 +16,10 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from adapter import games, hermes_host, paths, player_server  # noqa: E402
+from support import throwaway_profile  # noqa: E402
 
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
@@ -288,8 +290,10 @@ class DemoCartridge(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib")}),
-                        mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))]
+        self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib"),
+                                                     "HERMRETRO_RUNTIME_DIR": str(Path(self.tmp.name) / "run")}),
+                        mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+                        throwaway_profile(Path(self.tmp.name))]
         for patch in self.patches:
             patch.start()
         self.ctx = mock.Mock()
