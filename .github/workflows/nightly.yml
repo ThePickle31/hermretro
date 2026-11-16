@@ -1,6 +1,8 @@
 # Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
 # verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
 # and Intel macOS. A failure here opens nothing by itself: read the run, then fix it in a pull request.
+# GitHub runs scheduled workflows only from the default branch (main): changes here take effect at the next
+# release. Run it by hand on any branch with `gh workflow run nightly.yml --ref <branch>` once it is on main.
 
 name: Nightly
 
@@ -36,11 +38,11 @@ jobs:
         with:
           ref: main
       - name: hermes plugins validate
-        run: $HERMES_CLI plugins validate .
+        run: '"$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate .'
       - name: python tools/check.py scan (newest scanner)
         run: python3 tools/check.py scan --strict --hermes-source "$HERMES_SOURCE"
       - name: python tools/clean_install_check.py
-        run: python3 tools/clean_install_check.py --hermes "$HERMES_CLI"
+        run: python3 tools/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
 
   integration:
     name: Integration

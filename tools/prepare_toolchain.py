@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from adapter import client, paths  # noqa: E402
 
-LIMIT_SECONDS = 1500
+LIMIT_SECONDS = 1200
 
 
 def main() -> int:
@@ -38,7 +38,7 @@ def main() -> int:
             if line != last:
                 print(f"{time.monotonic() - began:6.0f} s  {line}", flush=True)
                 last = line
-            if state in ("done", "failed", "idle") and time.monotonic() - began > 2:
+            if state in ("done", "failed"):
                 break
             if time.monotonic() - began > LIMIT_SECONDS:
                 print("install did not finish in time", file=sys.stderr)
@@ -49,7 +49,12 @@ def main() -> int:
             return 1
         return 0
     finally:
-        broker.request({"op": "shutdown", "force": True})
+        # Never forced: from a checkout a Hermes profile loads, this may be the live broker that chats use; a busy
+        # broker refuses a plain shutdown and keeps running, an idle one exits.
+        try:
+            broker.request({"op": "shutdown"})
+        except Exception:  # noqa: BLE001 - the broker already went away; keep the real result
+            pass
         broker.close()
 
 

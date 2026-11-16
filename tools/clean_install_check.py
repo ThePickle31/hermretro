@@ -1,7 +1,7 @@
 """A clean install of this checkout into a throwaway Hermes home, the way a user installs hermretro.
 
     python tools/clean_install_check.py                       # with the `hermes` on PATH
-    python tools/clean_install_check.py --hermes "/path/python -I -m hermes_cli.main"
+    python tools/clean_install_check.py --hermes-python /path/to/hermes/runtime/python
 
 Creates the `hermretro` profile, installs the committed checkout into it and into the default profile
 (Hermes's install scanner runs on both; a caution or a block fails here, because nothing can confirm), then
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -23,9 +22,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").strip().splitlines()[0])
-    parser.add_argument("--hermes", default="hermes", help="command that runs the Hermes CLI")
+    parser.add_argument("--hermes-python", help="a Python that can import hermes_cli (default: `hermes` on PATH)")
     args = parser.parse_args(argv)
-    hermes = shlex.split(args.hermes)
+    hermes = [args.hermes_python, "-I", "-m", "hermes_cli.main"] if args.hermes_python else ["hermes"]
 
     # Never under ~/.hermes: Hermes treats a home inside its real root as the real root itself.
     real_root = Path.home() / ".hermes"
@@ -38,7 +37,8 @@ def main(argv: list[str] | None = None) -> int:
         studio = root / "profiles" / "hermretro"
 
         def run(home: Path, *command: str) -> str:
-            env = {**{k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_")},
+            # Nothing from a surrounding Hermes or hermretro session (profile pins, session ids, real home).
+            env = {**{k: v for k, v in os.environ.items() if not k.startswith(("HERMRETRO_", "HERMES_"))},
                    "HERMES_HOME": str(home), "HERMRETRO_HOME": str(Path(tmp) / "hermretro")}
             done = subprocess.run([*hermes, *command], env=env, cwd=tmp, stdin=subprocess.DEVNULL,
                                   capture_output=True, text=True, timeout=600)

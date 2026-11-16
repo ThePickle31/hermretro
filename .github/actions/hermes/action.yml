@@ -1,7 +1,8 @@
 name: Hermes at a ref
 description: >-
   Fetches hermes-agent at a ref and builds an isolated runtime with Hermes's own toolchain (as Hermes's
-  plugin-validate action does). Exports HERMES_CLI (the command that runs it) and HERMES_SOURCE (the checkout).
+  plugin-validate action does). Exports HERMES_RUNTIME_PY (run Hermes with "$HERMES_RUNTIME_PY" -I -m hermes_cli.main) and
+  HERMES_SOURCE (the checkout).
 
 inputs:
   ref:

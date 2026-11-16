@@ -36,11 +36,11 @@ jobs:
         with:
           node-version: "24"
       # The installed toolchain (about 2.4 GB), keyed by the engine's pinned dependency catalog: a new pin or
-      # engine version installs afresh. Saved only after a successful run.
+      # engine version installs afresh. Saved only after a successful run. Bump v1 to throw a bad cache away.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.hermes/hermretro/.cache/toolchain
-          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/dependency-catalog.mjs', 'release/baseline/engine-*.manifest.json') }}
+          key: toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/dependency-catalog.mjs', 'release/baseline/engine-*.manifest.json') }}
       - name: python tools/prepare_toolchain.py
         run: python tools/prepare_toolchain.py
       - name: python tools/check.py acceptance

@@ -142,9 +142,8 @@ it reports every tool and hook as "declared but not registered". That is expecte
 checks registration where it matters.
 
 The page test glob already includes `wizard_test.mjs`; run that file on its own only to read its full
-output. Run the acceptance test with a short temporary folder (`TMPDIR=$XDG_RUNTIME_DIR` on Linux,
-`TMPDIR=/tmp` on macOS; plain `/tmp` works anywhere): its Unix socket path must stay under 104 characters
-(macOS's limit; Linux allows 108).
+output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
+folder: its Unix socket path must stay under 104 characters (macOS's limit; Linux allows 108).
 
 The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like everything in `notes/`).
 

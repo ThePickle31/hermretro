@@ -149,6 +149,7 @@ def check_acceptance(args) -> str:
         raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/prepare_toolchain.py (about a minute), "
                    "or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
+    (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
