@@ -470,6 +470,20 @@ export function StudioPage({ ctx }) {
           {
             className: flush ? 'cs-pad flush' : running && page === 'build' && !onboardScreen ? 'cs-pad build' : 'cs-pad',
             children: [
+              running && status.data?.restart_needed
+                ? jsxs(
+                    'div',
+                    {
+                      className: 'cs-repair',
+                      role: 'status',
+                      children: [
+                        jsx(Codicon, { name: 'refresh', size: 14 }),
+                        jsx('span', { children: 'hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart).' })
+                      ]
+                    },
+                    'restart'
+                  )
+                : null,
               broken
                 ? jsxs(
                     'div',

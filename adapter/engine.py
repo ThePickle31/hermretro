@@ -17,12 +17,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from . import host_os
+
 PROTOCOL_VERSION = "2024-11-05"
 
 # Variables the engine launcher needs. Everything else from the parent
 # environment (gateway credentials included) is deliberately not inherited.
 _PASSTHROUGH = ("PATH", "HOME", "LANG", "LC_ALL", "XDG_DATA_HOME", "XDG_CACHE_HOME",
-                "XDG_RUNTIME_DIR", "TMPDIR", "USER", "LOGNAME", "DISPLAY", "WAYLAND_DISPLAY")
+                "XDG_RUNTIME_DIR", "TMPDIR", "USER", "LOGNAME", "DISPLAY", "WAYLAND_DISPLAY", *host_os.NETWORK_ENV)
 
 
 class EngineError(RuntimeError):

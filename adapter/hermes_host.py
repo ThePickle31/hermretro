@@ -597,7 +597,25 @@ def build_report_handler(args: dict, **kwargs) -> str:
 
 def _platform_report() -> dict:
     found = host_os.describe()
-    return {**found, "qualified": found["supported"] and not found["rosetta"] and found["machine"] in ("arm64", "x64")}
+    reported = provision._node_platform()   # cached per Node executable
+    node_arch = reported[1] if reported else None
+    return {**found, "node_arch": node_arch,
+            "qualified": found["supported"] and not found["rosetta"] and found["machine"] in ("arm64", "x64")
+            and node_arch in (None, found["machine"])}
+
+
+def _games_dir_made():
+    """The games folder, created so "Open games folder" opens it on a fresh install (a reveal of a missing
+    folder does nothing). A folder that cannot be made is still named."""
+    try:
+        return paths.games_dir(create=True)
+    except OSError:
+        return paths.games_dir()
+
+
+# The adapter code this gateway process loaded. When the files on disk change (a plugin update), the running
+# Hermes keeps the old code until it restarts: the page says so.
+LOADED_FINGERPRINT = paths.code_fingerprint()
 
 
 def rpc_status(ctx):
@@ -617,6 +635,7 @@ def rpc_status(ctx):
                 "broker": {"running": False},
                 "project": None,
                 "profile": studio_profile.describe(_data_dir().parents[1]),
+                "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
             }
             client, _error = try_connect(paths.runtime_dir())  # never starts the broker
             if client is not None:
@@ -930,7 +949,7 @@ def rpc_games(ctx):
             # The built-in demo cartridge is not part of the library (the Games shelf stays the user's own
             # games); the Emulator page plays it when there is nothing else to play.
             return {"ok": True, "games": listed, "pending": pending, "demo": _demo_entry(),
-                    "gamesDir": str(paths.games_dir()),
+                    "gamesDir": str(_games_dir_made()),
                     "device": {"hardwareEnabled": bool(ctx.get_config("hardware_enabled", False)), "skipped": False}}
         except Exception as error:
             logger.exception("hermretro games failed")

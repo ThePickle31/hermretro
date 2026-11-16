@@ -291,6 +291,7 @@ class DemoCartridge(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib"),
+                                                     "HERMRETRO_GAMES_DIR": str(Path(self.tmp.name) / "games"),
                                                      "HERMRETRO_RUNTIME_DIR": str(Path(self.tmp.name) / "run")}),
                         mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
                         throwaway_profile(Path(self.tmp.name))]
