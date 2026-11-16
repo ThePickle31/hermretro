@@ -75,9 +75,9 @@ CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 - Agents never merge. The owner merges.
 - When two pull requests both change the page, the generated files conflict. Fix it with
   `git merge origin/dev`, then `node tools/bundle.mjs`, then commit the two generated files.
-- Names that must change together: plugin tools in `plugin.yaml`, `__init__.py`, `docs/dev/CONTRACT.md`
-  and `tests/test_contracts_and_results.py`; RPC names in `adapter/hermes_host.py`,
-  `desktop-src/core/rpc.js` and `docs/dev/CONTRACT.md`.
+- Names that must change together are checked by `tests/test_lockstep.py`, whose opening comment lists every
+  place to edit when adding a plugin tool or an RPC (manifest, registration, page names, step words, docs) and
+  which also keeps the engine version in agreement.
 - This guide changes in the same pull request as any command or rule it describes.
 
 ## Releases (only when the owner asks)

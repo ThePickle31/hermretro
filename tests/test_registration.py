@@ -2,12 +2,14 @@
 in every profile the plugin is on (the profile it was installed into sets the studio profile up)."""
 import importlib.util
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+DECLARED_TOOLS = re.findall(r"^  - (chromatic_\w+)$", (ROOT / "plugin.yaml").read_text(encoding="utf-8"), re.M)
 
 
 def load_plugin():
@@ -55,9 +57,9 @@ class Registration(unittest.TestCase):
 
     def test_the_studio_profile_gets_everything(self):
         calls = self.register("hermretro")
-        self.assertEqual(len(calls["tool"]), 85)
+        self.assertEqual(len(calls["tool"]), len(DECLARED_TOOLS))
         self.assertIn("chromatic_present_game", calls["tool"])
-        self.assertEqual(len(calls["skill"]), 6)
+        self.assertEqual(len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()]))
         self.assertEqual(sorted(calls["hook"]), sorted(["pre_tool_call", "subagent_start", "subagent_stop",
                                                         "pre_llm_call", "post_llm_call", "post_tool_call"]))
         self.assertEqual(calls["section"], ["hermretro.guide"])
@@ -72,7 +74,7 @@ class Registration(unittest.TestCase):
 
     def test_plugin_development_can_opt_every_profile_in(self):
         calls = self.register("hermretro-development", {"HERMRETRO_EVERY_PROFILE": "1"})
-        self.assertEqual(len(calls["tool"]), 85)
+        self.assertEqual(len(calls["tool"]), len(DECLARED_TOOLS))
 
 
 if __name__ == "__main__":
