@@ -98,8 +98,9 @@ def check_page(args) -> str:
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/dev --ignore-scripts)")
     if result.returncode:
-        raise AssertionError(tail(output, 40) + "\nFIX: run node tests/desktop/wizard_test.mjs for the full "
-                             "output; after editing desktop-src/ run node tools/bundle.mjs first")
+        raise AssertionError(tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
+                             "tests/desktop/page-<name>.test.mjs, named in the failure above); after editing "
+                             "desktop-src/ run node tools/bundle.mjs first")
     counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
     return ", ".join(line[2:] for line in counts) or "ok"
 
