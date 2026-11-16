@@ -3,7 +3,7 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 ff232c9c8d523c2c785d0a5db63cd9f8c8ef2611aad093710f9ea9bf7ad3b150
+ * sources: sha256 f0673be2be4517479d918ea0631f8b04b57fa35e5bd516e8b6cdda39f1cf4263
  * body: sha256 7b313412e7269a9a0edc2203947a101776021a67881ab61e32bd0425d4429692
  */
 // desktop-src/sdk.js

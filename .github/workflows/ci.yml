@@ -1,0 +1,127 @@
+# hermretro's checks. The only required check is "All checks pass" (all-checks-pass), which sums up the
+# others, so jobs can be added, split or skipped without touching the repository rules. Every check here is
+# also `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
+#
+# Safety: this workflow runs code from pull requests (forks included), so it uses no secrets, its token
+# can only read, and every action is pinned to a full commit SHA (the repository requires it).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The oldest Hermes this plugin supports (plugin.yaml requires_hermes), v0.23.1. Its install scanner and
+  # validator decide whether users can install a commit.
+  HERMES_REF: 3b421578588243f920886e6fe79a6faa87ea026e
+
+jobs:
+  base:
+    name: Pull request targets dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Pull requests go to dev; main moves only at a release
+        if: github.event_name == 'pull_request' && github.base_ref != 'dev'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          echo "::error::This pull request targets ${BASE}. FIX: edit the pull request and change its base branch to dev."
+          exit 1
+
+  unit:
+    name: Unit tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    # macOS is reported but not yet required: the broker's macOS support lands in a later change, which
+    # also makes these two required.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.11", experimental: false }
+          - { os: ubuntu-latest, python: "3.14", experimental: false }
+          - { os: macos-latest, python: "3.14", experimental: true }
+          - { os: macos-15-intel, python: "3.14", experimental: true }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: python tools/check.py unit
+        run: python tools/check.py unit --strict
+
+  page:
+    name: Page bundle and page tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tools/dev/package-lock.json
+      - name: Install the pinned dev tools
+        run: npm ci --prefix tools/dev --ignore-scripts --no-audit --no-fund
+      - name: python tools/check.py bundle page
+        run: python3 tools/check.py bundle page --strict
+
+  scan:
+    name: Install scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch Hermes's install scanner
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/hermes"
+          git -C "$RUNNER_TEMP/hermes" fetch -q --depth=1 https://github.com/NousResearch/hermes-agent.git "$HERMES_REF"
+          git -C "$RUNNER_TEMP/hermes" checkout -q --detach FETCH_HEAD
+      - name: python tools/check.py scan
+        run: python3 tools/check.py scan --strict --hermes-source "$RUNNER_TEMP/hermes"
+
+  validate:
+    name: Hermes plugin validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: NousResearch/hermes-agent/.github/actions/plugin-validate@3b421578588243f920886e6fe79a6faa87ea026e # v0.23.1
+        with:
+          path: .
+          hermes-ref: ${{ env.HERMES_REF }}
+
+  all-checks-pass:
+    name: All checks pass
+    if: always()
+    needs: [base, unit, page, scan, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every check passed or was not needed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' > /dev/null

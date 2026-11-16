@@ -14,18 +14,18 @@
  * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources, body), so a stale or hand-edited output is detected without
  * esbuild (here, and in tests/test_desktop_bundle.py).
- * esbuild and TypeScript come from a Hermes Desktop checkout: $HERMES_DESKTOP_DIR, else
- * ~/.hermes/hermes-agent/apps/desktop (the same place tests/desktop/preview/build.mjs looks).
+ * esbuild and TypeScript come from the first place tools/node-modules.mjs finds them (the pinned
+ * tools/dev/node_modules, or a Hermes Desktop checkout).
  */
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { lineCount, lintSources, sourceFiles } from './bundle_lint.mjs'
+import { findModules, MISSING_HINT } from './node-modules.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SOURCE = 'desktop-src'
@@ -96,20 +96,15 @@ const TARGETS = [
 ]
 
 function toolchain() {
-  const desktop = process.env.HERMES_DESKTOP_DIR || path.join(os.homedir(), '.hermes', 'hermes-agent', 'apps', 'desktop')
-  const require = createRequire(path.join(desktop, 'package.json'))
+  const modules = findModules(['esbuild', 'typescript'])
 
-  const load = name => {
-    try {
-      return require(name)
-    } catch {
-      return null
-    }
+  if (!modules) {
+    return { esbuild: null, ts: null, missing: 'esbuild and typescript were not found' }
   }
-  const tools = { esbuild: load('esbuild'), ts: load('typescript') }
-  const missing = Object.entries({ esbuild: tools.esbuild, typescript: tools.ts }).filter(([, found]) => !found).map(([name]) => name)
 
-  return { ...tools, missing: missing.length ? `${missing.join(' and ')} not found in ${desktop}` : null }
+  const require = createRequire(path.join(modules, 'package.json'))
+
+  return { esbuild: require('esbuild'), ts: require('typescript'), missing: null }
 }
 
 /** `import art from './art.png'` becomes a data URL: the prefix on its own line, the payload in short rows. */
@@ -342,7 +337,7 @@ async function main(flags) {
   }
 
   if (tools.missing) {
-    return fail([`${tools.missing}; set HERMES_DESKTOP_DIR to apps/desktop of a Hermes checkout`])
+    return fail([`${tools.missing}; ${MISSING_HINT}`])
   }
 
   if (flags.has('--watch')) {

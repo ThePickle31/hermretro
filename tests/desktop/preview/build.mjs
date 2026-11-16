@@ -13,6 +13,7 @@ import { staleReasons } from '../../../tools/bundle.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'chromatic-page-preview'))
+// The preview also needs Hermes Desktop's theme presets, so it always uses a Desktop checkout.
 const desktop = path.resolve(process.argv[3] || path.join(os.homedir(), '.hermes', 'hermes-agent', 'apps', 'desktop'))
 const require = createRequire(path.join(desktop, 'package.json'))
 const esbuild = require('esbuild')

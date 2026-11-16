@@ -95,15 +95,19 @@ Qualified so far only on local Linux x64.
 
 ## Test
 
+`python tools/check.py` runs the fast checks the same way CI does (`full` adds the acceptance run; see
+`AGENTS.md`). Page work needs the pinned dev tools once: `npm ci --prefix tools/dev --ignore-scripts`.
+The individual commands:
+
 ```sh
 python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
 node tools/bundle.mjs --check                            # the generated files match desktop-src/
-node --test tests/desktop/                               # page tests, including the built page in jsdom
+node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
 hermes plugins doctor .                                  # Hermes's own registration check
 ```
 
-`node --test tests/desktop/` already runs `wizard_test.mjs`; run that file on its own only to read its full
+The page test glob already includes `wizard_test.mjs`; run that file on its own only to read its full
 output. Run the acceptance test with a short temporary folder (`TMPDIR=$XDG_RUNTIME_DIR` on Linux,
 `TMPDIR=/tmp` on macOS; plain `/tmp` works anywhere): its Unix socket path must stay under 104 characters
 (macOS's limit; Linux allows 108).
@@ -122,9 +126,9 @@ node tools/bundle.mjs --watch                            # rebuild on save; a li
 node tools/bundle.mjs --report                           # lines per module
 ```
 
-Commit the sources and the rebuilt files together. The bundler takes esbuild and TypeScript
-from a Hermes Desktop checkout (`$HERMES_DESKTOP_DIR`, else `~/.hermes/hermes-agent/apps/desktop`), so the
-repository has no npm dependencies. It also checks the source tree on every build: only `sdk.js` imports
+Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
+TypeScript, jsdom and React from the pinned `tools/dev/` (or a Hermes Desktop checkout; `tools/node-modules.mjs`
+has the search order). The plugin itself has no npm dependencies, and users never install `tools/dev/`. It also checks the source tree on every build: only `sdk.js` imports
 packages, feature folders are one level deep, no import cycles, no file over 400 lines (three large components are
 listed as exceptions in `tools/bundle_lint.mjs` until they are split). Where code goes
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
