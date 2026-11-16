@@ -4,7 +4,7 @@ Working, unofficial name. A Hermes plugin for making Game Boy and Game Boy Color
 Chromatic: plan a game, build it as a real GB Studio project, compile a genuine ROM, playtest it in an
 emulator, and (with hardware turned on) stream it to or flash it onto a Chromatic.
 
-**Status: early build, 0.0.4.** The agent tools, private per-chat engine workers, skills and the Chromatic
+**Status: early build** (the version is in `plugin.yaml`; see the releases). The agent tools, private per-chat engine workers, skills and the Chromatic
 Studio page (with ModRetro's real player) exist. Annotations from the player and hardware qualification are
 not verified yet. See [what works](#what-works-today).
 

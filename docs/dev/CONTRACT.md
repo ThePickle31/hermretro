@@ -28,7 +28,7 @@ The page's copy of these names is `desktop-src/core/rpc.js`; the agent tool name
 ```json
 {
   "ok": true,
-  "plugin": { "id": "hermretro", "version": "0.0.4" },
+  "plugin": { "id": "hermretro", "version": "<plugin.yaml version>" },
   "platform": { "system": "linux | darwin", "machine": "x64 | arm64", "rosetta": false, "supported": true,
                 "qualified": true },
   "node": { "found": true, "version": "26.13.0", "required": "22" },

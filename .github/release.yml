@@ -1,0 +1,10 @@
+# How GitHub groups a release's generated notes (gh release create vX.Y.Z --generate-notes). Each line is a
+# squash-merged pull request's title, so titles are written as plain sentences.
+changelog:
+  exclude:
+    labels: [skip-release-notes]
+  categories:
+    - title: Dependency updates
+      labels: [dependencies]
+    - title: Changes
+      labels: ["*"]

@@ -12,12 +12,27 @@ from functools import lru_cache
 from pathlib import Path
 
 PLUGIN_ID = "hermretro"
-PLUGIN_VERSION = "0.0.4"
 ENGINE_VERSION = "1.0.34"
 NODE_REQUIRED_MAJOR = 22
 PROTOCOL = 2
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+
+
+# `version: 0.0.5`, optionally quoted, optionally followed by a comment.
+VERSION_LINE = r"^version:[ \t]*[\"']?([0-9]+\.[0-9]+\.[0-9]+)[\"']?[ \t]*(?:#.*)?\r?$"
+
+
+def _manifest_version(manifest: Path) -> str:
+    """The plugin's version, from ``plugin.yaml`` (its only home; a release changes it there and nowhere else).
+    Read with a pattern rather than a YAML library: the broker runs on the standard library alone."""
+    match = re.search(VERSION_LINE, manifest.read_text(encoding="utf-8"), re.MULTILINE)
+    if not match:
+        raise RuntimeError(f"{manifest} has no x.y.z version line")
+    return match.group(1)
+
+
+PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
 PINNED_TOOLS = PLUGIN_ROOT / "schemas" / "upstream" / ENGINE_VERSION / "tools.json"
 ENGINE_MANIFEST = PLUGIN_ROOT / "release" / "baseline" / f"engine-{ENGINE_VERSION}.manifest.json"
@@ -264,7 +279,8 @@ def code_fingerprint() -> str:
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
     folder = Path(__file__).resolve().parent
-    stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in adapter_sources(folder))
+    sources = [*adapter_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]   # holds the version
+    stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
     return _fingerprint_for(stamp)
 
 
@@ -277,7 +293,8 @@ def adapter_sources(folder: Path) -> list[tuple[str, Path]]:
 
 @lru_cache(maxsize=4)
 def _fingerprint_for(stamp: tuple) -> str:
-    digest = hashlib.sha256(f"{PLUGIN_VERSION}:{PROTOCOL}".encode())
+    # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
+    digest = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
     folder = Path(__file__).resolve().parent
     for name, _mtime, _size in stamp:
         digest.update(name.encode())

@@ -79,3 +79,15 @@ CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
   and `tests/test_contracts_and_results.py`; RPC names in `adapter/hermes_host.py`,
   `desktop-src/core/rpc.js` and `docs/dev/CONTRACT.md`.
 - This guide changes in the same pull request as any command or rule it describes.
+
+## Releases (only when the owner asks)
+
+The version lives only in `plugin.yaml` (`tests/test_version.py` refuses copies elsewhere); versions are
+patch-only (`0.0.N`) unless the owner names another.
+
+1. A pull request `chore/release-0.0.N` that changes only the `version:` line; merge it into `dev` when green.
+2. Fast-forward `main` to that `dev` commit: `git push origin <sha>:main` (never a merge commit or force).
+3. `git tag v0.0.N <sha>`, `git push origin v0.0.N`, then
+   `gh release create v0.0.N --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`
+   (grouped by `.github/release.yml`). Read the draft, then publish it: releases are immutable once published.
+4. For a release candidate: tag `v0.0.N-rc.M` on a `dev` commit and add `--prerelease`; `main` does not move.
