@@ -58,9 +58,10 @@ class ContractTests(unittest.TestCase):
         manifest = (paths.PLUGIN_ROOT / "plugin.yaml").read_text()
         declared = [line.strip()[2:] for line in manifest.split("provides_tools:")[1].splitlines()
                     if line.strip().startswith("- ")]
-        self.assertEqual(declared, ["chromatic_studio_device_cli", "chromatic_present_game", "chromatic_game_info",
-                                    "chromatic_build_report"]
-                         + [s["name"] for s in contracts.hermes_schemas()])
+        engine = [s["name"] for s in contracts.hermes_schemas()]
+        # plugin-owned tools first, then the engine's in pinned order (the set itself is checked by test_lockstep)
+        self.assertEqual(declared[-len(engine):], engine)
+        self.assertEqual(len(set(declared)), len(declared))
 
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()

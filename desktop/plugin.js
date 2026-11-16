@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 6d9983e95f6ca49aa9af1a711593ba472294f81e5dcfcb96a8abec831f33f184
- * body: sha256 3b08f26cc59a6f328676897d39acf871636394cfbeb2059220d870925afe78a2
+ * sources: sha256 66b03ab6e5a1e133335c64e4f8d428977beabcfb93ad3a0b49ad862a065c9139
+ * body: sha256 72b2c6928534f247ff36a16e3de86af5c6bf26c18519f58ab058015a36b7f321
  */
 // desktop-src/sdk.js
 import {
@@ -4764,6 +4764,7 @@ var STEP_WORDS = {
   toolchain_prepare: ["Installing the toolchain", "Installed the toolchain"],
   toolchain_doctor: ["Checking the toolchain", "Checked the toolchain"],
   studio_device_cli: ["Setting up the Chromatic tools", "Set up the Chromatic tools"],
+  game_info: ["Writing the game card", "Wrote the game card"],
   device: ["Checking the Chromatic", "Checked the Chromatic"],
   device_capture: ["Opening the Chromatic feed", "Opened the Chromatic feed"],
   play: ["Streaming to the Chromatic", "Streamed to the Chromatic"],

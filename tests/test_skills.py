@@ -72,7 +72,7 @@ class SkillsTest(unittest.TestCase):
 
     def test_every_chromatic_tool_named_exists(self):
         tools = plugin_tools()
-        self.assertEqual(len(tools), 85)
+        self.assertTrue(tools)  # the full set is checked against registration by test_lockstep
         for path in markdown_files():
             for name in re.findall(r"\bchromatic_[a-z0-9_]*[a-z0-9]\b", path.read_text()):
                 if name == "chromatic_emulator":  # the `chromatic_emulator_*` family
