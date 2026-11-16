@@ -19,7 +19,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Pull requests: a new push cancels the old run. Pushes: one group per commit, so every dev commit gets a
+  # finished run (a release needs a green dev commit).
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -119,6 +121,15 @@ jobs:
           ref: ${{ env.HERMES_REF }}
       - name: hermes plugins validate
         run: '"$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate .'
+      - name: hermes plugins validate (the agent side, as in the hermretro profile)
+        env:
+          HERMRETRO_EVERY_PROFILE: "1"
+        run: |
+          "$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate . 2>&1 | tee "$RUNNER_TEMP/validate.log"
+          if grep -qE "register\(\) did not|declared (tools|hooks) .*(undeclared|not)" "$RUNNER_TEMP/validate.log"; then
+            echo "FIX: plugin.yaml provides_tools / provides_hooks must match what __init__.register adds"
+            exit 1
+          fi
       - name: python tools/clean_install_check.py
         run: python3 tools/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
 
@@ -138,7 +149,7 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then echo "engine=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           # A pull request's checkout is its merge commit: the first parent is the base.
-          if git diff --name-only HEAD^1 HEAD | grep -qE '^(adapter/|engine/|schemas/|release/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/(check|prepare_toolchain)\.py$|\.github/|tools/hermes_runtime\.py$|profile/)'; then
+          if git diff --name-only HEAD^1 HEAD | grep -qE '^(adapter/|engine/|schemas/|release/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/(check|prepare_toolchain)\.py$|\.github/(workflows|actions)/|tools/hermes_runtime\.py$|profile/)'; then
             echo "engine=true" >> "$GITHUB_OUTPUT"
           else
             echo "engine=false" >> "$GITHUB_OUTPUT"

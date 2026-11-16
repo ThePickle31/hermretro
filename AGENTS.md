@@ -41,6 +41,8 @@ CI runs the same checks, plus a clean install into a throwaway Hermes home (`pyt
 and, when a change touches `adapter/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
 nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
 naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
+At the start of a session, look at the last nightly run (`gh run list --workflow nightly.yml -L 1`) and any open
+"Nightly failed" issue.
 
 ## Rules that protect users
 
