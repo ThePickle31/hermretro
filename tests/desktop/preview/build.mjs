@@ -9,11 +9,20 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { staleReasons } from '../../../tools/bundle.mjs'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'chromatic-page-preview'))
 const desktop = path.resolve(process.argv[3] || path.join(os.homedir(), '.hermes', 'hermes-agent', 'apps', 'desktop'))
 const require = createRequire(path.join(desktop, 'package.json'))
 const esbuild = require('esbuild')
+// The preview draws the built bundle: never one that no longer matches desktop-src/.
+const stale = staleReasons()
+
+if (stale.length) {
+  console.error(`${stale.join('\n')}\nRun: node tools/bundle.mjs`)
+  process.exit(1)
+}
 
 mkdirSync(out, { recursive: true })
 

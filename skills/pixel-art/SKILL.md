@@ -63,5 +63,11 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
   or building this project right now.
 - To show art in the running game, build with `chromatic_rom_build`, then call `chromatic_present_game`
   with a `note` on what to look at.
+- To show the user existing art, deliver the real file on its own line (`MEDIA:<project>/assets/sprites/<name>.png`).
+  The hermretro Build page draws it in the game's colours, animates a sprite, and opens it in its viewer;
+  a preview or contact sheet you draw instead is just a flat image there.
+- Cover art (required before `chromatic_present_game`): draw it yourself as native pixel art, never with
+  Image Generation: exactly 160x144, opaque, at most 32 colours from the game's own palettes, its main
+  character and title readable. Pass the PNG to `chromatic_game_info` as `cover`.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.

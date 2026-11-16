@@ -26,7 +26,8 @@ emulator dependencies, project selection and Developer Mode are separate.
 For PROJECT_SELECTION_REQUIRED select the intended project; do not reinstall.
 For missing compiler/emulator dependencies use `chromatic_toolchain_prepare` below.
 If the Chromatic tools cannot start, report the concrete error; do not manufacture a
-replacement plugin. Node.js 22 or newer must already be installed (https://nodejs.org/).
+replacement plugin. The tools need Node.js 22 or newer; Hermes installs its own, which hermretro uses, so a
+missing Node.js usually means Hermes's own tools are incomplete (https://nodejs.org/ otherwise).
 
 ## Install only missing dependencies
 

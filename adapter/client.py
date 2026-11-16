@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -72,15 +73,51 @@ class BrokerClient:
         self.close()
 
 
+_SCOPE_RUNNER: str | None = None  # "" once probed and unavailable
+
+
+def own_scope(env: dict) -> list[str]:
+    """A command prefix that starts the broker in its own systemd scope, or ``[]``.
+
+    Under systemd the gateway's unit owns every process it starts, broker and engine workers
+    included, and stopping or restarting the gateway SIGKILLs them all (``KillMode=mixed``). A worker
+    killed that way never releases its emulator lease, which then blocks that game's emulator. In its
+    own scope the broker outlives gateway restarts as designed and still exits when idle. Used only
+    when the caller runs inside a systemd unit and a probe proves ``systemd-run --user --scope``
+    works; anywhere else (macOS, containers, no user bus) the broker starts as before."""
+    global _SCOPE_RUNNER
+    if _SCOPE_RUNNER is None:
+        _SCOPE_RUNNER = _probe_scope(env)
+    if not _SCOPE_RUNNER:
+        return []
+    unit = f"hermretro-broker-{os.getpid()}-{time.time_ns()}"  # one scope per broker
+    return [_SCOPE_RUNNER, "--user", "--scope", "--quiet", "--collect", f"--unit={unit}"]
+
+
+def _probe_scope(env: dict) -> str:
+    # systemd sets INVOCATION_ID for every process of a unit it starts (the gateway service).
+    inside_service = bool(os.environ.get("INVOCATION_ID"))
+    runner = shutil.which("systemd-run", path=env.get("PATH"))
+    if not inside_service or not runner:
+        return ""
+    try:
+        probe = subprocess.run([runner, "--user", "--scope", "--quiet", "--collect", "true"], env=env,
+                               stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return runner if probe.returncode == 0 else ""
+
+
 def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     """Start a broker detached from the caller. It runs from the plugin root with a minimal environment."""
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL", "XDG_DATA_HOME", "XDG_RUNTIME_DIR",
                                             "XDG_STATE_HOME", "TMPDIR", "USER", "LOGNAME", "DISPLAY",
                                             "WAYLAND_DISPLAY", "GB_STUDIO_SETUP_ROOT") if key in os.environ}
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
+    command = [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node]
     with open(Path(state_dir) / "broker.stderr.log", "ab") as log:
         return subprocess.Popen(
-            [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node],
+            own_scope(env) + command,
             cwd=str(paths.PLUGIN_ROOT), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=log, start_new_session=True)
 
@@ -113,7 +150,11 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
     while time.monotonic() < deadline:
         client, last = try_connect(state_dir)
         if client is not None:
-            other_install = client.hello.get("plugin_root") not in (None, str(paths.PLUGIN_ROOT))
+            # Compared as real paths, read now: a plugin folder swapped for a link (a dev checkout) while
+            # this process ran would otherwise look like another install and shut down every broker the
+            # new files start, in a loop.
+            theirs = client.hello.get("plugin_root")
+            other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
             if client.hello.get("code_fingerprint") == paths.code_fingerprint() and not other_install:
                 return client
             # A broker from another build of this adapter. Replace it only when no conversation

@@ -474,6 +474,40 @@ def main() -> int:
           and diff(snap_before_restart, snapshot(proj_a)) == []
           and {"S01 marker A", "S01 child leased", "S01 A second edit", "S01 C after handoff"} <= set(names),
           new_broker_pid=c2.hello["pid"], variables=names)
+    # --- a gateway restart under systemd: broker AND workers SIGKILLed at once (KillMode=mixed) -------------
+    # The killed emulator never releases its recording lease; the next broker must clear it, not refuse.
+    c2.call(A, "emulator_run", {"romPath": rom_a})
+    lease_path = proj_a / "artifacts" / ".recording-access" / "lease.json"
+    held_by = json.loads(lease_path.read_text())["pid"] if lease_path.exists() else None
+    killed_broker = c2.hello["pid"]
+    groups = [lane["engine_pid"] for lane in c2.request({"op": "stats"})["lanes"] if lane["engine_pid"]]
+    c2.close()
+    os.kill(killed_broker, signal.SIGKILL)
+    for group in groups:
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and (alive(killed_broker) or (held_by and alive(held_by))):
+        time.sleep(0.1)
+    orphaned = lease_path.exists() and held_by is not None and not alive(held_by)
+    c2 = ensure_broker(STATE)
+    c2.call(A, "project_select", {"projectPath": str(proj_a / "project.gbsproj")})
+    rerun = c2.call(A, "emulator_run", {"romPath": rom_a})
+    trace = [json.loads(line) for line in (STATE / "trace.jsonl").read_text().splitlines()]
+    cleared = [r for r in trace if r.get("event") == "stale_lease_check" and r.get("pid") == held_by]
+    new_holder = json.loads(lease_path.read_text())["pid"] if lease_path.exists() else None
+    check("R4", "After broker and workers are SIGKILLed together, the orphaned emulator lease is cleared "
+                "automatically and the game's emulator starts again",
+          orphaned and rerun.get("ok") and not rerun["result"].get("isError")
+          and bool(cleared) and cleared[-1].get("cleared") is True and cleared[-1].get("owner") == "dead"
+          and "cleared automatically" in (rerun.get("notice") or "")
+          and new_holder not in (None, held_by),
+          lease_left_by=held_by, orphaned_before_restart=orphaned, notice=rerun.get("notice"),
+          check_event=cleared[-1] if cleared else None, new_lease_holder=new_holder)
+    c2.call(A, "emulator_close", {})
+    check("R5", "Closing the emulator releases its lease", not lease_path.exists())
     polite = c2.request({"op": "shutdown"})
     check("R2b", "A broker with a live worker refuses a non-forced shutdown",
           polite.get("denied", {}).get("code") == "BUSY", response=polite)

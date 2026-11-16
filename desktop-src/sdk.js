@@ -1,0 +1,23 @@
+// The only module that imports packages. The app's loader accepts exactly these three specifiers in
+// desktop/plugin.js; every other module takes what it needs from here, which keeps the bundle at one
+// import statement per package and makes this file the list of what the page uses from the SDK.
+export {
+  atom,
+  Button,
+  Codicon,
+  CopyButton,
+  host,
+  MessageTextContent,
+  PALETTE_AREA,
+  randomUuid,
+  ROUTES_AREA,
+  SandboxedFrame,
+  ScrollArea,
+  SIDEBAR_NAV_AREA,
+  Tip,
+  useQuery,
+  useQueryClient,
+  useValue
+} from '@hermes/plugin-sdk'
+export { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+export { jsx, jsxs } from 'react/jsx-runtime'

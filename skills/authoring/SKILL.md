@@ -72,6 +72,9 @@ Verify the change at the level the request needs: reread the native resources, b
   `<project>/captures/` and a message with `Screenshot: <path>` is put into this game's chat. Open that file.
 - For a new game, `hermretro:game-planning` writes the brief and `docs/game/TEST-PLAN.md` first;
   check the relevant acceptance items against the exact ROM.
+- Before presenting, fill in the game card with `chromatic_game_info` (cover art, title, tagline,
+  description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
+  End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
 - The references say MCP for the engine behind the `chromatic_*` tools.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.

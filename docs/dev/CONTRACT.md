@@ -5,10 +5,11 @@
 - Plugin id: `hermretro`. Display name: `hermretro`.
 - Toolset: `chromatic`.
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
-  (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus two
-  plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`
-  and `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
-  `docs/dev/STUDIO-PAGES.md`). 83 in total.
+  (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
+  plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
+  `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
+  `docs/dev/STUDIO-PAGES.md`), `chromatic_game_info` (the game card, below) and `chromatic_build_report`
+  (the Build page's build card, below). 85 in total.
 - Skills are loaded as `skill_view("hermretro:<skill>")`:
   `setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`.
 
@@ -16,6 +17,8 @@
 
 Called with `host.request('plugin.hermretro.<name>', params)`.
 A disabled or missing backend answers JSON-RPC error `-32601`.
+The page's copy of these names is `desktop-src/core/rpc.js`; the agent tool names it reacts to are in
+`desktop-src/core/tools.js`.
 
 ### `status` — params `{ chat?: string }`
 
@@ -98,7 +101,8 @@ refused with `OPERATION_IN_PROGRESS` (and the other way round), and the broker n
 
 ### `activity` — params `{ chat?: string, stored?: string, limit?: number }`
 
-For the panes beside the chat. `chat` and `stored` are the focused chat's runtime and durable ids; either may
+Was for the panes beside the chat, which are gone (the Build page shows the agent's work); kept for older
+desktop halves and for the broker's own use. `chat` and `stored` are the focused chat's runtime and durable ids; either may
 match. Served from the broker's memory: no engine call, never starts the broker or a worker.
 
 ```
@@ -122,16 +126,82 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device }`: the library (`~/.local/state/chromatic-studio/games.json`) |
+| `games` | none | `{ ok, games[], demo, device }`: the library (`~/.local/state/chromatic-studio/games.json`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
+| `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
+| `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
 
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
-web export (else `BUILD_FIRST`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
+web export (else `BUILD_FIRST`) and a complete game card (else `GAME_INFO_INCOMPLETE` with `missing`,
+`problems` and `guidance`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
 title, note, presentedAt } }`; the desktop then opens the emulator in a tab docked right of the chat. Builds
 open nothing. Setting `live_player` ("Keep the playable copy current", default on) makes every successful
 `rom_build` refresh that web export, so a presentation finds it fresh.
 
+## The build card (`chromatic_build_report`)
+
+The agent calls `chromatic_build_report` once at the end of every turn that changed or built the game
+(after `chromatic_rom_build`, its own playtest and `chromatic_present_game`), never in a subagent
+(`PARENT_ONLY`). The Build page draws the call as the turn's build card, so the written reply after it stays
+one or two sentences. It stores nothing: the page reads the tool call and its result.
+
+```
+args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|removed, text (1–100), asset? }] (≤8),
+         tested?: [1–80] (≤6), untested?: [1–80] (≤6), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
+result { ok: true, report: { title, summary, changes[], tested[], untested[], notes[], suggestions[] },
+         project /* root or null */, message, warnings? }
+     | { ok: false, code: "INVALID_REPORT", problems[], error }
+```
+
+All or nothing: any invalid field (unknown keys included) refuses the whole report. Strings are trimmed and
+their whitespace collapsed. `asset` (absolute, or relative to the project) becomes an absolute path inside
+the project; one outside it or missing is left out of that change and listed in `warnings`. Without a
+resolvable project the report is still accepted (`project: null`) and only absolute assets are kept. Each
+kept asset's current version is saved like a delivered image, so the card keeps showing it after a rewrite.
+
+## Build history (snapshots)
+
+After each successful `chromatic_rom_build` (Hermes's `post_tool_call`: result without `error`/`isError`
+and `structuredContent.success === true`, not a `sourcePath` build) of a game in the library, the plugin
+copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
+`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…] }`.
+Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
+`captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …) and every symlink. A project over 64 MB
+or 20 000 files is skipped. When the files are identical to the newest snapshot (path + size + SHA-256 of
+each), no copy is made and the build's time is appended to that snapshot's `builds`. The newest 30 are kept.
+
+- `builds { game }` → `{ ok, builds: [{ id, at, builds, files, bytes, reason, from? }] }`, newest first.
+- `build_restore { game, id }` first keeps the current files as a `before-restore` snapshot (`from` = the
+  restored id; reused when identical to the newest), then deletes project files the snapshot lacks and
+  writes back every file that differs (temp sibling + rename; never through a link). Restored files get a
+  new modification time, so the game counts as changed and needs a rebuild, which records a new build.
+
+## The game card (`game.json` + `cover.png`)
+
+Every game has a card at its project root, next to the `.gbsproj`: `game.json` and `cover.png`. A starter
+`game.json` (title only) is written when a project is created, and by `chromatic_game_info` or
+`chromatic_present_game` when missing. Neither file counts as game source, so writing them never marks a
+built game as changed. Unknown keys are kept (later fields need no migration).
+
+```
+{ version: 1, title, tagline, description, about, genres: [..], tags: [..], controls: { button: action },
+  cover: "cover.png", coverSha256, coverForBuild /* ROM sha when the cover was set */, createdAt, updatedAt }
+```
+
+- **Required to present:** title (1–60), tagline (8–90), description (40–400), 1–3 genres from `Action,
+  Adventure, Arcade, Exploration, Platformer, Puzzle, Racing, Role-playing, Rhythm, Shooter, Simulation,
+  Sports, Strategy, Story, Other`, and a cover. Placeholder words (TODO, TBD, lorem ipsum, …) do not count.
+  Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12).
+- **Cover:** a PNG, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
+  Image Generation), not an unchanged copy of an image under `assets/`. Read by `adapter/game_card.py`
+  with the standard library (8-bit and palette PNGs, not interlaced).
+- `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
+  project? }`: with no fields it reports the card; otherwise it checks every field and stores all or
+  nothing (`INVALID_GAME_INFO` with `problems`), copying `cover` into the project. Answers `{ ok, card,
+  file, complete, missing, problems, nextStep }`.
+- `games[].card` = `{ title, tagline, description, about, genres, tags, controls, complete, missing,
+  hasCover, coverForBuild }`; with a valid cover, `thumb` is the cover (else the captured title screen).

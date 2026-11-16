@@ -29,7 +29,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from . import games, onboarding, paths
+from . import games, leases, onboarding, paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 from . import provision
 
@@ -412,6 +412,91 @@ class Broker:
                      "Another conversation is editing or building this project right now. Wait for it to "
                      "finish, or continue the work in that conversation. Nothing was changed.")
 
+    # -- one game, one conversation (the Build page) --------------------------------
+    def _selection_target(self, tool: str, arguments: dict) -> str | None:
+        """The project root a selector would work on: the selected project, or the new folder."""
+        path = arguments.get("projectPath") if tool == "project_select" else arguments.get("destinationPath")
+        if not isinstance(path, str) or not path.strip():
+            return None
+        real = os.path.realpath(os.path.expanduser(path))
+        return os.path.dirname(real) if tool == "project_select" and os.path.isfile(real) else real
+
+    def guard_selection(self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict,
+                        continue_here: bool) -> None:
+        """A game's conversation works on that game only; another conversation that opens a game with
+        its own conversation is warned first (it may continue once the user confirms)."""
+        profile, conversation = owner
+        kind, bound = self.games.binding_for(profile, [conversation, *lane.sessions_seen])
+        target = self._selection_target(tool, arguments)
+        if kind == "game":
+            mine = os.path.realpath(bound["projectRoot"])
+            title = bound.get("title") or os.path.basename(mine)
+            if tool == "project_select" and target == mine:
+                return
+            if not os.path.isdir(mine):
+                raise Denied("GAME_FOLDER_MISSING",
+                             f"This conversation belongs to the game \"{title}\", but its folder {mine} no longer "
+                             "exists (moved or deleted). Tell the user; this conversation can continue once the "
+                             "folder is back where it was. Nothing was changed.")
+            what = "create another project" if tool != "project_select" else "open another project"
+            raise Denied("ONE_GAME_PER_CONVERSATION",
+                         f"This conversation belongs to the game \"{title}\" ({mine}), and each hermretro game "
+                         f"has its own conversation, so it cannot {what}. Tell the user: to make a different "
+                         "game, start one with New Game on the hermretro Build page; to work on another game, "
+                         "open that game on the Build page. Nothing was changed.")
+        entry = self.games.game_for_root(target) if target and tool == "project_select" else None
+        session = entry.get("session") if isinstance(entry, dict) else None
+        if not isinstance(session, dict):
+            return
+        title = entry.get("title") or os.path.basename(target)
+        if kind == "pending":
+            raise Denied("GAME_HAS_CONVERSATION",
+                         f"\"{title}\" already has its own conversation on the hermretro Build page, so this new "
+                         "game's conversation cannot take it over. Create a new project for the new game instead, "
+                         "or tell the user to open that game on the Build page. Nothing was changed.")
+        if continue_here:
+            self.trace(event="continued_outside_game_conversation", owner_key=lane.key)
+            return
+        raise Denied("GAME_HAS_CONVERSATION",
+                     f"\"{title}\" has its own conversation on the hermretro Build page. Changes made here will "
+                     "not be in that game's conversation history. Tell the user this and ask whether to continue "
+                     "here anyway or open the game on the Build page. Only if the user says to continue here, call "
+                     "chromatic_project_select again with the same projectPath and continueInThisChat set to "
+                     "true. Nothing was changed.")
+
+    def select_bound_game(self, lane: Lane, engine: EngineProcess) -> None:
+        """A game's conversation starts with its game selected, so the agent never has to ask which."""
+        if lane.selected_root:
+            return
+        kind, bound = self.games.binding_for(lane.owner[0], [lane.owner[1], *lane.sessions_seen])
+        if kind != "game" or not os.path.isdir(bound.get("projectRoot") or ""):
+            return
+        if getattr(lane, "auto_select_failed", None) == lane.generation:
+            return  # tried with this worker already; do not repeat a slow failure on every call
+        root = bound["projectRoot"]
+        project = games.project_file(Path(root))
+        try:
+            result = engine.call_tool("project_select", {"projectPath": str(project or root)}, timeout=60)
+            if result.get("isError"):
+                raise RuntimeError("the engine refused the selection")
+        except Exception as error:
+            lane.auto_select_failed = lane.generation
+            self.trace(event="auto_select_failed", owner_key=lane.key, error=f"{type(error).__name__}: {error}"[:200])
+            return
+        try:
+            self._sync_selection(lane)
+        except Exception as error:
+            # The selection itself succeeded: take the root from its result, as call() does.
+            self.trace(event="selection_sync_failed", owner_key=lane.key, error=str(error)[:200])
+            selected = result.get("structuredContent")
+            if isinstance(selected, dict) and selected.get("projectRoot"):
+                self._apply_selection(lane, selected)
+        self.trace(event="auto_select", owner_key=lane.key)
+        title = bound.get("title") or os.path.basename(root)
+        notice = (f"hermretro selected this conversation's game \"{title}\" ({root}) for you: this "
+                  "conversation works on that game only.")
+        lane.pending_notice = f"{lane.pending_notice} {notice}" if lane.pending_notice else notice
+
     # -- admission -----------------------------------------------------------------
     def classify(self, tool: str) -> str:
         if tool in HARDWARE:
@@ -457,10 +542,18 @@ class Broker:
         if isinstance(session_id, str) and session_id and not delegated and session_id not in lane.sessions_seen:
             lane.sessions_seen.append(session_id)
             del lane.sessions_seen[:-16]
+        if tool in SELECTORS:
+            # `continueInThisChat` is hermretro's own argument (the user confirmed working on a game outside
+            # its conversation); the engine never sees it.
+            arguments = dict(arguments)
+            continue_here = arguments.pop("continueInThisChat", None) is True
+            self.guard_selection(owner, lane, tool, arguments, continue_here)
 
         with self.table_lock:
             lane.last_used = time.monotonic()  # before the engine is fetched: see close_lane_if_idle
         engine = self.ensure_engine(lane)
+        if not delegated and kind in ("read", "project-write", "runtime"):
+            self.select_bound_game(lane, engine)
         writes = kind == "project-write"
         if writes:
             self.acquire_writer(lane)
@@ -491,6 +584,18 @@ class Broker:
         try:
             try:
                 result = engine.call_tool(tool, arguments, timeout=float(request.get("timeout") or DEFAULT_CALL_TIMEOUT))
+                if leases.is_lease_conflict(result) and lane.selected_root:
+                    # The engine refused before starting anything. If the lease's owner is provably
+                    # gone (killed without releasing it), clear it and run the call once more.
+                    reclaimed = leases.reclaim_stale(lane.selected_root, self.own_process_groups())
+                    self.trace(event="stale_lease_check", **reclaimed, **base)
+                    if reclaimed.get("cleared"):
+                        result = engine.call_tool(tool, arguments,
+                                                  timeout=float(request.get("timeout") or DEFAULT_CALL_TIMEOUT))
+                        written = time.strftime("%Y-%m-%d %H:%M", time.localtime(reclaimed["written"]))
+                        cleared = (f"An emulator lease left on this game by process {reclaimed['pid']} "
+                                   f"(written {written}), which no longer exists, was cleared automatically.")
+                        lane.pending_notice = f"{lane.pending_notice} {cleared}" if lane.pending_notice else cleared
             except EngineError as error:
                 self.trace(event="outcome_unknown", error=str(error)[:300], **base)
                 return {"ok": False, "dispatched": True, "outcome": "unknown", "error": str(error),
@@ -743,6 +848,14 @@ class Broker:
             self.trace(event="broker_idle_exit")
             self.stopping.set()
 
+    def own_process_groups(self) -> set[int]:
+        """Process groups of this broker's live engine workers (each worker is its own session)."""
+        with self.table_lock:
+            engines = [lane.engine for lane in self.lanes.values() if lane.engine is not None]
+        if self.install_engine is not None:
+            engines.append(self.install_engine)
+        return {engine.pid for engine in engines if engine.pid and engine.alive()}
+
     def close_all(self) -> None:
         with self.table_lock:
             lanes = list(self.lanes.values())
@@ -836,7 +949,9 @@ def main() -> int:
         os.umask(old_umask)
     server.broker = broker  # type: ignore[attr-defined]
     broker.trace(event="broker_started", pid=os.getpid(), engine_verified=broker.engine_check.get("verified"))
-    signal.signal(signal.SIGTERM, lambda *_: broker.stopping.set())
+    # Stop cleanly on any polite signal, so workers close their emulators and release their leases.
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda *_: broker.stopping.set())
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         ticks = 0

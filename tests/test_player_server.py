@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -108,8 +110,9 @@ class PlayerServer(unittest.TestCase):
         head = html.index("<head>")
         self.assertLess(html.index("document.oai"), html.index('<meta charset'))
         self.assertGreater(html.index("document.oai"), head)
-        self.assertIn("'codex-gb-studio:device-color:v1': color", html)
-        self.assertIn("'hermes-midnight'", html)
+        # The shim keeps the handheld's finish in memory, under the player's key, Midnight by default.
+        self.assertIn('installStorage(params, "hermes-midnight", "codex-gb-studio:device-color:v1")', html)
+        self.assertNotIn("__COLOR_KEY__", html)
         # The handheld fills the frame: sized by the frame's height (850:1440 device) and capped by its width,
         # instead of the engine's fixed 420 px.
         self.assertIn("min(calc((100svh - 136px)*850/1440),calc(100vw - 112px))", html)
@@ -201,6 +204,18 @@ class PlayerServer(unittest.TestCase):
 
 
 class Pieces(unittest.TestCase):
+    def test_frame_shim_is_valid_javascript_with_its_placeholders_filled(self):
+        shim = player_server.frame_shim()
+        self.assertNotIn("__DEFAULT_COLOR__", shim)
+        self.assertNotIn("__COLOR_KEY__", shim)
+        self.assertNotIn("</script", shim)
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not installed")
+        check = subprocess.run([node, "--check", str(paths.PLUGIN_ROOT / "player" / "frame-shim.js")],
+                               capture_output=True, text=True)
+        self.assertEqual(check.returncode, 0, check.stderr)
+
     def test_view_without_its_anchor_is_served_unpatched(self):
         with tempfile.TemporaryDirectory() as tmp:
             view = Path(tmp) / "view.js"

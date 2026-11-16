@@ -15,11 +15,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapter import contracts, games, hermes_host, paths  # noqa: E402
 from adapter.broker import Broker, Lane  # noqa: E402
 
+def encode_png(width, height, pixel):
+    """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
+    import struct
+    import zlib
+
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    rows = b"".join(b"\0" + bytes(value for x in range(width) for value in pixel(x, y)) for y in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+# A 160x144 pixel-art cover: four colours in bands.
+COVER = encode_png(160, 144, lambda x, y: ((40, 120, 60, 255), (230, 160, 60, 255), (60, 90, 200, 255),
+                                           (250, 250, 240, 255))[(x // 40 + y // 36) % 4])
+
+
+def complete_card(root: Path) -> None:
+    """Give a test project a finished game card (game.json + cover.png)."""
+    (root / "cover.png").write_bytes(COVER)
+    (root / "game.json").write_text(json.dumps({
+        "version": 1, "title": "Space Game", "tagline": "Fly a tiny ship through a meteor field.",
+        "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
+        "genres": ["Arcade"], "cover": "cover.png"}))
+
+
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 
 
-def make_project(base: Path, name="Space Game", web=True, built=True) -> Path:
+def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
     root = base / name.lower().replace(" ", "-")
     (root / "project").mkdir(parents=True)
     (root / f"{root.name}.gbsproj").write_text(json.dumps({"_resourceType": "project", "name": name}))
@@ -35,6 +61,8 @@ def make_project(base: Path, name="Space Game", web=True, built=True) -> Path:
         (web_dir / "js" / "binjgb.wasm").write_bytes(b"\0asm-test")
         (web_dir / "index.html").write_text("<html><head></head><body></body></html>")
         (web_dir / "gbstudio.json").write_text(json.dumps({"rom": "rom/game.gbc", "project": {"name": name}}))
+    if card:
+        complete_card(root)
     old = time.time() - 600
     for path in root.rglob("*"):
         os.utime(path, (old, old))
@@ -226,7 +254,13 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(answer["device"], {"hardwareEnabled": True, "skipped": False})
         [game] = answer["games"]
         self.assertEqual(set(game) - {"chat"}, {"id", "title", "projectRoot", "kind", "state", "rom", "webExport",
-                                               "web", "thumb", "error"})
+                                               "web", "thumb", "error", "session", "cover", "card",
+                                               "displayTitle"})
+        self.assertTrue(game["cover"]); self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
+        self.assertEqual(game["card"]["tagline"], "Fly a tiny ship through a meteor field.")
+        self.assertTrue(game["card"]["complete"])
+        self.assertIsNone(game["session"])
+        self.assertEqual(answer["pending"], [])
         self.assertEqual(game["chat"]["sessionId"], "run-1")
         self.assertEqual(game["chat"]["profile"], "studio")
         self.assertTrue(game["chat"]["thisProfile"])

@@ -99,107 +99,24 @@ def patched_view(source: Path) -> bytes:
 
 # -- the frame page ------------------------------------------------------------------
 
-# Runs first in the frame. The frame is sandboxed (allow-scripts, opaque origin), so: storage lives in
-# memory, the player's same-origin fetches are sent as CORS requests to this server, and the host
-# annotation API plus page commands talk to the Studio page through postMessage.
-FRAME_SHIM = r"""
-(() => {
-  const post = message => { try { parent.postMessage(message, '*') } catch {} };
-  const send = (level, args) => post({ cs: 'log', level, text: args.map(a => a instanceof Error ? (a.stack || a.message) : typeof a === 'object' ? (() => { try { return JSON.stringify(a) } catch { return String(a) } })() : String(a)).join(' ').slice(0, 2000) });
-  for (const level of ['warn', 'error']) { const orig = console[level].bind(console); console[level] = (...a) => { send(level, a); orig(...a) } }
-  addEventListener('error', e => send('error', [String(e.message) + ' @' + e.lineno]));
-  addEventListener('unhandledrejection', e => send('error', ['unhandled: ', e.reason]));
-  // An opaque-origin frame has no Web Storage; the player only needs it for this session.
-  const mem = (seed = {}) => { const m = new Map(Object.entries(seed)); return { getItem: k => m.has(String(k)) ? m.get(String(k)) : null, setItem: (k, v) => { m.set(String(k), String(v)) }, removeItem: k => { m.delete(String(k)) }, clear: () => m.clear(), key: i => [...m.keys()][i] ?? null, get length() { return m.size } } };
-  const params = new URLSearchParams(location.search);
-  const color = /^[a-z0-9-]{1,40}$/.test(params.get('color') || '') ? params.get('color') : '__DEFAULT_COLOR__';
-  Object.defineProperty(window, 'localStorage', { value: mem({ '__COLOR_KEY__': color }), configurable: true });
-  Object.defineProperty(window, 'sessionStorage', { value: mem(), configurable: true });
-  // The player asks for same-origin requests; from an opaque origin those can never succeed, so they
-  // go out as CORS requests to the same server (which answers them with Access-Control-Allow-Origin).
-  const realFetch = window.fetch.bind(window);
-  window.fetch = (input, init) => {
-    if (init && init.mode === 'same-origin') init = { ...init, mode: 'cors', credentials: 'omit' };
-    if (input instanceof Request && input.mode === 'same-origin') input = new Request(input, { mode: 'cors', credentials: 'omit' });
-    return realFetch(input, init);
-  };
-  // The host annotation API the player looks for (document.oai.annotation). Hermes' version: pick a
-  // thing on the game screen, add a note, and hand it to the Studio page, which puts it into a chat.
-  (() => {
-    let surface = null, active = false, overlay = null, hovered = null, selected = null;
-    const fire = on => document.dispatchEvent(new CustomEvent('oaiannotationmodechange', { detail: { active: on } }));
-    const R = r => r ? { x: r.x ?? r.left, y: r.y ?? r.top, w: r.width ?? r.w, h: r.height ?? r.h } : null;
-    function box(cls, r) { const b = document.createElement('i'); b.className = cls; const q = R(r); Object.assign(b.style, { left: q.x + 'px', top: q.y + 'px', width: q.w + 'px', height: q.h + 'px' }); return b }
-    function draw() {
-      if (!overlay) return; overlay.querySelectorAll('i').forEach(n => n.remove());
-      if (hovered && hovered !== selected && hovered.rect) overlay.append(box('hov', hovered.rect));
-      if (selected && selected.rect) overlay.append(box('sel', selected.rect));
-      surface?.renderSelection?.({ selectedId: selected?.id ?? null, hoveredId: hovered?.id ?? null });
-    }
-    function card() {
-      overlay.querySelector('.hn-card')?.remove(); if (!selected) return;
-      const c = document.createElement('div'); c.className = 'hn-card';
-      const q = R(selected.rect) || { x: 8, y: 8, w: 0, h: 0 };
-      c.style.left = Math.min(innerWidth - 300, Math.max(8, q.x)) + 'px'; c.style.top = Math.min(innerHeight - 190, q.y + q.h + 10) + 'px';
-      c.innerHTML = '<b></b><small></small><textarea placeholder="What should Hermes change or check here?"></textarea><div><button data-a="cancel">Cancel</button><button data-a="ask" data-primary="true">Ask Hermes</button></div>';
-      c.querySelector('b').textContent = selected.name || 'Game screen'; c.querySelector('small').textContent = (selected.role || '').replace('game-', '');
-      c.addEventListener('click', e => { const a = e.target.dataset?.a; if (a === 'cancel') { selected = null; c.remove(); draw() } if (a === 'ask') ask(c.querySelector('textarea').value) });
-      c.addEventListener('pointerdown', e => e.stopPropagation()); c.addEventListener('keydown', e => e.stopPropagation());
-      overlay.append(c); c.querySelector('textarea').focus();
-    }
-    function ask(note) {
-      const canvas = document.querySelector('#mainCanvas');
-      let metadata = null; try { metadata = JSON.parse(JSON.stringify(selected.metadata ?? null)) } catch {}
-      post({ cs: 'annotate', target: { name: selected.name, role: selected.role, metadata }, note, image: canvas ? canvas.toDataURL('image/png') : '' });
-      setActive(false);
-    }
-    function setActive(on) {
-      if (active === on) return; active = on; hovered = selected = null;
-      if (on && surface) {
-        overlay = document.createElement('div'); overlay.className = 'hn-ann';
-        const el = surface.element, place = () => { const r = el.getBoundingClientRect(); Object.assign(overlay.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }) };
-        place(); overlay.style.position = 'fixed'; overlay._place = place; addEventListener('resize', place);
-        const hit = e => { try { return surface.hitTest({ clientX: e.clientX, clientY: e.clientY }) } catch { return null } };
-        overlay.addEventListener('pointermove', e => { if (selected) return; hovered = hit(e); draw() });
-        overlay.addEventListener('pointerdown', e => { if (e.target.closest('.hn-card')) return; const t = hit(e); if (t) { selected = t; hovered = null; draw(); card() } });
-        const tip = document.createElement('span'); tip.className = 'hn-tip'; tip.textContent = 'Click a thing in the game · Esc to finish'; overlay.append(tip);
-        document.body.append(overlay);
-      } else { overlay?.remove(); overlay = null }
-      fire(on);
-    }
-    addEventListener('keydown', e => { if (active && e.key === 'Escape') { e.stopPropagation(); setActive(false) } }, true);
-    const css = document.createElement('style');
-    css.textContent = `.codex-game-view .cgv-color[data-device-color^="hermes-"]{order:-4}.codex-game-view .cgv-player,.codex-game-view .cgv-mode-views{width:max(220px,min(calc((100svh - 136px)*850/1440),calc(100vw - 112px)));max-width:none}.hn-ann{position:fixed;z-index:40;cursor:crosshair}.hn-ann i{position:fixed;pointer-events:none;border-radius:2px}.hn-ann i.hov{outline:2px dashed #ffd84a;background:#ffd84a22}.hn-ann i.sel{outline:2px solid #ffd84a;background:#ffd84a33}
-      .hn-tip{position:absolute;left:50%;bottom:-30px;transform:translateX(-50%);white-space:nowrap;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--cgv-ink,#27272b);opacity:.75}
-      .hn-card{position:fixed;z-index:41;width:290px;padding:14px;border-radius:12px;background:#fff;color:#27272b;box-shadow:0 18px 60px #0003;display:flex;flex-direction:column;gap:8px;cursor:default;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-      .hn-card small{color:#626268;margin-top:-6px}.hn-card textarea{min-height:64px;resize:vertical;border:1px solid #d6d6db;border-radius:8px;padding:8px 10px;font:inherit;color:#27272b;background:#fff}
-      .hn-card div{display:flex;justify-content:flex-end;gap:6px}.hn-card button{min-height:34px;padding:6px 12px;border:0;border-radius:8px;background:transparent;color:#626268;font:600 13px inherit;cursor:pointer}.hn-card button[data-primary]{background:#27272b;color:#fff}`;
-    addEventListener('DOMContentLoaded', () => document.head.append(css));
-    document.oai = Object.assign(document.oai || {}, { annotation: {
-      registerSurface(options) { surface = options; return { dispose() { if (surface === options) { setActive(false); surface = null } }, invalidate() { overlay?._place?.(); draw() } } },
-      registerControls() { return { update() {}, dispose() {} } },
-      isActive: () => active,
-      toggle(on) { if (!surface) return { accepted: false }; setTimeout(() => setActive(!!on)); return { accepted: true } },
-      request() { if (!surface) return { accepted: false }; setTimeout(() => setActive(true)); return { accepted: true } }
-    } });
-  })();
-  // Commands from the Studio page: keys while its own document has focus, a title-screen snapshot,
-  // pause while the Emulator page is hidden, and the app's theme around the device.
-  addEventListener('message', e => {
-    const d = e.data; if (!d || d.cs !== 'cmd') return;
-    // Dispatched on the body: the player's handlers call target.closest and ignore keys aimed at its
-    // own buttons, and the event still bubbles up to window where the game reads it.
-    if (d.type === 'key') (document.body || document.documentElement).dispatchEvent(new KeyboardEvent(d.down ? 'keydown' : 'keyup', { key: d.key, code: d.code, bubbles: true, cancelable: true }));
-    if (d.type === 'focus') window.focus();
-    if (d.type === 'snap') { const c = document.querySelector('#mainCanvas'); let url = ''; try { url = c ? c.toDataURL('image/png') : '' } catch {} post({ cs: 'snap', id: d.id, url }) }
-    if (d.type === 'hold') { try { if (!vm.paused) { vm.paused = true; window.__csHeld = true } Audio.ctx?.suspend?.() } catch {} }
-    if (d.type === 'release') { try { if (window.__csHeld) { vm.paused = false; window.__csHeld = false } Audio.ctx?.resume?.() } catch {} }
-    if (d.type === 'theme') { let s = document.getElementById('hermes-theme'); if (!s) { s = document.createElement('style'); s.id = 'hermes-theme'; document.head.append(s) } s.textContent = typeof d.css === 'string' ? d.css : '' }
-  });
-  addEventListener('focus', () => post({ cs: 'focus', value: true }));
-  addEventListener('blur', () => post({ cs: 'focus', value: false }));
-})();
-"""
+# Runs first in the frame (``player/frame-shim.js``). The frame is sandboxed (allow-scripts, opaque
+# origin), so: storage lives in memory, the player's same-origin fetches are sent as CORS requests to
+# this server, and the host annotation API plus page commands talk to the Studio page through
+# postMessage. ``__DEFAULT_COLOR__`` and ``__COLOR_KEY__`` are filled in here.
+_shim_cache: dict[tuple, str] = {}
+
+
+def frame_shim() -> str:
+    """The shim as an inline ``<script>`` body, read once per file version."""
+    source = paths.PLUGIN_ROOT / "player" / "frame-shim.js"
+    info = source.stat()
+    key = (info.st_size, info.st_mtime_ns)
+    if key not in _shim_cache:
+        text = source.read_text(encoding="utf-8").replace("__DEFAULT_COLOR__", DEFAULT_COLOR) \
+            .replace("__COLOR_KEY__", COLOR_KEY).replace("</script", "<\\/script")
+        _shim_cache.clear()
+        _shim_cache[key] = text
+    return _shim_cache[key]
 
 
 def engine_bootstrap(runtime_sha256: str) -> str:
@@ -290,8 +207,7 @@ def build_for(identifier: str, root: Path) -> dict:
 def frame_document(root: Path, build: dict, capture_generation: str) -> bytes:
     """The game's own ``index.html`` with the shim, the engine bootstrap and the player modules."""
     html = (build["web"] / "index.html").read_text(encoding="utf-8")
-    shim = "<script>" + FRAME_SHIM.replace("__DEFAULT_COLOR__", DEFAULT_COLOR).replace("__COLOR_KEY__", COLOR_KEY) \
-        .replace("</script", "<\\/script") + "</script>\n"
+    shim = "<script>" + frame_shim() + "</script>\n"
     head = re.search(r"<head\b[^>]*>", html, re.I)
     html = html[:head.end()] + "\n" + shim + html[head.end():] if head else shim + html
     player = re.search(r"<script\b[^>]*\bsrc=([\"'])(?:\./)?js/script\.js\1[^>]*>\s*</script>", html, re.I)

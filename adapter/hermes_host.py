@@ -5,14 +5,18 @@ turn process). They hold no state of their own: every call goes to the broker.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
+import os
 import platform
+import re
 import threading
 import time
 from pathlib import Path
 
-from . import contracts, onboarding, paths, player_server, provision, results, studio_profile
+from . import contracts, game_card, onboarding, paths, player_server, provision, results, snapshots, studio_profile
 from . import games as library
 from .client import BrokerUnavailable, ensure_broker, try_connect
 
@@ -121,6 +125,11 @@ def make_tool_handler(ctx, tool: dict):
             with ensure_broker() as client:
                 response = client.call(owner, original, args if isinstance(args, dict) else {},
                                        origin=origin, policy=policy)
+            if conversation_id and session_id and session_id != conversation_id and not origin["delegated"]:
+                try:  # a game's conversation keeps its game when compression rotates the session id
+                    _registry().note_alias(_profile_identity(), conversation_id, session_id)
+                except Exception:
+                    logger.debug("hermretro: could not record the session alias", exc_info=True)
             return _deliver(response, name)
         except BrokerUnavailable as error:
             return json.dumps({"error": str(error), "code": "UNAVAILABLE", "dispatched": False,
@@ -183,7 +192,8 @@ PRESENT_TOOL = {
         "Show the game to the user in the hermretro emulator beside the chat (ModRetro's player, served "
         "by the plugin). Call it once the game is built and ready for the user to try, and again after later "
         "changes the user should test; each call loads the newest build there. Nothing opens by itself after a "
-        "build. Needs a fresh playable copy: run chromatic_rom_build first. Never touches a device. Do not open "
+        "build. Needs a fresh playable copy (run chromatic_rom_build first) and a complete game card (cover art, "
+        "title, tagline, description, genres; set them with chromatic_game_info). Never touches a device. Do not open "
         "the game with desktop_preview instead; only if the user says they cannot see the emulator, open the "
         "returned studio.playerUrl with desktop_preview."),
     "parameters": {
@@ -226,6 +236,28 @@ def _present_error(message: str, code: str) -> str:
     return json.dumps({"ok": False, "error": message, "code": code})
 
 
+def _tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str | None]:
+    """The project a plugin-owned tool acts on: ``project`` when given, else this chat's. Returns
+    ``(root, None)`` or ``(None, error json)``."""
+    conversation_id = str(kwargs.get("conversation_id") or "")
+    session_id = str(kwargs.get("session_id") or "")
+    project = args.get("project")
+    if project is not None and (not isinstance(project, str) or not project.strip()):
+        return None, _present_error("project must be an absolute folder path.", "INVALID_ARGUMENTS")
+    if project:
+        candidate = Path(project).expanduser()
+        if not candidate.is_absolute() or not candidate.is_dir():
+            return None, _present_error(f"{project} is not an existing project folder (give an absolute path).",
+                                        "PROJECT_NOT_FOUND")
+        return str(candidate), None
+    root = _chat_project(conversation_id, session_id)
+    if not root or not Path(root).is_dir():
+        return None, _present_error(
+            f"This chat has no current project. Select or create the game's project, then call {tool} again (or "
+            "pass project).", "NO_PROJECT")
+    return root, None
+
+
 def present_game_handler(args: dict, **kwargs) -> str:
     """``chromatic_present_game``: record the presentation; the desktop opens the emulator tab when it
     sees this tool complete. Reads files and the library only: no engine call, no device."""
@@ -261,6 +293,19 @@ def present_game_handler(args: dict, **kwargs) -> str:
             return json.dumps({"ok": False, "error": why, "code": "BUILD_FIRST",
                                "guidance": "Run chromatic_rom_build for this project, then call "
                                            "chromatic_present_game again."})
+        # Every game reaches the user with its card: cover art, title, tagline, description, genres.
+        try:
+            game_card.scaffold(Path(root), library.project_title(Path(root)))
+        except OSError:
+            pass
+        card = game_card.status(Path(root), strict=True)
+        if not card["complete"]:
+            return json.dumps({"ok": False, "code": "GAME_INFO_INCOMPLETE",
+                               "error": "The game card is not finished, so the game is not shown yet. Missing: "
+                                        + ", ".join(card["missing"]) + ".",
+                               "missing": card["missing"], "problems": card["problems"],
+                               "guidance": game_card.next_step(card["missing"]) + " Then call "
+                                                                                "chromatic_present_game again."})
         chat = None
         if conversation_id:
             chat = {"conversationId": conversation_id, "sessionId": session_id or conversation_id,
@@ -276,6 +321,275 @@ def present_game_handler(args: dict, **kwargs) -> str:
                            "message": "Shown to the user beside the chat."})
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_present_game failed")
+        return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+
+
+# -- plugin-owned tool: the game card (game.json + cover.png) ------------------------------
+
+GAME_INFO_TOOL = {
+    "name": "chromatic_game_info",
+    "description": (
+        "Read or fill in the game card that the hermretro Games page shows and chromatic_present_game requires: "
+        "game.json (title, tagline, description, about, genres, tags, controls) and cover.png at the project root. "
+        "Call it with no fields to see what is missing. The cover must be pixel art you draw yourself: exactly "
+        f"{game_card.COVER_WIDTH}x{game_card.COVER_HEIGHT}, opaque, at most {game_card.MAX_COVER_COLOURS} colours, "
+        "in the game's own palette, never Image Generation (see hermretro:pixel-art); pass the path of its PNG and it is copied "
+        "into the project. A call with any invalid field changes nothing and lists the problems. Never touches "
+        "game sources or a device."),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "maxLength": game_card.LIMITS["title"][1],
+                      "description": "The game's name as players see it."},
+            "tagline": {"type": "string", "maxLength": game_card.LIMITS["tagline"][1],
+                        "description": "One line that sells the game, e.g. 'Walk a tabby through a sunny meadow.'"},
+            "description": {"type": "string", "maxLength": game_card.LIMITS["description"][1],
+                            "description": f"{game_card.LIMITS['description'][0]} to "
+                                           f"{game_card.LIMITS['description'][1]} characters: what the game is "
+                                           "and what you do in it."},
+            "about": {"type": "string", "maxLength": game_card.LIMITS["about"][1],
+                      "description": "Optional longer notes: story, how to play, tips."},
+            "genres": {"type": "array", "maxItems": game_card.MAX_GENRES,
+                       "items": {"type": "string", "enum": list(game_card.GENRES)},
+                       "description": "1 to 3 genres."},
+            "tags": {"type": "array", "maxItems": game_card.MAX_TAGS,
+                     "items": {"type": "string", "maxLength": game_card.MAX_TAG_CHARS},
+                     "description": "Optional short free-form tags, e.g. 'cozy', 'animals'."},
+            "controls": {"type": "object", "additionalProperties": {"type": "string"},
+                         "description": "Optional button to action, e.g. {\"D-pad\": \"walk\", \"A\": \"pounce\"}."},
+            "cover": {"type": "string", "maxLength": 4096,
+                      "description": "Path of the cover PNG you drew (absolute, or relative to the project)."},
+            "project": {"type": "string", "maxLength": 4096,
+                        "description": "Optional absolute project folder. Default: this chat's current project."},
+        },
+        "additionalProperties": False,
+    },
+}
+
+_CARD_FIELDS = ("title", "tagline", "description", "about", "genres", "tags", "controls")
+
+
+def game_info_handler(args: dict, **kwargs) -> str:
+    """``chromatic_game_info``: check and store the game card. Files only: no engine call, no device."""
+    try:
+        args = args if isinstance(args, dict) else {}
+        if _is_child(str(kwargs.get("session_id") or "")):
+            return _present_error("Only the main conversation can change the game card.", "PARENT_ONLY")
+        root, error = _tool_project("chromatic_game_info", args, kwargs)
+        if error:
+            return error
+        path = Path(root)
+        title = library.project_title(path)
+        game_card.scaffold(path, title)
+        fields = {key: args[key] for key in _CARD_FIELDS if key in args}
+        cover = args.get("cover")
+        if cover is not None and (not isinstance(cover, str) or not cover.strip()):
+            return _present_error("cover must be the path of a PNG.", "INVALID_ARGUMENTS")
+        if fields or cover:
+            entry = _registry().get(library.game_id(root)) or {}
+            build = entry.get("lastBuild") if isinstance(entry.get("lastBuild"), dict) else {}
+            result = game_card.update(path, fields, cover_source=cover, build_sha=build.get("sha256"),
+                                      default_title=title)
+            if not result["ok"]:
+                return json.dumps({"ok": False, "code": "INVALID_GAME_INFO", "problems": result["problems"],
+                                   "error": "Nothing was changed. " + " ".join(result["problems"])})
+            state = result["status"]
+        else:
+            state = game_card.status(path, strict=True)
+        card = game_card.public(path) or {}
+        card.pop("missing", None)
+        return json.dumps({
+            "ok": True, "card": card, "file": str(game_card.card_path(path)), "complete": state["complete"],
+            "missing": state["missing"], "problems": state["problems"],
+            "nextStep": "The game card is complete; you can present the game with chromatic_present_game."
+            if state["complete"] else game_card.next_step(state["missing"])})
+    except Exception as error:  # a handler must never raise
+        logger.exception("chromatic_game_info failed")
+        return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+
+
+# -- plugin-owned tool: the Build page's build card ------------------------------------------
+
+REPORT_LIMITS = {"title": 48, "summary": 280, "change": 100, "tested": 80, "untested": 80, "notes": 160,
+                 "suggestions": 40}
+REPORT_COUNTS = {"changes": 8, "tested": 6, "untested": 6, "notes": 3, "suggestions": 4}
+REPORT_KINDS = ("added", "changed", "removed")
+BUILD_REPORT_GUIDANCE = (
+    "At the end of a turn that changed or built the game (after building, your own playtest and presenting), "
+    "call chromatic_build_report once (title, summary, changes with asset paths, tested/untested, notes, up to 4 "
+    "suggestions), then keep the written reply to one or two short sentences.")
+REPORT_MESSAGE = ("The Build page shows this as the build card. Keep your written reply to one or two short "
+                  "sentences; do not repeat the report.")
+
+
+def _report_list(key: str, limit: int, item_description: str, description: str) -> dict:
+    return {"type": "array", "maxItems": REPORT_COUNTS[key], "description": description,
+            "items": {"type": "string", "minLength": 1, "maxLength": limit, "description": item_description}}
+
+
+BUILD_REPORT_TOOL = {
+    "name": "chromatic_build_report",
+    "description": (
+        "Report what this turn did to the game, for the hermretro Build page. Call it once at the end of every "
+        "turn that changed or built the game: after chromatic_rom_build and your own playtest, and after "
+        "chromatic_present_game when you present. Never call it in a subagent. The page draws the title, summary, "
+        "changes (with the images they made or edited), tested and untested checks, notes and suggestions as a "
+        "build card, so the written reply after it should be one or two short sentences (for example a "
+        "question about a note), not a recap. Reads and writes nothing in the project; never touches a device."),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "minLength": 1, "maxLength": REPORT_LIMITS["title"],
+                      "description": "Short name for this build, e.g. 'Robin in the sky' or 'Chubbier robin'."},
+            "summary": {"type": "string", "minLength": 1, "maxLength": REPORT_LIMITS["summary"],
+                        "description": "One or two plain sentences on what the user can do now."},
+            "changes": {
+                "type": "array", "maxItems": REPORT_COUNTS["changes"],
+                "description": "What changed in the game this turn.",
+                "items": {"type": "object", "additionalProperties": False, "required": ["kind", "text"],
+                          "properties": {
+                              "kind": {"type": "string", "enum": list(REPORT_KINDS)},
+                              "text": {"type": "string", "minLength": 1, "maxLength": REPORT_LIMITS["change"]},
+                              "asset": {"type": "string", "maxLength": 4096,
+                                        "description": "Optional path (absolute or relative to the project) "
+                                                       "of an image this change made or edited."}}}},
+            "tested": _report_list("tested", REPORT_LIMITS["tested"], "One check.",
+                                   "What you verified yourself in the emulator."),
+            "untested": _report_list("untested", REPORT_LIMITS["untested"], "One check.",
+                                     "What you did not check (sound, edge cases, the real Chromatic...)."),
+            "notes": _report_list("notes", REPORT_LIMITS["notes"], "One note.",
+                                  "Things the user might notice."),
+            "suggestions": _report_list("suggestions", REPORT_LIMITS["suggestions"],
+                                        "Phrased as the user's own request, e.g. 'Make it fly faster'.",
+                                        "Next steps the user can pick."),
+            "project": {"type": "string", "maxLength": 4096,
+                        "description": "Optional absolute project folder. Default: this chat's current project."},
+        },
+        "required": ["title", "summary"],
+        "additionalProperties": False,
+    },
+}
+
+
+def _report_text(value, name: str, limit: int, problems: list) -> str | None:
+    if not isinstance(value, str):
+        problems.append(f"{name} must be a string.")
+        return None
+    text = " ".join(value.split())
+    if not text:
+        problems.append(f"{name} is empty.")
+        return None
+    if len(text) > limit:
+        problems.append(f"{name} is {len(text)} characters; at most {limit}.")
+        return None
+    return text
+
+
+def _report_asset(raw: str, root: Path | None) -> tuple[str | None, str | None]:
+    """An absolute path for a change's image inside the project, or (None, why it was left out)."""
+    text = raw.strip()
+    if text.startswith("file://"):
+        text = text[len("file://"):]
+    candidate = Path(text).expanduser()
+    if root is None:
+        if not candidate.is_absolute():
+            return None, f"{raw}: a relative path needs the game's project"
+        return os.path.normpath(str(candidate)), None
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    try:
+        real = candidate.resolve()
+        base = root.resolve()
+    except (OSError, RuntimeError):
+        return None, f"{raw}: not a usable path"
+    if real != base and base not in real.parents:
+        return None, f"{raw}: outside the project"
+    if not real.is_file():
+        return None, f"{raw}: no such file in the project"
+    return str(real), None
+
+
+def build_report_handler(args: dict, **kwargs) -> str:
+    """``chromatic_build_report``: check the turn's build card and hand it back for the Build page.
+    Stores nothing; the page reads it from the tool call."""
+    try:
+        args = args if isinstance(args, dict) else {}
+        if _is_child(str(kwargs.get("session_id") or "")):
+            return _present_error("Only the main conversation reports a build.", "PARENT_ONLY")
+        problems: list[str] = []
+        known = set(BUILD_REPORT_TOOL["parameters"]["properties"])
+        problems += [f"Unknown field {key!r}." for key in sorted(set(args) - known)]
+        root = None
+        project = args.get("project")
+        if project is not None:
+            if not isinstance(project, str) or not project.strip() or not Path(project).expanduser().is_absolute() \
+                    or not Path(project).expanduser().is_dir():
+                problems.append("project must be an absolute path of an existing project folder.")
+            else:
+                root = Path(project).expanduser()
+        else:
+            try:
+                found = _chat_project(str(kwargs.get("conversation_id") or ""), str(kwargs.get("session_id") or ""))
+            except Exception:
+                logger.debug("hermretro: no project for the build report", exc_info=True)
+                found = None
+            root = Path(found) if found and Path(found).is_dir() else None
+        report: dict = {}
+        for key in ("title", "summary"):
+            if key not in args:
+                problems.append(f"{key} is required.")
+            else:
+                report[key] = _report_text(args[key], key, REPORT_LIMITS[key], problems)
+        warnings: list[str] = []
+        changes = args.get("changes", [])
+        report["changes"] = []
+        if not isinstance(changes, list):
+            problems.append("changes must be a list.")
+        elif len(changes) > REPORT_COUNTS["changes"]:
+            problems.append(f"changes has {len(changes)} items; at most {REPORT_COUNTS['changes']}.")
+        else:
+            for index, change in enumerate(changes, 1):
+                where = f"changes[{index}]"
+                if not isinstance(change, dict):
+                    problems.append(f"{where} must be an object with kind and text.")
+                    continue
+                problems += [f"{where} has unknown field {key!r}." for key in sorted(set(change) - {"kind", "text", "asset"})]
+                if change.get("kind") not in REPORT_KINDS:
+                    problems.append(f"{where}.kind must be one of {', '.join(REPORT_KINDS)}.")
+                item = {"kind": change.get("kind"),
+                        "text": _report_text(change.get("text"), f"{where}.text", REPORT_LIMITS["change"], problems)}
+                asset = change.get("asset")
+                if asset is not None:
+                    if not isinstance(asset, str) or not asset.strip() or len(asset) > 4096:
+                        problems.append(f"{where}.asset must be a file path.")
+                    else:
+                        resolved, why = _report_asset(asset, root)
+                        if resolved:
+                            item["asset"] = resolved
+                        else:
+                            warnings.append(f"{where}.asset left out ({why}).")
+                report["changes"].append(item)
+        for key in ("tested", "untested", "notes", "suggestions"):
+            values = args.get(key, [])
+            report[key] = []
+            if not isinstance(values, list):
+                problems.append(f"{key} must be a list of strings.")
+            elif len(values) > REPORT_COUNTS[key]:
+                problems.append(f"{key} has {len(values)} items; at most {REPORT_COUNTS[key]}.")
+            else:
+                report[key] = [_report_text(value, f"{key}[{index}]", REPORT_LIMITS[key], problems)
+                               for index, value in enumerate(values, 1)]
+        if problems:
+            return json.dumps({"ok": False, "code": "INVALID_REPORT", "problems": problems,
+                               "error": "The build report was not shown. " + " ".join(problems)})
+        # The card shows each image as it is now, even after a later turn rewrites it.
+        _keep_paths(change.get("asset") for change in report["changes"])
+        answer = {"ok": True, "report": report, "project": str(root) if root else None, "message": REPORT_MESSAGE}
+        if warnings:
+            answer["warnings"] = warnings
+        return json.dumps(answer)
+    except Exception as error:  # a handler must never raise
+        logger.exception("chromatic_build_report failed")
         return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
 
 
@@ -471,6 +785,26 @@ def _chat_titles(ids: set[str]) -> dict[str, str]:
         return {}
 
 
+def _existing_sessions(ids: set[str]) -> set[str] | None:
+    """Which of these session ids have a row in this profile's session database; None if unreadable."""
+    if not ids:
+        return set()
+    try:
+        import sqlite3
+        database = _data_dir().parents[1] / "state.db"
+        if not database.is_file():
+            return None
+        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=1.0)
+        try:
+            marks = ",".join("?" * len(ids))
+            rows = connection.execute(f"SELECT id FROM sessions WHERE id IN ({marks})", sorted(ids)).fetchall()
+        finally:
+            connection.close()
+        return {row[0] for row in rows}
+    except Exception:
+        return None
+
+
 def _seed_library(registry: library.Registry) -> None:
     """Add projects the running broker has selected but the library has not seen (for example work
     done before the library existed). Never starts the broker."""
@@ -509,7 +843,21 @@ def rpc_games(ctx):
                       for value in (g["chat"].get("sessionId"), g["chat"].get("conversationId"))
                       if isinstance(value, str) and value}
             titles = _chat_titles(wanted)
+            pending = registry.pending(here)
+            # Whether each Build conversation still exists in this profile's session store (None: unknown).
+            stored_ids = {g["session"]["storedId"] for g in listed if g.get("session")} | {p["storedId"] for p in pending}
+            existing = _existing_sessions(stored_ids)
+            for item in pending:
+                item.pop("profile", None)
+                item["exists"] = None if existing is None else item["storedId"] in existing
             for game in listed:
+                session = game.get("session")
+                if session:
+                    owner = session.pop("profile", None)
+                    session["thisProfile"] = owner in (None, here)
+                    session["profileName"] = _profile_name(owner) if owner else None
+                    session["exists"] = (None if existing is None or not session["thisProfile"]
+                                         else session["storedId"] in existing)
                 chat = game.get("chat")
                 if chat and chat.get("sessionId"):
                     owner = chat.get("profile")
@@ -523,12 +871,803 @@ def rpc_games(ctx):
                 game.pop("updatedAt", None)
             # The built-in demo cartridge is not part of the library (the Games shelf stays the user's own
             # games); the Emulator page plays it when there is nothing else to play.
-            return {"ok": True, "games": listed, "demo": _demo_entry(), "gamesDir": str(paths.games_dir()),
+            return {"ok": True, "games": listed, "pending": pending, "demo": _demo_entry(),
+                    "gamesDir": str(paths.games_dir()),
                     "device": {"hardwareEnabled": bool(ctx.get_config("hardware_enabled", False)), "skipped": False}}
         except Exception as error:
             logger.exception("hermretro games failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}", "games": [], "demo": _demo_entry()}
     return games
+
+
+def rpc_build(ctx):
+    """The Build page's game ↔ conversation binding. Params use ``stored`` (a stored session id), never
+    ``session_id``: the gateway would authorize that as a live session and refuse the whole call.
+      {action: "start", stored, name?, plan?}     a New Game conversation, before its project exists
+      {action: "bind", game, stored, replace?}    give a game its conversation (replace: the old one is gone)
+      {action: "cancel", stored}                  forget a New Game conversation that made nothing
+      {action: "unbind", game, stored}            stop editing: the game lets go of its conversation"""
+    def build(params, **_kwargs):
+        params = params if isinstance(params, dict) else {}
+        action = params.get("action")
+        stored = params.get("stored")
+        here = _profile_identity()
+        try:
+            registry = _registry()
+            if action == "start":
+                record = registry.build_start(stored, here, params.get("name"), plan=params.get("plan") is True)
+                return {"ok": True, "pending": {"storedId": record["storedId"], "name": record["name"]}}
+            if action == "bind":
+                entry = registry.bind(str(params.get("game") or ""), stored, here, replace=params.get("replace") is True)
+                return {"ok": True, "game": entry["id"], "session": library.public_session(entry.get("session"))}
+            if action == "cancel":
+                return {"ok": True, "cancelled": registry.build_cancel(stored, here)}
+            if action == "unbind":
+                return {"ok": True, "unbound": registry.unbind(str(params.get("game") or ""), stored, here)}
+            return {"ok": False, "code": "INVALID", "error": "Unknown action."}
+        except library.BindingError as error:
+            return {"ok": False, "code": error.code, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro build failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return build
+
+
+SHOW_ART_CONTEXT = (
+    "To show the user a game's art (a sprite, background or cover), put the real file on its own line as "
+    "MEDIA:<absolute path>, e.g. its assets/sprites/<name>.png: the Build page draws it in the game's colours, "
+    "animates a sprite and opens it in its viewer (frames, palette, scenes, versions) on a click. Do not draw a "
+    "preview or contact sheet to show existing art; make one only when the user asks for a picture that "
+    "does not exist yet.")
+
+
+def build_context(session_id=None, is_first_turn=False, **_kwargs):
+    """``pre_llm_call``: tell a game's Build conversation which game it is (ephemeral, per turn)."""
+    if not isinstance(session_id, str) or not session_id:
+        return None
+    try:
+        kind, bound = _registry().binding_for(_profile_identity(), [session_id])
+    except Exception:
+        return None
+    if kind == "game":
+        title = bound.get("title") or Path(bound.get("projectRoot") or "").name
+        return {"context": (f"[hermretro] This is the Build conversation of the game \"{title}\" "
+                            f"({bound.get('projectRoot')}). The game is selected for you on the first chromatic "
+                            "call. This conversation works on this one game: do not create or open other "
+                            "projects here; for another game the user uses New Game or picks it on the "
+                            "hermretro Build page. " + SHOW_ART_CONTEXT + " " + BUILD_REPORT_GUIDANCE)}
+    if kind == "pending":
+        name = bound.get("name")
+        called = f" called \"{name}\"" if name else ""
+        how = ("Plan it first: load hermretro:game-planning, interview the user briefly, create the project, and "
+               "write the game brief, backlog and test plan into it before building anything."
+               if bound.get("plan") else
+               "Ask the user a few quick questions first, then create the project, build it, fill in its game card "
+               "with chromatic_game_info and show it with chromatic_present_game.")
+        start = ("; their message is the idea. " + how) if is_first_turn else \
+            ". If its project does not exist yet, create it once the user is ready."
+        return {"context": (f"[hermretro] The user started a new Game Boy Color game{called} with New Game on the "
+                            "hermretro Build page" + start + " Create exactly one new "
+                            "project (chromatic_project_create or chromatic_project_create_blank): it becomes this "
+                            "conversation's game. " + BUILD_REPORT_GUIDANCE)}
+    return None
+
+
+ASSET_SUFFIXES = {".png": "image/png", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+ASSET_MAX_BYTES = 6 * 1024 * 1024
+
+
+def _image_size(data: bytes) -> tuple[int, int]:
+    """Width and height from a PNG, GIF or JPEG header; (0, 0) when unknown."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:
+        return int.from_bytes(data[6:8], "little"), int.from_bytes(data[8:10], "little")
+    if data[:2] == b"\xff\xd8":
+        index = 2
+        while index + 9 < len(data):
+            if data[index] != 0xFF:
+                break
+            marker, length = data[index + 1], int.from_bytes(data[index + 2:index + 4], "big")
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                return int.from_bytes(data[index + 7:index + 9], "big"), int.from_bytes(data[index + 5:index + 7], "big")
+            index += 2 + length
+    return 0, 0
+
+
+def _asset_kind(relative: str | None) -> str:
+    parts = (relative or "").split("/")
+    if parts[:2] == ["assets", "sprites"]:
+        return "sprite"
+    if parts[:2] == ["assets", "backgrounds"]:
+        return "background"
+    if parts[:2] == ["assets", "ui"] or parts[:2] == ["assets", "fonts"]:
+        return "ui"
+    if "playtests" in parts or "frames" in parts:
+        return "frame"
+    if "captures" in parts:
+        return "capture"
+    return "image"
+
+
+ASSET_KEEP_VERSIONS = 40
+# A line of a reply that delivers a file (``MEDIA:/path``), quotes or backticks allowed around the path.
+_MEDIA_LINE = re.compile(r"^[ \t]*MEDIA:[ \t]*([`\"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$", re.IGNORECASE | re.MULTILINE)
+
+
+def _asset_roots() -> list[Path]:
+    roots = [(_data_dir() / "frames").resolve()]
+    for game in _registry().library():
+        try:
+            roots.append(Path(game["projectRoot"]).resolve())
+        except (KeyError, OSError, RuntimeError):
+            continue
+    return roots
+
+
+def _asset_file(raw) -> tuple[Path, Path] | None:
+    """The real file and the root it is shown from, for an image inside a library game or the saved
+    frames; None for anything else."""
+    raw = str(raw or "")
+    if raw.startswith("file://"):
+        raw = raw[len("file://"):]
+    candidate = Path(raw).expanduser()
+    # Cheap checks first: this runs after every tool call.
+    if not raw or not candidate.is_absolute() or candidate.suffix.lower() not in ASSET_SUFFIXES:
+        return None
+    try:
+        real = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if real.suffix.lower() not in ASSET_SUFFIXES or not real.is_file():
+        return None
+    root = next((base for base in _asset_roots() if real == base or base in real.parents), None)
+    return (real, root) if root is not None else None
+
+
+def _versions_dir(real: Path) -> Path:
+    return _data_dir() / "asset-versions" / hashlib.sha256(str(real).encode("utf-8")).hexdigest()[:24]
+
+
+def _keep_version(real: Path) -> None:
+    """Keep this version of a game image (named by its modification time), so a later rewrite of the
+    same file (cover.png made again) does not change what an earlier reply showed."""
+    try:
+        stat = real.stat()
+        if stat.st_size > ASSET_MAX_BYTES:
+            return
+        folder = _versions_dir(real)
+        target = folder / f"{stat.st_mtime_ns}{real.suffix.lower()}"
+        if target.exists():
+            return
+        folder.mkdir(parents=True, exist_ok=True)
+        data = real.read_bytes()
+        kept = sorted(folder.iterdir(), key=lambda item: item.name)
+        if kept and kept[-1].read_bytes() == data:
+            return
+        partial = target.with_name(target.name + ".part")
+        partial.write_bytes(data)
+        partial.replace(target)
+        for old in kept[: max(0, len(kept) + 1 - ASSET_KEEP_VERSIONS)]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        logger.debug("hermretro could not keep an image version", exc_info=True)
+
+
+def _version_at(real: Path, at_ms) -> Path | None:
+    """The kept version of ``real`` that was current at ``at_ms`` (a reply's time), when the file has
+    been rewritten since; None when the file on disk is still that version (or nothing older was kept)."""
+    try:
+        at_ns = int(float(at_ms) * 1_000_000)
+    except (TypeError, ValueError):
+        return None
+    if at_ns <= 0 or real.stat().st_mtime_ns <= at_ns:
+        return None
+    folder = _versions_dir(real)
+    if not folder.is_dir():
+        return None
+    older = [item for item in folder.iterdir() if item.suffix != ".part" and item.stem.isdigit() and int(item.stem) <= at_ns]
+    return max(older, key=lambda item: int(item.stem)) if older else None
+
+
+def _keep_paths(values) -> None:
+    for value in values:
+        if isinstance(value, str) and value:
+            found = _asset_file(value)
+            if found:
+                _keep_version(found[0])
+
+
+def keep_delivered_images(assistant_response=None, **_kwargs):
+    """``post_llm_call``: keep the images a reply delivered (``MEDIA:`` lines), as they are right now."""
+    try:
+        if isinstance(assistant_response, str) and "MEDIA:" in assistant_response:
+            _keep_paths(match.group(2).strip() for match in _MEDIA_LINE.finditer(assistant_response))
+    except Exception:
+        logger.debug("hermretro keep_delivered_images failed", exc_info=True)
+
+
+def keep_inspected_images(tool_name=None, args=None, **_kwargs):
+    """``post_tool_call``: keep the images a step looked at or wrote, as they are right after it."""
+    try:
+        if isinstance(args, dict):
+            _keep_paths(args.get(key) for key in ("image_url", "image", "assetPath", "outputPath", "path"))
+    except Exception:
+        logger.debug("hermretro keep_inspected_images failed", exc_info=True)
+
+
+def _snapshots_dir() -> Path:
+    return _data_dir() / "snapshots"
+
+
+def _result_payload(result):
+    """A tool result as the model saw it: the JSON text, or the multimodal envelope's text summary."""
+    if isinstance(result, dict) and result.get("_multimodal"):
+        result = result.get("text_summary")
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except ValueError:
+            return None
+    return result if isinstance(result, dict) else None
+
+
+def build_succeeded(result, status=None) -> bool:
+    """Whether a delivered ``chromatic_rom_build`` result is a successful build: no error from Hermes or
+    the adapter, and the engine's own ``structuredContent.success`` is true."""
+    if status not in (None, "", "ok"):
+        return False
+    payload = _result_payload(result)
+    if not payload or payload.get("error") or payload.get("isError"):
+        return False
+    structured = payload.get("structuredContent")
+    return isinstance(structured, dict) and structured.get("success") is True
+
+
+def _library_root_for(candidates) -> tuple[str, Path] | None:
+    """The first library game whose project is, or contains, one of ``candidates``."""
+    games = [entry for entry in _registry().load()["games"].values()
+             if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str)]
+    roots = []
+    for entry in games:
+        try:
+            roots.append(Path(os.path.realpath(entry["projectRoot"])))
+        except (OSError, ValueError):
+            continue
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        try:
+            real = Path(os.path.realpath(candidate))
+        except (OSError, ValueError):
+            continue
+        for root in roots:
+            if (real == root or root in real.parents) and root.is_dir():
+                return library.game_id(root), root
+    return None
+
+
+def snapshot_after_build(tool_name=None, args=None, result=None, status=None, conversation_id=None,
+                         session_id=None, **_kwargs):
+    """``post_tool_call``: after a successful build of a library game, keep a snapshot of its files for
+    the Build page's history (Restore). Never raises."""
+    try:
+        if tool_name != "chromatic_rom_build" or not build_succeeded(result, status):
+            return
+        args = args if isinstance(args, dict) else {}
+        if args.get("sourcePath"):
+            return  # a standalone C experiment, not the game's build
+        structured = (_result_payload(result) or {}).get("structuredContent") or {}
+        candidates = [structured.get("projectRoot"), args.get("projectPath")]
+        try:
+            candidates.append(_chat_project(str(conversation_id or ""), str(session_id or "")))
+        except Exception:
+            logger.debug("hermretro: no chat project for the build snapshot", exc_info=True)
+        candidates += [structured.get("outputPath"), structured.get("romPath")]
+        found = _library_root_for(candidates)
+        if found is None:
+            return
+        game, root = found
+        taken = snapshots.take(_snapshots_dir(), game, root, "build")
+        if taken.get("skipped"):
+            logger.debug("hermretro: build snapshot of %s skipped: %s", root, taken["skipped"])
+    except Exception:
+        logger.debug("hermretro snapshot_after_build failed", exc_info=True)
+
+
+def after_tool_call(**kwargs):
+    """``post_tool_call``: keep inspected image versions, then snapshot a successful build."""
+    keep_inspected_images(**kwargs)
+    snapshot_after_build(**kwargs)
+
+
+def rpc_asset(ctx):
+    """One image for the Build page (a thumbnail, the asset viewer): only from a library game's folder
+    or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
+    frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply's time, in
+    ms) it answers the version the file had then, when it was kept and the file has changed since."""
+    def asset(params, **_kwargs):
+        try:
+            params = params if isinstance(params, dict) else {}
+            raw = str(params.get("path") or "")
+            if raw.startswith("file://"):
+                raw = raw[len("file://"):]
+            candidate = Path(raw).expanduser()
+            if not raw or not candidate.is_absolute():
+                return {"ok": False, "code": "INVALID", "error": "An absolute image path is required."}
+            real = candidate.resolve(strict=True)
+            mime = ASSET_SUFFIXES.get(real.suffix.lower())
+            if mime is None or not real.is_file():
+                return {"ok": False, "code": "NOT_IMAGE", "error": "Not an image."}
+            roots = _asset_roots()
+            root = next((base for base in roots if real == base or base in real.parents), None)
+            if root is None:
+                return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
+            size = real.stat().st_size
+            if size > ASSET_MAX_BYTES:
+                return {"ok": False, "code": "TOO_LARGE", "error": "The image is too large to preview."}
+            _keep_version(real)
+            earlier = None
+            wanted = str(params.get("version") or "")
+            if wanted:
+                # One kept version by its id (the file's modification time in ns), as the viewer lists them.
+                if not wanted.isdigit():
+                    return {"ok": False, "code": "INVALID", "error": "Unknown version."}
+                if int(wanted) != real.stat().st_mtime_ns:
+                    kept = _versions_dir(real) / f"{wanted}{real.suffix.lower()}"
+                    if not kept.is_file():
+                        return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
+                    earlier = kept
+            elif params.get("at") is not None:
+                earlier = _version_at(real, params.get("at"))
+            source = earlier or real
+            data = source.read_bytes()
+            width, height = _image_size(data)
+            relative = real.relative_to(root).as_posix() if root != (_data_dir() / "frames").resolve() else None
+            answer = {"ok": True, "path": str(real), "relative": relative, "name": real.name, "kind": _asset_kind(relative)
+                      if relative else "frame", "width": width, "height": height, "bytes": len(data),
+                      "modifiedAt": (int(earlier.stem) / 1e9) if earlier else real.stat().st_mtime,
+                      "earlier": earlier is not None,
+                      "versionId": earlier.stem if earlier else str(real.stat().st_mtime_ns),
+                      "dataUrl": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"}
+            sidecar = real.with_name(real.name + ".gbsres")
+            if answer["kind"] == "sprite" and sidecar.is_file() and sidecar.stat().st_size < 2 * 1024 * 1024:
+                try:
+                    meta = json.loads(sidecar.read_text(encoding="utf-8"))
+                    frame_width, frame_height = int(meta.get("canvasWidth") or 0), int(meta.get("canvasHeight") or 0)
+                    if frame_width > 0 and frame_height > 0:
+                        answer["sprite"] = {"name": meta.get("name"), "frameWidth": frame_width, "frameHeight": frame_height,
+                                            "animSpeed": meta.get("animSpeed")}
+                        if isinstance(meta, dict) and meta.get("id"):
+                            answer["sprite"].update(_sprite_look(root, meta))
+                except (ValueError, TypeError, OSError):
+                    pass
+            return answer
+        except FileNotFoundError:
+            return {"ok": False, "code": "MISSING", "error": "The image is gone."}
+        except Exception as error:
+            logger.exception("hermretro asset failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return asset
+
+
+# GB Studio's animation slots, by sprite type (the compiler's order).
+_ANIMATION_NAMES = {
+    "fixed": ["Idle"],
+    "fixed_movement": ["Idle", None, None, None, "Moving"],
+    "multi": ["Right", "Left", "Up", "Down"],
+    "multi_movement": ["Idle right", "Idle left", "Idle up", "Idle down", "Walk right", "Walk left", "Walk up", "Walk down"],
+    "horizontal": ["Right", "Left"],
+    "horizontal_movement": ["Idle right", "Idle left", None, None, "Walk right", "Walk left"],
+    "platform_player": ["Idle right", "Idle left", "Run right", "Run left", "Jump right", "Jump left", "Climb", "Climb idle"],
+    "cursor": ["Idle", "Hover"],
+}
+# The slot an actor facing each way shows when it stands still.
+_FACING_SLOT = {"multi": {"right": 0, "left": 1, "up": 2, "down": 3},
+                "multi_movement": {"right": 0, "left": 1, "up": 2, "down": 3},
+                "horizontal": {"right": 0, "left": 1}, "horizontal_movement": {"right": 0, "left": 1},
+                "platform_player": {"right": 0, "left": 1}}
+_ASSET_INFO_SCENES = 6
+_ASSET_INFO_ACTORS = 40
+
+
+def _read_json(path: Path, limit: int = 4 * 1024 * 1024):
+    try:
+        if path.is_file() and path.stat().st_size <= limit:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            return value if isinstance(value, dict) else None
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _tiles(frame) -> list[dict]:
+    tiles = []
+    for tile in (frame or {}).get("tiles") or []:
+        if isinstance(tile, dict):
+            tiles.append({key: tile.get(key) for key in ("x", "y", "sliceX", "sliceY", "flipX", "flipY")})
+    return tiles
+
+
+def _sprite_animations(meta: dict) -> dict:
+    """The first sprite state's animations, named the way GB Studio names its slots. A left slot left
+    empty with ``flipLeft`` is drawn as the right one mirrored."""
+    states = [state for state in meta.get("states") or [] if isinstance(state, dict)]
+    state = states[0] if states else {}
+    kind = str(state.get("animationType") or "fixed")
+    names = _ANIMATION_NAMES.get(kind, [])
+    animations = []
+    for index, animation in enumerate(state.get("animations") or []):
+        frames = [_tiles(frame) for frame in (animation or {}).get("frames") or [] if isinstance(frame, dict)]
+        name = names[index] if index < len(names) else None
+        animations.append({"slot": index, "name": name or f"Animation {index + 1}", "frames": frames[:64]})
+    return {"name": meta.get("name"), "id": meta.get("id"), "type": kind, "flipLeft": bool(state.get("flipLeft")),
+            "states": [str(item.get("name") or "") for item in states],
+            "canvasWidth": int(meta.get("canvasWidth") or 16), "canvasHeight": int(meta.get("canvasHeight") or 16),
+            "animSpeed": meta.get("animSpeed"), "numTiles": meta.get("numTiles"), "animations": animations}
+
+
+def _standing_frame(sprite: dict, direction: str) -> dict:
+    """The tiles an actor shows standing still, facing ``direction``, and whether they are mirrored."""
+    animations = sprite.get("animations") or []
+    facing = _FACING_SLOT.get(str(sprite.get("type") or ""), {})
+    slot = facing.get(direction or "down", 0)
+
+    def first(index):
+        frames = animations[index]["frames"] if 0 <= index < len(animations) else []
+        return frames[0] if frames else []
+
+    if not first(slot) and direction == "left" and sprite.get("flipLeft"):
+        return {"tiles": first(facing.get("right", 0)), "flip": True}
+    return {"tiles": first(slot) or first(0), "flip": False}
+
+
+def _project_index(root: Path) -> dict:
+    """Sprites, backgrounds, palettes, scenes and settings of a distributed GB Studio project."""
+    resources = root / "project"
+    index = {"sprites": {}, "backgrounds": {}, "palettes": {}, "scenes": [], "settings": _read_json(resources / "settings.gbsres") or {}}
+    for folder, key in (("sprites", "sprites"), ("backgrounds", "backgrounds")):
+        for sidecar in sorted((root / "assets" / folder).glob("*.gbsres")):
+            meta = _read_json(sidecar)
+            if meta and meta.get("id"):
+                index[key][meta["id"]] = {"meta": meta, "path": sidecar.with_name(sidecar.name[: -len(".gbsres")])}
+    for sidecar in sorted((resources / "palettes").glob("*.gbsres")):
+        meta = _read_json(sidecar)
+        if meta and meta.get("id") and isinstance(meta.get("colors"), list):
+            index["palettes"][meta["id"]] = meta
+    for scene_file in sorted((resources / "scenes").glob("*/scene.gbsres")):
+        scene = _read_json(scene_file)
+        if not scene:
+            continue
+        actors = [actor for actor in (_read_json(item) for item in sorted((scene_file.parent / "actors").glob("*.gbsres"))) if actor]
+        scene["_actors"] = actors
+        index["scenes"].append(scene)
+    index["scenes"].sort(key=lambda scene: (scene.get("_index", 0) if isinstance(scene.get("_index"), int) else 0))
+    return index
+
+
+def _palette(index: dict, palette_id) -> dict | None:
+    palette = index["palettes"].get(palette_id) if palette_id else None
+    if not palette:
+        return None
+    colors = [f"#{str(color).lstrip('#')}" for color in palette.get("colors") or []][:4]
+    return {"id": palette_id, "name": palette.get("name") or "", "colors": colors} if len(colors) == 4 else None
+
+
+def _player_sprite_id(settings: dict, scene: dict):
+    return scene.get("playerSpriteSheetId") or (settings.get("defaultPlayerSprites") or {}).get(scene.get("type")) \
+        or settings.get("playerSpriteSheetId")
+
+
+def _actor_palette(index: dict, scene: dict, palette_id) -> dict | None:
+    settings = index["settings"]
+    scene_palettes = [item for item in scene.get("spritePaletteIds") or [] if item]
+    return _palette(index, palette_id) or _palette(index, scene_palettes[0] if scene_palettes else None) \
+        or _palette(index, settings.get("defaultSpritePaletteId")) \
+        or _palette(index, (settings.get("defaultSpritePaletteIds") or [None])[0])
+
+
+def _scene_view(index: dict, scene: dict, sprites_cache: dict) -> dict:
+    """What a scene draws: its background, and each actor's standing frame at its place (the player at
+    the start position in the start scene)."""
+    settings = index["settings"]
+    background = index["backgrounds"].get(scene.get("backgroundId"))
+    actors = []
+
+    def add(name, sprite_id, x, y, direction, palette_id, player=False):
+        entry = index["sprites"].get(sprite_id)
+        if not entry or len(actors) >= _ASSET_INFO_ACTORS:
+            return
+        sprite = sprites_cache.setdefault(sprite_id, _sprite_animations(entry["meta"]))
+        actors.append({"name": name, "spriteId": sprite_id, "sprite": str(entry["path"]), "x": x, "y": y, "player": player,
+                       "canvasWidth": sprite["canvasWidth"], "canvasHeight": sprite["canvasHeight"],
+                       **_standing_frame(sprite, direction), "palette": _actor_palette(index, scene, palette_id)})
+
+    if scene.get("id") and scene.get("id") == settings.get("startSceneId"):
+        add("Player", _player_sprite_id(settings, scene), settings.get("startX", 0), settings.get("startY", 0),
+            settings.get("startDirection") or "down", settings.get("playerPaletteId"), player=True)
+    for actor in scene.get("_actors") or []:
+        add(actor.get("name") or "Actor", actor.get("spriteSheetId"), actor.get("x", 0), actor.get("y", 0),
+            actor.get("direction") or "down", actor.get("paletteId"))
+    return {"id": scene.get("id"), "name": scene.get("name") or "Scene", "width": scene.get("width"), "height": scene.get("height"),
+            "background": str(background["path"]) if background else None, "actors": actors}
+
+
+_SPRITE_USES: dict[str, tuple] = {}
+_SPRITE_USES_ROOTS = 16
+# The animation that plays while an actor moves, from the slot it stands in (GB Studio's slot order).
+_MOVING_OFFSET = {"multi_movement": 4, "horizontal_movement": 4, "platform_player": 2}
+
+
+def _project_stamp(root: Path) -> tuple:
+    """What a sprite's look depends on besides its own sidecar: settings, palettes, scenes and actors."""
+    resources = root / "project"
+    files = [resources / "settings.gbsres", *resources.glob("palettes/*.gbsres"), *resources.glob("scenes/*/scene.gbsres"),
+             *resources.glob("scenes/*/actors/*.gbsres"), *(root / "assets" / "sprites").glob("*.gbsres")]
+    stamp = []
+    for item in files:
+        try:
+            stamp.append((str(item), item.stat().st_mtime_ns))
+        except OSError:
+            continue
+    return tuple(sorted(stamp))
+
+
+def _sprite_uses(root: Path) -> dict:
+    """For each sprite of a project: how its first use in the game shows it (facing, palette), and the
+    palette a sprite nobody uses yet would get. Cached per project until one of its files changes."""
+    stamp = _project_stamp(root)
+    cached = _SPRITE_USES.get(str(root))
+    if cached and cached[0] == stamp:
+        return cached[1]
+    index = _project_index(root)
+    settings = index["settings"]
+    uses = {}
+    for scene in index["scenes"]:
+        candidates = []
+        if scene.get("id") and scene.get("id") == settings.get("startSceneId"):
+            candidates.append((_player_sprite_id(settings, scene), settings.get("startDirection"), settings.get("playerPaletteId")))
+        for actor in scene.get("_actors") or []:
+            candidates.append((actor.get("spriteSheetId"), actor.get("direction"), actor.get("paletteId")))
+        for sprite_id, direction, palette_id in candidates:
+            if sprite_id and sprite_id not in uses:
+                uses[sprite_id] = {"direction": direction or "down", "palette": _actor_palette(index, scene, palette_id)}
+    result = {"uses": uses, "default": _actor_palette(index, {}, None)}
+    if len(_SPRITE_USES) >= _SPRITE_USES_ROOTS:
+        _SPRITE_USES.pop(next(iter(_SPRITE_USES)))
+    _SPRITE_USES[str(root)] = (stamp, result)
+    return result
+
+
+def _sprite_look(root: Path, meta: dict) -> dict:
+    """How the game shows a sprite, for thumbnails: the palette it is painted with, the tiles of the
+    frame it stands in (facing the way its first use faces) and the frames it moves with."""
+    try:
+        sprite = _sprite_animations(meta)
+        found = _sprite_uses(root)
+        use = found["uses"].get(meta.get("id")) or {}
+        palette = use.get("palette") or found["default"]
+        direction = use.get("direction") or "down"
+        standing = _standing_frame(sprite, direction)
+        animations = sprite.get("animations") or []
+        facing = _FACING_SLOT.get(sprite.get("type") or "", {})
+        slot = facing.get(direction, 0) + _MOVING_OFFSET.get(sprite.get("type") or "", 0)
+        if sprite.get("type") == "fixed_movement":
+            slot = 4
+        moving = animations[slot]["frames"] if 0 <= slot < len(animations) else []
+        moving_flip = False
+        if not any(moving) and direction == "left" and sprite.get("flipLeft"):
+            right = facing.get("right", 0) + _MOVING_OFFSET.get(sprite.get("type") or "", 0)
+            moving, moving_flip = (animations[right]["frames"] if 0 <= right < len(animations) else []), True
+        return {"canvasWidth": sprite["canvasWidth"], "canvasHeight": sprite["canvasHeight"],
+                "palette": palette["colors"] if palette else None,
+                "standing": standing,
+                "moving": {"frames": [frame for frame in moving if frame][:16], "flip": moving_flip}}
+    except Exception:
+        logger.debug("hermretro could not work out how a sprite looks", exc_info=True)
+        return {}
+
+
+def _versions(real: Path) -> list[dict]:
+    """Every kept version of a file, oldest first, with the current one marked."""
+    folder = _versions_dir(real)
+    kept = sorted((item for item in folder.iterdir() if item.stem.isdigit() and item.suffix != ".part"), key=lambda item: int(item.stem)) \
+        if folder.is_dir() else []
+    current = real.stat().st_mtime_ns
+    data = real.read_bytes()
+    versions = [{"id": item.stem, "at": int(item.stem) // 1_000_000, "file": str(item), "current": False} for item in kept]
+    match = next((entry for entry in reversed(versions) if int(entry["id"]) == current), None)
+    if match is None and kept and kept[-1].read_bytes() == data:
+        match = versions[-1]
+    if match is None:
+        versions.append({"id": str(current), "at": current // 1_000_000, "file": str(real), "current": True})
+    else:
+        match["current"] = True
+    return versions
+
+
+def rpc_asset_info(ctx):
+    """What the asset viewer shows beside an image: its kind, every kept version, and for a sprite or
+    background its animations, the palette the game paints it with, and the scenes that use it (drawn
+    by the page as the game would)."""
+    def asset_info(params, **_kwargs):
+        try:
+            found = _asset_file((params or {}).get("path") if isinstance(params, dict) else None)
+            if not found:
+                return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
+            real, root = found
+            _keep_version(real)
+            frames = root == (_data_dir() / "frames").resolve()
+            relative = None if frames else real.relative_to(root).as_posix()
+            kind = "frame" if frames else _asset_kind(relative)
+            answer = {"ok": True, "path": str(real), "relative": relative, "kind": kind, "versions": _versions(real)}
+            if not frames and real == game_card.cover_path(root).resolve():
+                answer["kind"] = "cover"
+            if frames or kind not in ("sprite", "background"):
+                return answer
+            meta = _read_json(real.with_name(real.name + ".gbsres"))
+            if not meta or not meta.get("id"):
+                return answer
+            index = _project_index(root)
+            sprites_cache = {}
+            uses, scenes = [], []
+            if kind == "sprite":
+                sprite = _sprite_animations(meta)
+                sprites_cache[meta["id"]] = sprite
+                answer["sprite"] = sprite
+                palette = None
+                for scene in index["scenes"]:
+                    view = _scene_view(index, scene, sprites_cache)
+                    mine = [actor for actor in view["actors"] if actor["spriteId"] == meta["id"]]
+                    if mine:
+                        palette = palette or mine[0]["palette"]
+                        uses.append({"scene": view["name"], "sceneId": view["id"],
+                                     "as": [actor["name"] for actor in mine][:6], "count": len(mine)})
+                        if len(scenes) < _ASSET_INFO_SCENES:
+                            scenes.append(view)
+                answer["palette"] = palette or _actor_palette(index, {}, None)
+            else:
+                for scene in index["scenes"]:
+                    if scene.get("backgroundId") == meta["id"]:
+                        view = _scene_view(index, scene, sprites_cache)
+                        uses.append({"scene": view["name"], "sceneId": view["id"], "as": ["Background"], "count": 1})
+                        if len(scenes) < _ASSET_INFO_SCENES:
+                            scenes.append(view)
+                answer["background"] = {"name": meta.get("name"), "autoColor": bool(meta.get("autoColor"))}
+            answer["usedIn"] = uses
+            answer["scenes"] = scenes
+            answer["sprites"] = {sprite_id: {key: sprite[key] for key in ("canvasWidth", "canvasHeight")}
+                                 for sprite_id, sprite in sprites_cache.items()}
+            return answer
+        except FileNotFoundError:
+            return {"ok": False, "code": "MISSING", "error": "The image is gone."}
+        except Exception as error:
+            logger.exception("hermretro asset_info failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return asset_info
+
+
+def rpc_asset_restore(ctx):
+    """Put a kept version of a game image back in place (the one there now is kept first, so this can
+    be undone the same way)."""
+    def asset_restore(params, **_kwargs):
+        try:
+            params = params if isinstance(params, dict) else {}
+            found = _asset_file(params.get("path"))
+            wanted = str(params.get("version") or "")
+            if not found or not wanted.isdigit():
+                return {"ok": False, "code": "INVALID", "error": "Only a kept version of an image in your games can be restored."}
+            real, root = found
+            if root == (_data_dir() / "frames").resolve():
+                return {"ok": False, "code": "INVALID", "error": "Playtest frames are not restored."}
+            kept = _versions_dir(real) / f"{wanted}{real.suffix.lower()}"
+            if not kept.is_file():
+                return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
+            _keep_version(real)
+            partial = real.with_name(f".{real.name}.restore")
+            partial.write_bytes(kept.read_bytes())
+            partial.replace(real)
+            _keep_version(real)
+            return {"ok": True, "path": str(real), "versions": _versions(real)}
+        except Exception as error:
+            logger.exception("hermretro asset_restore failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return asset_restore
+
+
+_ASSET_LIST_FOLDERS = (("sprites", "sprite"), ("backgrounds", "background"), ("ui", "ui"), ("fonts", "ui"))
+ASSET_LIST_LIMIT = 400
+
+
+def _list_root(params) -> Path | None:
+    """The library game a list is for, by id or by its folder (never a folder outside the library)."""
+    root = _game_root(str(params.get("game") or "")) if params.get("game") else None
+    if root is None and params.get("root"):
+        try:
+            wanted = Path(str(params["root"])).expanduser().resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        frames = (_data_dir() / "frames").resolve()
+        root = next((base for base in _asset_roots() if base == wanted and base != frames), None)
+    return root
+
+
+def rpc_assets(ctx):
+    """Every picture of one game, for the Build page's Assets panel: the game card's cover, then its
+    sprites, backgrounds and interface art, each with the name its sidecar gives it. Lists files only
+    (no image data); the page fetches each one through ``asset``."""
+    def assets(params, **_kwargs):
+        try:
+            params = params if isinstance(params, dict) else {}
+            root = _list_root(params)
+            if root is None:
+                return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be listed."}
+            items = []
+            cover = game_card.cover_path(root)
+            if cover.is_file():
+                stat = cover.stat()
+                items.append({"path": str(cover.resolve()), "relative": cover.relative_to(root).as_posix(), "name": "Cover",
+                              "file": cover.name, "kind": "cover", "modifiedAt": stat.st_mtime, "bytes": stat.st_size})
+            for folder, kind in _ASSET_LIST_FOLDERS:
+                base = root / "assets" / folder
+                if not base.is_dir():
+                    continue
+                for image in sorted(base.rglob("*")):
+                    if len(items) >= ASSET_LIST_LIMIT:
+                        break
+                    if image.suffix.lower() not in ASSET_SUFFIXES or not image.is_file():
+                        continue
+                    try:
+                        real = image.resolve(strict=True)
+                    except (OSError, RuntimeError):
+                        continue
+                    if real != root and root not in real.parents:
+                        continue
+                    meta = _read_json(image.with_name(image.name + ".gbsres"), 2 * 1024 * 1024) or {}
+                    stat = real.stat()
+                    items.append({"path": str(real), "relative": real.relative_to(root).as_posix(),
+                                  "name": str(meta.get("name") or image.stem), "file": image.name, "kind": kind,
+                                  "modifiedAt": stat.st_mtime, "bytes": stat.st_size})
+            return {"ok": True, "root": str(root), "assets": items, "truncated": len(items) >= ASSET_LIST_LIMIT}
+        except Exception as error:
+            logger.exception("hermretro assets failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return assets
+
+
+def rpc_builds(ctx):
+    """The Build page's build history for one library game: ``{game}`` → its snapshots, newest first."""
+    def builds(params, **_kwargs):
+        try:
+            params = params if isinstance(params, dict) else {}
+            game = str(params.get("game") or "")
+            if _game_root(game) is None:
+                return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library has builds."}
+            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game)}
+        except Exception as error:
+            logger.exception("hermretro builds failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return builds
+
+
+def rpc_build_restore(ctx):
+    """Put a game's files back as they were at one build (``{game, id}``). The current files are kept
+    first as a ``before-restore`` snapshot; the page then asks the agent to rebuild."""
+    def build_restore(params, **_kwargs):
+        try:
+            params = params if isinstance(params, dict) else {}
+            game = str(params.get("game") or "")
+            root = _game_root(game)
+            if root is None:
+                return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be restored."}
+            identifier = str(params.get("id") or "")
+            return {"ok": True, **snapshots.restore(_snapshots_dir(), game, root, identifier)}
+        except snapshots.SnapshotError as error:
+            return {"ok": False, "code": error.code, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro build_restore failed")
+            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+    return build_restore
 
 
 def rpc_game_thumb(ctx):
@@ -696,9 +1835,11 @@ SYSTEM_PROMPT_SECTION = (
     "New games go in the hermretro games folder: leave destinationPath out of chromatic_project_create "
     "and chromatic_project_create_blank unless the user names another folder. "
     "Build after each meaningful change. Nothing opens for the user after a build: when the game is ready for "
-    "the user to try (after your own testing), call chromatic_present_game, optionally with a short note on what "
+    "the user to try (after your own testing), fill in its game card with chromatic_game_info (pixel-art cover, "
+    "title, tagline, description, genres), then call chromatic_present_game, optionally with a short note on what "
     "to try; it shows the game in the hermretro emulator beside the chat. Call it again after later "
-    "changes the user should test. Do not open the game with desktop_preview or reload it with drive_preview. "
+    "changes the user should test. " + BUILD_REPORT_GUIDANCE + " "
+    "Do not open the game with desktop_preview or reload it with drive_preview. "
     "Only if the user says they cannot see the emulator, open studio.playerUrl from chromatic_present_game with "
     "desktop_preview (action \"open\"); without desktop tools, give the user that url. "
     "Hardware tools stay off until the user enables them in Settings > Plugins > hermretro."

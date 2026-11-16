@@ -16,6 +16,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import game_card
+
 VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
 # Folders under a project that hold build output, recordings or tooling, never game source.
@@ -203,10 +205,12 @@ def export_freshness(root: Path, last_build: dict | None = None,
 def sources_newer_than(root: Path, moment: float) -> bool:
     """Whether any game source file under the project changed after ``moment`` (a ROM's mtime)."""
     seen = 0
+    top = os.fspath(root)
     for directory, folders, files in os.walk(root):
         folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
         for name in files:
-            if name.startswith("."):
+            # The game card (game.json, cover.png) describes the game; it is not game source.
+            if name.startswith(".") or (directory == top and name in game_card.CARD_FILES):
                 continue
             seen += 1
             if seen > MAX_SOURCE_FILES:
@@ -220,6 +224,30 @@ def sources_newer_than(root: Path, moment: float) -> bool:
 
 
 # -- the registry ----------------------------------------------------------------------
+
+
+MAX_PENDING = 50
+
+
+class BindingError(Exception):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _session_matches(binding, profile: str | None, wanted: set) -> bool:
+    if not isinstance(binding, dict) or not isinstance(binding.get("storedId"), str):
+        return False
+    if profile is not None and binding.get("profile") not in (None, profile):
+        return False
+    known = {binding["storedId"], *(alias for alias in binding.get("aliases") or [] if isinstance(alias, str))}
+    return bool(known & wanted)
+
+
+def public_session(binding) -> dict | None:
+    if not isinstance(binding, dict) or not isinstance(binding.get("storedId"), str):
+        return None
+    return {"storedId": binding["storedId"], "createdAt": binding.get("createdAt"), "profile": binding.get("profile")}
 
 class Registry:
     """``<dir>/games.json`` plus ``<dir>/thumbs/<id>.png``. Safe across processes: every change is
@@ -244,8 +272,13 @@ class Registry:
         data = _json(self.path)
         games = data.get("games")
         shown = data.get("presentations")
-        return {"version": VERSION, "games": games if isinstance(games, dict) else {},
-                "presentations": [item for item in shown if isinstance(item, dict)] if isinstance(shown, list) else []}
+        pending = data.get("pending")
+        # Unknown top-level keys are kept: another hermretro copy may share this file.
+        return {**data, "version": VERSION, "games": games if isinstance(games, dict) else {},
+                "presentations": [item for item in shown if isinstance(item, dict)] if isinstance(shown, list) else [],
+                # Build: conversations started on New Game whose project does not exist yet (stored id → record).
+                "pending": {key: value for key, value in pending.items() if isinstance(value, dict)}
+                if isinstance(pending, dict) else {}}
 
     def _save(self, data: dict) -> None:
         _atomic_write(self.path, json.dumps(data, indent=1, sort_keys=True).encode())
@@ -340,6 +373,139 @@ class Registry:
             return None
         return "data:image/png;base64," + base64.b64encode(raw).decode()
 
+    # -- Build: one game, one conversation --------------------------------------------
+    # ``games[id].session = {storedId, profile, createdAt, aliases}`` names the one Hermes session that
+    # works on a game (the Build page's conversation for it). ``pending[storedId]`` is a New Game
+    # conversation whose project does not exist yet; the first project it creates or selects becomes
+    # its game. Sessions are keyed per profile identity: session ids are per profile store.
+
+    def binding_for(self, profile: str | None, ids) -> tuple[str | None, dict | None]:
+        """``("game", entry)``, ``("pending", record)`` or ``(None, None)`` for a conversation."""
+        wanted = {value for value in ids if isinstance(value, str) and value}
+        return self._binding_in(self.load(), profile, wanted) if wanted else (None, None)
+
+    def game_for_root(self, root: str) -> dict | None:
+        real = os.path.realpath(root)
+        entry = self.load()["games"].get(game_id(real))
+        return entry if isinstance(entry, dict) else None
+
+    def build_start(self, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
+        """Record a conversation started on New Game (before its project exists)."""
+        if not isinstance(stored, str) or not stored or len(stored) > 256:
+            raise BindingError("INVALID", "A stored session id is required.")
+        with self._locked():
+            data = self.load()
+            kind, _ = self._binding_in(data, profile, {stored})
+            if kind == "game":
+                raise BindingError("BOUND", "This conversation already belongs to a game.")
+            record = {"storedId": stored, "profile": profile, "createdAt": time.time(),
+                      "name": name.strip()[:120] if isinstance(name, str) and name.strip() else None,
+                      "plan": plan is True}
+            data["pending"][stored] = record
+            # Keep the newest few: an abandoned New Game should not linger forever.
+            for key in sorted(data["pending"], key=lambda k: data["pending"][k].get("createdAt") or 0)[:-MAX_PENDING]:
+                del data["pending"][key]
+            self._save(data)
+            return record
+
+    def build_cancel(self, stored: str, profile: str | None) -> bool:
+        with self._locked():
+            data = self.load()
+            record = data["pending"].get(stored)
+            if not _session_matches(record, profile, {stored}):
+                return False
+            del data["pending"][stored]
+            self._save(data)
+            return True
+
+    def bind(self, identifier: str, stored: str, profile: str | None, *, replace: bool = False) -> dict:
+        """Give a game its conversation. ``replace`` swaps a conversation that no longer exists."""
+        if not valid_id(identifier) or not isinstance(stored, str) or not stored or len(stored) > 256:
+            raise BindingError("INVALID", "A game id and a stored session id are required.")
+        with self._locked():
+            data = self.load()
+            entry = data["games"].get(identifier)
+            if not isinstance(entry, dict):
+                raise BindingError("NO_GAME", "That game is not in the library.")
+            kind, other = self._binding_in(data, profile, {stored})
+            if kind == "game" and other is not entry:
+                raise BindingError("BOUND", "This conversation already belongs to another game.")
+            current = entry.get("session")
+            if isinstance(current, dict) and current.get("storedId") != stored:
+                if not replace:
+                    raise BindingError("HAS_CONVERSATION", "This game already has its own conversation.")
+                if profile is not None and current.get("profile") not in (None, profile):
+                    raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
+            entry["session"] = {"storedId": stored, "profile": profile, "createdAt": time.time(), "aliases": []}
+            data["pending"].pop(stored, None)
+            self._save(data)
+            return entry
+
+    def unbind(self, identifier: str, stored: str, profile: str | None) -> bool:
+        """Stop editing: the game lets go of its conversation (the session itself is kept). Only the
+        named conversation, and only from its own profile, so a stale page cannot drop a newer one."""
+        if not valid_id(identifier) or not isinstance(stored, str) or not stored:
+            raise BindingError("INVALID", "A game id and a stored session id are required.")
+        with self._locked():
+            data = self.load()
+            entry = data["games"].get(identifier)
+            current = entry.get("session") if isinstance(entry, dict) else None
+            if not isinstance(current, dict):
+                return False
+            if profile is not None and current.get("profile") not in (None, profile):
+                raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
+            if not _session_matches(current, profile, {stored}):
+                return False
+            del entry["session"]
+            self._save(data)
+            return True
+
+    def claim_pending(self, identifier: str, profile: str | None, ids) -> dict | None:
+        """Bind a game to the pending conversation among ``ids``, if there is one and the game is free."""
+        wanted = {value for value in ids if isinstance(value, str) and value}
+        with self._locked():
+            data = self.load()
+            record = next((r for r in data["pending"].values() if _session_matches(r, profile, wanted)), None)
+            entry = data["games"].get(identifier)
+            if record is None or not isinstance(entry, dict) or isinstance(entry.get("session"), dict):
+                return None
+            entry["session"] = {"storedId": record["storedId"], "profile": record.get("profile"),
+                                "createdAt": time.time(), "aliases": []}
+            data["pending"].pop(record["storedId"], None)
+            self._save(data)
+            return entry
+
+    def note_alias(self, profile: str | None, conversation_id: str, session_id: str) -> None:
+        """Remember a bound conversation's live session id (compression rotates it), so a hook that only
+        knows the session id still finds the game."""
+        if not conversation_id or not session_id or conversation_id == session_id:
+            return
+        with self._locked():
+            data = self.load()
+            kind, found = self._binding_in(data, profile, {conversation_id})
+            binding = found.get("session") if kind == "game" else found
+            if not isinstance(binding, dict) or session_id in (binding.get("aliases") or []):
+                return
+            binding["aliases"] = ((binding.get("aliases") or []) + [session_id])[-16:]
+            self._save(data)
+
+    @staticmethod
+    def _binding_in(data: dict, profile: str | None, wanted: set) -> tuple[str | None, dict | None]:
+        for entry in data["games"].values():
+            if isinstance(entry, dict) and _session_matches(entry.get("session"), profile, wanted):
+                return "game", entry
+        for record in data["pending"].values():
+            if _session_matches(record, profile, wanted):
+                return "pending", record
+        return None, None
+
+    def pending(self, profile: str | None = None) -> list[dict]:
+        listed = [{"storedId": r.get("storedId"), "name": r.get("name"), "createdAt": r.get("createdAt"),
+                   "profile": r.get("profile")}
+                  for r in self.load()["pending"].values()
+                  if isinstance(r.get("storedId"), str) and (profile is None or r.get("profile") in (None, profile))]
+        return sorted(listed, key=lambda r: r.get("createdAt") or 0)
+
     # -- broker hook ---------------------------------------------------------------
     def observe(self, tool: str, arguments: dict, structured: dict, failed: bool, *,
                 lane_root: str | None, conversation_id: str | None, sessions_seen=(),
@@ -359,7 +525,19 @@ class Registry:
             # A project created without selecting it still belongs to the library, but the chat only
             # owns the one it actually works on.
             owns = tool == "project_select" or arguments.get("select") is True
-            return self.upsert(root, chat=chat if owns else None)
+            entry = self.upsert(root, chat=chat if owns else None)
+            if entry is not None and tool != "project_select":
+                # Every game gets its card file when it is made; the agent fills it in before presenting.
+                try:
+                    game_card.scaffold(Path(root), project_title(Path(root)))
+                except OSError:
+                    pass
+            if entry is not None and conversation_id and tool != "project_select":
+                # A New Game conversation becomes its game's when it creates the project. Selecting an
+                # existing game (to look at it) does not make it this conversation's game.
+                claimed = self.claim_pending(entry["id"], profile, [conversation_id, *sessions_seen])
+                return claimed or entry
+            return entry
         if tool == "rom_build":
             root = lane_root or structured.get("projectRoot")
             if not isinstance(root, str):
@@ -418,11 +596,15 @@ class Registry:
             title = project_title(root)
         except OSError:
             title = entry.get("title") or root.name
+        card = game_card.public(root)
+        cover = game_card.cover_data_url(root) if card and card["hasCover"] else None
         return {
             "id": identifier, "title": title, "projectRoot": str(root),
             "kind": project_kind(root), "state": state, "rom": rom,
-            "webExport": exported, "web": web, "thumb": self.thumb(identifier),
+            "webExport": exported, "web": web, "thumb": cover or self.thumb(identifier), "cover": bool(cover),
+            "card": card, "displayTitle": (card or {}).get("title") or title,
             "chat": entry.get("chat") if isinstance(entry.get("chat"), dict) else None,
+            "session": public_session(entry.get("session")),
             "error": (str((last or {}).get("error") or "The build failed."))[:240] if state == "failed" else None,
             "updatedAt": entry.get("updatedAt"),
         }

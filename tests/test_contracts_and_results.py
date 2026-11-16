@@ -32,8 +32,10 @@ class ContractTests(unittest.TestCase):
             if tool["name"] in contracts.CREATORS:  # Hermes fills the destination: the Studio games folder
                 required = [key for key in required if key != "destinationPath"]
             self.assertEqual(schema["parameters"].get("required"), required)
+            # hermretro's own argument (the broker strips it before the engine): project_select only.
+            extra = ["continueInThisChat"] if tool["name"] == "project_select" else []
             self.assertEqual(sorted(schema["parameters"].get("properties", {})),
-                             sorted(tool["inputSchema"].get("properties", {})))
+                             sorted([*tool["inputSchema"].get("properties", {}), *extra]))
 
     def test_reference_is_inlined_with_local_description_kept(self):
         build = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_rom_build")
@@ -56,13 +58,20 @@ class ContractTests(unittest.TestCase):
         manifest = (paths.PLUGIN_ROOT / "plugin.yaml").read_text()
         declared = [line.strip()[2:] for line in manifest.split("provides_tools:")[1].splitlines()
                     if line.strip().startswith("- ")]
-        self.assertEqual(declared, ["chromatic_studio_device_cli", "chromatic_present_game"]
+        self.assertEqual(declared, ["chromatic_studio_device_cli", "chromatic_present_game", "chromatic_game_info",
+                                    "chromatic_build_report"]
                          + [s["name"] for s in contracts.hermes_schemas()])
 
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()
         self.assertTrue(check["verified"], check)
         self.assertEqual(check["version"], paths.ENGINE_VERSION)
+
+    def test_the_linux_capture_ffmpeg_builds_are_not_shipped(self):
+        # LGPL builds from a source that is not public: left out, and the engine still verifies without them.
+        for rel in paths.CAPTURE_FFMPEG:
+            self.assertFalse((paths.ENGINE_ROOT / rel).exists(), rel)
+            self.assertIn(rel, paths._recorded(), "still recorded, so a copy that has them is checked")
 
 
 class ResultTests(unittest.TestCase):

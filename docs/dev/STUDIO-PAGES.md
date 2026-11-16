@@ -1,20 +1,288 @@
 # Studio pages: build contract
 
-The user approved clickable mockups (`~/projects/chromatic-studio-mockups/`) for a multi-page
+The maintainer approved clickable mockups (kept outside this repository; the table names their files) for a multi-page
 hermretro and asked to build all of them. This file is the shared contract between the
-page (`desktop/plugin.js`) and the backend (`adapter/`). Both halves must match it exactly.
+page (`desktop-src/`, bundled into `desktop/plugin.js`) and the backend (`adapter/`). Both halves must match it exactly.
 
 ## Pages (one segmented control in the header, always in the same place)
 
-`Home · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them).
+`Home · Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them).
 
 | Page | Approved design | Mockup file (source template) |
 |---|---|---|
 | Home | E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio). While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does). | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
 | Setup | Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion. Setup tab shows a small dot while incomplete. | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
 | Prompts | **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right. Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic). | `src/prompts-page.template.html` variant 2 |
-| Games | **Shelf**: grid of the HermRetro cartridge (`desktop/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border). Under each: title, state tag, meta (kind · size · built), actions Play (→ Emulator page), Install (see below), open its chat. A faded "Blank cartridge" slot = New game. Chromatic status strip at the top. Empty library page. | `src/games-page.template.html` (`.mcart.real`) |
+| Games | **Shelf**: grid of the HermRetro cartridge (`desktop-src/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border). Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control. Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built. Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder. A game showing its title screen rather than a cover gets a small "No cover" tag on the label. The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library. The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen. A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent. A faded "Blank cartridge" slot = New game. Empty library page (with the Chromatic status strip). | `src/games-page.template.html` (`.mcart.real`) |
 | Emulator | ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install). A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins). Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game). Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark). "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded. Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below). Default device finish **Hermes Edition · Midnight**. | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+
+## Build: one game, one conversation
+
+The Build page drives an ordinary Hermes session itself instead of sending prompts to the chat:
+this game's conversation, where the game also plays, with the trimmed New Game screen (idea box,
+name, "Plan it first"). There is no games rail (user picked mockup B to give the chat room next to
+Hermes's own sidebar): the title in the header is the game switcher. Its menu (user picked mockups
+A1 + A2 + E) lists New game, Edit a game, then "Editing now": New Game conversations still being set
+up and the games that have a conversation (plus the game just picked, until its first message makes
+one), each with its screen, status (working, needs your answer, new reply) and Ctrl+1…9 (Hermes binds
+no Ctrl+digit). Edit a game swaps the menu for a searchable list of the other library games, with a
+footer naming the ones already open; picking one opens it with a blank conversation. Right-click (or
+the context-menu key / Shift+F10) on a game being edited offers Open in full chat and Stop editing
+(Discard for a New Game still being set up); both are off for a conversation in another profile, and
+Stop editing / Discard wait while the agent works. Beside the title, other games show as "N needs you"
+(yellow, names in the tooltip), else "N working", else a new-reply dot. Arrow keys move through the
+menu, Escape closes the right-click menu, then the library list, then the menu. User decisions:
+
+- **One game = one session.** Game sessions are created `hidden` (not in the Hermes sidebar); the
+  Build page's game switcher is the way in, and "Open in full chat" (`host.openSession`) shows the same session.
+- **New Game** creates the session first (`session.create {hidden: true, title}`), then sends the
+  new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
+- **A game with no conversation** opens a blank one; the session is created on the first message.
+- **Stop editing** unbinds the game (`build` `unbind`) and un-hides its session (`session.set_hidden
+  {hidden: false}`), so the old conversation shows up in the Hermes sidebar instead of being lost. The
+  game goes back under Edit a game; editing it again starts a new conversation.
+- **Guards (broker, `guard_selection`):** a game's conversation that tries to create a project or
+  select a different one is refused (`ONE_GAME_PER_CONVERSATION`, "start a new game from Build").
+  Another chat selecting a game that has its own conversation is warned (`GAME_HAS_CONVERSATION`);
+  it may continue once the user confirms, by selecting again with `continueInThisChat: true`
+  (hermretro's own `project_select` argument, removed before the engine sees it). A New Game
+  conversation may create a project or look at an unbound game, never take a bound one. A game's
+  conversation whose game folder is gone is told so (`GAME_FOLDER_MISSING`); the warning applies to
+  chats in every profile, since the rule is about the game.
+  Start fresh is out for now.
+- **Auto-select:** the first read, write or runtime call of a game's conversation selects its game
+  (`select_bound_game`) and the result's `notice` says so. A failed attempt is not repeated for the
+  same worker; a failed status sync after a good select still records the selection.
+- **Per-turn context:** a `pre_llm_call` hook tells a game's conversation which game it is, and a New
+  Game conversation how to start (name, Plan it first). The page therefore sends the user's own words.
+
+### Binding (`games.json`)
+
+`games[id].session = {storedId, profile, createdAt, aliases}` (aliases: live session ids after
+compression rotates them, noted on each tool call) and `pending[storedId] = {storedId, profile, name,
+plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50).
+The first project a pending conversation creates is bound to it (`observe` → `claim_pending`);
+selecting an existing game does not claim it. Unknown top-level keys in `games.json` are kept, since
+every hermretro copy shares the file.
+The `games` RPC returns `games[].session = {storedId, createdAt, thisProfile, profileName, exists} |
+null` and `pending: [{storedId, name, createdAt, exists}]` for this profile. `exists` is read from
+the profile's session database (`null` when unknown).
+
+### `build` RPC
+
+Params name the session `stored`, never `session_id` (the gateway would authorize it as live):
+`{action: "start", stored, name?, plan?}` → `{ok, pending}`; `{action: "bind", game, stored,
+replace?}` → `{ok, game, session}` (`replace` swaps a conversation that was removed);
+`{action: "cancel", stored}` → `{ok, cancelled}`; `{action: "unbind", game, stored}` → `{ok, unbound}`
+(only when `stored` is the game's current conversation, so a stale page cannot drop a newer one). Failures are `{ok: false, code, error}` with
+`code` one of `INVALID`, `NO_GAME`, `BOUND` (the session belongs to another game),
+`HAS_CONVERSATION` (the game has another session and `replace` was not set) and `OTHER_PROFILE`
+(`replace` never takes another profile's conversation).
+
+### `asset` RPC
+
+`{path}` (absolute, or `file://`) → `{ok, path, relative, name, kind, width, height, bytes,
+modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to 6 MB, only inside a library game's
+folder or the plugin's saved frames (symlinks are resolved first). `sprite = {name, frameWidth,
+frameHeight, animSpeed, canvasWidth, canvasHeight, palette, standing: {tiles, flip}, moving: {frames,
+flip}}` from the `.gbsres` sidecar and the project: GB Studio stores sprites in four placeholder
+greens with `#65ff00` as transparency, so the page paints every sprite thumbnail with `palette` (the
+one its first use in a scene is painted with, else the default sprite palette) and draws the frame
+that use stands in. The project lookup is cached per game until a settings, palette, scene, actor or
+sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE`,
+`TOO_LARGE`, `MISSING`. With `at` (a reply's time, ms) it answers the version the file had then; with
+`version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
+
+Versions: the plugin keeps a copy of a game image (up to 40 per file, named by modification time in
+ns, identical rewrites skipped, under `<plugin data>/asset-versions/`) when a reply delivers it
+(`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), or the page shows
+it. So a file rewritten later (cover.png made again) still shows each reply what it delivered.
+
+### `asset_info` RPC
+
+`{path}` → `{ok, path, relative, kind, versions}`, `kind` one of `cover` (the game card's cover),
+`sprite`, `background`, `ui`, `frame`, `capture`, `image`; `versions = [{id, at, file, current}]`
+oldest first, exactly one `current`. A sprite adds `sprite = {name, id, type, flipLeft, states,
+canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
+first state's animations, named by GB Studio slot: "Walk right"…; a tile is `{x, y, sliceX, sliceY,
+flipX, flipY}`, 8×16, `y` up from the canvas bottom) and `palette = {id, name, colors[4]}` (the one
+it is painted with in its first scene). Sprites and backgrounds add `usedIn = [{scene, sceneId, as,
+count}]` and `scenes` (up to 6): `{id, name, width, height, background, actors: [{name, spriteId,
+sprite, x, y, player, canvasWidth, canvasHeight, tiles, flip, palette}]}`, each actor's standing frame
+for its facing, the player at the start position of the start scene. Read from the distributed
+project files; nothing is compiled.
+
+### `asset_restore` RPC
+
+`{path, version}` → `{ok, path, versions}`: puts a kept version back in place, keeping the one it
+replaces first. Not for saved frames.
+
+### `assets` RPC
+
+`{game}` (a library id) or `{root}` (a library game's folder) → `{ok, root, assets, truncated}`, the
+pictures the Build page's @ picker lists: the game card's cover first, then every image under
+`assets/sprites`, `assets/backgrounds`, `assets/ui` and `assets/fonts` (symlinks leaving the game are
+skipped), at most 400. Each is `{path, relative, name, file, kind, modifiedAt, bytes}`; `name` is the
+sidecar's (`.gbsres`) name when there is one, `kind` one of `cover`, `sprite`, `background`, `ui`.
+No image data: the page loads each through `asset`. Failure: `NO_GAME`.
+
+### Page
+
+Gateway calls (on the studio profile's route, `host.retainProfile` held): `session.create
+{hidden: true, title}`, `session.resume` (history; `omit_messages` while polling), `prompt.submit`
+(with `submission_id`), `session.interrupt`, `clarify.lock` (fallback `request.answer`),
+`approval.respond`. The stream is `host.onEvent` filtered by `session_id`, de-duplicated by `seq`
+and the delta `offset`. Questions and approvals are server requests the page never receives: while
+a tool runs it reads the session's `open_requests` and renders them as cards. A backend without the
+`build` RPC (-32601) keeps bindings for the visit only and names the project in the first message.
+
+- **The conversation** (approved design "Build chat final"; user: "this still needs to feel like a
+  chat experience"). The user's messages are bubbles on the right; the agent's replies are plain prose
+  on the left under a plain "HermRetro" label and time ("working now" while it works). No avatar, no
+  coloured bar or tint ("seems like too much", "it doesn't need to be stylized"). Every UI string
+  calls the agent HermRetro. Text is `MessageTextContent` (markdown), memoised per block.
+- **Worked for…** Each reply folds its steps into one line: "Working for 0:42 · 3 steps" (open, live)
+  and "✓ Worked for 1m 12s · drew the art, built it" once done (closed, opens on a click), followed by
+  a small stack of what the turn made and an "N assets" link that opens the viewer on its first
+  picture (pictures a step only looked at and playtest frames do not count). Open, it has a Simple /
+  Technical switch (one setting for every turn). Simple: a turn of 8 or more steps opens to fixed
+  groups, always in this order (Planned it · Drew the art · Set up the level · Built it · Play-tested
+  it), each folded with its step count; commands and file edits join the group they helped (a command
+  or file about art joins Drew the art), and glances (reading a guide, inspecting the project) are left
+  out unless they showed a picture. Shorter turns are one plain list. Technical: every step with its
+  command or detail, as before.
+  Steps read in plain words from `STEP_WORDS` ("Creating the project", "Built the game");
+  Hermes's `tool_call` wrapper is unwrapped live and in history (Hermes splits a batch into one
+  `tool_call` per call, so the inner call keeps the outer id, and its result row names only the outer
+  id); a history result row with `ok: false` or an `error` marks its step failed. Plumbing
+  (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
+  lead the reply, words between steps are notes inside, words after the last step close it. Steps
+  keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).
+- **Build cards** (user-approved "final set": A Quiet thread + D Build cards + E Focus mode). Each
+  turn that compiled the game (`rom_build`/`web_build` done or failed) is a numbered build, #1 up, in
+  conversation order (`buildHistory`). A finished build turn, or one that called
+  `chromatic_build_report`, ends in a card: badge (#n, red when its last compile failed), the report's
+  title (else the message that asked), how long it took, and Play on the build that plays (else
+  "Earlier build" / "Playable again when HermRetro finishes"); the report's summary; for a picture
+  it edited, Before → After (the `asset` RPC at the turn's start and end; nothing when the file is
+  new), with Keep / Undo on the newest turn (Undo = `asset_restore` of the earlier version, then
+  "Rebuild" asks the agent to build again); what changed (+ added, ~ changed, − removed, with a
+  thumbnail when the change names an asset; without a report, the pictures the turn made); the
+  player when open; a footer with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
+  lists, and the compiler's words for a failed build, with Ask HermRetro to fix it). With a report
+  the reply's words follow the card; without one they come first. The newest reply's suggestions
+  are chips under it that put their words in the message box (never sent).
+- **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
+  Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
+  first, with Show (scrolls to its card) and Restore (on built ones, except the one already playing
+  when nothing changed since). Restore matches the build to a snapshot from the `builds` RPC by time,
+  confirms in place, calls `build_restore` (which saves the game as it is first) and sends the agent
+  "I restored the game to build #n … Please build it again", so the restored files become the newest
+  build. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
+  right-click menu and the stuck status).
+- **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
+  lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and
+  Enter/Tab pick, Esc closes. The pick leaves the text and is attached as an `@name` chip (sent as
+  "About <path>:" like any attachment); the user's bubble shows it as `@name`.
+- **New Game** keeps its two choices and adds starter ideas (chips that fill the box, editable) and a
+  dashed hint that pictures show up as HermRetro draws them and `@` points at one.
+- **Assets as they land.** Images a step made or looked at (`image_path`, result images,
+  `assetPath`/`outputPath`, `vision_analyze`'s `image_url`; project-relative paths joined to the
+  game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets
+  show one frame (a one-row sheet plays in the Latest card, CSS steps only). An image line in a reply
+  (`MEDIA:<image>`) is drawn by the page too, at the version the reply delivered. Images come from the
+  `asset` RPC, cached per path and version, four at a time.
+- **The viewer** (approved mockups A + C + E + F, "remove the suggested prompts"). A click on any
+  picture opens one window, picture first: Fit (the biggest whole zoom) / 1–8×, wheel zoom, drag to
+  pan, an 8×8 tile grid (8×16 for sprites). The kind picks the views: a cover Image · In game (its
+  Games page card and a Chromatic), a sprite Animation (states as chips, the game's speed from
+  `animSpeed`, frames, onion skin, painted with its in-game palette) · Sheet · In game, a background
+  Image · In game (the scene as it starts, the sprite's actors outlined). The side panel has Details
+  (who made it and the message that asked, an older version's Restore, palette, colours to copy,
+  hardware checks from the pixels, Used in / Shown on) and Change: a request box, a dragged area
+  ("Only change the area from (x, y) to …"), "Build and show the game after" for sprites and
+  backgrounds; it is sent into the conversation naming the image, the viewer stays open with the
+  turn's steps, and when the turn ends the new version is fetched and shown. Every kept version sits
+  in a strip along the bottom (the one in the game marked). ←/→ other pictures of the turn, Esc
+  closes, Show in folder (`ctx.os.revealPath`, else the path is copied), Copy image.
+- **The game, in the conversation** (user: "for now it should only ever show up when the agent has
+  finished and the user can play test the game"). The turn that last built the game ends with its
+  build card; Play there opens the real player inside that card (no third column; a game built
+  outside the conversation still gets a plain play card). It opens by itself when the
+  agent presented the game that turn (`chromatic_present_game` from a Build conversation opens no tab
+  beside the chat; its note shows on the player). While the agent works the player rests as a card,
+  "Playable again when HermRetro finishes", and comes back when it is done. Older build cards say
+  "Earlier build". It takes the live player from the Emulator page (a tab beside the chat keeps it
+  and offers "Bring it here"); keys reach the game only after a click in it. The player
+  (`build-player/`, user-approved mockup `chromatic-studio-mockups/inline-player/inline-player-final.html`):
+  - **One bar**: Fit/2×/3×/4× (always a whole multiple of 160×144; Fit is the largest that fits, a size
+    that does not fit is disabled), Chromatic (the handheld around the screen; its finish in the menu),
+    Play-test (the panel), Annotate, sound, pause, screenshot, More (restart, record), full screen, close.
+    ModRetro's own controls are hidden in the frame (`view=screen|device`); the bar presses them.
+  - **Play-test panel** beside the game (under it as tabs below 760 px; folded to a tab with a count):
+    the agent's note, "Try this" checks from the build report (`untested` first, then `tested`,
+    deduplicated), ticked by hand only and kept per game and build (last 12 builds), controls, Ask
+    HermRetro. Ticking the last check folds the panel. A check's "Something's wrong" attaches the frame
+    and starts a sentence in the message box; on later builds that check comes back as "Fixed in #N"
+    until ticked.
+  - **Annotate**: the engine's own annotation (frozen frame, `hitTest` snapping to sprites, sprite groups
+    and tiles, names and hardware metadata, live palette preview through its controls) with our UI:
+    numbered boxes in the frame, the panel lists each mark with a close-up, its colours (recolour preview)
+    and a note; Add to message attaches the frame and one chip per mark (close-up and hardware details
+    for the agent), not sent. Esc or Cancel leaves it.
+  - Ask HermRetro attaches the current frame to the message box, not sent.
+- **Honest status** above the message box while a turn runs: "HermRetro is <step>" (or thinking,
+  writing, tidying up the conversation) with "last update Ns ago"; after 45 s of quiet it says
+  nothing new has come in (normal for builds); after 3 min (10 for builds and installs) "has been
+  quiet for N minutes, may be stuck" with Open full chat and Stop; "waiting for your answer" with
+  Jump to the question; "Reconnecting…" after three failed polls. The game switcher shows a spinner, "Needs
+  your answer" or a new-reply dot per game.
+- **Questions** are one card outside the steps: numbered choices (number keys pick), "(Recommended)"
+  shown as a Suggested tag, an own-answer field, Send answer once every question has one. Answered,
+  they become a step with the answers as chips. Approvals are a card with their choices.
+- **Sending while it works** follows Hermes's `display.busy_input_mode`: a redirected message joins
+  the turn; a `queued` one waits under the conversation ("Queued · HermRetro reads this when it
+  finishes") until its `message.start`. Only a message sent behind a running (or lost) turn moves
+  there: the gateway also answers `queued` for a first message that starts at once. Messages Hermes
+  still holds when a conversation opens (`pending` rows with status `queued`) show the same way.
+  Stop interrupts; a stopped reply says so and offers Carry on.
+  A failed build offers "Ask HermRetro to fix it"; a failed send offers Try again.
+- **A lost turn** (the gateway restarted mid-turn; `pending` row with status `unknown`, from
+  `session.resume` or a `session.info` event) pauses the conversation: Hermes runs nothing after it.
+  The page drops the working state and shows "HermRetro stopped partway through" with Continue, which
+  calls `prompt.resolve_unknown {session_id, admission_id}` per lost turn (the app's client adds the
+  generation it learned from the snapshot; the lost turn is not re-run). Waiting messages then run;
+  with none, Continue sends "Continue where you left off" (shown as "Continue"). A message sent while
+  paused waits ("Waiting · sent when you continue").
+- **Model and effort** (user picked mockup C, "one button, one panel"): one button under the message
+  box, "<mark> Claude Opus 5.5 · High". It opens connected providers (left; `model.options`, only
+  `authenticated` ones with models), that provider's models (right; search covers every provider and
+  names each match's provider; ids shown as names: `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag,
+  "fast mode" from `capabilities`), and an Effort row (Off only when the model can disable reasoning;
+  Minimal, Low, Medium, High, X-high, Max). Changes are per conversation, never the profile default:
+  `config.set {session_id, key: 'model', value: '<model> --provider <slug> --session'}` and
+  `{key: 'reasoning', value}`; the app's client turns both into `session.mutate` on the canonical
+  gateway (a raw `config.set` model is refused there with `use_session_mutation_model`). The current
+  values come from `info` of `session.create`/`session.resume` and `session.info` events. A pick made
+  while HermRetro works is held ("next message") and applied when the turn ends. A model that asks
+  first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
+  A provider that is no longer connected shows on the button. New Game and a game with no conversation
+  use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
+  reasoning_effort}`. A reply names its model when it differs from the message before.
+- **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
+  re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
+  follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn
+  conversation: streaming holds 60 fps with no long tasks. `prefers-reduced-motion` stops every
+  animation.
+- Events carry `replay_epoch`: a new epoch (gateway restart) resets the `seq` watermark. A
+  `session.replay_gap`, or a submit that finds no session, re-attaches and reloads the transcript.
+- `open_requests` is polled for the whole turn (a plugin approval gate asks before `tool.start`) and
+  stops when the snapshot says `running: false`. Cards are keyed by request id, so the event and the
+  poll make one card; `*.settled` marks it answered. An `error` frame ends the turn.
+- A conversation is "removed" only on a definite not-found (4007) or `exists: false`; other open
+  failures offer Try again. A game whose conversation is in another profile says so and is not
+  replaced from here. A New Game that never made a project can be discarded (`cancel`); a failed
+  start cancels itself. A remembered selection that no longer exists falls back to New game.
 
 ## The emulator beside the chat
 
@@ -109,7 +377,7 @@ Params `{ "id": "…" }`. Result `{ "url": "http://127.0.0.1:<port>/<token>/<id>
 
 The backend runs one loopback HTTP server (stdlib `ThreadingHTTPServer`, `127.0.0.1`, random port, 32-byte random path token, started lazily in the gateway process, daemon thread). For `/<token>/<id>/…` it serves:
 - `index.html` = the game's `build/web/index.html` with, injected:
-  - in `<head>`, before anything else: the **frame shim** (in-memory `localStorage`/`sessionStorage` because the sandboxed frame has an opaque origin; `document.oai.annotation` host API that posts annotate results to the parent; a `message` listener for `{cs:'cmd', type:'key'|'snap'|'hold'|'release'|'theme'}`; console error forwarding; focus/blur posts). Port it from the mockup `src/player/build_player_frame.mjs` (shim + annotation blocks) — not the fetch interception, which is unnecessary over real http.
+  - in `<head>`, before anything else: the **frame shim** `player/frame-shim.js`, generated from `desktop-src/frame/` by `tools/bundle.mjs` (never edit it): in-memory `localStorage`/`sessionStorage` because the sandboxed frame has an opaque origin (the finish from `?color=`); the `document.oai.annotation` host the engine's annotation registers with; the inline view (`?view=screen|device` hides the player's own controls); the page's commands (see Page ↔ frame messages); player state, console error and focus/blur posts. `adapter/player_server.py` fills its `__DEFAULT_COLOR__`/`__COLOR_KEY__` placeholders.
   - before `js/script.js`: the engine bootstrap (`Binjgb` wrapper that sets `module.codexRuntimeSha256` and calls `installInputOwner` from `./codex-annotations/input-owner.js`) — copy it from `dist/server.js` `prepareAnnotations`.
   - before `</body>`: `<script type="application/json" id="codex-web-annotations-context">{romSha256, romPath, sourceRevision, runtimeSha256, captures:{generation}}</script>` and `<script type="module" src="./codex-annotations/bridge.js"></script>`.
 - the export's own files (`js/*`, `css/*`, `rom/*`, `gbstudio.json`) read-only, path-checked to stay inside `build/web`.
@@ -118,7 +386,7 @@ The backend runs one loopback HTTP server (stdlib `ThreadingHTTPServer`, `127.0.
 - `codex-captures` POST (multipart: `kind`, `metadata`, `media`): save to `<projectRoot>/captures/<iso>-<kind>.<png|webm|mp4>` + `.json`; reply exactly `{id, kind, bytes, path, metadataPath, sha256, createdAt, url: "./codex-captures/<id>/media", metadataUrl: "./codex-captures/<id>/metadata"}`; GET those two URLs back.
 - `codex-states` GET → `{ "states": [] }` (not wired yet).
 - `codex-device` POST → `{generation, devices: [], rom:{sha256}, available:false, blocked:false, detecting:false}`. Installing from inside the player stays off: the Studio's own Install button sends the flash prompt to chat, where Hermes's approval gate applies. Do not proxy flashing here.
-- Every response: `Access-Control-Allow-Origin: *` (the frame's origin is `null`), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, correct MIME (`.wasm` → `application/wasm`, `.js` → `text/javascript`). Default device colour: the shim seeds `localStorage['codex-gb-studio:device-color:v1'] = 'hermes-midnight'` unless the page passes `?color=`.
+- Every response: `Access-Control-Allow-Origin: *` (the frame's origin is `null`), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, correct MIME (`.wasm` → `application/wasm`, `.js` → `text/javascript`). Default device colour: the shim seeds `localStorage['codex-gb-studio:device-color:v1'] = 'hermes-midnight'` unless the page passes a valid `?color=`.
 
 ### `presentations` → games the agent presented
 Params `{ "since"?: number }` (seconds, backend clock). Result `{ "ok": true, "now": <backend time>,
@@ -130,14 +398,25 @@ oldest first, at most 20, only those with `t > since`. Written by `chromatic_pre
 Params `{ "id": "…" }` → `{ "captures": [{ "path", "kind", "createdAt", "url" }] }` where `url` is the loopback media URL (frame-independent: `http://127.0.0.1:<port>/<token>/<id>/codex-captures/<cid>/media`).
 
 ## Page ↔ frame messages
-- frame → page: `{cs:'focus', value}`, `{cs:'log', level, text}`, `{cs:'annotate', target:{name, role, metadata}, note, image:'data:image/png…'}`, `{cs:'snap', id, url}`.
-- page → frame: `{cs:'cmd', type:'key', key, code, down}`, `{type:'snap', id}`, `{type:'hold'}` (pause + suspend audio when the Emulator page is hidden), `{type:'release'}`, `{type:'theme', css}`.
-- Ask Hermes / annotate: the page saves the image through `game_thumb`-like RPC `capture_image` (params `{id, png}` → `{path}` under `<project>/captures/`), then puts text into the game's chat composer (`host.composer.insertText`, falling back to a new chat in the studio profile): what was selected, its metadata, the note, and `Screenshot: <path>` so the agent can open it. Nothing is sent automatically.
+Defined once in `desktop-src/player/protocol.js` (page side `player/bridge.js`, frame side `frame/commands.js`); every message is an object whose `cs` names it, and the page accepts only messages from its own frame's window.
+- page → frame: `{cs:'cmd', type, …}` with `type` one of `key {key, code, down}`, `snap {id}`, `hold` (pause + suspend audio while the surface is hidden), `release`, `theme {css}`, `view {view}` (`full` | `screen` | `device`), `press {action}` (one of the player's own buttons: play, sound, restart, history, screenshot, record-video, annotate), `finish {id}`, `annotate {on}`, `mark-color {id, index, value}` (value null resets), `mark-remove {id}`, `marks-take {id}`.
+- frame → page: `{cs:'focus', value}`, `{cs:'log', level, text}`, `{cs:'snap', id, url}`, `{cs:'state', ready, paused, muted, annotating, recording}`, `{cs:'marks', marks}` (inline annotate, each `{n, id, name, role, metadata, colors, original, image}`), `{cs:'marks-taken', id, image, marks}` (answers `marks-take`, then annotate ends), `{cs:'annotate', target:{name, role, metadata}, note, image}` (the full view's single pick with the in-frame note card).
+- Ask HermRetro / annotate / Something's wrong: the page saves the frame through `capture_image` (`{id, png}` → `{path}` under `<project>/captures/`) and attaches it to the game's message box (in the Build page; elsewhere `host.composer.insertText`, falling back to a new chat in the studio profile) with what was marked, its metadata and the note. Nothing is sent automatically.
 
 ## Install
 Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge" prompt (with the game named) to that game's chat. Hardware gating and the approval prompt stay exactly as today; locked with "Needs your Chromatic" when hardware is not set up.
 
 ## Constraints that apply to both halves
-- `desktop/plugin.js` stays plain ESM (`jsx`/`jsxs`), imports only `@hermes/plugin-sdk`, `react`, `react/jsx-runtime`, scoped CSS under `.cs-page`, every colour a `var(--ui-*)`, and the file stays under 512 KiB. Small art goes through `tools/embed_art.py`; device skins are served by the backend only.
+- The page's source is `desktop-src/`; `desktop/plugin.js` and `player/frame-shim.js` are generated from it by `tools/bundle.mjs` and committed. Never edit a generated file: change the sources, rebuild, commit them together. The bundle stays plain readable ESM (`jsx`/`jsxs`, not minified), imports only `@hermes/plugin-sdk`, `react`, `react/jsx-runtime`, scoped CSS under `.cs-page`, every colour a `var(--ui-*)`. Size: Hermes Desktop reads a plugin file up to 16 MiB through `readPluginSource`; an older shell without it stops at 512 KiB and says to update, and the bundle (about 635 KB) needs the newer one. Hermes's install scanner notes a file over 1024 KB; the bundler refuses a bundle over 1,000,000 bytes. `desktop/` holds only `plugin.js`: the app copies and lints that whole folder. Small art is a PNG in `desktop-src/art/` plus an import in `art/index.js` (the bundler embeds it as a data URL); device skins are served by the backend only.
 - Never edit `engine/`. Never touch hardware. No wording that trips the install scanner (see the trigger list in tools/skills_guard.py; never quote the triggers in our own files).
-- Verify: `python -m unittest discover -s tests`, `node --check desktop/plugin.js`, `node tests/desktop/wizard_test.mjs`, the preview build, and `python tests/acceptance/broker_acceptance.py` after adapter changes.
+- Verify: `node tools/bundle.mjs --check`, `python -m unittest discover -s tests`, `node --check desktop/plugin.js`, `node tests/desktop/wizard_test.mjs`, the preview build, and `python tests/acceptance/broker_acceptance.py` after adapter changes. Before a release: `node tools/bundle.mjs --check --same-esbuild`.
+
+## The page's source (`desktop-src/`)
+- One level of feature folders. Pages: `home/`, `setup/` (with `install/`, `onboarding/`), `prompts/`, `games/`, `emulator/`, `build/`. Build's parts: `build-chat/` (conversation state, gateway events, actions), `build-transcript/`, `build-composer/`, `build-assets/`, `build-viewer/`, `build-player/` (the game inside the conversation). Shared: `core/` (ids, RPC names, backend calls, formatting, prompts several features send), `ui/` (components), `player/` (the frame layer every player surface uses), `frame/` (the code that runs inside the player frame; built separately into `player/frame-shim.js`, never imports `sdk.js`), `side-emulator/` (the tab beside the chat), `shell/` (header and page switch), `styles/`, `art/`. `index.js` is the entry: the default export and the one `register()`.
+- A new page gets a folder; a new part of Build gets `build-<area>/`; what two features share moves to `ui/`, `core/` or `player/`. Features never import from `shell/`.
+- One main component per file, named after it in kebab-case (`BuildCard` in `build-card.js`), with its private helpers. Pure logic lives in noun-named files without components (`turns.js`, `reducer.js`). Named exports only, each name unique across the tree.
+- Imports are `./file.js`, one climb to a sibling folder, or `sdk.js`: the only module that imports packages. No import cycles (the build fails on one).
+- Module state (atoms, maps, caches, listener sets) is declared once, in the module that owns it, and changed only by that module's functions; a feature with more than a little keeps it in `store.js`/`state.js`/`cache.js`. Only `index.js` registers contributions and gateway listeners; features export `watchX(ctx)`.
+- Styles: `<area>.css.js` beside the code, listed once in `styles/index.js` (that order is the cascade). Classes keep their area prefix (`cs-b-*` Build, `cs-v-*` viewer, `cs-rp-*` real player, `cs-ip-*` inline player, `cs-onb-*` onboarding).
+- RPC names only in `core/rpc.js`, agent tool names only in `core/tools.js`, in step with `docs/dev/CONTRACT.md`.
+- Size: aim for 300 lines a file. The build fails above 400, except for the files listed in `tools/bundle_lint.mjs` (each one large component today); that list only shrinks.

@@ -30,7 +30,7 @@ def plugin_tools() -> set[str]:
 
 
 def engine_tools(plugin: set[str]) -> set[str]:
-    own = {"chromatic_studio_device_cli", "chromatic_present_game"}
+    own = {"chromatic_studio_device_cli", "chromatic_present_game", "chromatic_game_info", "chromatic_build_report"}
     return {name[len("chromatic_"):] for name in plugin - own}
 
 
@@ -72,7 +72,7 @@ class SkillsTest(unittest.TestCase):
 
     def test_every_chromatic_tool_named_exists(self):
         tools = plugin_tools()
-        self.assertEqual(len(tools), 83)
+        self.assertEqual(len(tools), 85)
         for path in markdown_files():
             for name in re.findall(r"\bchromatic_[a-z0-9_]*[a-z0-9]\b", path.read_text()):
                 if name == "chromatic_emulator":  # the `chromatic_emulator_*` family

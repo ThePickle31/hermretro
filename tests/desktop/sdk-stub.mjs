@@ -99,6 +99,8 @@ export const Separator = () => jsx('hr', {})
 export const Tip = props => props.children
 // The real one renders a sandboxed iframe; here a plain one is enough to see what it was given.
 export const SandboxedFrame = props => jsx('iframe', { ref: props.ref, src: props.src, title: props.title, 'data-sandbox': props.sandbox })
+export const MessageTextContent = props => jsx('div', { 'data-markdown': '', children: props.text })
+export const randomUuid = () => `uuid-${Math.random().toString(16).slice(2)}`
 export const PALETTE_AREA = 'palette'
 export const ROUTES_AREA = 'routes'
 export const SIDEBAR_NAV_AREA = 'sidebar.nav'

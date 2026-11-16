@@ -95,6 +95,13 @@ def hermes_schema(tool: dict) -> dict:
         if isinstance(destination, dict):
             destination["description"] = (f"Optional. Default: {games}/<name>. Only for a folder the user "
                                           f"asked for: an absolute new path under an existing parent.")
+    if tool["name"] == "project_select":
+        # hermretro's own argument, removed by the broker before the engine sees it.
+        parameters.setdefault("properties", {})["continueInThisChat"] = {
+            "type": "boolean",
+            "description": ("Only after the user confirmed it: work on a game that has its own hermretro Build "
+                            "conversation from this chat anyway (its history will not include this work)."),
+        }
     return {"name": hermes_name(tool["name"]), "description": description, "parameters": parameters}
 
 

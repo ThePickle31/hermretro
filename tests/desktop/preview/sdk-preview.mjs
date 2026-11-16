@@ -28,9 +28,12 @@ preview.emit = event => {
 
 export const host = {
   state: { gateway: readable('open'), focusedSessionId: readable(null), focusedStoredSessionId: readable(null), profile: readable('default') },
-  // Answers from preview.scenario.rpc (method → result); anything else is "not loaded".
-  request: async method => {
-    if (preview.scenario.rpc && method in preview.scenario.rpc) return preview.scenario.rpc[method]
+  // Answers from preview.scenario.rpc (method → result, or a function of the params); anything else is "not loaded".
+  request: async (method, params) => {
+    if (preview.scenario.rpc && method in preview.scenario.rpc) {
+      const answer = preview.scenario.rpc[method]
+      return typeof answer === 'function' ? answer(params) : answer
+    }
     throw Object.assign(new Error(`preview: ${method}`), { code: -32601 })
   },
   onEvent: (type, fn) => {
@@ -127,6 +130,8 @@ export const Separator = () => jsx('hr', { style: { border: 0, borderTop: '1px s
 export const Tip = ({ children }) => children
 export const SandboxedFrame = ({ src, title, sandbox, onLoad, ref }) =>
   jsx('iframe', { onLoad, ref, sandbox, src, style: { border: 0, display: 'block', height: '100%', width: '100%' }, title })
+export const MessageTextContent = ({ text }) => jsx('div', { style: { whiteSpace: 'pre-wrap' }, children: text })
+export const randomUuid = () => crypto.randomUUID()
 export const PALETTE_AREA = 'palette'
 export const ROUTES_AREA = 'routes'
 export const SIDEBAR_NAV_AREA = 'sidebar.nav'

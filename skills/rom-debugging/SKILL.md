@@ -144,5 +144,11 @@ other-platform results do not validate it.
 - Each chat has its own engine worker for one project. After a long idle period it is shut down; the next
   call restores the selection, and its `notice` says the emulator, preview and held buttons were reset.
   Call `chromatic_*` tools directly, never from `execute_code`; delegated subagents can only inspect.
+- An emulator lease left on a game by a worker that was killed (a Hermes restart, a crash) is cleared by
+  hermretro itself once it proves the owning process is gone: `chromatic_emulator_run` then just works, and
+  its `notice` names the lease it cleared. If `chromatic_emulator_run` is still refused with "Recording access
+  is live or unresolved", the owner is still running: another chat's emulator on this game, or another app
+  using the same project. Tell the user which game it is and that its emulator is open elsewhere. Do not
+  delete the lease, kill a process or ask the user to restart Hermes.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.
