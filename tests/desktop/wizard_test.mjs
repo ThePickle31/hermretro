@@ -29,6 +29,10 @@ if (!modules) {
   process.exit(1)
 }
 const work = mkdtempSync(path.join(os.tmpdir(), 'chromatic-wizard-'))
+// Interrupted (Ctrl+C, a CI timeout): still remove the temp folder.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => { rmSync(work, { recursive: true, force: true }); process.exit(130) })
+}
 
 try {
   symlinkSync(modules, path.join(work, 'node_modules'), 'dir')
@@ -1915,11 +1919,10 @@ try {
   })
   await shelf.close()
   scenario.storage.page = 'build'
-  // Turns never end in these scenarios: the gateway now says they did, which ends the request polling.
-  scenario.byMethod['session.resume'] = params => (params.omit_messages ? { session_id: params.session_id, running: false, open_requests: [] } : plainResume(params))
-  await new Promise(resolve => setTimeout(resolve, 4_500))
-
   console.log(JSON.stringify({ passed: true, checks: checks.length, names: checks }, null, 1))
 } finally {
   rmSync(work, { recursive: true, force: true })
 }
+// Turns never end in these scenarios, so the page's request polling would keep the process alive: every check
+// has run and been printed, so stop here instead of waiting for it.
+process.exit(0)
