@@ -1,0 +1,3628 @@
+{
+ "manifest_schema": 1,
+ "package_name": "modretro-chromatic",
+ "package_version": "1.0.34",
+ "distribution_directory_name": "1.0.34+codex.distribution.5efb7a8c2b1207f93f2a673a",
+ "file_count": 512,
+ "symlink_count": 0,
+ "total_bytes": 38734484,
+ "suffix_counts": {
+  ".js": 142,
+  ".map": 140,
+  ".md": 93,
+  ".gbsres": 42,
+  ".mjs": 20,
+  ".png": 19,
+  ".json": 18,
+  ".txt": 8,
+  "(none)": 7,
+  ".yaml": 4,
+  ".br": 3,
+  ".mts": 3,
+  ".sh": 3,
+  ".gbsproj": 2,
+  ".ps1": 2,
+  ".py": 2,
+  ".RUNTIME": 1,
+  ".c": 1,
+  ".gbc": 1,
+  ".tsv": 1
+ },
+ "aggregate_sha256": "44e08a4131fcd396e110824b245b45cc6157d7b38b3251ae36632306f725894c",
+ "entries": [
+  {
+   "path": ".codex-plugin/assets/composer-icon.png",
+   "type": "file",
+   "size": 478,
+   "mode": "0o644",
+   "sha256": "08e01db8065472d55a28f3928c09b6d2d5d6556879207ebc3b46e129edf1105a"
+  },
+  {
+   "path": ".codex-plugin/assets/logo.png",
+   "type": "file",
+   "size": 478,
+   "mode": "0o644",
+   "sha256": "08e01db8065472d55a28f3928c09b6d2d5d6556879207ebc3b46e129edf1105a"
+  },
+  {
+   "path": ".codex-plugin/plugin.json",
+   "type": "file",
+   "size": 2366,
+   "mode": "0o644",
+   "sha256": "4c94358c91f20b4bc4a8e9b3a5fd9d95df485b2a1c793cb1014dbea39e3e278d"
+  },
+  {
+   "path": ".mcp.json",
+   "type": "file",
+   "size": 277,
+   "mode": "0o644",
+   "sha256": "4bd33e9bc05f4759e32c5a342797ab5b79968974e317930cecafcd3d373e516e"
+  },
+  {
+   "path": "LICENSE",
+   "type": "file",
+   "size": 1072,
+   "mode": "0o644",
+   "sha256": "c46a5f93c655d8a890391242058d050cbc6ff575d751f27477f22d1f8d53fba4"
+  },
+  {
+   "path": "README.md",
+   "type": "file",
+   "size": 27907,
+   "mode": "0o644",
+   "sha256": "320c111ac3b75c348e83d9ea1851d000a9f1670141a761b76b5fb20f3f1d9f56"
+  },
+  {
+   "path": "THIRD_PARTY_NOTICES.md",
+   "type": "file",
+   "size": 4968,
+   "mode": "0o644",
+   "sha256": "eff847ef8af7bc321f64c5dc543ee8f42b9da0093166c13fe4f84ac5277be07e"
+  },
+  {
+   "path": "assets/devices/README.md",
+   "type": "file",
+   "size": 1082,
+   "mode": "0o644",
+   "sha256": "23b2b32dd909e697d6c0519bd8f037c7f5642e7cd7f5d26ca2ea1ef42f91a288"
+  },
+  {
+   "path": "assets/devices/chromaguy.png",
+   "type": "file",
+   "size": 478,
+   "mode": "0o644",
+   "sha256": "08e01db8065472d55a28f3928c09b6d2d5d6556879207ebc3b46e129edf1105a"
+  },
+  {
+   "path": "assets/devices/codex-generation.md",
+   "type": "file",
+   "size": 3288,
+   "mode": "0o644",
+   "sha256": "277f143a2bd5b97e802c51f6537033e760042f6294ce3d0a4408ec167d920895"
+  },
+  {
+   "path": "assets/devices/images.br",
+   "type": "file",
+   "size": 2882968,
+   "mode": "0o644",
+   "sha256": "31914bd053e6a121634f7935fa758e761d5cf694298eed356fdb09a9e17252d6"
+  },
+  {
+   "path": "assets/devices/provenance.json",
+   "type": "file",
+   "size": 4013,
+   "mode": "0o644",
+   "sha256": "827644f3e073b1a6b7c5d920a430aa2e14060946cbabb9339ef5bb2979f6017b"
+  },
+  {
+   "path": "dist/actors.js",
+   "type": "file",
+   "size": 20712,
+   "mode": "0o644",
+   "sha256": "5f9a88653a0acfabe4d26044172c8b3548bd49975b3ddc271791bdf43a5b107a"
+  },
+  {
+   "path": "dist/actors.js.map",
+   "type": "file",
+   "size": 20242,
+   "mode": "0o644",
+   "sha256": "3ac28de70a5ea016ac458593df21ed572ae3eb5d14e8dcc42ac685119ddbc651"
+  },
+  {
+   "path": "dist/assets.js",
+   "type": "file",
+   "size": 35588,
+   "mode": "0o644",
+   "sha256": "9aa78b4f3c1e45bf9f798d2e977263a00e19b90c82af15baf70a921451f19de3"
+  },
+  {
+   "path": "dist/assets.js.map",
+   "type": "file",
+   "size": 33792,
+   "mode": "0o644",
+   "sha256": "cd46c8265ea1ec3c62546254365d440670486dc7c635fd260bf91666108fd970"
+  },
+  {
+   "path": "dist/build-provenance.js",
+   "type": "file",
+   "size": 11955,
+   "mode": "0o644",
+   "sha256": "020aa9cf846dbeb68e3d82e7dc0a822e7c68c29a51bb53fd7c32382ced3ef34a"
+  },
+  {
+   "path": "dist/build-provenance.js.map",
+   "type": "file",
+   "size": 11043,
+   "mode": "0o644",
+   "sha256": "8623545435a2c509c6223ab4b846a769e28a776629ed52e2f8ad8f5c7d742773"
+  },
+  {
+   "path": "dist/build.js",
+   "type": "file",
+   "size": 46372,
+   "mode": "0o644",
+   "sha256": "bb7c78bfa44d66efbd072448fbf2e24a60a82f31d322906a32672e94ff34a3dc"
+  },
+  {
+   "path": "dist/build.js.map",
+   "type": "file",
+   "size": 41712,
+   "mode": "0o644",
+   "sha256": "a8a24e54d38d885f88afb4ad5a5ab42bd3fe3bb4c46d56fa8cf126c08c022241"
+  },
+  {
+   "path": "dist/bundled-template.js",
+   "type": "file",
+   "size": 5303,
+   "mode": "0o644",
+   "sha256": "b2b5669438d1676ca871d7af480b232fe0328269abad968d447e234f5ca481c8"
+  },
+  {
+   "path": "dist/bundled-template.js.map",
+   "type": "file",
+   "size": 5903,
+   "mode": "0o644",
+   "sha256": "1bc7c7f4350f2086f0e2b1e3d78bb0aeeca8989ac9595aedd1c29c18f3929496"
+  },
+  {
+   "path": "dist/chromatic-failure-diagnostics.js",
+   "type": "file",
+   "size": 4247,
+   "mode": "0o644",
+   "sha256": "edad8785eea72d74025fed476b1ed470ae9b914124e748556ffad01606e78182"
+  },
+  {
+   "path": "dist/chromatic-failure-diagnostics.js.map",
+   "type": "file",
+   "size": 4427,
+   "mode": "0o644",
+   "sha256": "9042ea1757a8a1ef68c0568786413ef6212b5c07e26ef5de5641a649a7f01e0c"
+  },
+  {
+   "path": "dist/chromatic-journal.js",
+   "type": "file",
+   "size": 19423,
+   "mode": "0o644",
+   "sha256": "f218a9c9cb7f31c6daf7f64d2b0cf9290eed8617200b10c5d815fc1ec4934c6e"
+  },
+  {
+   "path": "dist/chromatic-journal.js.map",
+   "type": "file",
+   "size": 18535,
+   "mode": "0o644",
+   "sha256": "a19d8a6449a489b3e181809f9cdbecf8b502218149d51d79dec767317f103371"
+  },
+  {
+   "path": "dist/chromatic.js",
+   "type": "file",
+   "size": 55728,
+   "mode": "0o644",
+   "sha256": "8104987e1fbab9af5778c2a392ae31360d5d1edf6e4590ae96a78af40fa02575"
+  },
+  {
+   "path": "dist/chromatic.js.map",
+   "type": "file",
+   "size": 48657,
+   "mode": "0o644",
+   "sha256": "16eaaf4df4315f3db3aa279c185471caff25198f53fe53d372f08a5b91f17dd1"
+  },
+  {
+   "path": "dist/collisions.js",
+   "type": "file",
+   "size": 11414,
+   "mode": "0o644",
+   "sha256": "2052bbf7e732f9e0857c03a6788d2ecfa1fefdae47931080f19e508007c646ec"
+  },
+  {
+   "path": "dist/collisions.js.map",
+   "type": "file",
+   "size": 11246,
+   "mode": "0o644",
+   "sha256": "807349a81d64051e4b942cd2c5824caefd4f46fed06a4d02f4beb0b36bb98ab1"
+  },
+  {
+   "path": "dist/compiler-selection.js",
+   "type": "file",
+   "size": 4586,
+   "mode": "0o644",
+   "sha256": "a89395b1a425ec93744bae3015c62657867fd684f49dfa3a060e8a6b712c17ef"
+  },
+  {
+   "path": "dist/compiler-selection.js.map",
+   "type": "file",
+   "size": 4224,
+   "mode": "0o644",
+   "sha256": "a611bb89bceef5cad82d83779951caa1ee546ea7dd1954db7b9b086f2aa5c698"
+  },
+  {
+   "path": "dist/contact-sheet.js",
+   "type": "file",
+   "size": 31770,
+   "mode": "0o644",
+   "sha256": "982a9da71dd5c7083b3f51594796f8e81566d1372b71c7ba70a3eba725bab427"
+  },
+  {
+   "path": "dist/contact-sheet.js.map",
+   "type": "file",
+   "size": 35988,
+   "mode": "0o644",
+   "sha256": "cc364fba1cab8dc9864a8c4ab17a861487b341ad51aafe2a6d001da4fa4aa4a3"
+  },
+  {
+   "path": "dist/custom-event-dependencies.js",
+   "type": "file",
+   "size": 15110,
+   "mode": "0o644",
+   "sha256": "ea8ad69cb6fd6755de225a2af8f455eb606b764a70fdbfb6a8c47cff1ac9542d"
+  },
+  {
+   "path": "dist/custom-event-dependencies.js.map",
+   "type": "file",
+   "size": 14406,
+   "mode": "0o644",
+   "sha256": "266d220626f83ae9b7471bbb85d210125585c6154aa94fd18ffa439efaac8774"
+  },
+  {
+   "path": "dist/debug-symbols.js",
+   "type": "file",
+   "size": 17840,
+   "mode": "0o644",
+   "sha256": "ca95131c3ebf79a69c57610dc370648a5d53f65ce7aeb04ba6185ac2da7b09d1"
+  },
+  {
+   "path": "dist/debug-symbols.js.map",
+   "type": "file",
+   "size": 15767,
+   "mode": "0o644",
+   "sha256": "58db711800fbd7219007f97b442453d86fae5dff8929dd82a3e98b601d8d3640"
+  },
+  {
+   "path": "dist/device-capture/device-picker.js",
+   "type": "file",
+   "size": 3838,
+   "mode": "0o644",
+   "sha256": "25116b2761b2b1efd6e0e5e0720a5301f9664b5af1125eb105fd9da30a7dc927"
+  },
+  {
+   "path": "dist/device-capture/device-picker.js.map",
+   "type": "file",
+   "size": 4255,
+   "mode": "0o644",
+   "sha256": "73e0ba95874308cdf5c450850652f0b69cd19cf1ae1e4308dda4b4775da311c3"
+  },
+  {
+   "path": "dist/device-capture/linux-device.js",
+   "type": "file",
+   "size": 5435,
+   "mode": "0o644",
+   "sha256": "9c5e19b144f4a0b65d61a837b45b0a3382c58eae7d91f411ea1dfda8fb1bc363"
+  },
+  {
+   "path": "dist/device-capture/linux-device.js.map",
+   "type": "file",
+   "size": 6040,
+   "mode": "0o644",
+   "sha256": "c925510e3416cbdfdec6e67dd7355a56ac50eb77c56ae7ccaa6a61d98818cc7b"
+  },
+  {
+   "path": "dist/device-capture/linux-frame-stream.js",
+   "type": "file",
+   "size": 5991,
+   "mode": "0o644",
+   "sha256": "d19282f9fbbc156d0bfd935fb19f2f091786cb388b0b6546cd71c15200081f08"
+  },
+  {
+   "path": "dist/device-capture/linux-frame-stream.js.map",
+   "type": "file",
+   "size": 5677,
+   "mode": "0o644",
+   "sha256": "d075eb8a1f5160640162ed90aa21aa0c75a84c22f8e33b5ebb056a6db8ef611a"
+  },
+  {
+   "path": "dist/device-capture/linux-helper.js",
+   "type": "file",
+   "size": 24624,
+   "mode": "0o644",
+   "sha256": "ed249e838242b33b170f001c06dc4e7e9fb9a509e829a3f35c94345cf00f5974"
+  },
+  {
+   "path": "dist/device-capture/linux-helper.js.map",
+   "type": "file",
+   "size": 25101,
+   "mode": "0o644",
+   "sha256": "6a011f3b5d6049e55429a2cb437edbb29ff94c20e68dd4e4c096af76d36aa005"
+  },
+  {
+   "path": "dist/device-capture/linux-packet-stats.js",
+   "type": "file",
+   "size": 3454,
+   "mode": "0o644",
+   "sha256": "6ba3b074730ce81e5231e3537f8a811e6f53fcb9447be452f80045c4c2c48c71"
+  },
+  {
+   "path": "dist/device-capture/linux-packet-stats.js.map",
+   "type": "file",
+   "size": 3245,
+   "mode": "0o644",
+   "sha256": "392dceaba6190ee3ced458a67d822ab473b0f4fc66819ffbf83da9087e350206"
+  },
+  {
+   "path": "dist/device-capture/linux-process.js",
+   "type": "file",
+   "size": 5076,
+   "mode": "0o644",
+   "sha256": "091b850eebac3f92c7ce931b13195eb069390cddedd65466af4f5fbb6045d6fe"
+  },
+  {
+   "path": "dist/device-capture/linux-process.js.map",
+   "type": "file",
+   "size": 5684,
+   "mode": "0o644",
+   "sha256": "9c28d6c49fe40db5635129f54b5a9a39f19403147dfcf5d4c3881298b98d4380"
+  },
+  {
+   "path": "dist/device-capture/native-cache-metrics.js",
+   "type": "file",
+   "size": 6676,
+   "mode": "0o644",
+   "sha256": "7182425ca914516e80b389bcde6cd65f8a251e5bdd8dc7b3372bf77eb86e8a73"
+  },
+  {
+   "path": "dist/device-capture/native-cache-metrics.js.map",
+   "type": "file",
+   "size": 7217,
+   "mode": "0o644",
+   "sha256": "92d21d652a0e8afeff0605f4de4bff2c93865051d41ca3aa2c234263e248d8c0"
+  },
+  {
+   "path": "dist/device-capture/native-client.js",
+   "type": "file",
+   "size": 75149,
+   "mode": "0o644",
+   "sha256": "2dbb4138de167abb162f352ad9d83018f3694a247921303796c6ce0b83b5e316"
+  },
+  {
+   "path": "dist/device-capture/native-client.js.map",
+   "type": "file",
+   "size": 72805,
+   "mode": "0o644",
+   "sha256": "468ad02528fbb186338cb0c955f51afdf39855961ce58c7263c8c3982eb3f03d"
+  },
+  {
+   "path": "dist/device-capture/native-entry.js",
+   "type": "file",
+   "size": 185,
+   "mode": "0o644",
+   "sha256": "aff5cf766d5238349f9947dad59ef183e90dc5db2ddecb06c968e3871cb30348"
+  },
+  {
+   "path": "dist/device-capture/native-entry.js.map",
+   "type": "file",
+   "size": 233,
+   "mode": "0o644",
+   "sha256": "330a71dcebc2ee77b1a190b7899e742034d4b47e8b37e6542d3cb01af1a7c679"
+  },
+  {
+   "path": "dist/device-capture/native-files.js",
+   "type": "file",
+   "size": 6727,
+   "mode": "0o644",
+   "sha256": "a88f5683c4f083183bd0c352dd7b47528213f8ddcc13f857029142dc753b1d37"
+  },
+  {
+   "path": "dist/device-capture/native-files.js.map",
+   "type": "file",
+   "size": 6549,
+   "mode": "0o644",
+   "sha256": "4b311472bb25f40de9768f92e1202e4c3a0c0021d271d396941d44e301bd0f1b"
+  },
+  {
+   "path": "dist/device-capture/native-helper.js",
+   "type": "file",
+   "size": 17983,
+   "mode": "0o644",
+   "sha256": "f7abd2409ce17a1dfb41ecf0b6e5d18ef8a143874adb0ef8eb036cc38404189f"
+  },
+  {
+   "path": "dist/device-capture/native-helper.js.map",
+   "type": "file",
+   "size": 16664,
+   "mode": "0o644",
+   "sha256": "2dcd149a37f6a6e707e45730606d1d3bed423200cd8989f94fda19da74a6856e"
+  },
+  {
+   "path": "dist/device-capture/native-jpeg.js",
+   "type": "file",
+   "size": 9649,
+   "mode": "0o644",
+   "sha256": "af96e10016f6a1b4f4e803fff0b676fb15a6b3aecc794df3e8d651e12429726b"
+  },
+  {
+   "path": "dist/device-capture/native-jpeg.js.map",
+   "type": "file",
+   "size": 9586,
+   "mode": "0o644",
+   "sha256": "02a8eba86f1d67da49ca96e7e899703d896278a6bc5ed98527c7ffe16bca52d6"
+  },
+  {
+   "path": "dist/device-capture/native-page.js",
+   "type": "file",
+   "size": 3253,
+   "mode": "0o644",
+   "sha256": "fe6ef940e5e62d58737dfa00be860bc2e9b45c9d9045fcf0f15f467db0fa8269"
+  },
+  {
+   "path": "dist/device-capture/native-page.js.map",
+   "type": "file",
+   "size": 762,
+   "mode": "0o644",
+   "sha256": "c2dafec2fe847a6341e9a269191c7f47201340a5b19d05ff09c245eb878fd27b"
+  },
+  {
+   "path": "dist/device-capture/native-protocol.js",
+   "type": "file",
+   "size": 12177,
+   "mode": "0o644",
+   "sha256": "45fb1816ad1295091bb142be1059d987cbfc5be3af3d93ec93721e601df92eff"
+  },
+  {
+   "path": "dist/device-capture/native-protocol.js.map",
+   "type": "file",
+   "size": 14378,
+   "mode": "0o644",
+   "sha256": "ad5623c4ecb255e23032131303e2239a0312df09ee8533a639cbf54269368c36"
+  },
+  {
+   "path": "dist/device-capture/native-timing-diagnostics.js",
+   "type": "file",
+   "size": 14648,
+   "mode": "0o644",
+   "sha256": "5f0c72cd0b985f32640d7d85c1aacbcd8b9d12b6be6416ef288f9e935a8ee88f"
+  },
+  {
+   "path": "dist/device-capture/native-timing-diagnostics.js.map",
+   "type": "file",
+   "size": 14806,
+   "mode": "0o644",
+   "sha256": "bf311d6d47e4df8d3547d23d0a3cfacfcaf7bdb352dccc7db062fb1717628ef0"
+  },
+  {
+   "path": "dist/device-capture/page.js",
+   "type": "file",
+   "size": 21652,
+   "mode": "0o644",
+   "sha256": "a12203fccef37ea28b879b7b6b2102c83fec2df3e30206fcdd3778fed6d3f0dc"
+  },
+  {
+   "path": "dist/device-capture/page.js.map",
+   "type": "file",
+   "size": 1015,
+   "mode": "0o644",
+   "sha256": "d15a734ba79f2567566d04c78002a0738a789f61abff098efd219a1d69688b64"
+  },
+  {
+   "path": "dist/device-capture/service-stage-trace.js",
+   "type": "file",
+   "size": 9022,
+   "mode": "0o644",
+   "sha256": "cc459185bf9711732de873231bdc25076212b6497e321f85ca69a93fa0d42d28"
+  },
+  {
+   "path": "dist/device-capture/service-stage-trace.js.map",
+   "type": "file",
+   "size": 9139,
+   "mode": "0o644",
+   "sha256": "1b950b88af37c3280d3e1a816e8cf8f6c624ee67dee63978b0b8da2e4e2d5118"
+  },
+  {
+   "path": "dist/dialogue-preview.js",
+   "type": "file",
+   "size": 15026,
+   "mode": "0o644",
+   "sha256": "467c1d7c34c8c018d87381cb9cca16774caff04e3c2c5e1ac6df439656f23ce9"
+  },
+  {
+   "path": "dist/dialogue-preview.js.map",
+   "type": "file",
+   "size": 17869,
+   "mode": "0o644",
+   "sha256": "09fbd2898a71d419bc2b96f88f980016853d06e5b7c93c07eafd7c592183f630"
+  },
+  {
+   "path": "dist/dialogue.js",
+   "type": "file",
+   "size": 28623,
+   "mode": "0o644",
+   "sha256": "f10d37f911ced0dab31abf665d5f53984322e58b02d348eb1abea14739dd46cd"
+  },
+  {
+   "path": "dist/dialogue.js.map",
+   "type": "file",
+   "size": 29963,
+   "mode": "0o644",
+   "sha256": "6e219e76da21a3ed4df8aa11ce94d1a0a9f074c31a206494dafc5c67f1598367"
+  },
+  {
+   "path": "dist/emulator.js",
+   "type": "file",
+   "size": 65093,
+   "mode": "0o644",
+   "sha256": "530decfc0b6797c21e93a19afce367320e41592fe6678b30390f89c090e34bac"
+  },
+  {
+   "path": "dist/emulator.js.map",
+   "type": "file",
+   "size": 55319,
+   "mode": "0o644",
+   "sha256": "52d890fdb7ec875ced1c67a0a2aedadf04d187648d8aad562bc11236a5ee1189"
+  },
+  {
+   "path": "dist/engine-fields.js",
+   "type": "file",
+   "size": 9561,
+   "mode": "0o644",
+   "sha256": "d268f3a2df8926d129f23b4535e03ba1b7fa04ee6fd69a08b53743e508b1c306"
+  },
+  {
+   "path": "dist/engine-fields.js.map",
+   "type": "file",
+   "size": 8613,
+   "mode": "0o644",
+   "sha256": "45b154fcb4216941d70f5c7a5097a44f41a654ea167696740442c3d23f3c412a"
+  },
+  {
+   "path": "dist/game-scripts.js",
+   "type": "file",
+   "size": 20865,
+   "mode": "0o644",
+   "sha256": "b4ce3f25aa917e7ed0d3f1495ec22fff7f927e8d6c22ef72db42c99f7daabfd2"
+  },
+  {
+   "path": "dist/game-scripts.js.map",
+   "type": "file",
+   "size": 20680,
+   "mode": "0o644",
+   "sha256": "83c0f7416dd82645bdf6aa1390d8f490f31bb0773bc440c72a261cfca8a09860"
+  },
+  {
+   "path": "dist/game-variables.js",
+   "type": "file",
+   "size": 11310,
+   "mode": "0o644",
+   "sha256": "8b0565a93842e69c38c1d99b8a63c205d31b1e22a25fd0d90e34672752b699d6"
+  },
+  {
+   "path": "dist/game-variables.js.map",
+   "type": "file",
+   "size": 10706,
+   "mode": "0o644",
+   "sha256": "20c1e825b832564f28be8a1bc1275f6244a77bdd464272d7f57c01971b50d1d3"
+  },
+  {
+   "path": "dist/graphics-palette-packing.js",
+   "type": "file",
+   "size": 6240,
+   "mode": "0o644",
+   "sha256": "37f11c0d4a3212644ce75bca30e8b1efbf62dfc21b0fa3990120fe8d1026dde5"
+  },
+  {
+   "path": "dist/graphics-palette-packing.js.map",
+   "type": "file",
+   "size": 6267,
+   "mode": "0o644",
+   "sha256": "e6389f419d851c9df12496eb3ae8c8e747cf5c3bdca1f9106d74efb6ec762f63"
+  },
+  {
+   "path": "dist/graphics.js",
+   "type": "file",
+   "size": 19344,
+   "mode": "0o644",
+   "sha256": "dd1e36ce424d38cccfd9d17a95fceb1c7c8bf8242292618e1fc80f74fa8b565d"
+  },
+  {
+   "path": "dist/graphics.js.map",
+   "type": "file",
+   "size": 19336,
+   "mode": "0o644",
+   "sha256": "9058695e0c22437fa984664eb48746d347523f04a93583cabced3efc5baf1e84"
+  },
+  {
+   "path": "dist/legacy-project-assets.js",
+   "type": "file",
+   "size": 3961,
+   "mode": "0o644",
+   "sha256": "e00eaafa9cfb66f7549a17464afc2bd13790d16c6413842dfdc1cf69405fb469"
+  },
+  {
+   "path": "dist/legacy-project-assets.js.map",
+   "type": "file",
+   "size": 3995,
+   "mode": "0o644",
+   "sha256": "c45c234c365869a5ea1446db8fcbd495a890daec239b0ac25e09e4a73e52e92c"
+  },
+  {
+   "path": "dist/loopback-listener.js",
+   "type": "file",
+   "size": 838,
+   "mode": "0o644",
+   "sha256": "88dcfe30a6d90403d3c438ad22cba693c8eaeda24b38f3aa510698f24a4da530"
+  },
+  {
+   "path": "dist/loopback-listener.js.map",
+   "type": "file",
+   "size": 1035,
+   "mode": "0o644",
+   "sha256": "9174a31c0beb18f09f168de1a1a8a2098de9db335d332fc9608efa1639d79390"
+  },
+  {
+   "path": "dist/mcp-path-privacy.js",
+   "type": "file",
+   "size": 9998,
+   "mode": "0o644",
+   "sha256": "0bb253eb4e94ea448138f95924876fbfb48264e4d31283f910512eaf78b4b81e"
+  },
+  {
+   "path": "dist/mcp-path-privacy.js.map",
+   "type": "file",
+   "size": 8984,
+   "mode": "0o644",
+   "sha256": "4dd8d1766b801de8961556d9abaedad79eb4537e41edf78a984ec8180f64022a"
+  },
+  {
+   "path": "dist/native-device-capture.js",
+   "type": "file",
+   "size": 76908,
+   "mode": "0o644",
+   "sha256": "8bfe8c8df9640b75e3bd46e91306c99e4b2816e9a59011dcd04fe3813f2761b9"
+  },
+  {
+   "path": "dist/native-device-capture.js.map",
+   "type": "file",
+   "size": 72146,
+   "mode": "0o644",
+   "sha256": "faca502f2e1b7c0b8ac8f7fbd05374f7e2dce0f505bda60f557b77586f58df96"
+  },
+  {
+   "path": "dist/native-import-files.js",
+   "type": "file",
+   "size": 22167,
+   "mode": "0o644",
+   "sha256": "5345d41efd95a69481e31ca756a3ccf85bc0a8a63d12d32055bffe86231a3712"
+  },
+  {
+   "path": "dist/native-import-files.js.map",
+   "type": "file",
+   "size": 21479,
+   "mode": "0o644",
+   "sha256": "4dd13f15c2b21d5f27372275e52d2498999f3dff5e7454e7a26f7314ed12923e"
+  },
+  {
+   "path": "dist/native-script-events.js",
+   "type": "file",
+   "size": 7878,
+   "mode": "0o644",
+   "sha256": "a5d5adaa74066b29dbf7b233c4257e9e26ef2115f128598fa65004ab40406f79"
+  },
+  {
+   "path": "dist/native-script-events.js.map",
+   "type": "file",
+   "size": 7154,
+   "mode": "0o644",
+   "sha256": "3474e5e853129637d24fd5a577e2feda099d34f21652056bc577f20ae83fe6e9"
+  },
+  {
+   "path": "dist/native-sprite-metadata.js",
+   "type": "file",
+   "size": 12200,
+   "mode": "0o644",
+   "sha256": "297b0fbe55f73f89775dee99577a205b72cda1792e720d77af9a0cda0d30f2ca"
+  },
+  {
+   "path": "dist/native-sprite-metadata.js.map",
+   "type": "file",
+   "size": 13329,
+   "mode": "0o644",
+   "sha256": "7efed408090f0930daec0d91855be681427df3ee690cbd737db0e2c0d7d7ac89"
+  },
+  {
+   "path": "dist/native-title-atlas.js",
+   "type": "file",
+   "size": 12131,
+   "mode": "0o644",
+   "sha256": "5cf8bf65dadd64826339b84425b89f09ec560e522d5f7875e19b90789e19dfa0"
+  },
+  {
+   "path": "dist/native-title-atlas.js.map",
+   "type": "file",
+   "size": 12020,
+   "mode": "0o644",
+   "sha256": "84c27ad9977f42d59932324c548d3bb084448d5c899ea9aab9561bb9ffd27eca"
+  },
+  {
+   "path": "dist/palettes.js",
+   "type": "file",
+   "size": 23747,
+   "mode": "0o644",
+   "sha256": "327b0d41712a0a8a02619244dce12de8472cab265960b8335bc07453fba28398"
+  },
+  {
+   "path": "dist/palettes.js.map",
+   "type": "file",
+   "size": 22684,
+   "mode": "0o644",
+   "sha256": "6aff71c7ef83bd343e3bdec36efbc99c2fb3396da9b5a792bdea87b11cbd4745"
+  },
+  {
+   "path": "dist/platform.js",
+   "type": "file",
+   "size": 17401,
+   "mode": "0o644",
+   "sha256": "a280ba7618fd0b0a2aebe1858521d76886521866501af1119bac8f3da7b18bb5"
+  },
+  {
+   "path": "dist/platform.js.map",
+   "type": "file",
+   "size": 13664,
+   "mode": "0o644",
+   "sha256": "36bb7d1617608ace0081c7ff1bc705915bd809f369a374836f5dd76b376a0a95"
+  },
+  {
+   "path": "dist/playtest-errors.js",
+   "type": "file",
+   "size": 320,
+   "mode": "0o644",
+   "sha256": "576c660f2ac339d96d4e44c0fe98d6a69c04f727064d1e2d9cbd75211dac812a"
+  },
+  {
+   "path": "dist/playtest-errors.js.map",
+   "type": "file",
+   "size": 357,
+   "mode": "0o644",
+   "sha256": "35729e313858f8413672918591a37d4fa33626281305bff226338527d282c4f8"
+  },
+  {
+   "path": "dist/project-access.js",
+   "type": "file",
+   "size": 2777,
+   "mode": "0o644",
+   "sha256": "d1ae11964c76981ed041ef6b9b68c91f260c5dea4de507bd92b0e6a3c7fee6db"
+  },
+  {
+   "path": "dist/project-access.js.map",
+   "type": "file",
+   "size": 2411,
+   "mode": "0o644",
+   "sha256": "d62cad7cce29b4bf291810b339d1ea49f383bd1a5613d4e9734fa73ff3538f84"
+  },
+  {
+   "path": "dist/project-files.js",
+   "type": "file",
+   "size": 31852,
+   "mode": "0o644",
+   "sha256": "95c50c61791e2dccef667cd54d38b0d867f299a7224625f2e80b21102f69d526"
+  },
+  {
+   "path": "dist/project-files.js.map",
+   "type": "file",
+   "size": 28840,
+   "mode": "0o644",
+   "sha256": "12ae705ebb954695c12ca133d543340b729614d42d45213b38c475c9e32ec0f5"
+  },
+  {
+   "path": "dist/project-revision.js",
+   "type": "file",
+   "size": 6675,
+   "mode": "0o644",
+   "sha256": "f59b8a9db3791cf08fad162af1c1991b57e46608aec17274d19fcb924dc25b13"
+  },
+  {
+   "path": "dist/project-revision.js.map",
+   "type": "file",
+   "size": 6826,
+   "mode": "0o644",
+   "sha256": "c0128a0a9d13e1abbf98c5e03a885464c5fdb42a5ce4ba887c481d3a7cfe2cad"
+  },
+  {
+   "path": "dist/project-session.js",
+   "type": "file",
+   "size": 35254,
+   "mode": "0o644",
+   "sha256": "2f4aef692f90aecbfca1b092d916f71cdfd5f1aa5b3444a15cac2208fd2888f8"
+  },
+  {
+   "path": "dist/project-session.js.map",
+   "type": "file",
+   "size": 29101,
+   "mode": "0o644",
+   "sha256": "d1cc136a5b266b249adbe3bf047ce33be2b923abe485c63e24dacd9048dcd939"
+  },
+  {
+   "path": "dist/project-snapshot.js",
+   "type": "file",
+   "size": 28690,
+   "mode": "0o644",
+   "sha256": "d45ae7dcaebf6c990ac985e4967acfca7c79c5431b280e7a25e3443e369f1366"
+  },
+  {
+   "path": "dist/project-snapshot.js.map",
+   "type": "file",
+   "size": 27373,
+   "mode": "0o644",
+   "sha256": "c98672fca2701b501c3a25d3d0ce5c9af3ccbc7768008b4f5776dc22790c6bbc"
+  },
+  {
+   "path": "dist/project-world-index.js",
+   "type": "file",
+   "size": 66698,
+   "mode": "0o644",
+   "sha256": "c1263d617e7643a188e80cdf286709836872a8ec5ec2b29b484dde75c3604f91"
+  },
+  {
+   "path": "dist/project-world-index.js.map",
+   "type": "file",
+   "size": 64465,
+   "mode": "0o644",
+   "sha256": "3b800f019c1cb336c954a439b128e2ae46df8b9d942d1725b85d262c90451aea"
+  },
+  {
+   "path": "dist/project.js",
+   "type": "file",
+   "size": 56099,
+   "mode": "0o644",
+   "sha256": "273c2262519c84813e3dfd82f7e10eefd2d7b59aa9775e47eecdd48e24dc21fa"
+  },
+  {
+   "path": "dist/project.js.map",
+   "type": "file",
+   "size": 54792,
+   "mode": "0o644",
+   "sha256": "e81861aefea25044a78245d5d15941bceb386ee4b99177e8be20766680c69c71"
+  },
+  {
+   "path": "dist/recording-archive.js",
+   "type": "file",
+   "size": 35954,
+   "mode": "0o644",
+   "sha256": "7137d98aeda4b2a8d17325489d6c0d650620d6a812fbd7b83bfa187a93d7cdff"
+  },
+  {
+   "path": "dist/recording-archive.js.map",
+   "type": "file",
+   "size": 31927,
+   "mode": "0o644",
+   "sha256": "d704b9a95a75c4e8897af107af4452915765ab6a733219dc17077ec6695a0248"
+  },
+  {
+   "path": "dist/recording-common.js",
+   "type": "file",
+   "size": 19604,
+   "mode": "0o644",
+   "sha256": "3c751215b410f08bd1f12807e58f8c37a00713abfdc06dc00b0d2636c8f65833"
+  },
+  {
+   "path": "dist/recording-common.js.map",
+   "type": "file",
+   "size": 20046,
+   "mode": "0o644",
+   "sha256": "8742b5f0531417d25998f7218d612c3e81d8acabac890d216594d9a6edd2c92b"
+  },
+  {
+   "path": "dist/recording-location.js",
+   "type": "file",
+   "size": 7663,
+   "mode": "0o644",
+   "sha256": "ead99e754093d8745d3d6d5ab68b2cd8cbf526bcb9e8bf9f68e1aa2c6fadc188"
+  },
+  {
+   "path": "dist/recording-location.js.map",
+   "type": "file",
+   "size": 8079,
+   "mode": "0o644",
+   "sha256": "0504182e0b6cd3949cb0dbda5d5ae91c4d3f96a358f2b39cc8336bb20eb2286b"
+  },
+  {
+   "path": "dist/recording-maintenance.js",
+   "type": "file",
+   "size": 21067,
+   "mode": "0o644",
+   "sha256": "b291c870bbfd1cecb64cf355dba49b5b3e66d31703cae72a6cf34b5c6612fa71"
+  },
+  {
+   "path": "dist/recording-maintenance.js.map",
+   "type": "file",
+   "size": 20671,
+   "mode": "0o644",
+   "sha256": "cd5b4c43252497b4c84e0611372ecb886458d88d4bfa1769a5def2f1c65f5539"
+  },
+  {
+   "path": "dist/resource-codec.js",
+   "type": "file",
+   "size": 4741,
+   "mode": "0o644",
+   "sha256": "b225536a083e85ed97d4be3dd6f44b2ae922d01a040ee71a3c60b39e601584e9"
+  },
+  {
+   "path": "dist/resource-codec.js.map",
+   "type": "file",
+   "size": 4302,
+   "mode": "0o644",
+   "sha256": "6785305b071c110c310103b675d27a2b1a1fc49bfef759b574bdf71f1528247d"
+  },
+  {
+   "path": "dist/reviewed-compiler.js",
+   "type": "file",
+   "size": 7325,
+   "mode": "0o644",
+   "sha256": "9cfb50023ef546b3dd38532c66b66b0d040bbda346869e535ff889b73ec58e23"
+  },
+  {
+   "path": "dist/reviewed-compiler.js.map",
+   "type": "file",
+   "size": 7230,
+   "mode": "0o644",
+   "sha256": "c4a69039df27cc3461135a72304007129095de7c3bde48fc53c1b352f622b77c"
+  },
+  {
+   "path": "dist/scene-batch.js",
+   "type": "file",
+   "size": 72876,
+   "mode": "0o644",
+   "sha256": "02db72d5ae70f46d37f7e92d024a0b83ac8d3dfb6e7f3220620b29079538d5e0"
+  },
+  {
+   "path": "dist/scene-batch.js.map",
+   "type": "file",
+   "size": 69234,
+   "mode": "0o644",
+   "sha256": "8fc93a2f470f4ef056c508b2fbe59b7dd810602b6b91f74a4ae29ffd4705c0ad"
+  },
+  {
+   "path": "dist/scene-graphics.js",
+   "type": "file",
+   "size": 44382,
+   "mode": "0o644",
+   "sha256": "f1b74c4a95bbb34a2bed7ee51c901085331acdfd11ea1c552f8e7844bc48ffe3"
+  },
+  {
+   "path": "dist/scene-graphics.js.map",
+   "type": "file",
+   "size": 37715,
+   "mode": "0o644",
+   "sha256": "f67efd17895b78f5509aef8d77704892f251eac7f71b54565e3d02751d74fa7a"
+  },
+  {
+   "path": "dist/server.js",
+   "type": "file",
+   "size": 2866709,
+   "mode": "0o644",
+   "sha256": "23562c571a1758033cffd02af96c6f86b234aee2456bacb3fc59e8879e34a43e"
+  },
+  {
+   "path": "dist/server.js.map",
+   "type": "file",
+   "size": 64755,
+   "mode": "0o644",
+   "sha256": "ec98d24de426ef89c1e90099a07f78389ebe0c454576267652d803d9ad00ab0a"
+  },
+  {
+   "path": "dist/source-debug.js",
+   "type": "file",
+   "size": 21249,
+   "mode": "0o644",
+   "sha256": "8fdc87c38e4920e10bf3da111dc10c7730f0b58d2e251b4ea6c6a19c97fe0f98"
+  },
+  {
+   "path": "dist/source-debug.js.map",
+   "type": "file",
+   "size": 19417,
+   "mode": "0o644",
+   "sha256": "e91b939ec2f7840c5f89277849f55f128e73804caba585c4ef901d76f7bc491a"
+  },
+  {
+   "path": "dist/sprites.js",
+   "type": "file",
+   "size": 24127,
+   "mode": "0o644",
+   "sha256": "d4bf27c5dee688b337775da205c65bd170b62f1512b1b6ebb3f4c15f9596a82a"
+  },
+  {
+   "path": "dist/sprites.js.map",
+   "type": "file",
+   "size": 25351,
+   "mode": "0o644",
+   "sha256": "8c8bb86344552c749406eb14cb2a94bbb78583fbeb06fa0c0f04525ddbdfdd4b"
+  },
+  {
+   "path": "dist/tilemap-compose.js",
+   "type": "file",
+   "size": 14205,
+   "mode": "0o644",
+   "sha256": "7518c6ad111ec3e909f9f0543cd9d25e56f4799c9391065c939a0ab11e04d3e1"
+  },
+  {
+   "path": "dist/tilemap-compose.js.map",
+   "type": "file",
+   "size": 14078,
+   "mode": "0o644",
+   "sha256": "d79f1f2ea811946b0d322c38abe5d1a7eaa982d1e06fb5c2b11a455551fdd914"
+  },
+  {
+   "path": "dist/tilemap-schema.js",
+   "type": "file",
+   "size": 7752,
+   "mode": "0o644",
+   "sha256": "09d79e1577a5fcd98955391955c0916d61306570a6409bc311c80e0f63d2ad7c"
+  },
+  {
+   "path": "dist/tilemap-schema.js.map",
+   "type": "file",
+   "size": 9853,
+   "mode": "0o644",
+   "sha256": "6aa0a9fb2e90aa99940765b8c0719d1ab4a78b9823718a9c5963b65938d5e422"
+  },
+  {
+   "path": "dist/tilemaps.js",
+   "type": "file",
+   "size": 41011,
+   "mode": "0o644",
+   "sha256": "a46dd6e3d88230cccc72755d8df44cebe8c01d2ce23b5b7df1445a72ef6e754c"
+  },
+  {
+   "path": "dist/tilemaps.js.map",
+   "type": "file",
+   "size": 39056,
+   "mode": "0o644",
+   "sha256": "eaab844486c40592c70d0dae0ed49b6ac08599186b501a66d78e1d8330e382c5"
+  },
+  {
+   "path": "dist/tool-domains/chromatic.js",
+   "type": "file",
+   "size": 11384,
+   "mode": "0o644",
+   "sha256": "5a67046714b0d7050982d58578ddb9db0ad1e54ff023d04ae4a3dda897a82852"
+  },
+  {
+   "path": "dist/tool-domains/chromatic.js.map",
+   "type": "file",
+   "size": 6440,
+   "mode": "0o644",
+   "sha256": "371a40ad4e9e9bc687d9abb7df46110a9d489a2171710fde5d847490485c02e0"
+  },
+  {
+   "path": "dist/tool-domains/playtest.js",
+   "type": "file",
+   "size": 19680,
+   "mode": "0o644",
+   "sha256": "6e2a845488d4fe2e85e0dd12ce7cb3924f863d3f57f070e3983350a9d81c9f20"
+  },
+  {
+   "path": "dist/tool-domains/playtest.js.map",
+   "type": "file",
+   "size": 16160,
+   "mode": "0o644",
+   "sha256": "3e1a6d04e8ab317274be2696e5c01143a498fbe0579d3ea812184008fe6a2dfb"
+  },
+  {
+   "path": "dist/tool-domains/register.js",
+   "type": "file",
+   "size": 23118,
+   "mode": "0o644",
+   "sha256": "c1daed9cf35919131072c1419e60cb6b699fda59838d9e93748dad67249d3825"
+  },
+  {
+   "path": "dist/tool-domains/register.js.map",
+   "type": "file",
+   "size": 15915,
+   "mode": "0o644",
+   "sha256": "9aac775432125227547236cbf8fb043bb782cd9db6a9aa6e09743eaef29e7577"
+  },
+  {
+   "path": "dist/tool-domains/schemas.js",
+   "type": "file",
+   "size": 18662,
+   "mode": "0o644",
+   "sha256": "dc3062fdf6e356a8ffaae59c57933bd3fcec1ba0c2fb3e73e1c5cd5da36e4632"
+  },
+  {
+   "path": "dist/tool-domains/schemas.js.map",
+   "type": "file",
+   "size": 22077,
+   "mode": "0o644",
+   "sha256": "565f0931b7660dbc8758d578e30d79de36f23c07fecc9988f958bcde9aa2f343"
+  },
+  {
+   "path": "dist/tool-domains/tilemap.js",
+   "type": "file",
+   "size": 3870,
+   "mode": "0o644",
+   "sha256": "9dba07af0c003708f61a4a6020ccf0ac9d86e626cf8e97b0e0dabe768c6cd4dd"
+  },
+  {
+   "path": "dist/tool-domains/tilemap.js.map",
+   "type": "file",
+   "size": 2206,
+   "mode": "0o644",
+   "sha256": "6b542b2ee294f94a23ef047bd2a19b27949f484e185966474b2fa4e8818011c9"
+  },
+  {
+   "path": "dist/toolchain-prepare.js",
+   "type": "file",
+   "size": 1879,
+   "mode": "0o644",
+   "sha256": "5da680fdab82880bd734f421ffe74ec144f6fc6e6d95991abcbd2cc5004a8c7f"
+  },
+  {
+   "path": "dist/toolchain-prepare.js.map",
+   "type": "file",
+   "size": 1773,
+   "mode": "0o644",
+   "sha256": "ab0300fb76bcb07f1cfc01cf6e15706f312b096e8c595527d87210a8ff06d577"
+  },
+  {
+   "path": "dist/triggers.js",
+   "type": "file",
+   "size": 15348,
+   "mode": "0o644",
+   "sha256": "a1a06661d94c53bc0ad4a13366648250f7a5281d1688134a6a2d6ac499440d7b"
+  },
+  {
+   "path": "dist/triggers.js.map",
+   "type": "file",
+   "size": 14433,
+   "mode": "0o644",
+   "sha256": "7ac749d279ab41dadfdd691bd32ce6d702f42539e2f230a715b902290ebed077"
+  },
+  {
+   "path": "dist/web-annotations/audio.js",
+   "type": "file",
+   "size": 6045,
+   "mode": "0o644",
+   "sha256": "95652195f6f10723b5b27dd2bef7b89f3615c4c998dd76dc8fce9a0725b7f7d4"
+  },
+  {
+   "path": "dist/web-annotations/audio.js.map",
+   "type": "file",
+   "size": 5520,
+   "mode": "0o644",
+   "sha256": "6f544c98896bb9766b9e96b3977c3e5410c4aaf468baefb3e7571b0c911888d1"
+  },
+  {
+   "path": "dist/web-annotations/bridge.js",
+   "type": "file",
+   "size": 23371,
+   "mode": "0o644",
+   "sha256": "df5309d25d142db2271a7053a26d69144ebf5ddc772b9f2c9d9d90d1d218545f"
+  },
+  {
+   "path": "dist/web-annotations/bridge.js.map",
+   "type": "file",
+   "size": 22653,
+   "mode": "0o644",
+   "sha256": "feeb7741dab0dd05965c04bed9a345f5d55da64051796519dce0adc9cd5653a5"
+  },
+  {
+   "path": "dist/web-annotations/error-dialog.js",
+   "type": "file",
+   "size": 11196,
+   "mode": "0o644",
+   "sha256": "33690e45dcbb7381aa79c8e0d93bf6fcf3e37daca9abba20edc9cdf37d2760a1"
+  },
+  {
+   "path": "dist/web-annotations/error-dialog.js.map",
+   "type": "file",
+   "size": 7722,
+   "mode": "0o644",
+   "sha256": "fae7851735019d192adf8c73a68afe05941e01519cedf2aa3d4e62d531774feb"
+  },
+  {
+   "path": "dist/web-annotations/flash-diagnostics.js",
+   "type": "file",
+   "size": 1661,
+   "mode": "0o644",
+   "sha256": "6e846919fff43fb7b34df5f00777c5db216b9d40a773100f8ab8d4b5d0a7dd96"
+  },
+  {
+   "path": "dist/web-annotations/flash-diagnostics.js.map",
+   "type": "file",
+   "size": 1822,
+   "mode": "0o644",
+   "sha256": "149e70b7bc15f57f28a06db315375076621a7955b104a4126e3e11243e72ef8e"
+  },
+  {
+   "path": "dist/web-annotations/flash.js",
+   "type": "file",
+   "size": 49247,
+   "mode": "0o644",
+   "sha256": "85f61fb2b363aa265355847017b6797f4462b9fcbb4bea7017ff9356d51ed673"
+  },
+  {
+   "path": "dist/web-annotations/flash.js.map",
+   "type": "file",
+   "size": 38672,
+   "mode": "0o644",
+   "sha256": "9f814c2d5b1219f3b47c986456d4457595fa76f3ae7f0bc95ee99bca276ed084"
+  },
+  {
+   "path": "dist/web-annotations/input-owner.js",
+   "type": "file",
+   "size": 11842,
+   "mode": "0o644",
+   "sha256": "3de543b81d9b55c849aadc532899495247acbe7ced92cf55bdf78513133a91a5"
+  },
+  {
+   "path": "dist/web-annotations/input-owner.js.map",
+   "type": "file",
+   "size": 12810,
+   "mode": "0o644",
+   "sha256": "fb906f13e2cc8834d77e41e717bb6cf7e044b9278b595d68be7aecf65af65ab0"
+  },
+  {
+   "path": "dist/web-annotations/input-protocol.js",
+   "type": "file",
+   "size": 3630,
+   "mode": "0o644",
+   "sha256": "07ffccc75c72e076cfcce1174e7a2aca1139d4084d40123113877b7f0c4f7ebc"
+  },
+  {
+   "path": "dist/web-annotations/input-protocol.js.map",
+   "type": "file",
+   "size": 4032,
+   "mode": "0o644",
+   "sha256": "89a34752a5107d1d0c60c430dc746fe6cff70977d3dba85a1ae34e3766a97a13"
+  },
+  {
+   "path": "dist/web-annotations/input.js",
+   "type": "file",
+   "size": 4333,
+   "mode": "0o644",
+   "sha256": "4fbca1447ab2d46feba2bc2d7c7910410ce5670c2586d9687d892d4ecd0bc9ab"
+  },
+  {
+   "path": "dist/web-annotations/input.js.map",
+   "type": "file",
+   "size": 3908,
+   "mode": "0o644",
+   "sha256": "25bdfa657ec8a87eb1c0a59d927e546751c551abda74002b885f0eecd34256ee"
+  },
+  {
+   "path": "dist/web-annotations/native.js",
+   "type": "file",
+   "size": 15147,
+   "mode": "0o644",
+   "sha256": "58ae3d1b63d53aaa0bdc35f4e6a4bf54957de75b3264d34b85c5da62e45038b9"
+  },
+  {
+   "path": "dist/web-annotations/native.js.map",
+   "type": "file",
+   "size": 12763,
+   "mode": "0o644",
+   "sha256": "443215e7b56fe0b0138300bf4c58ed963b270040f6e8e8255b23153c5400ca0f"
+  },
+  {
+   "path": "dist/web-annotations/player.js",
+   "type": "file",
+   "size": 36418,
+   "mode": "0o644",
+   "sha256": "ecae9a39c39539bd18a398e0d71553d9d3edb1e9247b7b799c5f33a22aaff2ef"
+  },
+  {
+   "path": "dist/web-annotations/player.js.map",
+   "type": "file",
+   "size": 34001,
+   "mode": "0o644",
+   "sha256": "ee6e75921593bfe5ebb53947f73f253e3dbaa8adcf681b3f536816f7d9054818"
+  },
+  {
+   "path": "dist/web-annotations/recording-controller.js",
+   "type": "file",
+   "size": 8522,
+   "mode": "0o644",
+   "sha256": "740ef04c23270f2092978ba98f57fe22f3590ab6f17f1e4f77fe561e0e6239a0"
+  },
+  {
+   "path": "dist/web-annotations/recording-controller.js.map",
+   "type": "file",
+   "size": 9804,
+   "mode": "0o644",
+   "sha256": "22cf922095338b10645daae253f896ad0fe72e22ab6031317d8835101a21a506"
+  },
+  {
+   "path": "dist/web-annotations/recording-protocol.js",
+   "type": "file",
+   "size": 6621,
+   "mode": "0o644",
+   "sha256": "2b35306068a0345dbc3548cdec46783c8f628cf6b979119f36b76142d600c620"
+  },
+  {
+   "path": "dist/web-annotations/recording-protocol.js.map",
+   "type": "file",
+   "size": 7236,
+   "mode": "0o644",
+   "sha256": "da294fb6ac9f068f7d6958a6fc75b08d86fc635654aad615962c71ad13f2c10f"
+  },
+  {
+   "path": "dist/web-annotations/recording.js",
+   "type": "file",
+   "size": 35159,
+   "mode": "0o644",
+   "sha256": "090c9833f1503892214b64899ba729560f76c8814eda0677ecdc34814844ea9b"
+  },
+  {
+   "path": "dist/web-annotations/recording.js.map",
+   "type": "file",
+   "size": 33218,
+   "mode": "0o644",
+   "sha256": "9281ab80ace98a3bef8d47a751699bee6cc9d8a8ac1f44deecddc423ee0896e2"
+  },
+  {
+   "path": "dist/web-annotations/remote.js",
+   "type": "file",
+   "size": 17113,
+   "mode": "0o644",
+   "sha256": "9167af343b1969ba5719204de006a5687b4fd460d1d99295e9ff848d180d4d6e"
+  },
+  {
+   "path": "dist/web-annotations/remote.js.map",
+   "type": "file",
+   "size": 14797,
+   "mode": "0o644",
+   "sha256": "4aeb5c93a8b4669d08f0a5d743af014f7faba0eeee792a2abd3d86cae6c7970b"
+  },
+  {
+   "path": "dist/web-annotations/save-state.js",
+   "type": "file",
+   "size": 15355,
+   "mode": "0o644",
+   "sha256": "a306f64f764e12fe9020b596e6d0c0263fe8ffeadce3789d865aed45d1336bbb"
+  },
+  {
+   "path": "dist/web-annotations/save-state.js.map",
+   "type": "file",
+   "size": 14945,
+   "mode": "0o644",
+   "sha256": "abc7c338be8ecc7ecb8746bd7938da5c66abce94171c05eacb73f1a960f8d7b2"
+  },
+  {
+   "path": "dist/web-annotations/targets.js",
+   "type": "file",
+   "size": 11825,
+   "mode": "0o644",
+   "sha256": "a7f6cdd8af5b24fbfe88967defa5116ee50ceef6fdbbb764723cbc14a1601ca9"
+  },
+  {
+   "path": "dist/web-annotations/targets.js.map",
+   "type": "file",
+   "size": 15953,
+   "mode": "0o644",
+   "sha256": "d6bfb869f2c5e1e74c70bb52cae9422ece131f14274a8f12f94bf8a3dc1892eb"
+  },
+  {
+   "path": "dist/web-annotations/view.js",
+   "type": "file",
+   "size": 62388,
+   "mode": "0o644",
+   "sha256": "d622f38ba8ba9f6a8e139c31c28a1626cf19d3608c7d3bd9f0c046ac68a77830"
+  },
+  {
+   "path": "dist/web-annotations/view.js.map",
+   "type": "file",
+   "size": 37829,
+   "mode": "0o644",
+   "sha256": "32a20e37ecd99e6111bd78d181006f06860f6e70976cbee46087c457e44e8b3b"
+  },
+  {
+   "path": "dist/web-build.js",
+   "type": "file",
+   "size": 45122,
+   "mode": "0o644",
+   "sha256": "774c131f69e4720a19d4b1052d698ec3e93779432f8bc50ad400dd32489731e3"
+  },
+  {
+   "path": "dist/web-build.js.map",
+   "type": "file",
+   "size": 42308,
+   "mode": "0o644",
+   "sha256": "7a5afe9d8c63ff2a3014d95b6626e3dfa248b12f431ade760c6b2a31fb558a8b"
+  },
+  {
+   "path": "dist/web-preview-captures.js",
+   "type": "file",
+   "size": 37368,
+   "mode": "0o644",
+   "sha256": "daa74cd93c465150c37924be03d05a6147c6fdb5428135f88f958bb8658ab94b"
+  },
+  {
+   "path": "dist/web-preview-captures.js.map",
+   "type": "file",
+   "size": 37099,
+   "mode": "0o644",
+   "sha256": "10c9def8d31016126628b9a557a0ac8055aea49f80e99b207158f9def9c4af0b"
+  },
+  {
+   "path": "dist/web-preview-flash.js",
+   "type": "file",
+   "size": 18048,
+   "mode": "0o644",
+   "sha256": "35bdd08145f9233819c7e3f2bee1ada8fba1c952becc30418ae1578d7f2878c4"
+  },
+  {
+   "path": "dist/web-preview-flash.js.map",
+   "type": "file",
+   "size": 16841,
+   "mode": "0o644",
+   "sha256": "aa7b84433db53bf051a7761daa493f745a63a54c9285efc5d5b27bfc4038c462"
+  },
+  {
+   "path": "dist/web-preview-input.js",
+   "type": "file",
+   "size": 7517,
+   "mode": "0o644",
+   "sha256": "aff340b32809ec640300f80f5767630666c76218612dbace1bf8e66c4adfc2e7"
+  },
+  {
+   "path": "dist/web-preview-input.js.map",
+   "type": "file",
+   "size": 7765,
+   "mode": "0o644",
+   "sha256": "3630863a4a10bb60951fa29d82c97b92cbcea3a62a86331d899ee003a538da38"
+  },
+  {
+   "path": "dist/web-preview-player.js",
+   "type": "file",
+   "size": 14166,
+   "mode": "0o644",
+   "sha256": "73330f8055fef8453e0d1892b8f71a93eba933c66ae7be0400071df2bff3cf0e"
+  },
+  {
+   "path": "dist/web-preview-player.js.map",
+   "type": "file",
+   "size": 13551,
+   "mode": "0o644",
+   "sha256": "d26355c68a3a60ad7d5a24db4484869cc268df54b3d0ed97f2f075860ca1476b"
+  },
+  {
+   "path": "dist/web-preview-recording-journal.js",
+   "type": "file",
+   "size": 8359,
+   "mode": "0o644",
+   "sha256": "e66fea22005ab010c31106b2d45ab313b88001c2532d5a337615e1fe2b9c87fc"
+  },
+  {
+   "path": "dist/web-preview-recording-journal.js.map",
+   "type": "file",
+   "size": 8484,
+   "mode": "0o644",
+   "sha256": "3ce01de3cc3a23d76b258747200d3334b7495b4dea9cfe950e881b3c3a6647b3"
+  },
+  {
+   "path": "dist/web-preview-recording-record.js",
+   "type": "file",
+   "size": 4506,
+   "mode": "0o644",
+   "sha256": "95c9adbd026179b4eec2801f80193767e5e0d4c861347851a1fae22f574991ed"
+  },
+  {
+   "path": "dist/web-preview-recording-record.js.map",
+   "type": "file",
+   "size": 4845,
+   "mode": "0o644",
+   "sha256": "277957e8b79e41f3c9e2517956f351ef88d07be2f2b687c41f4c92da52949622"
+  },
+  {
+   "path": "dist/web-preview-recording.js",
+   "type": "file",
+   "size": 20329,
+   "mode": "0o644",
+   "sha256": "e4327cd2bf005dae608f110fc8750498124ecbdcac7a95c1a78e910804286d36"
+  },
+  {
+   "path": "dist/web-preview-recording.js.map",
+   "type": "file",
+   "size": 20423,
+   "mode": "0o644",
+   "sha256": "4c8ed78da736ffc300f05df7b4e0e3f8c47970ad778f6a70a6ac0fa1e3ab351f"
+  },
+  {
+   "path": "dist/web-preview-states.js",
+   "type": "file",
+   "size": 16366,
+   "mode": "0o644",
+   "sha256": "d9d33191972f0086f2077d7f936f6d8419671185c51b1402d1b36810812220c9"
+  },
+  {
+   "path": "dist/web-preview-states.js.map",
+   "type": "file",
+   "size": 15947,
+   "mode": "0o644",
+   "sha256": "e9c6e2955c3a08c72c3b8b6b3f87db3ed383719bc43ded2c088318e189ff9c88"
+  },
+  {
+   "path": "dist/web-preview.js",
+   "type": "file",
+   "size": 70296,
+   "mode": "0o644",
+   "sha256": "321ddd8d2be6ae67c1cee0769d2ef5ed7d2cb95c2a0c682395e88ae377c0b2ea"
+  },
+  {
+   "path": "dist/web-preview.js.map",
+   "type": "file",
+   "size": 64502,
+   "mode": "0o644",
+   "sha256": "a9981ff1baf15a6f17caa3b8ecc6dace9eecf82ff3213f15df1c614abd4deb6f"
+  },
+  {
+   "path": "dist/world-queries.js",
+   "type": "file",
+   "size": 13710,
+   "mode": "0o644",
+   "sha256": "584e93f9ea25799fefd753789a71585b2750388e639a7ceda7165f18a7cb99f1"
+  },
+  {
+   "path": "dist/world-queries.js.map",
+   "type": "file",
+   "size": 12341,
+   "mode": "0o644",
+   "sha256": "83d393334517e7ed793f54355b454cec7c7f827ab593b4f86c76e24bd69c3beb"
+  },
+  {
+   "path": "dist/world-script-graph.js",
+   "type": "file",
+   "size": 50569,
+   "mode": "0o644",
+   "sha256": "3e936ade67791592d8a94f65d2c13493aee10c7f25f6e82ab25341ae6671990d"
+  },
+  {
+   "path": "dist/world-script-graph.js.map",
+   "type": "file",
+   "size": 43864,
+   "mode": "0o644",
+   "sha256": "50f5bec4ed3b56bbb7435b09e5530f3f9dc148bcf491b1d639cc09ea9e830c58"
+  },
+  {
+   "path": "dist/wrecklight/profiles/base.js",
+   "type": "file",
+   "size": 105289,
+   "mode": "0o644",
+   "sha256": "6d468f5ed05888f21f67a21643c13f060a2b187df8ed17c211f968f7bef80982"
+  },
+  {
+   "path": "dist/wrecklight/profiles/base.js.map",
+   "type": "file",
+   "size": 52573,
+   "mode": "0o644",
+   "sha256": "dfa3fb52524d86f562c4426a05061ee47fd6fcae7266b65bdc9695c7caf5b4bd"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-capture-prefix.js",
+   "type": "file",
+   "size": 6225,
+   "mode": "0o644",
+   "sha256": "a86fd71e15f34dee911a02b1cf4ea7606681d7de68b9084f9e0ad17c49c7d75d"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-capture-prefix.js.map",
+   "type": "file",
+   "size": 3899,
+   "mode": "0o644",
+   "sha256": "eee4b68e0b40990e35ca8bc29ca67f47308a0a083e0324c866925499274b657f"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-cue.js",
+   "type": "file",
+   "size": 3986,
+   "mode": "0o644",
+   "sha256": "c5eaf1749c609e4ac061f38edd94c0f1f16f3d0951d28956105826f076fecff7"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-cue.js.map",
+   "type": "file",
+   "size": 3086,
+   "mode": "0o644",
+   "sha256": "0786f33d75c2166ab3e5c32a3e7949c6295c10ce57e3fe45fe25fe2d4ceed310"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-loop.js",
+   "type": "file",
+   "size": 10456,
+   "mode": "0o644",
+   "sha256": "4fbca7def95573b0fdf6f7410641d65f399deba9669a7b71fd51b5e29adbb914"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-loop.js.map",
+   "type": "file",
+   "size": 7810,
+   "mode": "0o644",
+   "sha256": "a8040fad94aade3951f9c181d2278c499b941b2cfb1f30aad737823f246609a4"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-three-phase.js",
+   "type": "file",
+   "size": 8918,
+   "mode": "0o644",
+   "sha256": "1f3c25af85095cf88069a13b14867a1a33b42d5ea5a7e81a85987460ba420169"
+  },
+  {
+   "path": "dist/wrecklight/profiles/boss-three-phase.js.map",
+   "type": "file",
+   "size": 5829,
+   "mode": "0o644",
+   "sha256": "17a4b17613111c93110fbd628dd39b77fed9e05b12298b87a6e7ffd2ad7b2822"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-capture-layout.js",
+   "type": "file",
+   "size": 762,
+   "mode": "0o644",
+   "sha256": "ff8c138bb9abbdedbeee4eb1c4485629b5bc317b5a30beb1cbb63e6caedf7d72"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-capture-layout.js.map",
+   "type": "file",
+   "size": 404,
+   "mode": "0o644",
+   "sha256": "ce6e95304aa62931ba43cf244d2f4344f4f6e6242de3a099b972efd8b304e435"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-finish.js",
+   "type": "file",
+   "size": 1493,
+   "mode": "0o644",
+   "sha256": "1ce06813bb84156b2f59101df517a124f479fe1e390ac5e7cff52704b126b78f"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-finish.js.map",
+   "type": "file",
+   "size": 652,
+   "mode": "0o644",
+   "sha256": "58a13a50706e7341f031fdbc316d8792a066f58aa55a8ae6ce0462918acb2f05"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-timers.js",
+   "type": "file",
+   "size": 2243,
+   "mode": "0o644",
+   "sha256": "948e8d435b482fa6845c395f624ed90ee6c78a8337d4005ad2a0d4d2bfdb21a3"
+  },
+  {
+   "path": "dist/wrecklight/profiles/brakemaw-timers.js.map",
+   "type": "file",
+   "size": 853,
+   "mode": "0o644",
+   "sha256": "bc70a67b268dc41aafc6f1796f6629c99039c57349d6e8d381b358c8f4246b0f"
+  },
+  {
+   "path": "dist/wrecklight/profiles/capture.js",
+   "type": "file",
+   "size": 2865,
+   "mode": "0o644",
+   "sha256": "fa6653539468e8513fe4bfad228beb02beada7edc093798848454bbab9436a78"
+  },
+  {
+   "path": "dist/wrecklight/profiles/capture.js.map",
+   "type": "file",
+   "size": 1639,
+   "mode": "0o644",
+   "sha256": "cc2094cb985d9f970e73fb0e78030b8c802d0ea70304c4688b585f5c33286a4e"
+  },
+  {
+   "path": "dist/wrecklight/profiles/cargo-contact.js",
+   "type": "file",
+   "size": 1646,
+   "mode": "0o644",
+   "sha256": "1766e0b0141c617cf1651a4662f5e0fed67f6368e1b94255797a1b0c55077e7a"
+  },
+  {
+   "path": "dist/wrecklight/profiles/cargo-contact.js.map",
+   "type": "file",
+   "size": 929,
+   "mode": "0o644",
+   "sha256": "47e37866b869d45c61873475e965a686c4c6d16b3b4255568b9d1bb63ff8f5db"
+  },
+  {
+   "path": "dist/wrecklight/profiles/chamber-cache.js",
+   "type": "file",
+   "size": 806,
+   "mode": "0o644",
+   "sha256": "6fefbe13fed3b54df54bbbfab800741bd7af01ac2b7ad1e0433f0e9cb8d3a893"
+  },
+  {
+   "path": "dist/wrecklight/profiles/chamber-cache.js.map",
+   "type": "file",
+   "size": 448,
+   "mode": "0o644",
+   "sha256": "864009927d22a8bf72c4db796031fbad6c1472281189aab611e2024b74835277"
+  },
+  {
+   "path": "dist/wrecklight/profiles/chambers.js",
+   "type": "file",
+   "size": 32167,
+   "mode": "0o644",
+   "sha256": "fc4eb427ce707db52bfb3b10d64f6396915586c2d8f802212b8eafbd2c0164ce"
+  },
+  {
+   "path": "dist/wrecklight/profiles/chambers.js.map",
+   "type": "file",
+   "size": 15490,
+   "mode": "0o644",
+   "sha256": "3fdefc3bc49827fbd3de3fe501a5177627b8e8e3ffa865ca0414042678e16f87"
+  },
+  {
+   "path": "dist/wrecklight/profiles/combined-performance.js",
+   "type": "file",
+   "size": 2605,
+   "mode": "0o644",
+   "sha256": "f9650be47f98d6d137242126e03d509d4d7b7ed161f311c87fcae17058d3d7eb"
+  },
+  {
+   "path": "dist/wrecklight/profiles/combined-performance.js.map",
+   "type": "file",
+   "size": 1024,
+   "mode": "0o644",
+   "sha256": "0fe3b16753465cf033966c6a7637883bc2676281f9363b33bc8223d724a4b36b"
+  },
+  {
+   "path": "dist/wrecklight/profiles/combined.js",
+   "type": "file",
+   "size": 6392,
+   "mode": "0o644",
+   "sha256": "49d30d9a3cdc08e5aed1fa4e01db987567ac5a4000286ffed910b56760b745fa"
+  },
+  {
+   "path": "dist/wrecklight/profiles/combined.js.map",
+   "type": "file",
+   "size": 2313,
+   "mode": "0o644",
+   "sha256": "8b2a20bd273483ef2487275d92ca2d57d0c70d5eb350d1a34d5a9ca65dd43ed4"
+  },
+  {
+   "path": "dist/wrecklight/profiles/composed-gameplay.js",
+   "type": "file",
+   "size": 19951,
+   "mode": "0o644",
+   "sha256": "4265c1cf86274df419ac8e03756c5faca74c345fda2095f265bf53a37a9be925"
+  },
+  {
+   "path": "dist/wrecklight/profiles/composed-gameplay.js.map",
+   "type": "file",
+   "size": 14335,
+   "mode": "0o644",
+   "sha256": "3c9e2ea6a7fb906cb65ff953c3b31b50b084dafd1897501f4fbc3717d6945d70"
+  },
+  {
+   "path": "dist/wrecklight/profiles/crown-motion.js",
+   "type": "file",
+   "size": 2705,
+   "mode": "0o644",
+   "sha256": "d9f5fe02990f0b8e58e277d8123e2a5737491930e298cb6f1df6071f3b31124b"
+  },
+  {
+   "path": "dist/wrecklight/profiles/crown-motion.js.map",
+   "type": "file",
+   "size": 1525,
+   "mode": "0o644",
+   "sha256": "9870c61cbcdc8f84296589a83197cae4e8c2bb9b7fdf18b62b0015d2cab16f9c"
+  },
+  {
+   "path": "dist/wrecklight/profiles/current.js",
+   "type": "file",
+   "size": 78525,
+   "mode": "0o644",
+   "sha256": "87f82194cb010749476f7abacdbde993c796aaaf9dfe8b14a0e62e1f150b5166"
+  },
+  {
+   "path": "dist/wrecklight/profiles/current.js.map",
+   "type": "file",
+   "size": 36849,
+   "mode": "0o644",
+   "sha256": "59f613bfa85755b4bc0398a4b93623d821632d987a00813a0efdac0ae74cc708"
+  },
+  {
+   "path": "dist/wrecklight/profiles/drive-performance.js",
+   "type": "file",
+   "size": 4380,
+   "mode": "0o644",
+   "sha256": "c6419af62e0a13e53a29dfb7b43d22b74ff8260cd0668252448ac322a8ffe3fc"
+  },
+  {
+   "path": "dist/wrecklight/profiles/drive-performance.js.map",
+   "type": "file",
+   "size": 2430,
+   "mode": "0o644",
+   "sha256": "f3f09f6e903e5678af2fbfa6f3de8e5392c845ca9fa6716086ccdcc2db4d2031"
+  },
+  {
+   "path": "dist/wrecklight/profiles/flat-projectile.js",
+   "type": "file",
+   "size": 888,
+   "mode": "0o644",
+   "sha256": "b60f958a7ca83f1cab00abbe879bfd27f08ddf57e7e3f0ea4f1b9e3025d93b5e"
+  },
+  {
+   "path": "dist/wrecklight/profiles/flat-projectile.js.map",
+   "type": "file",
+   "size": 493,
+   "mode": "0o644",
+   "sha256": "b47593417ccd022fd0543fdb469a54de3fee273f497b7c88c2680d6b5ee3ce52"
+  },
+  {
+   "path": "dist/wrecklight/profiles/gameplay-polish.js",
+   "type": "file",
+   "size": 2772,
+   "mode": "0o644",
+   "sha256": "8242697899ae155c7bd7d6a6a6955dbfe489ef34ccf265159610192b11453ccf"
+  },
+  {
+   "path": "dist/wrecklight/profiles/gameplay-polish.js.map",
+   "type": "file",
+   "size": 1005,
+   "mode": "0o644",
+   "sha256": "82804482e282a80728655e22bea5212243595e3cafc5b9a31b963348559d859b"
+  },
+  {
+   "path": "dist/wrecklight/profiles/keep-view-map.js",
+   "type": "file",
+   "size": 894,
+   "mode": "0o644",
+   "sha256": "c98b93c2d300f22d12518892185b813fae8df8c155cf790b8c651edbf15c4f7d"
+  },
+  {
+   "path": "dist/wrecklight/profiles/keep-view-map.js.map",
+   "type": "file",
+   "size": 410,
+   "mode": "0o644",
+   "sha256": "f2a16e98b8ffae50fc5f9cd36e448dfbc7693a5a8b14bf7948c7e091a47533bd"
+  },
+  {
+   "path": "dist/wrecklight/profiles/opening-correction.js",
+   "type": "file",
+   "size": 1050,
+   "mode": "0o644",
+   "sha256": "05da317f3efba478b341c444b1db85550d45ef3803ba03ea75e29d0262e1a566"
+  },
+  {
+   "path": "dist/wrecklight/profiles/opening-correction.js.map",
+   "type": "file",
+   "size": 548,
+   "mode": "0o644",
+   "sha256": "36032dbe730eac86d5afcffcb366d86f0a3002b7052b70834b6d6753e7939db9"
+  },
+  {
+   "path": "dist/wrecklight/profiles/opening-direction.js",
+   "type": "file",
+   "size": 29739,
+   "mode": "0o644",
+   "sha256": "ac9c5a6a2bc67e404299439a0e49b3d467816f6722410c9d9e977b049dd9fd98"
+  },
+  {
+   "path": "dist/wrecklight/profiles/opening-direction.js.map",
+   "type": "file",
+   "size": 23043,
+   "mode": "0o644",
+   "sha256": "1a00a743cd11d0df0bc664aab787fd19b604404ac4c7168e587ba13512d36a29"
+  },
+  {
+   "path": "dist/wrecklight/profiles/overlay.js",
+   "type": "file",
+   "size": 2138,
+   "mode": "0o644",
+   "sha256": "fb4570b091848b3258a45e3bd0fd41ff0ab291b2988d4dbd3a5f7c15fcc1f0ab"
+  },
+  {
+   "path": "dist/wrecklight/profiles/overlay.js.map",
+   "type": "file",
+   "size": 907,
+   "mode": "0o644",
+   "sha256": "5b4093a07eeecb444644fe37da5c592b51d87d0ea054913eef8214baf9fa1da6"
+  },
+  {
+   "path": "dist/wrecklight/profiles/payoff.js",
+   "type": "file",
+   "size": 2432,
+   "mode": "0o644",
+   "sha256": "0a1c4b2f2e45b93a9180bf188a2b5b431e236625ef5975bd7edf2bd2f7ab497e"
+  },
+  {
+   "path": "dist/wrecklight/profiles/payoff.js.map",
+   "type": "file",
+   "size": 980,
+   "mode": "0o644",
+   "sha256": "e9717c60098f9377ad6be3f742b213dd1f0a4e464b3fcfd1c12aa378fdd847bd"
+  },
+  {
+   "path": "dist/wrecklight/profiles/projectile-spawn-contact.js",
+   "type": "file",
+   "size": 536,
+   "mode": "0o644",
+   "sha256": "d6938cd738500bdc4eac5ea19ab29a477bdfd81dbf8108eb9c5a09ee1610c248"
+  },
+  {
+   "path": "dist/wrecklight/profiles/projectile-spawn-contact.js.map",
+   "type": "file",
+   "size": 330,
+   "mode": "0o644",
+   "sha256": "abd48f184595d0eec072b507d31e77e2c8d811917fcfe4672f9d12962f6de7ba"
+  },
+  {
+   "path": "dist/wrecklight/profiles/render.js",
+   "type": "file",
+   "size": 1041,
+   "mode": "0o644",
+   "sha256": "63fba9f934f6dc249a3d0c55808f36521ae4db6f3d39c4ed862ecfdcf13b9bdf"
+  },
+  {
+   "path": "dist/wrecklight/profiles/render.js.map",
+   "type": "file",
+   "size": 510,
+   "mode": "0o644",
+   "sha256": "b4934c485eded7936834ce0776c17a0e9a65685c65349ab59c70089e5221b86a"
+  },
+  {
+   "path": "dist/wrecklight/profiles/sampling.js",
+   "type": "file",
+   "size": 1465,
+   "mode": "0o644",
+   "sha256": "e0f8cbe84b9f5ba0756b49beeed895d5cbf248ab0b3d271e0cddc211e70bd62f"
+  },
+  {
+   "path": "dist/wrecklight/profiles/sampling.js.map",
+   "type": "file",
+   "size": 666,
+   "mode": "0o644",
+   "sha256": "87ebc9e6176de95460166dca76b604f689d9bbfb72cad44f689a71a15c36e8af"
+  },
+  {
+   "path": "dist/wrecklight/profiles/scheduler-countdown.js",
+   "type": "file",
+   "size": 29106,
+   "mode": "0o644",
+   "sha256": "e33bda926ed686bc1d4484303d89548b6fb74bf7140a1426edf63d4d9f42be23"
+  },
+  {
+   "path": "dist/wrecklight/profiles/scheduler-countdown.js.map",
+   "type": "file",
+   "size": 24359,
+   "mode": "0o644",
+   "sha256": "c399cc89ed665f67d3fa698acb9965e69a9efa4fa0816487c9d7b9c6fb3e278e"
+  },
+  {
+   "path": "dist/wrecklight/profiles/scroll.js",
+   "type": "file",
+   "size": 1707,
+   "mode": "0o644",
+   "sha256": "13d269570a8f612522c5bc5668efc6753da6672aa53a188d8d8f771328331729"
+  },
+  {
+   "path": "dist/wrecklight/profiles/scroll.js.map",
+   "type": "file",
+   "size": 738,
+   "mode": "0o644",
+   "sha256": "22bfbe851323e6e7f5e61aedda27dc115f6280fd45c71d49b65aa0c589a50f7b"
+  },
+  {
+   "path": "dist/wrecklight/profiles/sep17.js",
+   "type": "file",
+   "size": 11816,
+   "mode": "0o644",
+   "sha256": "2fc9a36ee776ddf16008c38c3fe2de877289761f8fac2a6487b2ec22444ade6d"
+  },
+  {
+   "path": "dist/wrecklight/profiles/sep17.js.map",
+   "type": "file",
+   "size": 6109,
+   "mode": "0o644",
+   "sha256": "5dac85ca6cb0a1b1b503e8fbd071eb5f2b8cb49824e8d1998f885ca443d7c5a9"
+  },
+  {
+   "path": "dist/wrecklight/profiles/warden-row.js",
+   "type": "file",
+   "size": 2571,
+   "mode": "0o644",
+   "sha256": "be71bc6da30827c0dd90fe92fbf6de9eb72800b286b0d7b37eec0eee18e98c58"
+  },
+  {
+   "path": "dist/wrecklight/profiles/warden-row.js.map",
+   "type": "file",
+   "size": 1027,
+   "mode": "0o644",
+   "sha256": "96b9d885dd4ee943f5a521ef94ddca8679a6bbcf0e83908d80286c2db7eab0ad"
+  },
+  {
+   "path": "dist/wrecklight/profiles/warden.js",
+   "type": "file",
+   "size": 18924,
+   "mode": "0o644",
+   "sha256": "8cc7f04c88879b92d02913e50e03c4df6d8b31e224a99f68210fbc026f57482a"
+  },
+  {
+   "path": "dist/wrecklight/profiles/warden.js.map",
+   "type": "file",
+   "size": 9644,
+   "mode": "0o644",
+   "sha256": "51bc17c303a25ddd46184f4eefafee1235462b749f40a75758c0552ec635e115"
+  },
+  {
+   "path": "dist/wrecklight-dependencies.js",
+   "type": "file",
+   "size": 139333,
+   "mode": "0o644",
+   "sha256": "48f370bb6f9cec0bdddd9a323356c9fac282fb6baccb61047086916e42d9f662"
+  },
+  {
+   "path": "dist/wrecklight-dependencies.js.map",
+   "type": "file",
+   "size": 121113,
+   "mode": "0o644",
+   "sha256": "ca96581c8f526a9a73dced4e01089cdd62dd0f8fc776dd3ce45bb776bbda7e5b"
+  },
+  {
+   "path": "docs/agent-guide.md",
+   "type": "file",
+   "size": 44604,
+   "mode": "0o644",
+   "sha256": "2ff32f4581d5dd31c5db587aa9af3ecc6862a8ac3c897ea2cc2317a565e4933d"
+  },
+  {
+   "path": "docs/architecture.md",
+   "type": "file",
+   "size": 25387,
+   "mode": "0o644",
+   "sha256": "a0a96f1344e7c265c102942cd05c287246d2535e3b6846e8302c437815bd5062"
+  },
+  {
+   "path": "docs/chromatic-device-testing.md",
+   "type": "file",
+   "size": 29267,
+   "mode": "0o644",
+   "sha256": "502263f570a925e9d022084da4588476f109a18cdf0ccd130f6e3b5a2d58d375"
+  },
+  {
+   "path": "docs/chromatic-preview-install-testing.md",
+   "type": "file",
+   "size": 4802,
+   "mode": "0o644",
+   "sha256": "2e32a09a2032b791b0bae78a5ba7f462cdcb6c81e6d759028b9c4f993ab680b9"
+  },
+  {
+   "path": "docs/native-device-capture.md",
+   "type": "file",
+   "size": 8707,
+   "mode": "0o644",
+   "sha256": "522497153ec0d132f028c25d2f423a475d64e23892823876953a12d0315dcba3"
+  },
+  {
+   "path": "docs/native-sprite-import.md",
+   "type": "file",
+   "size": 6409,
+   "mode": "0o644",
+   "sha256": "74f850a1d42ef1d35375752f271cedc0e16eff7bb1424ef594b0a6f941ea2301"
+  },
+  {
+   "path": "docs/native-title-atlas.md",
+   "type": "file",
+   "size": 2232,
+   "mode": "0o644",
+   "sha256": "f1475b0b09f6bcf3c26dba2bc608b4b433e5a8c31c7a2301009414abdd9fd3fe"
+  },
+  {
+   "path": "docs/recorded-playtesting.md",
+   "type": "file",
+   "size": 15855,
+   "mode": "0o644",
+   "sha256": "7bbe02ecb82e41f25552231716ae9793faf157ae819049918ce3646c711c6ee7"
+  },
+  {
+   "path": "docs/release-1.0.10.md",
+   "type": "file",
+   "size": 1836,
+   "mode": "0o644",
+   "sha256": "0e3b51110aa19a285c2dd3ce9132e553e9fc66ed927327ab39f11bf190e7c050"
+  },
+  {
+   "path": "docs/release-1.0.11.md",
+   "type": "file",
+   "size": 1739,
+   "mode": "0o644",
+   "sha256": "e38644937bd0b2f198b5986435949f15a2656cc8de6e8ef2773637a1f9c42b26"
+  },
+  {
+   "path": "docs/release-1.0.12.md",
+   "type": "file",
+   "size": 900,
+   "mode": "0o644",
+   "sha256": "3c5a8d767c74ef68f4515a7363af814d84f3b62ce9c6634c962121d6604dc87c"
+  },
+  {
+   "path": "docs/release-1.0.13.md",
+   "type": "file",
+   "size": 1368,
+   "mode": "0o644",
+   "sha256": "08c6e0368a3f0d9be1a7a377377cf1b48d022869e487f5cc683dfb78c5501c0f"
+  },
+  {
+   "path": "docs/release-1.0.14.md",
+   "type": "file",
+   "size": 1320,
+   "mode": "0o644",
+   "sha256": "9dab915bc2f62bc25930a9377e4a86ee3ae10c059816f59b1321242faff10289"
+  },
+  {
+   "path": "docs/release-1.0.15.md",
+   "type": "file",
+   "size": 1045,
+   "mode": "0o644",
+   "sha256": "555f8595e70edf495a09a808b9529009ba532e4434e15065daf7ba1f7254557d"
+  },
+  {
+   "path": "docs/release-1.0.16.md",
+   "type": "file",
+   "size": 1661,
+   "mode": "0o644",
+   "sha256": "02dca214e595423fc9fad7f5283d3795627b8e3c261480ab3d871959a2b89d76"
+  },
+  {
+   "path": "docs/release-1.0.17.md",
+   "type": "file",
+   "size": 866,
+   "mode": "0o644",
+   "sha256": "1c89e5f25dbdd5b292af2ba02e56222908dc7c662b6e4c4983198f66222d156b"
+  },
+  {
+   "path": "docs/release-1.0.18.md",
+   "type": "file",
+   "size": 859,
+   "mode": "0o644",
+   "sha256": "d5790a0f5a9f3b20872a95dbee477e9a32d6a9b28bf2a145c93b1a0ef98caca8"
+  },
+  {
+   "path": "docs/release-1.0.19.md",
+   "type": "file",
+   "size": 1273,
+   "mode": "0o644",
+   "sha256": "3254a619216bb803de3ae34389533f299a4dd81562d0b13acac42665799d9b99"
+  },
+  {
+   "path": "docs/release-1.0.20.md",
+   "type": "file",
+   "size": 936,
+   "mode": "0o644",
+   "sha256": "b961a30c39ec7b9027bbcd0ec0757fc31c99d52af6d0934d8e8a9b68afc85f14"
+  },
+  {
+   "path": "docs/release-1.0.21.md",
+   "type": "file",
+   "size": 947,
+   "mode": "0o644",
+   "sha256": "747639d49e2087b1babac651f7372e8483ebd1030a9614c711132b1c2dacfeed"
+  },
+  {
+   "path": "docs/release-1.0.22.md",
+   "type": "file",
+   "size": 836,
+   "mode": "0o644",
+   "sha256": "38a9aa54b0f3ba68ac5a5043041d4a41528e9a74ac659c3edcd0333353494443"
+  },
+  {
+   "path": "docs/release-1.0.23.md",
+   "type": "file",
+   "size": 799,
+   "mode": "0o644",
+   "sha256": "81fbf6be3607497275522ccd841e80af7c111be93fc5edfde9e9d773b047a0be"
+  },
+  {
+   "path": "docs/release-1.0.25.md",
+   "type": "file",
+   "size": 848,
+   "mode": "0o644",
+   "sha256": "19d591c978b8657f8a606bfe576fdce926f294f377e1c887ab7fa37088b3ed2c"
+  },
+  {
+   "path": "docs/release-1.0.26.md",
+   "type": "file",
+   "size": 3027,
+   "mode": "0o644",
+   "sha256": "ae8cf11efe9922bcafbe3c7d6bee115a39e42a2961fc781d1d9fdc8f3995b80c"
+  },
+  {
+   "path": "docs/release-1.0.27.md",
+   "type": "file",
+   "size": 887,
+   "mode": "0o644",
+   "sha256": "2c5d47907cc9d4ae8deafc4da15192707923cd7477910c20d20966150ec46bb1"
+  },
+  {
+   "path": "docs/release-1.0.29.md",
+   "type": "file",
+   "size": 785,
+   "mode": "0o644",
+   "sha256": "a674d4f5c1acdcfe51ae42f54aa279f903ba269c4d6c91232d9452a5a3530ad5"
+  },
+  {
+   "path": "docs/release-1.0.3.md",
+   "type": "file",
+   "size": 3517,
+   "mode": "0o644",
+   "sha256": "a068100317b7808ede636399ff0f16b9a623fe5b663676e20b26cb06149cafda"
+  },
+  {
+   "path": "docs/release-1.0.30.md",
+   "type": "file",
+   "size": 1083,
+   "mode": "0o644",
+   "sha256": "5181511b5190895e35de028a64c02a670d84bd23174eb61c57d304d5c3aee8fe"
+  },
+  {
+   "path": "docs/release-1.0.32.md",
+   "type": "file",
+   "size": 971,
+   "mode": "0o644",
+   "sha256": "0729c76722e17d39f40cc8d492e8f1b3bbe883685ea4bc9991be5a62c28ee6b0"
+  },
+  {
+   "path": "docs/release-1.0.33.md",
+   "type": "file",
+   "size": 1083,
+   "mode": "0o644",
+   "sha256": "2107b8e3afc3fba1432998036f7225603e44d14f8753c434709191e816d01ea6"
+  },
+  {
+   "path": "docs/release-1.0.4.md",
+   "type": "file",
+   "size": 1899,
+   "mode": "0o644",
+   "sha256": "02c01be4eac2c82e6e00665a541a9fcc3bb2e001b951419a429a7241aaef2756"
+  },
+  {
+   "path": "docs/release-1.0.5.md",
+   "type": "file",
+   "size": 2390,
+   "mode": "0o644",
+   "sha256": "26ac1e90efd6ea754c3b4b92ae0b5ef8d176c6defa06e9a497f743ce3b86d17a"
+  },
+  {
+   "path": "docs/release-1.0.6.md",
+   "type": "file",
+   "size": 2091,
+   "mode": "0o644",
+   "sha256": "dc81cee04929994bddae146d6a0b3336168d727e71131311f3965e74920c10ec"
+  },
+  {
+   "path": "docs/release-1.0.7.md",
+   "type": "file",
+   "size": 2292,
+   "mode": "0o644",
+   "sha256": "c1e9f793fc219a83833adb3123ddab10f7bbb88d20729f491ff57a9ed92e0cb3"
+  },
+  {
+   "path": "docs/release-1.0.8.md",
+   "type": "file",
+   "size": 3421,
+   "mode": "0o644",
+   "sha256": "c4b701ac1a81986f18bff1a844ad4c9aa8508424f85e10523f70eda0143bd096"
+  },
+  {
+   "path": "docs/release-1.0.9.md",
+   "type": "file",
+   "size": 2615,
+   "mode": "0o644",
+   "sha256": "fc113d1e0daa3401c0959c0b7000d313f303cd04895372c2c573b9aa0339602c"
+  },
+  {
+   "path": "docs/reviewed-custom-events.md",
+   "type": "file",
+   "size": 26387,
+   "mode": "0o644",
+   "sha256": "a5d29014a902593a48c5c84da3110af6e89638514cb00d9d0d5ed44cef34aaa7"
+  },
+  {
+   "path": "docs/runtime-validation.md",
+   "type": "file",
+   "size": 12764,
+   "mode": "0o644",
+   "sha256": "9c217591ff3814d87757668f4a6fd5c3b57ab8616a7287c18bb0d933ad5dae8c"
+  },
+  {
+   "path": "docs/setup.md",
+   "type": "file",
+   "size": 26190,
+   "mode": "0o644",
+   "sha256": "79b813be4d7929be8a20d1f9884f290db5275b1a8c779e13d61aa45ecc8d8699"
+  },
+  {
+   "path": "docs/stepped-playtesting.md",
+   "type": "file",
+   "size": 9749,
+   "mode": "0o644",
+   "sha256": "1476bf3b20f9a0d3e8ae705ec857280a93b3b5fdcf46d00dcb0f315d1bb1c68e"
+  },
+  {
+   "path": "docs/store-launcher.md",
+   "type": "file",
+   "size": 1295,
+   "mode": "0o644",
+   "sha256": "59bd5ef708395d1a7989038531244518af20200ecaccd18d3268b0723d96278e"
+  },
+  {
+   "path": "docs/tilemaps.md",
+   "type": "file",
+   "size": 19524,
+   "mode": "0o644",
+   "sha256": "25b0f5c04d4df0730b0f5b87fac85fbbd0e756a7d6d2577079d51bf5bb5214fb"
+  },
+  {
+   "path": "docs/windows-setup.md",
+   "type": "file",
+   "size": 9494,
+   "mode": "0o644",
+   "sha256": "07a1d478c084b219df22316fed4175827760aeeda713d1ecd66cd246b4e95e11"
+  },
+  {
+   "path": "docs/wrecklight-authoring.md",
+   "type": "file",
+   "size": 3559,
+   "mode": "0o644",
+   "sha256": "1ce8031b3367d9d0981a6a7ad2bc1c9c59e76b46989c5a8f22d3c0fbf48962b0"
+  },
+  {
+   "path": "docs/wrecklight-design.md",
+   "type": "file",
+   "size": 5753,
+   "mode": "0o644",
+   "sha256": "80d5395923afcb478f30e2a3898a6b312f3a17c1cce10de5ef34f3e3f506edbb"
+  },
+  {
+   "path": "docs/wrecklight-remix.md",
+   "type": "file",
+   "size": 4471,
+   "mode": "0o644",
+   "sha256": "1928d5209facca8511f59d5301e120e9db1999c3f34ea47bb56fe956e2974aff"
+  },
+  {
+   "path": "examples/SAMPLE-PROVENANCE.json",
+   "type": "file",
+   "size": 5059,
+   "mode": "0o644",
+   "sha256": "9819915fbc6c64a4fb246fe3152ca97d441a344586f46155bdd57fb451670afa"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/LICENSE",
+   "type": "file",
+   "size": 1073,
+   "mode": "0o644",
+   "sha256": "6fc7dd0727262618eb53594406b778aa4fd4cde9eb1d978736fe7c07b5607e79"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/README.md",
+   "type": "file",
+   "size": 3097,
+   "mode": "0o644",
+   "sha256": "2550aefe57456323a616faccf856709de1288c176a867cb74af26f0b130501b8"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/avatars/README.md",
+   "type": "file",
+   "size": 143,
+   "mode": "0o644",
+   "sha256": "8d21f717f26c5c641533dd3d35463802874bc78fd5c0f708175ecc2fb00e5267"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/README.md",
+   "type": "file",
+   "size": 131,
+   "mode": "0o644",
+   "sha256": "3ba8e88d6f8fde5dc5a21a6ba61e53549b929a5c7c5f48ffce5e4b3057055259"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/beacon.png",
+   "type": "file",
+   "size": 5615,
+   "mode": "0o644",
+   "sha256": "64cb2cfa62a3e62c82f697c83e491c72e5b8ac83dc7ed2a8ade94347c3f2a53d"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/beacon.png.gbsres",
+   "type": "file",
+   "size": 498,
+   "mode": "0o644",
+   "sha256": "b501bbe07863c92aea8ef632037fe28a4a6da5b9b206b3d374e912f27cd19bc0"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/cove.png",
+   "type": "file",
+   "size": 5812,
+   "mode": "0o644",
+   "sha256": "bb88feeb9fc9585a539e35c77720b61f023bf537105c94a83777ee97eb8b2b82"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/cove.png.gbsres",
+   "type": "file",
+   "size": 512,
+   "mode": "0o644",
+   "sha256": "1a1e0fa0795b83420017aaafc94ae28443b3c58ed20adec0de7ceb1099bde136"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/title.png",
+   "type": "file",
+   "size": 2920,
+   "mode": "0o644",
+   "sha256": "b29c48503bfbafaae94b05b0568dd7c97046871b9a5a503878dab66cb6f2a20c"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/backgrounds/title.png.gbsres",
+   "type": "file",
+   "size": 460,
+   "mode": "0o644",
+   "sha256": "212a4cdd335737a39b247c38740d127fc20bfa2c6ca1e78a973d12465af68c84"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/emotes/README.md",
+   "type": "file",
+   "size": 136,
+   "mode": "0o644",
+   "sha256": "b8c5226927e87703fa139f487cc927a96a0ca2fb9b8f4073bde5556195490c9a"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/fonts/README.md",
+   "type": "file",
+   "size": 155,
+   "mode": "0o644",
+   "sha256": "dc7b0a156b4a08cd811a0d01530c28bfc2dd55b08d43b8617c98131f20084f3f"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/fonts/bench-mono.json",
+   "type": "file",
+   "size": 49,
+   "mode": "0o644",
+   "sha256": "fe07b62939eaf26f4b9cb299d1e774e7aa2d24a5404afdc2c74e5b2194ce0415"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/fonts/bench-mono.png",
+   "type": "file",
+   "size": 6047,
+   "mode": "0o644",
+   "sha256": "5ef84106e16f70e7843ccaea5ee6b1a6b96e6c833067fa11c8c596431e0c8c7d"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/fonts/bench-mono.png.gbsres",
+   "type": "file",
+   "size": 225,
+   "mode": "0o644",
+   "sha256": "acb6a3b673ada695d54fc0f86e19c5eaccf8be87699e7a3cfdd327e7fa2f3921"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/music/README.md",
+   "type": "file",
+   "size": 126,
+   "mode": "0o644",
+   "sha256": "4ea64405fb856e03947f1be834db73b1e3785427298e35ef3f56cc170a31b227"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sounds/README.md",
+   "type": "file",
+   "size": 146,
+   "mode": "0o644",
+   "sha256": "40589906fa6ff73337406a3c12c48271f88c1fb25eb0f6234d115c5c2c888e5a"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/README.md",
+   "type": "file",
+   "size": 130,
+   "mode": "0o644",
+   "sha256": "6fffcb09ce378f3bd1572b15104fc9f283a2a8e66c4470ccfec143e433284d0d"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/keeper.png",
+   "type": "file",
+   "size": 478,
+   "mode": "0o644",
+   "sha256": "aac02fbba9587f80a518e31e23df1f5d74c6a64c2edd72e16ae48facd89620d0"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/keeper.png.gbsres",
+   "type": "file",
+   "size": 5045,
+   "mode": "0o644",
+   "sha256": "025aeab4550ef627761a5545fcb6284c359c028c6885d59875bcc3697f70f5f7"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/player.png",
+   "type": "file",
+   "size": 389,
+   "mode": "0o644",
+   "sha256": "a42b4eac09560a57820ebe87c1b731ed096dcd53431dab30a0040a469cc1988e"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/player.png.gbsres",
+   "type": "file",
+   "size": 5045,
+   "mode": "0o644",
+   "sha256": "7b1bf2a4b5e611f9c91361448eb8a1303ef22484394b0273844e381aadd49e91"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/relay.png",
+   "type": "file",
+   "size": 205,
+   "mode": "0o644",
+   "sha256": "6a4c6703eed8b55614c936b391eb45594212164a76304adbb9bcc6e6918019c3"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/relay.png.gbsres",
+   "type": "file",
+   "size": 3299,
+   "mode": "0o644",
+   "sha256": "072ef9ca4be5ff22809b52fca6b878448667df8aecfab779fe98f655317a275e"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/spark.png",
+   "type": "file",
+   "size": 337,
+   "mode": "0o644",
+   "sha256": "da2a522d648ccb5968b01a4734457e656cc7e0ef8d95d57163f7ec83ad7e7147"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/sprites/spark.png.gbsres",
+   "type": "file",
+   "size": 3299,
+   "mode": "0o644",
+   "sha256": "17eb9c3ef74156089d0b4385838f228d14e97f5d2977a3d4d1bb4ce5ef8559ec"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/tilesets/README.md",
+   "type": "file",
+   "size": 123,
+   "mode": "0o644",
+   "sha256": "9d9596e07276574b38e6e80d7797a5403005ed2ec26e9e845682a8a701916576"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/ui/README.md",
+   "type": "file",
+   "size": 128,
+   "mode": "0o644",
+   "sha256": "aaca4e0da660c9fc7e66ac55e3c0adf56343f8be74bbd3167f3902291a57c11c"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/ui/cursor.png",
+   "type": "file",
+   "size": 142,
+   "mode": "0o644",
+   "sha256": "a1cd08f8a5dc8a0a19c74f9fc36ef3d1e77c25be0746c9de0dc4c7dc5d044b5f"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/assets/ui/frame.png",
+   "type": "file",
+   "size": 199,
+   "mode": "0o644",
+   "sha256": "cdebcc3e1a3a6827db29d6cd74a19d785980a5bef18a87589f8eb878457e311c"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/dogfood-manifest.json",
+   "type": "file",
+   "size": 2510,
+   "mode": "0o644",
+   "sha256": "fde8c5b784ff58600b3525fd639e05652177af866b870a1d346ff898cd5d533d"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/plugins/README.md",
+   "type": "file",
+   "size": 140,
+   "mode": "0o644",
+   "sha256": "6fcd1de584237e28305f21cce86a0999db68de05ca18b87ffa798677e7ef547d"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/plugins/modretro-chromatic/events/eventCodexHardwareProfile.js",
+   "type": "file",
+   "size": 1551,
+   "mode": "0o644",
+   "sha256": "a125ee40ac4d3eafda5d27824bb6c94bcab0871654bc60cd3eb5294b11973a21"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/plugins/modretro-chromatic/plugin.json",
+   "type": "file",
+   "size": 293,
+   "mode": "0o644",
+   "sha256": "a06859b8911b0901a2463bce67ba9c7177eb32c258938492baf73e74e3a8f575"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/engine_field_values.gbsres",
+   "type": "file",
+   "size": 557,
+   "mode": "0o644",
+   "sha256": "ee78aa547788ec80cfa8cd49b5fa2813325e86a9747d834abc08244fab23e4a0"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_1.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "dce9a0c035138da5292ae276c80f4276056966c4bd415eb80fa1ea2cf3d6d7e6"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_2.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "d3f3fbbc1914695eade3977aa24d4b7061202d75a3a53a32e17db05143f4160c"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_3.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "28a288a98a889f8f54587d4474141c164f7ec4c9eb1f7c771b749f8fe75da94f"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_4.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "dadb781b6336470e6870acf93ff1968751f5a208f5d1a00bcf23ba09cba660bd"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_5.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "6609cd840dc6b001a144b2096c3f72d71d6d6b029bec80f61cb45a2f1f38820f"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_bg_6.gbsres",
+   "type": "file",
+   "size": 271,
+   "mode": "0o644",
+   "sha256": "4a51b88f60e5968b07d2637386eea81e4a7319a9027ccf8efcdff66c480d7203"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_sprites.gbsres",
+   "type": "file",
+   "size": 279,
+   "mode": "0o644",
+   "sha256": "55f1ca3be9c233d00efde53dee58fff4d271533204a4c4a9a9d028fa1212db4a"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/palettes/default_ui.gbsres",
+   "type": "file",
+   "size": 264,
+   "mode": "0o644",
+   "sha256": "1c2d303fc92dfd8d56a0bcfc94acbc247359979137a23827ba632cd300d0d24f"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/codex_landing/actors/east_signal_spark.gbsres",
+   "type": "file",
+   "size": 2511,
+   "mode": "0o644",
+   "sha256": "3883c21c33fd9c4389cdc4a7a1be0fa015f78270703a34be04c93a134acafa8b"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/codex_landing/actors/moss_the_lighthouse_keeper.gbsres",
+   "type": "file",
+   "size": 2404,
+   "mode": "0o644",
+   "sha256": "d2313044740c07f58ebf15e2f293331e3bf6af3625c1139523de77681f1a2d7a"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/codex_landing/actors/sleeping_beacon_relay.gbsres",
+   "type": "file",
+   "size": 3238,
+   "mode": "0o644",
+   "sha256": "40b9ba457b2d048066f8bc39e071b70d1f9deeb664fd01ba0ae646fae41520d0"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/codex_landing/actors/west_signal_spark.gbsres",
+   "type": "file",
+   "size": 2510,
+   "mode": "0o644",
+   "sha256": "6946e76e1424c20544e1e9fd8d24a91dfef8b3b7fbdd1e06ddc1379755608e94"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/codex_landing/scene.gbsres",
+   "type": "file",
+   "size": 988,
+   "mode": "0o644",
+   "sha256": "8284dd63d7351aa578c5245b8679326e05a0d51914c9d7459c3a702e61ac395e"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/signal_lost_title/scene.gbsres",
+   "type": "file",
+   "size": 1332,
+   "mode": "0o644",
+   "sha256": "88506b790b0a6474f06ff676d0dbf0abc411faa36e656ba5e741910cc9d71248"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/starfall_beacon/actors/a_grateful_moon_moth.gbsres",
+   "type": "file",
+   "size": 893,
+   "mode": "0o644",
+   "sha256": "608769915623093b58c9b68b86d72e5fba7119df255c95ba26ef7bf33b6c4a55"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/scenes/starfall_beacon/scene.gbsres",
+   "type": "file",
+   "size": 1006,
+   "mode": "0o644",
+   "sha256": "f867366078c04526ff8b676ae3b124a153bacce3a179d4ce0271577e0c316abb"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/settings.gbsres",
+   "type": "file",
+   "size": 2522,
+   "mode": "0o644",
+   "sha256": "1ee2c9896d5c79e4e9579bf5e1412b347020c402d9c49284c4937997c5432744"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project/variables.gbsres",
+   "type": "file",
+   "size": 386,
+   "mode": "0o644",
+   "sha256": "3f85de3b1277349a27a73ab4617547c51324afd4d4c0a0efb350294481df97c4"
+  },
+  {
+   "path": "examples/dogfood-signal-lost/project.gbsproj",
+   "type": "file",
+   "size": 236,
+   "mode": "0o644",
+   "sha256": "e3a37a8abde81ca75d48fb99979c329362c46fc73f7b76a593927c2437e9ff21"
+  },
+  {
+   "path": "examples/hello-color/README.md",
+   "type": "file",
+   "size": 683,
+   "mode": "0o644",
+   "sha256": "34a4d7b47143f0fe753f207d83ad759de82034bdbf4dcbc573c81e17f3119f42"
+  },
+  {
+   "path": "examples/hello-color/hello-color.gbc",
+   "type": "file",
+   "size": 32768,
+   "mode": "0o644",
+   "sha256": "38da4ad04ae6a0fc75c536e0672bc1176b16194953167b629d6e115f742b89fa"
+  },
+  {
+   "path": "examples/hello-color/main.c",
+   "type": "file",
+   "size": 1285,
+   "mode": "0o644",
+   "sha256": "c2108780dcda768960eb2377635494353b9768ed6ada6bd0a582f384b3fc5b03"
+  },
+  {
+   "path": "examples/original-art/README.md",
+   "type": "file",
+   "size": 962,
+   "mode": "0o644",
+   "sha256": "99c8aff0ebde10de5983f7f07581fa8498547ed6c1e4a9e5afb3c2d98945f275"
+  },
+  {
+   "path": "examples/original-art/native-cells.json",
+   "type": "file",
+   "size": 76044,
+   "mode": "0o644",
+   "sha256": "854e238f42839764f10bc6046af26336c66db0c241f4c869e15f209ca52abfa1"
+  },
+  {
+   "path": "examples/original-art/recipes.mjs",
+   "type": "file",
+   "size": 8358,
+   "mode": "0o644",
+   "sha256": "94c792a276434db59f02e30c4d967e673600e2343fba75f3858f31fd18aa1ca3"
+  },
+  {
+   "path": "examples/starter/LICENSE",
+   "type": "file",
+   "size": 1073,
+   "mode": "0o644",
+   "sha256": "6fc7dd0727262618eb53594406b778aa4fd4cde9eb1d978736fe7c07b5607e79"
+  },
+  {
+   "path": "examples/starter/README.md",
+   "type": "file",
+   "size": 751,
+   "mode": "0o644",
+   "sha256": "bcb5a2b94f11d9abd811a3b34f953d8c017035945f7f302658c06707242c9ac8"
+  },
+  {
+   "path": "examples/starter/assets/avatars/README.md",
+   "type": "file",
+   "size": 143,
+   "mode": "0o644",
+   "sha256": "8d21f717f26c5c641533dd3d35463802874bc78fd5c0f708175ecc2fb00e5267"
+  },
+  {
+   "path": "examples/starter/assets/backgrounds/README.md",
+   "type": "file",
+   "size": 131,
+   "mode": "0o644",
+   "sha256": "3ba8e88d6f8fde5dc5a21a6ba61e53549b929a5c7c5f48ffce5e4b3057055259"
+  },
+  {
+   "path": "examples/starter/assets/backgrounds/workshop.png",
+   "type": "file",
+   "size": 1947,
+   "mode": "0o644",
+   "sha256": "62b4c3e9d7a3aefad8c1eb8f91e0c24ab2e148e4526845dc2810ad00a805ef21"
+  },
+  {
+   "path": "examples/starter/assets/backgrounds/workshop.png.gbsres",
+   "type": "file",
+   "size": 291,
+   "mode": "0o644",
+   "sha256": "5c65d888533bf3685c30d19b8c3b4fa2fe5ce3f6f0dd7202314bb0537155a14f"
+  },
+  {
+   "path": "examples/starter/assets/emotes/README.md",
+   "type": "file",
+   "size": 136,
+   "mode": "0o644",
+   "sha256": "b8c5226927e87703fa139f487cc927a96a0ca2fb9b8f4073bde5556195490c9a"
+  },
+  {
+   "path": "examples/starter/assets/fonts/README.md",
+   "type": "file",
+   "size": 155,
+   "mode": "0o644",
+   "sha256": "dc7b0a156b4a08cd811a0d01530c28bfc2dd55b08d43b8617c98131f20084f3f"
+  },
+  {
+   "path": "examples/starter/assets/fonts/bench-mono.json",
+   "type": "file",
+   "size": 49,
+   "mode": "0o644",
+   "sha256": "fe07b62939eaf26f4b9cb299d1e774e7aa2d24a5404afdc2c74e5b2194ce0415"
+  },
+  {
+   "path": "examples/starter/assets/fonts/bench-mono.png",
+   "type": "file",
+   "size": 6047,
+   "mode": "0o644",
+   "sha256": "5ef84106e16f70e7843ccaea5ee6b1a6b96e6c833067fa11c8c596431e0c8c7d"
+  },
+  {
+   "path": "examples/starter/assets/fonts/bench-mono.png.gbsres",
+   "type": "file",
+   "size": 225,
+   "mode": "0o644",
+   "sha256": "acb6a3b673ada695d54fc0f86e19c5eaccf8be87699e7a3cfdd327e7fa2f3921"
+  },
+  {
+   "path": "examples/starter/assets/music/README.md",
+   "type": "file",
+   "size": 126,
+   "mode": "0o644",
+   "sha256": "4ea64405fb856e03947f1be834db73b1e3785427298e35ef3f56cc170a31b227"
+  },
+  {
+   "path": "examples/starter/assets/sounds/README.md",
+   "type": "file",
+   "size": 146,
+   "mode": "0o644",
+   "sha256": "40589906fa6ff73337406a3c12c48271f88c1fb25eb0f6234d115c5c2c888e5a"
+  },
+  {
+   "path": "examples/starter/assets/sprites/README.md",
+   "type": "file",
+   "size": 130,
+   "mode": "0o644",
+   "sha256": "6fffcb09ce378f3bd1572b15104fc9f283a2a8e66c4470ccfec143e433284d0d"
+  },
+  {
+   "path": "examples/starter/assets/sprites/workshop_player.png",
+   "type": "file",
+   "size": 695,
+   "mode": "0o644",
+   "sha256": "51c5a0374686531ae8e35ebeb4dc63f5c0b0f666e6d6abcdb5b8e52776e8766b"
+  },
+  {
+   "path": "examples/starter/assets/sprites/workshop_player.png.gbsres",
+   "type": "file",
+   "size": 5074,
+   "mode": "0o644",
+   "sha256": "786ab27cda45b6242070c23f116f359fcb5232931e6f50725768355a5ac418ca"
+  },
+  {
+   "path": "examples/starter/assets/tilesets/README.md",
+   "type": "file",
+   "size": 123,
+   "mode": "0o644",
+   "sha256": "9d9596e07276574b38e6e80d7797a5403005ed2ec26e9e845682a8a701916576"
+  },
+  {
+   "path": "examples/starter/assets/ui/README.md",
+   "type": "file",
+   "size": 128,
+   "mode": "0o644",
+   "sha256": "aaca4e0da660c9fc7e66ac55e3c0adf56343f8be74bbd3167f3902291a57c11c"
+  },
+  {
+   "path": "examples/starter/assets/ui/cursor.png",
+   "type": "file",
+   "size": 142,
+   "mode": "0o644",
+   "sha256": "a1cd08f8a5dc8a0a19c74f9fc36ef3d1e77c25be0746c9de0dc4c7dc5d044b5f"
+  },
+  {
+   "path": "examples/starter/assets/ui/frame.png",
+   "type": "file",
+   "size": 199,
+   "mode": "0o644",
+   "sha256": "cdebcc3e1a3a6827db29d6cd74a19d785980a5bef18a87589f8eb878457e311c"
+  },
+  {
+   "path": "examples/starter/plugins/README.md",
+   "type": "file",
+   "size": 140,
+   "mode": "0o644",
+   "sha256": "6fcd1de584237e28305f21cce86a0999db68de05ca18b87ffa798677e7ef547d"
+  },
+  {
+   "path": "examples/starter/project/engine_field_values.gbsres",
+   "type": "file",
+   "size": 557,
+   "mode": "0o644",
+   "sha256": "ee78aa547788ec80cfa8cd49b5fa2813325e86a9747d834abc08244fab23e4a0"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_1.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "873cd962bf3da4af5096f6d5890e7d7e29cca18580108836e8e2162f29bfdebf"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_2.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "f3ea7576d1af27ebff98647d9932c878127fa0fb99ac61279497c90671d925f3"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_3.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "98ea3b863d3d0d96e233e79d155581b89779ad6e6ec164e929dd0068390d1ba9"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_4.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "7df1ec312d7c4ff17f0e08b31d5fa9df1ce8bd1e8d3253469df78d8880e76047"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_5.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "51c9f4be3acbd6ce4055045bfe7f661ab6ae130ffe218968f6b11297976b019c"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_bg_6.gbsres",
+   "type": "file",
+   "size": 270,
+   "mode": "0o644",
+   "sha256": "36522553d30ff0cf3a39d924bb81389316d9fdc8a35c46b002cfbecdbc01fc7e"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_sprites.gbsres",
+   "type": "file",
+   "size": 278,
+   "mode": "0o644",
+   "sha256": "bca2913bf7b7770361fe5358887d81869716a5a3b0d6650d21a36e915c09b4fd"
+  },
+  {
+   "path": "examples/starter/project/palettes/default_ui.gbsres",
+   "type": "file",
+   "size": 264,
+   "mode": "0o644",
+   "sha256": "1c2d303fc92dfd8d56a0bcfc94acbc247359979137a23827ba632cd300d0d24f"
+  },
+  {
+   "path": "examples/starter/project/scenes/start/scene.gbsres",
+   "type": "file",
+   "size": 625,
+   "mode": "0o644",
+   "sha256": "0c7355b7d8d0bc2a9d60d7078ffa2bd98655510d94f7456048c536057e9b957a"
+  },
+  {
+   "path": "examples/starter/project/settings.gbsres",
+   "type": "file",
+   "size": 2522,
+   "mode": "0o644",
+   "sha256": "7e3f49c3c9d9170e240ae222c5d2398964a426dad732c69ab615bac77116a1b3"
+  },
+  {
+   "path": "examples/starter/project/variables.gbsres",
+   "type": "file",
+   "size": 72,
+   "mode": "0o644",
+   "sha256": "af73c12caf6ef4e952e53ceeae1b429fd999977349285ac31a3d0e3986a3083b"
+  },
+  {
+   "path": "examples/starter/project.gbsproj",
+   "type": "file",
+   "size": 152,
+   "mode": "0o644",
+   "sha256": "92c7f3d4976114a3e7a1ff6605401050bb74315409ccf4db9da34f92eb9a9e0a"
+  },
+  {
+   "path": "licenses/GBDK-GPL-2.0-linking-exception.txt",
+   "type": "file",
+   "size": 18563,
+   "mode": "0o644",
+   "sha256": "138567c019af8a54e4cf46b6621587d9912658d9d3359f8902bac728f7fe4ec9"
+  },
+  {
+   "path": "licenses/GBVM-MIT.txt",
+   "type": "file",
+   "size": 1061,
+   "mode": "0o644",
+   "sha256": "86299a4390a678ce8dd073c24f9e820834601b5ec696b85334fcdd468401f5b1"
+  },
+  {
+   "path": "licenses/bundled-javascript.txt",
+   "type": "file",
+   "size": 16524,
+   "mode": "0o644",
+   "sha256": "bff6d78bce44789bda4d61a922751a028fe9cece480c1201385d3aaf14f04dc8"
+  },
+  {
+   "path": "licenses/native-capture/FFmpeg-LGPL-2.1.txt",
+   "type": "file",
+   "size": 26517,
+   "mode": "0o644",
+   "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+  },
+  {
+   "path": "licenses/native-capture/FFmpeg-LICENSE.md",
+   "type": "file",
+   "size": 4346,
+   "mode": "0o644",
+   "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
+  },
+  {
+   "path": "licenses/native-capture/GCC-COPYING.RUNTIME",
+   "type": "file",
+   "size": 3324,
+   "mode": "0o644",
+   "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+  },
+  {
+   "path": "licenses/native-capture/GCC-COPYING3",
+   "type": "file",
+   "size": 35147,
+   "mode": "0o644",
+   "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+  },
+  {
+   "path": "licenses/native-capture/libvpx-LICENSE.txt",
+   "type": "file",
+   "size": 1537,
+   "mode": "0o644",
+   "sha256": "8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615"
+  },
+  {
+   "path": "licenses/native-capture/libvpx-PATENTS.txt",
+   "type": "file",
+   "size": 1436,
+   "mode": "0o644",
+   "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+  },
+  {
+   "path": "licenses/native-capture/musl-COPYRIGHT.txt",
+   "type": "file",
+   "size": 6204,
+   "mode": "0o644",
+   "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+  },
+  {
+   "path": "licenses/native-capture/zlib-LICENSE.txt",
+   "type": "file",
+   "size": 1002,
+   "mode": "0o644",
+   "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+  },
+  {
+   "path": "native/capture/README.md",
+   "type": "file",
+   "size": 5332,
+   "mode": "0o644",
+   "sha256": "80d4e6f5cd8787abcb68963d866d013b76288da4e47df273ea4802707ab3f7ef"
+  },
+  {
+   "path": "native/capture/linux/arm64/ffmpeg",
+   "type": "file",
+   "size": 4069520,
+   "mode": "0o755",
+   "sha256": "3003aebb5eb074dc1f7b7a98a6e19e35cd88f797e33ce947fada74ed5c560f78"
+  },
+  {
+   "path": "native/capture/linux/manifest.json",
+   "type": "file",
+   "size": 318,
+   "mode": "0o644",
+   "sha256": "513a40e73bc4f57bc548cb5ad38b9238a22f7480ac0b53192bff02db280fbdbc"
+  },
+  {
+   "path": "native/capture/linux/provenance.json",
+   "type": "file",
+   "size": 3348,
+   "mode": "0o644",
+   "sha256": "7dc4f33f9de18fe423fe8d57677e5f591248bff3a9a5a15282c9e24ccc57a3be"
+  },
+  {
+   "path": "native/capture/linux/x64/ffmpeg",
+   "type": "file",
+   "size": 5121992,
+   "mode": "0o755",
+   "sha256": "ac9ba3c56281b8759c5ba16590a6bcb769bc8c0986b2ca91cad8bc2d8306204b"
+  },
+  {
+   "path": "native/capture/macos/chromatic-capture-helper",
+   "type": "file",
+   "size": 1005560,
+   "mode": "0o755",
+   "sha256": "5f9ed0e95ccefd318207ff12ce7a2fd7523a8d3f0578b548f8c2c2ab441d19a7"
+  },
+  {
+   "path": "native/capture/macos/manifest.json",
+   "type": "file",
+   "size": 145,
+   "mode": "0o644",
+   "sha256": "17fa39b21b1de990beb1d26869c31a761a3bf5ca1ad4c38cdd309a42c37549f4"
+  },
+  {
+   "path": "native-game-plugin/README.md",
+   "type": "file",
+   "size": 2811,
+   "mode": "0o644",
+   "sha256": "9b49e83d9c468cb896c91e69f10a0a62cbd960b507af958e0a8181e89f42cd73"
+  },
+  {
+   "path": "native-game-plugin/plugins/modretro-chromatic/events/eventCodexHardwareProfile.js",
+   "type": "file",
+   "size": 1551,
+   "mode": "0o644",
+   "sha256": "a125ee40ac4d3eafda5d27824bb6c94bcab0871654bc60cd3eb5294b11973a21"
+  },
+  {
+   "path": "native-game-plugin/plugins/modretro-chromatic/plugin.json",
+   "type": "file",
+   "size": 293,
+   "mode": "0o644",
+   "sha256": "a06859b8911b0901a2463bce67ba9c7177eb32c258938492baf73e74e3a8f575"
+  },
+  {
+   "path": "package.json",
+   "type": "file",
+   "size": 4680,
+   "mode": "0o644",
+   "sha256": "d31761fd0e9a6a81c77c46c9dbe49387d6702e86f646d5c740ff7a98f03edfe6"
+  },
+  {
+   "path": "scripts/bundle-mcp.mjs",
+   "type": "file",
+   "size": 3338,
+   "mode": "0o644",
+   "sha256": "80325dc3f40d01d66c11211f8558c6ccfbee65aed5a15a3123a78cf7c040268d"
+  },
+  {
+   "path": "scripts/chromatic-runtime.d.mts",
+   "type": "file",
+   "size": 3152,
+   "mode": "0o644",
+   "sha256": "c74b2364663dab3a0e58a3b39ef60bdb7caa428dd6cd0ba9029c1cf96eec5e26"
+  },
+  {
+   "path": "scripts/chromatic-runtime.mjs",
+   "type": "file",
+   "size": 34305,
+   "mode": "0o644",
+   "sha256": "47b3accdc2faba6750af8af6e6b04cc9e3278ef06eb93900d9cf01489f161275"
+  },
+  {
+   "path": "scripts/chromatic.d.mts",
+   "type": "file",
+   "size": 3328,
+   "mode": "0o644",
+   "sha256": "e7e001e2d4e0cbc8a52c2de8b0300eae98c3b4b2cda9203ea0441351ac5e7540"
+  },
+  {
+   "path": "scripts/chromatic.mjs",
+   "type": "file",
+   "size": 19698,
+   "mode": "0o644",
+   "sha256": "8fa4952ef880870c1093b87fa92766e730521e9ff5aeaddf970be5bff426eff7"
+  },
+  {
+   "path": "scripts/dependency-catalog.mjs",
+   "type": "file",
+   "size": 6059,
+   "mode": "0o644",
+   "sha256": "8491abc3d656f4711ebf4d4f307bdfe5d55a7641425daf3a69163431d9e0835d"
+  },
+  {
+   "path": "scripts/dependency-doctor.d.mts",
+   "type": "file",
+   "size": 2345,
+   "mode": "0o644",
+   "sha256": "d50347ccd9236d3a6452adc8ee57378b99d6e1a8a1d15120d2082071f0d5023b"
+  },
+  {
+   "path": "scripts/dependency-doctor.mjs",
+   "type": "file",
+   "size": 38323,
+   "mode": "0o644",
+   "sha256": "1a5e6e1f443f5ee3ca58000742f2bc6cee81eb2c60fa9c9cdfb780f85296ddeb"
+  },
+  {
+   "path": "scripts/device-client-deps.mjs",
+   "type": "file",
+   "size": 535044,
+   "mode": "0o644",
+   "sha256": "62d169c947d33e2332ca110672413b24e65ab4554bd0fefb010bd80913458785"
+  },
+  {
+   "path": "scripts/device-mcp.mjs",
+   "type": "file",
+   "size": 18044,
+   "mode": "0o644",
+   "sha256": "e3c2f47a34563501c87bebd0f0d8df37a4aac5c732b135266919adae3a80c526"
+  },
+  {
+   "path": "scripts/doctor.mjs",
+   "type": "file",
+   "size": 3993,
+   "mode": "0o755",
+   "sha256": "14623d149460889376f90d3acd70e646d17f2ee36239a469f0991153bf6c6e92"
+  },
+  {
+   "path": "scripts/emulator_worker.py",
+   "type": "file",
+   "size": 149090,
+   "mode": "0o755",
+   "sha256": "6271cbbb9ca76d4d149173f4110705cfa3c567349f0cb7ceb347bf1df7598925"
+  },
+  {
+   "path": "scripts/node-releases.tsv",
+   "type": "file",
+   "size": 994,
+   "mode": "0o644",
+   "sha256": "641fb559ce6f3c90b5b54ffaacfd9a1b74a3f59db26bb5f377b09f14913620ba"
+  },
+  {
+   "path": "scripts/prepare-plugin-payload.mjs",
+   "type": "file",
+   "size": 55576,
+   "mode": "0o644",
+   "sha256": "c06a16b5d0b24d5826ca40a86308cef91e27572b2bb98d352910f69a55d1111d"
+  },
+  {
+   "path": "scripts/prepare.mjs",
+   "type": "file",
+   "size": 2796,
+   "mode": "0o644",
+   "sha256": "6b7da5883eff9c2aff1dbbc6e2c458b9a9eeb981c08ab05f692520b471920b6d"
+  },
+  {
+   "path": "scripts/register-personal-plugin.py",
+   "type": "file",
+   "size": 30375,
+   "mode": "0o644",
+   "sha256": "a3ac1fbaa338657e38285465fce13235a06f36b13fe8359752e2814a9501c4ea"
+  },
+  {
+   "path": "scripts/runtime-package-lock.json",
+   "type": "file",
+   "size": 42019,
+   "mode": "0o644",
+   "sha256": "4443170ccae75527e1802d58da4816f5457e883a4c07fc7a9a2d55f7cc0e25b9"
+  },
+  {
+   "path": "scripts/runtime-package.json",
+   "type": "file",
+   "size": 410,
+   "mode": "0o644",
+   "sha256": "93f9a172b5ed2aec2cf8fea468495b990e8a73b130926074b44100145cf97c3b"
+  },
+  {
+   "path": "scripts/setup-compiler.mjs",
+   "type": "file",
+   "size": 60474,
+   "mode": "0o644",
+   "sha256": "4f2f13e985392a937c7ea33b5cebdcef80b319df908609e64c3ed34975d99ffb"
+  },
+  {
+   "path": "scripts/setup-compiler.sh",
+   "type": "file",
+   "size": 21271,
+   "mode": "0o755",
+   "sha256": "38499946eb785428f8213e46c6f31f5e9c7b3e3aa5376c4c1000173bb29c5c7e"
+  },
+  {
+   "path": "scripts/setup-components.mjs",
+   "type": "file",
+   "size": 28804,
+   "mode": "0o644",
+   "sha256": "3ce9c8ef86f71945b1767e98f61ad1a4c0dc0d6ae9dd79dc82c5056b9267e9fa"
+  },
+  {
+   "path": "scripts/setup-emulator.mjs",
+   "type": "file",
+   "size": 19262,
+   "mode": "0o644",
+   "sha256": "fe78da4f75ccc8afa1105d0ca3ad1e26470aa1bf5c4c9cd6ba41624c9af58d8e"
+  },
+  {
+   "path": "scripts/setup-emulator.sh",
+   "type": "file",
+   "size": 7864,
+   "mode": "0o755",
+   "sha256": "7d12b6a0840b97f13fedc1b03d6cbc4a6c448f1e4242fda703280f77e79c7979"
+  },
+  {
+   "path": "scripts/setup-io.mjs",
+   "type": "file",
+   "size": 47822,
+   "mode": "0o644",
+   "sha256": "94b38e2e2c4ba2ca6372436c136b26876e79634ab3588848af1638bc002d453b"
+  },
+  {
+   "path": "scripts/setup-runtime.mjs",
+   "type": "file",
+   "size": 37999,
+   "mode": "0o644",
+   "sha256": "70e30e424fd611484132d70c6125e3a2676f97ba0e5decd52cdaa2626a377754"
+  },
+  {
+   "path": "scripts/setup-windows.mjs",
+   "type": "file",
+   "size": 30467,
+   "mode": "0o644",
+   "sha256": "7d24c4c28ec4f4d6faff5cf6761a8d076f9bd2b8c2fd70e22f9fe306d407cc3e"
+  },
+  {
+   "path": "scripts/setup-windows.ps1",
+   "type": "file",
+   "size": 8279,
+   "mode": "0o644",
+   "sha256": "a89acf72251b3532237d00022d7b574d2a0fe7ea336277cecfa53bb31f96bd25"
+  },
+  {
+   "path": "scripts/setup.mjs",
+   "type": "file",
+   "size": 40853,
+   "mode": "0o644",
+   "sha256": "6a9bf1a3ee3544d681b2fb69c08c1df8502d89734b03a21038daf4dc9e7bf83a"
+  },
+  {
+   "path": "scripts/setup.ps1",
+   "type": "file",
+   "size": 44020,
+   "mode": "0o644",
+   "sha256": "02b06c090515d57e65211be35501f9557485a84f1a816a4cea15fe6b5ce1e6fb"
+  },
+  {
+   "path": "scripts/setup.sh",
+   "type": "file",
+   "size": 30681,
+   "mode": "0o755",
+   "sha256": "012f12d0920c83cc4175b86b532e6b21ef41d4d3b41920f1cb2b0c5663a8337a"
+  },
+  {
+   "path": "scripts/start-mcp.mjs",
+   "type": "file",
+   "size": 28519,
+   "mode": "0o644",
+   "sha256": "b6cbcd4b810e72bcc227906520264a1678902ce78d63dd647794ec8b7b27529e"
+  },
+  {
+   "path": "skills/chromatic-deployment/SKILL.md",
+   "type": "file",
+   "size": 12742,
+   "mode": "0o644",
+   "sha256": "8203d7ca1edd76cdc69dac88a0f351dd3fc7f25e93d168fde0ba23c34766efd8"
+  },
+  {
+   "path": "skills/chromatic-deployment/agents/openai.yaml",
+   "type": "file",
+   "size": 290,
+   "mode": "0o644",
+   "sha256": "3f24c640669b376277cbe87f356b8be45207c6501dc6888bef32be757af8157b"
+  },
+  {
+   "path": "skills/modretro-chromatic-authoring/SKILL.md",
+   "type": "file",
+   "size": 6473,
+   "mode": "0o644",
+   "sha256": "e389b01d7401437f4d905c50621cd4486ee0e5cb84561d850d2c295a823cf755"
+  },
+  {
+   "path": "skills/modretro-chromatic-authoring/agents/openai.yaml",
+   "type": "file",
+   "size": 238,
+   "mode": "0o644",
+   "sha256": "ad3dc42ab9e43cd2892fac8726ef4060758b823d20a908d6a9370ae48c062a32"
+  },
+  {
+   "path": "skills/modretro-chromatic-authoring/references/extensions-and-build.md",
+   "type": "file",
+   "size": 10188,
+   "mode": "0o644",
+   "sha256": "52f23d0beea58441c28c20d798e3d2731ef1714af2bd9507c35f28d7f4cd1164"
+  },
+  {
+   "path": "skills/modretro-chromatic-authoring/references/project-authoring.md",
+   "type": "file",
+   "size": 18079,
+   "mode": "0o644",
+   "sha256": "fdd2b4c40858d09f4cd940103aa22511fb4072cfab4c43cb88913ba155436c9e"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/SKILL.md",
+   "type": "file",
+   "size": 3619,
+   "mode": "0o644",
+   "sha256": "499d5e27bd57f601e6a2811aef6e9f3d8e90eee0b13af440ab2a68d66fb07e03"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/agents/openai.yaml",
+   "type": "file",
+   "size": 260,
+   "mode": "0o644",
+   "sha256": "9abc4bb1437d6a8e1ef49e48a6788cb2a715cfe23909b663fba86de1f69de47b"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/assets/keyed-grid-32x32.png",
+   "type": "file",
+   "size": 11842,
+   "mode": "0o644",
+   "sha256": "a28c2df7107e0fb6570790280c2a792881d04eaa31b1f594e7d16174877f6b25"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/authoring-and-interchange.md",
+   "type": "file",
+   "size": 8674,
+   "mode": "0o644",
+   "sha256": "4620e7a2d1c6a1fd7da10ffd353e8939abee5204c67ed523a6b23af268ec9d9a"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/genre-art-direction.md",
+   "type": "file",
+   "size": 6421,
+   "mode": "0o644",
+   "sha256": "f1b062e59f8b63c40a0c2434d12a3ccb770ef2183608167a8cc35c986b524c2b"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/hardware-and-imports.md",
+   "type": "file",
+   "size": 9857,
+   "mode": "0o644",
+   "sha256": "3d9871204f651689b55c3684727fa88b1a94ab4ede940535ec291f469c2be26b"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/native-pixel-tools.md",
+   "type": "file",
+   "size": 5805,
+   "mode": "0o644",
+   "sha256": "1c29c0a1b757d049b9fd38e5ebd01dfe9f778d38e746535a0ebbf8797efc167e"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/prompting-grid-animation.md",
+   "type": "file",
+   "size": 5302,
+   "mode": "0o644",
+   "sha256": "03f0a950736a2e1973ec0dbac0df3f64d2bb26cd1a678a84864c46557ad2cf95"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/references/prompting-recoverable-grids.md",
+   "type": "file",
+   "size": 8376,
+   "mode": "0o644",
+   "sha256": "db07c083fa741dcc1a94250c32fd859dd0b497f3a4cd18763d4f2b94d32822eb"
+  },
+  {
+   "path": "skills/modretro-chromatic-pixel-art/scripts/evaluate-grid.mjs",
+   "type": "file",
+   "size": 45005,
+   "mode": "0o644",
+   "sha256": "5a87f14c4676f3b91fc3dea738211939a835f179023508e2b48b898d5611f998"
+  },
+  {
+   "path": "skills/modretro-chromatic-rom-debugging/SKILL.md",
+   "type": "file",
+   "size": 8071,
+   "mode": "0o644",
+   "sha256": "94fbcfddf5e0891d51c2f534d6b7da75df1f70f50118dcc6744af10c941833e9"
+  },
+  {
+   "path": "skills/modretro-chromatic-rom-debugging/agents/openai.yaml",
+   "type": "file",
+   "size": 277,
+   "mode": "0o644",
+   "sha256": "8703849c904b980710d1b861dae67149f439138ed460051f14e70849cab196a5"
+  },
+  {
+   "path": "skills/modretro-chromatic-rom-debugging/references/emulation-and-regression.md",
+   "type": "file",
+   "size": 9102,
+   "mode": "0o644",
+   "sha256": "14c9b45da93b6a60ad9d37547b057f01230a8037b2d6f854ef97917d032b1047"
+  },
+  {
+   "path": "skills/modretro-chromatic-rom-debugging/references/hardware-and-cartridge.md",
+   "type": "file",
+   "size": 8257,
+   "mode": "0o644",
+   "sha256": "e5793a2f53f61f5e4a4c2b3d58db907eb2d8b451cc67afc0ddc964ba1a9238dd"
+  },
+  {
+   "path": "skills/modretro-chromatic-setup/SKILL.md",
+   "type": "file",
+   "size": 3998,
+   "mode": "0o644",
+   "sha256": "15c0593b0b0f6987a2878bd46b4155fc2c40fbf801358deb428f0c58f867c729"
+  },
+  {
+   "path": "third-party/chromatic-cli/NOTICE.md",
+   "type": "file",
+   "size": 1622,
+   "mode": "0o644",
+   "sha256": "b36d5bcafacb1d4d5a147e64aa87a04c1160c684fe266c25582166537188a893"
+  },
+  {
+   "path": "third-party/chromatic-cli/PROVENANCE.json",
+   "type": "file",
+   "size": 14693,
+   "mode": "0o644",
+   "sha256": "f691ae561c92ee18029fe196ee9508be4b1b04e4bc061376271a1a907b3cfd43"
+  },
+  {
+   "path": "third-party/chromatic-cli/SBOM.json",
+   "type": "file",
+   "size": 23337,
+   "mode": "0o644",
+   "sha256": "2eb5aa0dccd244ad32b1653ad4b7e39a2254b3b529aa94a1e581fd4fcb8a5ed0"
+  },
+  {
+   "path": "third-party/chromatic-cli/executables-v2.br",
+   "type": "file",
+   "size": 15419258,
+   "mode": "0o644",
+   "sha256": "fd6a1b542a510f3ee1e047e83d31e1ad96bd4580fe7c59fbc558befba778beae"
+  },
+  {
+   "path": "third-party/chromatic-cli/notices.br",
+   "type": "file",
+   "size": 24102,
+   "mode": "0o644",
+   "sha256": "92e4592cfc2d53ea03aec32b358d1d5d290f2b7702bc6abf4f82d17936c7bb4f"
+  }
+ ],
+ "local_patches": [
+  {
+   "files": [
+    "dist/server.js",
+    "dist/device-capture/linux-helper.js"
+   ],
+   "change": "ffmpeg capture input: the per-process fd path under the proc filesystem replaced by /dev/fd/6 (2 occurrences per file)",
+   "why": "Hermes's install-time scanner rates any per-process proc-filesystem path high (proc_access), which makes every non-catalog install need Force. On Linux /dev/fd is a symlink to the current process's fd directory, so ffmpeg opens the same inherited file descriptor."
+  }
+ ]
+}

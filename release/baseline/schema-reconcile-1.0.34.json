@@ -1,0 +1,27 @@
+{
+  "pinned_file": "schemas/upstream/1.0.34/tools.json",
+  "pinned_file_sha256": "b0408f8af8546c899ff97104fda2192867a47ed3af54e6251ecc895130975ea2",
+  "pinned_tools_canonical_sha256": "36ec4e8a5147eeeea1b2c09a385b38f42ab65d1827e8b76b715c58fef376e937",
+  "live_tools_canonical_sha256": "36ec4e8a5147eeeea1b2c09a385b38f42ab65d1827e8b76b715c58fef376e937",
+  "live_server_info": {
+    "name": "modretro-chromatic",
+    "title": "ModRetro Chromatic",
+    "version": "1.0.34"
+  },
+  "pinned_server_info": {
+    "name": "modretro-chromatic",
+    "title": "ModRetro Chromatic",
+    "version": "1.0.34"
+  },
+  "engine_ready_seconds": 0.38,
+  "pages": 1,
+  "pinned_count": 81,
+  "live_count": 81,
+  "live_unique": 81,
+  "duplicates": [],
+  "missing_from_live": [],
+  "extra_in_live": [],
+  "order_identical": true,
+  "altered": {},
+  "passed": true
+}

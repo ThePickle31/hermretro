@@ -1,0 +1,119 @@
+name: hermretro
+version: 0.0.4
+manifest_version: 2
+description: Plan, build, playtest and ship Game Boy Color games for the ModRetro Chromatic
+author: hermretro contributors
+license: MIT
+tags: [game-development, gameboy, gb-studio, modretro, chromatic, desktop]
+requires_hermes: ">=0.23.1"
+external_dependencies:
+  - name: node
+    check: "node --version"
+    install: "Install Node.js 22 or newer from https://nodejs.org/"
+config_schema:
+  hardware_enabled:
+    type: bool
+    default: false
+    label: Chromatic hardware tools
+    description: >-
+      Allow device discovery, driver setup, streaming to a connected Chromatic, physical capture and
+      cartridge flashing. Off by default. Flashing, streaming and driver setup go through Hermes's
+      approval prompt; if you have turned Approvals off in Hermes, they run without asking.
+      Developer Mode activation always happens in ModRetro's own Updater.
+  live_player:
+    type: bool
+    default: true
+    label: Keep the playable copy current
+    description: >-
+      After every successful build, also refresh the game's playable copy, the one the Chromatic
+      Studio emulator plays. Hermes can then show you the newest build when it is ready to try, and
+      an emulator you already have open can load it. Adds a few seconds to each build. Loading a
+      new build restarts the game in the player.
+provides_hooks:
+  - pre_tool_call
+  - subagent_start
+  - subagent_stop
+provides_tools:
+  - chromatic_studio_device_cli
+  - chromatic_present_game
+  - chromatic_session_status
+  - chromatic_project_discover
+  - chromatic_project_select
+  - chromatic_project_create
+  - chromatic_project_create_blank
+  - chromatic_project_inspect
+  - chromatic_project_inventory
+  - chromatic_project_refresh
+  - chromatic_scene_create
+  - chromatic_scene_update
+  - chromatic_actor_create
+  - chromatic_dialogue_update
+  - chromatic_settings_update
+  - chromatic_graphics_analyze
+  - chromatic_web_build
+  - chromatic_web_preview
+  - chromatic_device_capture
+  - chromatic_web_preview_close
+  - chromatic_rom_build
+  - chromatic_rom_inspect
+  - chromatic_toolchain_prepare
+  - chromatic_toolchain_doctor
+  - chromatic_emulator_run
+  - chromatic_emulator_step
+  - chromatic_emulator_observe
+  - chromatic_emulator_inspect
+  - chromatic_emulator_status
+  - chromatic_emulator_close
+  - chromatic_emulator_review
+  - chromatic_emulator_checkpoint
+  - chromatic_emulator_recording
+  - chromatic_emulator_clip
+  - chromatic_emulator_debug
+  - chromatic_tilemap_atlas_create
+  - chromatic_tilemap_create
+  - chromatic_tilemap_inspect
+  - chromatic_tilemap_edit
+  - chromatic_tilemap_compile
+  - chromatic_scene_inspect
+  - chromatic_scene_delete
+  - chromatic_scene_apply
+  - chromatic_actor_inspect
+  - chromatic_actor_update
+  - chromatic_actor_delete
+  - chromatic_trigger_inspect
+  - chromatic_trigger_create
+  - chromatic_trigger_update
+  - chromatic_trigger_delete
+  - chromatic_asset_import
+  - chromatic_asset_inspect
+  - chromatic_asset_update
+  - chromatic_asset_delete
+  - chromatic_native_graphics_update
+  - chromatic_sprite_inspect
+  - chromatic_sprite_edit
+  - chromatic_sprite_preview
+  - chromatic_sprite_contact_sheet
+  - chromatic_palette_inspect
+  - chromatic_palette_create
+  - chromatic_palette_update
+  - chromatic_palette_assign
+  - chromatic_palette_paint
+  - chromatic_graphics_analyze_scene
+  - chromatic_graphics_preview_scene
+  - chromatic_script_inspect
+  - chromatic_script_edit
+  - chromatic_script_transition
+  - chromatic_variable_inspect
+  - chromatic_variable_set
+  - chromatic_variable_delete
+  - chromatic_engine_field_inspect
+  - chromatic_engine_field_update
+  - chromatic_collision_inspect
+  - chromatic_collision_edit
+  - chromatic_dialogue_analyze
+  - chromatic_dialogue_preview
+  - chromatic_world_dependencies
+  - chromatic_device
+  - chromatic_setup
+  - chromatic_flash
+  - chromatic_play

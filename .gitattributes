@@ -1,0 +1,5 @@
+# The bundled engine is checked file by file against SHA-256 digests (release/baseline/), so git must
+# never rewrite its line endings (Git for Windows does by default with core.autocrlf=true).
+engine/** -text
+# Its hash decides whether an unedited studio-profile SOUL may be upgraded.
+profile/SOUL.md -text

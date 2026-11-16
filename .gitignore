@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+node_modules/
+.dev/
+deps/
+# Games made with hermretro (the user's own projects)
+/games/
+# Local notes, evidence, mockups and temp files: never committed
+/notes/
