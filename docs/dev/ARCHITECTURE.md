@@ -28,7 +28,10 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
 | `adapter/contracts.py` | The engine's pinned tool contracts (`schemas/upstream/<v>/tools.json`) turned into Hermes schemas (`chromatic_*`) |
 | `adapter/results.py` | A broker answer turned into a Hermes tool result without losing what the engine said (images saved, content-addressed) |
 | `adapter/client.py` | Finds or starts the broker; refuses a stale one (code fingerprint) |
-| `adapter/broker.py` | The single authority on the machine: lanes per conversation, writer leases per project, the hardware gate, installs |
+| `adapter/broker.py` | The single authority on the machine: the `Broker`, identity, admission and the `call` op (the hardware gate, the setup lock); `python -m adapter.broker` |
+| `adapter/broker_lane.py` | A conversation's lane: its engine worker (start, restart, idle close), writer leases per project, project selection and the one-game-per-conversation guard |
+| `adapter/broker_control.py` | Control ops (`install_*`, `stats`, `shutdown`, `doctor`, `activity`, `lane_status`, leases and lanes), the page's toolchain install, housekeeping |
+| `adapter/broker_server.py` | The broker's user-only Unix socket server (handshake, one JSON line per request) and `main()`: election lock, token, signals, the housekeeping tick |
 | `adapter/engine.py` | Lossless stdio MCP client for one engine worker |
 | `adapter/paths.py` | Every location (`hermretro_home()`), engine verification, the code fingerprint, the version (from `plugin.yaml`) |
 | `adapter/host_os.py` | Every Linux/macOS difference (peer credentials, Rosetta, architecture) and the Windows refusal |
