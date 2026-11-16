@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from adapter import game_card, games, hermes_host  # noqa: E402
+from support import throwaway_profile  # noqa: E402
 from test_games import COVER, encode_png, make_project  # noqa: E402
 
 GOOD = {"title": "Space Game", "tagline": "Fly a tiny ship through a meteor field.",
@@ -138,8 +139,10 @@ class ToolsAndPresent(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib")}),
+            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+            throwaway_profile(self.base),
         ]
         for patch in self.patches:
             patch.start()

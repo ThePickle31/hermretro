@@ -231,9 +231,16 @@ def code_fingerprint() -> str:
     Read fresh (cached per file stamp) rather than once per process: a gateway that loaded the plugin
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
-    files = sorted(Path(__file__).resolve().parent.glob("*.py"))
-    stamp = tuple((path.name, path.stat().st_mtime_ns, path.stat().st_size) for path in files)
+    folder = Path(__file__).resolve().parent
+    stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in adapter_sources(folder))
     return _fingerprint_for(stamp)
+
+
+def adapter_sources(folder: Path) -> list[tuple[str, Path]]:
+    """Every Python file of the adapter, sub-packages included, as (posix path relative to folder, path),
+    sorted. Caches are skipped; a change to any other file must retire a running broker."""
+    return sorted((path.relative_to(folder).as_posix(), path) for path in folder.rglob("*.py")
+                  if "__pycache__" not in path.relative_to(folder).parts)
 
 
 @lru_cache(maxsize=4)

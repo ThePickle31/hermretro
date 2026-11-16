@@ -67,6 +67,16 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(check["verified"], check)
         self.assertEqual(check["version"], paths.ENGINE_VERSION)
 
+    def test_the_broker_fingerprint_covers_sub_packages_but_not_caches(self):
+        # A running broker is retired when any adapter source changes, including future sub-packages.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for rel in ("broker.py", "host/rpc.py", "host/__pycache__/rpc.cpython-314.py", "notes.txt"):
+                (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+                (folder / rel).write_text("# x\n")
+            self.assertEqual([rel for rel, _path in paths.adapter_sources(folder)], ["broker.py", "host/rpc.py"])
+        self.assertIn("paths.py", [rel for rel, _path in paths.adapter_sources(paths.PLUGIN_ROOT / "adapter")])
+
     def test_the_linux_capture_ffmpeg_builds_are_not_shipped(self):
         # LGPL builds from a source that is not public: left out, and the engine still verifies without them.
         for rel in paths.CAPTURE_FFMPEG:
