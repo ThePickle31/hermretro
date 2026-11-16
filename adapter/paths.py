@@ -46,11 +46,10 @@ def _hermes_root() -> Path:
     in a profile. Asks Hermes when it can be imported. The fallback (tests, CI, tools run outside Hermes)
     covers the plain cases only; the broker never relies on it, because the client hands it
     ``HERMRETRO_HOME``."""
-    try:
-        from hermes_constants import get_default_hermes_root  # type: ignore[import-not-found]
-        return Path(get_default_hermes_root())
-    except Exception:  # noqa: BLE001  (no Hermes here: tests, CI, the broker's own process)
-        pass
+    from . import hermes_api
+    asked = hermes_api.default_hermes_root()
+    if asked is not None:
+        return asked
     configured = os.environ.get("HERMES_HOME", "").strip()
     if not configured:
         return Path.home() / ".hermes"

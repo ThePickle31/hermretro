@@ -23,7 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import paths
+from . import hermes_api, paths
 
 STUDIO_PROFILE = "hermretro"
 DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
@@ -56,8 +56,7 @@ def is_studio(name: str | None) -> bool:
 
 
 def studio_dir() -> Path:
-    from hermes_cli.profiles import get_profile_dir
-    return get_profile_dir(STUDIO_PROFILE)
+    return hermes_api.profile_dir(STUDIO_PROFILE)
 
 
 def create_params() -> dict:
@@ -119,12 +118,7 @@ def _provider_plugins(home: Path, enabled: list[str]) -> list[Path]:
 
 
 def _enabled_plugins() -> list[str]:
-    try:
-        from hermes_cli.config import load_config_readonly
-        enabled = ((load_config_readonly() or {}).get("plugins") or {}).get("enabled") or []
-        return [str(name) for name in enabled]
-    except Exception:
-        return []
+    return hermes_api.enabled_plugins()
 
 
 def _link(source: Path, destination: Path) -> str:

@@ -116,6 +116,17 @@ class LockStep(unittest.TestCase):
         self.assertEqual(read_in_code - table, set(), "HERMRETRO_* variables missing from DEBUGGING.md's table")
         self.assertEqual(table - read_in_code, set(), "DEBUGGING.md documents variables nothing reads")
 
+    def test_hermes_is_reached_only_through_hermes_api(self):
+        hermes_modules = r"(hermes_cli|hermes_constants|hermes_state|plugins|tools|agent|gateway)\b"
+        outside = []
+        for source in [*(ROOT / "adapter").rglob("*.py"), ROOT / "__init__.py"]:
+            if source.name == "hermes_api.py":
+                continue
+            for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
+                if re.match(rf"\s*(from|import) {hermes_modules}", line):
+                    outside.append(f"{source.relative_to(ROOT)}:{number}")
+        self.assertEqual(outside, [], "import Hermes only in adapter/hermes_api.py (and list the name in USED)")
+
     def test_the_engine_version_agrees_everywhere(self):
         version = paths.ENGINE_VERSION
         self.assertEqual(json.loads(read("engine/modretro-chromatic/package.json"))["version"], version)

@@ -56,6 +56,8 @@ jobs:
             echo "FIX: plugin.yaml provides_tools / provides_hooks must match what __init__.register adds"
             exit 1
           fi
+      - name: python tools/hermes_api_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
       - name: python tools/check.py scan (newest scanner)
         run: python3 tools/check.py scan --strict --hermes-source "$HERMES_SOURCE"
       - name: python tools/clean_install_check.py
