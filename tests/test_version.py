@@ -47,7 +47,8 @@ class OneVersion(unittest.TestCase):
         pattern = re.compile(rf"(?<![0-9.]){re.escape(paths.PLUGIN_VERSION)}(?![0-9])")
         found = []
         for name in listed.stdout.splitlines():
-            if name.startswith(ALLOWED) or not (ROOT / name).is_file():
+            # This file's own examples are versions too; it never ships a version.
+            if name.startswith(ALLOWED) or name == "tests/test_version.py" or not (ROOT / name).is_file():
                 continue
             try:
                 text = (ROOT / name).read_text(encoding="utf-8")
