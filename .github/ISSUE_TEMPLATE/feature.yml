@@ -1,0 +1,26 @@
+name: Idea or request
+description: Something hermretro could do, or do better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: The game-making task, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Build page and chats
+        - Setup and installing
+        - Games and the emulator
+        - Agent tools and skills
+        - Physical Chromatic
+        - Development of hermretro itself

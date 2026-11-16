@@ -166,6 +166,11 @@ packages, feature folders are one level deep, no import cycles, no file over 400
 listed as exceptions in `tools/bundle_lint.mjs` until they are split). Where code goes
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 
+## Contributing
+
+Start with `CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
+problems privately (`SECURITY.md`).
+
 ## Licence
 
 MIT for this repository's own code. The bundled engine and the proprietary ModRetro CLI inside it have their
