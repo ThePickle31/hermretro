@@ -26,7 +26,9 @@ class Home(unittest.TestCase):
         clean = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_")}
         for patch in (mock.patch.dict(os.environ, {**clean, "HERMRETRO_HOME": str(self.base / "hr")}, clear=True),
                       throwaway_profile(self.base), throwaway_deps(self.base / "hr"),
-                      mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))):
+                      mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+                      # The profile report asks Hermes itself; these tests run without Hermes installed.
+                      mock.patch.object(hermes_host.studio_profile, "describe", return_value={})):
             self.enterContext(patch)
 
 
