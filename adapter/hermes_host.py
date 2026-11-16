@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import contracts, game_card, host_os, onboarding, paths, player_server, provision, results, snapshots, studio_profile
+from . import contracts, game_card, hermes_api, host_os, onboarding, paths, player_server, provision, results, snapshots, studio_profile
 from . import games as library
 from .client import BrokerUnavailable, ensure_broker, try_connect
 
@@ -37,8 +37,7 @@ _child_lock = threading.Lock()
 
 
 def _data_dir() -> Path:
-    from plugins.plugin_storage import plugin_data_dir
-    return plugin_data_dir(paths.PLUGIN_ID)
+    return hermes_api.plugin_data_dir(paths.PLUGIN_ID)
 
 
 def _profile_identity() -> str:
@@ -51,11 +50,7 @@ def _attach_images() -> bool:
 
     Hermes has no public helper for this yet; core tools share this private gate. Any failure
     means "do not attach", and the saved files still carry the images."""
-    try:
-        from tools.vision_tools import _should_use_native_vision_fast_path
-        return bool(_should_use_native_vision_fast_path())
-    except Exception:
-        return False
+    return hermes_api.tool_results_take_images()
 
 
 def _is_child(session_id: str) -> bool:

@@ -40,6 +40,8 @@ jobs:
           ref: main
       - name: hermes plugins validate
         run: '"$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate .'
+      - name: python tools/hermes_api_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
       - name: python tools/check.py scan (newest scanner)
         run: python3 tools/check.py scan --strict --hermes-source "$HERMES_SOURCE"
       - name: python tools/clean_install_check.py

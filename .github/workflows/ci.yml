@@ -119,6 +119,8 @@ jobs:
           ref: ${{ env.HERMES_REF }}
       - name: hermes plugins validate
         run: '"$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate .'
+      - name: python tools/hermes_api_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
       - name: python tools/clean_install_check.py
         run: python3 tools/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
 
