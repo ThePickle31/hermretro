@@ -23,6 +23,8 @@ import shutil
 import stat
 import subprocess
 import tarfile
+import sys
+import tempfile
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -378,7 +380,64 @@ def summary() -> dict:
             "device_cli": device_cli_status()}
 
 
+
+def remove_downloads() -> dict:
+    """Empty hermretro's download folder ``<hermretro home>/.cache`` (toolchain, prepared engine with ModRetro's
+    CLI, receipts). Games and the library are elsewhere and untouched; links inside are removed, never followed.
+    The caller holds the broker's election lock, so no broker or worker runs from it meanwhile. Refused when the
+    location was configured by hand, since that folder is the user's."""
+    if os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"):
+        raise ProvisionError("CUSTOM_LOCATION", "The downloaded tools are in a folder you configured "
+                                                "(HERMRETRO_DEPS_ROOT or GB_STUDIO_SETUP_ROOT); delete it yourself.")
+    root = paths.DEPS_ROOT
+    home = paths.hermretro_home().resolve()
+    if root != home / ".cache" or root.is_relative_to(paths.PLUGIN_ROOT) or root.is_symlink():
+        raise ProvisionError("UNEXPECTED_LOCATION", f"Refusing to delete {root}: it is not hermretro's download folder.")
+    if not root.is_dir():
+        return {"ok": True, "removed_bytes": 0, "left_bytes": 0, "root": str(root)}
+    with _lock():   # no device-CLI install meanwhile
+        # Inside .cache, so every move is a rename on the same filesystem; the folder empties at once.
+        trash = Path(tempfile.mkdtemp(prefix=_TRASH_PREFIX, dir=root))
+        for child in list(root.iterdir()):
+            if child.name == ".provision.lock" or child.name.startswith(_TRASH_PREFIX):
+                continue
+            os.replace(child, trash / child.name)
+    removed = 0
+    for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:   # also earlier, failed runs
+        removed += _size(leftover)
+        _rmtree(leftover)
+    left = sum(_size(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
+    return {"ok": not left, "removed_bytes": removed - left, "left_bytes": left, "root": str(root),
+            **({"code": "PARTLY_REMOVED", "error": f"{left // 1_000_000} MB could not be deleted from {root}."}
+               if left else {})}
+
+
+_TRASH_PREFIX = ".removing-"
+
+
+def _rmtree(path: Path) -> None:
+    """Delete a tree, making read-only folders (from extracted archives) writable when a delete is refused."""
+    def retry(function, failed, _info):
+        try:
+            os.chmod(os.path.dirname(failed), 0o700)
+            if os.path.isdir(failed) and not os.path.islink(failed):
+                os.chmod(failed, 0o700)
+            function(failed)
+        except OSError:
+            pass
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=retry)
+    else:
+        shutil.rmtree(path, onerror=retry)
+
+
+def _size(path: Path) -> int:
+    if path.is_symlink() or path.is_file():
+        return path.lstat().st_size
+    return sum(child.lstat().st_size for child in path.rglob("*") if not child.is_dir() or child.is_symlink())
+
 if __name__ == "__main__":
     # Read-only on purpose: installing goes through the chromatic_studio_device_cli tool, which
     # asks the person for approval.
     print(json.dumps(summary(), indent=2))
+

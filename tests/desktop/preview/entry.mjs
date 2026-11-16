@@ -57,7 +57,7 @@ const GAMES = [
     rom: null, thumb: null, chat: { sessionId: 'st-robo', title: 'Robo Run' }, error: 'background uses 212 tiles (limit 192)' }
 ]
 const DEMO = { id: 'demo', title: 'Hello Color', kind: 'gbdk', note: 'ModRetro example' }
-const library = (list = GAMES) => answered({ games: list, demo: DEMO, device: { hardwareEnabled: true, skipped: false } })
+const library = (list = GAMES) => answered({ games: list, demo: DEMO, gamesDir: '/home/you/.hermes/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
 const playerAt = answered({ url: new URL('player/index.html#comet', location.href).href, romSha256: 'aa11', title: 'Comet Drift' })
 // With nothing of the user's to play, the Emulator page loads the built-in demo cartridge.
 const demoPlayer = answered({ url: new URL('player/index.html#demo', location.href).href, romSha256: 'demo', title: 'Hello Color', demo: true })

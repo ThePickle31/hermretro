@@ -103,6 +103,16 @@ never starts the broker. Both return:
 in the toolchain's `downloads/` and `cache/` folders. While it runs, a chat's `chromatic_toolchain_prepare` is
 refused with `OPERATION_IN_PROGRESS` (and the other way round), and the broker neither retires nor idles out.
 
+### `remove_tools` — no params
+
+Setup's "Remove downloaded tools": empties `<hermretro home>/.cache` (toolchain, prepared engine, ModRetro's CLI
+and their receipts; only its lock file stays); games and the library stay, and links inside are removed, never
+followed. Asks a running broker to stop, then holds the broker's election lock for the whole removal (no broker
+can start meanwhile). Returns `{ ok, removed_bytes, left_bytes, root }` or `{ ok: false, code, error }` with `code`
+`BUSY` (a game's chat has a live worker, an install runs, or the broker did not stop within 15 s),
+`CUSTOM_LOCATION` (`HERMRETRO_DEPS_ROOT` / `GB_STUDIO_SETUP_ROOT` set), `UNEXPECTED_LOCATION` or `PARTLY_REMOVED`
+(some files could not be deleted; a retry finishes them). Setup can then install again.
+
 ### `activity` — params `{ chat?: string, stored?: string, limit?: number }`
 
 Was for the panes beside the chat, which are gone (the Build page shows the agent's work); kept for older
@@ -130,7 +140,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device }`: the library (`<hermretro home>/library/games.json`, see `adapter/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `adapter/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |

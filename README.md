@@ -87,7 +87,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.
 
   The page talks to the backend through `plugin.hermretro.*` RPCs (`status`, `doctor`, `install`,
-  `studio_profile`, `activity`, `games`, `game_thumb`, `player`, `presentations`, `captures`,
+  `remove_tools`, `studio_profile`, `activity`, `games`, `game_thumb`, `player`, `presentations`, `captures`,
   `capture_image`, `build`, `builds`, `build_restore`, `asset`, `asset_info`, `asset_restore`, `assets`;
   see `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.

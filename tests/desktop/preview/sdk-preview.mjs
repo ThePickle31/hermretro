@@ -93,7 +93,8 @@ const VARIANT = {
     'bg-transparent text-(--ui-text-primary) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ui-stroke-secondary)_50%,transparent)] hover:bg-(--chrome-action-hover)',
   secondary: 'bg-(--ui-bg-quaternary) text-(--ui-text-primary) hover:bg-(--chrome-action-hover)',
   ghost: 'text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-(--ui-text-primary)',
-  link: 'text-primary underline-offset-4 hover:underline'
+  link: 'text-primary underline-offset-4 hover:underline',
+  destructive: 'bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/60'
 }
 const SIZE = { default: 'px-3 py-1.5', sm: 'px-2.5 py-1', lg: 'px-5 py-2 text-sm leading-5', inline: 'h-auto gap-1 p-0' }
 

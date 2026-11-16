@@ -4,6 +4,7 @@ import { studioError } from '../core/backend.js'
 import { sendToGameChat } from '../core/chat-insert.js'
 import { Art } from '../ui/art.js'
 import { AsyncButton, PageHead } from '../ui/page.js'
+import { GamesFolder } from './games-folder.js'
 import { Lede, Small } from '../ui/text.js'
 import { Working } from '../ui/working.js'
 import { GameCard } from './game-card.js'
@@ -57,6 +58,7 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
 
 export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games
+  const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, 'folder')
   const newGame = jsxs(Button, { onClick: () => onOpenPrompt('new-game'), size: 'sm', variant: 'default', children: [jsx(Codicon, { name: 'add', size: 14 }), 'New game'] })
 
   if (games.isError || (games.data && !Array.isArray(list))) {
@@ -101,7 +103,8 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetU
                     jsx(Button, { onClick: () => onOpenPrompt('remix'), size: 'sm', variant: 'outline', children: 'Remix Wrecklight' })
                   ]
                 }),
-                jsx('p', { className: 'cs-faint', children: 'Already have a GB Studio project? Ask Hermes to select it and it shows up here.' })
+                jsx('p', { className: 'cs-faint', children: 'Already have a GB Studio project? Ask Hermes to select it and it shows up here.' }),
+                folder
               ]
             }),
             jsx(Art, {})
@@ -153,6 +156,7 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetU
         ]
       },
       'shelf'
-    )
+    ),
+    folder
   ]
 }

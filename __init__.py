@@ -85,6 +85,7 @@ def _register_rpcs(ctx):
     ctx.register_rpc("activity", hermes_host.rpc_activity(ctx))
     ctx.register_rpc("studio_profile", hermes_host.rpc_studio_profile(ctx))
     ctx.register_rpc("install", hermes_host.rpc_install(ctx))
+    ctx.register_rpc("remove_tools", hermes_host.rpc_remove_tools(ctx))
     ctx.register_rpc("games", hermes_host.rpc_games(ctx))
     ctx.register_rpc("game_thumb", hermes_host.rpc_game_thumb(ctx))
     ctx.register_rpc("player", hermes_host.rpc_player(ctx))

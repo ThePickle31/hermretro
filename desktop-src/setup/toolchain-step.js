@@ -2,6 +2,7 @@
 import { Button, Codicon, jsx, jsxs } from '../sdk.js'
 import { describeRequestError } from '../core/backend.js'
 import { InstallPanel } from '../install/install-panel.js'
+import { RemoveTools } from './remove-tools.js'
 import { Glyph } from '../ui/glyph.js'
 import { Lede, Small } from '../ui/text.js'
 import { Working } from '../ui/working.js'
@@ -114,7 +115,8 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
               deps.toolchain_cache_reused_from ? '. Downloads were reused from an existing ModRetro install on this computer.' : ''
             ]
           })
-        : null
+        : null,
+      step.state === 'done' ? jsx(RemoveTools, { doctor, status }) : null
     ]
   })
 }

@@ -364,6 +364,21 @@ try {
   })
   await click('Continue')
   check('Continue returns to the finished setup', () => { assert.equal(heading(), 'Setup is complete') })
+  await click('Game toolchain')
+  scenario.byMethod['plugin.hermretro.remove_tools'] = () => ({ ok: true, removed_bytes: 2_400_000_000, root: '/h/hermretro/.cache' })
+  scenario.calls.length = 0
+  await click('Remove downloaded tools')
+  check('Remove downloaded tools asks first and says the games stay', () => {
+    assert.match(text(), /Delete the downloaded tools\? Your games stay/)
+    assert.ok(!scenario.calls.some(call => call[1] === 'plugin.hermretro.remove_tools'))
+  })
+  await click('Remove', dom.window.document.querySelector('.cs-actions:has(> span)') ?? dom.window.document); await settle()
+  check('confirming removes them through the backend and reports the size', () => {
+    assert.ok(scenario.calls.some(call => call[0] === 'request' && call[1] === 'plugin.hermretro.remove_tools'))
+    assert.match(scenario.notices.at(-1).message, /Downloaded tools removed \(2,400 MB\)\. Your games are untouched/)
+  })
+  delete scenario.byMethod['plugin.hermretro.remove_tools']
+  await click('Continue')
 
   // 6. Something breaks later: the page says so instead of showing prompts.
   scenario.status = notLoaded
@@ -597,7 +612,7 @@ try {
     { id: 'bbb222bbb222', title: 'Robo Run', projectRoot: '/home/u/ChromaticGames/RoboRun', kind: 'gbdk', state: 'failed', rom: null,
       webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' }
   ]
-  scenario.games = answered({ games, gamesDir: '/home/u/plugins/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
+  scenario.games = answered({ games, gamesDir: '/home/u/.hermes/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
   scenario.player = { isPending: true }
   const studio = await mount(page)
   await click('Refresh') // forget the profile route left over from the cases above
@@ -620,6 +635,12 @@ try {
     assert.ok(!dom.window.document.querySelector('.cs-dev'), 'no hardware strip above a full shelf')
     assert.match(cards[2].textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
+  })
+  scenario.revealed = null
+  await click('Open games folder')
+  check('the shelf shows the games folder and opens it', () => {
+    assert.match(dom.window.document.querySelector('.cs-gfolder').textContent, /\/home\/u\/\.hermes\/hermretro\/games/)
+    assert.equal(scenario.revealed, '/home/u/.hermes/hermretro/games')
   })
   const openGameMenu = async card => {
     await act(async () => { card.querySelector('.cs-split .caret').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
@@ -708,7 +729,7 @@ try {
   delete scenario.byMethod['plugin.hermretro.player']
   scenario.player = { isPending: true }
   await tab('Games')
-  scenario.games = answered({ games, gamesDir: '/home/u/plugins/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
+  scenario.games = answered({ games, gamesDir: '/home/u/.hermes/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
   await studio.rerender()
 
   // Prompts: the Reader.
@@ -723,13 +744,13 @@ try {
   })
   const area = () => dom.window.document.querySelector('.cs-rdetail textarea')
   check('{folder}/{name} become inputs; the folder defaults to the plugin games folder', () => {
-    assert.equal(dom.window.document.getElementById('cs-f-folder').value, '/home/u/plugins/hermretro/games')
+    assert.equal(dom.window.document.getElementById('cs-f-folder').value, '/home/u/.hermes/hermretro/games')
     assert.equal(dom.window.document.getElementById('cs-f-name').value, 'MoonGarden')
-    assert.match(area().value, /new GB Studio project at \/home\/u\/plugins\/hermretro\/games\/MoonGarden\. Make a small exploration game/)
+    assert.match(area().value, /new GB Studio project at \/home\/u\/\.hermes\/hermretro\/games\/MoonGarden\. Make a small exploration game/)
   })
   await typeInto(dom.window.document.getElementById('cs-f-name'), 'StarFarm')
   check('editing the name rewrites the prompt', () => {
-    assert.match(area().value, /\/home\/u\/plugins\/hermretro\/games\/StarFarm\./)
+    assert.match(area().value, /\/home\/u\/\.hermes\/hermretro\/games\/StarFarm\./)
   })
   await typeInto(area(), 'My own words')
   check('the prompt text is editable and can be reset', () => { assert.equal(area().value, 'My own words'); assert.ok(button('Reset text')) })

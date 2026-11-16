@@ -57,4 +57,6 @@ button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-te
 .cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
 .cs-empty > .cs-col { gap: 16px; }
 .cs-empty > .cs-art { max-width: 340px; }
+.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
+.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `
