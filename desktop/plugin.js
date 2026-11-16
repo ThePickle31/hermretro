@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 66b03ab6e5a1e133335c64e4f8d428977beabcfb93ad3a0b49ad862a065c9139
- * body: sha256 72b2c6928534f247ff36a16e3de86af5c6bf26c18519f58ab058015a36b7f321
+ * sources: sha256 d2aa888efb4f93c85ef3b87f3f3fabc0cf8c9c9aebc288d7b92ec20090b1eb4b
+ * body: sha256 b2f251c7863f7b2ea6b186e44f6781193228f93506d5e8ba9b3a40f989be7b43
  */
 // desktop-src/sdk.js
 import {
@@ -10240,7 +10240,7 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
       }) : null,
       platform && platform.qualified === false ? jsx(Small, {
         tone: "warn",
-        children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
+        children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : platform.node_arch && platform.machine && platform.node_arch !== platform.machine ? `The Node.js hermretro found is built for ${platform.node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine === "arm64" ? "Apple Silicon" : platform.machine} version of Node.js (for example with Homebrew in /opt/homebrew).` : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
       }) : null,
       (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
       step.state === "done" || step.state === "error" ? jsx("div", {
@@ -12161,6 +12161,18 @@ function StudioPage({ ctx }) {
           {
             className: flush ? "cs-pad flush" : running && page === "build" && !onboardScreen ? "cs-pad build" : "cs-pad",
             children: [
+              running && status.data?.restart_needed ? jsxs(
+                "div",
+                {
+                  className: "cs-repair",
+                  role: "status",
+                  children: [
+                    jsx(Codicon, { name: "refresh", size: 14 }),
+                    jsx("span", { children: "hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart)." })
+                  ]
+                },
+                "restart"
+              ) : null,
               broken ? jsxs(
                 "div",
                 {

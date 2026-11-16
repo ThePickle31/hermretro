@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import paths
+from . import host_os, paths
 
 
 class BrokerUnavailable(RuntimeError):
@@ -112,7 +112,8 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     """Start a broker detached from the caller. It runs from the plugin root with a minimal environment."""
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL", "XDG_DATA_HOME", "XDG_RUNTIME_DIR",
                                             "XDG_STATE_HOME", "TMPDIR", "USER", "LOGNAME", "DISPLAY",
-                                            "WAYLAND_DISPLAY", "GB_STUDIO_SETUP_ROOT") if key in os.environ}
+                                            "WAYLAND_DISPLAY", "GB_STUDIO_SETUP_ROOT", *host_os.NETWORK_ENV)
+           if key in os.environ}
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
     env["HERMRETRO_HOME"] = str(paths.hermretro_home())  # absolute; the broker cannot ask Hermes itself
     command = [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node]

@@ -16,6 +16,11 @@ from functools import cache
 LINUX = sys.platform.startswith("linux")
 MACOS = sys.platform == "darwin"
 
+# Network settings a child process needs to download through a proxy or a company certificate authority (setup
+# downloads about 700 MB through Node). Passed on to the broker, the engine and setup scripts, both spellings.
+NETWORK_ENV = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy", "ALL_PROXY",
+               "all_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS")
+
 # macOS <sys/un.h>: SOL_LOCAL, LOCAL_PEERCRED (struct xucred), LOCAL_PEERPID (pid_t). Python names none of them.
 _SOL_LOCAL = 0
 _LOCAL_PEERCRED = 0x001

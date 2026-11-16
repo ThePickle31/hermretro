@@ -166,8 +166,9 @@ def find_node() -> dict:
     home = Path.home()
     # The Node.js Hermes installs for itself (~/.hermes/tools/node-<version>-<platform>/bin/node).
     candidates.extend(str(p) for p in sorted((home / ".hermes" / "tools").glob("node-*/bin/node"), reverse=True))
-    candidates.extend(str(p) for p in (home / ".local/bin/node", Path("/usr/local/bin/node"), Path("/usr/bin/node"),
-                                       Path("/opt/homebrew/bin/node")))
+    # Apple Silicon Homebrew before /usr/local, where an Intel (Rosetta) Homebrew keeps its Node on the same Mac.
+    candidates.extend(str(p) for p in (home / ".local/bin/node", Path("/opt/homebrew/bin/node"),
+                                       Path("/usr/local/bin/node"), Path("/usr/bin/node")))
     candidates.extend(str(p) for p in sorted((home / ".nvm/versions/node").glob("*/bin/node"), reverse=True))
     best: dict | None = None
     seen: set[str] = set()
