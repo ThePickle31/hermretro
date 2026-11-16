@@ -56,8 +56,10 @@ the gateway (`desktop-src/build-chat/`), never in another profile (`core/routing
 
 ## Where state lives
 
-All per-user state is in `~/.hermes/hermretro/` (see the README), shared by every profile and left alone by
-plugin updates and removal. Per-profile state (saved frames, asset versions) is in that profile's
+All of hermretro's own per-user state is in `~/.hermes/hermretro/` (see the README), shared by every profile and
+left alone by plugin updates and removal. The engine adds two folders of its own once a Chromatic is used:
+`~/.codex-gb-studio/chromatic/` (device-operation journal) and `~/.modretro-chromatic-runtime/` (the unpacked
+device CLI). Per-profile state (saved frames, asset versions) is in that profile's
 `plugin-data/hermretro/`. Nothing is written into the plugin folder.
 
 ## What runs where

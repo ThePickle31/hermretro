@@ -82,7 +82,9 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
             tone: 'warn',
             children: platform.rosetta
               ? 'Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes.'
-              : `${platform.system ?? 'This system'} ${platform.machine ?? ''} has not been tested yet; some steps may not work.`
+              : platform.node_arch && platform.machine && platform.node_arch !== platform.machine
+                ? `The Node.js hermretro found is built for ${platform.node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine === 'arm64' ? 'Apple Silicon' : platform.machine} version of Node.js (for example with Homebrew in /opt/homebrew).`
+                : `${platform.system ?? 'This system'} ${platform.machine ?? ''} has not been tested yet; some steps may not work.`
           })
         : null,
       (step.state === 'todo' || step.state === 'blocked') && install

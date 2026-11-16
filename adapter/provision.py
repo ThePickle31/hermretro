@@ -28,6 +28,7 @@ import tempfile
 import time
 import urllib.request
 from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 
 from . import host_os, paths
@@ -81,7 +82,16 @@ def _node_platform() -> tuple[str, str] | None:
     if not node.get("path"):
         return None
     try:
-        out = subprocess.run([node["path"], "-p", "process.platform + ' ' + process.arch"], capture_output=True,
+        return _platform_of(node["path"], os.stat(node["path"]).st_mtime_ns)
+    except OSError:
+        return None
+
+
+@lru_cache(maxsize=8)
+def _platform_of(node: str, _stamp: int) -> tuple[str, str] | None:
+    """Asked once per Node executable (and again if it is replaced): the page polls status every few seconds."""
+    try:
+        out = subprocess.run([node, "-p", "process.platform + ' ' + process.arch"], capture_output=True,
                              text=True, timeout=10).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return None
@@ -197,7 +207,7 @@ def _node(script: str, *args: str, cwd: Path) -> dict:
     node = paths.find_node()
     if not node["ok"]:
         raise ProvisionError("NODE_REQUIRED", f"Node.js {node['required']} or newer is required.")
-    env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "USER", "LOGNAME", "TMPDIR", "SYSTEMROOT")
+    env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "USER", "LOGNAME", "TMPDIR", *host_os.NETWORK_ENV)
            if key in os.environ}
     done = subprocess.run([node["path"], "--input-type=module", "-e", script, *args], cwd=str(cwd), env=env,
                           capture_output=True, text=True, timeout=120)

@@ -16,6 +16,10 @@ on:
         description: Branch or commit to test (empty = the commit that triggered the run)
         type: string
         default: ""
+      restore:
+        description: Start from the cached toolchain (false = a cold install)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -41,20 +45,26 @@ jobs:
         with:
           node-version: "24"
       # The installed toolchain (about 2.4 GB per system), keyed by the engine's setup scripts and the baseline: a
-      # new pin, setup change or engine version installs afresh. Restored everywhere, saved only from dev after a
-      # successful install, so pull requests never crowd the cache. Bump v1 to throw a bad cache away.
+      # new pin, setup change or engine version installs afresh. Saved only from dev and main after an install,
+      # so pull requests never crowd the cache (they restore dev's; main's runs restore main's). Bump v1 to throw a
+      # bad cache away.
+      - name: Toolchain cache key
+        id: key
+        run: echo "key=toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'release/baseline/engine-*.manifest.json', 'adapter/provision.py', 'adapter/onboarding.py') }}" >> "$GITHUB_OUTPUT"
       - id: toolchain
+        if: inputs.restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.hermes/hermretro/.cache/toolchain
-          key: toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'release/baseline/engine-*.manifest.json', 'adapter/provision.py', 'adapter/onboarding.py') }}
+          key: ${{ steps.key.outputs.key }}
       - name: python tools/prepare_toolchain.py
         run: python tools/prepare_toolchain.py
-      - if: github.ref == 'refs/heads/dev' && steps.toolchain.outputs.cache-hit != 'true'
+      - if: (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && steps.toolchain.outputs.cache-hit != 'true'
+        continue-on-error: true  # the key may already exist on this branch (a cold nightly)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.hermes/hermretro/.cache/toolchain
-          key: ${{ steps.toolchain.outputs.cache-primary-key }}
+          key: ${{ steps.key.outputs.key }}
       - name: python tools/check.py acceptance
         run: python tools/check.py acceptance --strict
       - name: Keep the evidence of a failed or cancelled run

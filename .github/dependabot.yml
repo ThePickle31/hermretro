@@ -2,8 +2,19 @@
 # The dev tools in tools/dev are updated by hand: esbuild's version is recorded in the generated page
 # bundle, so it moves only together with Hermes Desktop's. Security-update pull requests for tools/dev may
 # open against main: close them and redo the bump on a branch from dev.
+#
+# The vendored engine (engine/modretro-chromatic) is hash-pinned and changes only in an engine update
+# (docs/dev/ENGINE-UPDATE.md): Dependabot opens no pull requests for it, security ones included (ignore "*"
+# applies to both). Its alerts stay visible; accepted ones are explained in SECURITY.md.
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /engine/modretro-chromatic
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
   - package-ecosystem: github-actions
     directory: /
     target-branch: dev

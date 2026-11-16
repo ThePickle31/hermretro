@@ -258,6 +258,16 @@ try {
   })
   await act(async () => { root.render(null) })
 
+  // After a plugin update the running Hermes still has the old code: the page asks for a restart.
+  scenario.storage = { setup: { onboarded: true } }
+  scenario.status = answered({ ...status(), restart_needed: true }); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: 'idle' })
+  await render()
+  check('after an update the page asks for a Hermes restart', () => {
+    const banners = [...dom.window.document.querySelectorAll('.cs-repair')].map(node => node.textContent).join(' ')
+    assert.match(banners, /hermretro was updated\. Restart Hermes to finish/)
+  })
+  await act(async () => { root.render(null) })
+
   // 2. After onboarding the toolchain breaks: Home says so and Setup repairs it (Node.js is not a step).
   scenario.storage = { setup: { onboarded: true } }
   scenario.status = answered(status()); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
