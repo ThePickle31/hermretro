@@ -34,7 +34,8 @@ from adapter.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E4
 from adapter.engine import EngineProcess  # noqa: E402
 
 RUN = time.strftime("%Y%m%dT%H%M%S")
-WORK = Path(tempfile.mkdtemp(prefix=f"chromatic-acceptance-{RUN}-"))
+# Resolved: on macOS /tmp and /var are links into /private, and the engine reports real paths.
+WORK = Path(tempfile.mkdtemp(prefix=f"chromatic-acceptance-{RUN}-")).resolve()
 STATE = WORK / "state"
 STATE.mkdir(mode=0o700)
 NODE = paths.find_node()["path"]
@@ -77,35 +78,25 @@ def png_info(block: dict) -> dict:
 
 
 def alive(pid: int) -> bool:
+    """Running and not a zombie (`ps` works the same on Linux and macOS)."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
         return True
-    try:
-        return Path(f"/proc/{pid}/stat").read_text().split(") ")[1][0] != "Z"
-    except OSError:
-        return False
+    state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return bool(state) and not state.startswith("Z")
 
 
-def session_processes(sid: int) -> list[dict]:
+def session_processes(leader: int) -> list[dict]:
+    """Processes in the group a worker or the broker leads (each starts in its own session, so its group)."""
+    listing = subprocess.run(["ps", "-A", "-o", "pid=,pgid=,rss=,comm="], capture_output=True, text=True).stdout
     found = []
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            stat = (entry / "stat").read_text()
-            fields = stat.rsplit(") ", 1)[1].split()
-            if int(fields[3]) != sid:
-                continue
-            rss_kb = 0
-            for line in (entry / "status").read_text().splitlines():
-                if line.startswith("VmRSS:"):
-                    rss_kb = int(line.split()[1])
-            found.append({"pid": int(entry.name), "comm": stat.split("(", 1)[1].rsplit(")", 1)[0], "rss_kb": rss_kb})
-        except (OSError, IndexError, ValueError):
-            continue
+    for line in listing.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) == 4 and parts[1] == str(leader):
+            found.append({"pid": int(parts[0]), "comm": Path(parts[3]).name, "rss_kb": int(parts[2])})
     return found
 
 
@@ -518,10 +509,19 @@ def main() -> int:
           and not (STATE / "broker.token").exists())
 
     passed = all(c["passed"] for c in checks)
-    trace = [json.loads(line) for line in (STATE / "trace.jsonl").read_text().splitlines()]
+    evidence_file = write_evidence(passed)
+    print(json.dumps({"passed": passed, "checks": f"{sum(c['passed'] for c in checks)}/{len(checks)}",
+                      "evidence": str(evidence_file)}, indent=2))
+    return 0 if passed else 1
+
+
+def write_evidence(passed: bool, crashed: str | None = None) -> Path:
+    trace_file = STATE / "trace.jsonl"
+    trace = [json.loads(line) for line in trace_file.read_text().splitlines()] if trace_file.exists() else []
     evidence = {
         "suite": "broker acceptance (real engine, outside Hermes)", "run": RUN,
         "passed": passed, "checks_passed": sum(c["passed"] for c in checks), "checks_total": len(checks),
+        "crashed": crashed,
         "adapter": {"version": paths.PLUGIN_VERSION, "protocol": paths.PROTOCOL,
                     "code_fingerprint": paths.code_fingerprint()},
         "engine": paths.verify_engine(),
@@ -530,17 +530,28 @@ def main() -> int:
         "not_covered": ["Anything that needs Hermes itself", "Browser player and annotations",
                         "Long-operation recovery", "Any hardware operation beyond a no-USB status read"],
         "checks": checks, "observations": observations, "trace_events": len(trace),
+        "trace_tail": trace[-40:] if not passed else [],
     }
     out = REPO / "notes" / "evidence"   # git-ignored: run evidence stays local
     out.mkdir(parents=True, exist_ok=True)
     # Keep the home directory (and so the user name) out of it, in case it is shared.
     (out / "broker-acceptance.json").write_text(
-        json.dumps(evidence, indent=2).replace(str(Path.home()), "~") + "\n")
-    shutil.rmtree(WORK, ignore_errors=True)
-    print(json.dumps({"passed": passed, "checks": f"{evidence['checks_passed']}/{len(checks)}",
-                      "evidence": str(out / "broker-acceptance.json")}, indent=2))
-    return 0 if passed else 1
+        json.dumps(evidence, indent=2, default=str).replace(str(Path.home()), "~") + "\n")
+    return out / "broker-acceptance.json"
+
+
+def run() -> int:
+    try:
+        return main()
+    except Exception:  # noqa: BLE001 - keep what happened for the evidence file, then fail
+        import traceback
+        crashed = traceback.format_exc()
+        print(crashed, file=sys.stderr, flush=True)
+        write_evidence(False, crashed)
+        return 1
+    finally:
+        shutil.rmtree(WORK, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run())

@@ -153,7 +153,13 @@ def check_acceptance(args) -> str:
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
     if result.returncode or failed:
-        raise AssertionError("\n".join(failed) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
+        details = []
+        evidence = ROOT / "notes" / "evidence" / "broker-acceptance.json"
+        if evidence.is_file():
+            for item in json.loads(evidence.read_text()).get("checks", []):
+                if not item.get("passed"):
+                    details.append(f"{item['id']}: {json.dumps(item.get('detail'), default=str)[:600]}")
+        raise AssertionError("\n".join(failed + details) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
                              "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and read its output")
     return f"{passed} passed"
 
