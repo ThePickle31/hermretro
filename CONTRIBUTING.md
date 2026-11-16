@@ -40,4 +40,4 @@ The agent guide (`AGENTS.md`) lists them; in short:
 ## More
 
 `docs/dev/ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC
-shapes), `STUDIO-PAGES.md` (the page). Security problems: see `SECURITY.md`, never a public issue.
+shapes), `STUDIO-PAGES.md` (the page). Security problems: see `SECURITY.md`, never a public issue. Everyone here follows `CODE_OF_CONDUCT.md`.
