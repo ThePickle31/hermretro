@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in hermretro does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open the hermretro page\n2. ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Linux x64
+        - Linux arm64
+        - macOS Apple Silicon
+        - macOS Intel
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: hermretro version (Capabilities > Plugins) and Hermes version (`hermes --version`).
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        If the broker is involved, the last lines of ~/.hermes/hermretro/run/trace.jsonl and
+        broker.stderr.log. Remove anything private first.
+      render: text

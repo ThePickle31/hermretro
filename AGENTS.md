@@ -22,7 +22,8 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `schemas/`, `release/` | Pinned engine tool contracts and the engine's file manifest |
 | `tests/` | Python unit tests, `tests/desktop/` page tests, `tests/acceptance/` real-engine run |
 | `tools/` | `check.py` (all checks), `bundle.mjs` (page build), `dev/` (pinned npm tools for development only) |
-| `docs/dev/` | `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame) |
+| `docs/dev/` | `ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md` |
+| `CONTRIBUTING.md`, `SECURITY.md` | For people opening pull requests or reporting problems |
 
 ## Checks
 
