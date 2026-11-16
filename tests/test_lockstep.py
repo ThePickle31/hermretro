@@ -108,6 +108,14 @@ class LockStep(unittest.TestCase):
             used |= set(re.findall(r"chromatic_[a-z_]+", path.read_text(encoding="utf-8")))
         self.assertEqual(used - self.tools, set())
 
+    def test_every_environment_variable_the_adapter_reads_is_documented(self):
+        read_in_code = set()
+        for source in [*(ROOT / "adapter").rglob("*.py"), ROOT / "__init__.py"]:
+            read_in_code |= set(re.findall(r"\b(HERMRETRO_[A-Z_]+)\b", source.read_text(encoding="utf-8")))
+        table = set(re.findall(r"^\| `(HERMRETRO_[A-Z_]+)` \|", read("docs/dev/DEBUGGING.md"), re.M))
+        self.assertEqual(read_in_code - table, set(), "HERMRETRO_* variables missing from DEBUGGING.md's table")
+        self.assertEqual(table - read_in_code, set(), "DEBUGGING.md documents variables nothing reads")
+
     def test_the_engine_version_agrees_everywhere(self):
         version = paths.ENGINE_VERSION
         self.assertEqual(json.loads(read("engine/modretro-chromatic/package.json"))["version"], version)

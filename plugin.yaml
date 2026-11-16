@@ -4,6 +4,7 @@ manifest_version: 2
 description: Plan, build, playtest and ship Game Boy Color games for the ModRetro Chromatic
 author: hermretro contributors
 license: MIT
+homepage: https://github.com/ThePickle31/hermretro
 tags: [game-development, gameboy, gb-studio, modretro, chromatic, desktop]
 requires_hermes: ">=0.23.1"
 external_dependencies:
