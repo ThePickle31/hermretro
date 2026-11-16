@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -60,7 +61,8 @@ def check_unit(_args) -> str:
     with tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home:
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")}
-        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests"], env={**env, "HOME": home})
+        slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
+        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests", *slowest], env={**env, "HOME": home})
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
@@ -69,8 +71,12 @@ def check_unit(_args) -> str:
         raise AssertionError("the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
                              "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
                              "variables)")
-    ran = [line for line in result.stderr.splitlines() if line.startswith("Ran ")]
-    return ran[-1] if ran else "ok"
+    lines = result.stderr.splitlines()
+    ran = [line for line in lines if line.startswith("Ran ")]
+    # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
+    timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
+    slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
+    return (ran[-1] if ran else "ok") + slow
 
 
 def check_bundle(args) -> str:
@@ -198,8 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         parser.error("unknown check: " + ", ".join(unknown))
 
-    rows, failed = [], False
-    for name in dict.fromkeys(wanted):
+    def one(name: str) -> tuple[str, str, float, str]:
         start = time.monotonic()
         try:
             state, detail = "ok", CHECKS[name](args)
@@ -209,14 +214,29 @@ def main(argv: list[str] | None = None) -> int:
                 detail += "\nFIX: install what is missing (see AGENTS.md, \"Checks\")"
         except AssertionError as error:
             state, detail = "FAILED", str(error)
-        seconds = time.monotonic() - start
-        failed |= state == "FAILED"
-        rows.append((name, state, seconds, detail))
+        return name, state, time.monotonic() - start, detail
+
+    def show(row: tuple[str, str, float, str]) -> None:
+        name, state, seconds, detail = row
         print(f"{state:>7}  {name:<10} {seconds:5.1f} s  {detail.splitlines()[0] if detail else ''}", flush=True)
         if state == "FAILED" and "\n" in detail:
             print("\n".join("         " + line for line in detail.splitlines()[1:]), flush=True)
+
+    # The fast checks are independent (each in its own processes and temp folders): run them together and
+    # report each as it finishes. The real-engine run is heavy and goes alone, afterwards.
+    ordered = list(dict.fromkeys(wanted))
+    together = [name for name in ordered if name != "acceptance"]
+    rows = []
+    with ThreadPoolExecutor(max_workers=max(1, len(together))) as pool:
+        for future in as_completed([pool.submit(one, name) for name in together]):
+            rows.append(future.result())
+            show(rows[-1])
+    if "acceptance" in ordered:
+        rows.append(one("acceptance"))
+        show(rows[-1])
+    rows.sort(key=lambda row: ordered.index(row[0]))
     summary(rows)
-    return 1 if failed else 0
+    return 1 if any(row[1] == "FAILED" for row in rows) else 0
 
 
 if __name__ == "__main__":
