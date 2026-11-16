@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapter import client, paths  # noqa: E402
 
 LIMIT_SECONDS = 1200
+STALL_SECONDS = 300
 
 
 def main() -> int:
@@ -30,6 +31,7 @@ def main() -> int:
             return 1
         began = time.monotonic()
         last = None
+        progress, moved = None, time.monotonic()
         while True:
             status = broker.request({"op": "install_status"})
             install = status.get("install") or {}
@@ -40,6 +42,12 @@ def main() -> int:
                 last = line
             if state in ("done", "failed"):
                 break
+            now = (install.get("fraction"), install.get("downloaded_bytes"), install.get("current"))
+            if now != progress:
+                progress, moved = now, time.monotonic()
+            elif time.monotonic() - moved > STALL_SECONDS:
+                print(f"install made no progress for {STALL_SECONDS} s: " + json.dumps(install)[:1500], file=sys.stderr)
+                return 1
             if time.monotonic() - began > LIMIT_SECONDS:
                 print("install did not finish in time", file=sys.stderr)
                 return 1

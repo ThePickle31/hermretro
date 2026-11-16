@@ -1,8 +1,8 @@
 # Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
 # verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
 # and Intel macOS. A failure here opens nothing by itself: read the run, then fix it in a pull request.
-# GitHub runs scheduled workflows only from the default branch (main): changes here take effect at the next
-# release. Run it by hand on any branch with `gh workflow run nightly.yml --ref <branch>` once it is on main.
+# GitHub runs scheduled workflows only from the default branch (main): changes to this file take effect at the
+# next release. The jobs check out and test dev, where new work lands. Run it by hand on any branch with `gh workflow run nightly.yml --ref <branch>` once it is on main.
 
 name: Nightly
 
@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: dev
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -48,4 +49,5 @@ jobs:
     name: Integration
     uses: ./.github/workflows/integration.yml
     with:
+      ref: dev
       systems: '["ubuntu-latest", "macos-latest", "macos-15-intel"]'

@@ -150,7 +150,11 @@ def check_acceptance(args) -> str:
                    "or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
-    result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
+    try:
+        result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
+    except subprocess.TimeoutExpired:
+        raise AssertionError("the acceptance suite did not finish in 20 minutes\nFIX: rerun python "
+                             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops")
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
     if result.returncode or failed:

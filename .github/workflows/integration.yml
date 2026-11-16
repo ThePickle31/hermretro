@@ -12,6 +12,10 @@ on:
         description: JSON list of runner labels
         type: string
         default: '["ubuntu-latest", "macos-latest"]'
+      ref:
+        description: Branch or commit to test (empty = the commit that triggered the run)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -20,7 +24,7 @@ jobs:
   acceptance:
     name: Broker acceptance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -29,24 +33,32 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-      # The installed toolchain (about 2.4 GB), keyed by the engine's pinned dependency catalog: a new pin or
-      # engine version installs afresh. Saved only after a successful run. Bump v1 to throw a bad cache away.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The installed toolchain (about 2.4 GB per system), keyed by the engine's setup scripts and the baseline: a
+      # new pin, setup change or engine version installs afresh. Restored everywhere, saved only from dev after a
+      # successful install, so pull requests never crowd the cache. Bump v1 to throw a bad cache away.
+      - id: toolchain
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.hermes/hermretro/.cache/toolchain
-          key: toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/dependency-catalog.mjs', 'release/baseline/engine-*.manifest.json') }}
+          key: toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'release/baseline/engine-*.manifest.json', 'adapter/provision.py', 'adapter/onboarding.py') }}
       - name: python tools/prepare_toolchain.py
         run: python tools/prepare_toolchain.py
+      - if: github.ref == 'refs/heads/dev' && steps.toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.hermes/hermretro/.cache/toolchain
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
       - name: python tools/check.py acceptance
         run: python tools/check.py acceptance --strict
-      - name: Keep the evidence of a failed run
-        if: failure()
+      - name: Keep the evidence of a failed or cancelled run
+        if: ${{ !success() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: acceptance-${{ matrix.os }}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -55,10 +56,13 @@ def main(argv: list[str] | None = None) -> int:
             run(home, "plugins", "install", source, "--enable", "--yes-deps")
         in_studio = run(studio, "tools", "list")
         in_default = run(root, "tools", "list")
+        def lists_chromatic(listing: str) -> bool:  # a toolset row, not a mention in some message
+            return any(re.match(r"^\W*(enabled|disabled)?\W*chromatic\b", line.strip()) for line in listing.splitlines())
+
         problems = []
-        if "chromatic" not in in_studio:
+        if not lists_chromatic(in_studio):
             problems.append("the hermretro profile does not list the chromatic toolset")
-        if "chromatic" in in_default:
+        if lists_chromatic(in_default):
             problems.append("the default profile lists the chromatic toolset (it must exist only in hermretro)")
         if problems:
             print("\n".join(problems) + "\nFIX: check __init__.register and studio_profile.is_studio", file=sys.stderr)
