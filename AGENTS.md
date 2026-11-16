@@ -30,14 +30,16 @@ One-time setup for page work: `npm ci --prefix tools/dev --ignore-scripts` (need
 
 ```sh
 python tools/check.py            # fast: unit, bundle, page, scan (about 25 s)
-python tools/check.py full       # plus the real-engine acceptance run (needs the toolchain from setup)
+python tools/check.py full       # plus the real-engine acceptance run (python tools/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 node tools/bundle.mjs            # rebuild the generated page files after editing desktop-src/
 node tools/bundle.mjs --watch    # rebuild on every save
 ```
 
-CI runs the same checks. Every failure ends with a `FIX:` line naming the exact command or change. Read
-CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
+CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/clean_install_check.py`)
+and, when a change touches `adapter/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
+nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
+naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 
 ## Rules that protect users
 

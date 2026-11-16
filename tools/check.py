@@ -146,14 +146,25 @@ def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from adapter import paths  # noqa: E402  (the adapter decides where setup put the toolchain)
     if not paths.setup_root().is_dir():
-        raise Skip(f"no toolchain at {paths.setup_root()}; run setup (the hermretro page or "
-                   "chromatic_toolchain_prepare), or point HERMRETRO_DEPS_ROOT at a folder that has one")
+        raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/prepare_toolchain.py (about a minute), "
+                   "or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
-    result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
+    (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
+    try:
+        result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
+    except subprocess.TimeoutExpired:
+        raise AssertionError("the acceptance suite did not finish in 20 minutes\nFIX: rerun python "
+                             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops")
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
     if result.returncode or failed:
-        raise AssertionError("\n".join(failed) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
+        details = []
+        evidence = ROOT / "notes" / "evidence" / "broker-acceptance.json"
+        if evidence.is_file():
+            for item in json.loads(evidence.read_text()).get("checks", []):
+                if not item.get("passed"):
+                    details.append(f"{item['id']}: {json.dumps(item.get('detail'), default=str)[:600]}")
+        raise AssertionError("\n".join(failed + details) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
                              "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and read its output")
     return f"{passed} passed"
 
