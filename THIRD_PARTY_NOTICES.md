@@ -33,6 +33,9 @@ binaries, capturing a real Chromatic's video on Linux reports itself unavailable
 - hermretro's skills (`skills/`) are adapted from the engine's skills and documentation (MIT, Copyright (c)
   2026 Eric Provencher), edited for Hermes.
 
+Its Node dependencies are installed from the engine's pinned lock file. Known advisories in them, and why each is
+accepted until an engine update, are listed in `SECURITY.md`.
+
 ## ModRetro Chromatic CLI 1.2.1 (proprietary, not bundled)
 
 hermretro does not contain ModRetro's closed-source Chromatic CLI executables, its streaming FPGA image or its

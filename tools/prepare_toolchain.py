@@ -9,6 +9,7 @@ installed. Touches no hardware. Exits non-zero, with the reason, when the instal
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -18,7 +19,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapter import client, paths  # noqa: E402
 
 LIMIT_SECONDS = 1200
-STALL_SECONDS = 300
+STALL_SECONDS = 420   # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)
+
+
+def folder_bytes(folder: Path) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(folder):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
 
 
 def main() -> int:
@@ -42,7 +54,8 @@ def main() -> int:
                 last = line
             if state in ("done", "failed"):
                 break
-            now = (install.get("fraction"), install.get("downloaded_bytes"), install.get("current"))
+            now = (install.get("fraction"), install.get("downloaded_bytes"), install.get("current"),
+                   folder_bytes(paths.setup_root()) // 1_000_000)
             if now != progress:
                 progress, moved = now, time.monotonic()
             elif time.monotonic() - moved > STALL_SECONDS:

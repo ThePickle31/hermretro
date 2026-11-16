@@ -1,8 +1,9 @@
 # Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
 # verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
-# and Intel macOS. A failure here opens nothing by itself: read the run, then fix it in a pull request.
-# GitHub runs scheduled workflows only from the default branch (main): changes to this file take effect at the
-# next release. The jobs check out and test dev, where new work lands. Run it by hand on any branch with `gh workflow run nightly.yml --ref <branch>` once it is on main.
+# and Intel macOS. A failed scheduled night opens (or comments on) the issue "Nightly failed", labelled ci.
+# GitHub runs scheduled workflows only from the default branch (main); the jobs check out and test dev, where new
+# work lands. A pull request that changes this file, integration.yml or the Hermes action runs it on its own
+# commit (not a required check: read it with gh pr checks).
 
 name: Nightly
 
@@ -10,12 +11,18 @@ on:
   schedule:
     - cron: "17 10 * * *"
   workflow_dispatch:
+  pull_request:
+    branches: [dev]
+    paths:
+      - .github/workflows/nightly.yml
+      - .github/workflows/integration.yml
+      - .github/actions/**
 
 permissions:
   contents: read
 
 concurrency:
-  group: nightly
+  group: nightly-${{ github.event.pull_request.number || 'scheduled' }}
   cancel-in-progress: true
 
 jobs:
@@ -31,7 +38,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: dev
+          ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -40,6 +47,15 @@ jobs:
           ref: main
       - name: hermes plugins validate
         run: '"$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate .'
+      - name: hermes plugins validate (the agent side, as in the hermretro profile)
+        env:
+          HERMRETRO_EVERY_PROFILE: "1"
+        run: |
+          "$HERMES_RUNTIME_PY" -I -m hermes_cli.main plugins validate . 2>&1 | tee "$RUNNER_TEMP/validate.log"
+          if grep -qE "register\(\) did not|declared (tools|hooks) .*(undeclared|not)" "$RUNNER_TEMP/validate.log"; then
+            echo "FIX: plugin.yaml provides_tools / provides_hooks must match what __init__.register adds"
+            exit 1
+          fi
       - name: python tools/hermes_api_check.py
         run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
       - name: python tools/check.py scan (newest scanner)
@@ -51,5 +67,30 @@ jobs:
     name: Integration
     uses: ./.github/workflows/integration.yml
     with:
-      ref: dev
+      ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
       systems: '["ubuntu-latest", "macos-latest", "macos-15-intel"]'
+      # A deliberate cold install: proves the pinned downloads still exist. Its result seeds main's cache.
+      restore: false
+
+  report:
+    name: Report a failed night
+    needs: [latest-hermes, integration]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the "Nightly failed" issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number=$(gh issue list --label ci --state open --search 'in:title "Nightly failed"' --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "Nightly failed" --label ci --body "The nightly run failed: $RUN_URL
+          Read it with gh run view --log-failed, fix it in a pull request into dev, then close this issue."
+          fi
