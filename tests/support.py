@@ -1,10 +1,12 @@
-"""Shared test helpers. Tests must never touch the developer's real Hermes home: patch Hermes storage with
-``throwaway_profile`` and point ``HERMRETRO_LIBRARY_DIR`` and ``HERMRETRO_RUNTIME_DIR`` at a temp folder in any
-test that reaches the library or the broker's runtime folder."""
+"""Shared test helpers. Tests must never touch the developer's real Hermes home or hermretro's folder in it:
+patch Hermes storage with ``throwaway_profile``, downloads with ``throwaway_deps``, and point
+``HERMRETRO_HOME`` (or ``HERMRETRO_LIBRARY_DIR`` / ``HERMRETRO_RUNTIME_DIR`` / ``HERMRETRO_GAMES_DIR``) at a temp
+folder. ``python tools/check.py unit`` fails when the suite writes anything into the home folder."""
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest import mock
 
-from adapter import hermes_host
+from adapter import hermes_host, paths
 
 
 def throwaway_profile(base: Path):
@@ -15,3 +17,17 @@ def throwaway_profile(base: Path):
     or use it as a context manager); Hermes itself does not need to be importable."""
     data = Path(base) / "profile" / "plugin-data" / "hermretro"
     return mock.patch.object(hermes_host, "_data_dir", lambda: data)
+
+
+@contextmanager
+def throwaway_deps(base: Path):
+    """Point every downloaded-dependency location (toolchain, prepared engine, device CLI receipt, the
+    install lock) inside ``base`` for the duration, instead of the real hermretro home."""
+    cache = Path(base) / ".cache"
+    with ExitStack() as stack:
+        stack.enter_context(mock.patch.object(paths, "DEPS_ROOT", cache))
+        stack.enter_context(mock.patch.object(paths, "PREPARED_ENGINE", cache / f"engine-{paths.ENGINE_VERSION}"))
+        stack.enter_context(mock.patch.object(paths, "DEVICE_CLI_RECEIPT",
+                                              cache / f"device-cli-{paths.ENGINE_VERSION}.json"))
+        stack.enter_context(mock.patch.object(paths, "setup_root", lambda: cache / "toolchain"))
+        yield cache

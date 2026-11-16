@@ -1,4 +1,4 @@
-"""Locations and environment discovery. Stdlib only; no Hermes imports."""
+"""Locations and environment discovery. Stdlib only; Hermes is consulted only if it can be imported."""
 from __future__ import annotations
 
 import hashlib
@@ -12,8 +12,6 @@ from functools import lru_cache
 from pathlib import Path
 
 PLUGIN_ID = "hermretro"
-# Runtime and library folders keep the plugin's original name, so a rename moves no user data.
-STATE_ID = "chromatic-studio"
 PLUGIN_VERSION = "0.0.4"
 ENGINE_VERSION = "1.0.34"
 NODE_REQUIRED_MAJOR = 22
@@ -24,10 +22,42 @@ ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
 PINNED_TOOLS = PLUGIN_ROOT / "schemas" / "upstream" / ENGINE_VERSION / "tools.json"
 ENGINE_MANIFEST = PLUGIN_ROOT / "release" / "baseline" / f"engine-{ENGINE_VERSION}.manifest.json"
 
-# Everything fetched per user lives inside the plugin folder, so removing the plugin removes it all.
-DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or PLUGIN_ROOT / "deps").resolve()
-PREPARED_ENGINE = DEPS_ROOT / "engine"           # bundled engine + ModRetro's CLI for this computer
-DEVICE_CLI_RECEIPT = DEPS_ROOT / "device-cli.json"
+# Unix socket paths are capped at 104 bytes on macOS (108 on Linux); stay clear of both.
+SOCKET_PATH_LIMIT = 100
+
+
+def _hermes_root() -> Path:
+    """The Hermes home that holds every profile (``~/.hermes`` by default), even when this process runs
+    in a profile. Asks Hermes when it can be imported. The fallback (tests, CI, tools run outside Hermes)
+    covers the plain cases only; the broker never relies on it, because the client hands it
+    ``HERMRETRO_HOME``."""
+    try:
+        from hermes_constants import get_default_hermes_root  # type: ignore[import-not-found]
+        return Path(get_default_hermes_root())
+    except Exception:  # noqa: BLE001  (no Hermes here: tests, CI, the broker's own process)
+        pass
+    configured = os.environ.get("HERMES_HOME", "").strip()
+    if not configured:
+        return Path.home() / ".hermes"
+    home = Path(configured).expanduser()
+    return home.parents[1] if home.parent.name == "profiles" else home
+
+
+def hermretro_home() -> Path:
+    """The one folder holding everything hermretro keeps per user, shared by every profile:
+    ``<Hermes home>/hermretro`` with ``games/``, ``library/``, ``.cache/`` (toolchain and prepared engine,
+    re-downloadable) and ``run/`` (the broker). Removing or updating the plugin leaves it in place.
+    ``HERMRETRO_HOME`` overrides it; the client passes it on to the broker, whose environment is minimal."""
+    override = os.environ.get("HERMRETRO_HOME", "").strip()
+    # Absolute, so the gateway and the broker (which runs from the plugin folder) agree on a relative value.
+    return Path(override).expanduser().absolute() if override else _hermes_root() / PLUGIN_ID
+
+
+# Downloaded per user, under the hermretro home, so plugin updates and removal never touch it.
+DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".cache").resolve()
+# Named by engine version: two plugin copies (an installed one and a dev checkout) share this folder.
+PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_VERSION}"   # bundled engine + ModRetro's CLI for this computer
+DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_VERSION}.json"
 # ModRetro's proprietary CLI, packed for all platforms. A distributable build of the plugin leaves
 # these two out; setup then fetches the CLI for one platform from ModRetro (see provision.py).
 VENDOR_ARCHIVES = ("third-party/chromatic-cli/executables-v2.br", "third-party/chromatic-cli/notices.br")
@@ -38,33 +68,35 @@ CAPTURE_FFMPEG = ("native/capture/linux/x64/ffmpeg", "native/capture/linux/arm64
 
 
 def default_runtime_dir() -> Path:
-    """Where ``runtime_dir`` lives, without creating it."""
+    """Where ``runtime_dir`` lives, without creating it: ``<hermretro home>/run``. When that would make the
+    socket path too long for the system (a deep home folder), a short per-user folder under ``/tmp``.
+    Never ``TMPDIR``: processes see different values of it and would elect two brokers."""
     override = os.environ.get("HERMRETRO_RUNTIME_DIR")
     if override:
         return Path(override)
-    xdg = os.environ.get("XDG_RUNTIME_DIR")
-    if xdg and Path(xdg).is_dir():
-        return Path(xdg) / STATE_ID
-    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    return Path(state) / STATE_ID / "run"
+    folder = hermretro_home() / "run"
+    if len(os.fsencode(folder / "broker.sock")) <= SOCKET_PATH_LIMIT:
+        return folder
+    return Path("/tmp") / f"hermretro-{os.getuid()}"
 
 
 def runtime_dir() -> Path:
-    """User-only directory for the broker socket, token, lock and trace."""
+    """User-only directory for the broker socket, token, lock and trace. Refuses a folder that is a link
+    or belongs to another user (the short fallback lives in the shared ``/tmp``)."""
     base = default_runtime_dir()
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = base.lstat()
+    if stat.S_ISLNK(info.st_mode) or info.st_uid != os.getuid():
+        raise PermissionError(f"{base} is a link or belongs to another user (uid {info.st_uid}), so hermretro "
+                              "will not use it; set HERMRETRO_RUNTIME_DIR to a private folder of your own")
     os.chmod(base, 0o700)
     return base
 
 
 def library_dir() -> Path:
-    """The game library (``games.json``, ``thumbs/``). Unlike the runtime directory, which is
-    usually a tmpfs cleared at every boot, this survives restarts."""
+    """The game library (``games.json``, ``thumbs/``): ``<hermretro home>/library``."""
     override = os.environ.get("HERMRETRO_LIBRARY_DIR")
-    if override:
-        return Path(override)
-    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    return Path(state) / STATE_ID
+    return Path(override) if override else hermretro_home() / "library"
 
 
 def library_dir_for(state_dir: Path) -> Path:
@@ -78,17 +110,17 @@ def library_dir_for(state_dir: Path) -> Path:
 
 
 def games_dir(create: bool = False) -> Path:
-    """Where new games are made: ``<plugin>/games`` (git-ignored). ``HERMRETRO_GAMES_DIR``
-    overrides it. Created on demand, because the engine only creates a project under an existing parent."""
+    """Where new games are made: ``<hermretro home>/games``. ``HERMRETRO_GAMES_DIR`` overrides it.
+    Created on demand, because the engine only creates a project under an existing parent."""
     override = os.environ.get("HERMRETRO_GAMES_DIR")
-    folder = Path(override).expanduser() if override else PLUGIN_ROOT / "games"
+    folder = Path(override).expanduser() if override else hermretro_home() / "games"
     if create:
         folder.mkdir(parents=True, exist_ok=True)
     return folder
 
 
 def setup_root() -> Path:
-    """Where the engine's own setup keeps compilers and emulators: ``<plugin>/deps/toolchain``."""
+    """Where the engine's own setup keeps compilers and emulators: ``<hermretro home>/.cache/toolchain``."""
     override = os.environ.get("GB_STUDIO_SETUP_ROOT")
     return Path(override) if override else DEPS_ROOT / "toolchain"
 

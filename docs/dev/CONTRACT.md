@@ -85,7 +85,7 @@ never starts the broker. Both return:
   "manifest": { "items": [{ "id": "gbdk", "component": "gbdk", "name": "GBDK compiler", "version": "4.5.0",
                  "source": "github.com/gbdk-2020/gbdk-2020", "bytes": 6870728, "purpose": "...", "approx": false }],
                 "bytes": 708271425, "disk_bytes": 2300000000, "measured_on": "linux-x64", "exact": true },
-  "root": "/abs/plugin/deps/toolchain",
+  "root": "/abs/.hermes/hermretro/.cache/toolchain",
   "install": { "state": "idle | running | done | failed", "started_at": 0, "finished_at": 0, "code": null,
                "error": null, "seeded": false, "fraction": 0.4, "downloaded_bytes": 281000000, "current": "cli",
                "run": { "components": { "gbdk": { "state": "done | running | failed | pending", "status": "prepared",
@@ -126,7 +126,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device }`: the library (`~/.local/state/chromatic-studio/games.json`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], demo, device }`: the library (`<hermretro home>/library/games.json`, see `adapter/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |

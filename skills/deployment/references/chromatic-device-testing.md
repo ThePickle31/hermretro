@@ -1,7 +1,7 @@
 # Play your game on a Chromatic
 
-hermretro installs ModRetro's CLI for this computer into the plugin's
-`deps/engine` folder with `chromatic_studio_device_cli`, verified against the
+hermretro installs ModRetro's CLI for this computer into its own
+`~/.hermes/hermretro/.cache/engine-<version>` folder with `chromatic_studio_device_cli`, verified against the
 engine's pinned hashes. An unsafe or damaged entry stops the command; the plugin
 does not silently replace it.
 

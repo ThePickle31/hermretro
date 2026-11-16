@@ -2,8 +2,8 @@ __pycache__/
 *.pyc
 node_modules/
 .dev/
-deps/
-# Games made with hermretro (the user's own projects)
+# Where older versions kept downloads and games, inside the plugin folder (now ~/.hermes/hermretro)
+/deps/
 /games/
 # Local notes, evidence, mockups and temp files: never committed
 /notes/

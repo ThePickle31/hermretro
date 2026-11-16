@@ -107,7 +107,7 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
         ? jsxs('span', {
             className: 'cs-faint',
             children: [
-              deps.inside_plugin ? 'Install folder (inside the plugin): ' : 'Install folder: ',
+              'Install folder: ',
               jsx('span', { className: 'cs-mono', children: deps.toolchain_root }),
               deps.toolchain_cache_reused_from ? '. Downloads were reused from an existing ModRetro install on this computer.' : ''
             ]

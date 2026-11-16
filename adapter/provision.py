@@ -1,10 +1,10 @@
 """Per-user installation of the pieces the plugin does not ship. Stdlib only; no Hermes imports.
 
-Everything lands under ``<plugin>/deps/``:
+Everything lands under ``paths.DEPS_ROOT`` (``~/.hermes/hermretro/.cache/``):
 
-* ``deps/toolchain/``  the engine's own managed setup root (GB Studio CLI, GBDK, PyBoy ...). The engine
+* ``toolchain/``  the engine's own managed setup root (GB Studio CLI, GBDK, PyBoy ...). The engine
   fills it through its ``toolchain_prepare`` tool; this module only names the place.
-* ``deps/engine/``     a prepared copy of the bundled engine that also holds ModRetro's Chromatic CLI
+* ``engine/``     a prepared copy of the bundled engine that also holds ModRetro's Chromatic CLI
   for this computer, fetched from ModRetro's own npm packages. The plugin never redistributes it.
 
 The engine supports two layouts for the vendor CLI: one packed archive with all six platforms (how
@@ -306,7 +306,7 @@ def seed_toolchain_cache(source: Path | None = None) -> dict:
     """Copy another install's verified download cache into this plugin's own toolchain folder.
 
     Only the engine's download archives and package caches are copied, never an installed toolchain:
-    the engine then installs from them into ``deps/toolchain`` exactly as it would after downloading,
+    the engine then installs from them into the toolchain folder exactly as it would after downloading,
     re-checking every archive against its pinned SHA-256. The other install is read, never changed.
     Happens only for a toolchain folder that does not exist yet."""
     destination = paths.setup_root()
@@ -356,8 +356,7 @@ def _seed_source() -> str | None:
 
 def summary() -> dict:
     """Where this install keeps its dependencies. Passive."""
-    return {"root": str(paths.DEPS_ROOT), "inside_plugin": paths.DEPS_ROOT.is_relative_to(paths.PLUGIN_ROOT),
-            "toolchain_root": str(paths.setup_root()), "toolchain_cache_reused_from": _seed_source(),
+    return {"root": str(paths.DEPS_ROOT), "toolchain_root": str(paths.setup_root()), "toolchain_cache_reused_from": _seed_source(),
             "engine_root": str(paths.select_engine()["root"]),
             "device_cli": device_cli_status()}
 

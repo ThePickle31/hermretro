@@ -112,7 +112,7 @@ node skills/pixel-art/scripts/evaluate-grid.mjs /absolute/path/chart.png \
 
 Use the actual input dimensions and declared colors; scale the origin and pitch
 with the image if Image Generation changed its resolution. In hermretro,
-set `GB_STUDIO_RUNTIME_ROOT` to `<plugin>/deps/toolchain/toolchain/.local/vendor/gb-studio`
+set `GB_STUDIO_RUNTIME_ROOT` to `~/.hermes/hermretro/.cache/toolchain/toolchain/.local/vendor/gb-studio`
 (present once the `build` component is installed) so the helper can resolve `pngjs`.
 `--help` works before that runtime is configured. Batch inputs need distinct
 output names; existing outputs are preserved and cause an error. Optional

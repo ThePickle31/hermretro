@@ -149,7 +149,7 @@ DEVICE_CLI_TOOL = {
     "description": (
         "Check or install ModRetro's official Chromatic CLI for this computer. hermretro does not ship it: "
         "'install' downloads it from ModRetro's own npm package, verifies it against pinned SHA-256 digests and "
-        "places it inside the hermretro plugin folder. It is needed only for hardware features (device "
+        "places it in hermretro's folder in the Hermes home. It is needed only for hardware features (device "
         "discovery, streaming, capture, cartridge flashing); creating, building and playtesting games never use it. "
         "This tool never touches USB, drivers or a device. The CLI is proprietary ModRetro software: install only "
         "after the user has agreed to ModRetro's terms, and pass acceptVendorTerms true to record that. "
@@ -1798,7 +1798,7 @@ def make_pre_tool_call(ctx):
             megabytes = pins["package"]["bytes"] / 1_000_000
             return {"action": "approve",
                     "message": (f"Download ModRetro's Chromatic CLI {pins['version']} ({megabytes:.1f} MB) from "
-                                f"{pins['package']['url']} into the hermretro plugin folder. It is proprietary "
+                                f"{pins['package']['url']} into hermretro's folder in the Hermes home. It is proprietary "
                                 f"ModRetro software; approving means you agree to ModRetro's terms "
                                 f"({provision.VENDOR_TERMS_URL}). Nothing is sent to a device."),
                     # One key per CLI release: "always" covers a reinstall, never a different version.

@@ -98,7 +98,7 @@ function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
     phase === 'failed'
       ? 'Nothing is broken, and the parts that finished are kept. Try again, or ask Hermes to look at the error.'
       : phase === 'review'
-        ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into the plugin's folder, and removing the plugin removes it."
+        ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into hermretro's folder in your Hermes home, where your games live too."
         : 'You can leave this page: the install keeps running, and this page moves on when the tools are verified.'
 
   return jsxs('div', {

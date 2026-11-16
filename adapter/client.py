@@ -114,8 +114,12 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
                                             "XDG_STATE_HOME", "TMPDIR", "USER", "LOGNAME", "DISPLAY",
                                             "WAYLAND_DISPLAY", "GB_STUDIO_SETUP_ROOT") if key in os.environ}
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
+    env["HERMRETRO_HOME"] = str(paths.hermretro_home())  # absolute; the broker cannot ask Hermes itself
     command = [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node]
-    with open(Path(state_dir) / "broker.stderr.log", "ab") as log:
+    log_path = Path(state_dir) / "broker.stderr.log"
+    if log_path.is_file() and log_path.stat().st_size > 5 * 1024 * 1024:
+        log_path.replace(log_path.with_suffix(".log.1"))  # the run folder survives reboots: keep it small
+    with open(log_path, "ab") as log:
         return subprocess.Popen(
             own_scope(env) + command,
             cwd=str(paths.PLUGIN_ROOT), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

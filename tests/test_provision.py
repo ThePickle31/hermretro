@@ -2,12 +2,15 @@
 import io
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from adapter import paths, provision  # noqa: E402
+from support import throwaway_deps  # noqa: E402
 
 
 class _Response(io.BytesIO):
@@ -19,12 +22,16 @@ class _Response(io.BytesIO):
 
 
 class ProvisionTests(unittest.TestCase):
-    def test_dependencies_live_inside_the_plugin_folder(self):
+    def test_dependencies_live_in_the_hermretro_home_never_the_plugin_folder(self):
+        # Plugin updates and removal replace the plugin folder (and refuse one holding a 2 GB toolchain).
         if os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"):
             self.skipTest("location overridden by the environment")
-        self.assertTrue(paths.DEPS_ROOT.is_relative_to(paths.PLUGIN_ROOT))
-        self.assertTrue(paths.setup_root().is_relative_to(paths.PLUGIN_ROOT))
-        self.assertTrue(paths.PREPARED_ENGINE.is_relative_to(paths.PLUGIN_ROOT))
+        cache = paths.hermretro_home().resolve() / ".cache"
+        self.assertEqual(paths.DEPS_ROOT, cache)
+        self.assertEqual(paths.setup_root(), cache / "toolchain")
+        self.assertEqual(paths.PREPARED_ENGINE, cache / f"engine-{paths.ENGINE_VERSION}")
+        for folder in (paths.DEPS_ROOT, paths.setup_root(), paths.PREPARED_ENGINE):
+            self.assertFalse(folder.is_relative_to(paths.PLUGIN_ROOT), folder)
 
     def test_install_needs_recorded_agreement_to_vendor_terms(self):
         called = []
@@ -45,18 +52,18 @@ class ProvisionTests(unittest.TestCase):
         if host["target"] is None:
             self.skipTest(host["reason"])
         size = provision._pins(host["target"])["package"]["bytes"]
-        before = paths.PREPARED_ENGINE.exists(), provision.read_receipt()
-        with self.assertRaises(provision.ProvisionError) as caught:
-            provision.install_device_cli(True, opener=lambda *a, **k: _Response(b"\0" * size))
-        self.assertEqual(caught.exception.code, "CHECKSUM_MISMATCH")
-        self.assertEqual(before, (paths.PREPARED_ENGINE.exists(), provision.read_receipt()))
-        self.assertEqual(list(paths.DEPS_ROOT.glob("engine.staging-*")), [])
+        with tempfile.TemporaryDirectory() as scratch, throwaway_deps(Path(scratch)):
+            before = paths.PREPARED_ENGINE.exists(), provision.read_receipt()
+            with self.assertRaises(provision.ProvisionError) as caught:
+                provision.install_device_cli(True, opener=lambda *a, **k: _Response(b"\0" * size))
+            self.assertEqual(caught.exception.code, "CHECKSUM_MISMATCH")
+            self.assertEqual(before, (paths.PREPARED_ENGINE.exists(), provision.read_receipt()))
+            self.assertEqual(list(paths.DEPS_ROOT.glob("engine.staging-*")), [])
 
     def test_cache_reuse_never_touches_an_existing_toolchain_or_a_foreign_folder(self):
-        import tempfile
         if os.environ.get("GB_STUDIO_SETUP_ROOT"):
             self.skipTest("location overridden by the environment")
-        with tempfile.TemporaryDirectory() as scratch:
+        with tempfile.TemporaryDirectory() as scratch, throwaway_deps(Path(scratch) / "hr"):
             foreign = Path(scratch) / "not-a-setup-root"
             (foreign / "downloads").mkdir(parents=True)
             answer = provision.seed_toolchain_cache(foreign)

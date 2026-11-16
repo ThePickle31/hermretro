@@ -54,8 +54,10 @@ CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
    place. Windows is not supported.
 5. **Hardware.** Tests and CI never run the hardware tools (`flash`, `play`, `setup`, capture). They stay
    behind the user's setting and Hermes's approval prompt.
-6. **Never the real Hermes home in tests.** Use `tests/support.py` and point `HERMRETRO_*` folders at a
-   temp directory. The unit tests must pass on a machine without Hermes.
+6. **Never the real Hermes home in tests.** User state lives in `~/.hermes/hermretro/` (games, library,
+   downloads, broker); in tests use `tests/support.py` and point `HERMRETRO_HOME` (or the other
+   `HERMRETRO_*` folders) at a temp directory. `python tools/check.py unit` runs the suite with an empty
+   home folder and fails if anything is written there. The unit tests must pass on a machine without Hermes.
 
 ## How work lands
 

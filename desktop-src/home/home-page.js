@@ -44,7 +44,7 @@ function ContinuePanel({ ctx, steps, auto, autoId, choosing, games, onGo, onPlay
             ? 'The emulator is ready. Choose whether to set up a physical Chromatic too.'
             : auto.hardware
               ? 'Only for a physical Chromatic. You can skip it and use the emulator.'
-              : 'The page installs what is missing inside the plugin, then moves on by itself.'
+              : 'The page installs what is missing into hermretro\'s folder, then moves on by itself.'
         },
         's'
       ),

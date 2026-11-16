@@ -24,7 +24,7 @@ policy/support route rather than changing global execution policy in setup.
 Inspect the current bindings, then a dedicated target root:
 
 ```powershell
-$gbStudioSetupRoot = '<plugin folder>\deps\toolchain'
+$gbStudioSetupRoot = "$HOME\.hermes\hermretro\.cache\toolchain"
 powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --components runtime
 powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" plan --root $gbStudioSetupRoot --components runtime
 ```

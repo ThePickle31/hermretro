@@ -90,7 +90,7 @@ export function DeviceSoftwareBody({ ctx, step, status }) {
   }
 
   if (step.state === 'done') {
-    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ''} is installed inside the plugin folder.` })
+    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ''} is installed in hermretro's folder.` })
   }
 
   if (cli.state === 'unsupported') {
@@ -102,7 +102,7 @@ export function DeviceSoftwareBody({ ctx, step, status }) {
     children: [
       jsx(Lede, {
         children:
-          "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it inside the plugin folder."
+          "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it in hermretro's folder."
       }),
       jsx(Facts, {
         rows: [
