@@ -10,13 +10,12 @@ import hashlib
 import json
 import logging
 import os
-import platform
 import re
 import threading
 import time
 from pathlib import Path
 
-from . import contracts, game_card, onboarding, paths, player_server, provision, results, snapshots, studio_profile
+from . import contracts, game_card, host_os, onboarding, paths, player_server, provision, results, snapshots, studio_profile
 from . import games as library
 from .client import BrokerUnavailable, ensure_broker, try_connect
 
@@ -595,6 +594,11 @@ def build_report_handler(args: dict, **kwargs) -> str:
 
 # -- desktop RPC -----------------------------------------------------------------
 
+def _platform_report() -> dict:
+    found = host_os.describe()
+    return {**found, "qualified": found["supported"] and not found["rosetta"] and found["machine"] in ("arm64", "x64")}
+
+
 def rpc_status(ctx):
     def status(params, *, session_id=None, **_kwargs):
         try:
@@ -602,8 +606,8 @@ def rpc_status(ctx):
             answer = {
                 "ok": True,
                 "plugin": {"id": paths.PLUGIN_ID, "version": paths.PLUGIN_VERSION},
-                "platform": {"system": platform.system().lower(), "machine": platform.machine(),
-                             "qualified": platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64")},
+                # Linux and macOS on arm64 or x64 are supported alike; Rosetta works but is slow.
+                "platform": _platform_report(),
                 "node": {"found": node["found"], "version": node["version"], "required": node["required"],
                          "ok": node["ok"]},
                 "engine": paths.verify_engine(),

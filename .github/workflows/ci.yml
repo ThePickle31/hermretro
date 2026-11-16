@@ -43,17 +43,15 @@ jobs:
     name: Unit tests (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
-    # macOS is reported but not yet required: the broker's macOS support lands in a later change, which
-    # also makes these two required.
-    continue-on-error: ${{ matrix.experimental }}
+    # Linux and macOS (Apple Silicon and Intel) are equally required: hermretro must behave the same on both.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: "3.11", experimental: false }
-          - { os: ubuntu-latest, python: "3.14", experimental: false }
-          - { os: macos-latest, python: "3.14", experimental: true }
-          - { os: macos-15-intel, python: "3.14", experimental: true }
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.14" }
+          - { os: macos-latest, python: "3.14" }
+          - { os: macos-15-intel, python: "3.14" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,6 +59,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
+      # Node.js lets the unit tests start a real broker (tests/test_host_os.py) on each system.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
       - name: python tools/check.py unit
         run: python tools/check.py unit --strict
 

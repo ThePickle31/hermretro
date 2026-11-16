@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 47ee76e3b969215f9e6abda12c00a4a0033ffb25ec48f88b976aacd178f56c07
- * body: sha256 f7666ee6760368c871edf600f45dc0994c44f079ed9d18c387174135c5b0b227
+ * sources: sha256 7fef8dbcd76e28db779847a51688e638008403b95d9dbfd12171b87a94809510
+ * body: sha256 726ca25926df5acb05196c33819b66607c5d73273fa9825be8d2d5c82e048447
  */
 // desktop-src/sdk.js
 import {
@@ -10062,7 +10062,7 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
       }) : null,
       platform && platform.qualified === false ? jsx(Small, {
         tone: "warn",
-        children: `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
+        children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
       }) : null,
       (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
       step.state === "done" || step.state === "error" ? jsx("div", {

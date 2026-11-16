@@ -79,7 +79,9 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
       platform && platform.qualified === false
         ? jsx(Small, {
             tone: 'warn',
-            children: `${platform.system ?? 'This system'} ${platform.machine ?? ''} has not been tested yet; some steps may not work.`
+            children: platform.rosetta
+              ? 'Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes.'
+              : `${platform.system ?? 'This system'} ${platform.machine ?? ''} has not been tested yet; some steps may not work.`
           })
         : null,
       (step.state === 'todo' || step.state === 'blocked') && install

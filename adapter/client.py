@@ -116,6 +116,7 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
     env["HERMRETRO_HOME"] = str(paths.hermretro_home())  # absolute; the broker cannot ask Hermes itself
     command = [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node]
+    Path(state_dir).mkdir(mode=0o700, parents=True, exist_ok=True)  # a caller may name a folder not made yet
     log_path = Path(state_dir) / "broker.stderr.log"
     if log_path.is_file() and log_path.stat().st_size > 5 * 1024 * 1024:
         log_path.replace(log_path.with_suffix(".log.1"))  # the run folder survives reboots: keep it small

@@ -50,10 +50,8 @@ assuming MCP can already start. Choose `runtime` for authoring and add `build`,
 cache or change shared active toolchains. New preparation is not registration,
 installation, or rebind.
 
-Native Windows x64 is experimental; source/stub coverage is not a complete
-real-host installation/build/gameplay pass. Follow
-[Windows setup](../../setup/references/windows-setup.md), without Git Bash or WSL.
-The selected toolchain uses `.local/gbdk/bin/lcc.exe`, the official Node CLI,
+hermretro runs on Linux and macOS only; it does not support Windows.
+The engine's Windows toolchain uses `.local/gbdk/bin/lcc.exe`, the official Node CLI,
 and `.local/pyboy-venv/Scripts/python.exe`. Windows ARM64 is unsupported; prefer
 short local `C:` paths. When `GB_STUDIO_MCP_PATH_VISIBILITY=workspace-only` is
 configured, external runtime/toolchain paths are intentionally redacted in MCP
