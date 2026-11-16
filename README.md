@@ -34,7 +34,12 @@ Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins an
 
 The first step on that page creates a dedicated **hermretro** profile: it shares your sign-in, has the
 plugin and its skills turned on, and leaves the profile you installed into unchanged. Chromatic chats open
-in that profile. Its personality is `profile/SOUL.md`. The profile links to the plugin you installed rather
+in that profile and nowhere else: the plugin's tools, skills and system-prompt text exist only there, and the
+Build page, "Use in chat" prompts and game chats never fall back to another profile (the Build page offers
+Repair instead). In the profile you installed into, only the page's own setup and library calls answer.
+For plugin development, `HERMRETRO_EVERY_PROFILE=1` in the gateway's environment loads the agent side
+(tools, skills, hooks, prompt) in every profile that has the plugin on, so agents can test the tools there; the
+Build page still uses only the `hermretro` profile. Its personality is `profile/SOUL.md`. The profile links to the plugin you installed rather
 than copying it, so both profiles share one plugin folder; every profile shares hermretro's own folder
 (below).
 
@@ -127,7 +132,7 @@ python -m unittest discover -s tests                     # fast unit tests (no H
 node tools/bundle.mjs --check                            # the generated files match desktop-src/
 node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
-hermes plugins doctor .                                  # Hermes's own registration check
+hermes -p hermretro plugins doctor hermretro            # registration check (85 tools only in that profile)
 ```
 
 The page test glob already includes `wizard_test.mjs`; run that file on its own only to read its full

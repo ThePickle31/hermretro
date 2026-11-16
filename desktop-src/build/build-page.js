@@ -17,7 +17,7 @@ import { rootOf } from '../build-transcript/groups.js'
 import { BuildStatus } from '../build-transcript/status.js'
 import { Transcript } from '../build-transcript/transcript.js'
 import { buildHistory, deriveTurns } from '../build-transcript/turns.js'
-import { callStudio, describeRequestError } from '../core/backend.js'
+import { callStudioOnly, describeRequestError } from '../core/backend.js'
 import { AGENT } from '../core/ids.js'
 import { RPC_BUILD_RESTORE } from '../core/rpc.js'
 import { playableSha } from '../player/stage.js'
@@ -304,7 +304,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     }
 
     try {
-      const answer = await callStudio(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 60_000)
+      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 60_000)
 
       if (!answer?.ok) {
         throw new Error(answer?.error ?? 'The build could not be restored.')

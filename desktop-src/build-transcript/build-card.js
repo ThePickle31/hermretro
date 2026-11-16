@@ -3,7 +3,7 @@ import { Button, Codicon, host, jsx, jsxs, useState } from '../sdk.js'
 import { assetCache, useAsset } from '../build-assets/cache.js'
 import { AssetThumb, SheetFrame } from '../build-assets/images.js'
 import { injectBuildDraft } from '../build-chat/store.js'
-import { callStudio, describeRequestError } from '../core/backend.js'
+import { callStudioOnly, describeRequestError } from '../core/backend.js'
 import { AGENT } from '../core/ids.js'
 import { baseName, isAbsolute, joinPath } from '../core/paths.js'
 import { RPC_ASSET_RESTORE } from '../core/rpc.js'
@@ -39,7 +39,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     setState('busy')
 
     try {
-      const answer = await callStudio(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 20_000)
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 20_000)
 
       if (!answer?.ok) {
         throw new Error(answer?.error ?? 'It could not be put back.')

@@ -4,6 +4,9 @@
 
 - Plugin id: `hermretro`. Display name: `hermretro`.
 - Toolset: `chromatic`.
+- Where things register (`__init__.register`): the 85 tools, 6 skills, 6 hooks and the `hermretro.guide` prompt
+  section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
+  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/test_registration.py`.
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,

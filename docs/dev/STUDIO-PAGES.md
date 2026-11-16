@@ -128,7 +128,11 @@ No image data: the page loads each through `asset`. Failure: `NO_GAME`.
 
 ### Page
 
-Gateway calls (on the studio profile's route, `host.retainProfile` held): `session.create
+Gateway calls go to the `hermretro` profile ONLY (`studioTarget()` in `core/routing.js`: its route, or the app's
+own connection when the app is on that profile). When it is missing or not answering, every Build/chat call
+throws `STUDIO_PROFILE_MISSING`, the Build page shows `StudioNeeded` (Repair re-runs `studio_profile` from the
+profile the plugin was installed into) and "Use in chat" copies the prompt with a notice; nothing ever runs in
+another profile. Gateway calls (on that route, `host.retainProfile` held): `session.create
 {hidden: true, title}`, `session.resume` (history; `omit_messages` while polling), `prompt.submit`
 (with `submission_id`), `session.interrupt`, `clarify.lock` (fallback `request.answer`),
 `approval.respond`. The stream is `host.onEvent` filtered by `session_id`, de-duplicated by `seq`

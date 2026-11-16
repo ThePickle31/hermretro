@@ -1,7 +1,7 @@
 // Build conversations as the page holds them, and the requests that reach their sessions.
 import { atom, host, randomUuid } from '../sdk.js'
 import { describeRequestError } from '../core/backend.js'
-import { routeProfile, routing } from '../core/routing.js'
+import { routeProfile, StudioProfileMissing, studioTarget } from '../core/routing.js'
 
 // The game the Build page is showing (its pane plays presentations), or null.
 export const BUILD_VIEWING = atom(null)
@@ -36,12 +36,8 @@ export const BUILD_EVENTS = [
 
 export const newId = () => (typeof randomUuid === 'function' ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`)
 
-function chatRoute() {
-  return routing.route ?? null
-}
-
 export async function retainChatRoute() {
-  const route = chatRoute()
+  const route = studioTarget()?.route
 
   if (!route || typeof host.retainProfile !== 'function') {
     return
@@ -60,9 +56,15 @@ export async function retainChatRoute() {
   }
 }
 
-/** A gateway call for Build sessions, on the profile the studio talks to. */
+/** A gateway call for Build sessions: in the hermretro profile and nowhere else. */
 export async function chatRequest(method, params = {}, timeoutMs) {
-  const route = chatRoute()
+  const target = studioTarget()
+
+  if (!target) {
+    throw new StudioProfileMissing()
+  }
+
+  const { route } = target
 
   return route
     ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: 'foreground' })

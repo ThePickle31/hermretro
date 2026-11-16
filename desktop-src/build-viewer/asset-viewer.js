@@ -5,7 +5,7 @@ import { imagePalette, useImage } from '../build-assets/images.js'
 import { canvasImage, paintSheet, spriteAnimations, spriteFrameMs } from '../build-assets/sprite.js'
 import { stepWords } from '../build-transcript/step-words.js'
 import { deriveTurns, turnParts } from '../build-transcript/turns.js'
-import { callStudio } from '../core/backend.js'
+import { callStudioOnly } from '../core/backend.js'
 import { AGENT } from '../core/ids.js'
 import { baseName } from '../core/paths.js'
 import { RPC_ASSET_RESTORE } from '../core/rpc.js'
@@ -258,7 +258,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat
     setRestoring(true)
 
     try {
-      const answer = await callStudio(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 20_000)
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 20_000)
 
       if (!answer?.ok) {
         throw new Error(answer?.error ?? 'It could not be restored.')
