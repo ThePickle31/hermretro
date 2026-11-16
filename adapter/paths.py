@@ -19,7 +19,7 @@ PROTOCOL = 2
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 
 
-# `version: 0.0.5`, optionally quoted, optionally followed by a comment.
+# `version: X.Y.Z`, optionally quoted, optionally followed by a comment.
 VERSION_LINE = r"^version:[ \t]*[\"']?([0-9]+\.[0-9]+\.[0-9]+)[\"']?[ \t]*(?:#.*)?\r?$"
 
 
