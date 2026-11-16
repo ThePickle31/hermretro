@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 f0673be2be4517479d918ea0631f8b04b57fa35e5bd516e8b6cdda39f1cf4263
- * body: sha256 7b313412e7269a9a0edc2203947a101776021a67881ab61e32bd0425d4429692
+ * sources: sha256 47ee76e3b969215f9e6abda12c00a4a0033ffb25ec48f88b976aacd178f56c07
+ * body: sha256 f7666ee6760368c871edf600f45dc0994c44f079ed9d18c387174135c5b0b227
  */
 // desktop-src/sdk.js
 import {
@@ -8607,7 +8607,7 @@ function ContinuePanel({ ctx, steps, auto, autoId, choosing, games, onGo, onPlay
       jsx(
         Small,
         {
-          children: choosing ? "The emulator is ready. Choose whether to set up a physical Chromatic too." : auto.hardware ? "Only for a physical Chromatic. You can skip it and use the emulator." : "The page installs what is missing inside the plugin, then moves on by itself."
+          children: choosing ? "The emulator is ready. Choose whether to set up a physical Chromatic too." : auto.hardware ? "Only for a physical Chromatic. You can skip it and use the emulator." : "The page installs what is missing into hermretro's folder, then moves on by itself."
         },
         "s"
       ),
@@ -9229,7 +9229,7 @@ function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
   const data = install.data;
   const { phase } = installer;
   const title = phase === "failed" ? ["One part ", jsx("span", { className: "cs-bad", children: "didn't finish" }, "a")] : phase === "review" ? ["Here's what gets ", jsx("span", { className: "cs-accent", children: "downloaded" }, "a")] : ["Setting up the ", jsx("span", { className: "cs-accent", children: "studio" }, "a")];
-  const lede = phase === "failed" ? "Nothing is broken, and the parts that finished are kept. Try again, or ask Hermes to look at the error." : phase === "review" ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into the plugin's folder, and removing the plugin removes it." : "You can leave this page: the install keeps running, and this page moves on when the tools are verified.";
+  const lede = phase === "failed" ? "Nothing is broken, and the parts that finished are kept. Try again, or ask Hermes to look at the error." : phase === "review" ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into hermretro's folder in your Hermes home, where your games live too." : "You can leave this page: the install keeps running, and this page moves on when the tools are verified.";
   return jsxs("div", {
     className: "cs-onb-split",
     children: [
@@ -9761,7 +9761,7 @@ function DeviceSoftwareBody({ ctx, step, status }) {
     });
   }
   if (step.state === "done") {
-    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ""} is installed inside the plugin folder.` });
+    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ""} is installed in hermretro's folder.` });
   }
   if (cli.state === "unsupported") {
     return jsx(Small, { tone: "warn", children: cli.detail || "ModRetro does not publish its device software for this computer." });
@@ -9770,7 +9770,7 @@ function DeviceSoftwareBody({ ctx, step, status }) {
     className: "cs-content",
     children: [
       jsx(Lede, {
-        children: "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it inside the plugin folder."
+        children: "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it in hermretro's folder."
       }),
       jsx(Facts, {
         rows: [
@@ -10084,7 +10084,7 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
       deps.toolchain_root && step.state === "done" ? jsxs("span", {
         className: "cs-faint",
         children: [
-          deps.inside_plugin ? "Install folder (inside the plugin): " : "Install folder: ",
+          "Install folder: ",
           jsx("span", { className: "cs-mono", children: deps.toolchain_root }),
           deps.toolchain_cache_reused_from ? ". Downloads were reused from an existing ModRetro install on this computer." : ""
         ]

@@ -5,7 +5,7 @@ directly playtest games without the GB Studio desktop editor. The plugin ships
 installers and a shared dependency catalog, not every third-party binary.
 Necessary dependency preparation is part of an authorized request to create,
 build, or preview a game, unless the user limits downloads or changes. Hermes
-performs that setup in the plugin's own `deps/` folder and asks only for
+performs that setup in hermretro's own folder (`~/.hermes/hermretro/.cache/`) and asks only for
 missing scope or required platform permission.
 
 The plugin does not include the standalone GB Studio compiler or PyBoy
@@ -128,7 +128,7 @@ Setup accepts a new/empty directory or one carrying its ownership marker.
 It refuses nonempty unowned roots and redirected setup paths; do not use a game
 directory or select an existing shared toolchain for
 adoption. `GB_STUDIO_SETUP_ROOT` selects the managed root; hermretro sets it to
-`<plugin>/deps/toolchain` for every engine worker.
+`~/.hermes/hermretro/.cache/toolchain` for every engine worker.
 
 The root contains separate `node`, `runtime`, `toolchain`, staging/cache,
 receipt, and payload locations. Yarn uses one archive cache inside this root;

@@ -35,7 +35,8 @@ Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins an
 The first step on that page creates a dedicated **hermretro** profile: it shares your sign-in, has the
 plugin and its skills turned on, and leaves the profile you installed into unchanged. Chromatic chats open
 in that profile. Its personality is `profile/SOUL.md`. The profile links to the plugin you installed rather
-than copying it, so both profiles share one plugin folder and one `games/` folder.
+than copying it, so both profiles share one plugin folder; every profile shares hermretro's own folder
+(below).
 
 Requirements: Node.js 22 or newer. Hermes installs its own Node.js, which hermretro uses, so this is
 normally already met. Everything else (GB Studio CLI, GBDK, PyBoy) is prepared on request by asking
@@ -85,13 +86,29 @@ Qualified so far only on local Linux x64.
   `capture_image`, `build`, `builds`, `build_restore`, `asset`, `asset_info`, `asset_restore`, `assets`;
   see `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
-- `games/` — the games you make (git-ignored). `chromatic_project_create` and
-  `chromatic_project_create_blank` put a new game here unless you ask for another folder
-  (`HERMRETRO_GAMES_DIR` moves it). The Games shelf itself is a list of project folders kept in
-  `~/.local/state/chromatic-studio/games.json`. Uninstalling the plugin deletes its folder, games included:
-  copy `games/` somewhere first.
 - `skills/` — agent skills.
 - `schemas/`, `release/` — pinned contracts, engine manifest and test evidence.
+
+## Where your games and downloads live
+
+Nothing hermretro makes or downloads is kept in the plugin folder. It all lives in one folder in the Hermes
+home, shared by every profile: `~/.hermes/hermretro/` (or `hermretro/` inside `$HERMES_HOME`'s root).
+
+| Folder | What |
+|---|---|
+| `games/` | The games you make. `chromatic_project_create` puts a new game here unless you name another folder |
+| `library/` | The Games shelf: which projects it lists, their thumbnails and chats |
+| `.cache/` | Downloaded tools (GB Studio, GBDK, the emulator, about 2.4 GB) and ModRetro's CLI (`engine-<version>/`); safe to delete, setup downloads them again |
+| `run/` | The background broker's socket, logs and lock |
+
+Removing or updating the plugin leaves this folder alone, so your games stay. A full `hermes uninstall`
+removes the whole Hermes home, this folder included: copy `games/` somewhere first. `HERMRETRO_HOME` moves
+the whole folder; `HERMRETRO_GAMES_DIR` moves just the games.
+
+Upgrading from 0.0.4 or older: those kept downloads in `deps/` and games in `games/` inside the plugin folder,
+and the shelf in `~/.local/state/chromatic-studio/`. Copy any games you want out of `games/`, then delete
+both folders before updating (Hermes refuses to update a plugin folder holding the old 2.4 GB `deps/`),
+and set up again from the hermretro page; nothing is moved for you.
 
 ## Test
 

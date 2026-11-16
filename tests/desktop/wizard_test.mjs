@@ -95,7 +95,7 @@ try {
     node: { found: true, version: '26.13.0', required: '22', ok: true }, engine: { present: true, version: '1.0.34', verified: true },
     hardware_enabled: false, project: null,
     profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } },
-    deps: { inside_plugin: true, toolchain_root: '/p/deps/toolchain', device_cli: cli('missing') }, ...extra
+    deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('missing') }, ...extra
   })
   const doctor = missing => ({ ok: true, missing_required: missing, components: [
     { id: 'cli', label: 'GB Studio CLI', status: missing.length ? 'missing' : 'ready', required: '4.3.2', optional: false }] })
@@ -127,7 +127,7 @@ try {
     { id: 'packages', component: 'cli', name: 'GB Studio packages', version: 'yarn 4.4.1', source: 'registry.npmjs.org', bytes: 551_000_000, purpose: 'The libraries GB Studio needs', approx: true },
     { id: 'uv', component: 'uv', name: 'uv', version: '0.12.6', source: 'github.com/astral-sh/uv', bytes: 20_274_889, purpose: 'Installs the Python parts', approx: false },
     { id: 'emulator', component: 'emulator', name: 'Python, PyBoy and Pillow', version: '3.13.12 · 2.7.0 · 12.3.0', source: 'python-build-standalone · pypi.org', bytes: 108_000_000, purpose: 'The emulator Hermes playtests with', approx: true }] }
-  const installAnswer = install => answered({ ok: true, manifest, root: '/p/deps/toolchain', install })
+  const installAnswer = install => answered({ ok: true, manifest, root: '/h/hermretro/.cache/toolchain', install })
   scenario.storage = {}
   scenario.status = answered(firstRun); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await render()
@@ -148,7 +148,7 @@ try {
       assert.ok(table.includes(item.name) && table.includes(item.version) && table.includes(item.source) && table.includes(item.purpose), item.id)
     }
     assert.match(table, /18\.1 MB/); assert.match(table, /≈ 551 MB/); assert.match(table, /Your hermretro profile/)
-    assert.match(text(), /Node\.js 26\.13\.0 \(from Hermes\)/); assert.match(text(), /\/p\/deps\/toolchain/)
+    assert.match(text(), /Node\.js 26\.13\.0 \(from Hermes\)/); assert.match(text(), /\/h\/hermretro\/\.cache\/toolchain/)
     assert.ok(button('Download and install')); assert.ok(!/Set up in chat/.test(text()), 'the install never goes through a chat')
     assert.match(dom.window.document.querySelector('.cs-onb-steps').getAttribute('aria-label'), /step 1 of 3: Install/)
     assert.ok(!nav())
@@ -315,7 +315,7 @@ try {
   check('device software step waits for the backend', () => {
     assert.equal(heading(), "Install ModRetro's device software"); assert.match(text(), /Install in chat/)
   })
-  scenario.status = answered(status({ deps: { inside_plugin: true, toolchain_root: '/p/deps/toolchain', device_cli: cli('installed') } }))
+  scenario.status = answered(status({ deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('installed') } }))
   await render()
   check('device software detected: moves to hardware tools', () => { assert.equal(heading(), 'Turn on hardware tools') })
 
@@ -347,7 +347,7 @@ try {
   })
   await click('Set up my Chromatic')
   check('resuming returns to the unfinished hardware step', () => { assert.equal(currentTab(), 'Setup'); assert.equal(heading(), 'Turn on hardware tools') })
-  const complete = status({ hardware_enabled: true, deps: { inside_plugin: true, toolchain_root: '/p/deps/toolchain', device_cli: cli('installed') } })
+  const complete = status({ hardware_enabled: true, deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('installed') } })
   scenario.status = answered(complete)
   await render()
   check('everything verified: setup complete', () => {

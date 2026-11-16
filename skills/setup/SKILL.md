@@ -16,7 +16,7 @@ Follow the shared [agent guide](../authoring/references/agent-guide.md).
 Hermes manages plugin installation and updates. A working plugin must not be
 recreated, registered in another marketplace, or reinstalled to obtain a compiler.
 Never edit the plugin's files, its manifest, Hermes configuration or the receipts
-under `deps/`. Do not run `hermes plugins install` or `hermes plugins update` during
+under hermretro's `.cache/` folder. Do not run `hermes plugins install` or `hermes plugins update` during
 game dependency setup.
 
 ## Diagnose the failed step
@@ -53,8 +53,8 @@ Then verify with `chromatic_toolchain_doctor {"tasks":["projectBuild"],"probes":
 A request to build/play includes necessary dependency setup; do not create an
 extra approval step. Preserve real access refusals and unresolved installer locks.
 
-Everything is installed inside the hermretro plugin folder: every engine
-worker gets `GB_STUDIO_SETUP_ROOT` = `<plugin>/deps/toolchain`, which
+Everything is installed in hermretro's own folder in the Hermes home: every engine
+worker gets `GB_STUDIO_SETUP_ROOT` = `~/.hermes/hermretro/.cache/toolchain`, which
 `chromatic_toolchain_doctor` reports as `roots.setupRoot`. If it points anywhere else (other
 than a root the user configured), stop and report it.
 Do not silently repoint or overwrite an independently configured toolchain.
@@ -78,12 +78,13 @@ local emulator; see [stepped playtesting](../rom-debugging/references/stepped-pl
 
 ## In hermretro
 
-Everything is installed inside the plugin folder; removing the plugin removes it all.
+Everything is installed in `~/.hermes/hermretro/.cache/`, which plugin updates and removal leave alone
+(the user's games are beside it in `games/`).
 
-| What | Where (in the plugin folder) | Installed by |
+| What | Where (in `~/.hermes/hermretro/.cache/`) | Installed by |
 | --- | --- | --- |
-| GB Studio CLI, GBDK, uv, Python, PyBoy, Pillow | `deps/toolchain/` | `chromatic_toolchain_prepare` |
-| ModRetro's Chromatic CLI (hardware only) | `deps/engine/` | `chromatic_studio_device_cli` |
+| GB Studio CLI, GBDK, uv, Python, PyBoy, Pillow | `toolchain/` | `chromatic_toolchain_prepare` |
+| ModRetro's Chromatic CLI (hardware only) | `engine-<engine version>/` | `chromatic_studio_device_cli` |
 
 - For the whole picture call `chromatic_toolchain_doctor {"tasks":["authoring","projectBuild","cBuild","play"]}`;
   add `"probes":["cli-version","gbdk-version","emulator-import"]` to actually run the compiler and import
@@ -95,11 +96,11 @@ Everything is installed inside the plugin folder; removing the plugin removes it
   game would need a new chat. Their first game build is the end-to-end check.
 - A first toolchain install downloads several hundred MB and takes about 2.4 GB on disk, usually one to
   three minutes. If ModRetro's Codex plugin already downloaded the same files on this computer, the first
-  install starts from that download cache (hashes are checked again); the toolchain still goes into this
-  plugin's folder. Tell the user once that it is running and do not call it again meanwhile: a second
+  install starts from that download cache (hashes are checked again); the toolchain still goes into
+  hermretro's own folder. Tell the user once that it is running and do not call it again meanwhile: a second
   setup or hardware call gets `OPERATION_IN_PROGRESS`.
 - The Studio page's first setup step can create a dedicated `hermretro` Hermes profile with this
-  plugin and its skills. It links the same plugin folder, so `deps/` and the games folder are shared.
+  plugin and its skills. It links the same plugin folder, and every profile shares hermretro's folder (tools and games).
 - **Physical Chromatic only.** Creating, building and emulator-testing games never need ModRetro's CLI.
   When the user wants hardware, call `chromatic_studio_device_cli {"action":"status"}`: `installed` or
   `bundled` needs nothing more; `unsupported` means ModRetro publishes no CLI for this computer. For

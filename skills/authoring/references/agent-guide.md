@@ -49,7 +49,7 @@ artifact accordingly and report only the platforms actually qualified.
 
 If MCP cannot start, follow the [setup skill](../../setup/SKILL.md)
 and [packaged setup reference](../../setup/references/setup.md). Do not loop on unavailable MCP calls.
-Prepare dependencies with `chromatic_toolchain_prepare` inside the plugin's own `deps/`
+Prepare dependencies with `chromatic_toolchain_prepare` in hermretro's own `.cache/`
 folder (Node.js 22+ comes first, as a plugin requirement); do not shift runnable
 setup commands to the user or assume a global Node/Python installation. Never
 run npm setup inside an immutable cache. A launcher Node `--version` check is

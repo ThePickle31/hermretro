@@ -40,7 +40,7 @@ embedded Gowin USB driver installer. They are **not** MIT-licensed. Only when th
 and after they accept ModRetro's terms (https://modretro.com/eula), hermretro downloads the package for their
 platform from ModRetro's official npm releases (`@modretro/chromatic-cli-*`), checks it against the SHA-256
 pinned in `engine/modretro-chromatic/third-party/chromatic-cli/PROVENANCE.json`, and unpacks it unchanged
-under the plugin's `deps/` folder on that machine.
+in hermretro's folder in the Hermes home on that machine (`~/.hermes/hermretro/.cache/`).
 
 `engine/modretro-chromatic/third-party/chromatic-cli/` holds only the engine's notice, provenance record and
 SBOM for that package (`NOTICE.md`, `PROVENANCE.json`, `SBOM.json`). The redistribution permission described in

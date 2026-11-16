@@ -55,10 +55,20 @@ def need(tool: str) -> str:
 
 
 def check_unit(_args) -> str:
-    result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests"])
+    # The suite runs with an empty home folder and no Hermes or hermretro locations set, so a test that
+    # would write to the real Hermes home (games, library, toolchain, broker) shows up as a file here.
+    with tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home:
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")}
+        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests"], env={**env, "HOME": home})
+        leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
                              "python -m unittest tests/<file>.py")
+    if leaked:
+        raise AssertionError("the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
+                             "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
+                             "variables)")
     ran = [line for line in result.stderr.splitlines() if line.startswith("Ran ")]
     return ran[-1] if ran else "ok"
 
@@ -136,8 +146,8 @@ def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from adapter import paths  # noqa: E402  (the adapter decides where setup put the toolchain)
     if not paths.setup_root().is_dir():
-        raise Skip(f"no toolchain at {paths.setup_root()}; run setup, or set HERMRETRO_DEPS_ROOT to a "
-                   "checkout that has one")
+        raise Skip(f"no toolchain at {paths.setup_root()}; run setup (the hermretro page or "
+                   "chromatic_toolchain_prepare), or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
     result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
