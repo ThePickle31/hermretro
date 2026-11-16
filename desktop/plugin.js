@@ -3,8 +3,8 @@
  * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 5d9ad709a06b05e0d13608d7b77e546b5da7d7cc5e2c3c9a59098853b47b9431
- * body: sha256 893551ecc3aa517f2b9c1ab95e44fadc93cd13581fb9395a7700f9ce022ac3ae
+ * sources: sha256 6d9983e95f6ca49aa9af1a711593ba472294f81e5dcfcb96a8abec831f33f184
+ * body: sha256 3b08f26cc59a6f328676897d39acf871636394cfbeb2059220d870925afe78a2
  */
 // desktop-src/sdk.js
 import {
@@ -49,6 +49,7 @@ var RPC_STATUS = `plugin.${ID}.status`;
 var RPC_DOCTOR = `plugin.${ID}.doctor`;
 var RPC_STUDIO_PROFILE = `plugin.${ID}.studio_profile`;
 var RPC_INSTALL = `plugin.${ID}.install`;
+var RPC_REMOVE_TOOLS = `plugin.${ID}.remove_tools`;
 var RPC_GAMES = `plugin.${ID}.games`;
 var RPC_GAME_THUMB = `plugin.${ID}.game_thumb`;
 var RPC_PLAYER = `plugin.${ID}.player`;
@@ -8293,6 +8294,33 @@ function Flyer() {
   });
 }
 
+// desktop-src/games/games-folder.js
+async function openFolder(ctx, path) {
+  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+  if (!shown) {
+    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+    host.notify({ kind: "info", message: copied ? "The games folder is on the computer running Hermes. Its path is copied." : path });
+  }
+}
+function GamesFolder({ ctx, path }) {
+  if (typeof path !== "string" || !path) {
+    return null;
+  }
+  return jsxs("div", {
+    className: "cs-gfolder",
+    children: [
+      jsx("span", { className: "cs-faint", children: "Games folder" }),
+      jsx("span", { className: "cs-mono", title: path, children: path }),
+      jsxs(Button, {
+        onClick: () => void openFolder(ctx, path),
+        size: "sm",
+        variant: "ghost",
+        children: [jsx(Codicon, { name: "folder-opened", size: 14 }), "Open games folder"]
+      })
+    ]
+  });
+}
+
 // desktop-src/games/game-card.js
 var COVER_PROMPT = "Make this game’s card: draw a 160x144 pixel-art cover in the game’s own palette and write its tagline, description and genres, with chromatic_game_info.";
 var GAME_STATUS = {
@@ -8499,6 +8527,7 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
 }
 function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games;
+  const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
   const newGame = jsxs(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
   if (games.isError || games.data && !Array.isArray(list)) {
     return [
@@ -8539,7 +8568,8 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
                     jsx(Button, { onClick: () => onOpenPrompt("remix"), size: "sm", variant: "outline", children: "Remix Wrecklight" })
                   ]
                 }),
-                jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." })
+                jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." }),
+                folder
               ]
             }),
             jsx(Art, {})
@@ -8590,7 +8620,8 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
         ]
       },
       "shelf"
-    )
+    ),
+    folder
   ];
 }
 
@@ -10101,6 +10132,54 @@ function ProfileBody({ status }) {
   });
 }
 
+// desktop-src/setup/remove-tools.js
+var megabytes = (bytes) => `${Math.round((bytes || 0) / 1e6).toLocaleString()} MB`;
+function RemoveTools({ status, doctor }) {
+  const [state, setState] = useState("idle");
+  const [failure, setFailure] = useState(null);
+  const remove = async () => {
+    setState("working");
+    setFailure(null);
+    try {
+      const { data } = await callBackend(RPC_REMOVE_TOOLS, {}, 12e4);
+      if (!data?.ok) {
+        throw new Error(data?.error || "The tools could not be removed.");
+      }
+      host.notify({ kind: "success", message: `Downloaded tools removed (${megabytes(data.removed_bytes)}). Your games are untouched.` });
+      status.refetch?.();
+      doctor.refetch?.();
+      setState("idle");
+    } catch (error) {
+      const { message, notLoaded } = describeRequestError(error);
+      setFailure(notLoaded ? "This hermretro backend cannot remove the tools yet. Restart Hermes, then try again." : message || String(error));
+      setState("idle");
+    }
+  };
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 8 },
+    children: [
+      state === "confirm" ? jsxs("div", {
+        className: "cs-actions",
+        children: [
+          jsx("span", { children: "Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute)." }),
+          jsx(Button, { onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
+          jsx(Button, { onClick: () => setState("idle"), size: "sm", variant: "ghost", children: "Cancel" })
+        ]
+      }) : jsx("div", {
+        children: jsx(Button, {
+          disabled: state === "working",
+          onClick: () => setState("confirm"),
+          size: "sm",
+          variant: "ghost",
+          children: state === "working" ? "Removing…" : "Remove downloaded tools"
+        })
+      }),
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
+}
+
 // desktop-src/setup/toolchain-step.js
 var COMPONENT_STATUS = { ready: "Ready", missing: "Missing", incompatible: "Incompatible", unknown: "Unknown" };
 function ComponentRow({ component }) {
@@ -10186,7 +10265,8 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
           jsx("span", { className: "cs-mono", children: deps.toolchain_root }),
           deps.toolchain_cache_reused_from ? ". Downloads were reused from an existing ModRetro install on this computer." : ""
         ]
-      }) : null
+      }) : null,
+      step.state === "done" ? jsx(RemoveTools, { doctor, status }) : null
     ]
   });
 }
@@ -11078,6 +11158,8 @@ button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-te
 .cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
 .cs-empty > .cs-col { gap: 16px; }
 .cs-empty > .cs-art { max-width: 340px; }
+.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
+.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
 // desktop-src/home/home.css.js

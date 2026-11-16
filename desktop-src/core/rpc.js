@@ -5,6 +5,7 @@ export const RPC_STATUS = `plugin.${ID}.status`
 export const RPC_DOCTOR = `plugin.${ID}.doctor`
 export const RPC_STUDIO_PROFILE = `plugin.${ID}.studio_profile`
 export const RPC_INSTALL = `plugin.${ID}.install`
+export const RPC_REMOVE_TOOLS = `plugin.${ID}.remove_tools`
 export const RPC_GAMES = `plugin.${ID}.games`
 export const RPC_GAME_THUMB = `plugin.${ID}.game_thumb`
 export const RPC_PLAYER = `plugin.${ID}.player`

@@ -6,6 +6,7 @@ turn process). They hold no state of their own: every call goes to the broker.
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 import logging
@@ -673,6 +674,59 @@ def rpc_install(ctx):
             logger.exception("hermretro install failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
     return install
+
+
+def rpc_remove_tools(ctx):
+    """Delete the downloaded tools (Setup's "Remove downloaded tools"). Stops an idle broker first; refused while
+    a game's chat has a live worker or an install runs. Games and the library are not touched."""
+    def remove(params, **_kwargs):
+        try:
+            run = paths.runtime_dir()
+            client, _error = try_connect(run)   # never starts the broker
+            if client is not None:
+                with client:
+                    reply = client.request({"op": "shutdown"})
+                if not reply.get("ok"):
+                    return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
+            # The broker's election lock: held by a running broker until it exits, and while we hold it any
+            # broker another call starts loses the election and exits, so nothing runs from the folder.
+            with _broker_lock(run) as held:
+                if not held:
+                    return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
+                return provision.remove_downloads()
+        except provision.ProvisionError as error:
+            return {"ok": False, "code": error.code, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro remove_tools failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return remove
+
+
+BROKER_STOP_WAIT = 15.0  # seconds a stopping broker gets to close its workers
+_REMOVE_BUSY = ("A game is open in a chat or an install is running. Close those chats (or wait for the install), "
+                "then try again.")
+
+
+@contextlib.contextmanager
+def _broker_lock(run: Path, seconds: float | None = None):
+    """Hold the broker election lock, waiting for a stopping broker to let go of it. Yields False on timeout."""
+    import fcntl
+    with open(run / "broker.lock", "a+") as handle:
+        deadline = time.monotonic() + (BROKER_STOP_WAIT if seconds is None else seconds)
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    yield False
+                    return
+                time.sleep(0.1)
+        try:
+            time.sleep(0.5)  # workers exit when the broker's pipe closes; give them a moment
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def rpc_studio_profile(ctx):
