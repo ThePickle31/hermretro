@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import client, engine, hermes_host, host_os, paths, provision  # noqa: E402
+from adapter import client, engine, hermes_host, host_os, paths, provision, studio_profile  # noqa: E402
 from support import throwaway_deps, throwaway_profile  # noqa: E402
 
 CTX = mock.Mock(get_config=lambda key, default=None: default)
@@ -28,7 +28,7 @@ class Home(unittest.TestCase):
                       throwaway_profile(self.base), throwaway_deps(self.base / "hr"),
                       mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
                       # The profile report asks Hermes itself; these tests run without Hermes installed.
-                      mock.patch.object(hermes_host.studio_profile, "describe", return_value={})):
+                      mock.patch.object(studio_profile, "describe", return_value={})):
             self.enterContext(patch)
 
 
