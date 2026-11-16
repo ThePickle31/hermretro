@@ -9,7 +9,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import hermes_host, paths, provision  # noqa: E402
+from adapter import hermes_host, host_setup, paths, provision  # noqa: E402
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 
@@ -86,7 +86,7 @@ class RemoveDownloads(unittest.TestCase):
             fcntl.flock(held, fcntl.LOCK_EX)
             with mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)), \
                     mock.patch.object(paths, "runtime_dir", lambda: run), \
-                    mock.patch.object(hermes_host, "BROKER_STOP_WAIT", 0.3):
+                    mock.patch.object(host_setup, "BROKER_STOP_WAIT", 0.3):
                 answer = hermes_host.rpc_remove_tools(None)({})
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())

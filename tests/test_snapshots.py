@@ -11,7 +11,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import games, hermes_host, snapshots  # noqa: E402
+from adapter import games, hermes_host, host_assets, host_tools, snapshots  # noqa: E402
 from test_games import make_project  # noqa: E402
 
 
@@ -188,7 +188,7 @@ class BuildHistoryHost(unittest.TestCase):
 
     def test_the_project_comes_from_the_chat_when_the_result_does_not_name_it(self):
         bare = json.dumps({"structuredContent": {"success": True}})
-        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)):
+        with mock.patch.object(host_tools, "_chat_project", lambda *_ids: str(self.root)):
             self.hook(result=bare, conversation_id="c1", session_id="s1")
         self.assertEqual(len(self.listed()["builds"]), 1)
 
@@ -203,7 +203,7 @@ class BuildHistoryHost(unittest.TestCase):
         hermes_host.after_tool_call()
 
     def test_the_hook_still_keeps_inspected_images(self):
-        with mock.patch.object(hermes_host, "keep_inspected_images") as kept:
+        with mock.patch.object(host_assets, "keep_inspected_images") as kept:
             self.hook()
         kept.assert_called_once()
 
