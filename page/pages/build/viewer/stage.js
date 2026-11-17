@@ -2,7 +2,7 @@
 import { jsx, jsxs, useLayoutEffect, useRef, useState } from '#sdk'
 import { useAsset } from '#pages/build/assets/cache.js'
 import { FrameCanvas, SheetFrame } from '#pages/build/assets/images.js'
-import { timeOfDay } from '#app/time.js'
+import { timeOfDay } from '#shared/ui/time.js'
 
 export const ZOOM_STEPS = [1, 2, 3, 4, 6, 8, 12, 16]
 

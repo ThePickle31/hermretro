@@ -1,17 +1,11 @@
 // The header: wordmark and the one segmented control.
 import { Button, Codicon, jsx, jsxs, Tip } from '#sdk'
 
-export const PAGES = [
-  ['home', 'Home'],
-  ['build', 'Build'],
-  ['setup', 'Setup'],
-  ['prompts', 'Prompts'],
-  ['games', 'Games'],
-  ['emulator', 'Emulator']
-]
+/** Wordmark, one segmented control (always in the same place) and Refresh. `pages` are the registry's, in nav
+ *  order; `nav` ({ page, setupPending, playing }) is what their badges read. */
+export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null }) {
+  const page = nav.page
 
-/** Wordmark, one segmented control (always in the same place) and Refresh. */
-export function StudioNav({ page, onGo, setupPending, playing, onRefresh, refreshing, viaProfile = null }) {
   return jsxs('header', {
     className: 'cs-top',
     children: [
@@ -42,18 +36,14 @@ export function StudioNav({ page, onGo, setupPending, playing, onRefresh, refres
       jsx('nav', {
         'aria-label': 'Studio pages',
         className: 'cs-seg',
-        children: PAGES.map(([id, label]) =>
+        children: pages.map(({ id, label, Badge }) =>
           jsxs(
             'button',
             {
               'aria-current': page === id ? 'page' : undefined,
               onClick: () => onGo(id),
               type: 'button',
-              children: [
-                label,
-                id === 'setup' && setupPending ? jsx('i', { 'aria-label': 'setup is not finished', className: 'pip', role: 'img' }) : null,
-                id === 'emulator' && playing && page !== 'emulator' ? jsx('i', { 'aria-label': 'a game is loaded', className: 'live', role: 'img' }) : null
-              ]
+              children: [label, Badge ? jsx(Badge, { nav }) : null]
             },
             id
           )

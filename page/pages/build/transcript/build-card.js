@@ -7,7 +7,7 @@ import { callStudioOnly, describeRequestError } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
 import { baseName, isAbsolute, joinPath } from '#app/paths.js'
 import { RPC_ASSET_RESTORE } from '#app/rpc.js'
-import { timeOfDay } from '#app/time.js'
+import { timeOfDay } from '#shared/ui/time.js'
 import { assetKind } from './step-words.js'
 import { madeAssets } from './turns.js'
 

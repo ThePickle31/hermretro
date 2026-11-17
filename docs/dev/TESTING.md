@@ -1,12 +1,13 @@
 # Testing
 
-`python tools/check.py` runs the fast checks at the same time (about 11 s; the install scan is the floor); CI runs the same ones. Every failure ends with a `FIX:` line.
+`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 11 s; the install scan is the floor); CI runs the same ones. Every failure ends with a `FIX:` line.
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
 | unit | `python tools/check.py unit` | ~3 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` |
-| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, 226 checks over five files run in parallel) and the inline player |
+| lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). `node tools/bundle/lint-page.mjs --fix` applies the automatic fixes; an exception is `// retrodev: allow <rule> — <reason>` on its line |
+| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, 226 checks over five files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |

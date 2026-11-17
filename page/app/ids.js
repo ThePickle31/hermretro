@@ -19,12 +19,6 @@ export const ENABLE_COMMAND = `hermes plugins enable ${ID}`
 export const AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}`
 export const PLUGINS_HREF = `/capabilities?tab=plugins&plugin=${ID}`
 
-export const LINKS = {
-  node: 'https://nodejs.org/',
-  firmware: 'https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx',
-  quickstart: 'https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg'
-}
-
 // A chat with the agent, one game per conversation. Each reply folds its steps into "Worked for…"
 // (open while it works), shows the art it makes as it lands, and ends with the game to play right in
 // the conversation once the agent has finished.

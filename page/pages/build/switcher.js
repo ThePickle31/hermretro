@@ -1,7 +1,7 @@
 // The game switcher: the title in the Build header.
 import { Codicon, jsx, jsxs, useEffect, useRef, useState } from '#sdk'
 import { AGENT } from '#app/ids.js'
-import { GAME_STATES } from '#pages/games/model.js'
+import { GAME_STATES } from '#pages/games/index.js'
 
 /** The games being edited, in menu order: New Game conversations still being set up, then each game
  *  with its own conversation (and the one just picked from the library, until its first message makes

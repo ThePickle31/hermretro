@@ -3,7 +3,7 @@ import { Button, Codicon, CopyButton, jsx, jsxs, useEffect, useRef, useState } f
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { Art } from '#shared/ui/art.js'
 import { AsyncButton, PageHead } from '#shared/ui/page.js'
-import { PromptButton } from '#shared/ui/prompt-button.js'
+import { PromptButton } from '#app/prompt-button.js'
 import { Small } from '#shared/ui/text.js'
 import { ALL_PROMPTS, PROMPT_SECTIONS, promptById } from './library.js'
 

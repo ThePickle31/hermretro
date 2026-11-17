@@ -4,7 +4,7 @@ import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { ID } from '#app/ids.js'
 import { RPC_INSTALL, RPC_STUDIO_PROFILE } from '#app/rpc.js'
-import { SETUP_PROMPT } from '#pages/prompts/library.js'
+import { SETUP_PROMPT } from '#pages/prompts/index.js'
 
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)).data

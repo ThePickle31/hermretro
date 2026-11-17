@@ -3,6 +3,7 @@ import { Codicon, host, jsx, jsxs, Tip, useEffect, useRef, useState } from '#sdk
 import { openGameChat, sendToGameChat } from '#app/chat-insert.js'
 import { buildPrompt } from '#app/game-prompts.js'
 import { AGENT } from '#app/ids.js'
+import { Slot } from '#app/slots.js'
 import { fixPrompt, gameMeta, installPrompt } from './model.js'
 
 export const COVER_PROMPT =
@@ -122,7 +123,9 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
       : null,
     item('comment-discussion', 'Open its chat', () => openGameChat(game), { disabled: !game.chat, why: game.chat ? game.chat.title || undefined : 'No chat recorded' }),
     !card?.complete && onMakeCover ? item('sparkle', game.cover ? 'Finish card' : 'Make cover art', () => onMakeCover(game)) : null,
-    game.projectRoot ? item('folder-opened', 'Show in folder', () => revealGame(ctx, game)) : null
+    game.projectRoot ? item('folder-opened', 'Show in folder', () => revealGame(ctx, game)) : null,
+    // What other pages add to this menu (games/index.js declares the slot).
+    jsx(Slot, { name: 'games.cardMenu', props: { ctx, game, hardwareOn, item } }, 'more')
   ].filter(Boolean)
 
   return jsxs('div', {

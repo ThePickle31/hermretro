@@ -1,7 +1,7 @@
 // "Worked for…": a turn's steps, collapsed, Simple or Technical.
 import { atom, Codicon, jsx, jsxs, useState, useValue } from '#sdk'
 import { AssetImage, AssetStrip, LatestAsset } from '#pages/build/assets/images.js'
-import { spanWords } from '#app/time.js'
+import { spanWords } from '#shared/ui/time.js'
 import { Elapsed } from '#shared/ui/elapsed.js'
 import { GIST_WORDS, GROUP_MIN_STEPS, groupTitle, MINOR_STEPS, workGroups } from './groups.js'
 import { SUGGESTED } from './questions.js'

@@ -1,7 +1,7 @@
 // Opens the emulator when the agent presents a game; builds only refresh what is open.
 import { host } from '#sdk'
-import { BUILD_VIEWING, buildRuntime } from '#pages/build/chat/store.js'
-import { toolResultObject, unwrapCalls } from '#pages/build/chat/tool-results.js'
+import { emit } from '#app/events.js'
+import { buildShowing, isBuildSession, toolResultObject, unwrapCalls } from '#pages/build/index.js'
 import { callBackend } from '#app/backend.js'
 import { RPC_PRESENTATIONS } from '#app/rpc.js'
 import { BUILD_TOOLS, PRESENT_TOOL } from '#app/tools.js'
@@ -41,10 +41,13 @@ function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = fa
   const shown = PRESENTED.get()
   const seq = (shown[gameId]?.seq ?? 0) + 1
 
-  PRESENTED.set({ ...shown, [gameId]: { seq, note: typeof note === 'string' && note.trim() ? note.trim() : null, t: presentedAt ?? null } })
+  const presentation = { seq, note: typeof note === 'string' && note.trim() ? note.trim() : null, t: presentedAt ?? null }
+
+  PRESENTED.set({ ...shown, [gameId]: presentation })
+  emit('emulator.presented', { gameId, ...presentation })
   BUILD_TICK.set(BUILD_TICK.get() + 1)
 
-  if (fromBuild || BUILD_VIEWING.get() === gameId) {
+  if (fromBuild || buildShowing() === gameId) {
     return false
   }
 
@@ -83,7 +86,7 @@ export function watchBuilds(ctx) {
       const studio = presentedGame(payload)
 
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: buildRuntime.has(event.session_id) })
+        presentGame(ctx, studio, { fromBuild: isBuildSession(event.session_id) })
       }
     }
   })
@@ -95,7 +98,7 @@ export function watchBuilds(ctx) {
 
     pending?.()
 
-    const fromBuild = buildRuntime.has(event?.session_id)
+    const fromBuild = isBuildSession(event?.session_id)
 
     const run = async () => {
       BUILD_TICK.set(BUILD_TICK.get() + 1)

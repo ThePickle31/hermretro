@@ -1,4 +1,5 @@
-// The page: which screen is shown, and the data every screen shares.
+// The page: which screen is shown, and the data every screen shares (`shell`, handed to each page's Page).
+// The pages themselves come from the registry (app/registry.js, page/pages/index.js).
 import {
   Button,
   Codicon,
@@ -14,36 +15,32 @@ import {
   useValue
 } from '#sdk'
 import { ART_DATA } from '#shared/art/index.js'
-import { injectBuildDraft } from '#pages/build/chat/store.js'
-import { BuildPage } from '#pages/build/build-page.js'
-import { StudioNeeded } from '#pages/build/studio-needed.js'
 import { callStudio, describeRequestError, useBackend } from './backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from './ids.js'
-import { forgetRoute, routing, studioTarget } from './routing.js'
+import { forgetRoute, routing } from './routing.js'
 import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from './rpc.js'
-import { EmulatorBar } from '#pages/emulator/emulator-bar.js'
-import { COVER_PROMPT } from '#pages/games/game-card.js'
-import { GamesPage } from '#pages/games/games-page.js'
-import { latestGame } from '#pages/games/model.js'
-import { HomePage } from '#pages/home/home-page.js'
-import { useInstall } from '#pages/setup/install/installer.js'
-import { ONBOARD_STAGES, OnboardHeader, Onboarding } from '#pages/setup/onboarding/onboarding.js'
+import {
+  computeSteps,
+  latestGame,
+  ONBOARD_STAGES,
+  OnboardHeader,
+  Onboarding,
+  STEP_SHORT,
+  toolchainStateKnown,
+  useInstall,
+  useSetupMemory
+} from '#pages/index.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
-import { annotateGame, askAboutGame } from '#shared/player/capture.js'
+import { annotateGame, askAboutGame } from './player/capture.js'
 import { shrinkFrame } from '#shared/player/frame-image.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
-import { playableSha, PlayerAway, PlayerNotice, PlayerStage } from '#shared/player/stage.js'
-import { PromptsPage } from '#pages/prompts/prompts-page.js'
-import { HardwareChoice } from '#pages/setup/hardware-steps.js'
-import { SetupComplete } from '#pages/setup/setup-complete.js'
-import { computeSteps, STEP_SHORT, toolchainStateKnown, useSetupMemory } from '#pages/setup/steps.js'
-import { SetupWizard, StepRail } from '#pages/setup/wizard.js'
-import { SideEmulatorRow } from '#pages/emulator/beside-chat/row.js'
-import { PageStyle } from '#shared/styles/index.js'
-import { Flyer } from '#shared/ui/art.js'
+import { playableSha, PlayerAway, PlayerStage } from './player/stage.js'
+import { PageStyle } from './style.js'
 import { Footer } from '#shared/ui/page.js'
-import { PAGES, StudioNav } from './nav.js'
+import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
+import { PageView } from './page-view.js'
+import { NAV_PAGES, pageById } from './registry.js'
 
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
@@ -52,7 +49,7 @@ export function StudioPage({ ctx }) {
     try {
       const stored = ctx.storage.get('page', 'home')
 
-      return PAGES.some(([id]) => id === stored) ? stored : 'home'
+      return pageById(stored) ? stored : 'home'
     } catch {
       return 'home'
     }
@@ -169,20 +166,6 @@ export function StudioPage({ ctx }) {
 
     setPolling(current => (current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next))
   }, [autoId, toolchainStep?.state, installState, onboardScreen])
-
-  // Make cover art (Games page): the request goes into that game's Build conversation, not sent.
-  const makeCover = game => {
-    try {
-      ctx.storage.set('buildSelected', game.id)
-    } catch {
-      // this visit only
-    }
-
-    const own = game.session && game.session.thisProfile !== false && game.session.exists !== false
-
-    injectBuildDraft(own ? game.session.storedId : '', COVER_PROMPT)
-    go('build')
-  }
 
   const go = id => {
     setPage(id)
@@ -313,6 +296,72 @@ export function StudioPage({ ctx }) {
     go('emulator')
   }
 
+  // ── what every page gets ──
+  const currentPage = pageById(page) ?? NAV_PAGES[0]
+  const shell = {
+    ctx,
+    page,
+    go,
+    refresh,
+    refreshing,
+    backend,
+    doctor,
+    gateway,
+    status,
+    // setup: the steps, where the user is in them, and first-run memory
+    steps,
+    memory,
+    update,
+    auto,
+    autoId,
+    choosing,
+    shown,
+    pick,
+    unpin: () => setPinned(null),
+    install,
+    gameReady,
+    hardwareOn,
+    emulatorOnly,
+    setUpDevice,
+    // games and prompts
+    games,
+    gameList,
+    gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
+    play,
+    openPrompt,
+    promptId,
+    setPromptId,
+    // New games go in the plugin's games folder (the backend reports it); an older backend without it falls
+    // back to the folder of the latest game.
+    newGameFolder: (() => {
+      if (typeof games.data?.gamesDir === 'string' && games.data.gamesDir) {
+        return games.data.gamesDir
+      }
+
+      const root = latestGame(gameList)?.projectRoot
+
+      return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, '') || null : null
+    })(),
+    profileLabel: routing.profile ?? status.data?.profile?.name ?? 'this profile',
+    // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
+    player: {
+      game,
+      query: player,
+      focused: bridge.focused,
+      rebuilt,
+      capturesOpen,
+      ask,
+      fullScreen: () => void stageRef.current?.requestFullscreen?.()?.catch?.(() => {}),
+      later: () => setDismissed(currentSha),
+      reload: () => setEmu(current => ({ id: game.id, reload: current.reload + 1 })),
+      refresh: () => {
+        refresh()
+        setEmu(current => ({ id: current.id, reload: current.reload + 1 }))
+      },
+      toggleCaptures: () => setCapturesOpen(open => !open)
+    }
+  }
+
   // ── body ──
   let body
 
@@ -326,103 +375,12 @@ export function StudioPage({ ctx }) {
         'onboarding'
       )
     ]
-  } else if (page === 'setup') {
-    body = [
-      jsxs(
-        'div',
-        {
-          className: 'cs-setup',
-          children: [
-            jsx(StepRail, { autoId, onPick: pick, shownId: shown?.id ?? null, skipped: Boolean(memory.hardwareSkipped), steps }, 'rail'),
-            shown
-              ? jsx(SetupWizard, { autoId, backend, ctx, doctor, gateway, install, onContinue: () => setPinned(null), onPick: pick, shown, status, steps, update }, 'wizard')
-              : choosing
-                ? jsx(HardwareChoice, { steps, update }, 'choice')
-                : jsx(SetupComplete, { doctor, emulatorOnly, onGo: go, onRecheck: refresh, onSetUpDevice: setUpDevice, rechecking: refreshing, status, steps }, 'complete'),
-            jsx(Flyer, {}, 'flyer')
-          ]
-        },
-        'setup'
-      )
-    ]
-  } else if (page === 'prompts') {
-    body = [
-      jsx(PromptsPage, {
-      ctx,
-      // New games go in the plugin's games folder (the backend reports it); an older backend without
-      // it falls back to the folder of the latest game.
-      defaultFolder: (() => {
-        if (typeof games.data?.gamesDir === 'string' && games.data.gamesDir) {
-          return games.data.gamesDir
-        }
-
-        const root = latestGame(gameList)?.projectRoot
-
-        return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, '') || null : null
-      })(),
-      gameReady,
-      hardwareOn,
-      onGo: go,
-      onSelect: setPromptId,
-      onSetUpDevice: setUpDevice,
-      profileLabel: routing.profile ?? status.data?.profile?.name ?? 'this profile',
-      selected: promptId,
-      storage: ctx.storage
-    }, 'prompts')
-    ]
-  } else if (page === 'build' && !studioTarget()) {
-    body = [jsx(StudioNeeded, { status }, 'studio-needed')]
-  } else if (page === 'build') {
-    body = [
-      jsx(BuildPage, {
-        ctx,
-        games: gameList,
-        onLibraryChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
-        onPlay: play,
-        loaded: Boolean(games.data),
-        pendingGames: games.data?.pending ?? []
-      }, 'build')
-    ]
-  } else if (page === 'games') {
-    body = [jsx(GamesPage, { ctx, games, hardwareOn, onMakeCover: makeCover, onOpenPrompt: openPrompt, onPlay: play, onSetUpDevice: setUpDevice }, 'games')]
-  } else if (page === 'emulator') {
-    // Always the player: the user's game, or the demo cartridge when there is nothing of theirs to play.
-    body = [
-      jsx(EmulatorBar, {
-        capturesOpen,
-        ctx,
-        focused: bridge.focused,
-        game,
-        hardwareOn,
-        onAsk: ask,
-        onFull: () => void stageRef.current?.requestFullscreen?.()?.catch?.(() => {}),
-        onLater: () => setDismissed(currentSha),
-        onReload: () => setEmu(current => ({ id: game.id, reload: current.reload + 1 })),
-        onToggleCaptures: () => setCapturesOpen(open => !open),
-        player,
-        rebuilt
-      }, 'bar'),
-      jsx(PlayerNotice, {
-        game,
-        onRefresh: () => {
-          refresh()
-          setEmu(current => ({ id: current.id, reload: current.reload + 1 }))
-        },
-        player,
-        refreshing: player.isFetching
-      }, 'notice')
-    ]
   } else {
-    body = [
-      jsx(
-        HomePage,
-        { auto, autoId, choosing, ctx, doctor, games, memory, onGo: go, onOpenPrompt: openPrompt, onPlay: play, onSetUpDevice: setUpDevice, status, steps },
-        'home'
-      )
-    ]
+    body = [jsx(PageView, { page: currentPage, shell }, currentPage.id)]
   }
 
-  const flush = running && page === 'emulator' && !onboardScreen
+  // The page's own padding ('flush' or 'build', each without the footer), only once it is shown.
+  const pad = running && !onboardScreen ? (currentPage.pad ?? null) : null
   // After onboarding a broken game step is a banner, not the onboarding again.
   const broken = running && settled && !onboardScreen && page !== 'setup' ? steps.find(step => !step.hardware && !step.complete) : null
   // The player stays mounted (hidden and paused) while another page is shown, so the game is not reloaded.
@@ -455,12 +413,11 @@ export function StudioPage({ ctx }) {
           : jsx(
               StudioNav,
               {
+                nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
                 onGo: go,
                 onRefresh: refresh,
-                page,
-                playing: Boolean(stage && game && player.data?.url),
+                pages: NAV_PAGES,
                 refreshing,
-                setupPending: running && Boolean(auto),
                 viaProfile
               },
               'nav'
@@ -468,7 +425,7 @@ export function StudioPage({ ctx }) {
         jsxs(
           'div',
           {
-            className: flush ? 'cs-pad flush' : running && page === 'build' && !onboardScreen ? 'cs-pad build' : 'cs-pad',
+            className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
               running && status.data?.restart_needed
                 ? jsxs(
@@ -501,8 +458,8 @@ export function StudioPage({ ctx }) {
                 : null,
               ...body,
               stage,
-              flush ? jsx(SideEmulatorRow, { ctx, game }, 'side') : null,
-              flush || (running && page === 'build' && !onboardScreen) ? null : jsx(Footer, { ctx }, 'foot')
+              pad && currentPage.BelowPlayer ? jsx(currentPage.BelowPlayer, { shell }, 'side') : null,
+              pad ? null : jsx(Footer, { ctx }, 'foot')
             ]
           },
           'pad'

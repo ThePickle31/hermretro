@@ -2,7 +2,7 @@
 import { Button, Codicon, jsx, jsxs } from '#sdk'
 import { AssetImage } from '#pages/build/assets/images.js'
 import { AGENT } from '#app/ids.js'
-import { ago } from '#app/time.js'
+import { ago } from '#shared/ui/time.js'
 import { Screen } from '#shared/ui/screen.js'
 
 export function PlayCard({ game, frame, state, note, onPlay, onOpenAsset }) {

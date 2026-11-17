@@ -8,7 +8,7 @@ import {
   sendBuildChat,
   stopBuildChat
 } from './chat/actions.js'
-import { BUILD_CHATS, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
+import { BUILD_CHATS, BUILD_PRESENTED, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
 import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
@@ -20,8 +20,7 @@ import { buildHistory, deriveTurns } from './transcript/turns.js'
 import { callStudioOnly, describeRequestError } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
 import { RPC_BUILD_RESTORE } from '#app/rpc.js'
-import { playableSha } from '#shared/player/stage.js'
-import { PRESENTED } from '#pages/emulator/beside-chat/state.js'
+import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
 import { BuildNewGame } from './new-game.js'
@@ -138,7 +137,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   // The game plays in the conversation once the agent is done: it opens by itself when the agent handed it
   // over this turn (chromatic_present_game), and stays open until the user closes it.
   const [playerFor, setPlayerFor] = useState(null)
-  const presented = useValue(PRESENTED)[game?.id ?? ''] ?? null
+  const presented = useValue(BUILD_PRESENTED)[game?.id ?? ''] ?? null
   const seenPresent = useRef(presented?.seq ?? 0)
   const openWhenDone = useRef(false)
 

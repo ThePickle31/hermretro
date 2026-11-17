@@ -416,15 +416,53 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 - Verify: `node tools/bundle/bundle.mjs --check`, `python -m unittest discover -s tests -t .`, `node --check desktop/plugin.js`, `node --test 'tests/page/**/*test*.mjs'` (it includes the page scenario files `page-*.test.mjs`), the preview build, and `python tests/acceptance/broker_acceptance.py` after backend changes. Before a release: `node tools/bundle/bundle.mjs --check --same-esbuild`.
 
 ## The page's source (`page/`)
-- `index.js` is the entry: the default export and the one `register()`. `sdk.js` is the only module that imports packages.
-- `app/`: the page itself and what every page uses: the shell (`studio-page.js`, `nav.js`, `not-running.js`, `shell.css.js`), routing, ids, RPC names, backend queries, the chat composer insert, formatting, paths, the prompts several pages send, agent tool names.
-- `pages/<page>/`: one folder per page: `home/`, `games/`, `prompts/`, `setup/` (with `onboarding/` and `install/`), `emulator/` (with `beside-chat/`, the tab beside the chat), `build/`. A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
-- `shared/`: what pages share: `ui/` (components), `styles/`, `art/` (the PNGs), `player/` (the frame layer every player surface uses).
-- `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`, never imports `sdk.js`.
-- A new page gets a folder under `pages/`; a new tab or area of a page gets a subfolder of that page; what two pages share moves to `shared/` (or `app/` when it is page-wide plumbing). Pages never import the shell modules in `app/`.
-- One main component per file, named after it in kebab-case (`BuildCard` in `build-card.js`), with its private helpers. Pure logic lives in noun-named files without components (`turns.js`, `reducer.js`). Named exports only, each name unique across the tree.
+
+- `index.js` is the entry: the default export and the one `register()`, which calls `startPages(ctx)` (every page's own start-up work and event listeners). `sdk.js` is the only module that imports packages.
+- `app/`: the shell and what every page uses. The shell: `studio-page.js` (the page shown, the data every page shares as `shell`), `nav.js`, `page-view.js` (a page's body or its tabs), `not-running.js`, `shell.css.js`, `registry.js` (checks the pages and wires them), `player/` (the one player, kept across pages). Hubs pages use: `events.js`, `slots.js`, `style.js`. Plumbing: routing, ids, RPC names, backend queries, the chat composer insert and prompt buttons, formatting, paths, the prompts several pages send, agent tool names.
+- `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `home/`, `build/`, `setup/` (with `onboarding/` and `install/`), `prompts/`, `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`HOME_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
+- `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (the PNGs), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
+- `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
+- Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// retrodev: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
+- One main component per file, named after it in kebab-case (`BuildCard` in `build-card.js`), with its private helpers. Pure logic lives in noun-named files without components (`turns.js`, `reducer.js`). Named exports only, each name unique across the tree (a front door's `export { x } from './y.js'` passes a name on and does not count).
 - Imports: `./file.js` for the module's own folder, `./sub/file.js` for a folder inside it, and an alias for anything else: `#sdk` (`page/sdk.js`), `#app/`, `#pages/`, `#shared/`, `#frame/` (the folders of the same name; `ALIASES` in `tools/bundle/bundle.mjs`, used by esbuild, the lint and `tests/page/aliases.mjs`). No path climbs a folder (Hermes's install scanner notes relative paths that climb two). No import cycles (the build fails on one).
-- Module state (atoms, maps, caches, listener sets) is declared once, in the module that owns it, and changed only by that module's functions; a feature with more than a little keeps it in `store.js`/`state.js`/`cache.js`. Only `index.js` registers contributions and gateway listeners; features export `watchX(ctx)`.
-- Styles: `<area>.css.js` beside the code, listed once in `shared/styles/index.js` (that order is the cascade). Classes keep their area prefix (`cs-b-*` Build, `cs-v-*` viewer, `cs-rp-*` real player, `cs-ip-*` inline player, `cs-onb-*` onboarding).
+- Module state (atoms, maps, caches, listener sets) is declared once, in the module that owns it, and changed only by that module's functions; a feature with more than a little keeps it in `store.js`/`state.js`/`cache.js`. Another page learns of a change through a page event, never by reading the state. Gateway listeners start from a page's `register(ctx)`; features export `watchX(ctx)`.
+- Styles: `<area>.css.js` beside the code, listed in its page's `css` (that order, then the page order, is the cascade; `app/style.js`). Classes keep their area prefix (`cs-b-*` Build, `cs-v-*` viewer, `cs-rp-*` real player, `cs-ip-*` inline player, `cs-onb-*` onboarding).
 - RPC names only in `app/rpc.js`, agent tool names only in `app/tools.js`, in step with `docs/dev/CONTRACT.md`.
 - Size: aim for 300 lines a file. The build fails above 400, except for the files listed in `tools/bundle/lint.mjs` (each one large component today); that list only shrinks.
+
+## Adding to the page
+
+Each of these touches one folder plus at most one registry line. `tests/page/registry.test.mjs` checks the
+registry, and every descriptor is checked when the bundle loads (`app/registry.js`): a mistake fails the page
+tests with the exact problem.
+
+**A page.** Make `page/pages/<page>/` with `index.js` exporting `export const <PAGE>_PAGE = { id: '<page>',
+label: '<Label>', Page }`, where `Page({ shell })` renders it from `shell` (the data and actions every page
+shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `steps`, `games`, `play(id)`, `player`…).
+Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
+`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_layout.py` fails without one).
+Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
+`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes.
+
+**A tab.** Make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
+`css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
+`app/page-view.js` draws the tab bar and remembers the choice per page; the page's own `Page`, if it keeps one,
+renders between the tab bar and the tab. Mention the tab in the page's `README.md`.
+
+**An event.** The page it happens in owns it: add `events: { '<page>.<name>': 'what happened; the payload' }`
+to `page/pages/<page>/index.js`, and call `emit('<page>.<name>', payload)` from `#app/events.js` where it
+happens. To react to it in another page: from a component, `on(name, fn)` in an effect (it returns the
+unsubscribe); for the plugin's whole life (even while the page is not shown), `listens: { '<page>.<name>':
+(payload, ctx) => ... }` in that page's `index.js`. A listener that throws is logged and never breaks the
+emitter. An undeclared name throws. List it in both READMEs.
+
+**A slot.** The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
+`page/pages/<page>/index.js`, and renders `jsx(Slot, { name: '<page>.<name>', props: { ... } })` (from
+`#app/slots.js`) where the contributions go. Empty, it renders nothing, so declaring one changes nothing on
+screen.
+
+**A contribution to a slot.** In the contributing page's `index.js`: `contributes: { '<page>.<name>':
+[Component] }`. `Component` gets the host's props. It lives in the contributing page's folder.
+
+Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
+`games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

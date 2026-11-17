@@ -2,7 +2,7 @@
 import { Button, jsx, jsxs } from '#sdk'
 import { openInFullChat } from '#pages/build/chat/actions.js'
 import { AGENT } from '#app/ids.js'
-import { clock, useNow } from '#app/time.js'
+import { clock, useNow } from '#shared/ui/time.js'
 import { stepWords } from './step-words.js'
 
 /** What the agent is doing, in words, above the message box. It says so honestly when nothing has come

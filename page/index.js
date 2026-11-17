@@ -19,8 +19,9 @@
  * right of the chat (`host.openWorkspace`, driven by `tool.complete` gateway events; builds open
  * nothing); one game runs at a time, in whichever of the page and the tab opened it last.
  *
- * This folder is the source: app/ (shell, routing, backend calls), pages/<page>/ (one folder per page,
- * its tabs and areas in subfolders), shared/ (ui, styles, art, player) and frame/ (the player frame shim).
+ * This folder is the source: app/ (shell, routing, backend calls, page events and slots), pages/<page>/ (one
+ * folder per page, its tabs and areas in subfolders, described by its index.js and listed in pages/index.js),
+ * shared/ (ui, styles, art, player) and frame/ (the player frame shim).
  * Imports across folders use the aliases #sdk, #app/, #pages/, #shared/ and #frame/ (tools/bundle/bundle.mjs);
  * no import climbs a folder. tools/bundle/bundle.mjs bundles it into desktop/plugin.js, the plain ESM file
  * the app loads; never edit that file.
@@ -33,17 +34,16 @@
  */
 
 import { host, jsx, PALETTE_AREA, ROUTES_AREA, SIDEBAR_NAV_AREA } from './sdk.js'
-import { watchBuildChats } from './pages/build/chat/events.js'
 import { ID, ROUTE } from './app/ids.js'
+import { startPages } from './app/registry.js'
 import { StudioPage } from './app/studio-page.js'
-import { watchBuilds } from './pages/emulator/beside-chat/present.js'
 
 export default {
   id: ID,
   name: 'hermretro',
   register(ctx) {
-    watchBuilds(ctx)
-    watchBuildChats(ctx)
+    // Each page's own start-up work (gateway listeners) and its page-event listeners (app/registry.js).
+    startPages(ctx)
     ctx.registerMany([
       {
         id: 'page',

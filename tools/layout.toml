@@ -25,9 +25,9 @@ areas.player = "The loopback server for the page's emulator"
 
 [folders.page]
 purpose = "Source of the Hermes Desktop page and the player frame script"
-areas.app = "The page shell and page-wide plumbing (RPC names, routing, navigation)"
+areas.app = "The page shell and page-wide plumbing (registry, page events and slots, RPC names, routing)"
 areas.pages = "One folder per page, its tabs and areas inside"
-areas.shared = "UI parts, styles, art and player helpers used by several pages"
+areas.shared = "UI parts, styles, art and player helpers every page uses (imports no app/ or pages/)"
 areas.frame = "The script injected into the emulator frame"
 
 [folders.desktop]
@@ -65,7 +65,7 @@ areas.acceptance = "The real-engine run through the broker"
 
 [folders.tools]
 purpose = "Developer tools; check.py runs every check"
-areas.bundle = "Builds page/ into the generated files"
+areas.bundle = "Builds page/ into the generated files and lints it (ESLint config and the boundary rules)"
 areas.ci = "Clean install, toolchain preparation and Hermes API checks used by CI"
 areas.engine = "Engine update helpers: manifest, schema reconciliation"
 areas.debug = "Debugging helpers for a running gateway"

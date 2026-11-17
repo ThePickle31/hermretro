@@ -5,6 +5,16 @@ import { routeProfile, StudioProfileMissing, studioTarget } from '#app/routing.j
 
 // The game the Build page is showing (its pane plays presentations), or null.
 export const BUILD_VIEWING = atom(null)
+// Game id → its latest presentation by the agent ({ seq, note, t }), from the Emulator page's
+// `emulator.presented` event (build/index.js listens): the Build page plays it in the conversation.
+export const BUILD_PRESENTED = atom({})
+
+export function notePresented({ gameId, seq, note, t }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } })
+}
+
+/** The game the Build page is showing, or null (for the emulator tab: that game plays here instead). */
+export const buildShowing = () => BUILD_VIEWING.get()
 // Stored session id → { seq, text } to add to that Build conversation's composer (not sent).
 export const BUILD_INJECT = atom({})
 
@@ -24,6 +34,9 @@ export function injectBuildDraft(stored, text) {
 export const BUILD_CHATS = atom({})
 // Runtime session id (what events carry) → stored session id.
 export const buildRuntime = new Map()
+
+/** Whether a runtime session id (what gateway events carry) is one of the Build page's conversations. */
+export const isBuildSession = runtime => buildRuntime.has(runtime)
 // Profile routes retained for Build sessions: a pooled socket that closes between calls takes
 // the sessions it opened with it.
 const buildRetained = new Map()

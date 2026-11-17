@@ -1,5 +1,5 @@
 // A duration that keeps counting.
-import { clock, useNow } from '#app/time.js'
+import { clock, useNow } from './time.js'
 
 export function Elapsed({ since }) {
   const now = useNow(Boolean(since))

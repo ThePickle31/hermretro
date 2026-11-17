@@ -3,7 +3,7 @@ import { Button, Codicon, jsx, jsxs, Tip, useQuery } from '#sdk'
 import { callStudio, studioError } from '#app/backend.js'
 import { DEMO_ID, ID } from '#app/ids.js'
 import { RPC_CAPTURES } from '#app/rpc.js'
-import { InstallButton } from '#pages/games/games-page.js'
+import { Slot } from '#app/slots.js'
 import { AsyncButton } from '#shared/ui/page.js'
 import { Small } from '#shared/ui/text.js'
 
@@ -80,7 +80,7 @@ export function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, c
             label: 'Lit while the player has keyboard focus. Keys typed on this page also reach the game.',
             children: jsxs('span', { className: focused ? 'cs-rp-focus on' : 'cs-rp-focus', children: [jsx('i', {}), jsx('span', { className: 'cs-lbl', children: 'Keyboard' })] })
           }),
-          game && !onDemo ? jsx(InstallButton, { ctx, game, hardwareOn }) : null,
+          game && !onDemo ? jsx(Slot, { name: 'emulator.barActions', props: { ctx, game, hardwareOn } }) : null,
           jsx(AsyncButton, { disabled: !player?.data?.url, icon: 'comment-discussion', run: onAsk, title: "Puts this frame and a note into the game's chat, not sent", variant: 'ghost', children: 'Ask Hermes' }),
           jsx(Tip, {
             label: 'Screenshots and videos of this game',

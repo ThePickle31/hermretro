@@ -1,10 +1,11 @@
 """Run hermretro's checks, the same way here and in CI.
 
-    python tools/check.py                fast checks: unit, bundle, page, scan (about 25 s)
+    python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 25 s)
     python tools/check.py full           fast checks plus the real-engine acceptance run
     python tools/check.py unit page      only the named checks
 
-Checks: unit (Python unit tests), bundle (generated files match page/), page (page tests in jsdom),
+Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
+boundaries between pages and a few correctness rules), page (page tests in jsdom),
 scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real
 engine, compiler and emulator; needs the toolchain from setup).
 
@@ -26,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FAST = ["unit", "bundle", "page", "scan"]
+FAST = ["unit", "bundle", "lint", "page", "scan"]
 ALL = FAST + ["acceptance"]
 
 
@@ -91,6 +92,19 @@ def check_bundle(args) -> str:
     if result.returncode:
         raise AssertionError(tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js and "
                              "player/frame-shim.js with your sources (never edit them by hand)")
+    return output.splitlines()[-1] if output else "ok"
+
+
+def check_lint(args) -> str:
+    node = need("node")
+    result = run([node, "tools/bundle/lint-page.mjs"])
+    output = (result.stdout + result.stderr).strip()
+    if "were not found" in output and result.returncode and not args.strict:
+        raise Skip("eslint was not found (npm ci --prefix tools/npm --ignore-scripts)")
+    if result.returncode:
+        raise AssertionError(tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix for the automatic "
+                             "fixes, then fix the rest as each message says (a deliberate exception: "
+                             "// retrodev: allow <rule> \u2014 <reason> on its line)")
     return output.splitlines()[-1] if output else "ok"
 
 

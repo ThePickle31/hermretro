@@ -34,11 +34,12 @@ of `docs/dev/ARCHITECTURE.md`.
 One-time setup for page work: `npm ci --prefix tools/npm --ignore-scripts` (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, page, scan (together, about 11 s)
+python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 11 s)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
+node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (boundaries between pages)
 ```
 
 CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`)

@@ -32,9 +32,9 @@ agreement and checks every tracked file sits in one of them).
 | `backend/history/` | Build history: a snapshot of a game after each build, and restoring one |
 | `backend/player/` | The loopback server for the page's emulator |
 | `page/` | Source of the Hermes Desktop page and the player frame script |
-| `page/app/` | The page shell and page-wide plumbing (RPC names, routing, navigation) |
+| `page/app/` | The page shell and page-wide plumbing (registry, page events and slots, RPC names, routing) |
 | `page/pages/` | One folder per page, its tabs and areas inside |
-| `page/shared/` | UI parts, styles, art and player helpers used by several pages |
+| `page/shared/` | UI parts, styles, art and player helpers every page uses (imports no app/ or pages/) |
 | `page/frame/` | The script injected into the emulator frame |
 | `desktop/` | Generated page bundle (plugin.js) that Hermes Desktop loads |
 | `player/` | The browser player served to the page, its device art and the generated frame script |
@@ -57,7 +57,7 @@ agreement and checks every tracked file sits in one of them).
 | `tests/repo/` | Repository-wide checks: names in lock step, version, layout, portability, bundle, scan |
 | `tests/acceptance/` | The real-engine run through the broker |
 | `tools/` | Developer tools; check.py runs every check |
-| `tools/bundle/` | Builds page/ into the generated files |
+| `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
 | `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
@@ -135,6 +135,12 @@ tabs and areas inside, `shared/` and `frame/`, joined by import aliases (rules i
 Hermes's loader evaluates exactly one file that may import only the SDK and React) and `player/frame-shim.js`
 (injected into the emulator frame). Installs run no build step, so the built files are committed and CI proves
 they match the source.
+
+Pages declare themselves: `page/pages/index.js` lists them (one line each), each page's `index.js` is its
+descriptor and front door, and the shell (`page/app/`) builds the nav, routing, tab bars and stylesheet from
+that list. Pages connect only through what another page exposes: its front door's exports, page events
+(`app/events.js`) and UI slots (`app/slots.js`); ESLint (`python tools/check.py lint`) enforces the import
+boundaries. How to add a page, tab, event or slot: `STUDIO-PAGES.md`, "Adding to the page".
 
 The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `page/app/rpc.js`,
 shapes in `CONTRACT.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through

@@ -1,7 +1,7 @@
 // What the page knows about a library game: labels, states and the prompts about it.
 import { gameLabel } from '#app/game-prompts.js'
-import { ago } from '#app/time.js'
-import { FLASH_PROMPT } from '#pages/prompts/library.js'
+import { ago } from '#shared/ui/time.js'
+import { FLASH_PROMPT } from '#pages/prompts/index.js'
 
 const KIND_LABELS = { gbstudio: 'GB Studio', gbdk: 'GBDK' }
 export const GAME_STATES = {

@@ -5,10 +5,10 @@ import { DEMO_GAME, DEMO_ID, ID } from '#app/ids.js'
 import { RPC_GAMES, RPC_PLAYER } from '#app/rpc.js'
 import { EmulatorBar } from '#pages/emulator/emulator-bar.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
-import { annotateGame, askAboutGame } from '#shared/player/capture.js'
+import { annotateGame, askAboutGame } from '#app/player/capture.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
-import { playableSha, PlayerAway, PlayerNotice, PlayerStage } from '#shared/player/stage.js'
-import { PageStyle } from '#shared/styles/index.js'
+import { playableSha, PlayerAway, PlayerNotice, PlayerStage } from '#app/player/stage.js'
+import { PageStyle } from '#app/style.js'
 import { ALWAYS_VISIBLE, BUILD_TICK, PRESENTED, sideKey, sideSurface, sideTabs } from './state.js'
 
 /** Open (or bring forward) the emulator tab for one game, beside the chat. */

@@ -1,10 +1,10 @@
 // Setup steps for a physical Chromatic, and the choice between it and the emulator.
 import { Button, Codicon, host, jsx, jsxs } from '#sdk'
-import { AGENT_SETTINGS_HREF, LINKS } from '#app/ids.js'
-import { DEVICE_CLI_PROMPT } from '#pages/prompts/library.js'
+import { AGENT_SETTINGS_HREF } from '#app/ids.js'
+import { DEVICE_CLI_PROMPT } from '#pages/prompts/index.js'
 import { Chip } from '#shared/ui/glyph.js'
-import { ExternalLink } from '#shared/ui/links.js'
-import { PromptBlock } from '#shared/ui/prompt-block.js'
+import { ExternalLink, LINKS } from '#shared/ui/links.js'
+import { PromptBlock } from '#app/prompt-block.js'
 import { Facts, Lede, Small } from '#shared/ui/text.js'
 import { MANUAL_STEPS } from './steps.js'
 

@@ -122,7 +122,8 @@ function boundNames(ts, name) {
 
 function exportedNames(ts, statement) {
   if (ts.isExportDeclaration(statement)) {
-    return (statement.exportClause?.elements ?? []).map(element => element.name.text)
+    // `export { x } from './y.js'` (a page's front door) passes y's binding on; it declares nothing new.
+    return statement.moduleSpecifier ? [] : (statement.exportClause?.elements ?? []).map(element => element.name.text)
   }
 
   if (!ts.getModifiers(statement)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {

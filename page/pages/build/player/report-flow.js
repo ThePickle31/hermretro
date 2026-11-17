@@ -3,7 +3,7 @@
 import { host } from '#sdk'
 import { injectBuildDraft } from '#pages/build/chat/store.js'
 import { attachToBuild } from '#pages/build/composer/composer.js'
-import { saveCapture } from '#shared/player/capture.js'
+import { saveCapture } from '#app/player/capture.js'
 
 /** Save the frame and add it to the composer with `text` to finish; without a frame, just the text. */
 async function attachFrame({ game, stored, image, text }) {

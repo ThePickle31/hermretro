@@ -1,6 +1,6 @@
 // A prompt with its actions (use in chat, copy).
 import { Button, Codicon, CopyButton, jsx, jsxs, useState } from '#sdk'
-import { sendPromptToChat } from '#app/chat-insert.js'
+import { sendPromptToChat } from './chat-insert.js'
 
 function PromptActions({ ctx, prompt, primaryLabel = 'Use in chat', primaryVariant = 'secondary' }) {
   const [pending, setPending] = useState(false)

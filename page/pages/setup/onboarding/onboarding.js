@@ -13,7 +13,7 @@ import {
   profileRowState
 } from '#pages/setup/install/install-panel.js'
 import { useInstaller } from '#pages/setup/install/installer.js'
-import { NEW_GAME_PROMPT, promptById } from '#pages/prompts/library.js'
+import { NEW_GAME_PROMPT, promptById } from '#pages/prompts/index.js'
 import { Art } from '#shared/ui/art.js'
 import { Lede } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'

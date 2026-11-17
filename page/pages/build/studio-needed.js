@@ -1,7 +1,7 @@
 // Shown instead of the Build page while the hermretro profile is missing or broken: Build chats run there
 // and nowhere else, so there is nothing to fall back to. Repair re-runs the profile setup.
 import { Button, host, jsx, jsxs, useState } from '#sdk'
-import { createStudioProfileOnce } from '#pages/setup/install/installer.js'
+import { createStudioProfileOnce } from '#pages/setup/index.js'
 import { Lede } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
 

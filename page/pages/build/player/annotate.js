@@ -3,7 +3,7 @@
 // per object with its close-up, and the hardware details sent with the message.
 import { host, useCallback, useEffect, useState } from '#sdk'
 import { attachToBuild } from '#pages/build/composer/composer.js'
-import { saveCapture } from '#shared/player/capture.js'
+import { saveCapture } from '#app/player/capture.js'
 import { CMD } from '#shared/player/protocol.js'
 import { targetKind, targetLabel, targetRect } from '#shared/player/targets.js'
 

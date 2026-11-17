@@ -1,7 +1,6 @@
 // Pieces every page uses: head, footer and a button for async actions.
 import { Button, Codicon, jsx, jsxs, Tip, useState } from '#sdk'
-import { LINKS } from '#app/ids.js'
-import { ExternalLink } from './links.js'
+import { ExternalLink, LINKS } from './links.js'
 import { Lede } from './text.js'
 
 export function Footer({ ctx }) {

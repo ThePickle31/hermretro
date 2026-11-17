@@ -39,4 +39,11 @@ export const SHELL_CSS = `
 .cs-page-head > .cs-col { gap: 12px; }
 .cs-key { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); font: 700 10px ${MONO}; padding: 2px 5px; }
 .cs-note { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+/* a page's tab bar (app/page-view.js), for pages that declare tabs */
+.cs-tabs { border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; gap: 4px; margin-top: -10px; }
+.cs-tabs button { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ui-text-tertiary); cursor: pointer; font: 700 10.5px/1 ${MONO}; letter-spacing: .12em; padding: 8px 12px; text-transform: uppercase; }
+.cs-tabs button:hover { color: var(--ui-text-primary); }
+.cs-tabs button.on { border-bottom-color: var(--ui-accent); color: var(--ui-text-primary); }
+.cs-tabs button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-tab-body { display: contents; }
 `

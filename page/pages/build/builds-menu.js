@@ -3,7 +3,7 @@ import { Button, Codicon, jsx, jsxs, Tip, useEffect, useRef, useState } from '#s
 import { callStudioOnly } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
 import { RPC_BUILDS } from '#app/rpc.js'
-import { timeOfDay } from '#app/time.js'
+import { timeOfDay } from '#shared/ui/time.js'
 import { Elapsed } from '#shared/ui/elapsed.js'
 
 /** One pill beside the title: working, the build you would play, edits since it, or a failed build. */
