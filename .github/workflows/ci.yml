@@ -145,6 +145,10 @@ jobs:
       # Installs the newest v* release on origin/main, uses it, then `hermes plugins update`s it to this commit.
       - name: python tools/ci/clean_install_check.py --update-from
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from
+      # And from dev as it is now: the layout and code the next release will update from.
+      - name: python tools/ci/clean_install_check.py --update-from origin/dev
+        if: github.event_name == 'pull_request'
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from origin/dev
 
   changes:
     name: What changed

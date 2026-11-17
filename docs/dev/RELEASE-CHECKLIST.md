@@ -31,9 +31,10 @@ Write the result (system, Hermes version, pass or what failed) in the release pu
 CI proves that the release users have now updates to the candidate: `python tools/ci/clean_install_check.py
 --update-from` installs the newest `v*` tag on `origin/main` into a throwaway Hermes home, uses it (studio profile,
 a library game with a thumbnail, a New Game chat, a running broker), then runs `hermes plugins update hermretro`
-and checks the update asks nothing, the new code registers only in `hermretro`, reads the library back and
-replaces the old broker. Nothing to edit when releasing: once the new tag is on `main`, every later run updates
-from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
+and checks the update asks nothing, the new code registers only in `hermretro`, reads the library back, and
+replaces the old broker when its code changed (keeps it when not). It works from a release in either layout
+(`adapter/` before the reorganization, `backend/` after; `LAYOUTS` in `tools/ci/update_check.py`). Pull requests also update
+from `origin/dev`. Nothing to edit when releasing: once the new tag is on `main`, every later run updates from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
 lives (`backend/system/paths.py`) or what the broker answers to `hello` must keep this check green, or migrate.
 
 ## Then release

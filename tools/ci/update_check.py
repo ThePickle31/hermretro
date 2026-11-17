@@ -123,9 +123,10 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
+    broker_fate = "kept (same code)" if before.get("broker_code") == after.get("code") else "replaced (new code)"
     print(
         f"ok: {ref} updates cleanly to HEAD with `hermes plugins update` ({time.monotonic() - started:.0f} s): "
-        "games and library kept, the old broker replaced, the agent side only in hermretro"
+        f"games and library kept, the broker {broker_fate}, the agent side only in hermretro"
     )
     return 0
 
@@ -238,7 +239,7 @@ def inside(phase: str, out: str) -> int:
     return 0
 
 
-# Where each module the check drives lives, newest layout first (0.0.5 and earlier used adapter/).
+# Where each module the check drives lives, newest layout first (releases before the reorganization used adapter/).
 LAYOUTS = {
     "paths": (".backend.system.paths", ".adapter.paths"),
     "client": (".backend.broker.client", ".adapter.client"),
