@@ -7,7 +7,7 @@ the nav, the routing (the remembered page) and the stylesheet from the registry:
 the pages, `registry.js` checks each page's descriptor, declares their events and slots and starts them.
 
 **Hubs other pages use:** `events.js` (`on`, `emit`), `slots.js` (`Slot`), `style.js` (`PageStyle`).
-**Plumbing:** `backend.js` (RPC queries), `rpc.js` (RPC names; generated later, do not rename), `routing.js`
+**Plumbing:** `backend.js` (RPC queries), `rpc.js` (RPC names, re-exported from the generated `rpc-names.js`; never edit that one), `routing.js`
 (the hermretro profile), `chat-insert.js` and `prompt-button.js` / `prompt-block.js` (prompts into chats),
 `ids.js`, `tools.js` (agent tool names), `game-prompts.js`, `format.js`, `paths.js`.
 

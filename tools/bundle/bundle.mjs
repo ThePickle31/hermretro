@@ -16,7 +16,11 @@
  * esbuild (here, and in tests/repo/test_desktop_bundle.py).
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
  * tools/npm/node_modules, or a Hermes Desktop checkout).
+ *
+ * Before building, it regenerates page/app/rpc-names.js from the backend's @rpc declarations with
+ * tools/bundle/rpc_names.py (Python from PATH); --check fails when that file is stale.
  */
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -334,8 +338,38 @@ async function watch(tools) {
   return new Promise(() => {})
 }
 
+/** Regenerate (or with `check`, verify) page/app/rpc-names.js from the backend's @rpc declarations. */
+function rpcNames(check) {
+  for (const python of ['python3', 'python']) {
+    const result = spawnSync(python, ['tools/bundle/rpc_names.py', ...(check ? ['--check'] : [])], { cwd: ROOT, encoding: 'utf8' })
+
+    if (result.error?.code === 'ENOENT') {
+      continue
+    }
+
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+
+    if (result.status !== 0) {
+      return [output || `${python} tools/bundle/rpc_names.py failed`]
+    }
+
+    if (output) {
+      console.log(output)
+    }
+
+    return []
+  }
+
+  return ['Python was not found, so page/app/rpc-names.js (generated from backend/) could not be made\nFIX: install Python 3.11 or newer (python3 on PATH), then run node tools/bundle/bundle.mjs again']
+}
+
 async function main(flags) {
   const tools = toolchain()
+  const names = rpcNames(flags.has('--check'))
+
+  if (names.length) {
+    return fail(names)
+  }
 
   if (flags.has('--check')) {
     const code = fail(await check(tools, flags.has('--same-esbuild')))

@@ -8,15 +8,17 @@ Adding a plugin tool (2 places + the page): the feature folder (a schema, a hand
 step words, in backend/<feature>/tools.py) and plugin.yaml's provides_tools. The page's copy of the step words in
 page/pages/build/transcript/step-words.js must match the Tool's step_words (or HIDDEN_STEPS for None); then
 document the tool in docs/dev/CONTRACT.md (the counts there are checked) and refresh tests/repo/registration.json.
-Adding an RPC (1 place + the page): the feature folder (@rpc("name") in backend/<feature>/rpcs.py), then the
-page's name list page/app/rpc.js, a heading or table row in docs/dev/CONTRACT.md or STUDIO-PAGES.md, and
-tests/repo/registration.json.
+Adding an RPC (1 place + the docs): the feature folder (@rpc("name") in backend/<feature>/rpcs.py) and a heading
+or table row in docs/dev/CONTRACT.md or STUDIO-PAGES.md; then node tools/bundle/bundle.mjs regenerates the page's
+name list page/app/rpc-names.js (RPC_<NAME>, through page/app/rpc.js; checked current here and by the bundle
+check), and python tests/repo/test_registration_snapshot.py --write refreshes tests/repo/registration.json.
 Adding a hook: @hook(...) in backend/<feature>/hooks.py; a hook name no feature used before also goes under
 provides_hooks in plugin.yaml.
 Tool and skill counts elsewhere in the tests are derived, not typed.
 """
 
 import codecs
+import importlib.util
 import json
 import re
 import sys
@@ -31,8 +33,6 @@ from backend.hermes import declare  # noqa: E402
 from backend.system import paths  # noqa: E402
 from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402
 
-# Registered for older desktop halves and the broker's own use; today's page does not call it.
-RPCS_THE_PAGE_DOES_NOT_CALL = {"activity"}
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
 HERMES_TOOLS_WITH_WORDS = {
     "browser_exec",
@@ -94,12 +94,23 @@ class LockStep(unittest.TestCase):
         cls.tools = set(ctx.calls["tool"])
         cls.rpcs = set(ctx.calls["rpc"])
 
-    def test_rpc_names_agree_between_backend_page_and_docs(self):
-        page = set(re.findall(r"`plugin\.\$\{ID\}\.(\w+)`", read("page/app/rpc.js")))
-        self.assertEqual(page - self.rpcs, set(), "page/app/rpc.js names RPCs the backend does not register")
+    def test_the_page_rpc_names_are_generated_from_the_backend_and_current(self):
+        spec = importlib.util.spec_from_file_location("rpc_names", ROOT / "tools" / "bundle" / "rpc_names.py")
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        declared = generator.declared()
         self.assertEqual(
-            self.rpcs - page - RPCS_THE_PAGE_DOES_NOT_CALL, set(), "registered RPCs missing from page/app/rpc.js"
+            {name for name, _file in declared},
+            self.rpcs,
+            "@rpc names read from backend/*/rpcs.py differ from what the plugin registers (an @rpc outside rpcs.py?)",
         )
+        self.assertEqual(
+            read("page/app/rpc-names.js"),
+            generator.render(declared),
+            "page/app/rpc-names.js is stale\nFIX: " + generator.FIX,
+        )
+
+    def test_rpc_names_agree_between_backend_and_docs(self):
         docs = read("docs/dev/CONTRACT.md") + read("docs/dev/STUDIO-PAGES.md")
         documented = {a or b for a, b in RPC_HEADING.findall(docs)}
         self.assertEqual(

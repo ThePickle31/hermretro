@@ -24,6 +24,8 @@ import { findModules, MISSING_HINT } from './node-modules.mjs'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const ALLOW = /\/\/\s*retrodev:\s*allow\s+(\S+)(?:\s+(?:\u2014|--|-)\s*(.*))?$/
 const FIX = 'node tools/bundle/lint-page.mjs --fix'
+// Generated files: their generator decides their shape (page/app/rpc-names.js: tools/bundle/rpc_names.py).
+const GENERATED = ['page/app/rpc-names.js']
 
 // What each rule protects and how to fix a report, printed under every message.
 const HELP = {
@@ -58,6 +60,7 @@ function tools() {
 
 function config({ hooks, globals }) {
   return [
+    { ignores: GENERATED },
     {
       files: ['page/**/*.js'],
       languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.browser, ...globals.es2021 } },

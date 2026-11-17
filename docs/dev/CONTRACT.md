@@ -10,7 +10,7 @@
   every registration, in order, is pinned in `tests/repo/registration.json`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `ARCHITECTURE.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
-  `rpcs.py`, its name in `page/app/rpc.js` and a section below. Adding a plugin tool: a `Tool(...)` in the
+  `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
   feature's `tools.py` (with its Build-page step words), `plugin.yaml` `provides_tools`, the page's
   `step-words.js` and a line here. Then refresh the snapshot: `python tests/repo/test_registration_snapshot.py --write`.
 
@@ -40,7 +40,9 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 
 Called with `host.request('plugin.hermretro.<name>', params)`.
 A disabled or missing backend answers JSON-RPC error `-32601`.
-The page's copy of these names is `page/app/rpc.js`; the agent tool names it reacts to are in
+The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generated from the `@rpc` declarations into
+`page/app/rpc-names.js` by `tools/bundle/rpc_names.py` (`node tools/bundle/bundle.mjs` runs it; the bundle check
+fails when it is stale); the agent tool names it reacts to are in
 `page/app/tools.js`.
 
 ### `status` — params `{ chat?: string }`

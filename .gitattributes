@@ -12,3 +12,5 @@ page/**/*.png binary
 tools/bundle/bundle.mjs text eol=lf
 desktop/plugin.js text eol=lf -merge linguist-generated=true
 player/frame-shim.js text eol=lf -merge linguist-generated=true
+# Generated from the backend's @rpc declarations by tools/bundle/rpc_names.py (bundle.mjs runs it).
+page/app/rpc-names.js text eol=lf -merge linguist-generated=true

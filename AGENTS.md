@@ -15,7 +15,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `backend/` | Python backend, one folder per feature: `broker/` (the broker process, engine workers), `hermes/` (everything that touches Hermes), `setup/`, `library/`, `assets/` (RPCs for the page), `player/` (the browser player server), `system/` (locations, Linux/macOS differences) |
 | `engine/` | `modretro-chromatic/`, the vendored ModRetro engine (changes are refused at run time), and `pins/<version>/` (its tool contracts and file manifest) |
 | `page/` | Source of the Hermes Desktop page and the player frame script: `app/`, one folder per page under `pages/`, `shared/`, `frame/` |
-| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `page/` by `tools/bundle/bundle.mjs` and committed |
+| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `page/` by `tools/bundle/bundle.mjs` and committed (as is `page/app/rpc-names.js`, from the backend's `@rpc` declarations) |
 | `player/` | The browser player served to the page, and the device art |
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
@@ -53,8 +53,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 
 ## Rules that protect users
 
-1. **Generated files.** Never edit `desktop/plugin.js` or `player/frame-shim.js` by hand. Change
-   `page/`, run `node tools/bundle/bundle.mjs`, and commit both generated files with the sources.
+1. **Generated files.** Never edit `desktop/plugin.js`, `player/frame-shim.js` or `page/app/rpc-names.js` (the
+   page's RPC names, from the backend's `@rpc` declarations) by hand. Change `page/` or the backend, run
+   `node tools/bundle/bundle.mjs`, and commit the generated files with the sources.
 2. **The engine is untouched.** Nothing under `engine/` changes outside a deliberate engine update.
 3. **Install scanner.** One line rated high makes every install ask for confirmation; one rated critical
    blocks installs entirely. `python tools/check.py scan` must say `safe`. Things that trip it: piping a
@@ -86,11 +87,11 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   agent made the change.
 - Agents never merge. The owner merges.
 - When two pull requests both change the page, the generated files conflict. Fix it with
-  `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the two generated files.
+  `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the generated files.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through
   front doors and events (`docs/dev/ARCHITECTURE.md`, "The agent half"; checked by `tests/repo/test_boundaries.py`,
   registrations pinned by `tests/repo/test_registration_snapshot.py`). Names that must still change together
-  (manifest, page names, step words, docs) are checked by `tests/repo/test_lockstep.py`, whose opening comment
+  (manifest, step words, docs; the page's RPC names are generated) are checked by `tests/repo/test_lockstep.py`, whose opening comment
   lists every place to edit when adding a plugin tool or an RPC, and which also keeps the engine version in
   agreement.
 - This guide changes in the same pull request as any command or rule it describes.

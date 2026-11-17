@@ -105,7 +105,7 @@ by it, and listened to from `listeners.py`. A deliberate exception is a line com
 
 | To add | Touch |
 |---|---|
-| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`. Then the page's `page/app/rpc.js`, a section in `CONTRACT.md`, and `python tests/repo/test_registration_snapshot.py --write` |
+| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`, and a section in `CONTRACT.md`. Then `node tools/bundle/bundle.mjs` (regenerates the page's names, `RPC_<NAME>` in `page/app/rpc-names.js`) and `python tests/repo/test_registration_snapshot.py --write` |
 | a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`, the snapshot |
 | a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`; the snapshot |
 | an event | the owner's front door `EVENTS` + `emit(...)` where it happens; listeners in `backend/<other>/listeners.py` with `@on(...)` |
@@ -143,8 +143,8 @@ that list. Pages connect only through what another page exposes: its front door'
 (`app/events.js`) and UI slots (`app/slots.js`); ESLint (`python tools/check.py lint`) enforces the import
 boundaries. How to add a page, tab, event or slot: `STUDIO-PAGES.md`, "Adding to the page".
 
-The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `page/app/rpc.js`,
-shapes in `CONTRACT.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through
+The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `page/app/rpc.js`, generated
+from the backend's `@rpc` declarations; shapes in `CONTRACT.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through
 the gateway (`page/pages/build/chat/`), never in another profile (`app/routing.js` `studioTarget()`).
 
 ## Where state lives

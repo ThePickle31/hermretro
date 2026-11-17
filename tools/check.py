@@ -105,8 +105,8 @@ def check_bundle(args) -> str:
         raise Skip(output.splitlines()[-1])
     if result.returncode:
         raise AssertionError(
-            tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js and "
-            "player/frame-shim.js with your sources (never edit them by hand)"
+            tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js, "
+            "player/frame-shim.js and page/app/rpc-names.js with your sources (never edit them by hand)"
         )
     return output.splitlines()[-1] if output else "ok"
 

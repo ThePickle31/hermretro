@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 d56157f12fffb1585c44a7c8d0848043cbc8d905305336fc8b9239b644fbc86d
- * body: sha256 395111e2b5d830be4fce1ec55e7a2cb830b6f636f130d8f639d52a0d0b348768
+ * sources: sha256 9b5d9e6d27b91c21dbd61a231975a35413c6294178f734da89d3e851b99be1ff
+ * body: sha256 4b8aec7a5b2f6b5e152157726fc71dfc362d9becd6f85b9767c377a2caeb55aa
  */
 // page/sdk.js
 import {
@@ -109,25 +109,47 @@ var HOME_CSS = `
 .cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
 `;
 
-// page/app/rpc.js
-var RPC_STATUS = `plugin.${ID}.status`;
-var RPC_DOCTOR = `plugin.${ID}.doctor`;
-var RPC_STUDIO_PROFILE = `plugin.${ID}.studio_profile`;
-var RPC_INSTALL = `plugin.${ID}.install`;
-var RPC_REMOVE_TOOLS = `plugin.${ID}.remove_tools`;
-var RPC_GAMES = `plugin.${ID}.games`;
-var RPC_GAME_THUMB = `plugin.${ID}.game_thumb`;
-var RPC_PLAYER = `plugin.${ID}.player`;
-var RPC_CAPTURES = `plugin.${ID}.captures`;
-var RPC_CAPTURE_IMAGE = `plugin.${ID}.capture_image`;
-var RPC_PRESENTATIONS = `plugin.${ID}.presentations`;
-var RPC_BUILD = `plugin.${ID}.build`;
-var RPC_ASSET = `plugin.${ID}.asset`;
-var RPC_ASSET_INFO = `plugin.${ID}.asset_info`;
-var RPC_ASSET_RESTORE = `plugin.${ID}.asset_restore`;
-var RPC_BUILDS = `plugin.${ID}.builds`;
-var RPC_BUILD_RESTORE = `plugin.${ID}.build_restore`;
-var RPC_ASSETS = `plugin.${ID}.assets`;
+// page/app/rpc-names.js
+var RPC_NAMES = Object.freeze({
+  activity: `plugin.${ID}.activity`,
+  asset: `plugin.${ID}.asset`,
+  asset_info: `plugin.${ID}.asset_info`,
+  asset_restore: `plugin.${ID}.asset_restore`,
+  assets: `plugin.${ID}.assets`,
+  build: `plugin.${ID}.build`,
+  build_restore: `plugin.${ID}.build_restore`,
+  builds: `plugin.${ID}.builds`,
+  capture_image: `plugin.${ID}.capture_image`,
+  captures: `plugin.${ID}.captures`,
+  doctor: `plugin.${ID}.doctor`,
+  game_thumb: `plugin.${ID}.game_thumb`,
+  games: `plugin.${ID}.games`,
+  install: `plugin.${ID}.install`,
+  player: `plugin.${ID}.player`,
+  presentations: `plugin.${ID}.presentations`,
+  remove_tools: `plugin.${ID}.remove_tools`,
+  status: `plugin.${ID}.status`,
+  studio_profile: `plugin.${ID}.studio_profile`
+});
+var RPC_ACTIVITY = RPC_NAMES.activity;
+var RPC_ASSET = RPC_NAMES.asset;
+var RPC_ASSET_INFO = RPC_NAMES.asset_info;
+var RPC_ASSET_RESTORE = RPC_NAMES.asset_restore;
+var RPC_ASSETS = RPC_NAMES.assets;
+var RPC_BUILD = RPC_NAMES.build;
+var RPC_BUILD_RESTORE = RPC_NAMES.build_restore;
+var RPC_BUILDS = RPC_NAMES.builds;
+var RPC_CAPTURE_IMAGE = RPC_NAMES.capture_image;
+var RPC_CAPTURES = RPC_NAMES.captures;
+var RPC_DOCTOR = RPC_NAMES.doctor;
+var RPC_GAME_THUMB = RPC_NAMES.game_thumb;
+var RPC_GAMES = RPC_NAMES.games;
+var RPC_INSTALL = RPC_NAMES.install;
+var RPC_PLAYER = RPC_NAMES.player;
+var RPC_PRESENTATIONS = RPC_NAMES.presentations;
+var RPC_REMOVE_TOOLS = RPC_NAMES.remove_tools;
+var RPC_STATUS = RPC_NAMES.status;
+var RPC_STUDIO_PROFILE = RPC_NAMES.studio_profile;
 
 // page/app/routing.js
 var routing = { route: null, profile: null, scannedAt: 0, studio: false, ambientStudio: false };
