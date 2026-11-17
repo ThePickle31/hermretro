@@ -1,5 +1,6 @@
 """Build history: a snapshot of a library game after each successful build, the ``builds`` and
 ``build_restore`` RPCs, and the post_tool_call hook that takes them."""
+
 import json
 import os
 import sys
@@ -23,8 +24,12 @@ from tests.support import registered_hook  # noqa: E402
 
 def success(root: Path, **extra) -> str:
     """A delivered chromatic_rom_build result, as Hermes hands it to post_tool_call."""
-    return json.dumps({"result": "Build complete.", "structuredContent": {
-        "success": True, "outputPath": str(root / "build" / "rom" / "game.gbc"), **extra}})
+    return json.dumps(
+        {
+            "result": "Build complete.",
+            "structuredContent": {"success": True, "outputPath": str(root / "build" / "rom" / "game.gbc"), **extra},
+        }
+    )
 
 
 class Snapshots(unittest.TestCase):
@@ -51,19 +56,23 @@ class Snapshots(unittest.TestCase):
         os.symlink(self.root / "project" / "scene.gbsres", self.root / "project" / "alias.gbsres")
         taken = snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
         self.assertEqual(taken, {"id": "1000", "created": True})
-        self.assertEqual(self.files_of("1000"), ["assets/sprites/robin.png", "cover.png", "game.json",
-                                                 "project/scene.gbsres", "space-game.gbsproj"])
+        self.assertEqual(
+            self.files_of("1000"),
+            ["assets/sprites/robin.png", "cover.png", "game.json", "project/scene.gbsres", "space-game.gbsproj"],
+        )
         meta = json.loads((self.store / "g" / "1000" / "snapshot.json").read_text())
-        self.assertEqual((meta["at"], meta["game"], meta["reason"], meta["files"], meta["builds"]),
-                         (1000, "g", "build", 5, [1000]))
+        self.assertEqual(
+            (meta["at"], meta["game"], meta["reason"], meta["files"], meta["builds"]), (1000, "g", "build", 5, [1000])
+        )
         self.assertEqual(meta["root"], os.path.realpath(self.root))
         self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.store / "g")))
 
     def test_an_unchanged_project_adds_its_build_to_the_newest_snapshot(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
-        self.assertEqual(snapshots.take(self.store, "g", self.root, "build", now_ms=2000),
-                         {"id": "1000", "created": False})
-        (self.root / "build" / "project.gb").write_bytes(b"other rom")     # output does not count
+        self.assertEqual(
+            snapshots.take(self.store, "g", self.root, "build", now_ms=2000), {"id": "1000", "created": False}
+        )
+        (self.root / "build" / "project.gb").write_bytes(b"other rom")  # output does not count
         snapshots.take(self.store, "g", self.root, "build", now_ms=3000)
         self.assertEqual([item["builds"] for item in snapshots.list_snapshots(self.store, "g")], [[1000, 2000, 3000]])
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-2")
@@ -99,8 +108,8 @@ class Snapshots(unittest.TestCase):
         self.assertEqual((self.root / "assets" / "sprites" / "robin.png").read_bytes(), b"robin-1")
         self.assertTrue((self.root / "space-game.gbsproj").is_file())
         self.assertFalse((self.root / "assets" / "sprites" / "hawk.png").exists())
-        self.assertFalse((self.root / "project" / "new").exists())                    # emptied folder gone
-        self.assertTrue(os.path.islink(self.root / "assets" / "link.png"))             # links untouched
+        self.assertFalse((self.root / "project" / "new").exists())  # emptied folder gone
+        self.assertTrue(os.path.islink(self.root / "assets" / "link.png"))  # links untouched
         self.assertEqual((self.base / "outside.txt").read_text(), "keep me")
         for folder in ("artifacts", ".git", "node_modules", "captures", "build"):
             self.assertTrue((self.root / folder).is_dir(), folder)
@@ -111,7 +120,7 @@ class Snapshots(unittest.TestCase):
 
         # The backup is itself restorable: Restore can be undone.
         again = snapshots.restore(self.store, "g", self.root, "5000", now_ms=6000)
-        self.assertEqual((again["changed"], again["removed"]), (3, 1))     # robin, hawk, new scene; gbsproj
+        self.assertEqual((again["changed"], again["removed"]), (3, 1))  # robin, hawk, new scene; gbsproj
         self.assertTrue((self.root / "project" / "new" / "scene.gbsres").is_file())
         self.assertEqual((self.root / "assets" / "sprites" / "hawk.png").read_bytes(), b"hawk")
         self.assertFalse((self.root / "space-game.gbsproj").exists())
@@ -170,8 +179,9 @@ class BuildHistoryHost(unittest.TestCase):
         self.tmp.cleanup()
 
     def hook(self, **kwargs):
-        registered_hook("post_tool_call")(**{"tool_name": "chromatic_rom_build", "args": {},
-                                       "result": success(self.root), "status": "ok", **kwargs})
+        registered_hook("post_tool_call")(
+            **{"tool_name": "chromatic_rom_build", "args": {}, "result": success(self.root), "status": "ok", **kwargs}
+        )
 
     def listed(self):
         return history_rpcs.rpc_builds(None)({"game": self.game})
@@ -183,7 +193,7 @@ class BuildHistoryHost(unittest.TestCase):
         self.hook(tool_name="chromatic_web_build")
         self.hook(args={"sourcePath": "test.c"})
         self.hook(result="not json")
-        self.hook(result=success(self.outsider))                           # not in the library
+        self.hook(result=success(self.outsider))  # not in the library
         self.assertEqual(self.listed(), {"ok": True, "builds": []})
         self.assertFalse((self.store / games.game_id(self.outsider)).exists())
         self.hook()
@@ -210,8 +220,10 @@ class BuildHistoryHost(unittest.TestCase):
 
     def test_assets_keep_inspected_images_before_the_snapshot(self):
         # post_tool_call is registered once: assets' callback, then build history's (backend/features.py order).
-        self.assertEqual(registered_hook("post_tool_call").callbacks,
-                         (host_assets.keep_inspected_images, history_hooks.snapshot_after_build))
+        self.assertEqual(
+            registered_hook("post_tool_call").callbacks,
+            (host_assets.keep_inspected_images, history_hooks.snapshot_after_build),
+        )
 
     def test_builds_and_restore_rpcs(self):
         restore = history_rpcs.rpc_build_restore(None)

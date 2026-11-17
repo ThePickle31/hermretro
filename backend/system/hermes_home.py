@@ -5,6 +5,7 @@ imported, before anything reads a location: the plugin's ``__init__`` imports ba
 (the broker, tests, tools run outside Hermes) ``asked()`` is None and paths.py falls back to ``HERMES_HOME``.
 Stdlib only.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable

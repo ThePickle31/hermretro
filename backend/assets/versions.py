@@ -1,6 +1,7 @@
 """Kept versions of game images: what an image looked like when a reply showed it. The image checks
 (kind, size, whether a path is inside a library game), the hooks that keep each version, and the list of
 kept versions."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,12 +10,18 @@ from pathlib import Path
 
 from ..hermes import host
 
-logger = host.logger   # one logger for the Hermes side of the backend, 
+logger = host.logger  # one logger for the Hermes side of the backend,
 
 # Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
 # looked up there at call time, so one patch of host.<name> reaches every module.
 
-ASSET_SUFFIXES = {".png": "image/png", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+ASSET_SUFFIXES = {
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 ASSET_MAX_BYTES = 6 * 1024 * 1024
 
 
@@ -29,9 +36,11 @@ def _image_size(data: bytes) -> tuple[int, int]:
         while index + 9 < len(data):
             if data[index] != 0xFF:
                 break
-            marker, length = data[index + 1], int.from_bytes(data[index + 2:index + 4], "big")
+            marker, length = data[index + 1], int.from_bytes(data[index + 2 : index + 4], "big")
             if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-                return int.from_bytes(data[index + 7:index + 9], "big"), int.from_bytes(data[index + 5:index + 7], "big")
+                return int.from_bytes(data[index + 7 : index + 9], "big"), int.from_bytes(
+                    data[index + 5 : index + 7], "big"
+                )
             index += 2 + length
     return 0, 0
 
@@ -53,7 +62,9 @@ def _asset_kind(relative: str | None) -> str:
 
 ASSET_KEEP_VERSIONS = 40
 # A line of a reply that delivers a file (``MEDIA:/path``), quotes or backticks allowed around the path.
-_MEDIA_LINE = re.compile(r"^[ \t]*MEDIA:[ \t]*([`\"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$", re.IGNORECASE | re.MULTILINE)
+_MEDIA_LINE = re.compile(
+    r"^[ \t]*MEDIA:[ \t]*([`\"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$", re.IGNORECASE | re.MULTILINE
+)
 
 
 def _asset_roots() -> list[Path]:
@@ -71,7 +82,7 @@ def _asset_file(raw) -> tuple[Path, Path] | None:
     frames; None for anything else."""
     raw = str(raw or "")
     if raw.startswith("file://"):
-        raw = raw[len("file://"):]
+        raw = raw[len("file://") :]
     candidate = Path(raw).expanduser()
     # Cheap checks first: this runs after every tool call.
     if not raw or not candidate.is_absolute() or candidate.suffix.lower() not in ASSET_SUFFIXES:
@@ -127,7 +138,9 @@ def _version_at(real: Path, at_ms) -> Path | None:
     folder = _versions_dir(real)
     if not folder.is_dir():
         return None
-    older = [item for item in folder.iterdir() if item.suffix != ".part" and item.stem.isdigit() and int(item.stem) <= at_ns]
+    older = [
+        item for item in folder.iterdir() if item.suffix != ".part" and item.stem.isdigit() and int(item.stem) <= at_ns
+    ]
     return max(older, key=lambda item: int(item.stem)) if older else None
 
 
@@ -160,11 +173,19 @@ def keep_inspected_images(tool_name=None, args=None, **_kwargs):
 def _versions(real: Path) -> list[dict]:
     """Every kept version of a file, oldest first, with the current one marked."""
     folder = _versions_dir(real)
-    kept = sorted((item for item in folder.iterdir() if item.stem.isdigit() and item.suffix != ".part"), key=lambda item: int(item.stem)) \
-        if folder.is_dir() else []
+    kept = (
+        sorted(
+            (item for item in folder.iterdir() if item.stem.isdigit() and item.suffix != ".part"),
+            key=lambda item: int(item.stem),
+        )
+        if folder.is_dir()
+        else []
+    )
     current = real.stat().st_mtime_ns
     data = real.read_bytes()
-    versions = [{"id": item.stem, "at": int(item.stem) // 1_000_000, "file": str(item), "current": False} for item in kept]
+    versions = [
+        {"id": item.stem, "at": int(item.stem) // 1_000_000, "file": str(item), "current": False} for item in kept
+    ]
     match = next((entry for entry in reversed(versions) if int(entry["id"]) == current), None)
     if match is None and kept and kept[-1].read_bytes() == data:
         match = versions[-1]

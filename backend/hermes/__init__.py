@@ -12,6 +12,7 @@ Importing this package hands Hermes's own answer for the Hermes home to backend.
 Hermes), before anything reads a location. Front door for features: ``backend.hermes.host`` and
 ``backend.hermes.declare``.
 """
+
 from ..system import hermes_home as _hermes_home
 from . import api as _api
 

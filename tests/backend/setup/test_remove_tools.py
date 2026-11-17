@@ -1,4 +1,5 @@
 """Setup's "Remove downloaded tools": deletes only hermretro's download folder, never games or anything else."""
+
 import os
 import sys
 import tempfile
@@ -84,13 +85,16 @@ class RemoveDownloads(unittest.TestCase):
 
     def test_nothing_is_deleted_while_a_broker_still_holds_its_lock(self):
         import fcntl
+
         run = self.home / "run"
         run.mkdir()
         with open(run / "broker.lock", "a+") as held:
             fcntl.flock(held, fcntl.LOCK_EX)
-            with mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)), \
-                    mock.patch.object(paths, "runtime_dir", lambda: run), \
-                    mock.patch.object(host_setup, "BROKER_STOP_WAIT", 0.3):
+            with (
+                mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+                mock.patch.object(paths, "runtime_dir", lambda: run),
+                mock.patch.object(host_setup, "BROKER_STOP_WAIT", 0.3),
+            ):
                 answer = setup_rpcs.rpc_remove_tools(None)({})
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
@@ -115,15 +119,19 @@ class RemoveDownloads(unittest.TestCase):
         (self.home / "run").mkdir()
         rpc = setup_rpcs.rpc_remove_tools(None)
         busy = Client({"ok": False, "denied": {"code": "BUSY"}})
-        with mock.patch.object(hermes_host, "try_connect", lambda _dir: (busy, None)), \
-                mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"):
+        with (
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (busy, None)),
+            mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"),
+        ):
             answer = rpc({})
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
-        self.assertEqual(busy.asked, [{"op": "shutdown"}])   # never forced
+        self.assertEqual(busy.asked, [{"op": "shutdown"}])  # never forced
         self.assertTrue((self.cache / "toolchain").is_dir())
         idle = Client({"ok": True})
-        with mock.patch.object(hermes_host, "try_connect", lambda _dir: (idle, None)), \
-                mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"):
+        with (
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (idle, None)),
+            mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"),
+        ):
             answer = rpc({})
         self.assertTrue(answer["ok"])
         self.assertFalse((self.cache / "toolchain").exists())

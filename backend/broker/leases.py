@@ -14,6 +14,7 @@ live process that could be its owner (for example another client such as the Cod
 alone. The file must look exactly like an engine lease and must not change between the check and the
 removal.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,15 +36,23 @@ def is_lease_conflict(result: dict) -> bool:
     """True for the engine's refusal to create a lease because one already exists."""
     structured = result.get("structuredContent") if isinstance(result, dict) else None
     failure = structured.get("recordingAccessFailure") if isinstance(structured, dict) else None
-    return isinstance(failure, dict) and failure.get("operation") == "create-exclusive-lease" \
+    return (
+        isinstance(failure, dict)
+        and failure.get("operation") == "create-exclusive-lease"
         and (failure.get("category") == "already-exists" or failure.get("code") == "EEXIST")
+    )
 
 
 def _read(path: Path) -> tuple[os.stat_result, bytes, dict]:
     """The lease's stat, bytes and record, or ValueError when it is not exactly an engine lease."""
     st = os.lstat(path)
-    if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid() \
-            or stat.S_IMODE(st.st_mode) != 0o600 or st.st_size > 4096:
+    if (
+        not stat.S_ISREG(st.st_mode)
+        or st.st_nlink != 1
+        or st.st_uid != os.getuid()
+        or stat.S_IMODE(st.st_mode) != 0o600
+        or st.st_size > 4096
+    ):
         raise ValueError("not a plain owner-only lease file")
     for parent in (path.parent, path.parent.parent):
         pst = os.lstat(parent)
@@ -51,9 +60,15 @@ def _read(path: Path) -> tuple[os.stat_result, bytes, dict]:
             raise ValueError("unexpected lease directory")
     raw = path.read_bytes()
     record = json.loads(raw.decode("utf-8"))
-    if not isinstance(record, dict) or sorted(record) != ["pid", "schemaVersion", "token"] \
-            or record["schemaVersion"] != 1 or not isinstance(record["pid"], int) or record["pid"] <= 0 \
-            or not isinstance(record["token"], str) or not _TOKEN.match(record["token"]):
+    if (
+        not isinstance(record, dict)
+        or sorted(record) != ["pid", "schemaVersion", "token"]
+        or record["schemaVersion"] != 1
+        or not isinstance(record["pid"], int)
+        or record["pid"] <= 0
+        or not isinstance(record["token"], str)
+        or not _TOKEN.match(record["token"])
+    ):
         raise ValueError("not an engine lease record")
     return st, raw, record
 
@@ -64,14 +79,18 @@ def process_start(pid: int) -> float | None:
         try:
             fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
             ticks = int(fields[19])  # field 22 (starttime), counted after the ")" of the command name
-            boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
-                        if line.startswith("btime "))
+            boot = next(
+                int(line.split()[1])
+                for line in Path("/proc/stat").read_text().splitlines()
+                if line.startswith("btime ")
+            )
             return boot + ticks / os.sysconf("SC_CLK_TCK")
         except (OSError, ValueError, IndexError, StopIteration):
             return None
     try:  # macOS and other POSIX: elapsed time as [[dd-]hh:]mm:ss
-        out = subprocess.run(["ps", "-o", "etime=", "-p", str(pid)], capture_output=True, text=True,
-                             timeout=5).stdout.strip()
+        out = subprocess.run(
+            ["ps", "-o", "etime=", "-p", str(pid)], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
         days, _, rest = out.rpartition("-")
         parts = [int(p) for p in rest.split(":")]
         while len(parts) < 3:
@@ -117,8 +136,11 @@ def reclaim_stale(project_root: str | os.PathLike, own_groups: set[int]) -> dict
         return {"cleared": False, "reason": f"owner is {state}", **info}
     try:
         again = os.lstat(path)
-        if (again.st_ino, again.st_mtime_ns, again.st_size) != (st.st_ino, st.st_mtime_ns, st.st_size) \
-                or hashlib.sha256(path.read_bytes()).digest() != hashlib.sha256(raw).digest():
+        if (again.st_ino, again.st_mtime_ns, again.st_size) != (
+            st.st_ino,
+            st.st_mtime_ns,
+            st.st_size,
+        ) or hashlib.sha256(path.read_bytes()).digest() != hashlib.sha256(raw).digest():
             return {"cleared": False, "reason": "lease changed while it was checked", **info}
         path.unlink()
     except FileNotFoundError:

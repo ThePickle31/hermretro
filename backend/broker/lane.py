@@ -3,6 +3,7 @@ and the one-game-per-conversation guard of the Build page.
 
 Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`.
 """
+
 from __future__ import annotations
 
 import collections
@@ -29,7 +30,6 @@ class Denied(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
-
 
 
 class Lane:
@@ -73,20 +73,30 @@ class Lane:
                 entry[key] = structured[key]
         if failed:
             message = structured.get("error") or next(
-                (b.get("text") for b in result.get("content") or [] if b.get("type") == "text"), "")
+                (b.get("text") for b in result.get("content") or [] if b.get("type") == "text"), ""
+            )
             entry["error"] = str(message)[:240]
         self.activity.append(entry)
         self.last_activity = now
         images = [b for b in result.get("content") or [] if b.get("type") == "image" and b.get("data")]
         if images and len(images[-1]["data"]) < 400_000:
-            self.last_frame = {"t": now, "tool": tool, "frame": structured.get("frame"),
-                               "mimeType": images[-1].get("mimeType") or "image/png", "data": images[-1]["data"]}
+            self.last_frame = {
+                "t": now,
+                "tool": tool,
+                "frame": structured.get("frame"),
+                "mimeType": images[-1].get("mimeType") or "image/png",
+                "data": images[-1]["data"],
+            }
         if tool == "rom_build":
             rom = structured.get("romPath") or structured.get("outputPath")
-            self.last_build = {"t": now, "ok": not failed, "seconds": round(seconds, 1),
-                               "rom": rom if isinstance(rom, str) else None,
-                               "sha256": structured.get("romSha256") or structured.get("sha256"),
-                               "error": entry.get("error")}
+            self.last_build = {
+                "t": now,
+                "ok": not failed,
+                "seconds": round(seconds, 1),
+                "rom": rom if isinstance(rom, str) else None,
+                "sha256": structured.get("romSha256") or structured.get("sha256"),
+                "error": entry.get("error"),
+            }
         if tool == "web_preview" and not failed and isinstance(structured.get("url"), str):
             self.preview_url = structured["url"]
         elif tool == "web_preview_close" and not failed:
@@ -105,13 +115,23 @@ class LaneMixin:
     def new_engine(self, client_name: str) -> EngineProcess:
         selection = paths.select_engine()  # re-read each start: setup may have prepared a copy since
         if not selection["check"].get("verified"):
-            raise Denied("ENGINE_NOT_VERIFIED",
-                         "The bundled engine does not match its recorded manifest: "
-                         + (selection["check"].get("detail") or "unknown difference") + ". Reinstall the plugin.")
-        engine = EngineProcess(selection["root"], node=self.node, client_name=client_name,
-                               env=sanitized_environment({
-                                   "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
-                                   "GB_STUDIO_SETUP_ROOT": str(paths.setup_root())}))
+            raise Denied(
+                "ENGINE_NOT_VERIFIED",
+                "The bundled engine does not match its recorded manifest: "
+                + (selection["check"].get("detail") or "unknown difference")
+                + ". Reinstall the plugin.",
+            )
+        engine = EngineProcess(
+            selection["root"],
+            node=self.node,
+            client_name=client_name,
+            env=sanitized_environment(
+                {
+                    "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
+                    "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
+                }
+            ),
+        )
         engine.start()
         return engine
 
@@ -155,7 +175,9 @@ class LaneMixin:
             self.trace(event="player_refresh_failed", owner_key=lane.key, error=error[:200])
             try:
                 closed = engine.call_tool("web_preview_close", {}, timeout=120)
-                closed_ok = not closed.get("isError") and (closed.get("structuredContent") or {}).get("success") is not False
+                closed_ok = (
+                    not closed.get("isError") and (closed.get("structuredContent") or {}).get("success") is not False
+                )
             except EngineError:
                 closed_ok = False
             if closed_ok:
@@ -168,8 +190,13 @@ class LaneMixin:
         url = preview["structuredContent"]["url"]
         lane.live_surface = True
         moved = previous is not None and url != previous
-        self.trace(event="player_refreshed", owner_key=lane.key, first=previous is None, moved=moved,
-                   seconds=round(time.time() - started, 2))
+        self.trace(
+            event="player_refreshed",
+            owner_key=lane.key,
+            first=previous is None,
+            moved=moved,
+            seconds=round(time.time() - started, 2),
+        )
         return {"ready": True, "url": url, "first": previous is None, "moved": moved}
 
     def ensure_engine(self, lane: Lane) -> EngineProcess:
@@ -187,8 +214,13 @@ class LaneMixin:
             lane.engine = engine
             lane.generation += 1
             lane.live_surface = False
-            self.trace(event="worker_started", owner_key=lane.key, engine_pid=engine.pid,
-                       engine_generation=lane.generation, ready_seconds=round(engine.ready_seconds or 0, 3))
+            self.trace(
+                event="worker_started",
+                owner_key=lane.key,
+                engine_pid=engine.pid,
+                engine_generation=lane.generation,
+                ready_seconds=round(engine.ready_seconds or 0, 3),
+            )
             if restarted and lane.selected_project_path:
                 # The previous worker is gone, and with it the emulator, preview and held input.
                 # Source selection is rebuildable from disk, so restore that and say what was lost.
@@ -200,7 +232,8 @@ class LaneMixin:
                 lane.pending_notice = (
                     "The engine worker for this conversation was restarted. "
                     + ("The project selection was restored. " if restored else "The project is no longer selected. ")
-                    + "Any running emulator, browser preview and held buttons were reset; start them again if needed.")
+                    + "Any running emulator, browser preview and held buttons were reset; start them again if needed."
+                )
                 self.trace(event="worker_reselected", owner_key=lane.key, restored=restored)
             return engine
 
@@ -273,17 +306,24 @@ class LaneMixin:
                 lane.last_write = time.monotonic()
                 return
             holder = self.lanes.get(holder_owner)
-            quiet = holder is None or (holder.inflight_writes == 0
-                                       and time.monotonic() - holder.last_write >= self.writer_handoff_idle)
+            quiet = holder is None or (
+                holder.inflight_writes == 0 and time.monotonic() - holder.last_write >= self.writer_handoff_idle
+            )
             if quiet:
                 self.writer_leases[root] = lane.owner
                 lane.last_write = time.monotonic()
-                self.trace(event="writer_handoff", root_hash=hashlib.sha256(root.encode()).hexdigest()[:12],
-                           to_owner=lane.key, from_owner=holder.key if holder else None)
+                self.trace(
+                    event="writer_handoff",
+                    root_hash=hashlib.sha256(root.encode()).hexdigest()[:12],
+                    to_owner=lane.key,
+                    from_owner=holder.key if holder else None,
+                )
                 return
-        raise Denied("PROJECT_WRITER_BUSY",
-                     "Another conversation is editing or building this project right now. Wait for it to "
-                     "finish, or continue the work in that conversation. Nothing was changed.")
+        raise Denied(
+            "PROJECT_WRITER_BUSY",
+            "Another conversation is editing or building this project right now. Wait for it to "
+            "finish, or continue the work in that conversation. Nothing was changed.",
+        )
 
     # -- one game, one conversation (the Build page) --------------------------------
     def _selection_target(self, tool: str, arguments: dict) -> str | None:
@@ -294,8 +334,9 @@ class LaneMixin:
         real = os.path.realpath(os.path.expanduser(path))
         return os.path.dirname(real) if tool == "project_select" and os.path.isfile(real) else real
 
-    def guard_selection(self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict,
-                        continue_here: bool) -> None:
+    def guard_selection(
+        self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict, continue_here: bool
+    ) -> None:
         """A game's conversation works on that game only; another conversation that opens a game with
         its own conversation is warned first (it may continue once the user confirms)."""
         profile, conversation = owner
@@ -307,35 +348,43 @@ class LaneMixin:
             if tool == "project_select" and target == mine:
                 return
             if not os.path.isdir(mine):
-                raise Denied("GAME_FOLDER_MISSING",
-                             f"This conversation belongs to the game \"{title}\", but its folder {mine} no longer "
-                             "exists (moved or deleted). Tell the user; this conversation can continue once the "
-                             "folder is back where it was. Nothing was changed.")
+                raise Denied(
+                    "GAME_FOLDER_MISSING",
+                    f"This conversation belongs to the game \"{title}\", but its folder {mine} no longer "
+                    "exists (moved or deleted). Tell the user; this conversation can continue once the "
+                    "folder is back where it was. Nothing was changed.",
+                )
             what = "create another project" if tool != "project_select" else "open another project"
-            raise Denied("ONE_GAME_PER_CONVERSATION",
-                         f"This conversation belongs to the game \"{title}\" ({mine}), and each hermretro game "
-                         f"has its own conversation, so it cannot {what}. Tell the user: to make a different "
-                         "game, start one with New Game on the hermretro Build page; to work on another game, "
-                         "open that game on the Build page. Nothing was changed.")
+            raise Denied(
+                "ONE_GAME_PER_CONVERSATION",
+                f"This conversation belongs to the game \"{title}\" ({mine}), and each hermretro game "
+                f"has its own conversation, so it cannot {what}. Tell the user: to make a different "
+                "game, start one with New Game on the hermretro Build page; to work on another game, "
+                "open that game on the Build page. Nothing was changed.",
+            )
         entry = self.games.game_for_root(target) if target and tool == "project_select" else None
         session = entry.get("session") if isinstance(entry, dict) else None
         if not isinstance(session, dict):
             return
         title = entry.get("title") or os.path.basename(target)
         if kind == "pending":
-            raise Denied("GAME_HAS_CONVERSATION",
-                         f"\"{title}\" already has its own conversation on the hermretro Build page, so this new "
-                         "game's conversation cannot take it over. Create a new project for the new game instead, "
-                         "or tell the user to open that game on the Build page. Nothing was changed.")
+            raise Denied(
+                "GAME_HAS_CONVERSATION",
+                f"\"{title}\" already has its own conversation on the hermretro Build page, so this new "
+                "game's conversation cannot take it over. Create a new project for the new game instead, "
+                "or tell the user to open that game on the Build page. Nothing was changed.",
+            )
         if continue_here:
             self.trace(event="continued_outside_game_conversation", owner_key=lane.key)
             return
-        raise Denied("GAME_HAS_CONVERSATION",
-                     f"\"{title}\" has its own conversation on the hermretro Build page. Changes made here will "
-                     "not be in that game's conversation history. Tell the user this and ask whether to continue "
-                     "here anyway or open the game on the Build page. Only if the user says to continue here, call "
-                     "chromatic_project_select again with the same projectPath and continueInThisChat set to "
-                     "true. Nothing was changed.")
+        raise Denied(
+            "GAME_HAS_CONVERSATION",
+            f"\"{title}\" has its own conversation on the hermretro Build page. Changes made here will "
+            "not be in that game's conversation history. Tell the user this and ask whether to continue "
+            "here anyway or open the game on the Build page. Only if the user says to continue here, call "
+            "chromatic_project_select again with the same projectPath and continueInThisChat set to "
+            "true. Nothing was changed.",
+        )
 
     def select_bound_game(self, lane: Lane, engine: EngineProcess) -> None:
         """A game's conversation starts with its game selected, so the agent never has to ask which."""
@@ -366,6 +415,8 @@ class LaneMixin:
                 self._apply_selection(lane, selected)
         self.trace(event="auto_select", owner_key=lane.key)
         title = bound.get("title") or os.path.basename(root)
-        notice = (f"hermretro selected this conversation's game \"{title}\" ({root}) for you: this "
-                  "conversation works on that game only.")
+        notice = (
+            f"hermretro selected this conversation's game \"{title}\" ({root}) for you: this "
+            "conversation works on that game only."
+        )
         lane.pending_notice = f"{lane.pending_notice} {notice}" if lane.pending_notice else notice

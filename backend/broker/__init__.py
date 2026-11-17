@@ -2,6 +2,7 @@
 
 Front door: the client side other features use to reach the broker.
 """
+
 from .client import BrokerUnavailable, ensure_broker, try_connect
 
 __all__ = ["BrokerUnavailable", "ensure_broker", "try_connect"]

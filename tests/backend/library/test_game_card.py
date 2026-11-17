@@ -1,4 +1,5 @@
 """The game card (game.json + cover.png), chromatic_game_info, and presenting only a finished card."""
+
 import json
 import os
 import sys
@@ -18,9 +19,12 @@ from support import throwaway_profile  # noqa: E402
 from tests.backend.library.test_games import COVER, encode_png, make_project  # noqa: E402
 from backend.library import tools as library_tools  # noqa: E402
 
-GOOD = {"title": "Space Game", "tagline": "Fly a tiny ship through a meteor field.",
-        "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
-        "genres": ["Arcade", "Action"]}
+GOOD = {
+    "title": "Space Game",
+    "tagline": "Fly a tiny ship through a meteor field.",
+    "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
+    "genres": ["Arcade", "Action"],
+}
 
 
 class CoverCheck(unittest.TestCase):
@@ -57,6 +61,7 @@ class CoverCheck(unittest.TestCase):
         # Paeth/Up/Sub-filtered rows, as image editors write them, decode to the same pixels.
         import struct
         import zlib
+
         width, height = 4, 3
         source = [[(x * 10, y * 20, 5, 255) for x in range(width)] for y in range(height)]
         rows = b""
@@ -75,8 +80,13 @@ class CoverCheck(unittest.TestCase):
 
         def chunk(kind, body):
             return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
-        data = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-                + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+        data = (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows))
+            + chunk(b"IEND", b"")
+        )
         _w, _h, pixels = game_card.decode_png(data)
         self.assertEqual(pixels, [pixel for row in source for pixel in row])
 
@@ -110,8 +120,9 @@ class CardFile(unittest.TestCase):
         self.assertEqual(game_card.load(self.root)["tagline"], "", "nothing changed")
         cover = self.base / "drawn.png"
         cover.write_bytes(COVER)
-        good = game_card.update(self.root, {**GOOD, "controls": {"A": "boost"}}, cover_source=str(cover),
-                                build_sha="abc")
+        good = game_card.update(
+            self.root, {**GOOD, "controls": {"A": "boost"}}, cover_source=str(cover), build_sha="abc"
+        )
         self.assertTrue(good["ok"], good)
         self.assertTrue(good["status"]["complete"])
         stored = game_card.load(self.root)
@@ -119,11 +130,13 @@ class CardFile(unittest.TestCase):
         self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
 
     def test_placeholders_and_bad_lists_do_not_count(self):
-        for problem in (game_card._text_problem("description", "Lorem ipsum " * 5),
-                        game_card._text_problem("tagline", "Short"),
-                        game_card._list_problem("genres", ["Arcade"] * 4),
-                        game_card._list_problem("tags", ["x" * 30]),
-                        game_card._controls_problem({"A": ""})):
+        for problem in (
+            game_card._text_problem("description", "Lorem ipsum " * 5),
+            game_card._text_problem("tagline", "Short"),
+            game_card._list_problem("genres", ["Arcade"] * 4),
+            game_card._list_problem("tags", ["x" * 30]),
+            game_card._controls_problem({"A": ""}),
+        ):
             self.assertTrue(problem)
 
     def test_the_card_files_never_mark_a_built_game_changed(self):
@@ -142,8 +155,10 @@ class ToolsAndPresent(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
+            mock.patch.dict(
+                os.environ,
+                {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"), "HERMRETRO_RUNTIME_DIR": str(self.base / "run")},
+            ),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
             throwaway_profile(self.base),
         ]
@@ -157,12 +172,16 @@ class ToolsAndPresent(unittest.TestCase):
         self.tmp.cleanup()
 
     def info(self, args):
-        return json.loads(library_tools.game_info_handler({"project": str(self.root), **args},
-                                                        conversation_id="conv", session_id="run-1"))
+        return json.loads(
+            library_tools.game_info_handler(
+                {"project": str(self.root), **args}, conversation_id="conv", session_id="run-1"
+            )
+        )
 
     def present(self):
-        return json.loads(library_tools.present_game_handler({"project": str(self.root)},
-                                                           conversation_id="conv", session_id="run-1"))
+        return json.loads(
+            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="conv", session_id="run-1")
+        )
 
     def test_present_refuses_until_the_card_is_finished_then_shows_the_game(self):
         refused = self.present()
@@ -187,7 +206,7 @@ class ToolsAndPresent(unittest.TestCase):
         answer = self.info({**GOOD, "cover": str(self.root / "assets" / "backgrounds" / "field.png")})
         self.assertEqual(answer["code"], "INVALID_GAME_INFO")
         self.assertIn("unchanged copy of assets/backgrounds/field.png", answer["error"])
-        (self.root / "cover.png").write_bytes(COVER)       # copied by hand instead
+        (self.root / "cover.png").write_bytes(COVER)  # copied by hand instead
         self.info(GOOD)
         refused = self.present()
         self.assertEqual((refused["code"], refused["missing"]), ("GAME_INFO_INCOMPLETE", ["cover"]))
@@ -208,8 +227,9 @@ class ToolsAndPresent(unittest.TestCase):
 
     def test_creating_a_project_writes_its_starter_card(self):
         fresh = make_project(self.base, name="Fresh Game", card=False)
-        games.Registry(self.base / "lib").observe("project_create", {}, {"projectRoot": str(fresh)}, False,
-                                                  lane_root=None, conversation_id=None)
+        games.Registry(self.base / "lib").observe(
+            "project_create", {}, {"projectRoot": str(fresh)}, False, lane_root=None, conversation_id=None
+        )
         self.assertEqual(game_card.load(fresh)["title"], "Fresh Game")
 
     def test_the_schema_lists_the_genres_and_needs_nothing(self):

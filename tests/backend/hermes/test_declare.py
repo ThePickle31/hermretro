@@ -1,4 +1,5 @@
 """backend/hermes/declare.py: features declare RPCs, tools and hooks; several features' hooks on one name chain."""
+
 import sys
 import unittest
 from pathlib import Path
@@ -16,19 +17,25 @@ class Declarations(unittest.TestCase):
         tools = [tool.name for tool in found.tools]
         self.assertEqual(len(rpcs), len(set(rpcs)), "an RPC declared twice")
         self.assertEqual(len(tools), len(set(tools)), "a tool declared twice")
-        self.assertEqual(found.hook_names(), ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call",
-                                              "post_llm_call", "post_tool_call"])
+        self.assertEqual(
+            found.hook_names(),
+            ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call", "post_llm_call", "post_tool_call"],
+        )
 
     def test_a_chain_calls_every_callback_and_answers_the_first_result(self):
         seen = []
+
         def first(tool_name=None, **_kwargs):
             seen.append(("first", tool_name))
-        def second(tool_name=None):          # a narrow signature gets only what it declares
+
+        def second(tool_name=None):  # a narrow signature gets only what it declares
             seen.append(("second", tool_name))
             return {"action": "approve"}
+
         def third(**_kwargs):
             seen.append(("third",))
             return {"action": "later"}
+
         chained = declare.chain([first, second, third])
         self.assertEqual(chained(tool_name="x", args={}), {"action": "approve"})
         self.assertEqual(seen, [("first", "x"), ("second", "x"), ("third",)])

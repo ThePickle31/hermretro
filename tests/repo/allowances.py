@@ -8,6 +8,7 @@ A line that breaks a rule on purpose carries a comment naming the rule and the r
 that honour allowances (tests/repo/test_boundaries.py) skip that line for that rule only, and every allowance
 in the repository is printed as a warning on every run (tests/repo/test_layout.py), so none is forgotten.
 """
+
 from __future__ import annotations
 
 import re
@@ -64,5 +65,7 @@ def allows(allowances: list[Allowance], file: str, line: int, rule: str) -> bool
 
 def warn(allowances: list[Allowance]) -> None:
     for item in allowances:
-        print(f"layout warning: allowance {item.file}:{item.line} {item.rule}: {item.reason or '(no reason)'}",
-              file=sys.stderr)
+        print(
+            f"layout warning: allowance {item.file}:{item.line} {item.rule}: {item.reason or '(no reason)'}",
+            file=sys.stderr,
+        )

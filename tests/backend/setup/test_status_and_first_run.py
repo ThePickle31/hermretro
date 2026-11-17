@@ -1,4 +1,5 @@
 """The page's status poll and a first run: cheap to poll, honest about Node and updates, folders that exist."""
+
 import os
 import subprocess
 import sys
@@ -22,8 +23,12 @@ from backend.setup import rpcs as setup_rpcs  # noqa: E402
 from support import throwaway_deps, throwaway_profile  # noqa: E402
 
 CTX = mock.Mock(get_config=lambda key, default=None: default)
-PROXY = {"HTTPS_PROXY": "http://proxy.example:3128", "no_proxy": "localhost",
-         "NODE_EXTRA_CA_CERTS": "/etc/company-ca.pem", "SSL_CERT_FILE": "/etc/company-ca.pem"}
+PROXY = {
+    "HTTPS_PROXY": "http://proxy.example:3128",
+    "no_proxy": "localhost",
+    "NODE_EXTRA_CA_CERTS": "/etc/company-ca.pem",
+    "SSL_CERT_FILE": "/etc/company-ca.pem",
+}
 
 
 class Home(unittest.TestCase):
@@ -32,11 +37,14 @@ class Home(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.base = Path(tmp.name).resolve()
         clean = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_")}
-        for patch in (mock.patch.dict(os.environ, {**clean, "HERMRETRO_HOME": str(self.base / "hr")}, clear=True),
-                      throwaway_profile(self.base), throwaway_deps(self.base / "hr"),
-                      mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-                      # The profile report asks Hermes itself; these tests run without Hermes installed.
-                      mock.patch.object(studio_profile, "describe", return_value={})):
+        for patch in (
+            mock.patch.dict(os.environ, {**clean, "HERMRETRO_HOME": str(self.base / "hr")}, clear=True),
+            throwaway_profile(self.base),
+            throwaway_deps(self.base / "hr"),
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+            # The profile report asks Hermes itself; these tests run without Hermes installed.
+            mock.patch.object(studio_profile, "describe", return_value={}),
+        ):
             self.enterContext(patch)
 
 
@@ -45,8 +53,10 @@ class NodeIsAskedOnce(unittest.TestCase):
         provision._platform_of.cache_clear()
         node = {"found": True, "path": sys.executable, "version": "24.0.0", "required": "22", "ok": True}
         answer = subprocess.CompletedProcess([], 0, stdout="linux x64\n", stderr="")
-        with mock.patch.object(paths, "find_node", return_value=node), \
-                mock.patch.object(provision.subprocess, "run", return_value=answer) as run:
+        with (
+            mock.patch.object(paths, "find_node", return_value=node),
+            mock.patch.object(provision.subprocess, "run", return_value=answer) as run,
+        ):
             first, second = provision._node_platform(), provision._node_platform()
         self.assertEqual(first, ("linux", "x64"))
         self.assertEqual(second, first)
@@ -56,9 +66,14 @@ class NodeIsAskedOnce(unittest.TestCase):
 
 class NodeArchitecture(unittest.TestCase):
     def report(self, machine, node):
-        with mock.patch.object(host_os, "describe", return_value={"system": "darwin", "machine": machine,
-                                                                  "rosetta": False, "supported": True}), \
-                mock.patch.object(provision, "_node_platform", return_value=node):
+        with (
+            mock.patch.object(
+                host_os,
+                "describe",
+                return_value={"system": "darwin", "machine": machine, "rosetta": False, "supported": True},
+            ),
+            mock.patch.object(provision, "_node_platform", return_value=node),
+        ):
             return setup_rpcs._platform_report()
 
     def test_an_intel_node_on_apple_silicon_is_reported_and_not_qualified(self):
@@ -79,10 +94,12 @@ class NodeArchitecture(unittest.TestCase):
 
         paths.find_node.cache_clear()
         try:
-            with mock.patch.dict(os.environ, {"PATH": ""}), \
-                    mock.patch.object(paths.os.path, "isfile", return_value=True), \
-                    mock.patch.object(paths.os, "access", return_value=True), \
-                    mock.patch.object(paths, "_node_version", side_effect=version):
+            with (
+                mock.patch.dict(os.environ, {"PATH": ""}),
+                mock.patch.object(paths.os.path, "isfile", return_value=True),
+                mock.patch.object(paths.os, "access", return_value=True),
+                mock.patch.object(paths, "_node_version", side_effect=version),
+            ):
                 paths.find_node()
         finally:
             paths.find_node.cache_clear()
@@ -91,8 +108,12 @@ class NodeArchitecture(unittest.TestCase):
 
 class ProxySettingsReachDownloads(unittest.TestCase):
     def test_the_broker_gets_them(self):
-        with mock.patch.dict(os.environ, PROXY), mock.patch.object(client.subprocess, "Popen") as popen, \
-                mock.patch.object(client, "own_scope", return_value=[]), tempfile.TemporaryDirectory() as run:
+        with (
+            mock.patch.dict(os.environ, PROXY),
+            mock.patch.object(client.subprocess, "Popen") as popen,
+            mock.patch.object(client, "own_scope", return_value=[]),
+            tempfile.TemporaryDirectory() as run,
+        ):
             client.spawn_broker(Path(run), "/usr/bin/node")
         env = popen.call_args.kwargs["env"]
         self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
@@ -104,8 +125,11 @@ class ProxySettingsReachDownloads(unittest.TestCase):
     def test_setup_scripts_get_them(self):
         node = {"found": True, "path": "/usr/bin/node", "version": "24.0.0", "required": "22", "ok": True}
         done = subprocess.CompletedProcess([], 0, stdout="{}", stderr="")
-        with mock.patch.dict(os.environ, PROXY), mock.patch.object(paths, "find_node", return_value=node), \
-                mock.patch.object(provision.subprocess, "run", return_value=done) as run:
+        with (
+            mock.patch.dict(os.environ, PROXY),
+            mock.patch.object(paths, "find_node", return_value=node),
+            mock.patch.object(provision.subprocess, "run", return_value=done) as run,
+        ):
             provision._node("process.stdout.write('{}')", cwd=Path("/"))
         env = run.call_args.kwargs["env"]
         self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)

@@ -15,6 +15,7 @@ Every failure ends with a line starting "FIX:". In GitHub Actions the results al
 Options: --hermes-source DIR (a hermes-agent checkout for the scan; default $HERMES_SOURCE, then
 ~/.hermes/hermes-agent), --strict (CI: a check that cannot run fails instead of being skipped).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -63,18 +64,28 @@ def check_unit(_args) -> str:
     # The suite runs with an empty home folder and no Hermes or hermretro locations set, so a test that
     # would write to the real Hermes home (games, library, toolchain, broker) shows up as a file here.
     with tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home:
-        env = {key: value for key, value in os.environ.items()
-               if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")}
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")
+        }
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest], env={**env, "HOME": home})
+        result = run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
+            env={**env, "HOME": home},
+        )
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
-        raise AssertionError(tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-                             "python -m unittest tests/<area>/<feature>/test_<name>.py")
+        raise AssertionError(
+            tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
+            "python -m unittest tests/<area>/<feature>/test_<name>.py"
+        )
     if leaked:
-        raise AssertionError("the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
-                             "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
-                             "variables)")
+        raise AssertionError(
+            "the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
+            "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
+            "variables)"
+        )
     lines = result.stderr.splitlines()
     ran = [line for line in lines if line.startswith("Ran ")]
     # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
@@ -93,8 +104,10 @@ def check_bundle(args) -> str:
     if "not found" in output and not args.strict and result.returncode:
         raise Skip(output.splitlines()[-1])
     if result.returncode:
-        raise AssertionError(tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js and "
-                             "player/frame-shim.js with your sources (never edit them by hand)")
+        raise AssertionError(
+            tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js and "
+            "player/frame-shim.js with your sources (never edit them by hand)"
+        )
     return output.splitlines()[-1] if output else "ok"
 
 
@@ -131,16 +144,21 @@ def check_lint(args) -> str:
     if ruff:
         (lint_out, _), (format_out, _) = ruff[0].communicate(), ruff[1].communicate()
         if ruff[0].returncode:
-            problems.append(tail(lint_out, 40) + "\nruff's rules catch likely bugs (unused or undefined names, "
-                            "mistakes bugbear knows) and older syntax; `.dev/py/bin/ruff rule <CODE>` explains one.\n"
-                            "FIX: python tools/check.py fix for the automatic fixes, then fix the rest as each "
-                            "message says (a deliberate exception: # noqa: <CODE> \u2014 <reason> on its line)")
+            problems.append(
+                tail(lint_out, 40) + "\nruff's rules catch likely bugs (unused or undefined names, "
+                "mistakes bugbear knows) and older syntax; `.dev/py/bin/ruff rule <CODE>` explains one.\n"
+                "FIX: python tools/check.py fix for the automatic fixes, then fix the rest as each "
+                "message says (a deliberate exception: # noqa: <CODE> \u2014 <reason> on its line)"
+            )
         if ruff[1].returncode:
             files = [line.split(":", 1)[0] for line in format_out.splitlines() if "unformatted:" in line]
-            problems.append(f"{len(files)} Python files are not in ruff's format (one style for everyone, so a "
-                            "diff shows only real changes):\n" + tail("\n".join(files), 10) +
-                            "\nFIX: python tools/check.py fix (or .dev/py/bin/ruff format --config "
-                            "tools/py/ruff.toml <file>)")
+            problems.append(
+                f"{len(files)} Python files are not in ruff's format (one style for everyone, so a "
+                "diff shows only real changes):\n"
+                + tail("\n".join(files), 10)
+                + "\nFIX: python tools/check.py fix (or .dev/py/bin/ruff format --config "
+                "tools/py/ruff.toml <file>)"
+            )
         if not ruff[0].returncode and not ruff[1].returncode:
             done.append("python: ruff check and format clean")
     else:
@@ -153,9 +171,11 @@ def check_lint(args) -> str:
         if "were not found" in output and eslint.returncode:
             page_skip = "eslint was not found (npm ci --prefix tools/npm --ignore-scripts)"
         elif eslint.returncode:
-            problems.append(tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix (or python "
-                            "tools/check.py fix) for the automatic fixes, then fix the rest as each message says "
-                            "(a deliberate exception: // retrodev: allow <rule> \u2014 <reason> on its line)")
+            problems.append(
+                tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix (or python "
+                "tools/check.py fix) for the automatic fixes, then fix the rest as each message says "
+                "(a deliberate exception: // retrodev: allow <rule> \u2014 <reason> on its line)"
+            )
         else:
             done.insert(0, "page: " + (output.splitlines()[-1] if output else "ok"))
     if problems:
@@ -185,7 +205,7 @@ def fix(args) -> int:
     else:
         print("node is not installed: the page lint's fixes were not applied")
     for cmd in steps:
-        run(cmd)   # each reports again below, in the lint check
+        run(cmd)  # each reports again below, in the lint check
     after = tree_digest()
     changed = sorted(name for name in after if before.get(name) != after[name])
     print(f"fixed {len(changed)} files" + "".join(f"\n  {name}" for name in changed))
@@ -199,9 +219,11 @@ def check_page(args) -> str:
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
     if result.returncode:
-        raise AssertionError(tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
-                             "tests/page/page-<name>.test.mjs, named in the failure above); after editing "
-                             "page/ run node tools/bundle/bundle.mjs first")
+        raise AssertionError(
+            tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
+            "tests/page/page-<name>.test.mjs, named in the failure above); after editing "
+            "page/ run node tools/bundle/bundle.mjs first"
+        )
     counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
     return ", ".join(line[2:] for line in counts) or "ok"
 
@@ -236,33 +258,43 @@ def check_scan(args) -> str:
             destination = target / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination, follow_symlinks=False)
-        result = subprocess.run([sys.executable, "-I", "-c", SCAN, str(source), str(target)],
-                                text=True, capture_output=True)
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", SCAN, str(source), str(target)], text=True, capture_output=True
+        )
     if result.returncode:
         raise AssertionError(tail(result.stderr) + "\nFIX: the scanner itself failed; check --hermes-source")
     report = json.loads(result.stdout.strip().splitlines()[-1])
     if report["verdict"] != "safe":
         lines = [f"  {b['severity']}: {b['id']} in {b['file']}:{b['line']}  {b['match']}" for b in report["bad"]]
-        raise AssertionError(f"verdict {report['verdict']}; installs would " +
-                             ("be refused" if report["verdict"] == "dangerous" else "ask for confirmation") +
-                             ":\n" + "\n".join(lines) + "\nFIX: reword or remove those lines (see AGENTS.md, "
-                             "\"Install scanner\"); medium findings are fine")
+        raise AssertionError(
+            f"verdict {report['verdict']}; installs would "
+            + ("be refused" if report["verdict"] == "dangerous" else "ask for confirmation")
+            + ":\n"
+            + "\n".join(lines)
+            + "\nFIX: reword or remove those lines (see AGENTS.md, "
+            "\"Install scanner\"); medium findings are fine"
+        )
     return f"safe ({report['findings']} minor notes)"
 
 
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from backend.system import paths  # noqa: E402  (the backend decides where setup put the toolchain)
+
     if not paths.setup_root().is_dir():
-        raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
-                   "or point HERMRETRO_DEPS_ROOT at a folder that has one")
+        raise Skip(
+            f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
+            "or point HERMRETRO_DEPS_ROOT at a folder that has one"
+        )
     env = {**os.environ, "TMPDIR": short_tmp()}
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
         result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
     except subprocess.TimeoutExpired:
-        raise AssertionError("the acceptance suite did not finish in 20 minutes\nFIX: rerun python "
-                             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops")
+        raise AssertionError(
+            "the acceptance suite did not finish in 20 minutes\nFIX: rerun python "
+            "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops"
+        )
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
     if result.returncode or failed:
@@ -272,8 +304,10 @@ def check_acceptance(args) -> str:
             for item in json.loads(evidence.read_text()).get("checks", []):
                 if not item.get("passed"):
                     details.append(f"{item['id']}: {json.dumps(item.get('detail'), default=str)[:600]}")
-        raise AssertionError("\n".join(failed + details) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
-                             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and read its output")
+        raise AssertionError(
+            "\n".join(failed + details) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
+            "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and read its output"
+        )
     return f"{passed} passed"
 
 
@@ -285,8 +319,10 @@ def summary(rows: list[tuple[str, str, float, str]]) -> None:
     if not path:
         return
     lines = ["| Check | Result | Time | Detail |", "|---|---|---|---|"]
-    lines += [f"| {name} | {state} | {seconds:.1f} s | {detail.splitlines()[0][:150] if detail else ''} |"
-              for name, state, seconds, detail in rows]
+    lines += [
+        f"| {name} | {state} | {seconds:.1f} s | {detail.splitlines()[0][:150] if detail else ''} |"
+        for name, state, seconds, detail in rows
+    ]
     failures = [(name, detail) for name, state, _s, detail in rows if state == "FAILED"]
     for name, detail in failures:
         lines += ["", f"### {name}", "```", detail[-3000:], "```"]

@@ -4,4 +4,5 @@ Stdlib only; imports nothing of ours outside itself.
 
 A shared layer: every feature may import its modules directly (``from ..system import paths``).
 """
+
 __all__: list[str] = []

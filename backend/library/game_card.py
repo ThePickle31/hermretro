@@ -9,6 +9,7 @@ them), so writing them never marks a built game as changed.
 Unknown keys in ``game.json`` are kept, so later versions can add fields without losing anything.
 Reads PNGs with the standard library only (the plugin process has no image library).
 """
+
 from __future__ import annotations
 
 import base64
@@ -33,8 +34,23 @@ MIN_COVER_COLOURS = 3
 MAX_COVER_BYTES = 512 * 1024
 MAX_CARD_BYTES = 64 * 1024
 
-GENRES = ("Action", "Adventure", "Arcade", "Exploration", "Platformer", "Puzzle", "Racing", "Role-playing",
-          "Rhythm", "Shooter", "Simulation", "Sports", "Strategy", "Story", "Other")
+GENRES = (
+    "Action",
+    "Adventure",
+    "Arcade",
+    "Exploration",
+    "Platformer",
+    "Puzzle",
+    "Racing",
+    "Role-playing",
+    "Rhythm",
+    "Shooter",
+    "Simulation",
+    "Sports",
+    "Strategy",
+    "Story",
+    "Other",
+)
 LIMITS = {
     "title": (1, 60),
     "tagline": (8, 90),
@@ -96,9 +112,18 @@ def scaffold(root: Path, title: str) -> dict:
     existing = load(root)
     if existing or card_path(root).exists():
         return existing
-    data = {"version": VERSION, "title": (title or root.name).strip()[:LIMITS["title"][1]], "tagline": "",
-            "description": "", "about": "", "genres": [], "tags": [], "controls": {}, "cover": None,
-            "createdAt": int(time.time())}
+    data = {
+        "version": VERSION,
+        "title": (title or root.name).strip()[: LIMITS["title"][1]],
+        "tagline": "",
+        "description": "",
+        "about": "",
+        "genres": [],
+        "tags": [],
+        "controls": {},
+        "cover": None,
+        "createdAt": int(time.time()),
+    }
     _write(root, data)
     return data
 
@@ -124,13 +149,13 @@ def decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
         raise PngError("not a PNG file")
     position, header, palette, transparency, chunks = 8, None, None, None, []
     while position + 8 <= len(data):
-        length, kind = struct.unpack(">I4s", data[position:position + 8])
-        body = data[position + 8:position + 8 + length]
+        length, kind = struct.unpack(">I4s", data[position : position + 8])
+        body = data[position + 8 : position + 8 + length]
         position += 12 + length
         if kind == b"IHDR":
             header = struct.unpack(">IIBBBBB", body[:13])
         elif kind == b"PLTE":
-            palette = [tuple(body[index:index + 3]) for index in range(0, len(body) - 2, 3)]
+            palette = [tuple(body[index : index + 3]) for index in range(0, len(body) - 2, 3)]
         elif kind == b"tRNS":
             transparency = body
         elif kind == b"IDAT":
@@ -176,7 +201,7 @@ def decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
     for row in range(height):
         start = row * (stride + 1)
         kind = raw[start]
-        line = bytearray(raw[start + 1:start + 1 + stride])
+        line = bytearray(raw[start + 1 : start + 1 + stride])
         for index in range(stride):
             left = line[index - step] if index >= step else 0
             up = previous[index]
@@ -206,7 +231,7 @@ def decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
                     pixels.append((grey, grey, grey, 0 if key == value else 255))
             continue
         for x in range(width):
-            chunk = line[x * channels:(x + 1) * channels]
+            chunk = line[x * channels : (x + 1) * channels]
             if colour == 3:
                 if chunk[0] >= len(palette):
                     raise PngError("a pixel uses a colour the palette does not have")
@@ -233,8 +258,11 @@ def check_cover(path: Path) -> dict:
     except OSError:
         return {"ok": False, "problem": f"{path} does not exist."}
     if size > MAX_COVER_BYTES:
-        return {"ok": False, "problem": f"The cover file is {size // 1024} KB; a 160x144 pixel-art PNG is far "
-                                        "smaller. Save it as a plain PNG."}
+        return {
+            "ok": False,
+            "problem": f"The cover file is {size // 1024} KB; a 160x144 pixel-art PNG is far "
+            "smaller. Save it as a plain PNG.",
+        }
     try:
         data = path.read_bytes()
         width, height, pixels = decode_png(data)
@@ -244,17 +272,23 @@ def check_cover(path: Path) -> dict:
         return {"ok": False, "problem": f"The cover cannot be read: {error}."}
     info = {"width": width, "height": height}
     if (width, height) != (COVER_WIDTH, COVER_HEIGHT):
-        return {"ok": False, **info,
-                "problem": f"The cover is {width}x{height}; it must be exactly {COVER_WIDTH}x{COVER_HEIGHT} (the "
-                           "Game Boy screen), drawn at that size, not scaled down."}
+        return {
+            "ok": False,
+            **info,
+            "problem": f"The cover is {width}x{height}; it must be exactly {COVER_WIDTH}x{COVER_HEIGHT} (the "
+            "Game Boy screen), drawn at that size, not scaled down.",
+        }
     if any(pixel[3] != 255 for pixel in pixels):
         return {"ok": False, **info, "problem": "The cover has transparent pixels; every pixel must be opaque."}
     colours = len({pixel[:3] for pixel in pixels})
     info["colours"] = colours
     if colours > MAX_COVER_COLOURS:
-        return {"ok": False, **info,
-                "problem": f"The cover has {colours} colours; pixel art uses at most {MAX_COVER_COLOURS}. Draw it "
-                           "as pixel art in the game's own palettes (no smoothing, gradients or photos)."}
+        return {
+            "ok": False,
+            **info,
+            "problem": f"The cover has {colours} colours; pixel art uses at most {MAX_COVER_COLOURS}. Draw it "
+            "as pixel art in the game's own palettes (no smoothing, gradients or photos).",
+        }
     if colours < MIN_COVER_COLOURS:
         return {"ok": False, **info, "problem": "The cover is nearly blank; draw the game's art on it."}
     return {"ok": True, **info, "sha256": hashlib.sha256(data).hexdigest()}
@@ -278,8 +312,10 @@ def copied_asset(root: Path, sha256: str) -> str | None:
 
 
 def _copy_problem(name: str) -> str:
-    return (f"The cover is an unchanged copy of {name}. Draw cover art for it: the main character and the "
-            "game's title on a scene from the game.")
+    return (
+        f"The cover is an unchanged copy of {name}. Draw cover art for it: the main character and the "
+        "game's title on a scene from the game."
+    )
 
 
 # -- checking a card -----------------------------------------------------------------------
@@ -360,17 +396,27 @@ def next_step(missing: list[str]) -> str:
     if not missing:
         return "The game card is complete."
     words = [("cover (the PNG path)" if field == "cover" else field) for field in missing]
-    draw = (f"Draw a {COVER_WIDTH}x{COVER_HEIGHT} pixel-art cover yourself in the game's own palette (its main "
-            "character and title on a scene from the game; see hermretro:pixel-art, never Image Generation), "
-            "then call" if "cover" in missing else "Call")
+    draw = (
+        f"Draw a {COVER_WIDTH}x{COVER_HEIGHT} pixel-art cover yourself in the game's own palette (its main "
+        "character and title on a scene from the game; see hermretro:pixel-art, never Image Generation), "
+        "then call"
+        if "cover" in missing
+        else "Call"
+    )
     return f"{draw} chromatic_game_info with " + ", ".join(words) + "."
 
 
 # -- updating ---------------------------------------------------------------------------
 
 
-def update(root: Path, fields: dict, *, cover_source: str | None = None, build_sha: str | None = None,
-           default_title: str | None = None) -> dict:
+def update(
+    root: Path,
+    fields: dict,
+    *,
+    cover_source: str | None = None,
+    build_sha: str | None = None,
+    default_title: str | None = None,
+) -> dict:
     """Check and store the given fields (all or nothing). ``{ok, problems?, card, status}``."""
     root = Path(root)
     problems = []
@@ -404,7 +450,7 @@ def update(root: Path, fields: dict, *, cover_source: str | None = None, build_s
     if problems:
         return {"ok": False, "problems": problems}
     data = load(root) or {"version": VERSION, "createdAt": int(time.time())}
-    data.setdefault("title", (default_title or root.name)[:LIMITS["title"][1]])
+    data.setdefault("title", (default_title or root.name)[: LIMITS["title"][1]])
     for field in TEXT_FIELDS:
         if field in fields:
             data[field] = fields[field].strip()
@@ -473,6 +519,7 @@ def public(root: Path) -> dict | None:
     def text(key: str) -> str:
         value = data.get(key)
         return value.strip() if isinstance(value, str) else ""
+
     return {
         "title": text("title") or None,
         "tagline": text("tagline") or None,
@@ -481,7 +528,8 @@ def public(root: Path) -> dict | None:
         "genres": [g for g in data.get("genres") or [] if isinstance(g, str)][:MAX_GENRES],
         "tags": [t for t in data.get("tags") or [] if isinstance(t, str)][:MAX_TAGS],
         "controls": {k: v for k, v in (data.get("controls") or {}).items() if isinstance(k, str) and isinstance(v, str)}
-        if isinstance(data.get("controls"), dict) else {},
+        if isinstance(data.get("controls"), dict)
+        else {},
         "complete": state["complete"],
         "missing": state["missing"],
         "hasCover": bool(state["cover"] and state["cover"]["ok"]),

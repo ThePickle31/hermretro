@@ -12,6 +12,7 @@ the original distribution ships) and one plain directory for a single declared p
 copy uses the second, so no engine code is changed: the engine still checks owner, modes, size and
 SHA-256 of the executable before every vendor command, against the digests compiled into it.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -37,9 +38,12 @@ CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
 VENDOR_TERMS_URL = "https://modretro.com/eula"
 _RUST_TARGETS = {
-    "linux-x64-gnu": "x86_64-unknown-linux-gnu", "linux-arm64-gnu": "aarch64-unknown-linux-gnu",
-    "darwin-arm64": "aarch64-apple-darwin", "darwin-x64": "x86_64-apple-darwin",
-    "win32-x64": "x86_64-pc-windows-msvc", "win32-arm64": "aarch64-pc-windows-msvc",
+    "linux-x64-gnu": "x86_64-unknown-linux-gnu",
+    "linux-arm64-gnu": "aarch64-unknown-linux-gnu",
+    "darwin-arm64": "aarch64-apple-darwin",
+    "darwin-x64": "x86_64-apple-darwin",
+    "win32-x64": "x86_64-pc-windows-msvc",
+    "win32-arm64": "aarch64-pc-windows-msvc",
 }
 
 _UNPACK_ARTWORK = """
@@ -91,8 +95,9 @@ def _node_platform() -> tuple[str, str] | None:
 def _platform_of(node: str, _stamp: int) -> tuple[str, str] | None:
     """Asked once per Node executable (and again if it is replaced): the page polls status every few seconds."""
     try:
-        out = subprocess.run([node, "-p", "process.platform + ' ' + process.arch"], capture_output=True,
-                             text=True, timeout=10).stdout.split()
+        out = subprocess.run(
+            [node, "-p", "process.platform + ' ' + process.arch"], capture_output=True, text=True, timeout=10
+        ).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return None
     return (out[0], out[1]) if len(out) == 2 else None
@@ -111,8 +116,11 @@ def host_target() -> dict:
         lib, version = platform.libc_ver()
         parts = tuple(int(p) for p in version.split(".")[:2]) if version.replace(".", "").isdigit() else ()
         if lib != "glibc" or parts < (2, 39):
-            return {"target": None, "reason": "ModRetro's Chromatic CLI needs GNU/Linux with glibc 2.39 or newer "
-                                              f"(found {lib or 'unknown libc'} {version})."}
+            return {
+                "target": None,
+                "reason": "ModRetro's Chromatic CLI needs GNU/Linux with glibc 2.39 or newer "
+                f"(found {lib or 'unknown libc'} {version}).",
+            }
         return {"target": f"linux-{arch}-gnu", "reason": None}
     return {"target": f"{name}-{arch}", "reason": None}
 
@@ -140,18 +148,27 @@ def read_receipt() -> dict | None:
 def device_cli_status() -> dict:
     """Passive. Never downloads, never runs the vendor executable."""
     host = host_target()
-    answer = {"state": "missing", "target": host["target"], "version": None, "location": None,
-              "source": "ModRetro npm packages (@modretro/chromatic-cli-*)", "terms": VENDOR_TERMS_URL,
-              "needed_for": "device discovery, streaming, capture and cartridge flashing only"}
+    answer = {
+        "state": "missing",
+        "target": host["target"],
+        "version": None,
+        "location": None,
+        "source": "ModRetro npm packages (@modretro/chromatic-cli-*)",
+        "terms": VENDOR_TERMS_URL,
+        "needed_for": "device discovery, streaming, capture and cartridge flashing only",
+    }
     if host["target"] is None:
         answer.update(state="unsupported", detail=host["reason"])
         return answer
     selection = paths.select_engine()
     if selection["prepared"]:
         receipt = read_receipt() or {}
-        answer.update(state="installed", version=receipt.get("cli_version"),
-                      location=str(selection["root"] / CLI_DIR / receipt.get("executable", "")),
-                      installed_at=receipt.get("installed_at"))
+        answer.update(
+            state="installed",
+            version=receipt.get("cli_version"),
+            location=str(selection["root"] / CLI_DIR / receipt.get("executable", "")),
+            installed_at=receipt.get("installed_at"),
+        )
     elif all((paths.ENGINE_ROOT / rel).is_file() for rel in paths.VENDOR_ARCHIVES):
         answer.update(state="bundled", detail="This copy of the plugin still carries the packed vendor archive.")
     elif selection.get("prepared_problem"):
@@ -165,6 +182,7 @@ def _lock():
     with open(paths.DEPS_ROOT / ".provision.lock", "a+") as handle:
         try:
             import fcntl
+
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except ImportError:
             pass
@@ -182,8 +200,11 @@ def _download(package: dict, opener=urllib.request.urlopen) -> bytes:
     except OSError as error:
         raise ProvisionError("DOWNLOAD_FAILED", f"Could not download {package['name']} from the npm registry: {error}")
     if len(data) != limit or hashlib.sha256(data).hexdigest() != package["sha256"]:
-        raise ProvisionError("CHECKSUM_MISMATCH", f"{package['name']} {package['version']} from the npm registry does not "
-                                                  "match the pinned size and SHA-256. Nothing was installed.")
+        raise ProvisionError(
+            "CHECKSUM_MISMATCH",
+            f"{package['name']} {package['version']} from the npm registry does not "
+            "match the pinned size and SHA-256. Nothing was installed.",
+        )
     return data
 
 
@@ -204,13 +225,26 @@ def _node(script: str, *args: str, cwd: Path) -> dict:
     node = paths.find_node()
     if not node["ok"]:
         raise ProvisionError("NODE_REQUIRED", f"Node.js {node['required']} or newer is required.")
-    env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "USER", "LOGNAME", "TMPDIR", *host_os.NETWORK_ENV)
-           if key in os.environ}
-    done = subprocess.run([node["path"], "--input-type=module", "-e", script, *args], cwd=str(cwd), env=env,
-                          capture_output=True, text=True, timeout=120)
+    env = {
+        key: os.environ[key]
+        for key in ("PATH", "HOME", "LANG", "USER", "LOGNAME", "TMPDIR", *host_os.NETWORK_ENV)
+        if key in os.environ
+    }
+    done = subprocess.run(
+        [node["path"], "--input-type=module", "-e", script, *args],
+        cwd=str(cwd),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     if done.returncode != 0:
-        raise ProvisionError("ENGINE_REFUSED", (done.stderr or done.stdout).strip().splitlines()[-1][:400]
-                             if (done.stderr or done.stdout).strip() else "The engine's own check failed.")
+        raise ProvisionError(
+            "ENGINE_REFUSED",
+            (done.stderr or done.stdout).strip().splitlines()[-1][:400]
+            if (done.stderr or done.stdout).strip()
+            else "The engine's own check failed.",
+        )
     return json.loads(done.stdout)
 
 
@@ -228,18 +262,22 @@ def _tighten(root: Path) -> None:
 def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen) -> dict:
     """Fetch ModRetro's CLI for this computer and build the prepared engine copy. Touches no device."""
     if accept_vendor_terms is not True:
-        raise ProvisionError("TERMS_NOT_ACCEPTED",
-                             "ModRetro's Chromatic CLI is proprietary software downloaded from ModRetro. Install it "
-                             f"only after the user agrees to ModRetro's terms ({VENDOR_TERMS_URL}).")
+        raise ProvisionError(
+            "TERMS_NOT_ACCEPTED",
+            "ModRetro's Chromatic CLI is proprietary software downloaded from ModRetro. Install it "
+            f"only after the user agrees to ModRetro's terms ({VENDOR_TERMS_URL}).",
+        )
     host = host_target()
     if host["target"] is None:
         raise ProvisionError("UNSUPPORTED_HOST", host["reason"])
     target = host["target"]
     bundled = paths.verify_engine()
     if not bundled["verified"]:
-        raise ProvisionError("ENGINE_NOT_VERIFIED", "The bundled engine does not match its manifest: " + bundled["detail"])
+        raise ProvisionError(
+            "ENGINE_NOT_VERIFIED", "The bundled engine does not match its manifest: " + bundled["detail"]
+        )
     pins = _pins(target)
-    exe_rel = pins["executable"]["path"]          # e.g. linux-x64-gnu/bin/chromatic-cli
+    exe_rel = pins["executable"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
     notice_rel = pins["notice"]["path"]
     with _lock():
         archive_bytes = _download(pins["package"], opener)
@@ -251,11 +289,18 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
         shutil.rmtree(stage, ignore_errors=True)
         skipped = {str(paths.ENGINE_ROOT / rel) for rel in paths.VENDOR_ARCHIVES}
         try:
-            shutil.copytree(paths.ENGINE_ROOT, stage, symlinks=False,
-                            ignore=lambda folder, names: [n for n in names
-                                                          if str(Path(folder) / n) in skipped or n == "__pycache__"])
-            for rel, data, mode in ((exe_rel, executable, int(pins["executable"]["mode"], 8)),
-                                    (notice_rel, notice, int(pins["notice"]["mode"], 8))):
+            shutil.copytree(
+                paths.ENGINE_ROOT,
+                stage,
+                symlinks=False,
+                ignore=lambda folder, names: [
+                    n for n in names if str(Path(folder) / n) in skipped or n == "__pycache__"
+                ],
+            )
+            for rel, data, mode in (
+                (exe_rel, executable, int(pins["executable"]["mode"], 8)),
+                (notice_rel, notice, int(pins["notice"]["mode"], 8)),
+            ):
                 destination = stage / CLI_DIR / rel
                 destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
                 with open(destination, "xb") as handle:
@@ -272,7 +317,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
             runtime = json.dumps((stage / "scripts" / "chromatic-runtime.mjs").as_uri())
             artwork = _node(_UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage)
             _tighten(stage)
-            _node(_RESOLVE % {"runtime": runtime}, cwd=stage)   # the engine's own admission, before the swap
+            _node(_RESOLVE % {"runtime": runtime}, cwd=stage)  # the engine's own admission, before the swap
 
             previous = None
             if paths.PREPARED_ENGINE.exists():
@@ -284,15 +329,24 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
         finally:
             shutil.rmtree(stage, ignore_errors=True)
 
-        added = {f"{CLI_DIR}/{exe_rel}": pins["executable"]["sha256"],
-                 f"{CLI_DIR}/{notice_rel}": pins["notice"]["sha256"],
-                 **{f"assets/devices/{name}": digest for name, digest in artwork.items()}}
+        added = {
+            f"{CLI_DIR}/{exe_rel}": pins["executable"]["sha256"],
+            f"{CLI_DIR}/{notice_rel}": pins["notice"]["sha256"],
+            **{f"assets/devices/{name}": digest for name, digest in artwork.items()},
+        }
         receipt = {
-            "schema": 1, "engine_version": paths.ENGINE_VERSION, "target": target, "cli_version": pins["version"],
-            "package": pins["package"]["name"], "url": pins["package"]["url"],
-            "archive_sha256": pins["package"]["sha256"], "executable": exe_rel,
-            "package_json_sha256": hashlib.sha256(package_json).hexdigest(), "added": added,
-            "vendor_terms": VENDOR_TERMS_URL, "vendor_terms_accepted": True,
+            "schema": 1,
+            "engine_version": paths.ENGINE_VERSION,
+            "target": target,
+            "cli_version": pins["version"],
+            "package": pins["package"]["name"],
+            "url": pins["package"]["url"],
+            "archive_sha256": pins["package"]["sha256"],
+            "executable": exe_rel,
+            "package_json_sha256": hashlib.sha256(package_json).hexdigest(),
+            "added": added,
+            "vendor_terms": VENDOR_TERMS_URL,
+            "vendor_terms_accepted": True,
             "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         temporary = paths.DEVICE_CLI_RECEIPT.with_suffix(".tmp")
@@ -301,14 +355,24 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
 
     selection = paths.select_engine()
     if not selection["prepared"]:
-        raise ProvisionError("VERIFY_FAILED", "The prepared engine did not verify after install: "
-                             + str(selection.get("prepared_problem")))
-    resolved = _node(_RESOLVE % {"runtime": json.dumps((paths.PREPARED_ENGINE / "scripts" / "chromatic-runtime.mjs").as_uri())},
-                     cwd=paths.PREPARED_ENGINE)
-    return {"installed": True, "target": target, "cli_version": resolved["version"],
-            "executable": resolved["executable"], "executable_sha256": pins["executable"]["sha256"],
-            "downloaded_from": pins["package"]["url"], "engine_root": str(paths.PREPARED_ENGINE),
-            "receipt": str(paths.DEVICE_CLI_RECEIPT)}
+        raise ProvisionError(
+            "VERIFY_FAILED",
+            "The prepared engine did not verify after install: " + str(selection.get("prepared_problem")),
+        )
+    resolved = _node(
+        _RESOLVE % {"runtime": json.dumps((paths.PREPARED_ENGINE / "scripts" / "chromatic-runtime.mjs").as_uri())},
+        cwd=paths.PREPARED_ENGINE,
+    )
+    return {
+        "installed": True,
+        "target": target,
+        "cli_version": resolved["version"],
+        "executable": resolved["executable"],
+        "executable_sha256": pins["executable"]["sha256"],
+        "downloaded_from": pins["package"]["url"],
+        "engine_root": str(paths.PREPARED_ENGINE),
+        "receipt": str(paths.DEVICE_CLI_RECEIPT),
+    }
 
 
 # -- reuse of an existing download cache ---------------------------------------------------------
@@ -347,9 +411,13 @@ def seed_toolchain_cache(source: Path | None = None) -> dict:
         marker = source / _SETUP_MARKER
         info = marker.lstat()
         owner = getattr(os, "getuid", lambda: info.st_uid)()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 4096 or info.st_uid != owner \
-                or source.lstat().st_uid != owner \
-                or json.loads(marker.read_text()).get("owner") != "codex-gb-studio-setup":
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_size > 4096
+            or info.st_uid != owner
+            or source.lstat().st_uid != owner
+            or json.loads(marker.read_text()).get("owner") != "codex-gb-studio-setup"
+        ):
             return {"seeded": False, "reason": "the other install is not an engine-owned setup folder"}
         parts = [name for name in _SEED_PARTS if (source / name).is_dir() and not (source / name).is_symlink()]
         if "downloads" not in parts:
@@ -362,11 +430,15 @@ def seed_toolchain_cache(source: Path | None = None) -> dict:
             for name in parts:
                 shutil.copytree(source / name, stage / name, symlinks=True)
             shutil.copy2(marker, stage / _SETUP_MARKER)
-            os.rename(stage, destination)   # fails if a toolchain folder appeared meanwhile
+            os.rename(stage, destination)  # fails if a toolchain folder appeared meanwhile
         finally:
             shutil.rmtree(stage, ignore_errors=True)
-        record = {"seeded": True, "from": str(source), "parts": parts,
-                  "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        record = {
+            "seeded": True,
+            "from": str(source),
+            "parts": parts,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
         (paths.DEPS_ROOT / TOOLCHAIN_SEED_RECORD).write_text(json.dumps(record, indent=2) + "\n")
         return record
     except (OSError, ValueError) as error:
@@ -382,10 +454,13 @@ def _seed_source() -> str | None:
 
 def summary() -> dict:
     """Where this install keeps its dependencies. Passive."""
-    return {"root": str(paths.DEPS_ROOT), "toolchain_root": str(paths.setup_root()), "toolchain_cache_reused_from": _seed_source(),
-            "engine_root": str(paths.select_engine()["root"]),
-            "device_cli": device_cli_status()}
-
+    return {
+        "root": str(paths.DEPS_ROOT),
+        "toolchain_root": str(paths.setup_root()),
+        "toolchain_cache_reused_from": _seed_source(),
+        "engine_root": str(paths.select_engine()["root"]),
+        "device_cli": device_cli_status(),
+    }
 
 
 def remove_downloads() -> dict:
@@ -394,15 +469,20 @@ def remove_downloads() -> dict:
     The caller holds the broker's election lock, so no broker or worker runs from it meanwhile. Refused when the
     location was configured by hand, since that folder is the user's."""
     if os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"):
-        raise ProvisionError("CUSTOM_LOCATION", "The downloaded tools are in a folder you configured "
-                                                "(HERMRETRO_DEPS_ROOT or GB_STUDIO_SETUP_ROOT); delete it yourself.")
+        raise ProvisionError(
+            "CUSTOM_LOCATION",
+            "The downloaded tools are in a folder you configured "
+            "(HERMRETRO_DEPS_ROOT or GB_STUDIO_SETUP_ROOT); delete it yourself.",
+        )
     root = paths.DEPS_ROOT
     home = paths.hermretro_home().resolve()
     if root != home / ".cache" or root.is_relative_to(paths.PLUGIN_ROOT) or root.is_symlink():
-        raise ProvisionError("UNEXPECTED_LOCATION", f"Refusing to delete {root}: it is not hermretro's download folder.")
+        raise ProvisionError(
+            "UNEXPECTED_LOCATION", f"Refusing to delete {root}: it is not hermretro's download folder."
+        )
     if not root.is_dir():
         return {"ok": True, "removed_bytes": 0, "left_bytes": 0, "root": str(root)}
-    with _lock():   # no device-CLI install meanwhile
+    with _lock():  # no device-CLI install meanwhile
         # Inside .cache, so every move is a rename on the same filesystem; the folder empties at once.
         trash = Path(tempfile.mkdtemp(prefix=_TRASH_PREFIX, dir=root))
         for child in list(root.iterdir()):
@@ -410,13 +490,21 @@ def remove_downloads() -> dict:
                 continue
             os.replace(child, trash / child.name)
     removed = 0
-    for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:   # also earlier, failed runs
+    for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:  # also earlier, failed runs
         removed += _size(leftover)
         _rmtree(leftover)
     left = sum(_size(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
-    return {"ok": not left, "removed_bytes": removed - left, "left_bytes": left, "root": str(root),
-            **({"code": "PARTLY_REMOVED", "error": f"{left // 1_000_000} MB could not be deleted from {root}."}
-               if left else {})}
+    return {
+        "ok": not left,
+        "removed_bytes": removed - left,
+        "left_bytes": left,
+        "root": str(root),
+        **(
+            {"code": "PARTLY_REMOVED", "error": f"{left // 1_000_000} MB could not be deleted from {root}."}
+            if left
+            else {}
+        ),
+    }
 
 
 _TRASH_PREFIX = ".removing-"
@@ -424,6 +512,7 @@ _TRASH_PREFIX = ".removing-"
 
 def _rmtree(path: Path) -> None:
     """Delete a tree, making read-only folders (from extracted archives) writable when a delete is refused."""
+
     def retry(function, failed, _info):
         try:
             os.chmod(os.path.dirname(failed), 0o700)
@@ -432,6 +521,7 @@ def _rmtree(path: Path) -> None:
             function(failed)
         except OSError:
             pass
+
     if sys.version_info >= (3, 12):
         shutil.rmtree(path, onexc=retry)
     else:
@@ -443,8 +533,8 @@ def _size(path: Path) -> int:
         return path.lstat().st_size
     return sum(child.lstat().st_size for child in path.rglob("*") if not child.is_dir() or child.is_symlink())
 
+
 if __name__ == "__main__":
     # Read-only on purpose: installing goes through the chromatic_studio_device_cli tool, which
     # asks the person for approval.
     print(json.dumps(summary(), indent=2))
-

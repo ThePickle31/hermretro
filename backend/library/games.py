@@ -4,6 +4,7 @@ Written by the broker whenever a conversation selects, creates, builds or previe
 read by the desktop page (RPC ``games``). One small JSON file plus title-screen thumbnails, in a
 per-user directory that survives restarts. Stdlib only and no Hermes imports: the broker loads it.
 """
+
 from __future__ import annotations
 
 import base64
@@ -92,6 +93,7 @@ def file_sha256(path: Path) -> str:
 
 # -- facts read from the project on disk ---------------------------------------------
 
+
 def project_file(root: Path) -> Path | None:
     try:
         return next(iter(sorted(root.glob("*.gbsproj"))), None)
@@ -136,8 +138,13 @@ def web_rom(root: Path) -> Path | None:
     """The ROM inside the web export, from its ``gbstudio.json`` (path-checked)."""
     web = web_dir(root)
     rel = _json(web / "gbstudio.json").get("rom")
-    if not isinstance(rel, str) or not rel or rel.startswith("/") or ".." in rel.split("/") \
-            or not rel.lower().endswith((".gb", ".gbc")):
+    if (
+        not isinstance(rel, str)
+        or not rel
+        or rel.startswith("/")
+        or ".." in rel.split("/")
+        or not rel.lower().endswith((".gb", ".gbc"))
+    ):
         return None
     path = web / rel
     try:
@@ -167,8 +174,9 @@ def web_export_time(root: Path) -> float | None:
         return None
 
 
-def export_freshness(root: Path, last_build: dict | None = None,
-                     last_web_export: dict | None = None) -> tuple[bool, str | None]:
+def export_freshness(
+    root: Path, last_build: dict | None = None, last_web_export: dict | None = None
+) -> tuple[bool, str | None]:
     """Whether the web copy shows the latest build: it exists, and it is not older than the last ROM
     build. When the library recorded the build, its time counts (the native ROM file otherwise), and
     the copy's time is the later of its files and the last successful web export the broker recorded
@@ -176,9 +184,11 @@ def export_freshness(root: Path, last_build: dict | None = None,
     counts as stale: the user would be shown an older game than the one being worked on."""
     exported = web_export_time(root)
     if exported is None:
-        return False, ("This game has no playable web copy yet. Build it with chromatic_rom_build first (with the "
-                       "'Keep the playable copy current' setting on, the build makes the web copy too; with it off, "
-                       "call chromatic_web_preview after the build).")
+        return False, (
+            "This game has no playable web copy yet. Build it with chromatic_rom_build first (with the "
+            "'Keep the playable copy current' setting on, the build makes the web copy too; with it off, "
+            "call chromatic_web_preview after the build)."
+        )
     if isinstance(last_web_export, dict) and isinstance(last_web_export.get("t"), (int, float)):
         exported = max(exported, float(last_web_export["t"]))
     last = last_build if isinstance(last_build, dict) else None
@@ -191,14 +201,18 @@ def export_freshness(root: Path, last_build: dict | None = None,
         except OSError:
             built = None
     if last and last.get("ok") is False and recorded > exported + FRESH_SLACK_SECONDS:
-        return False, ("The last chromatic_rom_build of this game failed, so the playable copy is an older build. "
-                       "Fix the build, run chromatic_rom_build again, then present the game.")
+        return False, (
+            "The last chromatic_rom_build of this game failed, so the playable copy is an older build. "
+            "Fix the build, run chromatic_rom_build again, then present the game."
+        )
     latest = max([moment for moment in (built, recorded if last and last.get("ok") else None) if moment] or [0.0])
     if latest > exported + FRESH_SLACK_SECONDS:
-        return False, ("The playable web copy is older than the last ROM build. Run chromatic_rom_build again "
-                       "(it refreshes the web copy; with the 'Keep the playable copy current' setting off, call "
-                       "chromatic_web_preview after it), "
-                       "then present the game.")
+        return False, (
+            "The playable web copy is older than the last ROM build. Run chromatic_rom_build again "
+            "(it refreshes the web copy; with the 'Keep the playable copy current' setting off, call "
+            "chromatic_web_preview after it), "
+            "then present the game."
+        )
     return True, None
 
 
@@ -249,6 +263,7 @@ def public_session(binding) -> dict | None:
         return None
     return {"storedId": binding["storedId"], "createdAt": binding.get("createdAt"), "profile": binding.get("profile")}
 
+
 class Registry:
     """``<dir>/games.json`` plus ``<dir>/thumbs/<id>.png``. Safe across processes: every change is
     a locked read-modify-write and the file is replaced atomically."""
@@ -274,11 +289,16 @@ class Registry:
         shown = data.get("presentations")
         pending = data.get("pending")
         # Unknown top-level keys are kept: another hermretro copy may share this file.
-        return {**data, "version": VERSION, "games": games if isinstance(games, dict) else {},
-                "presentations": [item for item in shown if isinstance(item, dict)] if isinstance(shown, list) else [],
-                # Build: conversations started on New Game whose project does not exist yet (stored id → record).
-                "pending": {key: value for key, value in pending.items() if isinstance(value, dict)}
-                if isinstance(pending, dict) else {}}
+        return {
+            **data,
+            "version": VERSION,
+            "games": games if isinstance(games, dict) else {},
+            "presentations": [item for item in shown if isinstance(item, dict)] if isinstance(shown, list) else [],
+            # Build: conversations started on New Game whose project does not exist yet (stored id → record).
+            "pending": {key: value for key, value in pending.items() if isinstance(value, dict)}
+            if isinstance(pending, dict)
+            else {},
+        }
 
     def _save(self, data: dict) -> None:
         _atomic_write(self.path, json.dumps(data, indent=1, sort_keys=True).encode())
@@ -287,8 +307,15 @@ class Registry:
         entry = self.load()["games"].get(identifier) if valid_id(identifier) else None
         return entry if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str) else None
 
-    def upsert(self, root: str, *, chat: dict | None = None, build: dict | None = None,
-               web_export: float | None = None, only_if_missing: bool = False) -> dict | None:
+    def upsert(
+        self,
+        root: str,
+        *,
+        chat: dict | None = None,
+        build: dict | None = None,
+        web_export: float | None = None,
+        only_if_missing: bool = False,
+    ) -> dict | None:
         real = Path(os.path.realpath(root))
         if not real.is_dir():
             return None
@@ -341,17 +368,26 @@ class Registry:
                 entry["chat"] = chat
             entry["presented"] = {"t": now, "note": note}
             data["games"][identifier] = entry
-            record = {"gameId": identifier, "t": now, "note": note, "title": entry.get("title") or real.name,
-                      "sessionId": (chat or {}).get("sessionId"), "conversationId": (chat or {}).get("conversationId"),
-                      "profile": (chat or {}).get("profile")}
+            record = {
+                "gameId": identifier,
+                "t": now,
+                "note": note,
+                "title": entry.get("title") or real.name,
+                "sessionId": (chat or {}).get("sessionId"),
+                "conversationId": (chat or {}).get("conversationId"),
+                "profile": (chat or {}).get("profile"),
+            }
             data["presentations"] = (data["presentations"] + [record])[-MAX_PRESENTATIONS:]
             self._save(data)
             return {**entry, "presentation": record}
 
     def presentations(self, since: float | None = None) -> list[dict]:
         """Presentations newer than ``since`` (seconds), oldest first."""
-        listed = [item for item in self.load()["presentations"]
-                  if valid_id(item.get("gameId")) and isinstance(item.get("t"), (int, float))]
+        listed = [
+            item
+            for item in self.load()["presentations"]
+            if valid_id(item.get("gameId")) and isinstance(item.get("t"), (int, float))
+        ]
         if since is not None:
             listed = [item for item in listed if item["t"] > since]
         return sorted(listed, key=lambda item: item["t"])
@@ -398,9 +434,13 @@ class Registry:
             kind, _ = self._binding_in(data, profile, {stored})
             if kind == "game":
                 raise BindingError("BOUND", "This conversation already belongs to a game.")
-            record = {"storedId": stored, "profile": profile, "createdAt": time.time(),
-                      "name": name.strip()[:120] if isinstance(name, str) and name.strip() else None,
-                      "plan": plan is True}
+            record = {
+                "storedId": stored,
+                "profile": profile,
+                "createdAt": time.time(),
+                "name": name.strip()[:120] if isinstance(name, str) and name.strip() else None,
+                "plan": plan is True,
+            }
             data["pending"][stored] = record
             # Keep the newest few: an abandoned New Game should not linger forever.
             for key in sorted(data["pending"], key=lambda k: data["pending"][k].get("createdAt") or 0)[:-MAX_PENDING]:
@@ -469,8 +509,12 @@ class Registry:
             entry = data["games"].get(identifier)
             if record is None or not isinstance(entry, dict) or isinstance(entry.get("session"), dict):
                 return None
-            entry["session"] = {"storedId": record["storedId"], "profile": record.get("profile"),
-                                "createdAt": time.time(), "aliases": []}
+            entry["session"] = {
+                "storedId": record["storedId"],
+                "profile": record.get("profile"),
+                "createdAt": time.time(),
+                "aliases": [],
+            }
             data["pending"].pop(record["storedId"], None)
             self._save(data)
             return entry
@@ -500,24 +544,41 @@ class Registry:
         return None, None
 
     def pending(self, profile: str | None = None) -> list[dict]:
-        listed = [{"storedId": r.get("storedId"), "name": r.get("name"), "createdAt": r.get("createdAt"),
-                   "profile": r.get("profile")}
-                  for r in self.load()["pending"].values()
-                  if isinstance(r.get("storedId"), str) and (profile is None or r.get("profile") in (None, profile))]
+        listed = [
+            {
+                "storedId": r.get("storedId"),
+                "name": r.get("name"),
+                "createdAt": r.get("createdAt"),
+                "profile": r.get("profile"),
+            }
+            for r in self.load()["pending"].values()
+            if isinstance(r.get("storedId"), str) and (profile is None or r.get("profile") in (None, profile))
+        ]
         return sorted(listed, key=lambda r: r.get("createdAt") or 0)
 
     # -- broker hook ---------------------------------------------------------------
-    def observe(self, tool: str, arguments: dict, structured: dict, failed: bool, *,
-                lane_root: str | None, conversation_id: str | None, sessions_seen=(),
-                profile: str | None = None) -> dict | None:
+    def observe(
+        self,
+        tool: str,
+        arguments: dict,
+        structured: dict,
+        failed: bool,
+        *,
+        lane_root: str | None,
+        conversation_id: str | None,
+        sessions_seen=(),
+        profile: str | None = None,
+    ) -> dict | None:
         """Record what one finished engine call means for the library. Called by the broker."""
         arguments = arguments if isinstance(arguments, dict) else {}
         structured = structured if isinstance(structured, dict) else {}
         chat = None
         if conversation_id:
-            chat = {"conversationId": conversation_id,
-                    "sessionId": (list(sessions_seen) or [conversation_id])[-1],
-                    "profile": profile}
+            chat = {
+                "conversationId": conversation_id,
+                "sessionId": (list(sessions_seen) or [conversation_id])[-1],
+                "profile": profile,
+            }
         if tool in SELECTORS:
             root = structured.get("projectRoot")
             if failed or not isinstance(root, str):
@@ -546,9 +607,13 @@ class Registry:
                 return None  # a standalone C experiment inside a GB Studio project, not the game's build
             rom = structured.get("outputPath") or structured.get("romPath")
             sha = structured.get("romSha256") or structured.get("sha256")
-            build = {"t": time.time(), "ok": not failed, "rom": rom if isinstance(rom, str) else None,
-                     "sha256": sha if isinstance(sha, str) else None,
-                     "error": None}
+            build = {
+                "t": time.time(),
+                "ok": not failed,
+                "rom": rom if isinstance(rom, str) else None,
+                "sha256": sha if isinstance(sha, str) else None,
+                "error": None,
+            }
             if failed:
                 message = structured.get("error") or structured.get("message") or "The build failed."
                 build["error"] = (message if isinstance(message, str) else json.dumps(message))[:240]
@@ -574,8 +639,7 @@ class Registry:
         if rom_path is not None:
             info = rom_path.stat()
             built = info.st_mtime
-            rom = {"path": str(rom_path), "sha256": file_sha256(rom_path), "size": info.st_size,
-                   "builtAt": int(built)}
+            rom = {"path": str(rom_path), "sha256": file_sha256(rom_path), "size": info.st_size, "builtAt": int(built)}
         # The player runs the web export, whose ROM is its own compilation (not byte-identical to the
         # native build): the page compares this hash with the one the player loaded.
         exported = has_web_export(root)
@@ -599,10 +663,18 @@ class Registry:
         card = game_card.public(root)
         cover = game_card.cover_data_url(root) if card and card["hasCover"] else None
         return {
-            "id": identifier, "title": title, "projectRoot": str(root),
-            "kind": project_kind(root), "state": state, "rom": rom,
-            "webExport": exported, "web": web, "thumb": cover or self.thumb(identifier), "cover": bool(cover),
-            "card": card, "displayTitle": (card or {}).get("title") or title,
+            "id": identifier,
+            "title": title,
+            "projectRoot": str(root),
+            "kind": project_kind(root),
+            "state": state,
+            "rom": rom,
+            "webExport": exported,
+            "web": web,
+            "thumb": cover or self.thumb(identifier),
+            "cover": bool(cover),
+            "card": card,
+            "displayTitle": (card or {}).get("title") or title,
             "chat": entry.get("chat") if isinstance(entry.get("chat"), dict) else None,
             "session": public_session(entry.get("session")),
             "error": (str((last or {}).get("error") or "The build failed."))[:240] if state == "failed" else None,

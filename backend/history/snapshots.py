@@ -9,6 +9,7 @@ Pure functions over paths: no Hermes, broker or registry imports, so everything 
 Generated and personal folders are never copied, compared, deleted or restored (``EXCLUDED_TOP``), and
 symbolic links are skipped everywhere (never followed, copied or removed).
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -122,16 +123,23 @@ def _locked(folder: Path):
 def _ids(folder: Path) -> list[str]:
     """Finished snapshot ids of one game, newest first."""
     try:
-        names = [entry.name for entry in os.scandir(folder)
-                 if entry.name.isdigit() and entry.is_dir(follow_symlinks=False)]
+        names = [
+            entry.name for entry in os.scandir(folder) if entry.name.isdigit() and entry.is_dir(follow_symlinks=False)
+        ]
     except OSError:
         return []
     return sorted(names, key=int, reverse=True)
 
 
 def public(meta: dict, identifier: str) -> dict:
-    answer = {"id": identifier, "at": meta.get("at"), "builds": list(meta.get("builds") or []),
-              "files": meta.get("files"), "bytes": meta.get("bytes"), "reason": meta.get("reason")}
+    answer = {
+        "id": identifier,
+        "at": meta.get("at"),
+        "builds": list(meta.get("builds") or []),
+        "files": meta.get("files"),
+        "bytes": meta.get("bytes"),
+        "reason": meta.get("reason"),
+    }
     if meta.get("from"):
         answer["from"] = meta["from"]
     return answer
@@ -155,8 +163,11 @@ def _prune(folder: Path, keep: int, protect=()) -> None:
     now = time.time()
     try:
         for entry in os.scandir(folder):
-            if entry.name.endswith(".part") and entry.is_dir(follow_symlinks=False) \
-                    and now - entry.stat(follow_symlinks=False).st_mtime > STALE_PART_SECONDS:
+            if (
+                entry.name.endswith(".part")
+                and entry.is_dir(follow_symlinks=False)
+                and now - entry.stat(follow_symlinks=False).st_mtime > STALE_PART_SECONDS
+            ):
                 shutil.rmtree(entry.path, ignore_errors=True)
     except OSError:
         pass
@@ -174,8 +185,17 @@ def _measure(files: dict[str, Path]) -> tuple[int, dict[str, tuple[int, str]]]:
     return total, digests
 
 
-def take(base: Path, game: str, root: Path, reason: str = "build", *, from_id: str | None = None,
-         now_ms: int | None = None, keep: int = KEEP, protect=()) -> dict:
+def take(
+    base: Path,
+    game: str,
+    root: Path,
+    reason: str = "build",
+    *,
+    from_id: str | None = None,
+    now_ms: int | None = None,
+    keep: int = KEEP,
+    protect=(),
+) -> dict:
     """Snapshot ``root`` for ``game``. Answers ``{id, created}`` (``created`` False when the newest
     snapshot already holds exactly these files; a build is then added to its ``builds``), or
     ``{skipped}`` with the reason when the project is too large to keep."""
@@ -219,9 +239,16 @@ def take(base: Path, game: str, root: Path, reason: str = "build", *, from_id: s
                         size += len(chunk)
                         writer.write(chunk)
                 stored[relative] = (size, digest.hexdigest())
-            meta = {"at": at, "game": game, "root": str(root), "files": len(stored),
-                    "bytes": sum(size for size, _sha in stored.values()), "reason": reason,
-                    "fingerprint": _fingerprint(stored), "builds": [at] if reason == "build" else []}
+            meta = {
+                "at": at,
+                "game": game,
+                "root": str(root),
+                "files": len(stored),
+                "bytes": sum(size for size, _sha in stored.values()),
+                "reason": reason,
+                "fingerprint": _fingerprint(stored),
+                "builds": [at] if reason == "build" else [],
+            }
             if from_id:
                 meta["from"] = str(from_id)
             _write_json(partial / META, meta)
@@ -262,8 +289,10 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
         raise SnapshotError("NO_GAME", f"{root} is not a folder.")
     backup = take(base, game, root, "before-restore", from_id=identifier, now_ms=now_ms, protect={identifier})
     if backup.get("skipped"):
-        raise SnapshotError("TOO_LARGE", "The project could not be backed up first ("
-                            + backup["skipped"] + "), so nothing was restored.")
+        raise SnapshotError(
+            "TOO_LARGE",
+            "The project could not be backed up first (" + backup["skipped"] + "), so nothing was restored.",
+        )
     if not (source / META).is_file():
         raise SnapshotError("MISSING", "That build is no longer kept.")
     with _locked(folder):
@@ -281,7 +310,7 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
             parent = current[relative].parent
             while parent != root and root in parent.parents:
                 try:
-                    parent.rmdir()              # only succeeds while empty
+                    parent.rmdir()  # only succeeds while empty
                 except OSError:
                     break
                 parent = parent.parent
@@ -291,8 +320,9 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
             here = current.get(relative)
             if here is not None and here.is_file() and not here.is_symlink():
                 try:
-                    if here.stat().st_size == wanted[relative].stat().st_size \
-                            and _sha256(here) == _sha256(wanted[relative]):
+                    if here.stat().st_size == wanted[relative].stat().st_size and _sha256(here) == _sha256(
+                        wanted[relative]
+                    ):
                         continue
                 except OSError:
                     pass

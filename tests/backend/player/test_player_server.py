@@ -1,4 +1,5 @@
 """The loopback player server: the assembled frame page, engine files, captures and headers."""
+
 import base64
 import hashlib
 import json
@@ -26,7 +27,8 @@ from backend.library import rpcs as library_rpcs  # noqa: E402
 from support import throwaway_profile  # noqa: E402
 
 PNG = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 INDEX = """<!DOCTYPE html>
 <html>
   <head>
@@ -108,8 +110,7 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
 
     def test_url_shape(self):
-        self.assertRegex(self.server.url(self.gid),
-                         rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/index\.html$")
+        self.assertRegex(self.server.url(self.gid), rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/index\.html$")
 
     def test_frame_page_has_shim_first_bootstrap_before_script_and_bridge_last(self):
         html, context = self.index()
@@ -141,8 +142,12 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(status, 200)
         text = body.decode()
         self.assertLess(text.index('id: "hermes-midnight"'), text.index('id: "codex"'))
-        for finish in ("Hermes Edition · Midnight", "Hermes Edition · Nous Blue", "Hermes Edition · White",
-                       "Hermes Edition · Clear Blue"):
+        for finish in (
+            "Hermes Edition · Midnight",
+            "Hermes Edition · Nous Blue",
+            "Hermes Edition · White",
+            "Hermes Edition · Clear Blue",
+        ):
             self.assertIn(finish, text)
         status, headers, body = fetch(self.url("codex-annotations/chromatic-hermes-midnight.webp"))
         self.assertEqual((status, headers["Content-Type"], body[:4], body[8:12]), (200, "image/webp", b"RIFF", b"WEBP"))
@@ -154,8 +159,14 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(fetch(self.url(f"codex-annotations/binjgb-{'0' * 64}.wasm"))[0], 404)
 
     def test_paths_stay_inside_the_export(self):
-        for rel in ("../../../etc/passwd", "js/../../../test-game.gbsproj", ".codex-web-build.json",
-                    "%2e%2e/%2e%2e/test-game.gbsproj", "codex-annotations/../index.html", "nothing.js"):
+        for rel in (
+            "../../../etc/passwd",
+            "js/../../../test-game.gbsproj",
+            ".codex-web-build.json",
+            "%2e%2e/%2e%2e/test-game.gbsproj",
+            "codex-annotations/../index.html",
+            "nothing.js",
+        ):
             self.assertIn(fetch(self.url(rel))[0], (400, 404), rel)
         self.assertEqual(fetch(self.url("css/style.css"))[0], 200)
         port_url = self.server.url(self.gid)
@@ -166,17 +177,23 @@ class PlayerServer(unittest.TestCase):
     def test_capture_round_trip_matches_what_the_player_checks(self):
         _html, context = self.index()
         media = PNG + b"\r\n--tail\r\n\x00\xff"
-        body, kind = multipart([("kind", b"screenshot", None, None),
-                                ("metadata", json.dumps({"width": 160}).encode(), None, None),
-                                ("media", media, "screenshot.png", "image/png")])
+        body, kind = multipart(
+            [
+                ("kind", b"screenshot", None, None),
+                ("metadata", json.dumps({"width": 160}).encode(), None, None),
+                ("media", media, "screenshot.png", "image/png"),
+            ]
+        )
         headers = {"Content-Type": kind, "x-codex-preview-capture": context["captures"]["generation"]}
         status, response_headers, raw = fetch(self.url("codex-captures"), "POST", body, headers)
         self.assertEqual(status, 200, raw)
         self.assert_common_headers(response_headers)
         receipt = json.loads(raw)
         self.assertRegex(receipt["id"], r"^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
-        self.assertEqual((receipt["kind"], receipt["bytes"], receipt["sha256"]),
-                         ("screenshot", len(media), hashlib.sha256(media).hexdigest()))
+        self.assertEqual(
+            (receipt["kind"], receipt["bytes"], receipt["sha256"]),
+            ("screenshot", len(media), hashlib.sha256(media).hexdigest()),
+        )
         self.assertEqual(receipt["url"], f"./codex-captures/{receipt['id']}/media")
         self.assertEqual(receipt["metadataUrl"], f"./codex-captures/{receipt['id']}/metadata")
         self.assertRegex(Path(receipt["path"]).name, r"^\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z-screenshot\.png$")
@@ -195,14 +212,24 @@ class PlayerServer(unittest.TestCase):
     def test_states_device_and_preflight(self):
         status, headers, raw = fetch(self.url("codex-states"))
         self.assertEqual((status, json.loads(raw)), (200, {"states": []}))
-        status, headers, raw = fetch(self.url("codex-device"), "POST", json.dumps({"action": "observe",
-                                                                                   "generation": "g"}).encode(),
-                                     {"Content-Type": "application/json"})
+        status, headers, raw = fetch(
+            self.url("codex-device"),
+            "POST",
+            json.dumps({"action": "observe", "generation": "g"}).encode(),
+            {"Content-Type": "application/json"},
+        )
         answer = json.loads(raw)
         self.assertEqual((answer["available"], answer["devices"], answer["generation"]), (False, [], "g"))
-        status, headers, _raw = fetch(self.url("codex-captures"), "OPTIONS", None,
-                                      {"Origin": "null", "Access-Control-Request-Method": "POST",
-                                       "Access-Control-Request-Headers": "x-codex-preview-capture"})
+        status, headers, _raw = fetch(
+            self.url("codex-captures"),
+            "OPTIONS",
+            None,
+            {
+                "Origin": "null",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "x-codex-preview-capture",
+            },
+        )
         self.assertEqual(status, 204)
         self.assertEqual(headers["Access-Control-Allow-Origin"], "*")
         self.assertIn("POST", headers["Access-Control-Allow-Methods"])
@@ -218,8 +245,9 @@ class Pieces(unittest.TestCase):
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is not installed")
-        check = subprocess.run([node, "--check", str(paths.PLUGIN_ROOT / "player" / "frame-shim.js")],
-                               capture_output=True, text=True)
+        check = subprocess.run(
+            [node, "--check", str(paths.PLUGIN_ROOT / "player" / "frame-shim.js")], capture_output=True, text=True
+        )
         self.assertEqual(check.returncode, 0, check.stderr)
 
     def test_view_without_its_anchor_is_served_unpatched(self):
@@ -242,8 +270,10 @@ class PlayerRpcs(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name).resolve()  # macOS: /var is a link to /private/var
-        self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(base / "lib")}),
-                        mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))]
+        self.patches = [
+            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(base / "lib")}),
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+        ]
         for patch in self.patches:
             patch.start()
         self.root = make_export(base)
@@ -271,15 +301,19 @@ class PlayerRpcs(unittest.TestCase):
         self.assertFalse(library_rpcs.rpc_player(self.ctx)({"id": "nope"})["ok"])
 
     def test_capture_image_then_captures_lists_it_with_a_loopback_url(self):
-        saved = library_rpcs.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:image/png;base64,"
-                                                         + base64.b64encode(PNG).decode()})
+        saved = library_rpcs.rpc_capture_image(self.ctx)(
+            {"id": self.gid, "png": "data:image/png;base64," + base64.b64encode(PNG).decode()}
+        )
         self.assertTrue(saved["ok"], saved)
         self.assertEqual(Path(saved["path"]).parent, self.root / "captures")
         listed = library_rpcs.rpc_captures(self.ctx)({"id": self.gid})["captures"]
         self.assertEqual([c["path"] for c in listed], [saved["path"]])
         self.assertEqual(listed[0]["kind"], "annotation")
-        self.assertRegex(listed[0]["url"], rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/codex-captures/"
-                                           r"[0-9a-f-]{36}/media$")
+        self.assertRegex(
+            listed[0]["url"],
+            rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/codex-captures/"
+            r"[0-9a-f-]{36}/media$",
+        )
         status, _headers, body = fetch(listed[0]["url"])
         self.assertEqual((status, body), (200, PNG))
         self.assertFalse(library_rpcs.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:text/plain,hi"})["ok"])
@@ -294,11 +328,18 @@ class DemoCartridge(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.patches = [mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib"),
-                                                     "HERMRETRO_GAMES_DIR": str(Path(self.tmp.name) / "games"),
-                                                     "HERMRETRO_RUNTIME_DIR": str(Path(self.tmp.name) / "run")}),
-                        mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-                        throwaway_profile(Path(self.tmp.name))]
+        self.patches = [
+            mock.patch.dict(
+                os.environ,
+                {
+                    "HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib"),
+                    "HERMRETRO_GAMES_DIR": str(Path(self.tmp.name) / "games"),
+                    "HERMRETRO_RUNTIME_DIR": str(Path(self.tmp.name) / "run"),
+                },
+            ),
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
+            throwaway_profile(Path(self.tmp.name)),
+        ]
         for patch in self.patches:
             patch.start()
         self.ctx = mock.Mock()
@@ -331,12 +372,19 @@ class DemoCartridge(unittest.TestCase):
         self.assertEqual(context["romPath"], "rom/hello-color.gbc")
         wasm = (paths.PLUGIN_ROOT / "player/web/js/binjgb.wasm").read_bytes()
         self.assertEqual(context["runtimeSha256"], hashlib.sha256(wasm).hexdigest())
-        for rel, kind, expected in (("js/binjgb.wasm", "application/wasm", wasm),
-                                    (f"codex-annotations/binjgb-{context['runtimeSha256']}.wasm", "application/wasm", wasm),
-                                    ("rom/hello-color.gbc", "application/octet-stream",
-                                     (paths.ENGINE_ROOT / "examples/hello-color/hello-color.gbc").read_bytes())):
+        for rel, kind, expected in (
+            ("js/binjgb.wasm", "application/wasm", wasm),
+            (f"codex-annotations/binjgb-{context['runtimeSha256']}.wasm", "application/wasm", wasm),
+            (
+                "rom/hello-color.gbc",
+                "application/octet-stream",
+                (paths.ENGINE_ROOT / "examples/hello-color/hello-color.gbc").read_bytes(),
+            ),
+        ):
             status, headers, body = fetch(base + rel)
-            self.assertEqual((status, headers["Content-Type"], headers["Access-Control-Allow-Origin"]), (200, kind, "*"), rel)
+            self.assertEqual(
+                (status, headers["Content-Type"], headers["Access-Control-Allow-Origin"]), (200, kind, "*"), rel
+            )
             self.assertEqual(body, expected, rel)
         status, _headers, body = fetch(base + "gbstudio.json")
         config = json.loads(body)
@@ -357,7 +405,9 @@ class DemoCartridge(unittest.TestCase):
         answer = library_rpcs.rpc_games(self.ctx)({})
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["games"], [])
-        self.assertEqual(answer["demo"], {"id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example"})
+        self.assertEqual(
+            answer["demo"], {"id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example"}
+        )
         self.assertNotIn("url", answer["demo"])
 
     def test_a_user_game_without_a_web_export_still_errors(self):

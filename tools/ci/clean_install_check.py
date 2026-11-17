@@ -8,6 +8,7 @@ Creates the `hermretro` profile, installs the committed checkout into it and int
 checks the agent side registers only in `hermretro`. Needs no model, no network beyond Git and touches no
 real Hermes home. Every failure ends with a "FIX:" line.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,15 +40,27 @@ def main(argv: list[str] | None = None) -> int:
 
         def run(home: Path, *command: str) -> str:
             # Nothing from a surrounding Hermes or hermretro session (profile pins, session ids, real home).
-            env = {**{k: v for k, v in os.environ.items() if not k.startswith(("HERMRETRO_", "HERMES_"))},
-                   "HERMES_HOME": str(home), "HERMRETRO_HOME": str(Path(tmp) / "hermretro")}
-            done = subprocess.run([*hermes, *command], env=env, cwd=tmp, stdin=subprocess.DEVNULL,
-                                  capture_output=True, text=True, timeout=600)
+            env = {
+                **{k: v for k, v in os.environ.items() if not k.startswith(("HERMRETRO_", "HERMES_"))},
+                "HERMES_HOME": str(home),
+                "HERMRETRO_HOME": str(Path(tmp) / "hermretro"),
+            }
+            done = subprocess.run(
+                [*hermes, *command],
+                env=env,
+                cwd=tmp,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
             output = done.stdout + done.stderr
             print(f"$ hermes {' '.join(command)}  [{home.name}] -> {done.returncode}", flush=True)
             if done.returncode:
-                raise SystemExit(output[-3000:] + f"\nFIX: `hermes {' '.join(command)}` failed in a clean Hermes home; "
-                                 "reproduce with python tools/ci/clean_install_check.py")
+                raise SystemExit(
+                    output[-3000:] + f"\nFIX: `hermes {' '.join(command)}` failed in a clean Hermes home; "
+                    "reproduce with python tools/ci/clean_install_check.py"
+                )
             return output
 
         source = f"file://{ROOT}"
@@ -56,8 +69,11 @@ def main(argv: list[str] | None = None) -> int:
             run(home, "plugins", "install", source, "--enable", "--yes-deps")
         in_studio = run(studio, "tools", "list")
         in_default = run(root, "tools", "list")
+
         def lists_chromatic(listing: str) -> bool:  # a toolset row, not a mention in some message
-            return any(re.match(r"^\W*(enabled|disabled)?\W*chromatic\b", line.strip()) for line in listing.splitlines())
+            return any(
+                re.match(r"^\W*(enabled|disabled)?\W*chromatic\b", line.strip()) for line in listing.splitlines()
+            )
 
         problems = []
         if not lists_chromatic(in_studio):

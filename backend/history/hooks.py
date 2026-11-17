@@ -1,5 +1,6 @@
 """Build history's Hermes hook: after a successful build of a library game, keep a snapshot of its files
 (``post_tool_call``; assets' own post_tool_call runs first, see backend/features.py)."""
+
 from __future__ import annotations
 
 import json
@@ -42,8 +43,11 @@ def build_succeeded(result, status=None) -> bool:
 
 def _library_root_for(candidates) -> tuple[str, Path] | None:
     """The first library game whose project is, or contains, one of ``candidates``."""
-    games = [entry for entry in host._registry().load()["games"].values()
-             if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str)]
+    games = [
+        entry
+        for entry in host._registry().load()["games"].values()
+        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str)
+    ]
     roots = []
     for entry in games:
         try:
@@ -64,8 +68,9 @@ def _library_root_for(candidates) -> tuple[str, Path] | None:
 
 
 @hook("post_tool_call")
-def snapshot_after_build(tool_name=None, args=None, result=None, status=None, conversation_id=None,
-                         session_id=None, **_kwargs):
+def snapshot_after_build(
+    tool_name=None, args=None, result=None, status=None, conversation_id=None, session_id=None, **_kwargs
+):
     """``post_tool_call``: after a successful build of a library game, keep a snapshot of its files for
     the Build page's history (Restore). Never raises."""
     try:

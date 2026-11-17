@@ -1,4 +1,5 @@
 """The plugin's version lives in plugin.yaml and nowhere else, so a release changes one line."""
+
 import re
 import subprocess
 import sys
@@ -13,8 +14,7 @@ from backend.system import paths  # noqa: E402
 
 # Where the version may legitimately appear as text: the manifest itself, the vendored engine (its own
 # versions), lockfiles, generated bundles and the README's note about upgrading from older versions.
-ALLOWED = ("plugin.yaml", "engine/", "tools/npm/package-lock.json", "desktop/plugin.js",
-           "player/frame-shim.js")
+ALLOWED = ("plugin.yaml", "engine/", "tools/npm/package-lock.json", "desktop/plugin.js", "player/frame-shim.js")
 
 
 class OneVersion(unittest.TestCase):
@@ -24,9 +24,14 @@ class OneVersion(unittest.TestCase):
         self.assertEqual(paths.PLUGIN_VERSION, paths._manifest_version(ROOT / "plugin.yaml"))
 
     def test_the_version_line_may_be_quoted_or_commented_but_must_be_x_y_z(self):
-        for line, expected in (("version: 0.0.5", "0.0.5"), ('version: "0.0.5"', "0.0.5"),
-                               ("version: 0.0.5  # next", "0.0.5"), ("version: 0.0.5\r", "0.0.5"),
-                               ("version: 1.0", None), ("version: v0.0.5", None)):
+        for line, expected in (
+            ("version: 0.0.5", "0.0.5"),
+            ('version: "0.0.5"', "0.0.5"),
+            ("version: 0.0.5  # next", "0.0.5"),
+            ("version: 0.0.5\r", "0.0.5"),
+            ("version: 1.0", None),
+            ("version: v0.0.5", None),
+        ):
             match = re.search(paths.VERSION_LINE, f"name: hermretro\n{line}\n", re.MULTILINE)
             self.assertEqual(match.group(1) if match else None, expected, line)
 
@@ -57,8 +62,12 @@ class OneVersion(unittest.TestCase):
             for number, line in enumerate(text.splitlines(), 1):
                 if pattern.search(line) and not line.startswith("Upgrading from "):
                     found.append(f"{name}:{number}")
-        self.assertEqual(found, [], f"the version {paths.PLUGIN_VERSION} is repeated; read it from plugin.yaml "
-                                    "(backend: paths.PLUGIN_VERSION; page: status.plugin.version)")
+        self.assertEqual(
+            found,
+            [],
+            f"the version {paths.PLUGIN_VERSION} is repeated; read it from plugin.yaml "
+            "(backend: paths.PLUGIN_VERSION; page: status.plugin.version)",
+        )
 
 
 if __name__ == "__main__":

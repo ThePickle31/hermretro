@@ -1,5 +1,6 @@
 """Locations and environment discovery. Stdlib only; Hermes is consulted only through hermes_home.py, which the
 Hermes layer fills in (backend.system never imports backend.hermes)."""
+
 from __future__ import annotations
 
 import hashlib
@@ -76,7 +77,7 @@ def hermretro_home() -> Path:
 # Downloaded per user, under the hermretro home, so plugin updates and removal never touch it.
 DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".cache").resolve()
 # Named by engine version: two plugin copies (an installed one and a dev checkout) share this folder.
-PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_VERSION}"   # bundled engine + ModRetro's CLI for this computer
+PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_VERSION}"  # bundled engine + ModRetro's CLI for this computer
 DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_VERSION}.json"
 # ModRetro's proprietary CLI, packed for all platforms. A distributable build of the plugin leaves
 # these two out; setup then fetches the CLI for one platform from ModRetro (see provision.py).
@@ -107,8 +108,10 @@ def runtime_dir() -> Path:
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = base.lstat()
     if stat.S_ISLNK(info.st_mode) or info.st_uid != os.getuid():
-        raise PermissionError(f"{base} is a link or belongs to another user (uid {info.st_uid}), so hermretro "
-                              "will not use it; set HERMRETRO_RUNTIME_DIR to a private folder of your own")
+        raise PermissionError(
+            f"{base} is a link or belongs to another user (uid {info.st_uid}), so hermretro "
+            "will not use it; set HERMRETRO_RUNTIME_DIR to a private folder of your own"
+        )
     os.chmod(base, 0o700)
     return base
 
@@ -172,8 +175,15 @@ def find_node() -> dict:
     # The Node.js Hermes installs for itself (~/.hermes/tools/node-<version>-<platform>/bin/node).
     candidates.extend(str(p) for p in sorted((home / ".hermes" / "tools").glob("node-*/bin/node"), reverse=True))
     # Apple Silicon Homebrew before /usr/local, where an Intel (Rosetta) Homebrew keeps its Node on the same Mac.
-    candidates.extend(str(p) for p in (home / ".local/bin/node", Path("/opt/homebrew/bin/node"),
-                                       Path("/usr/local/bin/node"), Path("/usr/bin/node")))
+    candidates.extend(
+        str(p)
+        for p in (
+            home / ".local/bin/node",
+            Path("/opt/homebrew/bin/node"),
+            Path("/usr/local/bin/node"),
+            Path("/usr/bin/node"),
+        )
+    )
     candidates.extend(str(p) for p in sorted((home / ".nvm/versions/node").glob("*/bin/node"), reverse=True))
     best: dict | None = None
     seen: set[str] = set()
@@ -184,8 +194,13 @@ def find_node() -> dict:
         version = _node_version(candidate)
         if version is None:
             continue
-        found = {"found": True, "path": candidate, "version": ".".join(map(str, version)),
-                 "required": str(NODE_REQUIRED_MAJOR), "ok": version[0] >= NODE_REQUIRED_MAJOR}
+        found = {
+            "found": True,
+            "path": candidate,
+            "version": ".".join(map(str, version)),
+            "required": str(NODE_REQUIRED_MAJOR),
+            "ok": version[0] >= NODE_REQUIRED_MAJOR,
+        }
         if found["ok"]:
             return found
         best = best or found
@@ -240,8 +255,13 @@ def verify_engine() -> dict:
     try:
         problems = _compare_tree(ENGINE_ROOT, _recorded(), optional=frozenset(VENDOR_ARCHIVES + CAPTURE_FFMPEG))
         version = json.loads((ENGINE_ROOT / "package.json").read_text()).get("version")
-        return {"present": True, "version": version, "verified": not problems, "detail": _detail(problems),
-                "vendor_archives_bundled": all((ENGINE_ROOT / rel).is_file() for rel in VENDOR_ARCHIVES)}
+        return {
+            "present": True,
+            "version": version,
+            "verified": not problems,
+            "detail": _detail(problems),
+            "vendor_archives_bundled": all((ENGINE_ROOT / rel).is_file() for rel in VENDOR_ARCHIVES),
+        }
     except (OSError, ValueError, KeyError) as error:
         return {"present": True, "version": None, "verified": False, "detail": f"Could not verify: {error}"}
 
@@ -255,13 +275,19 @@ def verify_prepared_engine() -> dict:
         return {"present": False, "verified": False, "detail": ""}
     try:
         if receipt.get("engine_version") != ENGINE_VERSION:
-            return {"present": True, "verified": False,
-                    "detail": f"prepared for engine {receipt.get('engine_version')}, plugin now has {ENGINE_VERSION}"}
+            return {
+                "present": True,
+                "verified": False,
+                "detail": f"prepared for engine {receipt.get('engine_version')}, plugin now has {ENGINE_VERSION}",
+            }
         expected = {rel: digest for rel, digest in _recorded().items() if rel not in VENDOR_ARCHIVES}
         expected.update(receipt["added"])
         expected["package.json"] = receipt["package_json_sha256"]
-        problems = (_compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG))
-                    if PREPARED_ENGINE.is_dir() else ["missing engine copy"])
+        problems = (
+            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG))
+            if PREPARED_ENGINE.is_dir()
+            else ["missing engine copy"]
+        )
         return {"present": True, "verified": not problems, "detail": _detail(problems)}
     except (OSError, ValueError, KeyError, TypeError) as error:
         return {"present": True, "verified": False, "detail": f"Could not verify: {error}"}
@@ -285,7 +311,7 @@ def code_fingerprint() -> str:
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
     folder = BACKEND_ROOT
-    sources = [*backend_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]   # holds the version
+    sources = [*backend_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]  # holds the version
     stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
     return _fingerprint_for(stamp)
 
@@ -293,8 +319,11 @@ def code_fingerprint() -> str:
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:
     """Every Python file of the backend, sub-packages included, as (posix path relative to folder, path),
     sorted. Caches are skipped; a change to any other file must retire a running broker."""
-    return sorted((path.relative_to(folder).as_posix(), path) for path in folder.rglob("*.py")
-                  if "__pycache__" not in path.relative_to(folder).parts)
+    return sorted(
+        (path.relative_to(folder).as_posix(), path)
+        for path in folder.rglob("*.py")
+        if "__pycache__" not in path.relative_to(folder).parts
+    )
 
 
 @lru_cache(maxsize=4)

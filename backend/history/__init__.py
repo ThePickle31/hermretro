@@ -3,6 +3,7 @@
 
 Front door: nothing is exported.
 """
+
 __all__: list[str] = []
 
 EVENTS = {

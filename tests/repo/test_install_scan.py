@@ -5,6 +5,7 @@ is rated high. The engine's ffmpeg capture code once read its video input throug
 under the proc filesystem, which the scanner's ``proc_access`` rule rates high; hermretro changes it to
 ``/dev/fd/6`` (see THIRD_PARTY_NOTICES.md). This keeps a future engine update from bringing it back.
 """
+
 import re
 import subprocess
 import unittest
@@ -31,8 +32,10 @@ class InstallScanTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_capture_reads_the_inherited_descriptor_through_dev_fd(self):
-        for rel in ("engine/modretro-chromatic/dist/server.js",
-                    "engine/modretro-chromatic/dist/device-capture/linux-helper.js"):
+        for rel in (
+            "engine/modretro-chromatic/dist/server.js",
+            "engine/modretro-chromatic/dist/device-capture/linux-helper.js",
+        ):
             self.assertEqual((ROOT / rel).read_text(encoding="utf-8").count('"-i", "/dev/fd/6"'), 2, rel)
 
 

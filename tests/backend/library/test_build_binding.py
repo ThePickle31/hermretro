@@ -1,5 +1,6 @@
 """Build: one game, one conversation. The registry binding, the broker's guards and auto-select, the
 desktop RPC and the per-turn context hook."""
+
 import json
 import os
 import sys
@@ -41,7 +42,7 @@ class Binding(unittest.TestCase):
         with self.assertRaises(games.BindingError) as refused:
             self.registry.bind(self.game, "st-2", PROFILE)
         self.assertEqual(refused.exception.code, "HAS_CONVERSATION")
-        self.registry.bind(self.game, "st-2", PROFILE, replace=True)   # the old one was deleted
+        self.registry.bind(self.game, "st-2", PROFILE, replace=True)  # the old one was deleted
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-1"]), (None, None))
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-2"])[0], "game")
 
@@ -60,8 +61,15 @@ class Binding(unittest.TestCase):
         self.registry.build_start("st-new", PROFILE, "Lamplight")
         self.assertEqual(self.registry.pending(PROFILE)[0]["name"], "Lamplight")
         made = make_project(self.base, "Lamplight")
-        entry = self.registry.observe("project_create", {"select": True}, {"projectRoot": str(made)}, False,
-                                      lane_root=None, conversation_id="st-new", profile=PROFILE)
+        entry = self.registry.observe(
+            "project_create",
+            {"select": True},
+            {"projectRoot": str(made)},
+            False,
+            lane_root=None,
+            conversation_id="st-new",
+            profile=PROFILE,
+        )
         self.assertEqual(entry["session"]["storedId"], "st-new")
         self.assertEqual(self.registry.pending(PROFILE), [])
         self.assertEqual(self.registry.library()[0]["session"]["storedId"], "st-new")
@@ -79,8 +87,15 @@ class Binding(unittest.TestCase):
 
     def test_selecting_an_existing_game_does_not_claim_it(self):
         self.registry.build_start("st-new", PROFILE)
-        self.registry.observe("project_select", {}, {"projectRoot": str(self.root)}, False,
-                              lane_root=None, conversation_id="st-new", profile=PROFILE)
+        self.registry.observe(
+            "project_select",
+            {},
+            {"projectRoot": str(self.root)},
+            False,
+            lane_root=None,
+            conversation_id="st-new",
+            profile=PROFILE,
+        )
         self.assertIsNone(self.registry.get(self.game).get("session"))
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-new"])[0], "pending")
 
@@ -97,13 +112,13 @@ class Binding(unittest.TestCase):
 
     def test_stop_editing_frees_the_game_and_only_its_own_conversation(self):
         self.registry.bind(self.game, "st-1", PROFILE)
-        self.assertFalse(self.registry.unbind(self.game, "st-old", PROFILE))       # a stale page
+        self.assertFalse(self.registry.unbind(self.game, "st-old", PROFILE))  # a stale page
         self.assertEqual(self.registry.get(self.game)["session"]["storedId"], "st-1")
         self.assertTrue(self.registry.unbind(self.game, "st-1", PROFILE))
         self.assertIsNone(self.registry.get(self.game).get("session"))
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-1"]), (None, None))
-        self.assertFalse(self.registry.unbind(self.game, "st-1", PROFILE))         # already free
-        self.registry.bind(self.game, "st-2", PROFILE)                             # editable again, no replace
+        self.assertFalse(self.registry.unbind(self.game, "st-1", PROFILE))  # already free
+        self.registry.bind(self.game, "st-2", PROFILE)  # editable again, no replace
         self.assertEqual(self.registry.get(self.game)["session"]["storedId"], "st-2")
 
     def test_stop_editing_never_touches_another_profiles_conversation(self):
@@ -114,6 +129,7 @@ class Binding(unittest.TestCase):
 
     def test_unknown_top_level_keys_survive_a_write(self):
         import json
+
         path = self.registry.path
         data = json.loads(path.read_text())
         data["futureThing"] = {"keep": True}
@@ -193,6 +209,7 @@ class Guards(unittest.TestCase):
 
     def test_a_conversation_whose_game_folder_is_gone_is_told_so(self):
         import shutil
+
         shutil.rmtree(self.frog)
         refused = self.denied("st-frog", "project_select", {"projectPath": str(self.comet)})
         self.assertEqual(refused.code, "GAME_FOLDER_MISSING")
@@ -204,7 +221,7 @@ class Guards(unittest.TestCase):
     def test_a_new_game_conversation_makes_a_project_but_cannot_take_a_bound_game(self):
         self.registry.build_start("st-new", PROFILE)
         self.guard("st-new", "project_create", {"name": "Z", "destinationPath": str(self.base / "z")})
-        self.guard("st-new", "project_select", {"projectPath": str(self.comet)})   # unbound: it may adopt it
+        self.guard("st-new", "project_select", {"projectPath": str(self.comet)})  # unbound: it may adopt it
         refused = self.denied("st-new", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
         self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
 
@@ -241,14 +258,16 @@ class AutoSelect(unittest.TestCase):
         self.assertEqual(lane.selected_root, os.path.realpath(self.frog))
         self.assertIn("Frog Post", lane.pending_notice)
         engine.calls.clear()
-        self.broker.select_bound_game(lane, engine)                 # already selected: nothing more
+        self.broker.select_bound_game(lane, engine)  # already selected: nothing more
         self.assertEqual(engine.calls, [])
 
     def test_a_failed_sync_after_a_good_select_still_records_the_game(self):
         lane = Lane((PROFILE, "st-frog"))
         engine = lane.engine = EngineStub(self.frog)
+
         def broken(_lane):
             raise RuntimeError("status timed out")
+
         self.broker._sync_selection = broken
         self.broker.select_bound_game(lane, engine)
         self.assertEqual(lane.selected_root, os.path.realpath(self.frog))
@@ -256,9 +275,11 @@ class AutoSelect(unittest.TestCase):
     def test_a_failed_select_is_not_retried_on_every_call(self):
         lane = Lane((PROFILE, "st-frog"))
         engine = lane.engine = EngineStub(self.frog)
+
         def refuse(tool, arguments, timeout=None):
             engine.calls.append(tool)
             return {"isError": True}
+
         engine.call_tool = refuse
         self.broker.select_bound_game(lane, engine)
         self.broker.select_bound_game(lane, engine)
@@ -279,9 +300,14 @@ class RpcAndContext(unittest.TestCase):
         home = self.base / "hermes" / "profiles" / "studio" / "plugin-data" / "hermretro"
         home.mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                                         "HERMRETRO_GAMES_DIR": str(self.base / "games"),
-                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                    "HERMRETRO_GAMES_DIR": str(self.base / "games"),
+                    "HERMRETRO_RUNTIME_DIR": str(self.base / "run"),
+                },
+            ),
             mock.patch.object(hermes_host, "_data_dir", lambda: home),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
         ]
@@ -307,7 +333,7 @@ class RpcAndContext(unittest.TestCase):
         self.assertEqual(listed["games"][0]["session"]["storedId"], "st-frog")
         self.assertIs(listed["games"][0]["session"]["thisProfile"], True)
         self.assertNotIn("profile", listed["games"][0]["session"])
-        self.assertIsNone(listed["games"][0]["session"]["exists"])     # no session database in this test
+        self.assertIsNone(listed["games"][0]["session"]["exists"])  # no session database in this test
         self.assertEqual([item["storedId"] for item in listed["pending"]], ["st-new"])
         self.assertTrue(self.rpc({"action": "cancel", "stored": "st-new"})["cancelled"])
         self.assertTrue(self.rpc({"action": "unbind", "game": self.game, "stored": "st-frog"})["unbound"])
@@ -327,13 +353,17 @@ class RpcAndContext(unittest.TestCase):
         self.assertIn("chromatic_present_game", context)
         self.assertNotIn("their message is the idea", library_hooks.build_context(session_id="st-new")["context"])
         self.rpc({"action": "start", "stored": "st-plan", "plan": True})
-        self.assertIn("hermretro:game-planning",
-                      library_hooks.build_context(session_id="st-plan", is_first_turn=True)["context"])
+        self.assertIn(
+            "hermretro:game-planning", library_hooks.build_context(session_id="st-plan", is_first_turn=True)["context"]
+        )
         self.assertIsNone(library_hooks.build_context(session_id="plain-chat"))
         self.assertIsNone(library_hooks.build_context())
 
-PNG_1x1 = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000020000000100806000000"
-                        "1f15c4890000000d49444154789c636001000000050001a5f645400000000049454e44ae426082")
+
+PNG_1x1 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000020000000100806000000"
+    "1f15c4890000000d49444154789c636001000000050001a5f645400000000049454e44ae426082"
+)
 
 
 class AssetRpc(unittest.TestCase):
@@ -343,8 +373,10 @@ class AssetRpc(unittest.TestCase):
         self.home = self.base / "plugin-data"
         (self.home / "frames").mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
+            mock.patch.dict(
+                os.environ,
+                {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"), "HERMRETRO_RUNTIME_DIR": str(self.base / "run")},
+            ),
             mock.patch.object(hermes_host, "_data_dir", lambda: self.home),
         ]
         for patch in self.patches:
@@ -362,10 +394,15 @@ class AssetRpc(unittest.TestCase):
         sprite = self.frog / "assets" / "sprites" / "frog.png"
         sprite.parent.mkdir(parents=True, exist_ok=True)
         sprite.write_bytes(PNG_1x1)
-        (sprite.parent / "frog.png.gbsres").write_text(json.dumps({"name": "Frog", "canvasWidth": 16, "canvasHeight": 16, "animSpeed": 15}))
+        (sprite.parent / "frog.png.gbsres").write_text(
+            json.dumps({"name": "Frog", "canvasWidth": 16, "canvasHeight": 16, "animSpeed": 15})
+        )
         answer = self.asset({"path": str(sprite)})
         self.assertTrue(answer["ok"], answer)
-        self.assertEqual((answer["width"], answer["height"], answer["kind"], answer["relative"]), (32, 16, "sprite", "assets/sprites/frog.png"))
+        self.assertEqual(
+            (answer["width"], answer["height"], answer["kind"], answer["relative"]),
+            (32, 16, "sprite", "assets/sprites/frog.png"),
+        )
         self.assertEqual(answer["sprite"], {"name": "Frog", "frameWidth": 16, "frameHeight": 16, "animSpeed": 15})
         self.assertTrue(answer["dataUrl"].startswith("data:image/png;base64,"))
 
@@ -378,7 +415,9 @@ class AssetRpc(unittest.TestCase):
         self.assertEqual(self.asset({"path": str(outside)})["code"], "OUTSIDE")
         link = self.frog / "escape.png"
         link.symlink_to(outside)
-        self.assertEqual(self.asset({"path": str(link)})["code"], "OUTSIDE", "a link out of the game is followed, then refused")
+        self.assertEqual(
+            self.asset({"path": str(link)})["code"], "OUTSIDE", "a link out of the game is followed, then refused"
+        )
         text = self.frog / "notes.txt"
         text.write_text("hi")
         self.assertEqual(self.asset({"path": str(text)})["code"], "NOT_IMAGE")

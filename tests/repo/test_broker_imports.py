@@ -6,6 +6,7 @@ The feature front doors the broker uses (backend.library, backend.setup) therefo
 
 There are no exceptions: backend.system learns the Hermes home from the Hermes layer (system/hermes_home.py)
 instead of importing it."""
+
 import ast
 import os
 import subprocess
@@ -39,7 +40,8 @@ def imports(name: str) -> tuple[set[str], set[str]]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 (inside if alias.name.split(".")[0] == "backend" else outside).add(
-                    alias.name if alias.name.startswith("backend") else alias.name.split(".")[0])
+                    alias.name if alias.name.startswith("backend") else alias.name.split(".")[0]
+                )
         elif isinstance(node, ast.ImportFrom):
             if node.level:
                 base = package.split(".")
@@ -50,7 +52,7 @@ def imports(name: str) -> tuple[set[str], set[str]]:
             if source.split(".")[0] != "backend":
                 outside.add(source.split(".")[0])
                 continue
-            for alias in node.names:   # `from . import paths` names a module; `from .lane import Denied` does not
+            for alias in node.names:  # `from . import paths` names a module; `from .lane import Denied` does not
                 submodule = f"{source}.{alias.name}"
                 inside.add(submodule if module_file(submodule) else source)
     # A module's parent packages run first.
@@ -60,8 +62,9 @@ def imports(name: str) -> tuple[set[str], set[str]]:
 
 
 def reachable() -> tuple[set[str], set[str], set[tuple[str, str]]]:
-    start = ["backend.broker"] + [f"backend.broker.{path.stem}" for path in (BACKEND / "broker").glob("*.py")
-                                  if path.stem != "__init__"]
+    start = ["backend.broker"] + [
+        f"backend.broker.{path.stem}" for path in (BACKEND / "broker").glob("*.py") if path.stem != "__init__"
+    ]
     seen, external, edges, todo = set(), set(), set(), list(start)
     while todo:
         name = todo.pop()
@@ -81,24 +84,46 @@ class BrokerImports(unittest.TestCase):
         seen, external, edges = reachable()
         self.assertIn("backend.broker.server", seen)
         self.assertIn("backend.system.paths", seen)
-        self.assertEqual(external - set(sys.stdlib_module_names) - {"__future__"}, set(),
-                         "the broker imports something outside the standard library")
+        self.assertEqual(
+            external - set(sys.stdlib_module_names) - {"__future__"},
+            set(),
+            "the broker imports something outside the standard library",
+        )
         hermes = sorted(f"{a} -> {b}" for a, b in edges if b.startswith("backend.hermes"))
-        self.assertEqual(hermes, [], "the broker must not import backend.hermes (it runs without Hermes)\nFIX: hand "
-                         "the value over from the Hermes side (as system/hermes_home.py does), or move the code out "
-                         "of the modules the broker imports")
-        self.assertEqual(sorted(name for name in seen if name.rpartition(".")[2] in HERMES_SIDE), [],
-                         "the broker must not import a feature's rpcs.py, tools.py, hooks.py or listeners.py\nFIX: "
-                         "import the feature's front door (backend.<feature>), and keep that front door stdlib-only")
-        self.assertNotIn("backend.system.events", seen, "the broker must not emit events: their listeners live in the "
-                         "gateway\nFIX: emit from the Hermes side (an RPC, tool or hook) instead")
+        self.assertEqual(
+            hermes,
+            [],
+            "the broker must not import backend.hermes (it runs without Hermes)\nFIX: hand "
+            "the value over from the Hermes side (as system/hermes_home.py does), or move the code out "
+            "of the modules the broker imports",
+        )
+        self.assertEqual(
+            sorted(name for name in seen if name.rpartition(".")[2] in HERMES_SIDE),
+            [],
+            "the broker must not import a feature's rpcs.py, tools.py, hooks.py or listeners.py\nFIX: "
+            "import the feature's front door (backend.<feature>), and keep that front door stdlib-only",
+        )
+        self.assertNotIn(
+            "backend.system.events",
+            seen,
+            "the broker must not emit events: their listeners live in the "
+            "gateway\nFIX: emit from the Hermes side (an RPC, tool or hook) instead",
+        )
 
     def test_importing_the_broker_loads_no_hermes_side_module(self):
-        code = ("import sys; sys.path.insert(0, sys.argv[1]); import backend.broker.server, backend.broker.client; "
-                "print(' '.join(sorted(m for m in sys.modules if m.startswith('backend'))))")
+        code = (
+            "import sys; sys.path.insert(0, sys.argv[1]); import backend.broker.server, backend.broker.client; "
+            "print(' '.join(sorted(m for m in sys.modules if m.startswith('backend'))))"
+        )
         env = {"PATH": os.environ.get("PATH", ""), "HERMRETRO_HOME": "/nonexistent-hermretro-home"}
-        done = subprocess.run([sys.executable, "-I", "-c", code, str(ROOT)], env=env, cwd=str(ROOT),
-                              capture_output=True, text=True, timeout=60)
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", code, str(ROOT)],
+            env=env,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
         self.assertEqual(done.returncode, 0, done.stderr)
         loaded = done.stdout.split()
         self.assertIn("backend.broker.server", loaded)

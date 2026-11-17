@@ -7,6 +7,7 @@ the manifest identifies the baseline without redistributing it.
     python tools/engine/manifest.py write  engine/pins/1.0.34/manifest.json
     python tools/engine/manifest.py verify engine/pins/1.0.34/manifest.json
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,8 +32,15 @@ def scan(root: Path) -> list[dict]:
             with path.open("rb") as handle:
                 for block in iter(lambda: handle.read(1 << 20), b""):
                     digest.update(block)
-            entries.append({"path": rel, "type": "file", "size": info.st_size,
-                            "mode": oct(stat.S_IMODE(info.st_mode)), "sha256": digest.hexdigest()})
+            entries.append(
+                {
+                    "path": rel,
+                    "type": "file",
+                    "size": info.st_size,
+                    "mode": oct(stat.S_IMODE(info.st_mode)),
+                    "sha256": digest.hexdigest(),
+                }
+            )
     return entries
 
 

@@ -4,6 +4,7 @@ The broker runs the engine's ``toolchain_prepare`` itself (no chat, no model) wh
 asks; this module describes the downloads beforehand and reads the engine's own run record while it
 works. Stdlib only; no Hermes imports.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,27 +19,65 @@ from ..system import host as host_os
 # as approximate there.
 MEASURED_ON = "linux-x64"
 MANIFEST = (
-    {"id": "gbdk", "component": "gbdk", "name": "GBDK compiler", "version": "4.5.0",
-     "source": "github.com/gbdk-2020/gbdk-2020", "bytes": 6_870_728,
-     "purpose": "Compiles C for the Game Boy CPU"},
-    {"id": "gbstudio", "component": "cli", "name": "GB Studio CLI", "version": "4.3.2",
-     "source": "github.com/chrismaltby/gb-studio", "bytes": 18_130_254,
-     "purpose": "Builds your game into a ROM"},
-    {"id": "gbvm", "component": "cli", "name": "GBVM", "version": "bd6f41c",
-     "source": "github.com/chrismaltby/gbvm", "bytes": 3_995_554,
-     "purpose": "The Game Boy engine inside every game"},
-    {"id": "packages", "component": "cli", "name": "GB Studio packages", "version": "yarn 4.4.1",
-     "source": "registry.npmjs.org", "bytes": 551_000_000, "approx": True,
-     "purpose": "The libraries GB Studio needs"},
-    {"id": "uv", "component": "uv", "name": "uv", "version": "0.12.6",
-     "source": "github.com/astral-sh/uv", "bytes": 20_274_889,
-     "purpose": "Installs the Python parts"},
-    {"id": "emulator", "component": "emulator", "name": "Python, PyBoy and Pillow", "version": "3.13.12 · 2.7.0 · 12.3.0",
-     "source": "python-build-standalone · pypi.org", "bytes": 108_000_000, "approx": True,
-     "purpose": "The emulator Hermes playtests with"},
+    {
+        "id": "gbdk",
+        "component": "gbdk",
+        "name": "GBDK compiler",
+        "version": "4.5.0",
+        "source": "github.com/gbdk-2020/gbdk-2020",
+        "bytes": 6_870_728,
+        "purpose": "Compiles C for the Game Boy CPU",
+    },
+    {
+        "id": "gbstudio",
+        "component": "cli",
+        "name": "GB Studio CLI",
+        "version": "4.3.2",
+        "source": "github.com/chrismaltby/gb-studio",
+        "bytes": 18_130_254,
+        "purpose": "Builds your game into a ROM",
+    },
+    {
+        "id": "gbvm",
+        "component": "cli",
+        "name": "GBVM",
+        "version": "bd6f41c",
+        "source": "github.com/chrismaltby/gbvm",
+        "bytes": 3_995_554,
+        "purpose": "The Game Boy engine inside every game",
+    },
+    {
+        "id": "packages",
+        "component": "cli",
+        "name": "GB Studio packages",
+        "version": "yarn 4.4.1",
+        "source": "registry.npmjs.org",
+        "bytes": 551_000_000,
+        "approx": True,
+        "purpose": "The libraries GB Studio needs",
+    },
+    {
+        "id": "uv",
+        "component": "uv",
+        "name": "uv",
+        "version": "0.12.6",
+        "source": "github.com/astral-sh/uv",
+        "bytes": 20_274_889,
+        "purpose": "Installs the Python parts",
+    },
+    {
+        "id": "emulator",
+        "component": "emulator",
+        "name": "Python, PyBoy and Pillow",
+        "version": "3.13.12 · 2.7.0 · 12.3.0",
+        "source": "python-build-standalone · pypi.org",
+        "bytes": 108_000_000,
+        "approx": True,
+        "purpose": "The emulator Hermes playtests with",
+    },
 )
-COMPONENTS = ("gbdk", "cli", "uv", "emulator")   # the engine's install order
-DISK_BYTES = 2_300_000_000                        # measured on linux-x64 after a full install
+COMPONENTS = ("gbdk", "cli", "uv", "emulator")  # the engine's install order
+DISK_BYTES = 2_300_000_000  # measured on linux-x64 after a full install
 
 DONE = frozenset({"prepared", "reused", "not-needed"})
 RUNNING = frozenset({"checking", "installing"})
@@ -55,8 +94,13 @@ def host_target() -> str:
 def manifest() -> dict:
     exact = host_target() == MEASURED_ON
     items = [{**item, "approx": bool(item.get("approx")) or not exact} for item in MANIFEST]
-    return {"items": items, "bytes": sum(item["bytes"] for item in MANIFEST), "disk_bytes": DISK_BYTES,
-            "measured_on": MEASURED_ON, "exact": exact}
+    return {
+        "items": items,
+        "bytes": sum(item["bytes"] for item in MANIFEST),
+        "disk_bytes": DISK_BYTES,
+        "measured_on": MEASURED_ON,
+        "exact": exact,
+    }
 
 
 def directory_bytes(root: Path) -> int:
@@ -91,16 +135,31 @@ def _checks(component: dict) -> list[dict]:
     found = []
     for archive in archives:
         if isinstance(archive, dict) and isinstance(archive.get("sha256"), str):
-            found.append({"file": str(archive.get("archive") or archive.get("source") or component.get("id")),
-                          "sha256": archive["sha256"], "reused": bool(archive.get("cacheReused"))})
+            found.append(
+                {
+                    "file": str(archive.get("archive") or archive.get("source") or component.get("id")),
+                    "sha256": archive["sha256"],
+                    "reused": bool(archive.get("cacheReused")),
+                }
+            )
     if provenance.get("pythonExecutableSha256"):
-        found.append({"file": f"python {provenance.get('pythonVersion') or ''}".strip(),
-                      "sha256": provenance["pythonExecutableSha256"], "reused": False})
+        found.append(
+            {
+                "file": f"python {provenance.get('pythonVersion') or ''}".strip(),
+                "sha256": provenance["pythonExecutableSha256"],
+                "reused": False,
+            }
+        )
     if provenance.get("requirementsSha256"):
         packages = provenance.get("resolvedPackages")
         count = len(packages) if isinstance(packages, list) else 0
-        found.append({"file": f"{count} pinned PyPI packages" if count else "PyPI requirements",
-                      "sha256": provenance["requirementsSha256"], "reused": False})
+        found.append(
+            {
+                "file": f"{count} pinned PyPI packages" if count else "PyPI requirements",
+                "sha256": provenance["requirementsSha256"],
+                "reused": False,
+            }
+        )
     return found
 
 
@@ -109,7 +168,7 @@ def read_run(root: Path, run_id: str | None = None, since: float | None = None) 
     try:
         path = root / "last-run.json"
         if since is not None and path.stat().st_mtime < since - 2:
-            return None     # a run from before this install started
+            return None  # a run from before this install started
         run = json.loads(path.read_text())
     except (OSError, ValueError):
         return None
@@ -124,10 +183,14 @@ def read_run(root: Path, run_id: str | None = None, since: float | None = None) 
         error = item.get("error")
         if isinstance(error, dict):
             error = error.get("message") or error.get("code")
-        components[item["id"]] = {"state": state, "status": raw, "version": item.get("version"),
-                                  "reused": raw in ("reused", "not-needed"),
-                                  "error": str(error or item.get("reason") or "")[:400] or None,
-                                  "checks": _checks(item)}
+        components[item["id"]] = {
+            "state": state,
+            "status": raw,
+            "version": item.get("version"),
+            "reused": raw in ("reused", "not-needed"),
+            "error": str(error or item.get("reason") or "")[:400] or None,
+            "checks": _checks(item),
+        }
     return {"run_id": run.get("runId"), "status": run.get("status"), "components": components}
 
 

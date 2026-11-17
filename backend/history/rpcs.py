@@ -1,4 +1,5 @@
 """The Build page's build history: the builds and build_restore RPCs over the snapshots in snapshots.py."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +8,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from . import snapshots
 
-logger = host.logger   # one logger for the Hermes side of the backend
+logger = host.logger  # one logger for the Hermes side of the backend
 
 
 def _snapshots_dir() -> Path:
@@ -17,6 +18,7 @@ def _snapshots_dir() -> Path:
 @rpc("builds")
 def rpc_builds(ctx):
     """The Build page's build history for one library game: ``{game}`` → its snapshots, newest first."""
+
     def builds(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
@@ -27,6 +29,7 @@ def rpc_builds(ctx):
         except Exception as error:
             logger.exception("hermretro builds failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return builds
 
 
@@ -34,6 +37,7 @@ def rpc_builds(ctx):
 def rpc_build_restore(ctx):
     """Put a game's files back as they were at one build (``{game, id}``). The current files are kept
     first as a ``before-restore`` snapshot; the page then asks the agent to rebuild."""
+
     def build_restore(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
@@ -48,4 +52,5 @@ def rpc_build_restore(ctx):
         except Exception as error:
             logger.exception("hermretro build_restore failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return build_restore

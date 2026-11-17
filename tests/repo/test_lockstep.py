@@ -15,6 +15,7 @@ Adding a hook: @hook(...) in backend/<feature>/hooks.py; a hook name no feature 
 provides_hooks in plugin.yaml.
 Tool and skill counts elsewhere in the tests are derived, not typed.
 """
+
 import codecs
 import json
 import re
@@ -33,10 +34,31 @@ from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa
 # Registered for older desktop halves and the broker's own use; today's page does not call it.
 RPCS_THE_PAGE_DOES_NOT_CALL = {"activity"}
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
-HERMES_TOOLS_WITH_WORDS = {"browser_exec", "clarify", "delegate_task", "desktop_preview", "execute_code",
-                           "image_generate", "memory", "patch", "read_file", "search_files", "session_search",
-                           "skill_manage", "skill_view", "skills_list", "terminal", "todo", "tool_call", "tool_describe",
-                           "tool_search", "vision_analyze", "web_extract", "web_search", "write_file"}
+HERMES_TOOLS_WITH_WORDS = {
+    "browser_exec",
+    "clarify",
+    "delegate_task",
+    "desktop_preview",
+    "execute_code",
+    "image_generate",
+    "memory",
+    "patch",
+    "read_file",
+    "search_files",
+    "session_search",
+    "skill_manage",
+    "skill_view",
+    "skills_list",
+    "terminal",
+    "todo",
+    "tool_call",
+    "tool_describe",
+    "tool_search",
+    "vision_analyze",
+    "web_extract",
+    "web_search",
+    "write_file",
+}
 RPC_HEADING = re.compile(r"^(?:### `(\w+)`|\| `(\w+)` \|)", re.M)
 
 
@@ -75,19 +97,26 @@ class LockStep(unittest.TestCase):
     def test_rpc_names_agree_between_backend_page_and_docs(self):
         page = set(re.findall(r"`plugin\.\$\{ID\}\.(\w+)`", read("page/app/rpc.js")))
         self.assertEqual(page - self.rpcs, set(), "page/app/rpc.js names RPCs the backend does not register")
-        self.assertEqual(self.rpcs - page - RPCS_THE_PAGE_DOES_NOT_CALL, set(),
-                         "registered RPCs missing from page/app/rpc.js")
+        self.assertEqual(
+            self.rpcs - page - RPCS_THE_PAGE_DOES_NOT_CALL, set(), "registered RPCs missing from page/app/rpc.js"
+        )
         docs = read("docs/dev/CONTRACT.md") + read("docs/dev/STUDIO-PAGES.md")
         documented = {a or b for a, b in RPC_HEADING.findall(docs)}
-        self.assertEqual(self.rpcs - documented, set(), "RPCs without a heading or table row in CONTRACT.md or STUDIO-PAGES.md")
-        self.assertEqual(documented - self.rpcs, set(), "CONTRACT.md / STUDIO-PAGES.md describe RPCs that no longer exist")
+        self.assertEqual(
+            self.rpcs - documented, set(), "RPCs without a heading or table row in CONTRACT.md or STUDIO-PAGES.md"
+        )
+        self.assertEqual(
+            documented - self.rpcs, set(), "CONTRACT.md / STUDIO-PAGES.md describe RPCs that no longer exist"
+        )
 
     def test_the_manifest_declares_exactly_the_tools_and_hooks_registered(self):
         manifest = read("plugin.yaml")
         declared = set(re.findall(r"^  - (chromatic_\w+)$", manifest, re.M))
         self.assertEqual(declared, self.tools, "plugin.yaml provides_tools")
         hooks = manifest.split("provides_hooks:")[1].split("provides_tools:")[0]
-        self.assertEqual(set(re.findall(r"^  - (\w+)$", hooks, re.M)), set(self.calls["hook"]), "plugin.yaml provides_hooks")
+        self.assertEqual(
+            set(re.findall(r"^  - (\w+)$", hooks, re.M)), set(self.calls["hook"]), "plugin.yaml provides_hooks"
+        )
 
     def test_the_contract_states_the_real_tool_counts(self):
         engine = len(json.loads(paths.PINNED_TOOLS.read_text())["tools"])
@@ -95,43 +124,59 @@ class LockStep(unittest.TestCase):
         owned = plugin_owned_tools(self.tools)
         words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
         self.assertIn(f"{engine} tools, plus {words.get(len(owned), len(owned))}", contract)
-        self.assertEqual({name for name in owned if f"`{name}`" not in contract}, set(), "plugin-owned tools CONTRACT omits")
+        self.assertEqual(
+            {name for name in owned if f"`{name}`" not in contract}, set(), "plugin-owned tools CONTRACT omits"
+        )
         self.assertIn(f"{len(self.tools)} in total", contract)
-        self.assertIn(f"the {len(self.tools)} tools, {len(self.calls['skill'])} skills, {len(self.calls['hook'])} hooks",
-                      contract)
+        self.assertIn(
+            f"the {len(self.tools)} tools, {len(self.calls['skill'])} skills, {len(self.calls['hook'])} hooks", contract
+        )
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")
-        table = source[source.index("const STEP_WORDS = {"):]
-        words = set(re.findall(r"^  (\w+): ", table[:table.index("\n}\n")], re.M))
+        table = source[source.index("const STEP_WORDS = {") :]
+        words = set(re.findall(r"^  (\w+): ", table[: table.index("\n}\n")], re.M))
         hidden, build = set_literal(source, "HIDDEN_STEPS"), set_literal(source, "BUILD_STEPS")
         short = {name.removeprefix("chromatic_") for name in self.tools}
         self.assertEqual(short - words - hidden, set(), "tools the Build page has no words for (step-words.js)")
-        self.assertEqual((words | hidden | build) - short - HERMES_TOOLS_WITH_WORDS, set(),
-                         "step-words.js names tools that do not exist (renamed?)")
-        self.assertEqual(HERMES_TOOLS_WITH_WORDS - words - hidden - build, set(), "stale entries in HERMES_TOOLS_WITH_WORDS")
+        self.assertEqual(
+            (words | hidden | build) - short - HERMES_TOOLS_WITH_WORDS,
+            set(),
+            "step-words.js names tools that do not exist (renamed?)",
+        )
+        self.assertEqual(
+            HERMES_TOOLS_WITH_WORDS - words - hidden - build, set(), "stale entries in HERMES_TOOLS_WITH_WORDS"
+        )
 
     def test_plugin_tools_declare_the_step_words_the_page_shows(self):
         source = read("page/pages/build/transcript/step-words.js")
-        table = source[source.index("const STEP_WORDS = {"):]
-        entries = dict(re.findall(r"^  (\w+): \[('(?:[^'\\]|\\.)*', '(?:[^'\\]|\\.)*')\],?$",
-                                  table[:table.index("\n}\n")], re.M))
+        table = source[source.index("const STEP_WORDS = {") :]
+        entries = dict(
+            re.findall(r"^  (\w+): \[('(?:[^'\\]|\\.)*', '(?:[^'\\]|\\.)*')\],?$", table[: table.index("\n}\n")], re.M)
+        )
         hidden = set_literal(source, "HIDDEN_STEPS")
         wrong = []
         for tool in collect().tools:
             if tool.make is not None:
-                continue   # the engine's tools: their words live on the page only
+                continue  # the engine's tools: their words live on the page only
             short = tool.name.removeprefix("chromatic_")
             if tool.step_words is None:
                 if short not in hidden:
                     wrong.append(f"{tool.name}: step_words=None, so HIDDEN_STEPS must list {short!r}")
                 continue
-            page = [codecs.decode(text, "unicode_escape") for text in re.findall(r"'((?:[^'\\]|\\.)*)'", entries.get(short, ""))]
+            page = [
+                codecs.decode(text, "unicode_escape")
+                for text in re.findall(r"'((?:[^'\\]|\\.)*)'", entries.get(short, ""))
+            ]
             if page != list(tool.step_words):
                 wrong.append(f"{tool.name}: declared {list(tool.step_words)}, step-words.js has {page or 'nothing'}")
-        self.assertEqual(wrong, [], "\nA plugin tool's step words are declared with its Tool(...) in "
-                         "backend/<feature>/tools.py; the page's copy must say the same\nFIX: make "
-                         "page/pages/build/transcript/step-words.js match the declaration")
+        self.assertEqual(
+            wrong,
+            [],
+            "\nA plugin tool's step words are declared with its Tool(...) in "
+            "backend/<feature>/tools.py; the page's copy must say the same\nFIX: make "
+            "page/pages/build/transcript/step-words.js match the declaration",
+        )
 
     def test_every_tool_name_the_page_uses_exists(self):
         used = set()
@@ -162,16 +207,24 @@ class LockStep(unittest.TestCase):
         version = paths.ENGINE_VERSION
         self.assertEqual(json.loads(read("engine/modretro-chromatic/package.json"))["version"], version)
         pins = ROOT / "engine" / "pins"
-        self.assertEqual([p.name for p in pins.iterdir() if p.is_dir()], [version], "one pins folder, the engine's version")
-        self.assertEqual(sorted(p.name for p in (pins / version).iterdir()), ["manifest.json", "schema-reconcile.json", "tools.json"])
+        self.assertEqual(
+            [p.name for p in pins.iterdir() if p.is_dir()], [version], "one pins folder, the engine's version"
+        )
+        self.assertEqual(
+            sorted(p.name for p in (pins / version).iterdir()), ["manifest.json", "schema-reconcile.json", "tools.json"]
+        )
         self.assertEqual(json.loads(read(f"engine/pins/{version}/manifest.json"))["package_version"], version)
         self.assertEqual(json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]["version"], version)
-        for skill in ("authoring", "deployment", "pixel-art", "rom-debugging", "setup"):   # adapted from the engine's
+        for skill in ("authoring", "deployment", "pixel-art", "rom-debugging", "setup"):  # adapted from the engine's
             self.assertRegex(read(f"skills/{skill}/SKILL.md"), rf"(?m)^version: {re.escape(version)}$", skill)
         notices = read("THIRD_PARTY_NOTICES.md")
         self.assertIn(f"## ModRetro Chromatic Plugin engine {version}", notices)
-        mentioned = {a or b for a, b in re.findall(
-            r"engine/pins/([0-9]+\.[0-9]+\.[0-9]+)/|ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices)}
+        mentioned = {
+            a or b
+            for a, b in re.findall(
+                r"engine/pins/([0-9]+\.[0-9]+\.[0-9]+)/|ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices
+            )
+        }
         self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
 
 

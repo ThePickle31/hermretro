@@ -1,5 +1,6 @@
 """What the agent reads: the plugin's skills (skills/<name>/SKILL.md) and the ``hermretro.guide`` prompt
 section."""
+
 from __future__ import annotations
 
 from pathlib import Path

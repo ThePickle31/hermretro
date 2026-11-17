@@ -16,6 +16,7 @@ inside one feature cannot quietly break another:
 A line may break a rule on purpose with ``# retrodev: allow <rule> — <reason>`` (tests/repo/allowances.py).
 Run alone: python -m unittest tests.repo.test_boundaries
 """
+
 import ast
 import shutil
 import subprocess
@@ -100,7 +101,9 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
     for feature, door in doors.items():
         where = f"backend/{feature}/__init__.py"
         if not isinstance(door["__all__"], list):
-            problems.append(("front-door-export", where, 1, "has no literal __all__ list (what other features may use)"))
+            problems.append(
+                ("front-door-export", where, 1, "has no literal __all__ list (what other features may use)")
+            )
             continue
         for missing in sorted(set(door["__all__"]) - door["bound"]):
             problems.append(("front-door-export", where, 1, f"__all__ names {missing!r}, which it does not define"))
@@ -109,17 +112,32 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
         for node in door["tree"].body:
             if isinstance(node, ast.ImportFrom):
                 for alias in node.names:
-                    if alias.name.startswith("_") and (alias.asname or alias.name) not in door["__all__"] \
-                            and not (alias.asname or "").startswith("_"):
-                        problems.append(("front-door-export", where, node.lineno,
-                                         f"re-exports the private {alias.name!r} without listing a public alias in __all__"))
+                    if (
+                        alias.name.startswith("_")
+                        and (alias.asname or alias.name) not in door["__all__"]
+                        and not (alias.asname or "").startswith("_")
+                    ):
+                        problems.append(
+                            (
+                                "front-door-export",
+                                where,
+                                node.lineno,
+                                f"re-exports the private {alias.name!r} without listing a public alias in __all__",
+                            )
+                        )
     declared: dict[str, list[str]] = {}
     for feature, door in doors.items():
         for event in door["EVENTS"] if isinstance(door["EVENTS"], dict) else {}:
             declared.setdefault(event, []).append(feature)
             if event.split(".")[0] != feature:
-                problems.append(("event", f"backend/{feature}/__init__.py", 1,
-                                 f"declares {event!r}; a feature declares only its own events ({feature}.<what happened>)"))
+                problems.append(
+                    (
+                        "event",
+                        f"backend/{feature}/__init__.py",
+                        1,
+                        f"declares {event!r}; a feature declares only its own events ({feature}.<what happened>)",
+                    )
+                )
     for event, owners in declared.items():
         if len(owners) > 1:
             problems.append(("event", f"backend/{owners[1]}/__init__.py", 1, f"{event!r} is declared by {owners}"))
@@ -135,15 +153,19 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
             other = pieces[1] if len(pieces) > 1 else None
             if other == "features":
                 if feature != "hermes":
-                    problems.append(("layer", rel, line, "imports backend.features; only the Hermes layer registers features"))
+                    problems.append(
+                        ("layer", rel, line, "imports backend.features; only the Hermes layer registers features")
+                    )
                 continue
             if feature == "system" and other is not None and other != "system":
-                problems.append(("layer", rel, line, f"backend.system imports backend.{other}; system is the bottom layer"))
+                problems.append(
+                    ("layer", rel, line, f"backend.system imports backend.{other}; system is the bottom layer")
+                )
                 continue
-            if other is None:   # `from backend import library` / `from .. import library`
+            if other is None:  # `from backend import library` / `from .. import library`
                 for name, _alias in imported or []:
                     if name in names and name not in SHARED and name != feature:
-                        continue   # the front door module itself; its attribute uses are checked below
+                        continue  # the front door module itself; its attribute uses are checked below
                 continue
             if other == feature or other in SHARED or feature is None:
                 continue
@@ -151,8 +173,14 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
                 problems.append(("front-door", rel, line, f"imports {target}, inside the {other} feature"))
             for name, _alias in imported or []:
                 if name not in exported.get(other, set()):
-                    problems.append(("front-door", rel, line, f"imports {name!r} from backend.{other}, which its "
-                                     "front door does not export (__all__)"))
+                    problems.append(
+                        (
+                            "front-door",
+                            rel,
+                            line,
+                            f"imports {name!r} from backend.{other}, which its front door does not export (__all__)",
+                        )
+                    )
         problems += attribute_uses(root, path, rel, feature, names, exported)
         for line, kind, event in event_uses(path):
             if event is None:
@@ -160,17 +188,23 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
             elif event not in declared:
                 problems.append(("event", rel, line, f"{kind}({event!r}): no front door declares it in EVENTS"))
             elif kind == "emit" and feature not in declared[event]:
-                problems.append(("event", rel, line, f"emits {event!r}, owned by {declared[event][0]}; only the owner emits"))
+                problems.append(
+                    ("event", rel, line, f"emits {event!r}, owned by {declared[event][0]}; only the owner emits")
+                )
             elif kind == "on" and path.name != "listeners.py":
                 problems.append(("event", rel, line, f"listens to {event!r} outside a listeners.py"))
             if kind == "emit":
                 emitted.add(event)
     for event in sorted(set(declared) - emitted):
-        problems.append(("event", f"backend/{declared[event][0]}/__init__.py", 1, f"declares {event!r}, which nothing emits"))
+        problems.append(
+            ("event", f"backend/{declared[event][0]}/__init__.py", 1, f"declares {event!r}, which nothing emits")
+        )
     listed = feature_list(root)
     expected = [name for name in names if name != "system"]
     if sorted(listed) != expected or len(listed) != len(set(listed)):
-        problems.append(("layer", "backend/features.py", 1, f"FEATURES lists {listed}; every feature folder once: {expected}"))
+        problems.append(
+            ("layer", "backend/features.py", 1, f"FEATURES lists {listed}; every feature folder once: {expected}")
+        )
     return problems
 
 
@@ -189,8 +223,15 @@ def attribute_uses(root, path, rel, feature, names, exported):
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in aliases:
             other = aliases[node.value.id]
             if node.attr not in exported.get(other, set()):
-                found.append(("front-door", rel, node.lineno, f"uses {node.value.id}.{node.attr}, which backend.{other}'s "
-                              "front door does not export (__all__)"))
+                found.append(
+                    (
+                        "front-door",
+                        rel,
+                        node.lineno,
+                        f"uses {node.value.id}.{node.attr}, which backend.{other}'s "
+                        "front door does not export (__all__)",
+                    )
+                )
     return found
 
 
@@ -204,37 +245,51 @@ def feature_list(root: Path) -> list[str]:
 
 FIXES = {
     "front-door": "import the feature's front door (from .. import <feature>) and use only names in its __all__; if "
-                  "you need more, export it there (backend/<feature>/__init__.py) or connect through an event",
+    "you need more, export it there (backend/<feature>/__init__.py) or connect through an event",
     "layer": "move the code to the layer that may know about it (backend/hermes registers features; backend/system "
-             "receives what it needs, as system/hermes_home.py does)",
+    "receives what it needs, as system/hermes_home.py does)",
     "front-door-export": "list the public name in __all__ (import a private one under a public alias)",
     "event": "declare the event once in its owner's front door EVENTS ('<owner>.<what happened>': 'payload'), emit it "
-             "only there, listen from backend/<feature>/listeners.py, and use string literals",
+    "only there, listen from backend/<feature>/listeners.py, and use string literals",
 }
 
 
 def report(problems, allowed) -> str:
-    lines = [f"{file}:{line}: [{rule}] {message}" for rule, file, line, message in problems
-             if not allowances.allows(allowed, file, line, rule)]
+    lines = [
+        f"{file}:{line}: [{rule}] {message}"
+        for rule, file, line, message in problems
+        if not allowances.allows(allowed, file, line, rule)
+    ]
     if not lines:
         return ""
     rules = sorted({rule for rule, file, line, _ in problems if not allowances.allows(allowed, file, line, rule)})
-    return ("\nBackend features connect only through what they expose, so changing one cannot quietly break another:\n  "
-            + "\n  ".join(lines) + "\n" + "\n".join(f"FIX ({rule}): {FIXES[rule]}" for rule in rules)
-            + "\n(A deliberate exception: end the line with '# retrodev: allow <rule> — <reason>'.)")
+    return (
+        "\nBackend features connect only through what they expose, so changing one cannot quietly break another:\n  "
+        + "\n  ".join(lines)
+        + "\n"
+        + "\n".join(f"FIX ({rule}): {FIXES[rule]}" for rule in rules)
+        + "\n(A deliberate exception: end the line with '# retrodev: allow <rule> — <reason>'.)"
+    )
 
 
 def tracked(root: Path) -> list[str]:
-    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "backend"], cwd=root,
-                         capture_output=True, check=True).stdout.decode()
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "backend"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.decode()
     return [name for name in out.split("\0") if name]
 
 
 class Boundaries(unittest.TestCase):
     def test_backend_features_connect_only_through_front_doors_and_declared_events(self):
         allowed = allowances.in_files(ROOT, tracked(ROOT))
-        self.assertEqual([a.problem() for a in allowed if a.problem()], [], "malformed allowances\nFIX: name a known "
-                         "rule and give the reason after '—'")
+        self.assertEqual(
+            [a.problem() for a in allowed if a.problem()],
+            [],
+            "malformed allowances\nFIX: name a known rule and give the reason after '—'",
+        )
         message = report(check(ROOT), allowed)
         self.assertFalse(message, message)
 
@@ -245,27 +300,31 @@ class Boundaries(unittest.TestCase):
             shutil.copytree(ROOT / "backend", copy / "backend", ignore=shutil.ignore_patterns("__pycache__"))
             assets = copy / "backend" / "assets" / "planted.py"
             reason = "# retrodev" + ": allow front-door — "
-            assets.write_text("from ..library.games import _json\n"
-                              "from .. import player\n"
-                              "from ..system.events import emit, on\n"
-                              "player.server\n"
-                              "emit('assets.not_declared')\n"
-                              "emit('library.build_reported')\n"
-                              "from ..library.games import Registry  " + reason + "planted on purpose\n"
-                              "from ..library.games import game_id  " + reason + "\n")
+            assets.write_text(
+                "from ..library.games import _json\n"
+                "from .. import player\n"
+                "from ..system.events import emit, on\n"
+                "player.server\n"
+                "emit('assets.not_declared')\n"
+                "emit('library.build_reported')\n"
+                "from ..library.games import Registry  " + reason + "planted on purpose\n"
+                "from ..library.games import game_id  " + reason + "\n"
+            )
             (copy / "backend" / "system" / "planted.py").write_text("from ..hermes import api\n")
             problems = check(copy)
             allowed = allowances.in_text(assets.read_text(), "backend/assets/planted.py")
             text = report(problems, allowed)
-            for expected in ("planted.py:1: [front-door] imports backend.library.games",
-                             "planted.py:4: [front-door] uses player.server",
-                             "planted.py:5: [event] emit('assets.not_declared')",
-                             "planted.py:6: [event] emits 'library.build_reported', owned by library",
-                             "planted.py:8: [front-door]",
-                             "backend/system/planted.py:1: [layer]"):
+            for expected in (
+                "planted.py:1: [front-door] imports backend.library.games",
+                "planted.py:4: [front-door] uses player.server",
+                "planted.py:5: [event] emit('assets.not_declared')",
+                "planted.py:6: [event] emits 'library.build_reported', owned by library",
+                "planted.py:8: [front-door]",
+                "backend/system/planted.py:1: [layer]",
+            ):
                 self.assertIn(expected, text)
-            self.assertNotIn("planted.py:7:", text)                  # allowed, with a reason
-            self.assertIn("no reason", allowed[1].problem())          # the allowance without a reason is refused
+            self.assertNotIn("planted.py:7:", text)  # allowed, with a reason
+            self.assertIn("no reason", allowed[1].problem())  # the allowance without a reason is refused
 
 
 if __name__ == "__main__":

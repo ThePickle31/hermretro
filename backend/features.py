@@ -9,11 +9,11 @@ here and its area to tools/layout.toml.
 """
 
 FEATURES = [
-    "hermes",    # the engine tools, approval and subagent hooks, skills and the prompt section
-    "setup",     # the Setup page: toolchain, removal, the studio profile, ModRetro's CLI
-    "library",   # games, the Build binding, the player and captures, the plugin's game tools
-    "assets",    # game images: kept versions, the asset viewer
-    "history",   # build snapshots and restoring them
-    "player",    # the loopback player server (no declarations; used through its front door)
-    "broker",    # the broker process (no declarations; used through its front door)
+    "hermes",  # the engine tools, approval and subagent hooks, skills and the prompt section
+    "setup",  # the Setup page: toolchain, removal, the studio profile, ModRetro's CLI
+    "library",  # games, the Build binding, the player and captures, the plugin's game tools
+    "assets",  # game images: kept versions, the asset viewer
+    "history",  # build snapshots and restoring them
+    "player",  # the loopback player server (no declarations; used through its front door)
+    "broker",  # the broker process (no declarations; used through its front door)
 ]

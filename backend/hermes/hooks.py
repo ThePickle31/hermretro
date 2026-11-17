@@ -1,5 +1,6 @@
 """The Hermes layer's own hooks: hardware approvals, and tracking delegated subagents (whose tool calls some
 tools refuse). Other features chain their own hooks onto the same names from their folders."""
+
 from __future__ import annotations
 
 from . import host

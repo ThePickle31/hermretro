@@ -7,6 +7,7 @@ Exits non-zero on any missing, extra, duplicate or altered contract.
 
     python tools/engine/reconcile_schemas.py engine/pins/1.0.34/tools.json [report.json]
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,7 +32,9 @@ def main() -> int:
     pinned_path = Path(sys.argv[1])
     pinned_doc = json.loads(pinned_path.read_text())
     pinned = pinned_doc["tools"]
-    with EngineProcess(dev_engine_root(), node=paths.find_node()["path"], client_name="chromatic-studio-baseline") as engine:
+    with EngineProcess(
+        dev_engine_root(), node=paths.find_node()["path"], client_name="chromatic-studio-baseline"
+    ) as engine:
         live, pages = engine.list_tools()
         server_info, ready = engine.server_info, engine.ready_seconds
 
@@ -63,9 +66,13 @@ def main() -> int:
         "order_identical": pinned_names == live_names,
         "altered": altered,
     }
-    report["passed"] = (not report["duplicates"] and not report["missing_from_live"]
-                        and not report["extra_in_live"] and not altered
-                        and report["live_server_info"] == report["pinned_server_info"])
+    report["passed"] = (
+        not report["duplicates"]
+        and not report["missing_from_live"]
+        and not report["extra_in_live"]
+        and not altered
+        and report["live_server_info"] == report["pinned_server_info"]
+    )
     text = json.dumps(report, indent=2)
     print(text)
     if len(sys.argv) == 3:

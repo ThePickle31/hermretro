@@ -1,4 +1,5 @@
 """Stale recording-lease recovery (backend/broker/leases.py), with real processes and files."""
+
 import json
 import os
 import subprocess
@@ -40,8 +41,17 @@ class LeaseRecovery(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_conflict_detection_matches_the_engine_refusal(self):
-        refusal = {"isError": True, "structuredContent": {"recordingAccessFailure": {
-            "operation": "create-exclusive-lease", "category": "already-exists", "code": "EEXIST", "errno": -17}}}
+        refusal = {
+            "isError": True,
+            "structuredContent": {
+                "recordingAccessFailure": {
+                    "operation": "create-exclusive-lease",
+                    "category": "already-exists",
+                    "code": "EEXIST",
+                    "errno": -17,
+                }
+            },
+        }
         self.assertTrue(leases.is_lease_conflict(refusal))
         self.assertFalse(leases.is_lease_conflict({"isError": True, "structuredContent": {"error": "other"}}))
         self.assertFalse(leases.is_lease_conflict({"content": []}))
@@ -106,6 +116,7 @@ class LeaseRecovery(unittest.TestCase):
             state = real(pid, mtime, groups)
             write_lease(self.root, os.getpid())
             return state
+
         with mock.patch.object(leases, "owner_state", swap):
             answer = leases.reclaim_stale(self.root, set())
         self.assertFalse(answer["cleared"])

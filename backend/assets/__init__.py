@@ -3,6 +3,7 @@ image (hooks keep what a reply showed or a tool looked at; a listener keeps what
 
 Front door: nothing is exported; other features reach assets through events.
 """
+
 __all__: list[str] = []
 
 EVENTS = {

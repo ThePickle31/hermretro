@@ -6,6 +6,7 @@ For CI and fresh checkouts that need the toolchain for `python tools/check.py ac
 700 MB the first time (pinned, every archive checked against its SHA-256); does nothing when it is already
 installed. Touches no hardware. Exits non-zero, with the reason, when the install fails.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,7 +22,7 @@ from backend.broker import client  # noqa: E402
 from backend.system import paths  # noqa: E402
 
 LIMIT_SECONDS = 1200
-STALL_SECONDS = 420   # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)
+STALL_SECONDS = 420  # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)
 
 
 def folder_bytes(folder: Path) -> int:
@@ -56,8 +57,12 @@ def main() -> int:
                 last = line
             if state in ("done", "failed"):
                 break
-            now = (install.get("fraction"), install.get("downloaded_bytes"), install.get("current"),
-                   folder_bytes(paths.setup_root()) // 1_000_000)
+            now = (
+                install.get("fraction"),
+                install.get("downloaded_bytes"),
+                install.get("current"),
+                folder_bytes(paths.setup_root()) // 1_000_000,
+            )
             if now != progress:
                 progress, moved = now, time.monotonic()
             elif time.monotonic() - moved > STALL_SECONDS:

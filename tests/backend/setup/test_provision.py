@@ -1,4 +1,5 @@
 """Offline checks of the device-CLI installer's refusals. No network, no vendor binary."""
+
 import io
 import os
 import sys
@@ -77,6 +78,7 @@ class ProvisionTests(unittest.TestCase):
     def test_node_is_found_in_hermes_own_tools_without_path(self):
         import tempfile
         from unittest import mock
+
         with tempfile.TemporaryDirectory() as scratch:
             node = Path(scratch) / ".hermes" / "tools" / "node-99.1.2-linux-x64" / "bin" / "node"
             node.parent.mkdir(parents=True)
@@ -97,13 +99,15 @@ class ApprovalTests(unittest.TestCase):
         class Ctx:
             def get_config(self, key, default=None):
                 return default  # hardware off: the install must be gated regardless
+
         self.hook = registered_hook("pre_tool_call", Ctx())
 
     def test_installing_the_vendor_cli_always_asks_the_person(self):
         if provision.host_target()["target"] is None:
             self.skipTest("no vendor CLI for this host")
-        answer = self.hook(tool_name="chromatic_studio_device_cli",
-                           args={"action": "install", "acceptVendorTerms": True})
+        answer = self.hook(
+            tool_name="chromatic_studio_device_cli", args={"action": "install", "acceptVendorTerms": True}
+        )
         self.assertEqual(answer["action"], "approve")
         self.assertIn("registry.npmjs.org/@modretro/", answer["message"])
         self.assertIn(provision.VENDOR_TERMS_URL, answer["message"])

@@ -11,6 +11,7 @@ Config is only ever changed through the ``hermes`` command with HERMES_HOME poin
 profile, never by editing its config.yaml here. The profile the plugin was installed into is not
 modified at all.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,8 +34,12 @@ DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob")
 SOUL_FILE = paths.PLUGIN_ROOT / "profile" / "SOUL.md"
 # SHA-256 of every SOUL.md this plugin shipped before the current one. A profile whose SOUL is still
 # exactly one of these was never edited by the user, so finishing the profile again updates it.
-OLDER_SOULS = frozenset({"27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
-                         "5f6b61c41f1be0c5c691243dbd176dd5ff13da82fdf6be432c37ddde3ac67cb3"})
+OLDER_SOULS = frozenset(
+    {
+        "27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
+        "5f6b61c41f1be0c5c691243dbd176dd5ff13da82fdf6be432c37ddde3ac67cb3",
+    }
+)
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
 WORKSPACE = "workspace"
@@ -62,8 +67,7 @@ def studio_dir() -> Path:
 
 def create_params() -> dict:
     """What the page passes to Hermes's ``profiles.create``."""
-    return {"name": STUDIO_PROFILE, "description": DESCRIPTION, "no_skills": True, "share_auth": True,
-            "no_alias": True}
+    return {"name": STUDIO_PROFILE, "description": DESCRIPTION, "no_skills": True, "share_auth": True, "no_alias": True}
 
 
 def _exists(target: Path) -> bool:
@@ -93,14 +97,24 @@ def describe(home: Path, target: Path | None = None) -> dict:
     """For the page: which profile is answering, and the state of the studio profile."""
     name = profile_name(home)
     if name == STUDIO_PROFILE:
-        return {"name": name, "is_studio": True,
-                "studio": {"name": STUDIO_PROFILE, "exists": True, "installed": True, "ours": True}}
+        return {
+            "name": name,
+            "is_studio": True,
+            "studio": {"name": STUDIO_PROFILE, "exists": True, "installed": True, "ours": True},
+        }
     target = target or studio_dir()
     exists = _exists(target)
-    return {"name": name, "is_studio": False,
-            "studio": {"name": STUDIO_PROFILE, "exists": exists, "installed": exists and _ready(target),
-                       "ours": exists and _ours(target)},
-            "create": create_params()}
+    return {
+        "name": name,
+        "is_studio": False,
+        "studio": {
+            "name": STUDIO_PROFILE,
+            "exists": exists,
+            "installed": exists and _ready(target),
+            "ours": exists and _ours(target),
+        },
+        "create": create_params(),
+    }
 
 
 def _provider_plugins(home: Path, enabled: list[str]) -> list[Path]:
@@ -128,15 +142,16 @@ def _link(source: Path, destination: Path) -> str:
         if destination.resolve() == source:
             return "linked"
         if (destination / "plugin.yaml").is_file():
-            return "own copy"      # installed there for real; leave it
+            return "own copy"  # installed there for real; leave it
         raise StudioProfileError("LINK_BLOCKED", f"{destination} exists and is not this plugin.")
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.symlink(source, destination, target_is_directory=True)
     except OSError as error:
         raise StudioProfileError(
-            "LINK_FAILED", "Hermes could not link the plugin into the new profile on this system "
-                           f"({error.strerror or error}).") from error
+            "LINK_FAILED",
+            f"Hermes could not link the plugin into the new profile on this system ({error.strerror or error}).",
+        ) from error
     return "linked"
 
 
@@ -148,16 +163,24 @@ def _hermes_command() -> list[str]:
 def _run_hermes(target: Path, *arguments: str) -> None:
     environment = {**os.environ, "HERMES_HOME": str(target)}
     try:
-        done = subprocess.run([*_hermes_command(), *arguments], env=environment, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=180)
+        done = subprocess.run(
+            [*_hermes_command(), *arguments],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise StudioProfileError(
-            "HERMES_COMMAND_FAILED", f"`hermes {' '.join(arguments[:2])}` could not be run in the new profile "
-                                     f"({type(error).__name__}).") from error
+            "HERMES_COMMAND_FAILED",
+            f"`hermes {' '.join(arguments[:2])}` could not be run in the new profile ({type(error).__name__}).",
+        ) from error
     if done.returncode != 0:
         tail = (done.stderr or done.stdout or "").strip().splitlines()[-3:]
-        raise StudioProfileError("HERMES_COMMAND_FAILED",
-                                 f"`hermes {' '.join(arguments[:2])}` failed in the new profile: " + " ".join(tail))
+        raise StudioProfileError(
+            "HERMES_COMMAND_FAILED", f"`hermes {' '.join(arguments[:2])}` failed in the new profile: " + " ".join(tail)
+        )
 
 
 def finish(home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes) -> dict:
@@ -169,8 +192,10 @@ def finish(home: Path, *, target: Path | None = None, enabled: list[str] | None 
         raise StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
     if not (_ours(target) or _has_plugin(target)):
         raise StudioProfileError(
-            "NAME_TAKEN", f"A profile named {STUDIO_PROFILE} already exists and was not made by Chromatic "
-                          "Studio. Rename or remove it, then try again.")
+            "NAME_TAKEN",
+            f"A profile named {STUDIO_PROFILE} already exists and was not made by Chromatic "
+            "Studio. Rename or remove it, then try again.",
+        )
 
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
     providers = []
@@ -209,8 +234,23 @@ def finish(home: Path, *, target: Path | None = None, enabled: list[str] | None 
     if write_soul:
         soul.write_text(SOUL_FILE.read_text(encoding="utf-8"), encoding="utf-8")
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"made_by": paths.PLUGIN_ID, "version": paths.PLUGIN_VERSION,
-                                  "from_profile": profile_name(home), "at": int(time.time())}), encoding="utf-8")
-    return {"ok": True, "profile": STUDIO_PROFILE, "plugin": plugin, "providers": providers,
-            "disabled_toolsets": list(DISABLED_TOOLSETS), "soul_written": write_soul,
-            "workspace": str(workspace.resolve())}
+    marker.write_text(
+        json.dumps(
+            {
+                "made_by": paths.PLUGIN_ID,
+                "version": paths.PLUGIN_VERSION,
+                "from_profile": profile_name(home),
+                "at": int(time.time()),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "profile": STUDIO_PROFILE,
+        "plugin": plugin,
+        "providers": providers,
+        "disabled_toolsets": list(DISABLED_TOOLSETS),
+        "soul_written": write_soul,
+        "workspace": str(workspace.resolve()),
+    }

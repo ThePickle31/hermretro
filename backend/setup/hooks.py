@@ -1,5 +1,6 @@
 """Setup's Hermes hook: downloading ModRetro's CLI (``chromatic_studio_device_cli`` install) goes through
 Hermes's approval prompt. Chained after the Hermes layer's own ``pre_tool_call`` (hardware approvals)."""
+
 from __future__ import annotations
 
 from ..hermes.declare import hook
@@ -21,11 +22,15 @@ def approve_device_cli_install(tool_name=None, args=None, **_kwargs):
         if pins is None:
             return None  # nothing can be installed here; the tool explains why
         megabytes = pins["package"]["bytes"] / 1_000_000
-        return {"action": "approve",
-                "message": (f"Download ModRetro's Chromatic CLI {pins['version']} ({megabytes:.1f} MB) from "
-                            f"{pins['package']['url']} into hermretro's folder in the Hermes home. It is proprietary "
-                            f"ModRetro software; approving means you agree to ModRetro's terms "
-                            f"({provision.VENDOR_TERMS_URL}). Nothing is sent to a device."),
-                # One key per CLI release: "always" covers a reinstall, never a different version.
-                "rule_key": f"hermretro:device-cli-install:{pins['version']}"}
+        return {
+            "action": "approve",
+            "message": (
+                f"Download ModRetro's Chromatic CLI {pins['version']} ({megabytes:.1f} MB) from "
+                f"{pins['package']['url']} into hermretro's folder in the Hermes home. It is proprietary "
+                f"ModRetro software; approving means you agree to ModRetro's terms "
+                f"({provision.VENDOR_TERMS_URL}). Nothing is sent to a device."
+            ),
+            # One key per CLI release: "always" covers a reinstall, never a different version.
+            "rule_key": f"hermretro:device-cli-install:{pins['version']}",
+        }
     return None

@@ -1,5 +1,6 @@
 """The plugin's tools, skills, hooks and prompt exist only in the hermretro profile; the page's RPCs answer
 in every profile the plugin is on (the profile it was installed into sets the studio profile up)."""
+
 import importlib.util
 import os
 import re
@@ -13,8 +14,9 @@ DECLARED_TOOLS = re.findall(r"^  - (chromatic_\w+)$", (ROOT / "plugin.yaml").rea
 
 
 def load_plugin():
-    spec = importlib.util.spec_from_file_location("hermretro_registration", ROOT / "__init__.py",
-                                                  submodule_search_locations=[str(ROOT)])
+    spec = importlib.util.spec_from_file_location(
+        "hermretro_registration", ROOT / "__init__.py", submodule_search_locations=[str(ROOT)]
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -25,6 +27,7 @@ def load_plugin():
 class Recorder:
     """A fake plugin ctx: ``calls`` by kind, and ``order``, every register_* call in order (for the snapshot in
     tests/repo/test_registration_snapshot.py)."""
+
     def __init__(self, profile):
         self.profile_name = profile
         self.calls = {"tool": [], "skill": [], "rpc": [], "hook": [], "section": []}
@@ -69,9 +72,15 @@ class Registration(unittest.TestCase):
         calls = self.register("hermretro")
         self.assertEqual(len(calls["tool"]), len(DECLARED_TOOLS))
         self.assertIn("chromatic_present_game", calls["tool"])
-        self.assertEqual(len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()]))
-        self.assertEqual(sorted(calls["hook"]), sorted(["pre_tool_call", "subagent_start", "subagent_stop",
-                                                        "pre_llm_call", "post_llm_call", "post_tool_call"]))
+        self.assertEqual(
+            len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
+        )
+        self.assertEqual(
+            sorted(calls["hook"]),
+            sorted(
+                ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call", "post_llm_call", "post_tool_call"]
+            ),
+        )
         self.assertEqual(calls["section"], ["hermretro.guide"])
         self.assertIn("status", calls["rpc"])
 
@@ -80,7 +89,9 @@ class Registration(unittest.TestCase):
         for profile in ("default", "work", "custom", None):
             calls = self.register(profile)
             self.assertEqual(calls["rpc"], studio["rpc"], profile)
-            self.assertEqual((calls["tool"], calls["skill"], calls["hook"], calls["section"]), ([], [], [], []), profile)
+            self.assertEqual(
+                (calls["tool"], calls["skill"], calls["hook"], calls["section"]), ([], [], [], []), profile
+            )
 
     def test_plugin_development_can_opt_every_profile_in(self):
         calls = self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})

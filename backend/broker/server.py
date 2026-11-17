@@ -2,6 +2,7 @@
 
 Stdlib only and no Hermes imports.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,23 +39,38 @@ class Handler(socketserver.StreamRequestHandler):
                     if uid is not None and uid != os.getuid():
                         raise Denied("FORBIDDEN", "Peer is not the broker's user.")
                     if not authenticated:
-                        if request.get("op") != "hello" or request.get("protocol") != paths.PROTOCOL or \
-                                not secrets.compare_digest(str(request.get("token", "")), broker.token):
+                        if (
+                            request.get("op") != "hello"
+                            or request.get("protocol") != paths.PROTOCOL
+                            or not secrets.compare_digest(str(request.get("token", "")), broker.token)
+                        ):
                             raise Denied("UNAUTHENTICATED", "Handshake required.")
                         authenticated = True
-                        response = {"ok": True, "protocol": paths.PROTOCOL, "broker_generation": broker.generation,
-                                    "pid": os.getpid(), "code_fingerprint": paths.code_fingerprint(),
-                                    "plugin_root": str(paths.PLUGIN_ROOT), "engine": broker.engine_check}
+                        response = {
+                            "ok": True,
+                            "protocol": paths.PROTOCOL,
+                            "broker_generation": broker.generation,
+                            "pid": os.getpid(),
+                            "code_fingerprint": paths.code_fingerprint(),
+                            "plugin_root": str(paths.PLUGIN_ROOT),
+                            "engine": broker.engine_check,
+                        }
                     elif request.get("op") == "call":
                         request["_client_pid"] = peer_pid  # kernel-reported, for the trace only
                         response = broker.call(request)
                     else:
                         response = broker.control(request)
                 except Denied as denial:
-                    broker.trace(event="denied", code=denial.code,
-                                 tool=request.get("tool") if isinstance(request, dict) else None)
-                    response = {"ok": False, "dispatched": False,
-                                "denied": {"code": denial.code, "message": str(denial)}}
+                    broker.trace(
+                        event="denied",
+                        code=denial.code,
+                        tool=request.get("tool") if isinstance(request, dict) else None,
+                    )
+                    response = {
+                        "ok": False,
+                        "dispatched": False,
+                        "denied": {"code": denial.code, "message": str(denial)},
+                    }
                 except Exception as error:  # surface, never hide
                     broker.trace(event="broker_error", error=f"{type(error).__name__}: {error}"[:300])
                     response = {"ok": False, "dispatched": None, "error": f"{type(error).__name__}: {error}"}

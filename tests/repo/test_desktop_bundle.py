@@ -7,6 +7,7 @@ output that was not rebuilt after a source change, or that someone edited by han
 also hold the bundle to what Hermes Desktop's loader and the install scanner accept (the same rules
 ``node tools/bundle/bundle.mjs --check`` applies).
 """
+
 import hashlib
 import re
 import unittest
@@ -21,7 +22,8 @@ SOURCE_SUFFIXES = {".js", ".png"}
 REBUILD = "run: node tools/bundle/bundle.mjs"
 BANNER = re.compile(
     r"\A/\*\*\n(?: \*[^\n]*\n)*? \* build: esbuild (\S+)\n \* sources: sha256 ([0-9a-f]{64})\n"
-    r" \* body: sha256 ([0-9a-f]{64})\n \*/\n")
+    r" \* body: sha256 ([0-9a-f]{64})\n \*/\n"
+)
 # The only specifiers the app's loader resolves (apps/desktop/src/sdk/runtime.ts).
 ALLOWED_IMPORTS = ["@hermes/plugin-sdk", "react", "react/jsx-runtime"]
 IMPORT = re.compile(r'^import\s(?:[^;]*?\sfrom\s+)?"([^"]+)";$', re.M)
@@ -30,8 +32,23 @@ MAX_BYTES = 1_000_000
 MAX_LINE = 2_000
 # The characters the scanner treats as hidden text, and a path that climbs folders; both are
 # assembled here so this file does not contain what it looks for.
-INVISIBLE = "".join(map(chr, [0x200B, 0x200C, 0x200D, 0x2060, 0x2062, 0x2063, 0x2064, 0xFEFF,
-                              *range(0x202A, 0x202F), *range(0x2066, 0x206A)]))
+INVISIBLE = "".join(
+    map(
+        chr,
+        [
+            0x200B,
+            0x200C,
+            0x200D,
+            0x2060,
+            0x2062,
+            0x2063,
+            0x2064,
+            0xFEFF,
+            *range(0x202A, 0x202F),
+            *range(0x2066, 0x206A),
+        ],
+    )
+)
 CLIMBS_TWICE = ".." + "/.."
 CLIMBS = ".." + "/"
 # Constructs Hermes's admission lint refuses in a desktop plugin (hermes_cli/plugin_validate_desktop.py).
@@ -49,9 +66,13 @@ def sha256(data: bytes) -> str:
 
 def sources_hash() -> str:
     """The same digest tools/bundle/bundle.mjs writes: path, a zero byte, then the bytes, in path order."""
-    files = [path.relative_to(ROOT).as_posix() for path in SOURCE.rglob("*")
-             if path.is_file() and path.suffix in SOURCE_SUFFIXES
-             and not any(part.startswith(".") for part in path.relative_to(SOURCE).parts)]
+    files = [
+        path.relative_to(ROOT).as_posix()
+        for path in SOURCE.rglob("*")
+        if path.is_file()
+        and path.suffix in SOURCE_SUFFIXES
+        and not any(part.startswith(".") for part in path.relative_to(SOURCE).parts)
+    ]
     digest = hashlib.sha256()
     for rel in sorted([*files, "tools/bundle/bundle.mjs"]):
         digest.update(rel.encode() + b"\0" + (ROOT / rel).read_bytes())
@@ -72,7 +93,7 @@ class DesktopBundleTests(unittest.TestCase):
 
     def test_the_bundle_was_not_edited_by_hand(self):
         banner = self.banner()
-        body = self.text[banner.end():].encode("utf-8")
+        body = self.text[banner.end() :].encode("utf-8")
         self.assertEqual(sha256(body), banner.group(3), f"edit page/ instead, then {REBUILD}")
 
     def test_the_bundle_was_built_from_the_current_sources(self):
@@ -100,8 +121,11 @@ class DesktopBundleTests(unittest.TestCase):
 
     def test_no_source_path_climbs_a_folder(self):
         # Imports across folders use the aliases in tools/bundle/bundle.mjs (#app/, #pages/, ...).
-        offenders = [path.relative_to(ROOT).as_posix() for path in SOURCE.rglob("*.js")
-                     if CLIMBS in path.read_text(encoding="utf-8")]
+        offenders = [
+            path.relative_to(ROOT).as_posix()
+            for path in SOURCE.rglob("*.js")
+            if CLIMBS in path.read_text(encoding="utf-8")
+        ]
         self.assertEqual(offenders, [])
 
 
@@ -112,8 +136,9 @@ class FrameShimTests(unittest.TestCase):
         text = FRAME_SHIM.read_text(encoding="utf-8")
         banner = BANNER.match(text)
         self.assertIsNotNone(banner, f"player/frame-shim.js has no build banner; {REBUILD}")
-        self.assertEqual(sha256(text[banner.end():].encode("utf-8")), banner.group(3),
-                         f"edit page/frame/ instead, then {REBUILD}")
+        self.assertEqual(
+            sha256(text[banner.end() :].encode("utf-8")), banner.group(3), f"edit page/frame/ instead, then {REBUILD}"
+        )
         self.assertEqual(sources_hash(), banner.group(2), f"player/frame-shim.js is stale; {REBUILD}")
 
     def test_the_shim_imports_nothing(self):

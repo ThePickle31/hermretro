@@ -5,6 +5,7 @@ the originals (`device`, `setup`, `play`, `flash`) are too generic for a shared
 registry. Local `$ref`s are inlined and `$schema` is dropped, because provider
 tool-schema validators differ in what they accept; nothing else is changed.
 """
+
 from __future__ import annotations
 
 import copy
@@ -21,13 +22,18 @@ TOOLSET = "chromatic"
 # web_preview sentence is rewritten before the generic one (which device_capture still uses): in Hermes
 # the user plays the game in the hermretro emulator, shown with chromatic_present_game.
 _DESCRIPTION_REWRITES = (
-    ("Open the selected project's official player only in Codex's built-in browser.",
-     "Open or refresh the selected project's official player (the engine's own preview). To show the game to "
-     "the user in Hermes, call chromatic_present_game instead (it shows the game in the hermretro "
-     "emulator); open this URL with desktop_preview only if the user says they cannot see that emulator."),
-    ("only in Codex's built-in browser", "for the user to play. In Hermes Desktop, open the returned URL beside the "
-                                         "chat with the desktop_preview tool (action \"open\"); without that tool, "
-                                         "give the user the URL"),
+    (
+        "Open the selected project's official player only in Codex's built-in browser.",
+        "Open or refresh the selected project's official player (the engine's own preview). To show the game to "
+        "the user in Hermes, call chromatic_present_game instead (it shows the game in the hermretro "
+        "emulator); open this URL with desktop_preview only if the user says they cannot see that emulator.",
+    ),
+    (
+        "only in Codex's built-in browser",
+        "for the user to play. In Hermes Desktop, open the returned URL beside the "
+        "chat with the desktop_preview tool (action \"open\"); without that tool, "
+        "give the user the URL",
+    ),
     ("Codex", "Hermes"),
 )
 
@@ -65,7 +71,7 @@ def hermes_name(original: str) -> str:
 
 
 def original_name(name: str) -> str:
-    return name[len(PREFIX):] if name.startswith(PREFIX) else name
+    return name[len(PREFIX) :] if name.startswith(PREFIX) else name
 
 
 #: Tools that make a new project folder. In Hermes their destination is optional: without one the
@@ -87,20 +93,26 @@ def hermes_schema(tool: dict) -> dict:
     parameters = _resolve(tool["inputSchema"], tool["inputSchema"])
     if tool["name"] in CREATORS:
         games = str(paths.games_dir())
-        description += (f" In hermretro, leave destinationPath out: the game is created in the Studio's "
-                        f"games folder ({games}/<name>). Give a destinationPath only when the user asks for "
-                        f"another folder.")
+        description += (
+            f" In hermretro, leave destinationPath out: the game is created in the Studio's "
+            f"games folder ({games}/<name>). Give a destinationPath only when the user asks for "
+            f"another folder."
+        )
         parameters["required"] = [key for key in parameters.get("required", []) if key != "destinationPath"]
         destination = parameters.get("properties", {}).get("destinationPath")
         if isinstance(destination, dict):
-            destination["description"] = (f"Optional. Default: {games}/<name>. Only for a folder the user "
-                                          f"asked for: an absolute new path under an existing parent.")
+            destination["description"] = (
+                f"Optional. Default: {games}/<name>. Only for a folder the user "
+                f"asked for: an absolute new path under an existing parent."
+            )
     if tool["name"] == "project_select":
         # hermretro's own argument, removed by the broker before the engine sees it.
         parameters.setdefault("properties", {})["continueInThisChat"] = {
             "type": "boolean",
-            "description": ("Only after the user confirmed it: work on a game that has its own hermretro Build "
-                            "conversation from this chat anyway (its history will not include this work)."),
+            "description": (
+                "Only after the user confirmed it: work on a game that has its own hermretro Build "
+                "conversation from this chat anyway (its history will not include this work)."
+            ),
         }
     return {"name": hermes_name(tool["name"]), "description": description, "parameters": parameters}
 

@@ -1,5 +1,6 @@
 """How a GB Studio project shows its sprites and backgrounds: animations, palettes and the scenes that use
 them, read from the project's sidecar files for the asset viewer and thumbnails."""
+
 from __future__ import annotations
 
 import json
@@ -7,24 +8,45 @@ from pathlib import Path
 
 from ..hermes import host
 
-logger = host.logger   # one logger for the Hermes side of the backend, 
+logger = host.logger  # one logger for the Hermes side of the backend,
 
 # GB Studio's animation slots, by sprite type (the compiler's order).
 _ANIMATION_NAMES = {
     "fixed": ["Idle"],
     "fixed_movement": ["Idle", None, None, None, "Moving"],
     "multi": ["Right", "Left", "Up", "Down"],
-    "multi_movement": ["Idle right", "Idle left", "Idle up", "Idle down", "Walk right", "Walk left", "Walk up", "Walk down"],
+    "multi_movement": [
+        "Idle right",
+        "Idle left",
+        "Idle up",
+        "Idle down",
+        "Walk right",
+        "Walk left",
+        "Walk up",
+        "Walk down",
+    ],
     "horizontal": ["Right", "Left"],
     "horizontal_movement": ["Idle right", "Idle left", None, None, "Walk right", "Walk left"],
-    "platform_player": ["Idle right", "Idle left", "Run right", "Run left", "Jump right", "Jump left", "Climb", "Climb idle"],
+    "platform_player": [
+        "Idle right",
+        "Idle left",
+        "Run right",
+        "Run left",
+        "Jump right",
+        "Jump left",
+        "Climb",
+        "Climb idle",
+    ],
     "cursor": ["Idle", "Hover"],
 }
 # The slot an actor facing each way shows when it stands still.
-_FACING_SLOT = {"multi": {"right": 0, "left": 1, "up": 2, "down": 3},
-                "multi_movement": {"right": 0, "left": 1, "up": 2, "down": 3},
-                "horizontal": {"right": 0, "left": 1}, "horizontal_movement": {"right": 0, "left": 1},
-                "platform_player": {"right": 0, "left": 1}}
+_FACING_SLOT = {
+    "multi": {"right": 0, "left": 1, "up": 2, "down": 3},
+    "multi_movement": {"right": 0, "left": 1, "up": 2, "down": 3},
+    "horizontal": {"right": 0, "left": 1},
+    "horizontal_movement": {"right": 0, "left": 1},
+    "platform_player": {"right": 0, "left": 1},
+}
 _ASSET_INFO_SCENES = 6
 _ASSET_INFO_ACTORS = 40
 
@@ -59,10 +81,18 @@ def _sprite_animations(meta: dict) -> dict:
         frames = [_tiles(frame) for frame in (animation or {}).get("frames") or [] if isinstance(frame, dict)]
         name = names[index] if index < len(names) else None
         animations.append({"slot": index, "name": name or f"Animation {index + 1}", "frames": frames[:64]})
-    return {"name": meta.get("name"), "id": meta.get("id"), "type": kind, "flipLeft": bool(state.get("flipLeft")),
-            "states": [str(item.get("name") or "") for item in states],
-            "canvasWidth": int(meta.get("canvasWidth") or 16), "canvasHeight": int(meta.get("canvasHeight") or 16),
-            "animSpeed": meta.get("animSpeed"), "numTiles": meta.get("numTiles"), "animations": animations}
+    return {
+        "name": meta.get("name"),
+        "id": meta.get("id"),
+        "type": kind,
+        "flipLeft": bool(state.get("flipLeft")),
+        "states": [str(item.get("name") or "") for item in states],
+        "canvasWidth": int(meta.get("canvasWidth") or 16),
+        "canvasHeight": int(meta.get("canvasHeight") or 16),
+        "animSpeed": meta.get("animSpeed"),
+        "numTiles": meta.get("numTiles"),
+        "animations": animations,
+    }
 
 
 def _standing_frame(sprite: dict, direction: str) -> dict:
@@ -83,7 +113,13 @@ def _standing_frame(sprite: dict, direction: str) -> dict:
 def _project_index(root: Path) -> dict:
     """Sprites, backgrounds, palettes, scenes and settings of a distributed GB Studio project."""
     resources = root / "project"
-    index = {"sprites": {}, "backgrounds": {}, "palettes": {}, "scenes": [], "settings": _read_json(resources / "settings.gbsres") or {}}
+    index = {
+        "sprites": {},
+        "backgrounds": {},
+        "palettes": {},
+        "scenes": [],
+        "settings": _read_json(resources / "settings.gbsres") or {},
+    }
     for folder, key in (("sprites", "sprites"), ("backgrounds", "backgrounds")):
         for sidecar in sorted((root / "assets" / folder).glob("*.gbsres")):
             meta = _read_json(sidecar)
@@ -97,10 +133,14 @@ def _project_index(root: Path) -> dict:
         scene = _read_json(scene_file)
         if not scene:
             continue
-        actors = [actor for actor in (_read_json(item) for item in sorted((scene_file.parent / "actors").glob("*.gbsres"))) if actor]
+        actors = [
+            actor
+            for actor in (_read_json(item) for item in sorted((scene_file.parent / "actors").glob("*.gbsres")))
+            if actor
+        ]
         scene["_actors"] = actors
         index["scenes"].append(scene)
-    index["scenes"].sort(key=lambda scene: (scene.get("_index", 0) if isinstance(scene.get("_index"), int) else 0))
+    index["scenes"].sort(key=lambda scene: scene.get("_index", 0) if isinstance(scene.get("_index"), int) else 0)
     return index
 
 
@@ -113,16 +153,22 @@ def _palette(index: dict, palette_id) -> dict | None:
 
 
 def _player_sprite_id(settings: dict, scene: dict):
-    return scene.get("playerSpriteSheetId") or (settings.get("defaultPlayerSprites") or {}).get(scene.get("type")) \
+    return (
+        scene.get("playerSpriteSheetId")
+        or (settings.get("defaultPlayerSprites") or {}).get(scene.get("type"))
         or settings.get("playerSpriteSheetId")
+    )
 
 
 def _actor_palette(index: dict, scene: dict, palette_id) -> dict | None:
     settings = index["settings"]
     scene_palettes = [item for item in scene.get("spritePaletteIds") or [] if item]
-    return _palette(index, palette_id) or _palette(index, scene_palettes[0] if scene_palettes else None) \
-        or _palette(index, settings.get("defaultSpritePaletteId")) \
+    return (
+        _palette(index, palette_id)
+        or _palette(index, scene_palettes[0] if scene_palettes else None)
+        or _palette(index, settings.get("defaultSpritePaletteId"))
         or _palette(index, (settings.get("defaultSpritePaletteIds") or [None])[0])
+    )
 
 
 def _scene_view(index: dict, scene: dict, sprites_cache: dict) -> dict:
@@ -137,18 +183,48 @@ def _scene_view(index: dict, scene: dict, sprites_cache: dict) -> dict:
         if not entry or len(actors) >= _ASSET_INFO_ACTORS:
             return
         sprite = sprites_cache.setdefault(sprite_id, _sprite_animations(entry["meta"]))
-        actors.append({"name": name, "spriteId": sprite_id, "sprite": str(entry["path"]), "x": x, "y": y, "player": player,
-                       "canvasWidth": sprite["canvasWidth"], "canvasHeight": sprite["canvasHeight"],
-                       **_standing_frame(sprite, direction), "palette": _actor_palette(index, scene, palette_id)})
+        actors.append(
+            {
+                "name": name,
+                "spriteId": sprite_id,
+                "sprite": str(entry["path"]),
+                "x": x,
+                "y": y,
+                "player": player,
+                "canvasWidth": sprite["canvasWidth"],
+                "canvasHeight": sprite["canvasHeight"],
+                **_standing_frame(sprite, direction),
+                "palette": _actor_palette(index, scene, palette_id),
+            }
+        )
 
     if scene.get("id") and scene.get("id") == settings.get("startSceneId"):
-        add("Player", _player_sprite_id(settings, scene), settings.get("startX", 0), settings.get("startY", 0),
-            settings.get("startDirection") or "down", settings.get("playerPaletteId"), player=True)
+        add(
+            "Player",
+            _player_sprite_id(settings, scene),
+            settings.get("startX", 0),
+            settings.get("startY", 0),
+            settings.get("startDirection") or "down",
+            settings.get("playerPaletteId"),
+            player=True,
+        )
     for actor in scene.get("_actors") or []:
-        add(actor.get("name") or "Actor", actor.get("spriteSheetId"), actor.get("x", 0), actor.get("y", 0),
-            actor.get("direction") or "down", actor.get("paletteId"))
-    return {"id": scene.get("id"), "name": scene.get("name") or "Scene", "width": scene.get("width"), "height": scene.get("height"),
-            "background": str(background["path"]) if background else None, "actors": actors}
+        add(
+            actor.get("name") or "Actor",
+            actor.get("spriteSheetId"),
+            actor.get("x", 0),
+            actor.get("y", 0),
+            actor.get("direction") or "down",
+            actor.get("paletteId"),
+        )
+    return {
+        "id": scene.get("id"),
+        "name": scene.get("name") or "Scene",
+        "width": scene.get("width"),
+        "height": scene.get("height"),
+        "background": str(background["path"]) if background else None,
+        "actors": actors,
+    }
 
 
 _SPRITE_USES: dict[str, tuple] = {}
@@ -160,8 +236,13 @@ _MOVING_OFFSET = {"multi_movement": 4, "horizontal_movement": 4, "platform_playe
 def _project_stamp(root: Path) -> tuple:
     """What a sprite's look depends on besides its own sidecar: settings, palettes, scenes and actors."""
     resources = root / "project"
-    files = [resources / "settings.gbsres", *resources.glob("palettes/*.gbsres"), *resources.glob("scenes/*/scene.gbsres"),
-             *resources.glob("scenes/*/actors/*.gbsres"), *(root / "assets" / "sprites").glob("*.gbsres")]
+    files = [
+        resources / "settings.gbsres",
+        *resources.glob("palettes/*.gbsres"),
+        *resources.glob("scenes/*/scene.gbsres"),
+        *resources.glob("scenes/*/actors/*.gbsres"),
+        *(root / "assets" / "sprites").glob("*.gbsres"),
+    ]
     stamp = []
     for item in files:
         try:
@@ -184,12 +265,17 @@ def _sprite_uses(root: Path) -> dict:
     for scene in index["scenes"]:
         candidates = []
         if scene.get("id") and scene.get("id") == settings.get("startSceneId"):
-            candidates.append((_player_sprite_id(settings, scene), settings.get("startDirection"), settings.get("playerPaletteId")))
+            candidates.append(
+                (_player_sprite_id(settings, scene), settings.get("startDirection"), settings.get("playerPaletteId"))
+            )
         for actor in scene.get("_actors") or []:
             candidates.append((actor.get("spriteSheetId"), actor.get("direction"), actor.get("paletteId")))
         for sprite_id, direction, palette_id in candidates:
             if sprite_id and sprite_id not in uses:
-                uses[sprite_id] = {"direction": direction or "down", "palette": _actor_palette(index, scene, palette_id)}
+                uses[sprite_id] = {
+                    "direction": direction or "down",
+                    "palette": _actor_palette(index, scene, palette_id),
+                }
     result = {"uses": uses, "default": _actor_palette(index, {}, None)}
     if len(_SPRITE_USES) >= _SPRITE_USES_ROOTS:
         _SPRITE_USES.pop(next(iter(_SPRITE_USES)))
@@ -217,10 +303,13 @@ def _sprite_look(root: Path, meta: dict) -> dict:
         if not any(moving) and direction == "left" and sprite.get("flipLeft"):
             right = facing.get("right", 0) + _MOVING_OFFSET.get(sprite.get("type") or "", 0)
             moving, moving_flip = (animations[right]["frames"] if 0 <= right < len(animations) else []), True
-        return {"canvasWidth": sprite["canvasWidth"], "canvasHeight": sprite["canvasHeight"],
-                "palette": palette["colors"] if palette else None,
-                "standing": standing,
-                "moving": {"frames": [frame for frame in moving if frame][:16], "flip": moving_flip}}
+        return {
+            "canvasWidth": sprite["canvasWidth"],
+            "canvasHeight": sprite["canvasHeight"],
+            "palette": palette["colors"] if palette else None,
+            "standing": standing,
+            "moving": {"frames": [frame for frame in moving if frame][:16], "flip": moving_flip},
+        }
     except Exception:
         logger.debug("hermretro could not work out how a sprite looks", exc_info=True)
         return {}

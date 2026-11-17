@@ -14,6 +14,7 @@ Declarations are recorded per declaring module, in the order they are made. Seve
 same Hermes hook: it is registered once, at its first declaration's place, and calls every callback in
 feature order (``chain``), answering the first result that is not None.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -26,7 +27,7 @@ from pathlib import Path
 # Modules a feature may declare in; any other name is ignored.
 PARTS = ("rpcs", "tools", "hooks", "prompt")
 
-_declared: dict[str, list[tuple]] = {}   # declaring module -> [(kind, ...)] in declaration order
+_declared: dict[str, list[tuple]] = {}  # declaring module -> [(kind, ...)] in declaration order
 
 
 def _record(entry: tuple, depth: int = 2) -> None:
@@ -36,17 +37,21 @@ def _record(entry: tuple, depth: int = 2) -> None:
 
 def rpc(name: str):
     """Declare a page RPC. Decorates ``rpc_x(ctx)``, which returns the handler ``(params, **kwargs)``."""
+
     def mark(factory: Callable):
         _record(("rpc", name, factory))
         return factory
+
     return mark
 
 
 def hook(name: str, *, needs_ctx: bool = False):
     """Declare a Hermes hook callback (``needs_ctx``: the function is a factory given the plugin ctx)."""
+
     def mark(function: Callable):
         _record(("hook", name, function, needs_ctx))
         return function
+
     return mark
 
 
@@ -65,6 +70,7 @@ class Tool:
     """A plugin-owned agent tool. ``handler(args, **kwargs)``, or ``make(ctx)`` returning the handler.
     ``step_words``: (while it runs, once it is done) for the Build page's step list; None hides the step
     (checked against page/pages/build/transcript/step-words.js by tests/repo/test_lockstep.py)."""
+
     schema: dict
     handler: Callable | None = None
     step_words: tuple[str, str] | None = None
@@ -82,6 +88,7 @@ class Tool:
 def chain(callbacks: list[Callable]) -> Callable:
     """One hook callback that calls each of ``callbacks`` in order with the keyword arguments it accepts
     (as Hermes does for separate callbacks) and answers the first result that is not None."""
+
     def call(callback, kwargs):
         try:
             parameters = inspect.signature(callback).parameters.values()
@@ -99,6 +106,7 @@ def chain(callbacks: list[Callable]) -> Callable:
             if answer is None:
                 answer = result
         return answer
+
     chained.callbacks = tuple(callbacks)
     return chained
 
@@ -106,6 +114,7 @@ def chain(callbacks: list[Callable]) -> Callable:
 @dataclass
 class Declared:
     """Everything the features declared, in registration order."""
+
     rpcs: list[tuple[str, Callable]] = field(default_factory=list)
     tools: list[Tool] = field(default_factory=list)
     skills: list[tuple[str, Path]] = field(default_factory=list)
@@ -117,8 +126,11 @@ class Declared:
 
     def hook(self, name: str, ctx=None) -> Callable:
         """The callback registered for ``name``: the one declared, or a ``chain`` of several."""
-        callbacks = [function(ctx) if needs_ctx else function
-                     for hook_name, function, needs_ctx in self.hooks if hook_name == name]
+        callbacks = [
+            function(ctx) if needs_ctx else function
+            for hook_name, function, needs_ctx in self.hooks
+            if hook_name == name
+        ]
         if not callbacks:
             raise KeyError(name)
         return callbacks[0] if len(callbacks) == 1 else chain(callbacks)
@@ -143,8 +155,15 @@ def collect(package: str, features: list[str]) -> Declared:
                 elif kind == "section":
                     found.sections.append(entry[1:])
                 elif kind == "skills":
-                    found.skills += [(child.name, child / "SKILL.md") for child in sorted(entry[1].iterdir())
-                                     if child.is_dir() and (child / "SKILL.md").is_file()] if entry[1].is_dir() else []
+                    found.skills += (
+                        [
+                            (child.name, child / "SKILL.md")
+                            for child in sorted(entry[1].iterdir())
+                            if child.is_dir() and (child / "SKILL.md").is_file()
+                        ]
+                        if entry[1].is_dir()
+                        else []
+                    )
             if part == "tools":
                 declared = getattr(module, "TOOLS", ())
                 found.tools += list(declared() if callable(declared) else declared)

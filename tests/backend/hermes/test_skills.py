@@ -3,6 +3,7 @@
 Checks that the text uses the Hermes tool names, has no leftover Codex host wording, and that every
 relative link (including its #anchor) resolves inside skills/.
 """
+
 import re
 import unittest
 from pathlib import Path
@@ -31,7 +32,7 @@ def plugin_tools() -> set[str]:
 
 def engine_tools(plugin: set[str]) -> set[str]:
     own = {"chromatic_studio_device_cli", "chromatic_present_game", "chromatic_game_info", "chromatic_build_report"}
-    return {name[len("chromatic_"):] for name in plugin - own}
+    return {name[len("chromatic_") :] for name in plugin - own}
 
 
 def fenced(lines):

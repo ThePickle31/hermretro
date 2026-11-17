@@ -1,5 +1,6 @@
 """Game images for the Build page: the asset, asset_info, asset_restore and assets RPCs. Kept versions
 live in versions.py, sprite and scene reading in sprites.py. Declared with @rpc."""
+
 from __future__ import annotations
 
 import base64
@@ -10,12 +11,29 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..library import cover_path
 from ..system.events import emit
-from .sprites import (_ASSET_INFO_SCENES, _actor_palette, _project_index, _read_json, _scene_view,
-                      _sprite_animations, _sprite_look)
-from .versions import (ASSET_MAX_BYTES, ASSET_SUFFIXES, _asset_file, _asset_kind, _asset_roots, _image_size,
-                       _keep_version, _version_at, _versions, _versions_dir)
+from .sprites import (
+    _ASSET_INFO_SCENES,
+    _actor_palette,
+    _project_index,
+    _read_json,
+    _scene_view,
+    _sprite_animations,
+    _sprite_look,
+)
+from .versions import (
+    ASSET_MAX_BYTES,
+    ASSET_SUFFIXES,
+    _asset_file,
+    _asset_kind,
+    _asset_roots,
+    _image_size,
+    _keep_version,
+    _version_at,
+    _versions,
+    _versions_dir,
+)
 
-logger = host.logger   # one logger for the Hermes side of the backend, 
+logger = host.logger  # one logger for the Hermes side of the backend,
 
 
 @rpc("asset")
@@ -24,12 +42,13 @@ def rpc_asset(ctx):
     or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
     frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply's time, in
     ms) it answers the version the file had then, when it was kept and the file has changed since."""
+
     def asset(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
             raw = str(params.get("path") or "")
             if raw.startswith("file://"):
-                raw = raw[len("file://"):]
+                raw = raw[len("file://") :]
             candidate = Path(raw).expanduser()
             if not raw or not candidate.is_absolute():
                 return {"ok": False, "code": "INVALID", "error": "An absolute image path is required."}
@@ -62,20 +81,32 @@ def rpc_asset(ctx):
             data = source.read_bytes()
             width, height = _image_size(data)
             relative = real.relative_to(root).as_posix() if root != (host._data_dir() / "frames").resolve() else None
-            answer = {"ok": True, "path": str(real), "relative": relative, "name": real.name, "kind": _asset_kind(relative)
-                      if relative else "frame", "width": width, "height": height, "bytes": len(data),
-                      "modifiedAt": (int(earlier.stem) / 1e9) if earlier else real.stat().st_mtime,
-                      "earlier": earlier is not None,
-                      "versionId": earlier.stem if earlier else str(real.stat().st_mtime_ns),
-                      "dataUrl": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"}
+            answer = {
+                "ok": True,
+                "path": str(real),
+                "relative": relative,
+                "name": real.name,
+                "kind": _asset_kind(relative) if relative else "frame",
+                "width": width,
+                "height": height,
+                "bytes": len(data),
+                "modifiedAt": (int(earlier.stem) / 1e9) if earlier else real.stat().st_mtime,
+                "earlier": earlier is not None,
+                "versionId": earlier.stem if earlier else str(real.stat().st_mtime_ns),
+                "dataUrl": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
             sidecar = real.with_name(real.name + ".gbsres")
             if answer["kind"] == "sprite" and sidecar.is_file() and sidecar.stat().st_size < 2 * 1024 * 1024:
                 try:
                     meta = json.loads(sidecar.read_text(encoding="utf-8"))
                     frame_width, frame_height = int(meta.get("canvasWidth") or 0), int(meta.get("canvasHeight") or 0)
                     if frame_width > 0 and frame_height > 0:
-                        answer["sprite"] = {"name": meta.get("name"), "frameWidth": frame_width, "frameHeight": frame_height,
-                                            "animSpeed": meta.get("animSpeed")}
+                        answer["sprite"] = {
+                            "name": meta.get("name"),
+                            "frameWidth": frame_width,
+                            "frameHeight": frame_height,
+                            "animSpeed": meta.get("animSpeed"),
+                        }
                         if isinstance(meta, dict) and meta.get("id"):
                             answer["sprite"].update(_sprite_look(root, meta))
                 except (ValueError, TypeError, OSError):
@@ -86,6 +117,7 @@ def rpc_asset(ctx):
         except Exception as error:
             logger.exception("hermretro asset failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return asset
 
 
@@ -94,6 +126,7 @@ def rpc_asset_info(ctx):
     """What the asset viewer shows beside an image: its kind, every kept version, and for a sprite or
     background its animations, the palette the game paints it with, and the scenes that use it (drawn
     by the page as the game would)."""
+
     def asset_info(params, **_kwargs):
         try:
             found = _asset_file((params or {}).get("path") if isinstance(params, dict) else None)
@@ -125,8 +158,14 @@ def rpc_asset_info(ctx):
                     mine = [actor for actor in view["actors"] if actor["spriteId"] == meta["id"]]
                     if mine:
                         palette = palette or mine[0]["palette"]
-                        uses.append({"scene": view["name"], "sceneId": view["id"],
-                                     "as": [actor["name"] for actor in mine][:6], "count": len(mine)})
+                        uses.append(
+                            {
+                                "scene": view["name"],
+                                "sceneId": view["id"],
+                                "as": [actor["name"] for actor in mine][:6],
+                                "count": len(mine),
+                            }
+                        )
                         if len(scenes) < _ASSET_INFO_SCENES:
                             scenes.append(view)
                 answer["palette"] = palette or _actor_palette(index, {}, None)
@@ -140,14 +179,17 @@ def rpc_asset_info(ctx):
                 answer["background"] = {"name": meta.get("name"), "autoColor": bool(meta.get("autoColor"))}
             answer["usedIn"] = uses
             answer["scenes"] = scenes
-            answer["sprites"] = {sprite_id: {key: sprite[key] for key in ("canvasWidth", "canvasHeight")}
-                                 for sprite_id, sprite in sprites_cache.items()}
+            answer["sprites"] = {
+                sprite_id: {key: sprite[key] for key in ("canvasWidth", "canvasHeight")}
+                for sprite_id, sprite in sprites_cache.items()
+            }
             return answer
         except FileNotFoundError:
             return {"ok": False, "code": "MISSING", "error": "The image is gone."}
         except Exception as error:
             logger.exception("hermretro asset_info failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return asset_info
 
 
@@ -155,13 +197,18 @@ def rpc_asset_info(ctx):
 def rpc_asset_restore(ctx):
     """Put a kept version of a game image back in place (the one there now is kept first, so this can
     be undone the same way)."""
+
     def asset_restore(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
             found = _asset_file(params.get("path"))
             wanted = str(params.get("version") or "")
             if not found or not wanted.isdigit():
-                return {"ok": False, "code": "INVALID", "error": "Only a kept version of an image in your games can be restored."}
+                return {
+                    "ok": False,
+                    "code": "INVALID",
+                    "error": "Only a kept version of an image in your games can be restored.",
+                }
             real, root = found
             if root == (host._data_dir() / "frames").resolve():
                 return {"ok": False, "code": "INVALID", "error": "Playtest frames are not restored."}
@@ -178,6 +225,7 @@ def rpc_asset_restore(ctx):
         except Exception as error:
             logger.exception("hermretro asset_restore failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return asset_restore
 
 
@@ -203,6 +251,7 @@ def rpc_assets(ctx):
     """Every picture of one game, for the Build page's Assets panel: the game card's cover, then its
     sprites, backgrounds and interface art, each with the name its sidecar gives it. Lists files only
     (no image data); the page fetches each one through ``asset``."""
+
     def assets(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
@@ -213,8 +262,17 @@ def rpc_assets(ctx):
             cover = cover_path(root)
             if cover.is_file():
                 stat = cover.stat()
-                items.append({"path": str(cover.resolve()), "relative": cover.relative_to(root).as_posix(), "name": "Cover",
-                              "file": cover.name, "kind": "cover", "modifiedAt": stat.st_mtime, "bytes": stat.st_size})
+                items.append(
+                    {
+                        "path": str(cover.resolve()),
+                        "relative": cover.relative_to(root).as_posix(),
+                        "name": "Cover",
+                        "file": cover.name,
+                        "kind": "cover",
+                        "modifiedAt": stat.st_mtime,
+                        "bytes": stat.st_size,
+                    }
+                )
             for folder, kind in _ASSET_LIST_FOLDERS:
                 base = root / "assets" / folder
                 if not base.is_dir():
@@ -232,11 +290,20 @@ def rpc_assets(ctx):
                         continue
                     meta = _read_json(image.with_name(image.name + ".gbsres"), 2 * 1024 * 1024) or {}
                     stat = real.stat()
-                    items.append({"path": str(real), "relative": real.relative_to(root).as_posix(),
-                                  "name": str(meta.get("name") or image.stem), "file": image.name, "kind": kind,
-                                  "modifiedAt": stat.st_mtime, "bytes": stat.st_size})
+                    items.append(
+                        {
+                            "path": str(real),
+                            "relative": real.relative_to(root).as_posix(),
+                            "name": str(meta.get("name") or image.stem),
+                            "file": image.name,
+                            "kind": kind,
+                            "modifiedAt": stat.st_mtime,
+                            "bytes": stat.st_size,
+                        }
+                    )
             return {"ok": True, "root": str(root), "assets": items, "truncated": len(items) >= ASSET_LIST_LIMIT}
         except Exception as error:
             logger.exception("hermretro assets failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
+
     return assets

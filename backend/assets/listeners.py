@@ -1,4 +1,5 @@
 """What assets does when other features act (backend/system/events.py)."""
+
 from __future__ import annotations
 
 from ..system.events import on

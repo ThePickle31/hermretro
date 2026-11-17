@@ -6,6 +6,7 @@
 Run by CI against the oldest supported Hermes and nightly against the newest, so a rename in Hermes is caught
 before users update.
 """
+
 from __future__ import annotations
 
 import sys
@@ -20,8 +21,11 @@ def main() -> int:
     gone = hermes_api.missing()
     if gone:
         print("this Hermes lacks: " + ", ".join(gone), file=sys.stderr)
-        print("FIX: follow the rename in backend/hermes/api.py (keep the old name working while the oldest "
-              "supported Hermes still has it)", file=sys.stderr)
+        print(
+            "FIX: follow the rename in backend/hermes/api.py (keep the old name working while the oldest "
+            "supported Hermes still has it)",
+            file=sys.stderr,
+        )
         return 1
     print(f"ok: all {len(hermes_api.USED)} Hermes names hermretro uses are present")
     return 0

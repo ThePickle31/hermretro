@@ -1,5 +1,6 @@
 """Build page images: a file rewritten later (cover.png made again) still shows each reply the version
 it delivered, and the viewer's ``asset`` call answers that version for a reply's time."""
+
 import base64
 import os
 import sys
@@ -28,8 +29,10 @@ class AssetVersions(unittest.TestCase):
         self.cover = self.game / "cover.png"
         registry = mock.Mock()
         registry.library.return_value = [{"projectRoot": str(self.game)}]
-        self.patches = [mock.patch.object(hermes_host, "_data_dir", return_value=self.data),
-                        mock.patch.object(hermes_host, "_registry", return_value=registry)]
+        self.patches = [
+            mock.patch.object(hermes_host, "_data_dir", return_value=self.data),
+            mock.patch.object(hermes_host, "_registry", return_value=registry),
+        ]
         for patch in self.patches:
             patch.start()
         self.asset = assets_rpcs.rpc_asset(None)
@@ -59,11 +62,13 @@ class AssetVersions(unittest.TestCase):
         self.assertTrue(answer["earlier"])
         self.assertEqual(answer["modifiedAt"], 1000)
         self.assertEqual(self.shown(at=2500 * 1000)[0], PNG_B)
-        self.assertEqual(self.shown()[0], PNG_B)                 # no time: the file as it is now
+        self.assertEqual(self.shown()[0], PNG_B)  # no time: the file as it is now
 
     def test_a_step_that_looked_at_an_image_keeps_it(self):
         self.write(PNG_A, 1000)
-        assets_versions.keep_inspected_images(tool_name="vision_analyze", args={"image_url": str(self.cover), "question": "?"})
+        assets_versions.keep_inspected_images(
+            tool_name="vision_analyze", args={"image_url": str(self.cover), "question": "?"}
+        )
         self.write(PNG_B, 2000)
         self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
 
@@ -85,7 +90,6 @@ class AssetVersions(unittest.TestCase):
         assets_versions.keep_delivered_images(assistant_response=f"MEDIA:{outside}")
         self.assertFalse(assets_versions._versions_dir(outside.resolve()).exists())
 
-
     def test_versions_are_listed_picked_by_id_and_restored(self):
         self.write(PNG_A, 1000)
         self.shown()
@@ -105,40 +109,95 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(self.cover.read_bytes(), PNG_A)
         self.assertEqual(sum(entry["current"] for entry in restored["versions"]), 1)
         # The version that was replaced is still kept.
-        kept = [assets_versions._versions_dir(self.cover.resolve()) / f"{entry['id']}.png" for entry in restored["versions"]]
+        kept = [
+            assets_versions._versions_dir(self.cover.resolve()) / f"{entry['id']}.png" for entry in restored["versions"]
+        ]
         self.assertIn(PNG_B, [path.read_bytes() for path in kept if path.is_file()])
 
     def test_a_sprite_knows_its_animations_palette_and_scenes(self):
         import json
+
         sprites = self.game / "assets" / "sprites"
         backgrounds = self.game / "assets" / "backgrounds"
         scene_dir = self.game / "project" / "scenes" / "start"
         for folder in (sprites, backgrounds, scene_dir / "actors", self.game / "project" / "palettes"):
             folder.mkdir(parents=True, exist_ok=True)
         (sprites / "cat.png").write_bytes(PNG_A)
-        tiles = lambda x: {"tiles": [{"x": 0, "y": 0, "sliceX": x, "sliceY": 0}, {"x": 8, "y": 0, "sliceX": x + 8, "sliceY": 0}]}
-        (sprites / "cat.png.gbsres").write_text(json.dumps({
-            "id": "cat", "name": "Cat", "canvasWidth": 16, "canvasHeight": 16, "animSpeed": 15, "numTiles": 4,
-            "states": [{"name": "", "animationType": "multi_movement", "flipLeft": True, "animations": [
-                {"frames": [tiles(32)]}, {"frames": [{"tiles": []}]}, {"frames": [tiles(16)]}, {"frames": [tiles(0)]},
-                {"frames": [tiles(32), tiles(48)]}, {"frames": [{"tiles": []}]}, {"frames": [tiles(16)]}, {"frames": [tiles(0)]}]}]}))
+        tiles = lambda x: {
+            "tiles": [{"x": 0, "y": 0, "sliceX": x, "sliceY": 0}, {"x": 8, "y": 0, "sliceX": x + 8, "sliceY": 0}]
+        }
+        (sprites / "cat.png.gbsres").write_text(
+            json.dumps(
+                {
+                    "id": "cat",
+                    "name": "Cat",
+                    "canvasWidth": 16,
+                    "canvasHeight": 16,
+                    "animSpeed": 15,
+                    "numTiles": 4,
+                    "states": [
+                        {
+                            "name": "",
+                            "animationType": "multi_movement",
+                            "flipLeft": True,
+                            "animations": [
+                                {"frames": [tiles(32)]},
+                                {"frames": [{"tiles": []}]},
+                                {"frames": [tiles(16)]},
+                                {"frames": [tiles(0)]},
+                                {"frames": [tiles(32), tiles(48)]},
+                                {"frames": [{"tiles": []}]},
+                                {"frames": [tiles(16)]},
+                                {"frames": [tiles(0)]},
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         (backgrounds / "field.png").write_bytes(PNG_B)
         (backgrounds / "field.png.gbsres").write_text(json.dumps({"id": "field", "name": "Field"}))
-        (self.game / "project" / "palettes" / "tabby.gbsres").write_text(json.dumps({"id": "tabby", "name": "Tabby", "colors": ["F8E0B0", "E87820", "B05010", "402010"]}))
-        (self.game / "project" / "settings.gbsres").write_text(json.dumps({
-            "startSceneId": "s1", "startX": 9, "startY": 12, "startDirection": "left", "playerSpriteSheetId": "cat",
-            "defaultSpritePaletteId": "tabby"}))
-        (scene_dir / "scene.gbsres").write_text(json.dumps({"id": "s1", "name": "Grassy Field", "type": "TOPDOWN", "backgroundId": "field", "width": 20, "height": 18}))
-        (scene_dir / "actors" / "friend.gbsres").write_text(json.dumps({"name": "Friend", "spriteSheetId": "cat", "x": 3, "y": 4, "direction": "down", "paletteId": ""}))
+        (self.game / "project" / "palettes" / "tabby.gbsres").write_text(
+            json.dumps({"id": "tabby", "name": "Tabby", "colors": ["F8E0B0", "E87820", "B05010", "402010"]})
+        )
+        (self.game / "project" / "settings.gbsres").write_text(
+            json.dumps(
+                {
+                    "startSceneId": "s1",
+                    "startX": 9,
+                    "startY": 12,
+                    "startDirection": "left",
+                    "playerSpriteSheetId": "cat",
+                    "defaultSpritePaletteId": "tabby",
+                }
+            )
+        )
+        (scene_dir / "scene.gbsres").write_text(
+            json.dumps(
+                {
+                    "id": "s1",
+                    "name": "Grassy Field",
+                    "type": "TOPDOWN",
+                    "backgroundId": "field",
+                    "width": 20,
+                    "height": 18,
+                }
+            )
+        )
+        (scene_dir / "actors" / "friend.gbsres").write_text(
+            json.dumps({"name": "Friend", "spriteSheetId": "cat", "x": 3, "y": 4, "direction": "down", "paletteId": ""})
+        )
 
         info = assets_rpcs.rpc_asset_info(None)({"path": str(sprites / "cat.png")})
         self.assertTrue(info["ok"], info)
         self.assertEqual(info["kind"], "sprite")
         self.assertEqual([animation["name"] for animation in info["sprite"]["animations"]][4], "Walk right")
         self.assertEqual(info["palette"]["colors"][1], "#E87820")
-        self.assertEqual(info["usedIn"], [{"scene": "Grassy Field", "sceneId": "s1", "as": ["Player", "Friend"], "count": 2}])
+        self.assertEqual(
+            info["usedIn"], [{"scene": "Grassy Field", "sceneId": "s1", "as": ["Player", "Friend"], "count": 2}]
+        )
         player, friend = info["scenes"][0]["actors"]
-        self.assertEqual((player["x"], player["y"], player["flip"]), (9, 12, True))     # left mirrors the right slot
+        self.assertEqual((player["x"], player["y"], player["flip"]), (9, 12, True))  # left mirrors the right slot
         self.assertEqual(player["tiles"][0]["sliceX"], 32)
         self.assertEqual((friend["flip"], friend["tiles"][0]["sliceX"]), (False, 0))
         self.assertTrue(info["scenes"][0]["background"].endswith("field.png"))
@@ -155,7 +214,9 @@ class AssetVersions(unittest.TestCase):
         self.assertTrue(sprite["moving"]["flip"])
         # A changed palette is seen at once (the cache follows the project files).
         palette_file = self.game / "project" / "palettes" / "tabby.gbsres"
-        palette_file.write_text(json.dumps({"id": "tabby", "name": "Tabby", "colors": ["FFFFFF", "AAAAAA", "555555", "000000"]}))
+        palette_file.write_text(
+            json.dumps({"id": "tabby", "name": "Tabby", "colors": ["FFFFFF", "AAAAAA", "555555", "000000"]})
+        )
         os.utime(palette_file, ns=(10**18, 10**18))
         self.assertEqual(self.asset({"path": str(sprites / "cat.png")})["sprite"]["palette"][0], "#FFFFFF")
 
@@ -172,9 +233,11 @@ class AssetVersions(unittest.TestCase):
 
         listed = assets_rpcs.rpc_assets(None)({"root": str(self.game)})
         self.assertTrue(listed["ok"], listed)
-        self.assertEqual([(item["kind"], item["name"]) for item in listed["assets"]], [("cover", "Cover"), ("sprite", "Robin")])
+        self.assertEqual(
+            [(item["kind"], item["name"]) for item in listed["assets"]], [("cover", "Cover"), ("sprite", "Robin")]
+        )
         self.assertEqual(listed["assets"][1]["relative"], "assets/sprites/bird.png")
-        self.assertFalse(assets_rpcs.rpc_assets(None)({"root": self.tmp.name})["ok"])        # not a library game
+        self.assertFalse(assets_rpcs.rpc_assets(None)({"root": self.tmp.name})["ok"])  # not a library game
         self.assertFalse(assets_rpcs.rpc_assets(None)({})["ok"])
 
 

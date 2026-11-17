@@ -1,4 +1,5 @@
 """The dedicated hermretro profile: what the page is told, and what finishing it does."""
+
 import json
 import sys
 import tempfile
@@ -16,7 +17,7 @@ class StudioProfile(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
-        self.home = root / "profiles" / "work"            # where the user installed the plugin
+        self.home = root / "profiles" / "work"  # where the user installed the plugin
         self.target = root / "profiles" / sp.STUDIO_PROFILE
         (self.home / "plugins" / "my-provider").mkdir(parents=True)
         (self.home / "plugins" / "my-provider" / "plugin.yaml").write_text("name: my-provider\nkind: model-provider\n")
@@ -34,15 +35,27 @@ class StudioProfile(unittest.TestCase):
         (self.target / "SOUL.md").write_text("default soul")
 
     def finish(self):
-        return sp.finish(self.home, target=self.target, enabled=["my-provider", "other", "gone"],
-                         run=lambda target, *args: self.commands.append((target, args)))
+        return sp.finish(
+            self.home,
+            target=self.target,
+            enabled=["my-provider", "other", "gone"],
+            run=lambda target, *args: self.commands.append((target, args)),
+        )
 
     def test_the_page_is_told_which_profile_answers_and_how_to_create_the_studio_one(self):
         told = sp.describe(self.home, self.target)
         self.assertEqual((told["name"], told["is_studio"]), ("work", False))
         self.assertEqual(told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False})
-        self.assertEqual(told["create"], {"name": "hermretro", "description": sp.DESCRIPTION,
-                                          "no_skills": True, "share_auth": True, "no_alias": True})
+        self.assertEqual(
+            told["create"],
+            {
+                "name": "hermretro",
+                "description": sp.DESCRIPTION,
+                "no_skills": True,
+                "share_auth": True,
+                "no_alias": True,
+            },
+        )
         self.assertTrue(sp.describe(self.target)["is_studio"])
         self.assertEqual(sp.profile_name(Path(self.tmp.name)), "default")
 
@@ -62,28 +75,41 @@ class StudioProfile(unittest.TestCase):
     def test_finishing_links_the_plugin_carries_model_providers_and_sets_the_tools(self):
         self.created()
         result = self.finish()
-        self.assertEqual((result["ok"], result["providers"], result["disabled_toolsets"]),
-                         (True, ["my-provider"], ["tts", "connections", "computer_use", "cronjob"]))
+        self.assertEqual(
+            (result["ok"], result["providers"], result["disabled_toolsets"]),
+            (True, ["my-provider"], ["tts", "connections", "computer_use", "cronjob"]),
+        )
         self.assertEqual((self.target / "plugins" / paths.PLUGIN_ID).resolve(), paths.PLUGIN_ROOT.resolve())
-        self.assertEqual((self.target / "plugins" / "my-provider").resolve(), (self.home / "plugins" / "my-provider").resolve())
-        self.assertFalse((self.target / "plugins" / "other").exists())          # not a model provider
+        self.assertEqual(
+            (self.target / "plugins" / "my-provider").resolve(), (self.home / "plugins" / "my-provider").resolve()
+        )
+        self.assertFalse((self.target / "plugins" / "other").exists())  # not a model provider
         # Config is changed only through the hermes command, in the new profile.
-        self.assertEqual(self.commands, [
-            (self.target, ("plugins", "enable", paths.PLUGIN_ID)),
-            (self.target, ("plugins", "enable", "my-provider")),
-            (self.target, ("config", "set", "agent.disabled_toolsets", '["tts", "connections", "computer_use", "cronjob"]')),
-            (self.target, ("skills", "opt-out")),
-            (self.target, ("config", "set", "auxiliary.background_review.enabled", "false")),
-            (self.target, ("config", "set", "curator.enabled", "false")),
-            (self.target, ("config", "set", "approvals.mode", "smart")),
-            (self.target, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve())))])
+        self.assertEqual(
+            self.commands,
+            [
+                (self.target, ("plugins", "enable", paths.PLUGIN_ID)),
+                (self.target, ("plugins", "enable", "my-provider")),
+                (
+                    self.target,
+                    ("config", "set", "agent.disabled_toolsets", '["tts", "connections", "computer_use", "cronjob"]'),
+                ),
+                (self.target, ("skills", "opt-out")),
+                (self.target, ("config", "set", "auxiliary.background_review.enabled", "false")),
+                (self.target, ("config", "set", "curator.enabled", "false")),
+                (self.target, ("config", "set", "approvals.mode", "smart")),
+                (self.target, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
+            ],
+        )
         self.assertTrue((self.target / "workspace").is_dir())
         self.assertEqual(list((self.target / "workspace").iterdir()), [])
         self.assertEqual(result["workspace"], str((self.target / "workspace").resolve()))
         self.assertIn("You are hermretro", (self.target / "SOUL.md").read_text())
         self.assertEqual(json.loads((self.target / sp.MARKER).read_text())["from_profile"], "work")
-        self.assertEqual(sp.describe(self.home, self.target)["studio"],
-                         {"name": "hermretro", "exists": True, "installed": True, "ours": True})
+        self.assertEqual(
+            sp.describe(self.home, self.target)["studio"],
+            {"name": "hermretro", "exists": True, "installed": True, "ours": True},
+        )
         # Nothing in the profile the plugin was installed into was touched.
         self.assertEqual(sorted(p.name for p in (self.home / "plugins").iterdir()), ["my-provider", "other"])
 
@@ -101,6 +127,7 @@ class StudioProfile(unittest.TestCase):
         older = b"an older shipped soul"
         (self.target / "SOUL.md").write_bytes(older)
         import hashlib
+
         with unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
             again = self.finish()
         self.assertTrue(again["soul_written"])
@@ -113,12 +140,15 @@ class StudioProfile(unittest.TestCase):
         self.assertIn("chromatic_present_game", soul)
         self.assertNotIn("keep the playable game on screen", soul)
         import hashlib
+
         self.assertNotIn(hashlib.sha256(soul.encode()).hexdigest(), sp.OLDER_SOULS)
 
     def test_a_failed_hermes_command_is_reported_and_the_step_can_be_run_again(self):
         self.created()
+
         def fail(target, *args):
             raise sp.StudioProfileError("HERMES_COMMAND_FAILED", "plugins enable failed")
+
         with self.assertRaises(sp.StudioProfileError):
             sp.finish(self.home, target=self.target, enabled=[], run=fail)
         self.assertFalse((self.target / sp.MARKER).exists())
@@ -132,6 +162,7 @@ class StudioProfile(unittest.TestCase):
     def test_a_hermes_command_that_cannot_start_or_hangs_is_a_plain_error(self):
         import subprocess
         from unittest import mock
+
         for failure in (FileNotFoundError("hermes"), subprocess.TimeoutExpired("hermes", 180)):
             with mock.patch.object(sp.subprocess, "run", side_effect=failure):
                 with self.assertRaises(sp.StudioProfileError) as raised:

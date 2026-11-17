@@ -1,4 +1,5 @@
 """The game library: registry file, build state, the broker hook and the desktop RPC."""
+
 import base64
 import json
 import os
@@ -22,6 +23,7 @@ from backend.library import tools as library_tools  # noqa: E402
 from backend.setup import tools as setup_tools  # noqa: E402
 from tests.support import registered_hook  # noqa: E402
 
+
 def encode_png(width, height, pixel):
     """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
     import struct
@@ -29,27 +31,46 @@ def encode_png(width, height, pixel):
 
     def chunk(kind, body):
         return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
     rows = b"".join(b"\0" + bytes(value for x in range(width) for value in pixel(x, y)) for y in range(height))
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )
 
 
 # A 160x144 pixel-art cover: four colours in bands.
-COVER = encode_png(160, 144, lambda x, y: ((40, 120, 60, 255), (230, 160, 60, 255), (60, 90, 200, 255),
-                                           (250, 250, 240, 255))[(x // 40 + y // 36) % 4])
+COVER = encode_png(
+    160,
+    144,
+    lambda x, y: ((40, 120, 60, 255), (230, 160, 60, 255), (60, 90, 200, 255), (250, 250, 240, 255))[
+        (x // 40 + y // 36) % 4
+    ],
+)
 
 
 def complete_card(root: Path) -> None:
     """Give a test project a finished game card (game.json + cover.png)."""
     (root / "cover.png").write_bytes(COVER)
-    (root / "game.json").write_text(json.dumps({
-        "version": 1, "title": "Space Game", "tagline": "Fly a tiny ship through a meteor field.",
-        "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
-        "genres": ["Arcade"], "cover": "cover.png"}))
+    (root / "game.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "title": "Space Game",
+                "tagline": "Fly a tiny ship through a meteor field.",
+                "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
+                "genres": ["Arcade"],
+                "cover": "cover.png",
+            }
+        )
+    )
 
 
 PNG = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 
 def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
@@ -94,9 +115,16 @@ class Registry(unittest.TestCase):
 
     def test_a_selected_project_joins_the_library_with_its_chat(self):
         root = make_project(self.base)
-        self.registry.observe("project_select", {"projectPath": str(root)}, {"projectRoot": str(root)}, False,
-                              lane_root=str(root), conversation_id="conv-1", sessions_seen=["s1", "s2"],
-                              profile="/home/u/.hermes/profiles/studio/plugin-data/hermretro")
+        self.registry.observe(
+            "project_select",
+            {"projectPath": str(root)},
+            {"projectRoot": str(root)},
+            False,
+            lane_root=str(root),
+            conversation_id="conv-1",
+            sessions_seen=["s1", "s2"],
+            profile="/home/u/.hermes/profiles/studio/plugin-data/hermretro",
+        )
         [game] = self.registry.library()
         self.assertEqual(game["id"], games.game_id(root))
         self.assertEqual(game["title"], "Space Game")
@@ -112,36 +140,53 @@ class Registry(unittest.TestCase):
         # must compare the player's loaded hash with this one, or every build looks "rebuilt".
         root = make_project(self.base)
         rom = root / "build" / "project.gb"
-        self.registry.observe("rom_build", {}, {"success": True, "outputPath": str(rom)}, False,
-                              lane_root=str(root), conversation_id="c")
+        self.registry.observe(
+            "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
+        )
         [game] = self.registry.library()
         self.assertEqual(game["rom"]["path"], str(rom))
         self.assertEqual(game["web"]["sha256"], games.file_sha256(root / "build" / "web" / "rom" / "game.gbc"))
         self.assertNotEqual(game["web"]["sha256"], game["rom"]["sha256"])
         self.assertIsInstance(game["web"]["builtAt"], int)
-        self.assertIsNone(games.Registry(self.base / "lib2").describe(
-            {"projectRoot": str(make_project(self.base, "No Web", web=False))})["web"])
+        self.assertIsNone(
+            games.Registry(self.base / "lib2").describe(
+                {"projectRoot": str(make_project(self.base, "No Web", web=False))}
+            )["web"]
+        )
 
     def test_a_project_created_without_selecting_has_no_chat(self):
         root = make_project(self.base)
-        self.registry.observe("project_create", {"select": False}, {"projectRoot": str(root)}, False,
-                              lane_root=None, conversation_id="conv-1")
+        self.registry.observe(
+            "project_create",
+            {"select": False},
+            {"projectRoot": str(root)},
+            False,
+            lane_root=None,
+            conversation_id="conv-1",
+        )
         self.assertIsNone(self.registry.library()[0]["chat"])
 
     def test_states_follow_builds_and_source_edits(self):
         root = make_project(self.base, web=False, built=False)
         self.registry.upsert(str(root))
         self.assertEqual(self.registry.library()[0]["state"], "unbuilt")
-        self.registry.observe("rom_build", {}, {"success": False, "error": "Compiler said no " * 40}, True,
-                              lane_root=str(root), conversation_id="c")
+        self.registry.observe(
+            "rom_build",
+            {},
+            {"success": False, "error": "Compiler said no " * 40},
+            True,
+            lane_root=str(root),
+            conversation_id="c",
+        )
         game = self.registry.library()[0]
         self.assertEqual(game["state"], "failed")
         self.assertLessEqual(len(game["error"]), 240)
         (root / "build").mkdir()
         rom = root / "build" / "project.gb"
         rom.write_bytes(b"\2" * 256)
-        self.registry.observe("rom_build", {}, {"success": True, "outputPath": str(rom)}, False,
-                              lane_root=str(root), conversation_id="c")
+        self.registry.observe(
+            "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
+        )
         game = self.registry.library()[0]
         self.assertEqual((game["state"], game["rom"]["path"], game["error"]), ("ready", str(rom), None))
         self.assertFalse(game["webExport"])
@@ -160,8 +205,9 @@ class Registry(unittest.TestCase):
     def test_standalone_c_builds_inside_a_gb_studio_project_do_not_count(self):
         root = make_project(self.base)
         self.registry.upsert(str(root))
-        self.registry.observe("rom_build", {"sourcePath": "x.c"}, {"success": False}, True,
-                              lane_root=str(root), conversation_id="c")
+        self.registry.observe(
+            "rom_build", {"sourcePath": "x.c"}, {"success": False}, True, lane_root=str(root), conversation_id="c"
+        )
         self.assertEqual(self.registry.library()[0]["state"], "ready")
 
     def test_deleted_projects_drop_off_the_shelf(self):
@@ -175,16 +221,19 @@ class Registry(unittest.TestCase):
     def test_thumbnails_are_bounded_pngs(self):
         root = make_project(self.base)
         identifier = self.registry.upsert(str(root))["id"]
-        self.registry.save_thumb(identifier, games.decode_png("data:image/png;base64," + base64.b64encode(PNG).decode(),
-                                                              games.MAX_THUMB_BYTES))
+        self.registry.save_thumb(
+            identifier,
+            games.decode_png("data:image/png;base64," + base64.b64encode(PNG).decode(), games.MAX_THUMB_BYTES),
+        )
         self.assertTrue(self.registry.library()[0]["thumb"].startswith("data:image/png;base64,"))
         with self.assertRaises(ValueError):
             games.decode_png("data:image/jpeg;base64,AAAA", games.MAX_THUMB_BYTES)
         with self.assertRaises(ValueError):
             games.decode_png("data:image/png;base64," + base64.b64encode(b"GIF89a").decode(), games.MAX_THUMB_BYTES)
         with self.assertRaises(ValueError):
-            games.decode_png("data:image/png;base64," + base64.b64encode(PNG + b"\0" * 70000).decode(),
-                             games.MAX_THUMB_BYTES)
+            games.decode_png(
+                "data:image/png;base64," + base64.b64encode(PNG + b"\0" * 70000).decode(), games.MAX_THUMB_BYTES
+            )
         with self.assertRaises(ValueError):
             self.registry.save_thumb("../../etc", PNG)
 
@@ -223,8 +272,10 @@ class BrokerHook(unittest.TestCase):
         self.assertEqual(lane.activity[-1]["tool"], "rom_build")
 
     def test_only_the_real_broker_writes_the_users_library(self):
-        with mock.patch.dict(os.environ, {"HERMRETRO_RUNTIME_DIR": str(self.base / "run"),
-                                          "HERMRETRO_LIBRARY_DIR": str(self.base / "library")}):
+        with mock.patch.dict(
+            os.environ,
+            {"HERMRETRO_RUNTIME_DIR": str(self.base / "run"), "HERMRETRO_LIBRARY_DIR": str(self.base / "library")},
+        ):
             self.assertEqual(paths.library_dir_for(self.base / "run"), self.base / "library")
             self.assertEqual(paths.library_dir_for(self.base / "acceptance"), self.base / "acceptance")
 
@@ -236,9 +287,14 @@ class GamesRpc(unittest.TestCase):
         home = self.base / "hermes" / "profiles" / "studio"
         (home / "plugin-data" / "hermretro").mkdir(parents=True)
         self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                                         "HERMRETRO_GAMES_DIR": str(self.base / "games"),
-                                         "HERMRETRO_RUNTIME_DIR": str(self.base / "run")}),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
+                    "HERMRETRO_GAMES_DIR": str(self.base / "games"),
+                    "HERMRETRO_RUNTIME_DIR": str(self.base / "run"),
+                },
+            ),
             mock.patch.object(hermes_host, "_data_dir", lambda: home / "plugin-data" / "hermretro"),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
         ]
@@ -256,16 +312,40 @@ class GamesRpc(unittest.TestCase):
     def test_games_lists_the_library_in_the_contract_shape(self):
         root = make_project(self.base)
         games.Registry(paths.library_dir()).observe(
-            "project_select", {}, {"projectRoot": str(root)}, False, lane_root=str(root),
-            conversation_id="conv", sessions_seen=["run-1"], profile=self.identity)
+            "project_select",
+            {},
+            {"projectRoot": str(root)},
+            False,
+            lane_root=str(root),
+            conversation_id="conv",
+            sessions_seen=["run-1"],
+            profile=self.identity,
+        )
         answer = library_rpcs.rpc_games(self.ctx)({})
         self.assertTrue(answer["ok"])
         self.assertEqual(answer["device"], {"hardwareEnabled": True, "skipped": False})
         [game] = answer["games"]
-        self.assertEqual(set(game) - {"chat"}, {"id", "title", "projectRoot", "kind", "state", "rom", "webExport",
-                                               "web", "thumb", "error", "session", "cover", "card",
-                                               "displayTitle"})
-        self.assertTrue(game["cover"]); self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
+        self.assertEqual(
+            set(game) - {"chat"},
+            {
+                "id",
+                "title",
+                "projectRoot",
+                "kind",
+                "state",
+                "rom",
+                "webExport",
+                "web",
+                "thumb",
+                "error",
+                "session",
+                "cover",
+                "card",
+                "displayTitle",
+            },
+        )
+        self.assertTrue(game["cover"])
+        self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
         self.assertEqual(game["card"]["tagline"], "Fly a tiny ship through a meteor field.")
         self.assertTrue(game["card"]["complete"])
         self.assertIsNone(game["session"])
@@ -275,10 +355,13 @@ class GamesRpc(unittest.TestCase):
         self.assertTrue(game["chat"]["thisProfile"])
 
     def build_response(self, root, **extra):
-        response = {"ok": True, "dispatched": True,
-                    "result": {"content": [], "structuredContent": {"success": True}},
-                    "player": {"ready": True, "url": "http://127.0.0.1:9/engine/", "first": True},
-                    "lane": {"selected_root": str(root)}}
+        response = {
+            "ok": True,
+            "dispatched": True,
+            "result": {"content": [], "structuredContent": {"success": True}},
+            "player": {"ready": True, "url": "http://127.0.0.1:9/engine/", "first": True},
+            "lane": {"selected_root": str(root)},
+        }
         response.update(extra)
         return response
 
@@ -297,8 +380,10 @@ class GamesRpc(unittest.TestCase):
             def call(self, *_args, **_kwargs):
                 return response
 
-        with mock.patch.object(hermes_host, "ensure_broker", lambda: Client()), \
-                mock.patch.object(hermes_host, "_attach_images", lambda: False):
+        with (
+            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "_attach_images", lambda: False),
+        ):
             handler = hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})
             payload = json.loads(handler({}, conversation_id="conv", session_id="s1"))
         for gone in ("studio", "studioPlayerUrl", "studioGameId"):
@@ -321,19 +406,26 @@ class GamesRpc(unittest.TestCase):
                 return {"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}}
 
         folder = self.base / "studio-games"
-        with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(folder)}), \
-                mock.patch.object(hermes_host, "ensure_broker", lambda: Client()), \
-                mock.patch.object(hermes_host, "_attach_images", lambda: False):
+        with (
+            mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(folder)}),
+            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "_attach_images", lambda: False),
+        ):
             for tool in ("project_create", "project_create_blank"):
                 hermes_host.make_tool_handler(self.ctx, {"name": tool})(
-                    {"name": "Star Garden: II", "template": "starter"}, conversation_id="conv", session_id="s1")
+                    {"name": "Star Garden: II", "template": "starter"}, conversation_id="conv", session_id="s1"
+                )
             hermes_host.make_tool_handler(self.ctx, {"name": "project_create"})(
                 {"name": "Mine", "template": "starter", "destinationPath": "/elsewhere/Mine"},
-                conversation_id="conv", session_id="s1")
+                conversation_id="conv",
+                session_id="s1",
+            )
             schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_project_create")
         self.assertTrue(folder.is_dir(), "the games folder is created for the engine")
-        self.assertEqual([args["destinationPath"] for _tool, args in seen],
-                         [str(folder / "Star Garden II")] * 2 + ["/elsewhere/Mine"])
+        self.assertEqual(
+            [args["destinationPath"] for _tool, args in seen],
+            [str(folder / "Star Garden II")] * 2 + ["/elsewhere/Mine"],
+        )
         self.assertNotIn("destinationPath", schema["parameters"]["required"])
         self.assertIn("games folder", schema["description"])
 
@@ -383,15 +475,17 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(entry["presented"]["note"], "Try the double jump")
         self.assertAlmostEqual(entry["presented"]["t"], studio["presentedAt"], places=3)
         [shown] = library_rpcs.rpc_presentations(self.ctx)({"since": time.time() - 60})["presentations"]
-        self.assertEqual((shown["gameId"], shown["note"], shown["sessionId"], shown["conversationId"]),
-                         (identifier, "Try the double jump", "run-1", "conv"))
+        self.assertEqual(
+            (shown["gameId"], shown["note"], shown["sessionId"], shown["conversationId"]),
+            (identifier, "Try the double jump", "run-1", "conv"),
+        )
         self.assertEqual((shown["profile"], shown["thisProfile"], shown["title"]), ("studio", True, "Space Game"))
 
     def test_present_requires_a_fresh_web_export(self):
         root = make_project(self.base)
         rom = root / "build" / "project.gb"
         later = rom.stat().st_mtime + 60
-        os.utime(rom, (later, later))               # a newer native build than the web copy
+        os.utime(rom, (later, later))  # a newer native build than the web copy
         seen, connect = self.lane_client(root)
         with mock.patch.object(hermes_host, "try_connect", connect):
             payload = self.present()
@@ -414,8 +508,9 @@ class GamesRpc(unittest.TestCase):
         registry = games.Registry(paths.library_dir())
         registry.upsert(str(root), build={"t": time.time(), "ok": False, "rom": None, "sha256": None, "error": "x"})
         self.assertFalse(games.export_freshness(root, registry.get(games.game_id(root))["lastBuild"])[0])
-        registry.upsert(str(root), build={"t": time.time() - 1000, "ok": True, "rom": None, "sha256": None,
-                                          "error": None})
+        registry.upsert(
+            str(root), build={"t": time.time() - 1000, "ok": True, "rom": None, "sha256": None, "error": None}
+        )
         self.assertEqual(games.export_freshness(root, registry.get(games.game_id(root))["lastBuild"]), (True, None))
 
     def test_an_unchanged_export_the_engine_reused_still_counts_as_fresh(self):
@@ -426,12 +521,28 @@ class GamesRpc(unittest.TestCase):
         later = rom.stat().st_mtime + 600
         os.utime(rom, (later, later))
         registry = games.Registry(paths.library_dir())
-        registry.observe("rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root),
-                         conversation_id="conv", sessions_seen=["run-1"], profile=self.identity)
+        registry.observe(
+            "rom_build",
+            {},
+            {"success": True, "outputPath": str(rom)},
+            False,
+            lane_root=str(root),
+            conversation_id="conv",
+            sessions_seen=["run-1"],
+            profile=self.identity,
+        )
         entry = registry.get(games.game_id(root))
         self.assertFalse(games.export_freshness(root, entry["lastBuild"], entry.get("lastWebExport"))[0])
-        registry.observe("web_preview", {}, {"success": True, "url": "http://e/"}, False, lane_root=str(root),
-                         conversation_id="conv", sessions_seen=["run-1"], profile=self.identity)
+        registry.observe(
+            "web_preview",
+            {},
+            {"success": True, "url": "http://e/"},
+            False,
+            lane_root=str(root),
+            conversation_id="conv",
+            sessions_seen=["run-1"],
+            profile=self.identity,
+        )
         entry = registry.get(games.game_id(root))
         self.assertIn("lastWebExport", entry)
         self.assertEqual(games.export_freshness(root, entry["lastBuild"], entry["lastWebExport"]), (True, None))
@@ -440,16 +551,18 @@ class GamesRpc(unittest.TestCase):
             self.assertTrue(self.present()["ok"])
         # A later build without a refreshed web copy makes it stale again.
         time.sleep(0.01)
-        registry.upsert(str(root), build={"t": time.time() + 10, "ok": True, "rom": str(rom), "sha256": None,
-                                          "error": None})
+        registry.upsert(
+            str(root), build={"t": time.time() + 10, "ok": True, "rom": str(rom), "sha256": None, "error": None}
+        )
         with mock.patch.object(hermes_host, "try_connect", connect):
             self.assertEqual(self.present()["code"], "BUILD_FIRST")
 
     def test_present_falls_back_to_the_chat_link_then_needs_a_project(self):
         root = make_project(self.base)
-        games.Registry(paths.library_dir()).upsert(str(root), chat={"conversationId": "conv", "sessionId": "old-run",
-                                                                    "profile": self.identity})
-        payload = self.present()                    # no broker running (setUp): the library's chat link
+        games.Registry(paths.library_dir()).upsert(
+            str(root), chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity}
+        )
+        payload = self.present()  # no broker running (setUp): the library's chat link
         self.assertTrue(payload["ok"], payload)
         self.assertEqual(payload["studio"]["gameId"], games.game_id(root))
         payload = self.present(conversation_id="other", session_id="other-run")
@@ -471,9 +584,11 @@ class GamesRpc(unittest.TestCase):
         def forbidden(*_args, **_kwargs):
             raise AssertionError("chromatic_present_game must not start the broker or call an engine tool")
 
-        with mock.patch.object(hermes_host, "try_connect", connect), \
-                mock.patch.object(hermes_host, "ensure_broker", forbidden), \
-                mock.patch.object(setup_tools.provision, "install_device_cli", forbidden):
+        with (
+            mock.patch.object(hermes_host, "try_connect", connect),
+            mock.patch.object(hermes_host, "ensure_broker", forbidden),
+            mock.patch.object(setup_tools.provision, "install_device_cli", forbidden),
+        ):
             self.assertTrue(self.present()["ok"])
         self.assertTrue(all(message.get("op") == "activity" and "tool" not in message for message in seen))
 
@@ -487,12 +602,13 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(payload["code"], "PARENT_ONLY")
 
     def test_the_approval_hook_lets_present_through_even_with_hardware_on(self):
-        hook = registered_hook("pre_tool_call", self.ctx)       # hardware_enabled is True in this ctx
+        hook = registered_hook("pre_tool_call", self.ctx)  # hardware_enabled is True in this ctx
         self.assertIsNone(hook(tool_name="chromatic_present_game", args={"note": "try it"}))
         self.assertEqual(hook(tool_name="chromatic_flash", args={})["action"], "approve")
 
     def test_the_present_tool_is_plugin_owned_not_an_engine_tool(self):
         from backend.hermes import contracts
+
         names = {schema["name"] for schema in contracts.hermes_schemas()}
         self.assertNotIn("chromatic_present_game", names)
         self.assertNotIn("present_game", {tool["name"] for tool in contracts.pinned_tools()})
@@ -512,15 +628,16 @@ class GamesRpc(unittest.TestCase):
         self.assertGreaterEqual(answer["now"], second["t"])
         self.assertEqual(len(rpc({})["presentations"]), 2)
         self.assertEqual(len(rpc({"since": "bad"})["presentations"]), 2)
-        registry.upsert(str(root))                   # other writes keep the presentations
+        registry.upsert(str(root))  # other writes keep the presentations
         self.assertEqual(len(registry.presentations()), 2)
 
     def test_thumb_rpc_stores_and_refuses(self):
         root = make_project(self.base)
         identifier = games.Registry(paths.library_dir()).upsert(str(root))["id"]
         thumb = library_rpcs.rpc_game_thumb(self.ctx)
-        self.assertEqual(thumb({"id": identifier, "png": "data:image/png;base64," + base64.b64encode(PNG).decode()}),
-                         {"ok": True})
+        self.assertEqual(
+            thumb({"id": identifier, "png": "data:image/png;base64," + base64.b64encode(PNG).decode()}), {"ok": True}
+        )
         self.assertFalse(thumb({"id": "000000000000", "png": "x"})["ok"])
         self.assertFalse(thumb({"id": identifier, "png": "data:image/png;base64,!!"})["ok"])
         self.assertTrue(library_rpcs.rpc_games(self.ctx)({})["games"][0]["thumb"].startswith("data:image/png"))

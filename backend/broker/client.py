@@ -1,4 +1,5 @@
 """Client side of the broker. Stdlib only; safe to import from Hermes and from tests."""
+
 from __future__ import annotations
 
 import json
@@ -45,8 +46,15 @@ class BrokerClient:
             raise BrokerUnavailable("Broker closed the connection")
         return json.loads(line)
 
-    def call(self, owner: dict | None, tool: str, arguments: dict | None = None, origin: dict | None = None,
-             policy: dict | None = None, timeout: float | None = None) -> dict:
+    def call(
+        self,
+        owner: dict | None,
+        tool: str,
+        arguments: dict | None = None,
+        origin: dict | None = None,
+        policy: dict | None = None,
+        timeout: float | None = None,
+    ) -> dict:
         request: dict = {"op": "call", "tool": tool, "arguments": arguments or {}}
         if timeout is not None:
             request["timeout"] = timeout
@@ -101,8 +109,13 @@ def _probe_scope(env: dict) -> str:
     if not inside_service or not runner:
         return ""
     try:
-        probe = subprocess.run([runner, "--user", "--scope", "--quiet", "--collect", "true"], env=env,
-                               stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+        probe = subprocess.run(
+            [runner, "--user", "--scope", "--quiet", "--collect", "true"],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=10,
+        )
     except (OSError, subprocess.SubprocessError):
         return ""
     return runner if probe.returncode == 0 else ""
@@ -110,10 +123,26 @@ def _probe_scope(env: dict) -> str:
 
 def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     """Start a broker detached from the caller. It runs from the plugin root with a minimal environment."""
-    env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL", "XDG_DATA_HOME", "XDG_RUNTIME_DIR",
-                                            "XDG_STATE_HOME", "TMPDIR", "USER", "LOGNAME", "DISPLAY",
-                                            "WAYLAND_DISPLAY", "GB_STUDIO_SETUP_ROOT", *host_os.NETWORK_ENV)
-           if key in os.environ}
+    env = {
+        key: os.environ[key]
+        for key in (
+            "PATH",
+            "HOME",
+            "LANG",
+            "LC_ALL",
+            "XDG_DATA_HOME",
+            "XDG_RUNTIME_DIR",
+            "XDG_STATE_HOME",
+            "TMPDIR",
+            "USER",
+            "LOGNAME",
+            "DISPLAY",
+            "WAYLAND_DISPLAY",
+            "GB_STUDIO_SETUP_ROOT",
+            *host_os.NETWORK_ENV,
+        )
+        if key in os.environ
+    }
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
     env["HERMRETRO_HOME"] = str(paths.hermretro_home())  # absolute; the broker cannot ask Hermes itself
     command = [sys.executable, "-m", "backend.broker", "--state-dir", str(state_dir), "--node", node]
@@ -124,8 +153,13 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     with open(log_path, "ab") as log:
         return subprocess.Popen(
             own_scope(env) + command,
-            cwd=str(paths.PLUGIN_ROOT), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=log, start_new_session=True)
+            cwd=str(paths.PLUGIN_ROOT),
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
 
 
 def try_connect(state_dir: Path) -> tuple[BrokerClient | None, Exception | None]:
@@ -149,7 +183,9 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
     if not node.get("ok"):
         raise BrokerUnavailable(
             f"Node.js {paths.NODE_REQUIRED_MAJOR} or newer is required but was not found"
-            + (f" (found {node['version']})" if node.get("version") else "") + ".")
+            + (f" (found {node['version']})" if node.get("version") else "")
+            + "."
+        )
     deadline = time.monotonic() + wait
     last: Exception | None = None
     spawned = False
@@ -174,7 +210,8 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
                     client.close()
                     raise BrokerUnavailable(
                         "Another copy of hermretro (" + str(client.hello.get("plugin_root")) + ") is "
-                        "running games right now. Finish or close those chats, then try again.")
+                        "running games right now. Finish or close those chats, then try again."
+                    )
                 return client
             client.close()
             time.sleep(0.4)

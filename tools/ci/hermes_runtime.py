@@ -6,6 +6,7 @@ Uses Hermes's own package manager (`pm.build_environment`), the same way Hermes'
 and exports `HERMES_RUNTIME_PY` (the Python that runs that Hermes: `"$HERMES_RUNTIME_PY" -I -m hermes_cli.main`)
 and `HERMES_SOURCE` (the checkout, for the install scan) through GitHub's environment file.
 """
+
 from __future__ import annotations
 
 import os

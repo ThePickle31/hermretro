@@ -1,4 +1,5 @@
 """Unit tests for schema conversion and result encoding. Run: python -m unittest discover -s tests -t ."""
+
 from __future__ import annotations
 
 import base64
@@ -36,8 +37,10 @@ class ContractTests(unittest.TestCase):
             self.assertEqual(schema["parameters"].get("required"), required)
             # hermretro's own argument (the broker strips it before the engine): project_select only.
             extra = ["continueInThisChat"] if tool["name"] == "project_select" else []
-            self.assertEqual(sorted(schema["parameters"].get("properties", {})),
-                             sorted([*tool["inputSchema"].get("properties", {}), *extra]))
+            self.assertEqual(
+                sorted(schema["parameters"].get("properties", {})),
+                sorted([*tool["inputSchema"].get("properties", {}), *extra]),
+            )
 
     def test_reference_is_inlined_with_local_description_kept(self):
         build = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_rom_build")
@@ -58,11 +61,14 @@ class ContractTests(unittest.TestCase):
 
     def test_manifest_lists_exactly_the_registered_tools(self):
         manifest = (paths.PLUGIN_ROOT / "plugin.yaml").read_text()
-        declared = [line.strip()[2:] for line in manifest.split("provides_tools:")[1].splitlines()
-                    if line.strip().startswith("- ")]
+        declared = [
+            line.strip()[2:]
+            for line in manifest.split("provides_tools:")[1].splitlines()
+            if line.strip().startswith("- ")
+        ]
         engine = [s["name"] for s in contracts.hermes_schemas()]
         # plugin-owned tools first, then the engine's in pinned order (the set itself is checked by test_lockstep)
-        self.assertEqual(declared[-len(engine):], engine)
+        self.assertEqual(declared[-len(engine) :], engine)
         self.assertEqual(len(set(declared)), len(declared))
 
     def test_bundled_engine_matches_its_manifest(self):
@@ -92,29 +98,45 @@ class ContractTests(unittest.TestCase):
 
 class ResultTests(unittest.TestCase):
     def test_denial_is_reported_as_not_dispatched(self):
-        out = json.loads(results.encode({"ok": False, "dispatched": False,
-                                         "denied": {"code": "HARDWARE_DISABLED", "message": "off"}}, "t", None, False))
+        out = json.loads(
+            results.encode(
+                {"ok": False, "dispatched": False, "denied": {"code": "HARDWARE_DISABLED", "message": "off"}},
+                "t",
+                None,
+                False,
+            )
+        )
         self.assertEqual(out, {"error": "off", "code": "HARDWARE_DISABLED", "dispatched": False})
 
     def test_unknown_outcome_warns_against_repeating(self):
-        out = json.loads(results.encode({"ok": False, "dispatched": True, "outcome": "unknown", "error": "timeout"},
-                                        "t", None, False))
+        out = json.loads(
+            results.encode(
+                {"ok": False, "dispatched": True, "outcome": "unknown", "error": "timeout"}, "t", None, False
+            )
+        )
         self.assertEqual(out["code"], "OUTCOME_UNKNOWN")
         self.assertTrue(out["dispatched"])
         self.assertIn("do not simply repeat", out["guidance"])
 
     def test_structured_content_and_engine_error_are_preserved(self):
-        raw = {"content": [{"type": "text", "text": "{...}"}], "isError": True,
-               "structuredContent": {"error": "Project variables changed", "code": "STALE_RESOURCE"}}
+        raw = {
+            "content": [{"type": "text", "text": "{...}"}],
+            "isError": True,
+            "structuredContent": {"error": "Project variables changed", "code": "STALE_RESOURCE"},
+        }
         out = json.loads(results.encode({"ok": True, "result": raw}, "t", None, False))
         self.assertTrue(out["isError"])
         self.assertEqual(out["code"], "STALE_RESOURCE")
         self.assertEqual(out["structuredContent"], raw["structuredContent"])
 
     def test_images_are_saved_content_addressed_and_attached_unchanged(self):
-        raw = {"content": [{"type": "text", "text": "Completed (frame: 150)."},
-                           {"type": "image", "mimeType": "image/png", "data": PNG}],
-               "structuredContent": {"frame": 150}}
+        raw = {
+            "content": [
+                {"type": "text", "text": "Completed (frame: 150)."},
+                {"type": "image", "mimeType": "image/png", "data": PNG},
+            ],
+            "structuredContent": {"frame": 150},
+        }
         with tempfile.TemporaryDirectory() as tmp:
             envelope = results.encode({"ok": True, "result": raw, "notice": "worker restarted"}, "t", Path(tmp), True)
             self.assertTrue(envelope["_multimodal"])
@@ -128,19 +150,29 @@ class ResultTests(unittest.TestCase):
             self.assertEqual(text["structuredContent"], {"frame": 150})
 
     def test_a_build_with_a_ready_player_opens_nothing_and_points_at_present_game(self):
-        response = {"ok": True, "result": {"content": [{"type": "text", "text": "Completed."}],
-                                           "structuredContent": {"success": True, "outputPath": "/g/build/game.gb"}},
-                    "player": {"ready": True, "url": "http://127.0.0.1:4000/secret/", "first": True},
-                    # An older host still adding the Studio address: it is no longer passed on.
-                    "studio": {"gameId": "abcdefabcdef", "playerUrl": "http://127.0.0.1:5000/tok/abcdefabcdef/index.html"}}
+        response = {
+            "ok": True,
+            "result": {
+                "content": [{"type": "text", "text": "Completed."}],
+                "structuredContent": {"success": True, "outputPath": "/g/build/game.gb"},
+            },
+            "player": {"ready": True, "url": "http://127.0.0.1:4000/secret/", "first": True},
+            # An older host still adding the Studio address: it is no longer passed on.
+            "studio": {"gameId": "abcdefabcdef", "playerUrl": "http://127.0.0.1:5000/tok/abcdefabcdef/index.html"},
+        }
         payload = json.loads(results.encode(response, "chromatic_rom_build", None, False))
         for gone in ("studio", "studioPlayerUrl", "studioGameId"):
             self.assertNotIn(gone, payload)
-        self.assertNotIn("127.0.0.1", json.dumps(payload))     # neither the engine's nor the Studio's address
+        self.assertNotIn("127.0.0.1", json.dumps(payload))  # neither the engine's nor the Studio's address
         self.assertTrue(payload["player"]["ready"])
         step = payload["nextStep"]
-        for needed in ("chromatic_present_game", "Do not use desktop_preview", "cannot see the emulator",
-                       "studio.playerUrl", "Install on Chromatic"):
+        for needed in (
+            "chromatic_present_game",
+            "Do not use desktop_preview",
+            "cannot see the emulator",
+            "studio.playerUrl",
+            "Install on Chromatic",
+        ):
             self.assertIn(needed, step)
         self.assertNotIn("by itself", step)
         self.assertNotIn("without being asked", step)
@@ -154,6 +186,7 @@ class ResultTests(unittest.TestCase):
 
     def test_the_prompt_section_describes_presenting_not_auto_open(self):
         from backend.hermes import host as hermes_host
+
         section = hermes_host.SYSTEM_PROMPT_SECTION
         self.assertLessEqual(len(section), 2000)
         self.assertIn("chromatic_present_game", section)
@@ -161,8 +194,11 @@ class ResultTests(unittest.TestCase):
         self.assertNotIn("by itself", section)
 
     def test_a_player_that_could_not_be_refreshed_is_reported_not_hidden(self):
-        response = {"ok": True, "result": {"content": [], "structuredContent": {"success": True}},
-                    "player": {"ready": False, "error": "export failed"}}
+        response = {
+            "ok": True,
+            "result": {"content": [], "structuredContent": {"success": True}},
+            "player": {"ready": False, "error": "export failed"},
+        }
         payload = json.loads(results.encode(response, "chromatic_rom_build", None, False))
         self.assertEqual(payload["player"], {"ready": False, "error": "export failed"})
         self.assertNotIn("nextStep", payload)

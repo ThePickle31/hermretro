@@ -1,4 +1,5 @@
 """backend/system/events.py: owners emit, other features listen; a failing listener never breaks the emitter."""
+
 import sys
 import unittest
 from pathlib import Path
@@ -22,7 +23,7 @@ class Events(unittest.TestCase):
 
     def test_the_first_emit_loads_every_features_listeners(self):
         events.emit("test.nobody_listens")
-        self.assertIn("library.build_reported", events._listeners)   # backend/assets/listeners.py
+        self.assertIn("library.build_reported", events._listeners)  # backend/assets/listeners.py
 
 
 if __name__ == "__main__":

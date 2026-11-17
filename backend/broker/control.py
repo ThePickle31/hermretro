@@ -3,6 +3,7 @@ stats, shutdown, doctor, the page's activity and lane lookups, leases and lanes,
 
 Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -29,8 +30,11 @@ def _prepare_failure(result: dict, structured: dict) -> str:
                 return f"{component.get('id')}: {message}"
     if isinstance(structured.get("message"), str) and structured["message"]:
         return structured["message"]
-    text = " ".join(str(block.get("text", "")) for block in result.get("content") or []
-                    if isinstance(block, dict) and block.get("type") == "text")
+    text = " ".join(
+        str(block.get("text", ""))
+        for block in result.get("content") or []
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
     return text or "The game tools could not be prepared."
 
 
@@ -49,20 +53,33 @@ class ControlMixin:
             if self.install.get("state") == "running":
                 return dict(self.install)
             if not self.prepare_lock.acquire(blocking=False):
-                raise Denied("OPERATION_IN_PROGRESS",
-                             "Another setup operation is already running on this machine (probably in a chat). "
-                             "Wait for it to finish; this page moves on when the tools are verified.")
+                raise Denied(
+                    "OPERATION_IN_PROGRESS",
+                    "Another setup operation is already running on this machine (probably in a chat). "
+                    "Wait for it to finish; this page moves on when the tools are verified.",
+                )
             try:
-                self.install = {"state": "running", "started_at": time.time(), "finished_at": None, "error": None,
-                                "code": None, "seeded": None,
-                                "baseline_bytes": setup.directory_bytes(paths.setup_root())}
+                self.install = {
+                    "state": "running",
+                    "started_at": time.time(),
+                    "finished_at": None,
+                    "error": None,
+                    "code": None,
+                    "seeded": None,
+                    "baseline_bytes": setup.directory_bytes(paths.setup_root()),
+                }
                 snapshot = dict(self.install)
                 threading.Thread(target=self._run_install, name="hermretro-install", daemon=True).start()
             except BaseException as error:
                 # Never leave the setup lock held, or a "running" install nobody runs.
                 self.prepare_lock.release()
-                self.install = {"state": "failed", "started_at": None, "finished_at": time.time(),
-                                "code": "INSTALL_ERROR", "error": f"{type(error).__name__}: {error}"[:800]}
+                self.install = {
+                    "state": "failed",
+                    "started_at": None,
+                    "finished_at": time.time(),
+                    "code": "INSTALL_ERROR",
+                    "error": f"{type(error).__name__}: {error}"[:800],
+                }
                 raise
         self.trace(event="install_started")
         return snapshot
@@ -82,13 +99,15 @@ class ControlMixin:
                     # The copied cache is not a download: count only what arrives after it.
                     self.install["baseline_bytes"] = setup.directory_bytes(paths.setup_root())
             engine = self.new_engine("chromatic-studio-install")
-            self.install_engine = engine   # close_all stops it if the broker stops mid-install
+            self.install_engine = engine  # close_all stops it if the broker stops mid-install
             result = engine.call_tool("toolchain_prepare", {"components": ["build", "emulator"]}, timeout=1800)
             structured = result.get("structuredContent")
             structured = structured if isinstance(structured, dict) else {}
             if result.get("isError") or structured.get("success") is not True:
-                outcome.update(code=str(structured.get("stage") or "PREPARE_FAILED").upper(),
-                               error=_prepare_failure(result, structured)[:800])
+                outcome.update(
+                    code=str(structured.get("stage") or "PREPARE_FAILED").upper(),
+                    error=_prepare_failure(result, structured)[:800],
+                )
             else:
                 outcome = {"state": "done", "error": None, "code": None}
         except Denied as denial:
@@ -122,12 +141,26 @@ class ControlMixin:
             return {"ok": True, "install": self.install_status()}
         if op == "stats":
             with self.table_lock:
-                lanes = [{**self.lane_info(l), "alive": bool(l.engine and l.engine.alive()),
-                          "inflight": l.inflight, "child_leases": dict(l.child_leases)} for l in self.lanes.values()]
-                leases = {root: hashlib.sha256("\0".join(o).encode()).hexdigest()[:16]
-                          for root, o in self.writer_leases.items()}
-            return {"ok": True, "pid": os.getpid(), "broker_generation": self.generation,
-                    "lanes": lanes, "writer_leases": leases}
+                lanes = [
+                    {
+                        **self.lane_info(l),
+                        "alive": bool(l.engine and l.engine.alive()),
+                        "inflight": l.inflight,
+                        "child_leases": dict(l.child_leases),
+                    }
+                    for l in self.lanes.values()
+                ]
+                leases = {
+                    root: hashlib.sha256("\0".join(o).encode()).hexdigest()[:16]
+                    for root, o in self.writer_leases.items()
+                }
+            return {
+                "ok": True,
+                "pid": os.getpid(),
+                "broker_generation": self.generation,
+                "lanes": lanes,
+                "writer_leases": leases,
+            }
         if op == "shutdown":
             with self.table_lock:
                 busy = any(l.inflight or (l.engine and l.engine.alive()) for l in self.lanes.values())
@@ -150,14 +183,21 @@ class ControlMixin:
             lane, matched = self.view_lane(request.get("profile"), request.get("ids"))
             if lane is None:
                 return {"ok": True, "lane": None, "matched": None}
-            return {"ok": True, "matched": matched,
-                    "lane": {"project_root": lane.selected_root,
-                             "project_name": Path(lane.selected_root).name if lane.selected_root else None,
-                             "alive": bool(lane.engine and lane.engine.alive()),
-                             "busy": lane.inflight > 0, "current_tool": lane.current_tool,
-                             "preview_url": lane.preview_url},
-                    "events": list(lane.activity)[-int(request.get("limit") or 40):],
-                    "frame": lane.last_frame, "build": lane.last_build}
+            return {
+                "ok": True,
+                "matched": matched,
+                "lane": {
+                    "project_root": lane.selected_root,
+                    "project_name": Path(lane.selected_root).name if lane.selected_root else None,
+                    "alive": bool(lane.engine and lane.engine.alive()),
+                    "busy": lane.inflight > 0,
+                    "current_tool": lane.current_tool,
+                    "preview_url": lane.preview_url,
+                },
+                "events": list(lane.activity)[-int(request.get("limit") or 40) :],
+                "frame": lane.last_frame,
+                "build": lane.last_build,
+            }
         if op == "lane_status":
             # Read-only lookup for the desktop page: by conversation id, or by any runtime
             # session id that conversation has used. Never starts a worker.
@@ -165,8 +205,11 @@ class ControlMixin:
             lane = None
             with self.table_lock:
                 for candidate in self.lanes.values():
-                    if candidate.owner[0] == profile and session_id and (
-                            candidate.owner[1] == session_id or session_id in candidate.sessions_seen):
+                    if (
+                        candidate.owner[0] == profile
+                        and session_id
+                        and (candidate.owner[1] == session_id or session_id in candidate.sessions_seen)
+                    ):
                         lane = candidate
                         break
             if lane is None:
@@ -213,9 +256,14 @@ class ControlMixin:
         (and the project's recording lock, which blocks every other chat's emulator on that game)."""
         now = time.monotonic()
         with self.table_lock:
-            candidates = [l for l in self.lanes.values()
-                          if l.engine and l.engine.alive() and l.inflight == 0
-                          and now - l.last_used >= (self.lane_idle * 4 if l.live_surface else self.lane_idle)]
+            candidates = [
+                l
+                for l in self.lanes.values()
+                if l.engine
+                and l.engine.alive()
+                and l.inflight == 0
+                and now - l.last_used >= (self.lane_idle * 4 if l.live_surface else self.lane_idle)
+            ]
         for lane in candidates:
             try:
                 status = lane.engine.call_tool("session_status", {}, timeout=15)
@@ -225,14 +273,23 @@ class ControlMixin:
                 pass
             self.close_lane_if_idle(lane)
         with self.table_lock:
-            dead = [o for o, l in self.lanes.items() if (l.engine is None or not l.engine.alive())
-                    and l.inflight == 0 and now - l.last_used >= self.lane_idle * 4]
+            dead = [
+                o
+                for o, l in self.lanes.items()
+                if (l.engine is None or not l.engine.alive())
+                and l.inflight == 0
+                and now - l.last_used >= self.lane_idle * 4
+            ]
             for owner in dead:
                 self._release_root(self.lanes[owner])
                 del self.lanes[owner]
             any_live = any(l.engine and l.engine.alive() for l in self.lanes.values())
-        if not any_live and not self.install_running() and self.connections == 0 \
-                and now - self.last_activity >= self.broker_idle:
+        if (
+            not any_live
+            and not self.install_running()
+            and self.connections == 0
+            and now - self.last_activity >= self.broker_idle
+        ):
             self.trace(event="broker_idle_exit")
             self.stopping.set()
 
@@ -250,5 +307,5 @@ class ControlMixin:
         for lane in lanes:
             if lane.engine:
                 lane.engine.close()
-        if self.install_engine is not None:   # an install cut short by a stopping broker
+        if self.install_engine is not None:  # an install cut short by a stopping broker
             self.install_engine.close()

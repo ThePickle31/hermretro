@@ -5,6 +5,7 @@ Keeps the complete raw JSON-RPC result (`content[]`, `structuredContent`,
 Hermes imports: this module also runs inside the standalone broker process.
 One instance owns exactly one engine process.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,8 +24,21 @@ PROTOCOL_VERSION = "2024-11-05"
 
 # Variables the engine launcher needs. Everything else from the parent
 # environment (gateway credentials included) is deliberately not inherited.
-_PASSTHROUGH = ("PATH", "HOME", "LANG", "LC_ALL", "XDG_DATA_HOME", "XDG_CACHE_HOME",
-                "XDG_RUNTIME_DIR", "TMPDIR", "USER", "LOGNAME", "DISPLAY", "WAYLAND_DISPLAY", *host_os.NETWORK_ENV)
+_PASSTHROUGH = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_RUNTIME_DIR",
+    "TMPDIR",
+    "USER",
+    "LOGNAME",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    *host_os.NETWORK_ENV,
+)
 
 
 class EngineError(RuntimeError):
@@ -46,8 +60,13 @@ def sanitized_environment(extra: dict[str, str] | None = None) -> dict[str, str]
 class EngineProcess:
     """One private engine process speaking newline-delimited JSON-RPC."""
 
-    def __init__(self, engine_root: Path, node: str = "node", client_name: str = "chromatic-studio-dev",
-                 env: dict[str, str] | None = None):
+    def __init__(
+        self,
+        engine_root: Path,
+        node: str = "node",
+        client_name: str = "chromatic-studio-dev",
+        env: dict[str, str] | None = None,
+    ):
         self.engine_root = Path(engine_root).resolve(strict=True)
         launcher = self.engine_root / "scripts" / "start-mcp.mjs"
         if not launcher.is_file():
@@ -74,14 +93,27 @@ class EngineProcess:
             raise EngineError("Engine already started")
         self.started_monotonic = time.monotonic()
         self._proc = subprocess.Popen(
-            [self._node, str(self._launcher)], cwd=self.engine_root, env=self._env,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, bufsize=1, start_new_session=True)
+            [self._node, str(self._launcher)],
+            cwd=self.engine_root,
+            env=self._env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            start_new_session=True,
+        )
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._read_stderr, daemon=True).start()
-        init = self.request("initialize", {
-            "protocolVersion": PROTOCOL_VERSION, "capabilities": {},
-            "clientInfo": {"name": self._client_name, "version": "0"}}, timeout=timeout)
+        init = self.request(
+            "initialize",
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": self._client_name, "version": "0"},
+            },
+            timeout=timeout,
+        )
         self.notify("notifications/initialized")
         self.server_info = init.get("serverInfo")
         self.capabilities = init.get("capabilities")
@@ -154,8 +186,13 @@ class EngineProcess:
             elif "id" in message and "method" in message:
                 # Server -> client request. We advertise no client capabilities,
                 # so refuse explicitly instead of leaving the server waiting.
-                self._send({"jsonrpc": "2.0", "id": message["id"],
-                            "error": {"code": -32601, "message": "Client capability not supported"}})
+                self._send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": message["id"],
+                        "error": {"code": -32601, "message": "Client capability not supported"},
+                    }
+                )
             else:
                 self.notifications.append(message)
         with self._lock:

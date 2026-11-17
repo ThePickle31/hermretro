@@ -6,6 +6,7 @@ the broker and engine workers start lazily on the first tool call.
 Every backend feature declares what it adds (backend/<feature>/rpcs.py, tools.py, hooks.py, prompt.py; see
 backend/hermes/declare.py); this file registers them in the order of backend/features.py.
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,8 +49,13 @@ def register(ctx):
 
 def _register_agent(ctx, declared):
     for tool in declared.tools:
-        ctx.register_tool(name=tool.name, toolset=contracts.TOOLSET, schema=tool.schema,
-                          handler=tool.handler_for(ctx), emoji=tool.emoji)
+        ctx.register_tool(
+            name=tool.name,
+            toolset=contracts.TOOLSET,
+            schema=tool.schema,
+            handler=tool.handler_for(ctx),
+            emoji=tool.emoji,
+        )
     for name, path in declared.skills:
         ctx.register_skill(name, path)
     # Each hook once, at its first declaration's place; several features' callbacks are chained in order.

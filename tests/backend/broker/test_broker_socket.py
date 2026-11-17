@@ -3,6 +3,7 @@
 The safety net for refactoring backend/broker/: every answer here comes over the real Unix socket, from the
 handshake to a clean stop. The real engine's behaviour is the acceptance suite's job.
 """
+
 import json
 import os
 import shutil
@@ -32,8 +33,9 @@ class BrokerSocket(unittest.TestCase):
         cls.base = Path(tempfile.mkdtemp(prefix="hs-", dir="/tmp")).resolve()  # short: socket paths are capped
         cls.state = cls.base / "run"
         environment = {k: v for k, v in os.environ.items() if k != "INVOCATION_ID"}  # no systemd scope in tests
-        environment.update({"HERMRETRO_HOME": str(cls.base / "home"),
-                            "HERMRETRO_BROKER_IDLE_SECONDS": "20"})  # a leaked one exits soon
+        environment.update(
+            {"HERMRETRO_HOME": str(cls.base / "home"), "HERMRETRO_BROKER_IDLE_SECONDS": "20"}
+        )  # a leaked one exits soon
         try:
             with mock.patch.dict(os.environ, environment, clear=True):
                 cls.broker = client.ensure_broker(cls.state, wait=30)
@@ -89,8 +91,9 @@ class BrokerSocket(unittest.TestCase):
     def test_2_read_only_ops_answer_without_starting_a_worker(self):
         stats = self.ask({"op": "stats"})
         self.assertEqual((stats["ok"], stats["pid"], stats["lanes"]), (True, self.pid, []))
-        self.assertEqual(self.ask({"op": "lane_status", "profile": "socket-test", "session_id": "nope"}),
-                         {"ok": True, "lane": None})
+        self.assertEqual(
+            self.ask({"op": "lane_status", "profile": "socket-test", "session_id": "nope"}), {"ok": True, "lane": None}
+        )
         activity = self.ask({"op": "activity", "profile": "socket-test", "ids": ["nope"]})
         self.assertEqual((activity["ok"], activity["lane"]), (True, None))
         install = self.ask({"op": "install_status"})
@@ -101,8 +104,11 @@ class BrokerSocket(unittest.TestCase):
     def test_3_identity_and_lanes_are_enforced(self):
         for owner in (None, {"profile": "socket-test", "conversation_id": ""}, {"conversation_id": "conv-1"}):
             answer = self.ask({"op": "call", "owner": owner, "tool": "session_status", "arguments": {}})
-            self.assertEqual((answer["ok"], answer["dispatched"], answer["denied"]["code"]),
-                             (False, False, "IDENTITY_REQUIRED"), owner)
+            self.assertEqual(
+                (answer["ok"], answer["dispatched"], answer["denied"]["code"]),
+                (False, False, "IDENTITY_REQUIRED"),
+                owner,
+            )
         for op in ("grant_lease", "release_project", "close_lane", "no_such_op"):
             answer = self.ask({"op": op, "owner": OWNER, "task_id": "t1"})
             self.assertEqual(answer["denied"]["code"], "NO_LANE", op)
@@ -112,8 +118,9 @@ class BrokerSocket(unittest.TestCase):
         self.ask({"op": "call", "owner": None, "tool": "session_status", "arguments": {}})
         events = [json.loads(line) for line in (self.state / "trace.jsonl").read_text().splitlines()]
         self.assertIn("broker_started", [event.get("event") for event in events])
-        self.assertTrue(any(event.get("event") == "denied" and event.get("code") == "IDENTITY_REQUIRED"
-                            for event in events))
+        self.assertTrue(
+            any(event.get("event") == "denied" and event.get("code") == "IDENTITY_REQUIRED" for event in events)
+        )
 
     def test_5_an_idle_broker_stops_cleanly_when_asked(self):
         self.assertEqual(self.ask({"op": "shutdown"}), {"ok": True})

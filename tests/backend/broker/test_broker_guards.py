@@ -1,4 +1,5 @@
 """Races and failure paths an independent review found: each test fails on the code before the fix."""
+
 import json
 import sys
 import threading
@@ -25,7 +26,7 @@ class FakeEngine:
 
 
 def bare_broker():
-    broker = Broker.__new__(Broker)       # no sockets, no engine: only the coordination state
+    broker = Broker.__new__(Broker)  # no sockets, no engine: only the coordination state
     broker.lanes, broker.writer_leases = {}, {}
     broker.table_lock = threading.RLock()
     broker.writer_handoff_idle, broker.lane_idle = 45, 1800
@@ -46,10 +47,10 @@ class WriterLease(unittest.TestCase):
         broker = bare_broker()
         a, b = lane(broker, "a"), lane(broker, "b")
         broker.acquire_writer(a)
-        a.last_write = time.monotonic() - 600          # quiet for ten minutes, nothing in flight
-        broker.acquire_writer(a)                       # A begins a write; the in-flight count is not raised yet
+        a.last_write = time.monotonic() - 600  # quiet for ten minutes, nothing in flight
+        broker.acquire_writer(a)  # A begins a write; the in-flight count is not raised yet
         with self.assertRaises(Denied) as refused:
-            broker.acquire_writer(b)                   # B arrives in that gap
+            broker.acquire_writer(b)  # B arrives in that gap
         self.assertEqual(refused.exception.code, "PROJECT_WRITER_BUSY")
         self.assertEqual(broker.writer_leases["/games/one"], a.owner)
 
@@ -61,7 +62,7 @@ class WriterLease(unittest.TestCase):
         broker.acquire_writer(b)
         self.assertEqual(broker.writer_leases["/games/one"], b.owner)
         with self.assertRaises(Denied):
-            broker.acquire_writer(a)                   # and B is now protected the same way
+            broker.acquire_writer(a)  # and B is now protected the same way
 
 
 class IdleClose(unittest.TestCase):
@@ -78,7 +79,7 @@ class IdleClose(unittest.TestCase):
         broker = bare_broker()
         a = lane(broker, "a")
         a.engine, a.last_used = FakeEngine(), time.monotonic() - 3600
-        a.last_used = time.monotonic()                 # what a call does before it fetches the engine
+        a.last_used = time.monotonic()  # what a call does before it fetches the engine
         self.assertFalse(broker.close_lane_if_idle(a))
         self.assertFalse(a.engine.closed)
 
@@ -112,18 +113,19 @@ class Selection(unittest.TestCase):
         self.assertEqual(a.selected_root, "/games/two")
         self.assertEqual(broker.writer_leases["/games/two"], a.owner)
 
-
     def test_creating_a_project_without_selecting_it_does_not_change_the_selection(self):
         from backend.broker.broker import selects_project
+
         self.assertTrue(selects_project("project_select", {"projectPath": "/games/two"}))
         self.assertTrue(selects_project("project_create_blank", {"select": True}))
-        self.assertFalse(selects_project("project_create", {}))             # select defaults to false
+        self.assertFalse(selects_project("project_create", {}))  # select defaults to false
         self.assertFalse(selects_project("project_create_blank", {"select": False}))
         self.assertFalse(selects_project("rom_build", {"select": True}))
 
 
 class ScriptedEngine:
     """Answers web_preview / web_preview_close from a script, and records what was called."""
+
     def __init__(self, *answers):
         self.answers, self.calls = list(answers), []
 
@@ -136,7 +138,10 @@ def opened(url):
     return {"content": [], "structuredContent": {"success": True, "url": url}}
 
 
-FAILED = {"content": [], "structuredContent": {"success": False, "error": "Browser recording close acknowledgement is UNKNOWN."}}
+FAILED = {
+    "content": [],
+    "structuredContent": {"success": False, "error": "Browser recording close acknowledgement is UNKNOWN."},
+}
 CLOSED = {"content": [], "structuredContent": {"success": True}}
 
 
@@ -181,14 +186,20 @@ class LivePlayer(unittest.TestCase):
 
     def build_result(self, player):
         from backend.hermes import results
+
         response = {"ok": True, "result": {"content": [], "structuredContent": {"success": True}}, "player": player}
         return json.loads(results.encode(response, "chromatic_rom_build", None, False))
 
     def test_the_agent_is_told_when_the_player_is_out_of_date(self):
         payload = self.build_result({"ready": False, "error": "close acknowledgement is UNKNOWN", "stale": True})
         self.assertEqual(payload["player"]["showsThisBuild"], False)
-        for phrase in ("could NOT be updated", "Do not claim the new build is in a player",
-                       "Install on Chromatic", "chromatic_web_preview_close", "chromatic_present_game"):
+        for phrase in (
+            "could NOT be updated",
+            "Do not claim the new build is in a player",
+            "Install on Chromatic",
+            "chromatic_web_preview_close",
+            "chromatic_present_game",
+        ):
             self.assertIn(phrase, payload["nextStep"])
 
     def test_a_moved_engine_preview_changes_nothing_for_the_agent(self):
@@ -204,8 +215,10 @@ class Delivery(unittest.TestCase):
     RESPONSE = {"ok": True, "result": {"content": [], "structuredContent": {"success": True}}}
 
     def deliver(self, encode):
-        with mock.patch.object(hermes_host, "_data_dir", return_value=Path("/nonexistent")), \
-                mock.patch.object(hermes_host, "_attach_images", return_value=False):
+        with (
+            mock.patch.object(hermes_host, "_data_dir", return_value=Path("/nonexistent")),
+            mock.patch.object(hermes_host, "_attach_images", return_value=False),
+        ):
             return json.loads(hermes_host._deliver(self.RESPONSE, "chromatic_rom_build", encode=encode))
 
     def test_a_result_whose_images_cannot_be_saved_is_still_delivered(self):
@@ -213,6 +226,7 @@ class Delivery(unittest.TestCase):
             if image_dir is not None:
                 raise OSError(28, "No space left on device")
             return json.dumps({"success": True})
+
         payload = self.deliver(encode)
         self.assertEqual(payload["success"], True)
         self.assertIn("The tool ran", payload["deliveryProblem"])
@@ -220,14 +234,18 @@ class Delivery(unittest.TestCase):
     def test_a_call_that_never_ran_is_not_reported_as_run(self):
         def encode(response, name, image_dir, attach):
             raise ValueError("broken")
-        with mock.patch.object(hermes_host, "_data_dir", return_value=Path("/nonexistent")), \
-                mock.patch.object(hermes_host, "_attach_images", return_value=False):
+
+        with (
+            mock.patch.object(hermes_host, "_data_dir", return_value=Path("/nonexistent")),
+            mock.patch.object(hermes_host, "_attach_images", return_value=False),
+        ):
             denied = json.loads(hermes_host._deliver({"denied": {"code": "X", "message": "no"}}, "t", encode=encode))
         self.assertEqual(denied["dispatched"], False)
 
     def test_if_nothing_can_be_delivered_the_model_still_learns_the_tool_ran(self):
         def encode(response, name, image_dir, attach):
             raise ValueError("broken")
+
         payload = self.deliver(encode)
         self.assertEqual((payload["code"], payload["dispatched"]), ("RESULT_NOT_DELIVERED", True))
         self.assertIn("do not simply repeat it", payload["guidance"])

@@ -1,4 +1,5 @@
 """The desktop page's own toolchain install: download list, progress, and the broker's install op."""
+
 import json
 import re
 import sys
@@ -63,11 +64,22 @@ class Progress(unittest.TestCase):
     def test_running_component_progress_comes_from_bytes_on_disk(self):
         started = time.time()
         state = {"state": "running", "started_at": started, "baseline_bytes": 0}
-        sizes = {name: sum(i["bytes"] for i in onboarding.MANIFEST if i["component"] == name) for name in onboarding.COMPONENTS}
-        write_run(self.root, [
-            {"id": "gbdk", "status": "prepared", "version": "4.5.0",
-             "provenance": {"archive": "gbdk-linux64.tar.gz", "sha256": "d7857a5f" * 8, "cacheReused": False}},
-            {"id": "cli", "status": "installing"}])
+        sizes = {
+            name: sum(i["bytes"] for i in onboarding.MANIFEST if i["component"] == name)
+            for name in onboarding.COMPONENTS
+        }
+        write_run(
+            self.root,
+            [
+                {
+                    "id": "gbdk",
+                    "status": "prepared",
+                    "version": "4.5.0",
+                    "provenance": {"archive": "gbdk-linux64.tar.gz", "sha256": "d7857a5f" * 8, "cacheReused": False},
+                },
+                {"id": "cli", "status": "installing"},
+            ],
+        )
         (self.root / "downloads" / "blob").write_bytes(b"\0" * (sizes["gbdk"] + 1000))
         answer = onboarding.progress(state, self.root)
         components = answer["run"]["components"]
@@ -81,15 +93,25 @@ class Progress(unittest.TestCase):
 
     def test_failed_component_carries_its_error_and_done_is_whole(self):
         state = {"state": "failed", "started_at": time.time(), "baseline_bytes": 0}
-        write_run(self.root, [{"id": "gbdk", "status": "failed", "error": {"message": "ENOTFOUND github.com"}}], "incomplete")
+        write_run(
+            self.root, [{"id": "gbdk", "status": "failed", "error": {"message": "ENOTFOUND github.com"}}], "incomplete"
+        )
         answer = onboarding.progress(state, self.root)
         self.assertEqual(answer["run"]["components"]["gbdk"]["error"], "ENOTFOUND github.com")
         self.assertEqual(onboarding.progress({"state": "done", "started_at": time.time()}, self.root)["fraction"], 1.0)
 
     def test_python_checks_name_the_interpreter_and_pinned_packages(self):
-        checks = onboarding._checks({"id": "emulator", "provenance": {
-            "pythonVersion": "3.13.12", "pythonExecutableSha256": "a" * 64, "requirementsSha256": "b" * 64,
-            "resolvedPackages": [{"name": "pyboy"}, {"name": "pillow"}, {"name": "numpy"}]}})
+        checks = onboarding._checks(
+            {
+                "id": "emulator",
+                "provenance": {
+                    "pythonVersion": "3.13.12",
+                    "pythonExecutableSha256": "a" * 64,
+                    "requirementsSha256": "b" * 64,
+                    "resolvedPackages": [{"name": "pyboy"}, {"name": "pillow"}, {"name": "numpy"}],
+                },
+            }
+        )
         self.assertEqual([check["file"] for check in checks], ["python 3.13.12", "3 pinned PyPI packages"])
 
 
@@ -122,8 +144,10 @@ def bare_broker(engine):
 class BrokerInstall(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "toolchain"
-        patches = [mock.patch.object(broker_module.paths, "setup_root", return_value=self.root),
-                   mock.patch.object(broker_module.setup, "seed_toolchain_cache", return_value={"seeded": False})]
+        patches = [
+            mock.patch.object(broker_module.paths, "setup_root", return_value=self.root),
+            mock.patch.object(broker_module.setup, "seed_toolchain_cache", return_value={"seeded": False}),
+        ]
         for item in patches:
             item.start()
             self.addCleanup(item.stop)
@@ -150,9 +174,25 @@ class BrokerInstall(unittest.TestCase):
         self.assertFalse(broker.prepare_lock.locked(), "the setup lock is released")
 
     def test_a_failed_prepare_reports_the_component_error(self):
-        engine = FakeEngine({"isError": False, "structuredContent": {"success": False, "stage": "incomplete", "result": {
-            "components": [{"id": "gbdk", "status": "prepared"},
-                           {"id": "cli", "status": "failed", "error": {"message": "yarn: ENOTFOUND registry.npmjs.org"}}]}}})
+        engine = FakeEngine(
+            {
+                "isError": False,
+                "structuredContent": {
+                    "success": False,
+                    "stage": "incomplete",
+                    "result": {
+                        "components": [
+                            {"id": "gbdk", "status": "prepared"},
+                            {
+                                "id": "cli",
+                                "status": "failed",
+                                "error": {"message": "yarn: ENOTFOUND registry.npmjs.org"},
+                            },
+                        ]
+                    },
+                },
+            }
+        )
         broker = bare_broker(engine)
         broker.start_install()
         self.wait_finished(broker)

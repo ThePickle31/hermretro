@@ -9,6 +9,7 @@ response allows any origin; the random path token is what keeps other pages out.
 
 Stdlib only and no Hermes imports. One server per gateway process, started on first use.
 """
+
 from __future__ import annotations
 
 import email.parser
@@ -33,18 +34,31 @@ logger = logging.getLogger(__name__)
 
 ANNOTATION_MOUNT = "codex-annotations"
 CAPTURE_NAMESPACE = uuid.UUID("5d0c7f39-3b8e-4f4f-9a43-2f6c3c7d1a11")
-MAX_CAPTURE_BYTES = 132 * 1024 * 1024        # the engine's 128 MiB video limit plus form overhead
+MAX_CAPTURE_BYTES = 132 * 1024 * 1024  # the engine's 128 MiB video limit plus form overhead
 MAX_JSON_BYTES = 64 * 1024
 MEDIA_EXTENSIONS = {".png": "image/png", ".webm": "video/webm", ".mp4": "video/mp4"}
 MIME = {
-    ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-    ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-    ".json": "application/json; charset=utf-8", ".wasm": "application/wasm",
-    ".gb": "application/octet-stream", ".gbc": "application/octet-stream",
-    ".png": "image/png", ".webp": "image/webp", ".map": "application/json; charset=utf-8",
-    ".webm": "video/webm", ".mp4": "video/mp4", ".svg": "image/svg+xml", ".ico": "image/x-icon",
-    ".ttf": "font/ttf", ".woff": "font/woff", ".woff2": "font/woff2", ".mp3": "audio/mpeg",
-    ".ogg": "audio/ogg", ".wav": "audio/wav",
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".wasm": "application/wasm",
+    ".gb": "application/octet-stream",
+    ".gbc": "application/octet-stream",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".map": "application/json; charset=utf-8",
+    ".webm": "video/webm",
+    ".mp4": "video/mp4",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".ttf": "font/ttf",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".mp3": "audio/mpeg",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
 }
 HERMES_COLORS = (
     '    { id: "hermes-midnight", name: "Hermes Edition · Midnight", background: "#15171c", ink: "#e6edf3" },\n'
@@ -66,6 +80,7 @@ DEMO_ROM_PATH = "rom/hello-color.gbc"
 
 # -- where the engine's player files are ---------------------------------------------
 
+
 def annotations_dir() -> Path:
     for root in (paths.PREPARED_ENGINE, paths.ENGINE_ROOT):
         candidate = root / "dist" / "web-annotations"
@@ -75,8 +90,11 @@ def annotations_dir() -> Path:
 
 
 def device_dirs() -> list[Path]:
-    return [paths.PLUGIN_ROOT / "player" / "devices", paths.PREPARED_ENGINE / "assets" / "devices",
-            paths.ENGINE_ROOT / "assets" / "devices"]
+    return [
+        paths.PLUGIN_ROOT / "player" / "devices",
+        paths.PREPARED_ENGINE / "assets" / "devices",
+        paths.ENGINE_ROOT / "assets" / "devices",
+    ]
 
 
 _view_cache: dict[tuple, bytes] = {}
@@ -113,8 +131,12 @@ def frame_shim() -> str:
     info = source.stat()
     key = (info.st_size, info.st_mtime_ns)
     if key not in _shim_cache:
-        text = source.read_text(encoding="utf-8").replace("__DEFAULT_COLOR__", DEFAULT_COLOR) \
-            .replace("__COLOR_KEY__", COLOR_KEY).replace("</script", "<\\/script")
+        text = (
+            source.read_text(encoding="utf-8")
+            .replace("__DEFAULT_COLOR__", DEFAULT_COLOR)
+            .replace("__COLOR_KEY__", COLOR_KEY)
+            .replace("</script", "<\\/script")
+        )
         _shim_cache.clear()
         _shim_cache[key] = text
     return _shim_cache[key]
@@ -125,7 +147,9 @@ def engine_bootstrap(runtime_sha256: str) -> str:
     its verified wasm bytes, the runtime hash and the input owner before ``script.js`` starts it."""
     runtime_name = f"binjgb-{runtime_sha256}.wasm"
     return (
-        "<script>(function(){const expected=" + json.dumps(runtime_sha256) + ";const factory=Binjgb;const bytes=fetch("
+        "<script>(function(){const expected="
+        + json.dumps(runtime_sha256)
+        + ";const factory=Binjgb;const bytes=fetch("
         + json.dumps(f"./{ANNOTATION_MOUNT}/{runtime_name}")
         + ").then(async response=>{if(!response.ok)throw new Error(\"The game runtime is unavailable.\");const bytes=new "
         "Uint8Array(await response.arrayBuffer());const hash=Array.from(new Uint8Array(await crypto.subtle.digest(\"SHA-256\","
@@ -133,7 +157,8 @@ def engine_bootstrap(runtime_sha256: str) -> str:
         "changed.\");return bytes;});Binjgb=options=>Promise.all([bytes,import("
         + json.dumps(f"./{ANNOTATION_MOUNT}/input-owner.js")
         + ")]).then(([wasmBinary,input])=>factory({...options,wasmBinary}).then(module=>{module.codexRuntimeSha256=expected;"
-        "input.installInputOwner(module);return module;}));})();</script>\n")
+        "input.installInputOwner(module);return module;}));})();</script>\n"
+    )
 
 
 def demo_web_dir() -> Path:
@@ -159,7 +184,7 @@ def is_demo(identifier) -> bool:
 
 
 def _script_json(value) -> str:
-    return (json.dumps(value).replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+    return json.dumps(value).replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 class PlayerError(Exception):
@@ -183,8 +208,14 @@ def game_build(root: Path) -> dict:
     revision = record.get("sourceRevision") if isinstance(record.get("sourceRevision"), str) else None
     if not revision or not (0 < len(revision) <= 1024):
         revision = "hermes-" + rom_sha[:16]
-    return {"web": web, "rom": rom, "romPath": rom_path, "romSha256": rom_sha, "runtimeSha256": runtime_sha,
-            "sourceRevision": revision}
+    return {
+        "web": web,
+        "rom": rom,
+        "romPath": rom_path,
+        "romSha256": rom_sha,
+        "runtimeSha256": runtime_sha,
+        "sourceRevision": revision,
+    }
 
 
 def demo_build() -> dict:
@@ -196,9 +227,14 @@ def demo_build() -> dict:
     if rom is None:
         raise PlayerError("The demo ROM (the engine's hello-color example) is missing.")
     rom_sha = library.file_sha256(rom)
-    return {"web": web, "rom": rom, "romPath": DEMO_ROM_PATH, "romSha256": rom_sha,
-            "runtimeSha256": library.file_sha256(web / "js" / "binjgb.wasm"),
-            "sourceRevision": "hermes-demo-" + rom_sha[:16]}
+    return {
+        "web": web,
+        "rom": rom,
+        "romPath": DEMO_ROM_PATH,
+        "romSha256": rom_sha,
+        "runtimeSha256": library.file_sha256(web / "js" / "binjgb.wasm"),
+        "sourceRevision": "hermes-demo-" + rom_sha[:16],
+    }
 
 
 def build_for(identifier: str, root: Path) -> dict:
@@ -210,21 +246,32 @@ def frame_document(root: Path, build: dict, capture_generation: str) -> bytes:
     html = (build["web"] / "index.html").read_text(encoding="utf-8")
     shim = "<script>" + frame_shim() + "</script>\n"
     head = re.search(r"<head\b[^>]*>", html, re.I)
-    html = html[:head.end()] + "\n" + shim + html[head.end():] if head else shim + html
+    html = html[: head.end()] + "\n" + shim + html[head.end() :] if head else shim + html
     player = re.search(r"<script\b[^>]*\bsrc=([\"'])(?:\./)?js/script\.js\1[^>]*>\s*</script>", html, re.I)
     if not player:
         raise PlayerError("This web build does not use the official GB Studio browser player.")
-    html = html[:player.start()] + engine_bootstrap(build["runtimeSha256"]) + html[player.start():]
-    context = {"romSha256": build["romSha256"], "romPath": build["romPath"], "sourceRevision": build["sourceRevision"],
-               "runtimeSha256": build["runtimeSha256"], "captures": {"generation": capture_generation}}
-    injection = ("\n<script type=\"application/json\" id=\"codex-web-annotations-context\">" + _script_json(context)
-                 + "</script>\n<script type=\"module\" src=\"./" + ANNOTATION_MOUNT + "/bridge.js\"></script>\n")
+    html = html[: player.start()] + engine_bootstrap(build["runtimeSha256"]) + html[player.start() :]
+    context = {
+        "romSha256": build["romSha256"],
+        "romPath": build["romPath"],
+        "sourceRevision": build["sourceRevision"],
+        "runtimeSha256": build["runtimeSha256"],
+        "captures": {"generation": capture_generation},
+    }
+    injection = (
+        "\n<script type=\"application/json\" id=\"codex-web-annotations-context\">"
+        + _script_json(context)
+        + "</script>\n<script type=\"module\" src=\"./"
+        + ANNOTATION_MOUNT
+        + "/bridge.js\"></script>\n"
+    )
     closing = [m.start() for m in re.finditer(r"</body\s*>", html, re.I)]
     at = closing[-1] if closing else len(html)
     return (html[:at] + injection + html[at:]).encode("utf-8")
 
 
 # -- captures ----------------------------------------------------------------------------
+
 
 def captures_dir(root: Path, identifier: str | None = None) -> Path:
     return root / "captures" / DEMO_ID if is_demo(identifier) else root / "captures"
@@ -249,8 +296,9 @@ def _free_name(directory: Path, stem: str, extension: str) -> Path:
     return candidate
 
 
-def save_capture(root: Path, identifier: str, kind: str, media: bytes, media_type: str, metadata,
-                 extra: dict | None = None) -> dict:
+def save_capture(
+    root: Path, identifier: str, kind: str, media: bytes, media_type: str, metadata, extra: dict | None = None
+) -> dict:
     """Write ``<project>/captures/<iso>-<kind>.<ext>`` and its ``.json`` sidecar; return the receipt the
     player checks (``id``, ``kind``, ``bytes``, ``path``, ``metadataPath``, ``sha256``, ``createdAt``, urls)."""
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,31}", kind or ""):
@@ -274,15 +322,34 @@ def save_capture(root: Path, identifier: str, kind: str, media: bytes, media_typ
     identifier_value = capture_id(identifier, target.name)
     created_at = created.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     sidecar = target.with_name(target.name + ".json")
-    sidecar.write_text(json.dumps({
-        "id": identifier_value, "kind": kind, "media": target.name, "mimeType": MEDIA_EXTENSIONS["." + extension],
-        "bytes": len(media), "sha256": sha, "createdAt": created_at, "game": identifier,
-        **(extra or {}), "metadata": metadata,
-    }, indent=1))
-    return {"id": identifier_value, "kind": kind, "bytes": len(media), "path": str(target),
-            "metadataPath": str(sidecar), "sha256": sha, "createdAt": created_at,
-            "url": f"./codex-captures/{identifier_value}/media",
-            "metadataUrl": f"./codex-captures/{identifier_value}/metadata"}
+    sidecar.write_text(
+        json.dumps(
+            {
+                "id": identifier_value,
+                "kind": kind,
+                "media": target.name,
+                "mimeType": MEDIA_EXTENSIONS["." + extension],
+                "bytes": len(media),
+                "sha256": sha,
+                "createdAt": created_at,
+                "game": identifier,
+                **(extra or {}),
+                "metadata": metadata,
+            },
+            indent=1,
+        )
+    )
+    return {
+        "id": identifier_value,
+        "kind": kind,
+        "bytes": len(media),
+        "path": str(target),
+        "metadataPath": str(sidecar),
+        "sha256": sha,
+        "createdAt": created_at,
+        "url": f"./codex-captures/{identifier_value}/media",
+        "metadataUrl": f"./codex-captures/{identifier_value}/metadata",
+    }
 
 
 def list_captures(root: Path, identifier: str) -> list[dict]:
@@ -297,12 +364,27 @@ def list_captures(root: Path, identifier: str) -> list[dict]:
         if path.suffix.lower() not in MEDIA_EXTENSIONS or path.name.startswith(".") or not path.is_file():
             continue
         sidecar = library.read_json(path.with_name(path.name + ".json"))  # noqa: SLF001
-        kind = sidecar.get("kind") if isinstance(sidecar.get("kind"), str) else \
-            ("screenshot" if path.suffix.lower() == ".png" else "video")
-        created = sidecar.get("createdAt") if isinstance(sidecar.get("createdAt"), str) else \
-            datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        found.append({"id": capture_id(identifier, path.name), "path": str(path), "kind": kind, "createdAt": created,
-                      "file": path.name})
+        kind = (
+            sidecar.get("kind")
+            if isinstance(sidecar.get("kind"), str)
+            else ("screenshot" if path.suffix.lower() == ".png" else "video")
+        )
+        created = (
+            sidecar.get("createdAt")
+            if isinstance(sidecar.get("createdAt"), str)
+            else datetime.fromtimestamp(path.stat().st_mtime, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+        found.append(
+            {
+                "id": capture_id(identifier, path.name),
+                "path": str(path),
+                "kind": kind,
+                "createdAt": created,
+                "file": path.name,
+            }
+        )
     found.sort(key=lambda c: c["createdAt"], reverse=True)
     return found
 
@@ -323,7 +405,8 @@ def parse_multipart(content_type: str, body: bytes) -> dict:
     if not content_type.lower().startswith("multipart/form-data"):
         raise PlayerError("Expected a multipart form.")
     message = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
-        b"Content-Type: " + content_type.encode("latin-1") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
+        b"Content-Type: " + content_type.encode("latin-1") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
+    )
     if not message.is_multipart():
         raise PlayerError("Expected a multipart form.")
     fields = {}
@@ -336,6 +419,7 @@ def parse_multipart(content_type: str, body: bytes) -> dict:
 
 
 # -- the server ---------------------------------------------------------------------------
+
 
 class PlayerServer:
     def __init__(self, resolve):
@@ -430,8 +514,14 @@ class _Handler(BaseHTTPRequestHandler):
             data = path.read_bytes()
         except OSError:
             return self._text(404, "Not found.")
-        self._send(200, data, content_type or MIME.get(path.suffix.lower())
-                   or mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+        self._send(
+            200,
+            data,
+            content_type
+            or MIME.get(path.suffix.lower())
+            or mimetypes.guess_type(path.name)[0]
+            or "application/octet-stream",
+        )
 
     # -- routing -----------------------------------------------------------------
     def _route(self):
@@ -482,10 +572,11 @@ class _Handler(BaseHTTPRequestHandler):
             player, identifier, root, rel = routed
             if rel in ("", "index.html"):
                 build = build_for(identifier, root)
-                return self._send(200, frame_document(root, build, player.issue_generation(identifier)),
-                                  "text/html; charset=utf-8")
+                return self._send(
+                    200, frame_document(root, build, player.issue_generation(identifier)), "text/html; charset=utf-8"
+                )
             if rel.startswith(ANNOTATION_MOUNT + "/"):
-                return self._annotation(root, rel[len(ANNOTATION_MOUNT) + 1:], identifier)
+                return self._annotation(root, rel[len(ANNOTATION_MOUNT) + 1 :], identifier)
             if rel == "codex-states":
                 return self._json(200, {"states": []})
             if rel.startswith("codex-states/"):
@@ -523,8 +614,17 @@ class _Handler(BaseHTTPRequestHandler):
                 rom_sha = build_for(identifier, root)["romSha256"]
                 # Installing from inside the player stays off: the Studio's own Install button sends the
                 # flash request to chat, where Hermes's approval applies. Nothing is proxied to a device.
-                return self._json(200, {"generation": generation, "devices": [], "rom": {"sha256": rom_sha},
-                                        "available": False, "blocked": False, "detecting": False})
+                return self._json(
+                    200,
+                    {
+                        "generation": generation,
+                        "devices": [],
+                        "rom": {"sha256": rom_sha},
+                        "available": False,
+                        "blocked": False,
+                        "detecting": False,
+                    },
+                )
             return self._text(404, "Not available in hermretro.")
         except PlayerError as error:
             self._json(400, {"error": str(error)})
@@ -542,8 +642,11 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             web = library.web_dir(root).resolve()
         target = (web / rel).resolve()
-        if not target.is_relative_to(web) or any(part.startswith(".") for part in Path(rel).parts) \
-                or not target.is_file():
+        if (
+            not target.is_relative_to(web)
+            or any(part.startswith(".") for part in Path(rel).parts)
+            or not target.is_file()
+        ):
             return self._text(404, "Not found.")
         return self._file(target)
 
@@ -594,6 +697,13 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             metadata = None
         build = build_for(identifier, root)
-        receipt = save_capture(root, identifier, kind, media, media_type, metadata,
-                               {"romSha256": build["romSha256"], "sourceRevision": build["sourceRevision"]})
+        receipt = save_capture(
+            root,
+            identifier,
+            kind,
+            media,
+            media_type,
+            metadata,
+            {"romSha256": build["romSha256"], "sourceRevision": build["sourceRevision"]},
+        )
         return self._json(200, receipt)

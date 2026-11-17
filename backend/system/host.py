@@ -4,6 +4,7 @@ hermretro supports Linux and macOS, Apple Silicon and Intel, with no difference 
 call that exists on only one of them belongs here, with the other system's branch beside it.
 Windows is not supported: ``unsupported_reason`` says so before anything else loads.
 """
+
 from __future__ import annotations
 
 import platform
@@ -18,8 +19,19 @@ MACOS = sys.platform == "darwin"
 
 # Network settings a child process needs to download through a proxy or a company certificate authority (setup
 # downloads about 700 MB through Node). Passed on to the broker, the engine and setup scripts, both spellings.
-NETWORK_ENV = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy", "ALL_PROXY",
-               "all_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS")
+NETWORK_ENV = (
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "NO_PROXY",
+    "no_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "NODE_EXTRA_CA_CERTS",
+)
 
 # macOS <sys/un.h>: SOL_LOCAL, LOCAL_PEERCRED (struct xucred), LOCAL_PEERPID (pid_t). Python names none of them.
 _SOL_LOCAL = 0
@@ -34,8 +46,7 @@ def unsupported_reason() -> str | None:
     if LINUX or MACOS:
         return None
     name = "Windows" if sys.platform.startswith(("win", "cygwin", "msys")) else platform.system() or sys.platform
-    return (f"hermretro supports Linux and macOS; {name} is not supported. "
-            "Use hermretro on a Linux or macOS computer.")
+    return f"hermretro supports Linux and macOS; {name} is not supported. Use hermretro on a Linux or macOS computer."
 
 
 def peer_credentials(sock: socket.socket) -> tuple[int | None, int | None]:
@@ -43,8 +54,9 @@ def peer_credentials(sock: socket.socket) -> tuple[int | None, int | None]:
     Either is None when the system will not say; the broker then relies on its private run folder and token."""
     if LINUX:
         try:
-            pid, uid, _gid = struct.unpack("3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
-                                                                 struct.calcsize("3i")))
+            pid, uid, _gid = struct.unpack(
+                "3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+            )
             return pid, uid
         except OSError:
             return None, None
@@ -98,5 +110,9 @@ def system_name() -> str:
 
 def describe() -> dict:
     """For status reports: the system, the native architecture and whether Rosetta is in the way."""
-    return {"system": system_name(), "machine": native_arch(), "rosetta": rosetta(),
-            "supported": unsupported_reason() is None}
+    return {
+        "system": system_name(),
+        "machine": native_arch(),
+        "rosetta": rosetta(),
+        "supported": unsupported_reason() is None,
+    }

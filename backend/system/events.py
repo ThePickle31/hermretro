@@ -14,6 +14,7 @@ arguments. A listener that raises is logged and never breaks the emitter or the 
 feature's listeners.py is imported on the first emit. tests/repo/test_boundaries.py checks every emitted or
 listened name is declared exactly once. The broker process never emits (it does not load listeners).
 """
+
 from __future__ import annotations
 
 import importlib
@@ -27,14 +28,16 @@ logger = logging.getLogger(__name__)
 _listeners: dict[str, list[Callable]] = {}
 _loaded = False
 _load_lock = threading.Lock()
-_BACKEND = __package__.rpartition(".")[0]        # "backend", or "<plugin>.backend" inside Hermes
+_BACKEND = __package__.rpartition(".")[0]  # "backend", or "<plugin>.backend" inside Hermes
 
 
 def on(name: str):
     """Listen to the event ``name`` (declared in its owner's front door ``EVENTS``)."""
+
     def listen(function: Callable):
         _listeners.setdefault(name, []).append(function)
         return function
+
     return listen
 
 
