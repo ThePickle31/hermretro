@@ -34,8 +34,10 @@ def _manifest_version(manifest: Path) -> str:
 
 PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
-PINNED_TOOLS = PLUGIN_ROOT / "schemas" / "upstream" / ENGINE_VERSION / "tools.json"
-ENGINE_MANIFEST = PLUGIN_ROOT / "release" / "baseline" / f"engine-{ENGINE_VERSION}.manifest.json"
+# What this plugin pinned for the engine version it ships: its tool contracts and the hash of every engine file.
+ENGINE_PINS = PLUGIN_ROOT / "engine" / "pins" / ENGINE_VERSION
+PINNED_TOOLS = ENGINE_PINS / "tools.json"
+ENGINE_MANIFEST = ENGINE_PINS / "manifest.json"
 
 # Unix socket paths are capped at 104 bytes on macOS (108 on Linux); stay clear of both.
 SOCKET_PATH_LIMIT = 100

@@ -1,6 +1,6 @@
 """Install the game toolchain the way the hermretro page does (the broker's install), and wait for it.
 
-    python tools/prepare_toolchain.py          # into the hermretro home (HERMRETRO_HOME, else ~/.hermes/hermretro)
+    python tools/ci/prepare_toolchain.py          # into the hermretro home (HERMRETRO_HOME, else ~/.hermes/hermretro)
 
 For CI and fresh checkouts that need the toolchain for `python tools/check.py acceptance`. Downloads about
 700 MB the first time (pinned, every archive checked against its SHA-256); does nothing when it is already
@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from adapter import client, paths  # noqa: E402
 

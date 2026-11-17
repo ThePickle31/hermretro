@@ -4,8 +4,8 @@
 Records relative path, size, mode and SHA-256 for every file. It copies nothing:
 the manifest identifies the baseline without redistributing it.
 
-    python tools/baseline_manifest.py write  release/baseline/engine-1.0.34.manifest.json
-    python tools/baseline_manifest.py verify release/baseline/engine-1.0.34.manifest.json
+    python tools/engine/manifest.py write  engine/pins/1.0.34/manifest.json
+    python tools/engine/manifest.py verify engine/pins/1.0.34/manifest.json
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from chromatic_dev import dev_engine_root  # noqa: E402
+from engine_dev import dev_engine_root  # noqa: E402
 
 
 def scan(root: Path) -> list[dict]:

@@ -81,12 +81,12 @@ def check_unit(_args) -> str:
 
 def check_bundle(args) -> str:
     node = need("node")
-    result = run([node, "tools/bundle.mjs", "--check"] + (["--same-esbuild"] if args.strict else []))
+    result = run([node, "tools/bundle/bundle.mjs", "--check"] + (["--same-esbuild"] if args.strict else []))
     output = (result.stdout + result.stderr).strip()
     if "not found" in output and not args.strict and result.returncode:
         raise Skip(output.splitlines()[-1])
     if result.returncode:
-        raise AssertionError(tail(output) + "\nFIX: node tools/bundle.mjs, then commit desktop/plugin.js and "
+        raise AssertionError(tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js and "
                              "player/frame-shim.js with your sources (never edit them by hand)")
     return output.splitlines()[-1] if output else "ok"
 
@@ -96,11 +96,11 @@ def check_page(args) -> str:
     result = run([node, "--test", "tests/desktop/**/*test*.mjs"])
     output = result.stdout + result.stderr
     if "were not found" in output and result.returncode and not args.strict:
-        raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/dev --ignore-scripts)")
+        raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
     if result.returncode:
         raise AssertionError(tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
                              "tests/desktop/page-<name>.test.mjs, named in the failure above); after editing "
-                             "desktop-src/ run node tools/bundle.mjs first")
+                             "desktop-src/ run node tools/bundle/bundle.mjs first")
     counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
     return ", ".join(line[2:] for line in counts) or "ok"
 
@@ -153,7 +153,7 @@ def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from adapter import paths  # noqa: E402  (the adapter decides where setup put the toolchain)
     if not paths.setup_root().is_dir():
-        raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/prepare_toolchain.py (about a minute), "
+        raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
                    "or point HERMRETRO_DEPS_ROOT at a folder that has one")
     env = {**os.environ, "TMPDIR": short_tmp()}
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run

@@ -19,7 +19,7 @@
  * right of the chat (`host.openWorkspace`, driven by `tool.complete` gateway events; builds open
  * nothing); one game runs at a time, in whichever of the page and the tab opened it last.
  *
- * This folder is the source: one small module per feature, in one level of folders. tools/bundle.mjs
+ * This folder is the source: one small module per feature, in one level of folders. tools/bundle/bundle.mjs
  * bundles it into desktop/plugin.js, the plain ESM file the app loads; never edit that file.
  * UI is jsx()/jsxs() calls, and only sdk.js imports `@hermes/plugin-sdk`, `react` and
  * `react/jsx-runtime`. Runtime plugins are not scanned by the app's Tailwind build, so the page

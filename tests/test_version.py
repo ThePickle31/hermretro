@@ -13,7 +13,7 @@ from adapter import paths  # noqa: E402
 
 # Where the version may legitimately appear as text: the manifest itself, the vendored engine (its own
 # versions), lockfiles, generated bundles and the README's note about upgrading from older versions.
-ALLOWED = ("plugin.yaml", "engine/", "release/", "tools/dev/package-lock.json", "desktop/plugin.js",
+ALLOWED = ("plugin.yaml", "engine/", "release/", "tools/npm/package-lock.json", "desktop/plugin.js",
            "player/frame-shim.js")
 
 

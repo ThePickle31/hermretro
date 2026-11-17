@@ -9,7 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { staleReasons } from '../../../tools/bundle.mjs'
+import { staleReasons } from '../../../tools/bundle/bundle.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'chromatic-page-preview'))
@@ -21,7 +21,7 @@ const esbuild = require('esbuild')
 const stale = staleReasons()
 
 if (stale.length) {
-  console.error(`${stale.join('\n')}\nRun: node tools/bundle.mjs`)
+  console.error(`${stale.join('\n')}\nRun: node tools/bundle/bundle.mjs`)
   process.exit(1)
 }
 

@@ -130,18 +130,17 @@ class LockStep(unittest.TestCase):
     def test_the_engine_version_agrees_everywhere(self):
         version = paths.ENGINE_VERSION
         self.assertEqual(json.loads(read("engine/modretro-chromatic/package.json"))["version"], version)
-        self.assertEqual([p.name for p in (ROOT / "schemas" / "upstream").iterdir() if p.is_dir()], [version])
-        baseline = ROOT / "release" / "baseline"
-        self.assertEqual(sorted(p.name for p in baseline.glob("engine-*.manifest.json")), [f"engine-{version}.manifest.json"])
-        self.assertEqual(sorted(p.name for p in baseline.glob("schema-reconcile-*.json")), [f"schema-reconcile-{version}.json"])
-        self.assertEqual(json.loads(read(f"release/baseline/engine-{version}.manifest.json"))["package_version"], version)
+        pins = ROOT / "engine" / "pins"
+        self.assertEqual([p.name for p in pins.iterdir() if p.is_dir()], [version], "one pins folder, the engine's version")
+        self.assertEqual(sorted(p.name for p in (pins / version).iterdir()), ["manifest.json", "schema-reconcile.json", "tools.json"])
+        self.assertEqual(json.loads(read(f"engine/pins/{version}/manifest.json"))["package_version"], version)
         self.assertEqual(json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]["version"], version)
         for skill in ("authoring", "deployment", "pixel-art", "rom-debugging", "setup"):   # adapted from the engine's
             self.assertRegex(read(f"skills/{skill}/SKILL.md"), rf"(?m)^version: {re.escape(version)}$", skill)
         notices = read("THIRD_PARTY_NOTICES.md")
         self.assertIn(f"## ModRetro Chromatic Plugin engine {version}", notices)
         mentioned = {a or b for a, b in re.findall(
-            r"engine-([0-9]+\.[0-9]+\.[0-9]+)\.manifest|ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices)}
+            r"engine/pins/([0-9]+\.[0-9]+\.[0-9]+)/|ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices)}
         self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
 
 

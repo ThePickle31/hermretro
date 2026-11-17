@@ -1,7 +1,7 @@
 {
   "name": "hermretro-dev-tools",
   "private": true,
-  "description": "Tools for working on hermretro: building the page bundle and running the page tests. Never needed to use the plugin. Install with: npm ci --prefix tools/dev --ignore-scripts",
+  "description": "Tools for working on hermretro: building the page bundle and running the page tests. Never needed to use the plugin. Install with: npm ci --prefix tools/npm --ignore-scripts",
   "license": "MIT",
   "devDependencies": {
     "esbuild": "0.28.2",

@@ -1,6 +1,6 @@
 """Build an isolated Hermes runtime from a hermes-agent checkout (CI only; run with Hermes's prepared Python).
 
-    "$HERMES_PYTHON" tools/hermes_runtime.py <hermes-agent checkout>
+    "$HERMES_PYTHON" tools/ci/hermes_runtime.py <hermes-agent checkout>
 
 Uses Hermes's own package manager (`pm.build_environment`), the same way Hermes's plugin-validate action does,
 and exports `HERMES_RUNTIME_PY` (the Python that runs that Hermes: `"$HERMES_RUNTIME_PY" -I -m hermes_cli.main`)

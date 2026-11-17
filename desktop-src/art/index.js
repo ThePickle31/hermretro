@@ -1,4 +1,4 @@
-// The page's artwork; tools/bundle.mjs turns each PNG import into a data URL. Most images are 1-bit
+// The page's artwork; tools/bundle/bundle.mjs turns each PNG import into a data URL. Most images are 1-bit
 // PNGs drawn through a CSS mask in the theme's accent colour, so each skin recolours them (the Hermes
 // bust, the flying Chromatic's body and wing). The cartridge is the one full-colour image: the Games
 // shelf shows it as a normal background.

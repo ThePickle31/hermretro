@@ -1,7 +1,7 @@
 """Check that a Hermes still has every name hermretro uses from it (adapter/hermes_api.py).
 
-    "$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py      # in CI, with Hermes's own Python
-    python tools/hermes_api_check.py                       # locally, with a Python that can import Hermes
+    "$HERMES_RUNTIME_PY" -I tools/ci/hermes_api_check.py      # in CI, with Hermes's own Python
+    python tools/ci/hermes_api_check.py                       # locally, with a Python that can import Hermes
 
 Run by CI against the oldest supported Hermes and nightly against the newest, so a rename in Hermes is caught
 before users update.
@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from adapter import hermes_api  # noqa: E402
 

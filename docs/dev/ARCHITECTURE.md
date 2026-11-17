@@ -25,7 +25,7 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
 | `adapter/host_tools.py` | The plugin-owned tools: `chromatic_studio_device_cli`, `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` |
 | `adapter/host_games.py` | Games, Build and Emulator page RPCs (library, game ↔ conversation binding, build history, player, captures), the Build conversation's context, the build snapshot hook |
 | `adapter/host_assets.py` | Game images for the Build page (`asset`, `asset_info`, `asset_restore`, `assets`) and the kept versions of each image |
-| `adapter/contracts.py` | The engine's pinned tool contracts (`schemas/upstream/<v>/tools.json`) turned into Hermes schemas (`chromatic_*`) |
+| `adapter/contracts.py` | The engine's pinned tool contracts (`engine/pins/<v>/tools.json`) turned into Hermes schemas (`chromatic_*`) |
 | `adapter/results.py` | A broker answer turned into a Hermes tool result without losing what the engine said (images saved, content-addressed) |
 | `adapter/client.py` | Finds or starts the broker; refuses a stale one (code fingerprint) |
 | `adapter/broker.py` | The single authority on the machine: the `Broker`, identity, admission and the `call` op (the hardware gate, the setup lock); `python -m adapter.broker` |
@@ -52,7 +52,7 @@ changes and it is idle (the fingerprint covers every adapter file and `plugin.ya
 ## The page half
 
 `desktop-src/` is the source, one folder per feature (rules in `STUDIO-PAGES.md`, "The page's source");
-`tools/bundle.mjs` builds it into two committed files: `desktop/plugin.js` (the page, one ESM file, because
+`tools/bundle/bundle.mjs` builds it into two committed files: `desktop/plugin.js` (the page, one ESM file, because
 Hermes's loader evaluates exactly one file that may import only the SDK and React) and `player/frame-shim.js`
 (injected into the emulator frame). Installs run no build step, so the built files are committed and CI proves
 they match the source.

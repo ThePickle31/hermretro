@@ -9,7 +9,7 @@
 | The last toolchain install | `~/.hermes/hermretro/.cache/toolchain/last-run.json` |
 | Hardware operations (read only) | `~/.codex-gb-studio/chromatic/<id>/operation.json` (the engine's journal) |
 | What a tool returned in a chat | the profile's `state.db`, table `messages` (open read-only) |
-| What the page's RPC answers | `node tools/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
+| What the page's RPC answers | `node tools/debug/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
 
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
 capped at 104 bytes on macOS).

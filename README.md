@@ -72,7 +72,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
 - `adapter/` — the Hermes side. `broker.py` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
   desktop page are its clients.
-- `desktop-src/` — the Hermes Desktop page, one small module per feature. `tools/bundle.mjs` bundles it into
+- `desktop-src/` — the Hermes Desktop page, one small module per feature. `tools/bundle/bundle.mjs` bundles it into
   `desktop/plugin.js`, the single file the app loads (generated and committed, because installing a plugin
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
@@ -132,16 +132,16 @@ and set up again from the hermretro page; nothing is moved for you.
 ## Test
 
 `python tools/check.py` runs the fast checks the same way CI does (`full` adds the acceptance run; see
-`AGENTS.md`). Page work needs the pinned dev tools once: `npm ci --prefix tools/dev --ignore-scripts`.
+`AGENTS.md`). Page work needs the pinned dev tools once: `npm ci --prefix tools/npm --ignore-scripts`.
 The individual commands:
 
 ```sh
 python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
-node tools/bundle.mjs --check                            # the generated files match desktop-src/
+node tools/bundle/bundle.mjs --check                            # the generated files match desktop-src/
 node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
-python tools/prepare_toolchain.py                        # install the toolchain the acceptance run needs
-python tools/clean_install_check.py                      # clean install into a throwaway Hermes home
+python tools/ci/prepare_toolchain.py                        # install the toolchain the acceptance run needs
+python tools/ci/clean_install_check.py                      # clean install into a throwaway Hermes home
 hermes -p hermretro tools list                           # the chromatic toolset, only in that profile
 ```
 
@@ -162,22 +162,22 @@ player frame runs first, from `desktop-src/frame/`): both are generated, and the
 match their sources.
 
 ```sh
-node tools/bundle.mjs                                    # build desktop/plugin.js and player/frame-shim.js
-node tools/bundle.mjs --watch                            # rebuild on save; a linked checkout hot-reloads
-node tools/bundle.mjs --report                           # lines per module
+node tools/bundle/bundle.mjs                                    # build desktop/plugin.js and player/frame-shim.js
+node tools/bundle/bundle.mjs --watch                            # rebuild on save; a linked checkout hot-reloads
+node tools/bundle/bundle.mjs --report                           # lines per module
 ```
 
 Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
-TypeScript, jsdom and React from the pinned `tools/dev/` (or a Hermes Desktop checkout; `tools/node-modules.mjs`
-has the search order). The plugin itself has no npm dependencies, and users never install `tools/dev/`. It also checks the source tree on every build: only `sdk.js` imports
+TypeScript, jsdom and React from the pinned `tools/npm/` (or a Hermes Desktop checkout; `tools/bundle/node-modules.mjs`
+has the search order). The plugin itself has no npm dependencies, and users never install `tools/npm/`. It also checks the source tree on every build: only `sdk.js` imports
 packages, feature folders are one level deep, no import cycles, no file over 400 lines (three large components are
-listed as exceptions in `tools/bundle_lint.mjs` until they are split). Where code goes
+listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where code goes
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 
 ## Contributing
 
-Start with `CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
-problems privately (`SECURITY.md`).
+Start with `.github/CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
+problems privately (`.github/SECURITY.md`).
 
 ## Licence
 

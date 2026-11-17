@@ -1,7 +1,7 @@
 """A clean install of this checkout into a throwaway Hermes home, the way a user installs hermretro.
 
-    python tools/clean_install_check.py                       # with the `hermes` on PATH
-    python tools/clean_install_check.py --hermes-python /path/to/hermes/runtime/python
+    python tools/ci/clean_install_check.py                       # with the `hermes` on PATH
+    python tools/ci/clean_install_check.py --hermes-python /path/to/hermes/runtime/python
 
 Creates the `hermretro` profile, installs the committed checkout into it and into the default profile
 (Hermes's install scanner runs on both; a caution or a block fails here, because nothing can confirm), then
@@ -18,7 +18,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"$ hermes {' '.join(command)}  [{home.name}] -> {done.returncode}", flush=True)
             if done.returncode:
                 raise SystemExit(output[-3000:] + f"\nFIX: `hermes {' '.join(command)}` failed in a clean Hermes home; "
-                                 "reproduce with python tools/clean_install_check.py")
+                                 "reproduce with python tools/ci/clean_install_check.py")
             return output
 
         source = f"file://{ROOT}"

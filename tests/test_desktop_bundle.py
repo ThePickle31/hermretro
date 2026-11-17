@@ -1,11 +1,11 @@
 """The desktop half and the player frame shim are built, and the built files are what ship.
 
 ``desktop/plugin.js`` and ``player/frame-shim.js`` are generated from ``desktop-src/`` by
-``tools/bundle.mjs`` and committed, because installing a plugin runs no build. These tests need neither
+``tools/bundle/bundle.mjs`` and committed, because installing a plugin runs no build. These tests need neither
 Node nor esbuild: each banner records a hash of the sources and a hash of the file's own body, so an
 output that was not rebuilt after a source change, or that someone edited by hand, fails here. They
 also hold the bundle to what Hermes Desktop's loader and the install scanner accept (the same rules
-``node tools/bundle.mjs --check`` applies).
+``node tools/bundle/bundle.mjs --check`` applies).
 """
 import hashlib
 import re
@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "desktop" / "plugin.js"
 FRAME_SHIM = ROOT / "player" / "frame-shim.js"
 SOURCE = ROOT / "desktop-src"
-# Modules and the art they import; dotfiles and editor leftovers are not hashed (tools/bundle_lint.mjs).
+# Modules and the art they import; dotfiles and editor leftovers are not hashed (tools/bundle/lint.mjs).
 SOURCE_SUFFIXES = {".js", ".png"}
-REBUILD = "run: node tools/bundle.mjs"
+REBUILD = "run: node tools/bundle/bundle.mjs"
 BANNER = re.compile(
     r"\A/\*\*\n(?: \*[^\n]*\n)*? \* build: esbuild (\S+)\n \* sources: sha256 ([0-9a-f]{64})\n"
     r" \* body: sha256 ([0-9a-f]{64})\n \*/\n")
@@ -47,12 +47,12 @@ def sha256(data: bytes) -> str:
 
 
 def sources_hash() -> str:
-    """The same digest tools/bundle.mjs writes: path, a zero byte, then the bytes, in path order."""
+    """The same digest tools/bundle/bundle.mjs writes: path, a zero byte, then the bytes, in path order."""
     files = [path.relative_to(ROOT).as_posix() for path in SOURCE.rglob("*")
              if path.is_file() and path.suffix in SOURCE_SUFFIXES
              and not any(part.startswith(".") for part in path.relative_to(SOURCE).parts)]
     digest = hashlib.sha256()
-    for rel in sorted([*files, "tools/bundle.mjs"]):
+    for rel in sorted([*files, "tools/bundle/bundle.mjs"]):
         digest.update(rel.encode() + b"\0" + (ROOT / rel).read_bytes())
     return digest.hexdigest()
 

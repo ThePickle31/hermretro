@@ -13,9 +13,9 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 |---|---|
 | `__init__.py`, `plugin.yaml` | The plugin's entry point and manifest (tools, hooks, RPCs, version) |
 | `adapter/` | Python backend: the broker process, engine workers, RPCs for the page, the browser player server |
-| `engine/modretro-chromatic/` | The vendored ModRetro engine. Hash-pinned by `release/baseline/`; changes are refused at run time |
+| `engine/modretro-chromatic/` | The vendored ModRetro engine. Hash-pinned by `engine/pins/`; changes are refused at run time |
 | `desktop-src/` | Source of the Hermes Desktop page and the player frame script, one folder per feature |
-| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `desktop-src/` by `tools/bundle.mjs` and committed |
+| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `desktop-src/` by `tools/bundle/bundle.mjs` and committed |
 | `player/` | The browser player served to the page, and the device art |
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
@@ -23,21 +23,21 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `tests/` | Python unit tests, `tests/desktop/` page tests, `tests/acceptance/` real-engine run |
 | `tools/` | `check.py` (all checks), `bundle.mjs` (page build), `dev/` (pinned npm tools for development only) |
 | `docs/dev/` | `ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
-| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | For people opening pull requests or reporting problems |
+| `.github/CONTRIBUTING.md`, `.github/SECURITY.md`, `.github/CODE_OF_CONDUCT.md` | For people opening pull requests or reporting problems |
 
 ## Checks
 
-One-time setup for page work: `npm ci --prefix tools/dev --ignore-scripts` (needs Node 22 or newer).
+One-time setup for page work: `npm ci --prefix tools/npm --ignore-scripts` (needs Node 22 or newer).
 
 ```sh
 python tools/check.py            # fast: unit, bundle, page, scan (together, about 11 s)
-python tools/check.py full       # plus the real-engine acceptance run (python tools/prepare_toolchain.py first)
+python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
-node tools/bundle.mjs            # rebuild the generated page files after editing desktop-src/
-node tools/bundle.mjs --watch    # rebuild on every save
+node tools/bundle/bundle.mjs            # rebuild the generated page files after editing desktop-src/
+node tools/bundle/bundle.mjs --watch    # rebuild on every save
 ```
 
-CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/clean_install_check.py`)
+CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`)
 and, when a change touches `adapter/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
 nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
 naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
@@ -47,7 +47,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 ## Rules that protect users
 
 1. **Generated files.** Never edit `desktop/plugin.js` or `player/frame-shim.js` by hand. Change
-   `desktop-src/`, run `node tools/bundle.mjs`, and commit both generated files with the sources.
+   `desktop-src/`, run `node tools/bundle/bundle.mjs`, and commit both generated files with the sources.
 2. **The engine is untouched.** Nothing under `engine/` changes outside a deliberate engine update.
 3. **Install scanner.** One line rated high makes every install ask for confirmation; one rated critical
    blocks installs entirely. `python tools/check.py scan` must say `safe`. Things that trip it: piping a
@@ -79,7 +79,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   agent made the change.
 - Agents never merge. The owner merges.
 - When two pull requests both change the page, the generated files conflict. Fix it with
-  `git merge origin/dev`, then `node tools/bundle.mjs`, then commit the two generated files.
+  `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the two generated files.
 - Names that must change together are checked by `tests/test_lockstep.py`, whose opening comment lists every
   place to edit when adding a plugin tool or an RPC (manifest, registration, page names, step words, docs) and
   which also keeps the engine version in agreement.

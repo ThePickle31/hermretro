@@ -1,5 +1,5 @@
 // Dev tool: call one gateway JSON-RPC method for a profile, as the desktop page does.
-//   node tools/gateway_rpc.mjs <profile|default> <method> [params-json]
+//   node tools/debug/gateway_rpc.mjs <profile|default> <method> [params-json]
 // Output is cut to 1800 characters unless GATEWAY_RPC_FULL=1.
 // Never prints the attach ticket.
 import { execFileSync } from 'node:child_process'

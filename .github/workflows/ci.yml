@@ -82,9 +82,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: tools/dev/package-lock.json
+          cache-dependency-path: tools/npm/package-lock.json
       - name: Install the pinned dev tools
-        run: npm ci --prefix tools/dev --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
       - name: python tools/check.py bundle page
         run: python3 tools/check.py bundle page --strict
 
@@ -130,10 +130,10 @@ jobs:
             echo "FIX: plugin.yaml provides_tools / provides_hooks must match what __init__.register adds"
             exit 1
           fi
-      - name: python tools/hermes_api_check.py
-        run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
-      - name: python tools/clean_install_check.py
-        run: python3 tools/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
+      - name: python tools/ci/hermes_api_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/ci/hermes_api_check.py'
+      - name: python tools/ci/clean_install_check.py
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
 
   changes:
     name: What changed
@@ -151,7 +151,7 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then echo "engine=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           # A pull request's checkout is its merge commit: the first parent is the base.
-          if git diff --name-only HEAD^1 HEAD | grep -qE '^(adapter/|engine/|schemas/|release/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/(check|prepare_toolchain)\.py$|\.github/(workflows|actions)/|tools/hermes_runtime\.py$|profile/)'; then
+          if git diff --name-only HEAD^1 HEAD | grep -qE '^(adapter/|engine/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/check\.py$|tools/ci/|\.github/(workflows|actions)/|profile/)'; then
             echo "engine=true" >> "$GITHUB_OUTPUT"
           else
             echo "engine=false" >> "$GITHUB_OUTPUT"

@@ -1,7 +1,7 @@
 // Shared harness for the page tests (tests/desktop/page-*.test.mjs): it loads the built desktop/plugin.js
 // (what ships) with the SDK stand-in from sdk-stub.mjs into jsdom, and hands each scenario file a fresh page,
-// scenario object and the helpers below. After editing desktop-src/ run node tools/bundle.mjs first.
-// Needs react, react-dom and jsdom (tools/node-modules.mjs says where they come from):
+// scenario object and the helpers below. After editing desktop-src/ run node tools/bundle/bundle.mjs first.
+// Needs react, react-dom and jsdom (tools/bundle/node-modules.mjs says where they come from):
 //   node tests/desktop/page-<name>.test.mjs [path to a node_modules folder]
 // The bundle keeps module-level state (the Build conversations, the profile route), so each file runs in its
 // own process with its own copy; a file sets every precondition it relies on itself.
@@ -12,8 +12,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { staleReasons } from '../../tools/bundle.mjs'
-import { findModules, MISSING_HINT } from '../../tools/node-modules.mjs'
+import { staleReasons } from '../../tools/bundle/bundle.mjs'
+import { findModules, MISSING_HINT } from '../../tools/bundle/node-modules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -24,7 +24,7 @@ async function load() {
   const stale = staleReasons()
 
   if (stale.length) {
-    console.error(`${stale.join('\n')}\nRun: node tools/bundle.mjs`)
+    console.error(`${stale.join('\n')}\nRun: node tools/bundle/bundle.mjs`)
     process.exit(1)
   }
 

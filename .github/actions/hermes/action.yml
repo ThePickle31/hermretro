@@ -31,4 +31,4 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        "$HERMES_PYTHON" "$GITHUB_WORKSPACE/tools/hermes_runtime.py" "$HERMES_CHECKOUT"
+        "$HERMES_PYTHON" "$GITHUB_WORKSPACE/tools/ci/hermes_runtime.py" "$HERMES_CHECKOUT"

@@ -5,7 +5,7 @@ Starts one private engine process, enumerates every tool, and diffs name,
 description, inputSchema, outputSchema and annotations against the pinned file.
 Exits non-zero on any missing, extra, duplicate or altered contract.
 
-    python tools/reconcile_schemas.py schemas/upstream/1.0.34/tools.json [report.json]
+    python tools/engine/reconcile_schemas.py engine/pins/1.0.34/tools.json [report.json]
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from chromatic_dev import EngineProcess, dev_engine_root, paths  # noqa: E402
+from engine_dev import EngineProcess, dev_engine_root, paths  # noqa: E402
 
 FIELDS = ("description", "inputSchema", "outputSchema", "annotations", "title")
 

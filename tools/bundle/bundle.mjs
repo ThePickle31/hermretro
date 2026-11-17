@@ -4,18 +4,18 @@
  *   - player/frame-shim.js    the script the player frame runs first (entry desktop-src/frame/index.js),
  *                             inlined into the frame page by adapter/player_server.py.
  *
- *   node tools/bundle.mjs                  build (writes only when the bytes change)
- *   node tools/bundle.mjs --watch          rebuild on every source save; a linked checkout hot-reloads
- *   node tools/bundle.mjs --check          verify the committed files; writes nothing
- *   node tools/bundle.mjs --check --same-esbuild   also fail when the byte comparison cannot run (releases)
- *   node tools/bundle.mjs --report         lines per source file
+ *   node tools/bundle/bundle.mjs                  build (writes only when the bytes change)
+ *   node tools/bundle/bundle.mjs --watch          rebuild on every source save; a linked checkout hot-reloads
+ *   node tools/bundle/bundle.mjs --check          verify the committed files; writes nothing
+ *   node tools/bundle/bundle.mjs --check --same-esbuild   also fail when the byte comparison cannot run (releases)
+ *   node tools/bundle/bundle.mjs --report         lines per source file
  *
  * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
  * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources, body), so a stale or hand-edited output is detected without
  * esbuild (here, and in tests/test_desktop_bundle.py).
- * esbuild and TypeScript come from the first place tools/node-modules.mjs finds them (the pinned
- * tools/dev/node_modules, or a Hermes Desktop checkout).
+ * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
+ * tools/npm/node_modules, or a Hermes Desktop checkout).
  */
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
@@ -24,10 +24,10 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { lineCount, lintSources, sourceFiles } from './bundle_lint.mjs'
+import { lineCount, lintSources, sourceFiles } from './lint.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SOURCE = 'desktop-src'
 const EXTERNAL = ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime']
 const MAX_LINE = 2_000
@@ -56,7 +56,7 @@ const TARGETS = [
     entry: `${SOURCE}/index.js`,
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
-      `Source: ${SOURCE}/ (one small module per feature). Rebuild: node tools/bundle.mjs`,
+      `Source: ${SOURCE}/ (one small module per feature). Rebuild: node tools/bundle/bundle.mjs`,
       'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.'
     ],
     esbuild: { format: 'esm', external: EXTERNAL },
@@ -80,7 +80,7 @@ const TARGETS = [
     entry: `${SOURCE}/frame/index.js`,
     about: [
       'hermretro \u2014 the player frame shim. GENERATED FILE, do not edit.',
-      `Source: ${SOURCE}/frame/. Rebuild: node tools/bundle.mjs`,
+      `Source: ${SOURCE}/frame/. Rebuild: node tools/bundle/bundle.mjs`,
       'Inlined first in the player frame page by adapter/player_server.py; imports nothing.'
     ],
     esbuild: { format: 'iife', external: [] },
@@ -144,7 +144,7 @@ const buildAll = tools => Promise.all(TARGETS.map(target => tools.esbuild.build(
 function sourcesHash() {
   const hash = createHash('sha256')
 
-  for (const file of [...sourceFiles(abs(SOURCE)).map(name => `${SOURCE}/${name}`), 'tools/bundle.mjs'].sort()) {
+  for (const file of [...sourceFiles(abs(SOURCE)).map(name => `${SOURCE}/${name}`), 'tools/bundle/bundle.mjs'].sort()) {
     hash.update(file).update('\0').update(readFileSync(abs(file)))
   }
 

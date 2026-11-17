@@ -1,6 +1,6 @@
 // Runs first in the player frame, before GB Studio's player and the engine's modules (inlined at the
 // top of <head> by adapter/player_server.py, which fills the two placeholders below). Built by
-// tools/bundle.mjs into player/frame-shim.js.
+// tools/bundle/bundle.mjs into player/frame-shim.js.
 import { installAnnotateHost } from './annotate-host.js'
 import { listenForCommands } from './commands.js'
 import { watchState } from './engine.js'

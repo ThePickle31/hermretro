@@ -1,7 +1,7 @@
 # The real engine, compiler and emulator: installs the game toolchain the way the hermretro page does (cached
 # between runs) and runs the broker acceptance suite. Called by ci.yml (pull requests that touch the backend or
 # the engine, every push to dev) and by nightly.yml. No hardware is ever touched. Locally:
-#   python tools/prepare_toolchain.py && python tools/check.py acceptance
+#   python tools/ci/prepare_toolchain.py && python tools/check.py acceptance
 
 name: Integration
 
@@ -50,15 +50,15 @@ jobs:
       # bad cache away.
       - name: Toolchain cache key
         id: key
-        run: echo "key=toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'release/baseline/engine-*.manifest.json', 'adapter/provision.py', 'adapter/onboarding.py') }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'engine/pins/**', 'adapter/provision.py', 'adapter/onboarding.py') }}" >> "$GITHUB_OUTPUT"
       - id: toolchain
         if: inputs.restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.hermes/hermretro/.cache/toolchain
           key: ${{ steps.key.outputs.key }}
-      - name: python tools/prepare_toolchain.py
-        run: python tools/prepare_toolchain.py
+      - name: python tools/ci/prepare_toolchain.py
+        run: python tools/ci/prepare_toolchain.py
       - if: (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && steps.toolchain.outputs.cache-hit != 'true'
         continue-on-error: true  # the key may already exist on this branch (a cold nightly)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

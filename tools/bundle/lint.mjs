@@ -1,5 +1,5 @@
 /**
- * Rules for the modules in desktop-src/, checked on every build by tools/bundle.mjs. Each one guards
+ * Rules for the modules in desktop-src/, checked on every build by tools/bundle/bundle.mjs. Each one guards
  * something that used to be impossible to get wrong in a single file, or that Hermes's install
  * scanner would note:
  *   - only sdk.js imports a package; every other import is a file in the same folder or in a
@@ -181,7 +181,7 @@ function sizeProblems(source, files, program, root) {
 
   for (const name of OVER_LIMIT) {
     if (!long.has(name)) {
-      problems.push(`${name} is within ${LINE_LIMIT} lines now: remove it from OVER_LIMIT in tools/bundle_lint.mjs`)
+      problems.push(`${name} is within ${LINE_LIMIT} lines now: remove it from OVER_LIMIT in tools/bundle/lint.mjs`)
     }
   }
 

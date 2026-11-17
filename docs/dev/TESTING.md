@@ -8,10 +8,10 @@
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `desktop-src/` |
 | page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/desktop/page-*.test.mjs`, 226 checks over five files run in parallel) and the inline player |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
-| acceptance | `python tools/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
-| clean install | `python tools/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
+| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
+| clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 
-One-time setup for the page checks: `npm ci --prefix tools/dev --ignore-scripts` (Node 22 or newer).
+One-time setup for the page checks: `npm ci --prefix tools/npm --ignore-scripts` (Node 22 or newer).
 
 ## CI tiers
 
