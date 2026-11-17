@@ -215,29 +215,53 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
 
 
 def attribute_uses(root, path, rel, feature, names, exported):
-    """``alias.name`` where alias is another feature's front door: the name must be exported."""
+    """``alias.name`` (or ``backend.<feature>.name``) where alias is another feature's front door: the name must
+    be exported. Covers `from backend import library [as x]`, `from .. import library`, `import backend.library
+    as x` and plain `import backend.library`."""
     aliases = {}
-    for _line, target, imported, _asname in imports(root, path):
-        if target in ("backend",) and imported:
+    qualified = False
+    for _line, target, imported, asname in imports(root, path):
+        if target == "backend" and imported:
             for name, alias in imported:
                 if name in names and name not in SHARED and name != feature:
                     aliases[alias or name] = name
+        elif imported is None and target.startswith("backend."):
+            other = target.split(".")[1]
+            if len(target.split(".")) == 2 and other in names and other not in SHARED and other != feature:
+                if asname:
+                    aliases[asname] = other
+                else:
+                    qualified = True
     found = []
-    if not aliases:
+    if not aliases and not qualified:
         return found
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in aliases:
-            other = aliases[node.value.id]
-            if node.attr not in exported.get(other, set()):
-                found.append(
-                    (
-                        "front-door",
-                        rel,
-                        node.lineno,
-                        f"uses {node.value.id}.{node.attr}, which backend.{other}'s "
-                        "front door does not export (__all__)",
-                    )
+        if not isinstance(node, ast.Attribute):
+            continue
+        value = node.value
+        if isinstance(value, ast.Name) and value.id in aliases:
+            other, shown = aliases[value.id], value.id
+        elif (
+            qualified
+            and isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "backend"
+            and value.attr in names
+            and value.attr not in SHARED
+            and value.attr != feature
+        ):
+            other, shown = value.attr, f"backend.{value.attr}"
+        else:
+            continue
+        if node.attr not in exported.get(other, set()):
+            found.append(
+                (
+                    "front-door",
+                    rel,
+                    node.lineno,
+                    f"uses {shown}.{node.attr}, which backend.{other}'s front door does not export (__all__)",
                 )
+            )
     return found
 
 
@@ -320,6 +344,9 @@ class Boundaries(unittest.TestCase):
                 "from ..hermes import api\nfrom .. import library\n"
             )
             (copy / "backend" / "library" / "planted_registry.py").write_text("from .. import features\n")
+            (copy / "backend" / "setup" / "planted_alias.py").write_text(
+                "import backend.library as lib\nimport backend.library\n\nlib.games\nbackend.library.games\n"
+            )
             problems = check(copy)
             allowed = allowances.in_text(assets.read_text(), "backend/assets/planted.py")
             text = report(problems, allowed)
@@ -332,6 +359,8 @@ class Boundaries(unittest.TestCase):
                 "backend/system/planted.py:1: [layer]",
                 "backend/system/planted.py:2: [layer] backend.system imports backend.library",
                 "backend/library/planted_registry.py:1: [layer] imports backend.features",
+                "backend/setup/planted_alias.py:4: [front-door] uses lib.games",
+                "backend/setup/planted_alias.py:5: [front-door] uses backend.library.games",
             ):
                 self.assertIn(expected, text)
             self.assertNotIn("planted.py:7:", text)  # allowed, with a reason
