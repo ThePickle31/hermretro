@@ -84,7 +84,8 @@ def main() -> int:
     state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(state_dir, 0o700)
 
-    lock_handle = open(state_dir / "broker.lock", "a+")
+    # Held open for the broker's whole life: the flock on it is the election; the OS releases it at exit.
+    lock_handle = open(state_dir / "broker.lock", "a+")  # noqa: SIM115 — a lock held until the process exits
     try:
         fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:

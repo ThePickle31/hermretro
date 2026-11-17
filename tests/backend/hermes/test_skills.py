@@ -97,11 +97,11 @@ class SkillsTest(unittest.TestCase):
                     if not m:
                         continue
                     name, rest = m.groups()
-                    if name in multi and (rest == "" or rest[0] in " .'"):
-                        problems.append(f"{where} `{span}`")
-                    elif name in single and rest.startswith(" {"):
-                        problems.append(f"{where} `{span}`")
-                    elif name.endswith("_") and rest == "*" and not name.startswith("chromatic_"):
+                    if (
+                        (name in multi and (rest == "" or rest[0] in " .'"))
+                        or (name in single and rest.startswith(" {"))
+                        or (name.endswith("_") and rest == "*" and not name.startswith("chromatic_"))
+                    ):
                         problems.append(f"{where} `{span}`")
         self.assertEqual(problems, [])
 

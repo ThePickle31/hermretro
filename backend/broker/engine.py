@@ -220,7 +220,7 @@ class EngineProcess:
         """Return the complete raw MCP tool result, unmodified."""
         return self.request("tools/call", {"name": name, "arguments": arguments or {}}, timeout=timeout)
 
-    def __enter__(self) -> "EngineProcess":
+    def __enter__(self) -> EngineProcess:
         self.start()
         return self
 

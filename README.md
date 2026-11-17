@@ -133,7 +133,9 @@ and set up again from the hermretro page; nothing is moved for you.
 ## Test
 
 `python tools/check.py` runs the fast checks the same way CI does (`full` adds the acceptance run; see
-`AGENTS.md`). Page work needs the pinned dev tools once: `npm ci --prefix tools/npm --ignore-scripts`.
+`AGENTS.md`). The pinned dev tools are set up once: `python tools/py/setup.py` (ruff, the Python linter and
+formatter, into `.dev/py`) and, for page work, `npm ci --prefix tools/npm --ignore-scripts`. `python tools/check.py fix`
+applies the automatic lint fixes and the Python formatting.
 The individual commands:
 
 ```sh

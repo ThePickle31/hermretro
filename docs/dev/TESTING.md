@@ -6,13 +6,33 @@
 |---|---|---|---|
 | unit | `python tools/check.py unit` | ~3 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` |
-| lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). `node tools/bundle/lint-page.mjs --fix` applies the automatic fixes; an exception is `// retrodev: allow <rule> — <reason>` on its line |
+| lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, 226 checks over five files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 
-One-time setup for the page checks: `npm ci --prefix tools/npm --ignore-scripts` (Node 22 or newer).
+One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
+for the page checks (Node 22 or newer). The checks never install anything themselves.
+
+## Linting and formatting the Python
+
+ruff is pinned to one version with the SHA-256 of every published file (`tools/py/requirements.txt`);
+`python tools/py/setup.py` makes a venv of the Python running it in `.dev/py` (git-ignored) and installs it with
+`pip --require-hashes --only-binary=:all:`, so nothing else can land and nothing is built. Run again, it returns
+at once unless `requirements.txt` changed (then `lint` says so and names the command). Settings, in
+`tools/py/ruff.toml`: lines up to 120 characters, Python 3.11 syntax, the rule groups E9 F B PLE UP SIM (with
+the few ignores it lists and why), quotes kept as written. The vendored engine and player, `skills/`, `tools/npm/`
+and `.dev/` are not linted.
+
+- `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format` and the
+  page lint's fixes, lists the files it changed, then lints again. `.dev/py/bin/ruff rule <CODE>` explains a rule.
+- A deliberate exception is ruff's own `# noqa: <CODE>` on the line, followed by its reason after ` — `:
+  `lock = open(path, "a+")  # noqa: SIM115 — a lock held until the process exits`. Prefer changing the code;
+  a `noqa` without a reason will not pass review. (The page's escape is `// retrodev: allow <rule> — <reason>`.)
+- Updating ruff: change the version in `requirements.txt`, replace the hash lines with the digests listed at
+  `https://pypi.org/pypi/ruff/<version>/json`, run the setup and `python tools/check.py fix`, and commit any
+  reformatting as its own commit.
 
 ## CI tiers
 

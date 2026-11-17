@@ -66,7 +66,7 @@ class BrokerClient:
             except OSError:
                 pass
 
-    def __enter__(self) -> "BrokerClient":
+    def __enter__(self) -> BrokerClient:
         return self
 
     def __exit__(self, *exc) -> None:

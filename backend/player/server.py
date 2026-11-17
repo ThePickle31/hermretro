@@ -21,7 +21,7 @@ import re
 import secrets
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -236,7 +236,7 @@ def capture_id(identifier: str, filename: str) -> str:
 
 
 def _stamp(now: datetime | None = None) -> str:
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return now.strftime("%Y-%m-%dT%H-%M-%S-") + f"{now.microsecond // 1000:03d}Z"
 
 
@@ -267,7 +267,7 @@ def save_capture(root: Path, identifier: str, kind: str, media: bytes, media_typ
         extension = "webm"
     directory = captures_dir(root, identifier)
     directory.mkdir(parents=True, exist_ok=True)
-    created = datetime.now(timezone.utc)
+    created = datetime.now(UTC)
     target = _free_name(directory, f"{_stamp(created)}-{kind}", extension)
     target.write_bytes(media)
     sha = hashlib.sha256(media).hexdigest()
@@ -300,7 +300,7 @@ def list_captures(root: Path, identifier: str) -> list[dict]:
         kind = sidecar.get("kind") if isinstance(sidecar.get("kind"), str) else \
             ("screenshot" if path.suffix.lower() == ".png" else "video")
         created = sidecar.get("createdAt") if isinstance(sidecar.get("createdAt"), str) else \
-            datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         found.append({"id": capture_id(identifier, path.name), "path": str(path), "kind": kind, "createdAt": created,
                       "file": path.name})
     found.sort(key=lambda c: c["createdAt"], reverse=True)

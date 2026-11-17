@@ -94,8 +94,6 @@ class ProvisionTests(unittest.TestCase):
 
 class ApprovalTests(unittest.TestCase):
     def setUp(self):
-        from backend.hermes import host as hermes_host
-
         class Ctx:
             def get_config(self, key, default=None):
                 return default  # hardware off: the install must be gated regardless

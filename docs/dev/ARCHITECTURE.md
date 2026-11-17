@@ -62,6 +62,7 @@ agreement and checks every tracked file sits in one of them).
 | `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
 | `tools/npm/` | Pinned npm tools for development only |
+| `tools/py/` | Pinned Python tools for development only (ruff) and their settings |
 | `docs/` | Documentation |
 | `docs/dev/` | Developer references: architecture, testing, debugging, contract, pages, engine update |
 | `.github/` | CI workflows, templates and community files |

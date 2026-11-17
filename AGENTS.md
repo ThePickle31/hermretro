@@ -20,7 +20,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
 | `tests/` | Mirrors the code: `backend/<feature>/` unit tests, `page/` page tests, `repo/` repository-wide checks (lock step, version, layout, portability), `acceptance/` real-engine run; `support.py` temp-folder helpers |
-| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` (pinned npm tools for development only) |
+| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` (pinned npm tools for development only), `py/` (pinned Python tools: ruff and its settings) |
 | `docs/dev/` | `ARCHITECTURE.md` (how it fits together, and the full folder Map), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
 | `.github/` | Workflows, templates, and `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` for people opening pull requests or reporting problems |
 
@@ -31,12 +31,14 @@ of `docs/dev/ARCHITECTURE.md`.
 
 ## Checks
 
-One-time setup for page work: `npm ci --prefix tools/npm --ignore-scripts` (needs Node 22 or newer).
+One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-ignored `.dev/py`; a no-op when
+current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
 
 ```sh
 python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 11 s)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
+python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
 node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (boundaries between pages)

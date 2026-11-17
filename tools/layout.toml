@@ -70,6 +70,7 @@ areas.ci = "Clean install, toolchain preparation and Hermes API checks used by C
 areas.engine = "Engine update helpers: manifest, schema reconciliation"
 areas.debug = "Debugging helpers for a running gateway"
 areas.npm = "Pinned npm tools for development only"
+areas.py = "Pinned Python tools for development only (ruff) and their settings"
 
 [folders.docs]
 purpose = "Documentation"
@@ -94,3 +95,7 @@ exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "player/web/",
 "backend/library/games.py" = "The library's one data model; splitting waits for the library feature's own reorganization"
 "page/pages/build/viewer/asset-viewer.js" = "One viewer component; to be split into its tabs after the page move"
 "tests/page/page-build-turns.test.mjs" = "One scenario script over the Build transcript; split by turn kind later"
+# Over the limit once ruff format put one item per line in their long literals and calls; split by concern later.
+"backend/player/server.py" = "The player server, its routes and captures in one module; split routes from captures"
+"tests/acceptance/broker_acceptance.py" = "One end-to-end script over the real engine, run in order; split by stage"
+"tests/backend/library/test_games.py" = "Tests of the library's one data model (games.py), mirroring it"

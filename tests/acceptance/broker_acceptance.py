@@ -219,7 +219,7 @@ def main() -> int:
 
 
     # --- real frames, lossless, private emulator state ---------------------------------
-    run_a = ca.call(A, "emulator_run", {"romPath": rom_a})
+    ca.call(A, "emulator_run", {"romPath": rom_a})
     step_a = ca.call(A, "emulator_step", {"buttons": ["right"], "frames": 45, "sampleCount": 3})
     blocks = [b for b in step_a["result"].get("content", []) if b.get("type") == "image"]
     infos = [png_info(b) for b in blocks]

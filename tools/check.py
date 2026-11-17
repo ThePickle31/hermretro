@@ -3,9 +3,11 @@
     python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 25 s)
     python tools/check.py full           fast checks plus the real-engine acceptance run
     python tools/check.py unit page      only the named checks
+    python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
 
 Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
-boundaries between pages and a few correctness rules), page (page tests in jsdom),
+boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
+for everyone, from .dev/py, made by python tools/py/setup.py), page (page tests in jsdom),
 scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real
 engine, compiler and emulator; needs the toolchain from setup).
 
@@ -16,6 +18,7 @@ Options: --hermes-source DIR (a hermes-agent checkout for the scan; default $HER
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -95,17 +98,98 @@ def check_bundle(args) -> str:
     return output.splitlines()[-1] if output else "ok"
 
 
+# ruff, pinned with hashes in tools/py/requirements.txt and installed by tools/py/setup.py into .dev/py (never by
+# the checks). Its settings: tools/py/ruff.toml, whose paths are taken from the root (the checks run there).
+RUFF = ROOT / ".dev" / "py" / "bin" / "ruff"
+RUFF_CHECK = [str(RUFF), "check", "--config", "tools/py/ruff.toml", "--output-format", "concise", "."]
+RUFF_FORMAT = [str(RUFF), "format", "--config", "tools/py/ruff.toml", "."]
+RUFF_SETUP = "python tools/py/setup.py (once; about 5 s, then a no-op until tools/py/requirements.txt changes)"
+
+
+def ruff_missing() -> str | None:
+    """Why the pinned ruff cannot run, or None."""
+    stamp = ROOT / ".dev" / "py" / "requirements.sha256"
+    if not RUFF.is_file():
+        return "ruff is not installed in .dev/py"
+    pinned = hashlib.sha256((ROOT / "tools" / "py" / "requirements.txt").read_bytes()).hexdigest()
+    if not stamp.is_file() or stamp.read_text().strip() != pinned:
+        return "the ruff in .dev/py is not the one tools/py/requirements.txt pins"
+    return None
+
+
+def start(cmd: list[str]) -> subprocess.Popen:
+    return subprocess.Popen(cmd, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
 def check_lint(args) -> str:
-    node = need("node")
-    result = run([node, "tools/bundle/lint-page.mjs"])
-    output = (result.stdout + result.stderr).strip()
-    if "were not found" in output and result.returncode and not args.strict:
-        raise Skip("eslint was not found (npm ci --prefix tools/npm --ignore-scripts)")
-    if result.returncode:
-        raise AssertionError(tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix for the automatic "
-                             "fixes, then fix the rest as each message says (a deliberate exception: "
-                             "// retrodev: allow <rule> \u2014 <reason> on its line)")
-    return output.splitlines()[-1] if output else "ok"
+    # ESLint over page/ and ruff over the Python run at the same time (ruff takes a few hundredths of a second).
+    node = shutil.which("node")
+    eslint = start([node, "tools/bundle/lint-page.mjs"]) if node else None
+    missing = ruff_missing()
+    ruff = None if missing else (start(RUFF_CHECK), start([*RUFF_FORMAT, "--check", "--output-format", "concise"]))
+    problems, done = [], []
+    if ruff:
+        (lint_out, _), (format_out, _) = ruff[0].communicate(), ruff[1].communicate()
+        if ruff[0].returncode:
+            problems.append(tail(lint_out, 40) + "\nruff's rules catch likely bugs (unused or undefined names, "
+                            "mistakes bugbear knows) and older syntax; `.dev/py/bin/ruff rule <CODE>` explains one.\n"
+                            "FIX: python tools/check.py fix for the automatic fixes, then fix the rest as each "
+                            "message says (a deliberate exception: # noqa: <CODE> \u2014 <reason> on its line)")
+        if ruff[1].returncode:
+            files = [line.split(":", 1)[0] for line in format_out.splitlines() if "unformatted:" in line]
+            problems.append(f"{len(files)} Python files are not in ruff's format (one style for everyone, so a "
+                            "diff shows only real changes):\n" + tail("\n".join(files), 10) +
+                            "\nFIX: python tools/check.py fix (or .dev/py/bin/ruff format --config "
+                            "tools/py/ruff.toml <file>)")
+        if not ruff[0].returncode and not ruff[1].returncode:
+            done.append("python: ruff check and format clean")
+    else:
+        problems.append(f"{missing}\nFIX: {RUFF_SETUP}")
+    if eslint is None:
+        page_skip = "node is not installed"
+    else:
+        output = eslint.communicate()[0].strip()
+        page_skip = None
+        if "were not found" in output and eslint.returncode:
+            page_skip = "eslint was not found (npm ci --prefix tools/npm --ignore-scripts)"
+        elif eslint.returncode:
+            problems.append(tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix (or python "
+                            "tools/check.py fix) for the automatic fixes, then fix the rest as each message says "
+                            "(a deliberate exception: // retrodev: allow <rule> \u2014 <reason> on its line)")
+        else:
+            done.insert(0, "page: " + (output.splitlines()[-1] if output else "ok"))
+    if problems:
+        raise AssertionError(("page lint skipped: " + page_skip + "\n" if page_skip else "") + "\n".join(problems))
+    if page_skip and (args.strict or not done):
+        raise Skip(page_skip)
+    return "; ".join(done + ([f"page skipped ({page_skip})"] if page_skip else []))
+
+
+def tree_digest() -> dict[str, str]:
+    """A digest of every file a fix may rewrite, to report what it changed."""
+    names = [name for name in shipped_files() if name.endswith((".py", ".js", ".mjs"))]
+    return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in names}
+
+
+def fix(args) -> int:
+    """Apply every automatic fix (ruff's safe fixes, ruff format, the page lint's fixes), say what changed, lint."""
+    missing = ruff_missing()
+    if missing:
+        print(f"{missing}\nFIX: {RUFF_SETUP}")
+        return 1
+    before = tree_digest()
+    steps = [RUFF_CHECK[:2] + ["--fix", "--quiet", *RUFF_CHECK[2:]], RUFF_FORMAT]
+    node = shutil.which("node")
+    if node:
+        steps.append([node, "tools/bundle/lint-page.mjs", "--fix"])
+    else:
+        print("node is not installed: the page lint's fixes were not applied")
+    for cmd in steps:
+        run(cmd)   # each reports again below, in the lint check
+    after = tree_digest()
+    changed = sorted(name for name in after if before.get(name) != after[name])
+    print(f"fixed {len(changed)} files" + "".join(f"\n  {name}" for name in changed))
+    return main(["lint", *(["--strict"] if args.strict else [])])
 
 
 def check_page(args) -> str:
@@ -212,11 +296,13 @@ def summary(rows: list[tuple[str, str, float, str]]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").strip().splitlines()[0])
-    parser.add_argument("checks", nargs="*", help="fast (default), full, or check names: " + ", ".join(ALL))
+    parser.add_argument("checks", nargs="*", help="fast (default), full, fix, or check names: " + ", ".join(ALL))
     parser.add_argument("--hermes-source")
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args(argv)
     names = args.checks or ["fast"]
+    if names == ["fix"]:
+        return fix(args)
     wanted = [c for name in names for c in (FAST if name == "fast" else ALL if name == "full" else [name])]
     unknown = [name for name in wanted if name not in CHECKS]
     if unknown:

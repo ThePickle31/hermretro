@@ -19,9 +19,9 @@ from __future__ import annotations
 import importlib
 import inspect
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 # Modules a feature may declare in; any other name is ignored.
 PARTS = ("rpcs", "tools", "hooks", "prompt")

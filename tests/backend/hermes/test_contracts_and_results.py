@@ -26,7 +26,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(len({s["name"] for s in schemas}), 81)
 
     def test_schemas_carry_no_references_and_keep_required_fields(self):
-        for tool, schema in zip(contracts.pinned_tools(), contracts.hermes_schemas()):
+        for tool, schema in zip(contracts.pinned_tools(), contracts.hermes_schemas(), strict=True):
             text = json.dumps(schema)
             self.assertNotIn("$ref", text, schema["name"])
             self.assertNotIn("$schema", text, schema["name"])

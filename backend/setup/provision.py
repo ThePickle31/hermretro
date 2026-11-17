@@ -162,8 +162,7 @@ def device_cli_status() -> dict:
 @contextmanager
 def _lock():
     paths.DEPS_ROOT.mkdir(mode=0o755, parents=True, exist_ok=True)
-    handle = open(paths.DEPS_ROOT / ".provision.lock", "a+")
-    try:
+    with open(paths.DEPS_ROOT / ".provision.lock", "a+") as handle:
         try:
             import fcntl
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -172,8 +171,6 @@ def _lock():
         except OSError:
             raise ProvisionError("BUSY", "Another hermretro setup is running. Wait for it to finish.")
         yield
-    finally:
-        handle.close()
 
 
 def _download(package: dict, opener=urllib.request.urlopen) -> bytes:

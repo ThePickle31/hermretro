@@ -8,7 +8,8 @@ request into `dev` and CI.
 
 1. Linux or macOS (Apple Silicon or Intel), Python 3.11 or newer, Node.js 22 or newer, Git.
 2. Fork the repository, clone your fork and branch from `dev`: `feat/…`, `fix/…`, `docs/…` or `chore/…`.
-3. `npm ci --prefix tools/npm --ignore-scripts` (page tools, development only).
+3. `python tools/py/setup.py` (ruff, the Python linter and formatter) and
+   `npm ci --prefix tools/npm --ignore-scripts` (page tools); both for development only.
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
    `python tools/ci/prepare_toolchain.py` once, then `python tools/check.py full`.
 

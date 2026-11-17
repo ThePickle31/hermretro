@@ -1,0 +1,22 @@
+# ruff settings for hermretro's Python: `python tools/check.py lint` checks, `python tools/check.py fix` fixes.
+# The pinned ruff lives in .dev/py (python tools/py/setup.py). This file sits in tools/py/, so every path below is
+# taken from the repository root (ruff resolves them against the folder it runs in, which check.py sets).
+# A deliberate exception: `# noqa: <CODE> — <reason>` on the line (docs/dev/TESTING.md).
+
+line-length = 120
+target-version = "py311"
+# Vendored or generated code, and installed tools: never ours to lint or reformat.
+extend-exclude = ["engine/", "player/web/", "tools/npm/", ".dev/", "skills/"]
+# ruff's cache stays with the installed tools (git-ignored), not in the root.
+cache-dir = ".dev/ruff-cache"
+
+[lint]
+# E9: syntax errors; F: pyflakes (unused or undefined names); B: bugbear (likely bugs); PLE: pylint errors;
+# UP: newer syntax for the oldest Python we support; SIM: simpler equivalent code.
+select = ["E9", "F", "B", "PLE", "UP", "SIM"]
+# B904 (raise ... from inside except), SIM105 (contextlib.suppress), SIM108 (ternaries), UP015 (open modes),
+# SIM117 (merged with-statements): style choices this code makes on purpose for readability.
+ignore = ["B904", "SIM105", "SIM108", "UP015", "SIM117"]
+
+[format]
+quote-style = "preserve"
