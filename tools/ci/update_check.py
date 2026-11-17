@@ -169,10 +169,17 @@ def _compare(before: dict, after: dict, fix: str) -> list[str]:
             f"New Game conversations changed: {before['pending']} -> {after.get('pending')}"
             "\nFIX: read the library's pending records the way the release wrote them"
         )
-    if after.get("broker_pid") == before["broker_pid"]:
+    # The broker is replaced only when its code changed (a different fingerprint); with the same code it is kept.
+    replaced = after.get("broker_pid") != before["broker_pid"]
+    if before.get("broker_code") != after.get("code") and not replaced:
         problems.append(
             "the broker the release started still answers after the update"
             "\nFIX: backend/broker/client.ensure_broker must replace a broker whose code_fingerprint differs"
+        )
+    elif before.get("broker_code") == after.get("code") and replaced:
+        problems.append(
+            "the broker was restarted although its code did not change"
+            "\nFIX: backend/broker/client.ensure_broker must keep a broker whose code_fingerprint matches"
         )
     return problems
 
@@ -297,11 +304,14 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
         raise SystemExit(f"no broker answers after the doctor RPC: {error}")
     with client:
         result["broker_pid"] = client.hello.get("pid")
+        result["broker_code"] = client.hello.get("code_fingerprint")
+        result["code"] = paths.code_fingerprint() if hasattr(paths, "code_fingerprint") else None
         if phase == "new" and client.hello.get("code_fingerprint") != paths.code_fingerprint():
             result["problems"].append(f"the broker answering runs other code: {client.hello}")
             result["fix"] = "backend/broker/client.ensure_broker must replace a broker from another build"
-    if phase == "new":
-        old_pid = json.loads((out.parent / "old.json").read_text())["broker_pid"]
+    old_run = json.loads((out.parent / "old.json").read_text()) if phase == "new" else {}
+    if phase == "new" and old_run.get("broker_code") != result["code"]:
+        old_pid = old_run["broker_pid"]
         for _ in range(50):  # the replaced broker exits once its last connection has closed
             if not _alive(old_pid):
                 break
