@@ -84,9 +84,12 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - Agents never merge. The owner merges.
 - When two pull requests both change the page, the generated files conflict. Fix it with
   `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the two generated files.
-- Names that must change together are checked by `tests/repo/test_lockstep.py`, whose opening comment lists every
-  place to edit when adding a plugin tool or an RPC (manifest, registration, page names, step words, docs) and
-  which also keeps the engine version in agreement.
+- Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through
+  front doors and events (`docs/dev/ARCHITECTURE.md`, "The agent half"; checked by `tests/repo/test_boundaries.py`,
+  registrations pinned by `tests/repo/test_registration_snapshot.py`). Names that must still change together
+  (manifest, page names, step words, docs) are checked by `tests/repo/test_lockstep.py`, whose opening comment
+  lists every place to edit when adding a plugin tool or an RPC, and which also keeps the engine version in
+  agreement.
 - This guide changes in the same pull request as any command or rule it describes.
 
 ## Releases (only when the owner asks)

@@ -1,4 +1,5 @@
-"""Locations and environment discovery. Stdlib only; Hermes is consulted only if it can be imported."""
+"""Locations and environment discovery. Stdlib only; Hermes is consulted only through hermes_home.py, which the
+Hermes layer fills in (backend.system never imports backend.hermes)."""
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +11,8 @@ import stat
 import subprocess
 from functools import lru_cache
 from pathlib import Path
+
+from . import hermes_home
 
 PLUGIN_ID = "hermretro"
 ENGINE_VERSION = "1.0.34"
@@ -47,11 +50,10 @@ SOCKET_PATH_LIMIT = 100
 
 def _hermes_root() -> Path:
     """The Hermes home that holds every profile (``~/.hermes`` by default), even when this process runs
-    in a profile. Asks Hermes when it can be imported. The fallback (tests, CI, tools run outside Hermes)
-    covers the plain cases only; the broker never relies on it, because the client hands it
-    ``HERMRETRO_HOME``."""
-    from ..hermes import api as hermes_api
-    asked = hermes_api.default_hermes_root()
+    in a profile. Asks Hermes when the Hermes layer has said how (hermes_home.py). The fallback (tests, CI,
+    tools run outside Hermes) covers the plain cases only; the broker never relies on it, because the client
+    hands it ``HERMRETRO_HOME``."""
+    asked = hermes_home.asked()
     if asked is not None:
         return asked
     configured = os.environ.get("HERMES_HOME", "").strip()

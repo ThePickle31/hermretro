@@ -11,7 +11,7 @@ import threading
 import time
 from pathlib import Path
 
-from ..setup import progress as onboarding, provision
+from .. import setup
 from ..system import paths
 from .engine import EngineError
 from .lane import Denied
@@ -55,7 +55,7 @@ class ControlMixin:
             try:
                 self.install = {"state": "running", "started_at": time.time(), "finished_at": None, "error": None,
                                 "code": None, "seeded": None,
-                                "baseline_bytes": onboarding.directory_bytes(paths.setup_root())}
+                                "baseline_bytes": setup.directory_bytes(paths.setup_root())}
                 snapshot = dict(self.install)
                 threading.Thread(target=self._run_install, name="hermretro-install", daemon=True).start()
             except BaseException as error:
@@ -72,7 +72,7 @@ class ControlMixin:
         outcome: dict = {"state": "failed", "error": None, "code": None}
         try:
             try:
-                seeded = provision.seed_toolchain_cache()
+                seeded = setup.seed_toolchain_cache()
             except Exception as error:  # reuse is an optimisation; never let it block setup
                 seeded = {"seeded": False, "reason": f"{type(error).__name__}: {error}"}
             self.trace(event="toolchain_cache_seed", **seeded)
@@ -80,7 +80,7 @@ class ControlMixin:
                 self.install["seeded"] = bool(seeded.get("seeded"))
                 if seeded.get("seeded"):
                     # The copied cache is not a download: count only what arrives after it.
-                    self.install["baseline_bytes"] = onboarding.directory_bytes(paths.setup_root())
+                    self.install["baseline_bytes"] = setup.directory_bytes(paths.setup_root())
             engine = self.new_engine("chromatic-studio-install")
             self.install_engine = engine   # close_all stops it if the broker stops mid-install
             result = engine.call_tool("toolchain_prepare", {"components": ["build", "emulator"]}, timeout=1800)
@@ -110,7 +110,7 @@ class ControlMixin:
     def install_status(self) -> dict:
         with self.install_lock:
             state = dict(self.install)
-        return onboarding.progress(state, paths.setup_root())
+        return setup.install_progress(state, paths.setup_root())
 
     # -- control operations ---------------------------------------------------------
     def control(self, request: dict) -> dict:

@@ -1,17 +1,19 @@
-"""The Setup page's RPCs: status, install, remove_tools, studio_profile, activity and doctor.
-Re-exported by backend.hermes.host."""
+"""The Setup page's RPCs: status, doctor, activity, studio_profile, install and remove_tools. Declared with
+@rpc; registered in this order (backend/hermes/declare.py)."""
 from __future__ import annotations
 
 import contextlib
 import time
 from pathlib import Path
 
-from ..broker.client import BrokerUnavailable
+from ..broker import BrokerUnavailable
 from ..hermes import host
+from ..hermes.declare import rpc
 from ..system import host as host_os, paths
+from ..system.events import emit
 from . import progress as onboarding, provision, studio_profile
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, 
 
 # Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
 # looked up there at call time, so one patch of host.<name> reaches every module.
@@ -21,6 +23,8 @@ _COMPONENT_LABELS = {
     "python": "Python (emulator)", "pyboy": "PyBoy emulator", "pillow": "Pillow imaging", "uv": "uv installer",
     "desktop": "GB Studio desktop editor",
 }
+
+
 _OPTIONAL_COMPONENTS = {"desktop"}
 
 
@@ -38,6 +42,36 @@ def _platform_report() -> dict:
 LOADED_FINGERPRINT = paths.code_fingerprint()
 
 
+BROKER_STOP_WAIT = 15.0  # seconds a stopping broker gets to close its workers
+
+
+_REMOVE_BUSY = ("A game is open in a chat or an install is running. Close those chats (or wait for the install), "
+                "then try again.")
+
+
+@contextlib.contextmanager
+def _broker_lock(run: Path, seconds: float | None = None):
+    """Hold the broker election lock, waiting for a stopping broker to let go of it. Yields False on timeout."""
+    import fcntl
+    with open(run / "broker.lock", "a+") as handle:
+        deadline = time.monotonic() + (BROKER_STOP_WAIT if seconds is None else seconds)
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    yield False
+                    return
+                time.sleep(0.1)
+        try:
+            time.sleep(0.5)  # workers exit when the broker's pipe closes; give them a moment
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@rpc("status")
 def rpc_status(ctx):
     def status(params, *, session_id=None, **_kwargs):
         try:
@@ -77,6 +111,86 @@ def rpc_status(ctx):
     return status
 
 
+@rpc("doctor")
+def rpc_doctor(ctx):
+    def doctor(params, *, session_id=None, **_kwargs):
+        try:
+            with host.ensure_broker() as client:
+                answer = client.request({"op": "doctor", "probe": bool((params or {}).get("probe"))})
+            if not answer.get("ok"):
+                return {"ok": False, "error": (answer.get("denied") or {}).get("message") or answer.get("error")}
+            data = (answer["result"].get("structuredContent") or {})
+            components = []
+            for item in data.get("components") or []:
+                components.append({
+                    "id": item.get("id"), "label": _COMPONENT_LABELS.get(item.get("id"), item.get("id")),
+                    "status": item.get("status") if item.get("status") in ("ready", "missing", "incompatible") else "unknown",
+                    "required": item.get("requiredVersion"), "detected": item.get("detectedVersion"),
+                    "optional": item.get("id") in _OPTIONAL_COMPONENTS,
+                    "probe": item.get("probeStatus"),
+                    # An optional part that is simply absent needs no diagnostics on the page.
+                    "detail": "" if item.get("status") == "ready"
+                    or (item.get("id") in _OPTIONAL_COMPONENTS and item.get("status") == "missing")
+                    else "; ".join(item.get("detectionEvidence") or [])[:300],
+                })
+            ready = {task: bool(info.get("ready")) for task, info in (data.get("tasks") or {}).items()}
+            return {"ok": True, "ready": ready, "components": components,
+                    "missing_required": [c["id"] for c in components if c["status"] != "ready" and not c["optional"]],
+                    "setup_root": (data.get("roots") or {}).get("setupRoot")}
+        except BrokerUnavailable as error:
+            return {"ok": False, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro doctor failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return doctor
+
+
+@rpc("activity")
+def rpc_activity(ctx):
+    """Live development view for one chat: project, last build, the latest emulator frame and a
+    short log. Read from the broker's memory; never starts the broker or a worker."""
+    def activity(params, *, session_id=None, **_kwargs):
+        try:
+            params = params or {}
+            ids = [value for value in (params.get("chat"), params.get("stored"), session_id) if value]
+            client, _error = host.try_connect(paths.runtime_dir())
+            if client is None:
+                return {"ok": True, "lane": None, "matched": None, "running": False}
+            with client:
+                answer = client.request({"op": "activity", "profile": host._profile_identity(), "ids": ids,
+                                         "limit": params.get("limit")})
+            if not answer.get("ok"):
+                return {"ok": False, "error": (answer.get("denied") or {}).get("message") or answer.get("error")}
+            frame = answer.get("frame")
+            if frame:
+                answer["frame"] = {"t": frame["t"], "tool": frame["tool"], "frame": frame.get("frame"),
+                                   "src": f"data:{frame['mimeType']};base64,{frame['data']}"}
+            answer["running"] = True
+            return answer
+        except Exception as error:
+            logger.exception("hermretro activity failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return activity
+
+
+@rpc("studio_profile")
+def rpc_studio_profile(ctx):
+    """Finish the dedicated profile after the page has created it with Hermes's profiles.create."""
+    def finish(params, **_kwargs):
+        try:
+            finished = studio_profile.finish(host._data_dir().parents[1])
+            if finished.get("ok"):
+                emit("setup.studio_profile_ready", profile=finished.get("profile"))
+            return finished
+        except studio_profile.StudioProfileError as error:
+            return {"ok": False, "code": error.code, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro studio profile setup failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return finish
+
+
+@rpc("install")
 def rpc_install(ctx):
     """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker)
     or ``{"action": "start"}``. Always returns the download list, so the page can show it first."""
@@ -115,6 +229,7 @@ def rpc_install(ctx):
     return install
 
 
+@rpc("remove_tools")
 def rpc_remove_tools(ctx):
     """Delete the downloaded tools (Setup's "Remove downloaded tools"). Stops an idle broker first; refused while
     a game's chat has a live worker or an install runs. Games and the library are not touched."""
@@ -132,110 +247,13 @@ def rpc_remove_tools(ctx):
             with _broker_lock(run) as held:
                 if not held:
                     return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
-                return provision.remove_downloads()
+                removed = provision.remove_downloads()
+            if removed.get("ok"):
+                emit("setup.tools_removed", root=removed.get("root"))
+            return removed
         except provision.ProvisionError as error:
             return {"ok": False, "code": error.code, "error": str(error)}
         except Exception as error:
             logger.exception("hermretro remove_tools failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
     return remove
-
-
-BROKER_STOP_WAIT = 15.0  # seconds a stopping broker gets to close its workers
-_REMOVE_BUSY = ("A game is open in a chat or an install is running. Close those chats (or wait for the install), "
-                "then try again.")
-
-
-@contextlib.contextmanager
-def _broker_lock(run: Path, seconds: float | None = None):
-    """Hold the broker election lock, waiting for a stopping broker to let go of it. Yields False on timeout."""
-    import fcntl
-    with open(run / "broker.lock", "a+") as handle:
-        deadline = time.monotonic() + (BROKER_STOP_WAIT if seconds is None else seconds)
-        while True:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    yield False
-                    return
-                time.sleep(0.1)
-        try:
-            time.sleep(0.5)  # workers exit when the broker's pipe closes; give them a moment
-            yield True
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
-
-
-def rpc_studio_profile(ctx):
-    """Finish the dedicated profile after the page has created it with Hermes's profiles.create."""
-    def finish(params, **_kwargs):
-        try:
-            return studio_profile.finish(host._data_dir().parents[1])
-        except studio_profile.StudioProfileError as error:
-            return {"ok": False, "code": error.code, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro studio profile setup failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return finish
-
-
-def rpc_activity(ctx):
-    """Live development view for one chat: project, last build, the latest emulator frame and a
-    short log. Read from the broker's memory; never starts the broker or a worker."""
-    def activity(params, *, session_id=None, **_kwargs):
-        try:
-            params = params or {}
-            ids = [value for value in (params.get("chat"), params.get("stored"), session_id) if value]
-            client, _error = host.try_connect(paths.runtime_dir())
-            if client is None:
-                return {"ok": True, "lane": None, "matched": None, "running": False}
-            with client:
-                answer = client.request({"op": "activity", "profile": host._profile_identity(), "ids": ids,
-                                         "limit": params.get("limit")})
-            if not answer.get("ok"):
-                return {"ok": False, "error": (answer.get("denied") or {}).get("message") or answer.get("error")}
-            frame = answer.get("frame")
-            if frame:
-                answer["frame"] = {"t": frame["t"], "tool": frame["tool"], "frame": frame.get("frame"),
-                                   "src": f"data:{frame['mimeType']};base64,{frame['data']}"}
-            answer["running"] = True
-            return answer
-        except Exception as error:
-            logger.exception("hermretro activity failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return activity
-
-
-def rpc_doctor(ctx):
-    def doctor(params, *, session_id=None, **_kwargs):
-        try:
-            with host.ensure_broker() as client:
-                answer = client.request({"op": "doctor", "probe": bool((params or {}).get("probe"))})
-            if not answer.get("ok"):
-                return {"ok": False, "error": (answer.get("denied") or {}).get("message") or answer.get("error")}
-            data = (answer["result"].get("structuredContent") or {})
-            components = []
-            for item in data.get("components") or []:
-                components.append({
-                    "id": item.get("id"), "label": _COMPONENT_LABELS.get(item.get("id"), item.get("id")),
-                    "status": item.get("status") if item.get("status") in ("ready", "missing", "incompatible") else "unknown",
-                    "required": item.get("requiredVersion"), "detected": item.get("detectedVersion"),
-                    "optional": item.get("id") in _OPTIONAL_COMPONENTS,
-                    "probe": item.get("probeStatus"),
-                    # An optional part that is simply absent needs no diagnostics on the page.
-                    "detail": "" if item.get("status") == "ready"
-                    or (item.get("id") in _OPTIONAL_COMPONENTS and item.get("status") == "missing")
-                    else "; ".join(item.get("detectionEvidence") or [])[:300],
-                })
-            ready = {task: bool(info.get("ready")) for task, info in (data.get("tasks") or {}).items()}
-            return {"ok": True, "ready": ready, "components": components,
-                    "missing_required": [c["id"] for c in components if c["status"] != "ready" and not c["optional"]],
-                    "setup_root": (data.get("roots") or {}).get("setupRoot")}
-        except BrokerUnavailable as error:
-            return {"ok": False, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro doctor failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return doctor

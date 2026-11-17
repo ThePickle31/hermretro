@@ -6,7 +6,27 @@
 - Toolset: `chromatic`.
 - Where things register (`__init__.register`): the 85 tools, 6 skills, 6 hooks and the `hermretro.guide` prompt
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
-  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`.
+  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`;
+  every registration, in order, is pinned in `tests/repo/registration.json`.
+- Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
+  `hooks.py`; the table in `ARCHITECTURE.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
+  `rpcs.py`, its name in `page/app/rpc.js` and a section below. Adding a plugin tool: a `Tool(...)` in the
+  feature's `tools.py` (with its Build-page step words), `plugin.yaml` `provides_tools`, the page's
+  `step-words.js` and a line here. Then refresh the snapshot: `python tests/repo/test_registration_snapshot.py --write`.
+
+## Events between backend features
+
+Declared by the owning feature in its front door (`EVENTS`), emitted only by it, heard in other features'
+`listeners.py` (`backend/system/events.py`; a failing listener is logged and never breaks the emitter).
+
+| Event | Payload | Emitted when | Heard by |
+|---|---|---|---|
+| `library.build_reported` | `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
+| `library.game_presented` | `game`, `root` | `chromatic_present_game` showed a game | — |
+| `setup.tools_removed` | `root` | `remove_tools` emptied the download folder | — |
+| `setup.studio_profile_ready` | `profile` | `studio_profile` finished the profile | — |
+| `assets.image_restored` | `path` | `asset_restore` put a kept version back | — |
+| `history.build_kept` | `game`, `root` | a successful build was kept as a snapshot | — |
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,

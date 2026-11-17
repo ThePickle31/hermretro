@@ -15,6 +15,10 @@ from backend.library import games  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from backend.broker.broker import Broker, Denied, Lane  # noqa: E402
 from tests.backend.library.test_games import make_project  # noqa: E402
+from backend.assets import rpcs as assets_rpcs  # noqa: E402
+from backend.assets import versions as assets_versions  # noqa: E402
+from backend.library import hooks as library_hooks  # noqa: E402
+from backend.library import rpcs as library_rpcs  # noqa: E402
 
 PROFILE = "/profiles/studio"
 
@@ -283,7 +287,7 @@ class RpcAndContext(unittest.TestCase):
         ]
         for patch in self.patches:
             patch.start()
-        self.rpc = hermes_host.rpc_build(mock.Mock())
+        self.rpc = library_rpcs.rpc_build(mock.Mock())
         self.frog = make_project(self.base, "Frog Post")
         hermes_host._registry().upsert(str(self.frog))
         self.game = games.game_id(self.frog)
@@ -299,7 +303,7 @@ class RpcAndContext(unittest.TestCase):
         self.assertEqual((answer["ok"], answer["session"]["storedId"]), (True, "st-frog"))
         again = self.rpc({"action": "bind", "game": self.game, "stored": "st-other"})
         self.assertEqual((again["ok"], again["code"]), (False, "HAS_CONVERSATION"))
-        listed = hermes_host.rpc_games(mock.Mock(get_config=lambda key, default=None: default))({})
+        listed = library_rpcs.rpc_games(mock.Mock(get_config=lambda key, default=None: default))({})
         self.assertEqual(listed["games"][0]["session"]["storedId"], "st-frog")
         self.assertIs(listed["games"][0]["session"]["thisProfile"], True)
         self.assertNotIn("profile", listed["games"][0]["session"])
@@ -307,26 +311,26 @@ class RpcAndContext(unittest.TestCase):
         self.assertEqual([item["storedId"] for item in listed["pending"]], ["st-new"])
         self.assertTrue(self.rpc({"action": "cancel", "stored": "st-new"})["cancelled"])
         self.assertTrue(self.rpc({"action": "unbind", "game": self.game, "stored": "st-frog"})["unbound"])
-        self.assertIsNone(hermes_host.build_context(session_id="st-frog"))
+        self.assertIsNone(library_hooks.build_context(session_id="st-frog"))
         self.assertEqual(self.rpc({"action": "unbind", "game": "nope", "stored": "st-frog"})["code"], "INVALID")
         self.assertFalse(self.rpc({"action": "nope"})["ok"])
 
     def test_each_turn_of_a_games_conversation_is_told_its_game(self):
         self.rpc({"action": "bind", "game": self.game, "stored": "st-frog"})
-        context = hermes_host.build_context(session_id="st-frog")["context"]
+        context = library_hooks.build_context(session_id="st-frog")["context"]
         self.assertIn("Frog Post", context)
         self.assertIn(str(self.frog), context)
         self.rpc({"action": "start", "stored": "st-new", "name": "Lamplight"})
-        context = hermes_host.build_context(session_id="st-new", is_first_turn=True)["context"]
+        context = library_hooks.build_context(session_id="st-new", is_first_turn=True)["context"]
         self.assertIn("chromatic_project_create", context)
         self.assertIn('called "Lamplight"', context)
         self.assertIn("chromatic_present_game", context)
-        self.assertNotIn("their message is the idea", hermes_host.build_context(session_id="st-new")["context"])
+        self.assertNotIn("their message is the idea", library_hooks.build_context(session_id="st-new")["context"])
         self.rpc({"action": "start", "stored": "st-plan", "plan": True})
         self.assertIn("hermretro:game-planning",
-                      hermes_host.build_context(session_id="st-plan", is_first_turn=True)["context"])
-        self.assertIsNone(hermes_host.build_context(session_id="plain-chat"))
-        self.assertIsNone(hermes_host.build_context())
+                      library_hooks.build_context(session_id="st-plan", is_first_turn=True)["context"])
+        self.assertIsNone(library_hooks.build_context(session_id="plain-chat"))
+        self.assertIsNone(library_hooks.build_context())
 
 PNG_1x1 = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000020000000100806000000"
                         "1f15c4890000000d49444154789c636001000000050001a5f645400000000049454e44ae426082")
@@ -347,7 +351,7 @@ class AssetRpc(unittest.TestCase):
             patch.start()
         self.frog = make_project(self.base, "Frog Post")
         hermes_host._registry().upsert(str(self.frog))
-        self.asset = hermes_host.rpc_asset(mock.Mock())
+        self.asset = assets_rpcs.rpc_asset(mock.Mock())
 
     def tearDown(self):
         for patch in reversed(self.patches):
@@ -383,7 +387,7 @@ class AssetRpc(unittest.TestCase):
 
     def test_large_images_are_not_sent(self):
         big = self.frog / "big.png"
-        big.write_bytes(PNG_1x1 + b"\0" * (hermes_host.ASSET_MAX_BYTES + 1))
+        big.write_bytes(PNG_1x1 + b"\0" * (assets_versions.ASSET_MAX_BYTES + 1))
         self.assertEqual(self.asset({"path": str(big)})["code"], "TOO_LARGE")
 
 

@@ -1,7 +1,11 @@
 """The broker runs as `python -m backend.broker` from the plugin folder, with a minimal environment and no
 Hermes on the path. Everything it can import must therefore be the standard library or backend modules that
-are themselves standard-library only: never backend.hermes (bar one lazy, documented edge below), never the
-page's RPC modules (rpcs.py) or the plugin-owned tools (tools.py)."""
+are themselves standard-library only: never backend.hermes, never a feature's Hermes-side modules (rpcs.py,
+tools.py, hooks.py, listeners.py), and never events (listeners live in the gateway, not in the broker).
+The feature front doors the broker uses (backend.library, backend.setup) therefore stay stdlib-only too.
+
+There are no exceptions: backend.system learns the Hermes home from the Hermes layer (system/hermes_home.py)
+instead of importing it."""
 import ast
 import os
 import subprocess
@@ -12,10 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
 
-# The one way from the broker's modules into backend.hermes: paths._hermes_root() asks Hermes for its home,
-# importing backend.hermes.api inside the function (api.py itself imports only the standard library and
-# returns None without Hermes). The broker never takes it: the client always hands it HERMRETRO_HOME.
-ALLOWED = {("backend.system.paths", "backend.hermes.api")}
+HERMES_SIDE = ("rpcs", "tools", "hooks", "listeners")
 
 
 def module_file(name: str) -> Path | None:
@@ -71,8 +72,7 @@ def reachable() -> tuple[set[str], set[str], set[tuple[str, str]]]:
         external |= outside
         for target in inside:
             edges.add((name, target))
-            if (name, target) not in ALLOWED:
-                todo.append(target)
+            todo.append(target)
     return seen, external, edges
 
 
@@ -83,16 +83,15 @@ class BrokerImports(unittest.TestCase):
         self.assertIn("backend.system.paths", seen)
         self.assertEqual(external - set(sys.stdlib_module_names) - {"__future__"}, set(),
                          "the broker imports something outside the standard library")
-        hermes = sorted(f"{a} -> {b}" for a, b in edges if b.startswith("backend.hermes") and (a, b) not in ALLOWED)
-        self.assertEqual(hermes, [], "the broker must not import backend.hermes (it runs without Hermes)")
-        self.assertEqual(sorted(name for name in seen if name.startswith("backend.hermes")), [])
-        self.assertEqual(sorted(name for name in seen if name.rpartition(".")[2] in ("rpcs", "tools")), [],
-                         "the broker must not import the page's RPC modules or the plugin-owned tools")
-
-    def test_the_allowed_edge_still_exists(self):
-        # If paths stops importing backend.hermes.api, drop it from ALLOWED rather than keep a dead exception.
-        _seen, _external, edges = reachable()
-        self.assertTrue(ALLOWED <= edges, ALLOWED - edges)
+        hermes = sorted(f"{a} -> {b}" for a, b in edges if b.startswith("backend.hermes"))
+        self.assertEqual(hermes, [], "the broker must not import backend.hermes (it runs without Hermes)\nFIX: hand "
+                         "the value over from the Hermes side (as system/hermes_home.py does), or move the code out "
+                         "of the modules the broker imports")
+        self.assertEqual(sorted(name for name in seen if name.rpartition(".")[2] in HERMES_SIDE), [],
+                         "the broker must not import a feature's rpcs.py, tools.py, hooks.py or listeners.py\nFIX: "
+                         "import the feature's front door (backend.<feature>), and keep that front door stdlib-only")
+        self.assertNotIn("backend.system.events", seen, "the broker must not emit events: their listeners live in the "
+                         "gateway\nFIX: emit from the Hermes side (an RPC, tool or hook) instead")
 
     def test_importing_the_broker_loads_no_hermes_side_module(self):
         code = ("import sys; sys.path.insert(0, sys.argv[1]); import backend.broker.server, backend.broker.client; "

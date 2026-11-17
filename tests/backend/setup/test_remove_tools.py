@@ -13,6 +13,7 @@ from backend.hermes import host as hermes_host  # noqa: E402
 from backend.setup import rpcs as host_setup  # noqa: E402
 from backend.system import paths  # noqa: E402
 from backend.setup import provision  # noqa: E402
+from backend.setup import rpcs as setup_rpcs  # noqa: E402
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 
@@ -90,7 +91,7 @@ class RemoveDownloads(unittest.TestCase):
             with mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)), \
                     mock.patch.object(paths, "runtime_dir", lambda: run), \
                     mock.patch.object(host_setup, "BROKER_STOP_WAIT", 0.3):
-                answer = hermes_host.rpc_remove_tools(None)({})
+                answer = setup_rpcs.rpc_remove_tools(None)({})
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
 
@@ -112,7 +113,7 @@ class RemoveDownloads(unittest.TestCase):
                 return False
 
         (self.home / "run").mkdir()
-        rpc = hermes_host.rpc_remove_tools(None)
+        rpc = setup_rpcs.rpc_remove_tools(None)
         busy = Client({"ok": False, "denied": {"code": "BUSY"}})
         with mock.patch.object(hermes_host, "try_connect", lambda _dir: (busy, None)), \
                 mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"):

@@ -17,6 +17,10 @@ from backend.library import games  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from backend.system import paths  # noqa: E402
 from backend.broker.broker import Broker, Lane  # noqa: E402
+from backend.library import rpcs as library_rpcs  # noqa: E402
+from backend.library import tools as library_tools  # noqa: E402
+from backend.setup import tools as setup_tools  # noqa: E402
+from tests.support import registered_hook  # noqa: E402
 
 def encode_png(width, height, pixel):
     """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
@@ -254,7 +258,7 @@ class GamesRpc(unittest.TestCase):
         games.Registry(paths.library_dir()).observe(
             "project_select", {}, {"projectRoot": str(root)}, False, lane_root=str(root),
             conversation_id="conv", sessions_seen=["run-1"], profile=self.identity)
-        answer = hermes_host.rpc_games(self.ctx)({})
+        answer = library_rpcs.rpc_games(self.ctx)({})
         self.assertTrue(answer["ok"])
         self.assertEqual(answer["device"], {"hardwareEnabled": True, "skipped": False})
         [game] = answer["games"]
@@ -337,7 +341,7 @@ class GamesRpc(unittest.TestCase):
     def present(self, args=None, **kwargs):
         kwargs.setdefault("conversation_id", "conv")
         kwargs.setdefault("session_id", "run-1")
-        return json.loads(hermes_host.present_game_handler(args or {}, **kwargs))
+        return json.loads(library_tools.present_game_handler(args or {}, **kwargs))
 
     def lane_client(self, root, matched="chat"):
         """A running broker that knows this chat's lane; records every request it gets."""
@@ -378,7 +382,7 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(entry["chat"], {"conversationId": "conv", "sessionId": "run-1", "profile": self.identity})
         self.assertEqual(entry["presented"]["note"], "Try the double jump")
         self.assertAlmostEqual(entry["presented"]["t"], studio["presentedAt"], places=3)
-        [shown] = hermes_host.rpc_presentations(self.ctx)({"since": time.time() - 60})["presentations"]
+        [shown] = library_rpcs.rpc_presentations(self.ctx)({"since": time.time() - 60})["presentations"]
         self.assertEqual((shown["gameId"], shown["note"], shown["sessionId"], shown["conversationId"]),
                          (identifier, "Try the double jump", "run-1", "conv"))
         self.assertEqual((shown["profile"], shown["thisProfile"], shown["title"]), ("studio", True, "Space Game"))
@@ -395,7 +399,7 @@ class GamesRpc(unittest.TestCase):
             self.assertEqual(payload["code"], "BUILD_FIRST")
             self.assertIn("chromatic_rom_build", payload["error"] + payload["guidance"])
             self.assertIsNone(games.Registry(paths.library_dir()).get(games.game_id(root)))
-            self.assertEqual(hermes_host.rpc_presentations(self.ctx)({})["presentations"], [])
+            self.assertEqual(library_rpcs.rpc_presentations(self.ctx)({})["presentations"], [])
 
             bare = make_project(self.base, name="Bare Game", web=False)
             seen[:] = []
@@ -469,7 +473,7 @@ class GamesRpc(unittest.TestCase):
 
         with mock.patch.object(hermes_host, "try_connect", connect), \
                 mock.patch.object(hermes_host, "ensure_broker", forbidden), \
-                mock.patch.object(hermes_host.provision, "install_device_cli", forbidden):
+                mock.patch.object(setup_tools.provision, "install_device_cli", forbidden):
             self.assertTrue(self.present()["ok"])
         self.assertTrue(all(message.get("op") == "activity" and "tool" not in message for message in seen))
 
@@ -483,7 +487,7 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(payload["code"], "PARENT_ONLY")
 
     def test_the_approval_hook_lets_present_through_even_with_hardware_on(self):
-        hook = hermes_host.make_pre_tool_call(self.ctx)       # hardware_enabled is True in this ctx
+        hook = registered_hook("pre_tool_call", self.ctx)       # hardware_enabled is True in this ctx
         self.assertIsNone(hook(tool_name="chromatic_present_game", args={"note": "try it"}))
         self.assertEqual(hook(tool_name="chromatic_flash", args={})["action"], "approve")
 
@@ -492,7 +496,7 @@ class GamesRpc(unittest.TestCase):
         names = {schema["name"] for schema in contracts.hermes_schemas()}
         self.assertNotIn("chromatic_present_game", names)
         self.assertNotIn("present_game", {tool["name"] for tool in contracts.pinned_tools()})
-        schema = hermes_host.PRESENT_TOOL
+        schema = library_tools.PRESENT_TOOL
         self.assertEqual(schema["name"], "chromatic_present_game")
         self.assertEqual(set(schema["parameters"]["properties"]), {"note", "project"})
         self.assertNotIn("required", schema["parameters"])
@@ -502,7 +506,7 @@ class GamesRpc(unittest.TestCase):
         registry = games.Registry(paths.library_dir())
         first = registry.present(str(root), note="one")["presentation"]
         second = registry.present(str(root), note=None)["presentation"]
-        rpc = hermes_host.rpc_presentations(self.ctx)
+        rpc = library_rpcs.rpc_presentations(self.ctx)
         answer = rpc({"since": first["t"]})
         self.assertEqual([item["t"] for item in answer["presentations"]], [second["t"]])
         self.assertGreaterEqual(answer["now"], second["t"])
@@ -514,12 +518,12 @@ class GamesRpc(unittest.TestCase):
     def test_thumb_rpc_stores_and_refuses(self):
         root = make_project(self.base)
         identifier = games.Registry(paths.library_dir()).upsert(str(root))["id"]
-        thumb = hermes_host.rpc_game_thumb(self.ctx)
+        thumb = library_rpcs.rpc_game_thumb(self.ctx)
         self.assertEqual(thumb({"id": identifier, "png": "data:image/png;base64," + base64.b64encode(PNG).decode()}),
                          {"ok": True})
         self.assertFalse(thumb({"id": "000000000000", "png": "x"})["ok"])
         self.assertFalse(thumb({"id": identifier, "png": "data:image/png;base64,!!"})["ok"])
-        self.assertTrue(hermes_host.rpc_games(self.ctx)({})["games"][0]["thumb"].startswith("data:image/png"))
+        self.assertTrue(library_rpcs.rpc_games(self.ctx)({})["games"][0]["thumb"].startswith("data:image/png"))
 
 
 if __name__ == "__main__":

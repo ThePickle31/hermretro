@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from ..library import games
+from .. import library
 from ..system import paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 
@@ -347,7 +347,7 @@ class LaneMixin:
         if getattr(lane, "auto_select_failed", None) == lane.generation:
             return  # tried with this worker already; do not repeat a slow failure on every call
         root = bound["projectRoot"]
-        project = games.project_file(Path(root))
+        project = library.project_file(Path(root))
         try:
             result = engine.call_tool("project_select", {"projectPath": str(project or root)}, timeout=60)
             if result.get("isError"):

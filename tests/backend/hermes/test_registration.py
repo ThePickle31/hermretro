@@ -23,24 +23,34 @@ def load_plugin():
 
 
 class Recorder:
+    """A fake plugin ctx: ``calls`` by kind, and ``order``, every register_* call in order (for the snapshot in
+    tests/repo/test_registration_snapshot.py)."""
     def __init__(self, profile):
         self.profile_name = profile
         self.calls = {"tool": [], "skill": [], "rpc": [], "hook": [], "section": []}
+        self.order = []
 
-    def register_tool(self, name, **_kwargs):
-        self.calls["tool"].append(name)
+    def get_config(self, _key, default=None):
+        return default
 
-    def register_skill(self, name, _path):
-        self.calls["skill"].append(name)
+    def _note(self, kind, name, *detail):
+        self.calls[kind].append(name)
+        self.order.append([kind, name, *detail])
 
-    def register_rpc(self, name, _handler):
-        self.calls["rpc"].append(name)
+    def register_tool(self, name, toolset=None, emoji=None, handler=None, **_kwargs):
+        self._note("tool", name, toolset, emoji, callable(handler))
 
-    def register_hook(self, name, _handler):
-        self.calls["hook"].append(name)
+    def register_skill(self, name, path):
+        self._note("skill", name, Path(path).relative_to(ROOT).as_posix())
 
-    def register_system_prompt_section(self, name, *_args, **_kwargs):
-        self.calls["section"].append(name)
+    def register_rpc(self, name, handler):
+        self._note("rpc", name, callable(handler))
+
+    def register_hook(self, name, handler):
+        self._note("hook", name, callable(handler))
+
+    def register_system_prompt_section(self, name, _text, **options):
+        self._note("section", name, options)
 
 
 class Registration(unittest.TestCase):

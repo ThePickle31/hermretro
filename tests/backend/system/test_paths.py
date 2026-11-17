@@ -1,12 +1,15 @@
 """Where hermretro keeps things: one folder in the Hermes home, shared by every profile."""
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
 
 from backend.broker import client  # noqa: E402
 from backend.system import paths  # noqa: E402
@@ -80,6 +83,57 @@ class HermretroHome(unittest.TestCase):
                 mock.patch.object(client.subprocess, "Popen") as popen:
             client.spawn_broker(state, "node")
         self.assertEqual(popen.call_args.kwargs["env"]["HERMRETRO_HOME"], expected)
+
+
+class HermesHomeHandOver(unittest.TestCase):
+    """backend.system never imports Hermes: the Hermes layer hands over how to ask (system/hermes_home.py).
+    Where hermretro's home resolves must not change: Hermes's answer when the plugin runs inside Hermes,
+    HERMRETRO_HOME when set, HERMES_HOME otherwise."""
+
+    def run_plugin(self, env: dict) -> dict:
+        """Load the plugin as Hermes does, with a stand-in hermes_constants naming ``<tmp>/hroot``."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp).resolve()
+            (fake / "hermes_constants.py").write_text(
+                f"def get_default_hermes_root():\n    return {str(fake / 'hroot')!r}\n")
+            code = ("import importlib.util, json, sys; sys.path.insert(0, sys.argv[2]); "
+                    "spec = importlib.util.spec_from_file_location('hr', sys.argv[1] + '/__init__.py', "
+                    "submodule_search_locations=[sys.argv[1]]); m = importlib.util.module_from_spec(spec); "
+                    "sys.modules['hr'] = m; spec.loader.exec_module(m); p = sys.modules['hr.backend.system.paths']; "
+                    "print(json.dumps([str(p.hermretro_home()), str(p.DEPS_ROOT)]))")
+            done = subprocess.run([sys.executable, "-c", code, str(ROOT), str(fake)], capture_output=True, text=True,
+                                  env={"PATH": os.environ.get("PATH", ""), "HOME": tmp, **env}, timeout=60)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            home, deps = json.loads(done.stdout)
+            return {"home": home.replace(str(fake), "<fake>"), "deps": deps.replace(str(fake), "<fake>")}
+
+    def test_inside_hermes_the_home_is_what_hermes_says(self):
+        for hermes_home in ("", "/y/.hermes/profiles/p"):
+            env = {"HERMES_HOME": hermes_home} if hermes_home else {}
+            self.assertEqual(self.run_plugin(env), {"home": "<fake>/hroot/hermretro", "deps": "<fake>/hroot/hermretro/.cache"})
+
+    def test_hermretro_home_still_wins(self):
+        self.assertEqual(self.run_plugin({"HERMRETRO_HOME": "/x/hh"}), {"home": "/x/hh", "deps": "/x/hh/.cache"})
+
+    def test_the_handed_over_answer_is_used_and_none_falls_back(self):
+        from backend.system import hermes_home
+        saved = hermes_home._ask
+        try:
+            asked = Path(tempfile.gettempdir()) / "asked-hermes"
+            hermes_home.provide(lambda: asked)
+            with mock.patch.dict(os.environ, CLEAN, clear=True):
+                self.assertEqual(paths.hermretro_home(), asked / "hermretro")
+            hermes_home.provide(lambda: None)
+            with mock.patch.dict(os.environ, {**CLEAN, "HERMES_HOME": "/z/.hermes"}, clear=True):
+                self.assertEqual(paths.hermretro_home(), Path("/z/.hermes/hermretro"))
+        finally:
+            hermes_home._ask = saved
+
+    def test_importing_the_hermes_layer_hands_it_over(self):
+        import backend.hermes  # noqa: F401
+        from backend.hermes import api
+        from backend.system import hermes_home
+        self.assertIs(hermes_home._ask, api.default_hermes_root)
 
 
 if __name__ == "__main__":

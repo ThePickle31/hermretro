@@ -12,6 +12,9 @@ from backend.hermes import contracts  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from backend.assets import versions as host_assets  # noqa: E402
 from backend.library import tools as host_tools  # noqa: E402
+from backend.library import hooks as library_hooks  # noqa: E402
+from backend.library import tools as library_tools  # noqa: E402
+from tests.support import registered_hook  # noqa: E402
 
 GOOD = {"title": "  Robin in the sky ", "summary": "The robin now flies.\n  Press A to flap.",
         "changes": [{"kind": "added", "text": "Flying robin sprite", "asset": "assets/sprites/robin.png"},
@@ -28,7 +31,7 @@ class BuildReport(unittest.TestCase):
         (self.root / "assets" / "sprites").mkdir(parents=True)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"\x89PNG\r\n\x1a\n")
         (self.base / "elsewhere.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-        self.patches = [mock.patch.object(host_tools, "_chat_project", lambda *_ids: str(self.root)),
+        self.patches = [mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)),
                         mock.patch.object(host_assets, "_keep_paths")]
         for patch in self.patches:
             patch.start()
@@ -39,7 +42,7 @@ class BuildReport(unittest.TestCase):
         self.tmp.cleanup()
 
     def report(self, args, **kwargs):
-        return json.loads(hermes_host.build_report_handler(args, **{"session_id": "s1", **kwargs}))
+        return json.loads(library_tools.build_report_handler(args, **{"session_id": "s1", **kwargs}))
 
     def test_a_good_report_is_trimmed_and_its_assets_resolved(self):
         answer = self.report(dict(GOOD))
@@ -97,7 +100,7 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(len(answer["warnings"]), 3)
 
     def test_without_a_project_only_absolute_assets_are_kept(self):
-        with mock.patch.object(host_tools, "_chat_project", lambda *_ids: None):
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
             answer = self.report({**GOOD, "changes": [
                 {"kind": "added", "text": "a", "asset": str(self.base / "elsewhere.png")},
                 {"kind": "added", "text": "b", "asset": "assets/robin.png"}]})
@@ -127,7 +130,7 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(self.report(None)["code"], "INVALID_REPORT")
 
     def test_schema_is_plugin_owned_and_strict(self):
-        schema = hermes_host.BUILD_REPORT_TOOL
+        schema = library_tools.BUILD_REPORT_TOOL
         self.assertEqual(schema["name"], "chromatic_build_report")
         self.assertNotIn("chromatic_build_report", {s["name"] for s in contracts.hermes_schemas()})
         parameters = schema["parameters"]
@@ -143,7 +146,7 @@ class BuildReport(unittest.TestCase):
     def test_the_approval_hook_lets_the_report_through(self):
         ctx = mock.Mock()
         ctx.get_config.return_value = True
-        self.assertIsNone(hermes_host.make_pre_tool_call(ctx)(tool_name="chromatic_build_report", args=GOOD))
+        self.assertIsNone(registered_hook("pre_tool_call", ctx)(tool_name="chromatic_build_report", args=GOOD))
 
     def test_agent_guidance_names_the_report(self):
         self.assertIn("chromatic_build_report", hermes_host.SYSTEM_PROMPT_SECTION)
@@ -154,9 +157,9 @@ class BuildReport(unittest.TestCase):
         registry.binding_for.return_value = ("game", {"title": "Robin", "projectRoot": str(self.root)})
         with mock.patch.object(hermes_host, "_registry", return_value=registry), \
                 mock.patch.object(hermes_host, "_profile_identity", return_value="p"):
-            self.assertIn("chromatic_build_report", hermes_host.build_context(session_id="s")["context"])
+            self.assertIn("chromatic_build_report", library_hooks.build_context(session_id="s")["context"])
             registry.binding_for.return_value = ("pending", {"name": "Robin"})
-            self.assertIn("chromatic_build_report", hermes_host.build_context(session_id="s", is_first_turn=True)["context"])
+            self.assertIn("chromatic_build_report", library_hooks.build_context(session_id="s", is_first_turn=True)["context"])
 
 
 if __name__ == "__main__":

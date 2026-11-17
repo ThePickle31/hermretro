@@ -32,3 +32,11 @@ def throwaway_deps(base: Path):
                                               cache / f"device-cli-{paths.ENGINE_VERSION}.json"))
         stack.enter_context(mock.patch.object(paths, "setup_root", lambda: cache / "toolchain"))
         yield cache
+
+
+def registered_hook(name: str, ctx=None):
+    """The callback the plugin registers for the Hermes hook ``name``: one feature's, or the chain of every
+    feature that hooks it (backend/hermes/declare.py), built from the ``backend`` modules tests patch."""
+    from backend.features import FEATURES
+    from backend.hermes import declare
+    return declare.collect("backend", FEATURES).hook(name, ctx)

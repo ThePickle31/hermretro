@@ -16,6 +16,7 @@ from backend.library import games  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from support import throwaway_profile  # noqa: E402
 from tests.backend.library.test_games import COVER, encode_png, make_project  # noqa: E402
+from backend.library import tools as library_tools  # noqa: E402
 
 GOOD = {"title": "Space Game", "tagline": "Fly a tiny ship through a meteor field.",
         "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
@@ -156,11 +157,11 @@ class ToolsAndPresent(unittest.TestCase):
         self.tmp.cleanup()
 
     def info(self, args):
-        return json.loads(hermes_host.game_info_handler({"project": str(self.root), **args},
+        return json.loads(library_tools.game_info_handler({"project": str(self.root), **args},
                                                         conversation_id="conv", session_id="run-1"))
 
     def present(self):
-        return json.loads(hermes_host.present_game_handler({"project": str(self.root)},
+        return json.loads(library_tools.present_game_handler({"project": str(self.root)},
                                                            conversation_id="conv", session_id="run-1"))
 
     def test_present_refuses_until_the_card_is_finished_then_shows_the_game(self):
@@ -212,7 +213,7 @@ class ToolsAndPresent(unittest.TestCase):
         self.assertEqual(game_card.load(fresh)["title"], "Fresh Game")
 
     def test_the_schema_lists_the_genres_and_needs_nothing(self):
-        schema = hermes_host.GAME_INFO_TOOL
+        schema = library_tools.GAME_INFO_TOOL
         self.assertEqual(schema["name"], "chromatic_game_info")
         self.assertNotIn("required", schema["parameters"])
         self.assertEqual(schema["parameters"]["properties"]["genres"]["items"]["enum"], list(game_card.GENRES))

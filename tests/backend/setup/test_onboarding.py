@@ -123,7 +123,7 @@ class BrokerInstall(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "toolchain"
         patches = [mock.patch.object(broker_module.paths, "setup_root", return_value=self.root),
-                   mock.patch.object(broker_module.provision, "seed_toolchain_cache", return_value={"seeded": False})]
+                   mock.patch.object(broker_module.setup, "seed_toolchain_cache", return_value={"seeded": False})]
         for item in patches:
             item.start()
             self.addCleanup(item.stop)

@@ -18,8 +18,9 @@ areas.system = "Locations and every Linux/macOS difference (stdlib only)"
 areas.hermes = "Everything that touches Hermes: tools, hooks, prompt, contracts, results"
 areas.broker = "The per-user broker process and its engine workers (stdlib only)"
 areas.setup = "Setup page RPCs: toolchain install, removal, the studio profile"
-areas.library = "Games, Build and Emulator RPCs, the library, game cards, build history"
+areas.library = "Games, Build and Emulator RPCs, the library, game cards, the game tools"
 areas.assets = "Game images for the Build page and their kept versions"
+areas.history = "Build history: a snapshot of a game after each build, and restoring one"
 areas.player = "The loopback server for the page's emulator"
 
 [folders.page]

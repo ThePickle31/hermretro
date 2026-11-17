@@ -1,64 +1,21 @@
-"""The plugin-owned tools: chromatic_studio_device_cli, chromatic_present_game, chromatic_game_info and
-chromatic_build_report, with their schemas and handlers. Re-exported by backend.hermes.host."""
+"""The library's plugin-owned tools: chromatic_present_game, chromatic_game_info and chromatic_build_report,
+with their schemas and handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 
-from ..assets import versions as host_assets
+from .. import player as player_server
 from ..hermes import host
-from ..player import server as player_server
-from ..setup import provision
-from ..system import paths
+from ..hermes.declare import Tool
+from ..system.events import emit
 from . import game_card, games as library
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend
 
 # Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
 # looked up there at call time, so one patch of host.<name> reaches every module.
-
-
-# -- plugin-owned setup tool ------------------------------------------------------
-
-DEVICE_CLI_TOOL = {
-    "name": "chromatic_studio_device_cli",
-    "description": (
-        "Check or install ModRetro's official Chromatic CLI for this computer. hermretro does not ship it: "
-        "'install' downloads it from ModRetro's own npm package, verifies it against pinned SHA-256 digests and "
-        "places it in hermretro's folder in the Hermes home. It is needed only for hardware features (device "
-        "discovery, streaming, capture, cartridge flashing); creating, building and playtesting games never use it. "
-        "This tool never touches USB, drivers or a device. The CLI is proprietary ModRetro software: install only "
-        "after the user has agreed to ModRetro's terms, and pass acceptVendorTerms true to record that. "
-        "'status' is passive and needs no consent."),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "action": {"type": "string", "enum": ["status", "install"]},
-            "acceptVendorTerms": {"type": "boolean",
-                                  "description": "Install only: true once the user has agreed to ModRetro's terms."},
-        },
-        "required": ["action"],
-        "additionalProperties": False,
-    },
-}
-
-
-def device_cli_handler(args: dict, **_kwargs) -> str:
-    try:
-        args = args if isinstance(args, dict) else {}
-        if args.get("action") == "install":
-            answer = provision.install_device_cli(args.get("acceptVendorTerms") is True)
-            answer["next"] = ("Hardware tools pick this up in a new chat. They also need 'Chromatic hardware tools' "
-                              "turned on in Settings > Plugins > hermretro.")
-            return json.dumps(answer)
-        return json.dumps(provision.summary())
-    except provision.ProvisionError as error:
-        return json.dumps({"error": str(error), "code": error.code, "installed": False})
-    except Exception as error:  # a handler must never raise
-        logger.exception("chromatic_studio_device_cli failed")
-        return json.dumps({"error": f"hermretro adapter error: {type(error).__name__}: {error}",
-                           "code": "ADAPTER_ERROR"})
 
 
 # -- plugin-owned tool: show the finished game to the user -------------------------
@@ -86,29 +43,6 @@ PRESENT_TOOL = {
 }
 
 
-def _chat_project(conversation_id: str, session_id: str) -> str | None:
-    """The project this chat works on: its broker lane's selection (memory only, never starts the
-    broker or a worker), else the library game whose chat link is this conversation."""
-    ids = [value for value in (conversation_id, session_id) if value]
-    if not ids:
-        return None
-    client, _error = host.try_connect(paths.runtime_dir())
-    if client is not None:
-        with client:
-            answer = client.request({"op": "activity", "profile": host._profile_identity(), "ids": ids, "limit": 1})
-        root = (answer.get("lane") or {}).get("project_root") if answer.get("ok") and answer.get("matched") == "chat" \
-            else None
-        if isinstance(root, str) and root:
-            return root
-    here = host._profile_identity()
-    linked = [entry for entry in host._registry().load()["games"].values()
-              if isinstance(entry, dict) and isinstance(entry.get("chat"), dict)
-              and entry["chat"].get("profile") in (None, here)
-              and (entry["chat"].get("conversationId") in ids or entry["chat"].get("sessionId") in ids)]
-    linked.sort(key=lambda entry: -(entry.get("updatedAt") or 0))
-    return linked[0]["projectRoot"] if linked and isinstance(linked[0].get("projectRoot"), str) else None
-
-
 def _present_error(message: str, code: str) -> str:
     return json.dumps({"ok": False, "error": message, "code": code})
 
@@ -127,7 +61,7 @@ def _tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str 
             return None, _present_error(f"{project} is not an existing project folder (give an absolute path).",
                                         "PROJECT_NOT_FOUND")
         return str(candidate), None
-    root = _chat_project(conversation_id, session_id)
+    root = host._chat_project(conversation_id, session_id)
     if not root or not Path(root).is_dir():
         return None, _present_error(
             f"This chat has no current project. Select or create the game's project, then call {tool} again (or "
@@ -157,7 +91,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
                                       "PROJECT_NOT_FOUND")
             root = str(candidate)
         else:
-            root = _chat_project(conversation_id, session_id)
+            root = host._chat_project(conversation_id, session_id)
         if not root or not Path(root).is_dir():
             return _present_error(
                 "This chat has no current project. Select or create the game's project, build it with "
@@ -191,6 +125,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
         if presented is None:
             return _present_error(f"{root} is not an existing project folder.", "PROJECT_NOT_FOUND")
         record = presented["presentation"]
+        emit("library.game_presented", game=record["gameId"], root=root)
         url = player_server.get_server(host._game_root).url(record["gameId"])
         return json.dumps({"ok": True,
                            "studio": {"gameId": record["gameId"], "playerUrl": url, "title": record["title"],
@@ -402,7 +337,7 @@ def build_report_handler(args: dict, **kwargs) -> str:
                 root = Path(project).expanduser()
         else:
             try:
-                found = _chat_project(str(kwargs.get("conversation_id") or ""), str(kwargs.get("session_id") or ""))
+                found = host._chat_project(str(kwargs.get("conversation_id") or ""), str(kwargs.get("session_id") or ""))
             except Exception:
                 logger.debug("hermretro: no project for the build report", exc_info=True)
                 found = None
@@ -455,8 +390,8 @@ def build_report_handler(args: dict, **kwargs) -> str:
         if problems:
             return json.dumps({"ok": False, "code": "INVALID_REPORT", "problems": problems,
                                "error": "The build report was not shown. " + " ".join(problems)})
-        # The card shows each image as it is now, even after a later turn rewrites it.
-        host_assets._keep_paths(change.get("asset") for change in report["changes"])
+        # The card shows each image as it is now, even after a later turn rewrites it (assets listens).
+        emit("library.build_reported", assets=[change["asset"] for change in report["changes"] if change.get("asset")])
         answer = {"ok": True, "report": report, "project": str(root) if root else None, "message": REPORT_MESSAGE}
         if warnings:
             answer["warnings"] = warnings
@@ -464,3 +399,10 @@ def build_report_handler(args: dict, **kwargs) -> str:
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_build_report failed")
         return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+
+
+TOOLS = (
+    Tool(PRESENT_TOOL, present_game_handler, step_words=("Handing you the game", "Handed you the game")),
+    Tool(GAME_INFO_TOOL, game_info_handler, step_words=("Writing the game card", "Wrote the game card")),
+    Tool(BUILD_REPORT_TOOL, build_report_handler, step_words=None),   # drawn as the turn's build card instead
+)

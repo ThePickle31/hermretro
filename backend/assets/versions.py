@@ -1,6 +1,6 @@
 """Kept versions of game images: what an image looked like when a reply showed it. The image checks
 (kind, size, whether a path is inside a library game), the hooks that keep each version, and the list of
-kept versions. Re-exported by backend.hermes.host."""
+kept versions."""
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..hermes import host
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, 
 
 # Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
 # looked up there at call time, so one patch of host.<name> reaches every module.

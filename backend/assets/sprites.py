@@ -1,6 +1,5 @@
 """How a GB Studio project shows its sprites and backgrounds: animations, palettes and the scenes that use
-them, read from the project's sidecar files for the asset viewer and thumbnails. Re-exported by
-backend.hermes.host."""
+them, read from the project's sidecar files for the asset viewer and thumbnails."""
 from __future__ import annotations
 
 import json
@@ -8,7 +7,7 @@ from pathlib import Path
 
 from ..hermes import host
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, 
 
 # GB Studio's animation slots, by sprite type (the compiler's order).
 _ANIMATION_NAMES = {

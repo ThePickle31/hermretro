@@ -1,28 +1,27 @@
-"""Everything that touches Hermes: tool handlers, hooks, the prompt section, and the helpers shared by
-the RPC and tool modules.
+"""The helpers every feature's Hermes side shares, and the engine tool handler.
 
-The page's RPCs and the plugin-owned tools live in backend/setup/rpcs.py, backend/library/rpcs.py,
-backend/library/tools.py and backend/assets/; this module re-exports their names (``host.rpc_status`` and
-so on), and those modules look the shared helpers up here at call time.
+Shared helpers (the data folder, the profile, the library registry, the chat's project, the broker client,
+subagent tracking) live here; feature modules call them as ``host.<name>`` at call time, so one
+``mock.patch.object(host, ...)`` reaches every module. The approval hook is declared in hooks.py, the engine
+tools in tools.py, the prompt section and skills in prompt.py. Each feature declares its own RPCs, tools and
+hooks in its folder (backend/hermes/declare.py).
 
 Handlers run wherever Hermes dispatches tools (gateway, plugin host or an isolated
 turn process). They hold no state of their own: every call goes to the broker.
 """
 from __future__ import annotations
 
-import importlib
 import json
 import logging
 import threading
 import time
 from pathlib import Path
 
-from ..library import games as library
-from ..setup import provision
+from .. import library
 from ..system import paths
 from . import api as hermes_api, contracts, results
-# try_connect is used by the area modules as host.try_connect, so a test's patch here reaches them.
-from ..broker.client import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401
+# try_connect is used by the feature modules as host.try_connect, so a test's patch here reaches them.
+from ..broker import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +146,29 @@ def _game_root(identifier) -> Path | None:
     return root if root is not None and root.is_dir() else None
 
 
+def _chat_project(conversation_id: str, session_id: str) -> str | None:
+    """The project this chat works on: its broker lane's selection (memory only, never starts the
+    broker or a worker), else the library game whose chat link is this conversation."""
+    ids = [value for value in (conversation_id, session_id) if value]
+    if not ids:
+        return None
+    client, _error = try_connect(paths.runtime_dir())
+    if client is not None:
+        with client:
+            answer = client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
+        root = (answer.get("lane") or {}).get("project_root") if answer.get("ok") and answer.get("matched") == "chat" \
+            else None
+        if isinstance(root, str) and root:
+            return root
+    here = _profile_identity()
+    linked = [entry for entry in _registry().load()["games"].values()
+              if isinstance(entry, dict) and isinstance(entry.get("chat"), dict)
+              and entry["chat"].get("profile") in (None, here)
+              and (entry["chat"].get("conversationId") in ids or entry["chat"].get("sessionId") in ids)]
+    linked.sort(key=lambda entry: -(entry.get("updatedAt") or 0))
+    return linked[0]["projectRoot"] if linked and isinstance(linked[0].get("projectRoot"), str) else None
+
+
 # The build card's guidance, for the Build conversation's context and the prompt section.
 BUILD_REPORT_GUIDANCE = (
     "At the end of a turn that changed or built the game (after building, your own playtest and presenting), "
@@ -157,29 +179,9 @@ BUILD_REPORT_GUIDANCE = (
 # -- hooks -------------------------------------------------------------------------
 
 def make_pre_tool_call(ctx):
-    from ..library.tools import DEVICE_CLI_TOOL
-
     def pre_tool_call(tool_name=None, args=None, **_kwargs):
-        """Send every hardware-changing call, and the vendor download, through Hermes's own
-        human-approval gate. Denial, timeout or nobody to ask all leave the tool unrun."""
-        if tool_name == DEVICE_CLI_TOOL["name"]:
-            if not isinstance(args, dict) or args.get("action") != "install":
-                return None  # status is passive
-            try:
-                host = provision.host_target()
-                pins = provision._pins(host["target"]) if host["target"] else None
-            except Exception:
-                pins = None
-            if pins is None:
-                return None  # nothing can be installed here; the tool explains why
-            megabytes = pins["package"]["bytes"] / 1_000_000
-            return {"action": "approve",
-                    "message": (f"Download ModRetro's Chromatic CLI {pins['version']} ({megabytes:.1f} MB) from "
-                                f"{pins['package']['url']} into hermretro's folder in the Hermes home. It is proprietary "
-                                f"ModRetro software; approving means you agree to ModRetro's terms "
-                                f"({provision.VENDOR_TERMS_URL}). Nothing is sent to a device."),
-                    # One key per CLI release: "always" covers a reinstall, never a different version.
-                    "rule_key": f"hermretro:device-cli-install:{pins['version']}"}
+        """Send every hardware-changing call through Hermes's own human-approval gate. Denial, timeout or
+        nobody to ask all leave the tool unrun. (The vendor download's approval is setup's: setup/hooks.py.)"""
         if tool_name not in _APPROVAL_TOOLS or not ctx.get_config("hardware_enabled", False):
             return None  # disabled hardware is refused by the broker; nothing to approve
         args = args or {}
@@ -221,51 +223,3 @@ SYSTEM_PROMPT_SECTION = (
     "desktop_preview (action \"open\"); without desktop tools, give the user that url. "
     "Hardware tools stay off until the user enables them in Settings > Plugins > hermretro."
 )
-
-
-# -- names that moved to the area modules ------------------------------------------
-# host.<name> keeps working for __init__.py and the tests. Keys are module paths under backend/. Resolved on
-# first use, so an area module can import this one at its top in any import order.
-_MOVED = {
-    "setup.rpcs": (
-        "_COMPONENT_LABELS", "_OPTIONAL_COMPONENTS", "_platform_report", "LOADED_FINGERPRINT",
-        "rpc_status", "rpc_install", "rpc_remove_tools", "BROKER_STOP_WAIT", "_REMOVE_BUSY",
-        "_broker_lock", "rpc_studio_profile", "rpc_activity", "rpc_doctor",
-    ),
-    "library.tools": (
-        "DEVICE_CLI_TOOL", "device_cli_handler", "PRESENT_TOOL", "_chat_project", "_present_error",
-        "_tool_project", "present_game_handler", "GAME_INFO_TOOL", "_CARD_FIELDS", "game_info_handler",
-        "REPORT_LIMITS", "REPORT_COUNTS", "REPORT_KINDS", "REPORT_MESSAGE", "_report_list",
-        "BUILD_REPORT_TOOL", "_report_text", "_report_asset", "build_report_handler",
-    ),
-    "assets.versions": (
-        "ASSET_SUFFIXES", "ASSET_MAX_BYTES", "_image_size", "_asset_kind", "ASSET_KEEP_VERSIONS",
-        "_MEDIA_LINE", "_asset_roots", "_asset_file", "_versions_dir", "_keep_version", "_version_at",
-        "_keep_paths", "keep_delivered_images", "keep_inspected_images", "_versions",
-    ),
-    "assets.sprites": (
-        "_ANIMATION_NAMES", "_FACING_SLOT", "_ASSET_INFO_SCENES", "_ASSET_INFO_ACTORS", "_read_json",
-        "_tiles", "_sprite_animations", "_standing_frame", "_project_index", "_palette",
-        "_player_sprite_id", "_actor_palette", "_scene_view", "_SPRITE_USES", "_SPRITE_USES_ROOTS",
-        "_MOVING_OFFSET", "_project_stamp", "_sprite_uses", "_sprite_look",
-    ),
-    "assets.rpcs": (
-        "rpc_asset", "rpc_asset_info", "rpc_asset_restore", "_ASSET_LIST_FOLDERS", "ASSET_LIST_LIMIT",
-        "_list_root", "rpc_assets",
-    ),
-    "library.rpcs": (
-        "_games_dir_made", "_profile_name", "_chat_titles", "_existing_sessions", "_seed_library",
-        "_demo_entry", "_capture_root", "rpc_games", "rpc_build", "SHOW_ART_CONTEXT", "build_context",
-        "_snapshots_dir", "_result_payload", "build_succeeded", "_library_root_for",
-        "snapshot_after_build", "after_tool_call", "rpc_builds", "rpc_build_restore", "rpc_game_thumb",
-        "rpc_player", "rpc_presentations", "rpc_captures", "rpc_capture_image",
-    ),
-}
-_HOME = {name: module for module, names in _MOVED.items() for name in names}
-
-
-def __getattr__(name):
-    module = _HOME.get(name)
-    if module is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    return getattr(importlib.import_module(f"..{module}", __package__), name)

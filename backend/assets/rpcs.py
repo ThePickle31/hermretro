@@ -1,5 +1,5 @@
 """Game images for the Build page: the asset, asset_info, asset_restore and assets RPCs. Kept versions
-live in versions.py, sprite and scene reading in sprites.py. Re-exported by backend.hermes.host."""
+live in versions.py, sprite and scene reading in sprites.py. Declared with @rpc."""
 from __future__ import annotations
 
 import base64
@@ -7,15 +7,18 @@ import json
 from pathlib import Path
 
 from ..hermes import host
-from ..library import game_card
+from ..hermes.declare import rpc
+from ..library import cover_path
+from ..system.events import emit
 from .sprites import (_ASSET_INFO_SCENES, _actor_palette, _project_index, _read_json, _scene_view,
                       _sprite_animations, _sprite_look)
 from .versions import (ASSET_MAX_BYTES, ASSET_SUFFIXES, _asset_file, _asset_kind, _asset_roots, _image_size,
                        _keep_version, _version_at, _versions, _versions_dir)
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, 
 
 
+@rpc("asset")
 def rpc_asset(ctx):
     """One image for the Build page (a thumbnail, the asset viewer): only from a library game's folder
     or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
@@ -86,6 +89,7 @@ def rpc_asset(ctx):
     return asset
 
 
+@rpc("asset_info")
 def rpc_asset_info(ctx):
     """What the asset viewer shows beside an image: its kind, every kept version, and for a sprite or
     background its animations, the palette the game paints it with, and the scenes that use it (drawn
@@ -101,7 +105,7 @@ def rpc_asset_info(ctx):
             relative = None if frames else real.relative_to(root).as_posix()
             kind = "frame" if frames else _asset_kind(relative)
             answer = {"ok": True, "path": str(real), "relative": relative, "kind": kind, "versions": _versions(real)}
-            if not frames and real == game_card.cover_path(root).resolve():
+            if not frames and real == cover_path(root).resolve():
                 answer["kind"] = "cover"
             if frames or kind not in ("sprite", "background"):
                 return answer
@@ -147,6 +151,7 @@ def rpc_asset_info(ctx):
     return asset_info
 
 
+@rpc("asset_restore")
 def rpc_asset_restore(ctx):
     """Put a kept version of a game image back in place (the one there now is kept first, so this can
     be undone the same way)."""
@@ -168,6 +173,7 @@ def rpc_asset_restore(ctx):
             partial.write_bytes(kept.read_bytes())
             partial.replace(real)
             _keep_version(real)
+            emit("assets.image_restored", path=str(real))
             return {"ok": True, "path": str(real), "versions": _versions(real)}
         except Exception as error:
             logger.exception("hermretro asset_restore failed")
@@ -192,6 +198,7 @@ def _list_root(params) -> Path | None:
     return root
 
 
+@rpc("assets")
 def rpc_assets(ctx):
     """Every picture of one game, for the Build page's Assets panel: the game card's cover, then its
     sprites, backgrounds and interface art, each with the name its sidecar gives it. Lists files only
@@ -203,7 +210,7 @@ def rpc_assets(ctx):
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be listed."}
             items = []
-            cover = game_card.cover_path(root)
+            cover = cover_path(root)
             if cover.is_file():
                 stat = cover.stat()
                 items.append({"path": str(cover.resolve()), "relative": cover.relative_to(root).as_posix(), "name": "Cover",

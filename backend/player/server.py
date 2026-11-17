@@ -26,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from ..library import games
+from .. import library
 from ..system import paths
 
 logger = logging.getLogger(__name__)
@@ -168,18 +168,18 @@ class PlayerError(Exception):
 
 def game_build(root: Path) -> dict:
     """What the frame needs to know about a game's web export, verified like the engine does."""
-    web = games.web_dir(root)
-    if not games.has_web_export(root):
+    web = library.web_dir(root)
+    if not library.has_web_export(root):
         raise PlayerError("This game has no playable web build yet.")
-    rom = games.web_rom(root)
+    rom = library.web_rom(root)
     if rom is None:
         raise PlayerError("The web build names no ROM inside it.")
     rom_path = rom.relative_to(web).as_posix()
     if not re.fullmatch(r"(?:[^./\\:%?#][^/\\:%?#]*/)*[^./\\:%?#][^/\\:%?#]*\.gbc?", rom_path, re.I):
         raise PlayerError("The web build's ROM path is not a plain relative .gb or .gbc file.")
-    rom_sha = games.file_sha256(rom)
-    runtime_sha = games.file_sha256(web / "js" / "binjgb.wasm")
-    record = games._json(web / ".codex-web-build.json")  # noqa: SLF001 - shared helper
+    rom_sha = library.file_sha256(rom)
+    runtime_sha = library.file_sha256(web / "js" / "binjgb.wasm")
+    record = library.read_json(web / ".codex-web-build.json")  # noqa: SLF001 - shared helper
     revision = record.get("sourceRevision") if isinstance(record.get("sourceRevision"), str) else None
     if not revision or not (0 < len(revision) <= 1024):
         revision = "hermes-" + rom_sha[:16]
@@ -195,9 +195,9 @@ def demo_build() -> dict:
     rom = demo_rom()
     if rom is None:
         raise PlayerError("The demo ROM (the engine's hello-color example) is missing.")
-    rom_sha = games.file_sha256(rom)
+    rom_sha = library.file_sha256(rom)
     return {"web": web, "rom": rom, "romPath": DEMO_ROM_PATH, "romSha256": rom_sha,
-            "runtimeSha256": games.file_sha256(web / "js" / "binjgb.wasm"),
+            "runtimeSha256": library.file_sha256(web / "js" / "binjgb.wasm"),
             "sourceRevision": "hermes-demo-" + rom_sha[:16]}
 
 
@@ -257,8 +257,8 @@ def save_capture(root: Path, identifier: str, kind: str, media: bytes, media_typ
         raise PlayerError("Unknown capture kind.")
     if not media:
         raise PlayerError("Capture media is empty.")
-    if kind == "screenshot" or media.startswith(games.PNG_MAGIC):
-        if not media.startswith(games.PNG_MAGIC):
+    if kind == "screenshot" or media.startswith(library.PNG_MAGIC):
+        if not media.startswith(library.PNG_MAGIC):
             raise PlayerError("A screenshot must be a PNG image.")
         extension = "png"
     elif "mp4" in (media_type or "").lower():
@@ -296,7 +296,7 @@ def list_captures(root: Path, identifier: str) -> list[dict]:
     for path in entries:
         if path.suffix.lower() not in MEDIA_EXTENSIONS or path.name.startswith(".") or not path.is_file():
             continue
-        sidecar = games._json(path.with_name(path.name + ".json"))  # noqa: SLF001
+        sidecar = library.read_json(path.with_name(path.name + ".json"))  # noqa: SLF001
         kind = sidecar.get("kind") if isinstance(sidecar.get("kind"), str) else \
             ("screenshot" if path.suffix.lower() == ".png" else "video")
         created = sidecar.get("createdAt") if isinstance(sidecar.get("createdAt"), str) else \
@@ -449,7 +449,7 @@ class _Handler(BaseHTTPRequestHandler):
         if is_demo(identifier):
             root = demo_captures_root()
         else:
-            root = player.resolve(identifier) if games.valid_id(identifier) else None
+            root = player.resolve(identifier) if library.valid_id(identifier) else None
         if root is None:
             self._text(404, "Unknown game.")
             return None
@@ -540,7 +540,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._file(rom) if rom else self._text(404, "Not found.")
             web = demo_web_dir().resolve()
         else:
-            web = games.web_dir(root).resolve()
+            web = library.web_dir(root).resolve()
         target = (web / rel).resolve()
         if not target.is_relative_to(web) or any(part.startswith(".") for part in Path(rel).parts) \
                 or not target.is_file():
@@ -549,8 +549,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _annotation(self, root: Path, name: str, identifier: str = ""):
         if re.fullmatch(r"binjgb-[a-f0-9]{64}\.wasm", name):
-            wasm = (demo_web_dir() if is_demo(identifier) else games.web_dir(root)) / "js" / "binjgb.wasm"
-            if wasm.is_file() and games.file_sha256(wasm) == name[7:71]:
+            wasm = (demo_web_dir() if is_demo(identifier) else library.web_dir(root)) / "js" / "binjgb.wasm"
+            if wasm.is_file() and library.file_sha256(wasm) == name[7:71]:
                 return self._file(wasm, "application/wasm")
             return self._text(404, "The game runtime changed.")
         if re.fullmatch(r"chromatic-[a-z0-9-]+\.(?:webp|png)", name):

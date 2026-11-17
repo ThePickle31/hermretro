@@ -1,20 +1,17 @@
-"""The Games, Build and Emulator pages' RPCs: the library, the game <-> conversation binding, build
-snapshots, the real player and captures, plus the Build conversation's per-turn context.
-Re-exported by backend.hermes.host."""
+"""The Games, Build and Emulator pages' RPCs: the library, the game <-> conversation binding, the real player
+and captures. Declared with @rpc; registered in this order (backend/hermes/declare.py)."""
 from __future__ import annotations
 
-import json
-import os
 import time
 from pathlib import Path
 
-from ..assets import versions as host_assets
+from .. import player as player_server
 from ..hermes import host
-from ..player import server as player_server
+from ..hermes.declare import rpc
 from ..system import paths
-from . import games as library, snapshots, tools as host_tools
+from . import games as library
 
-logger = host.logger   # one logger for the Hermes side of the backend, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend
 
 # Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
 # looked up there at call time, so one patch of host.<name> reaches every module.
@@ -101,6 +98,7 @@ def _capture_root(identifier) -> Path | None:
     return player_server.demo_captures_root() if player_server.is_demo(identifier) else host._game_root(identifier)
 
 
+@rpc("games")
 def rpc_games(ctx):
     def games(params, **_kwargs):
         try:
@@ -152,6 +150,121 @@ def rpc_games(ctx):
     return games
 
 
+@rpc("game_thumb")
+def rpc_game_thumb(ctx):
+    def game_thumb(params, **_kwargs):
+        try:
+            params = params or {}
+            identifier = str(params.get("id") or "")
+            if host._game_root(identifier) is None:
+                return {"ok": False, "error": "Unknown game."}
+            png = library.decode_png(params.get("png"), library.MAX_THUMB_BYTES)
+            host._registry().save_thumb(identifier, png)
+            return {"ok": True}
+        except ValueError as error:
+            return {"ok": False, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro game_thumb failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return game_thumb
+
+
+@rpc("player")
+def rpc_player(ctx):
+    """Open ModRetro's real player for one game, served from this process's loopback server. Without
+    an id (or with ``demo``) it opens the built-in demo cartridge, which needs no project."""
+    def player(params, **_kwargs):
+        try:
+            identifier = str((params or {}).get("id") or "") or player_server.DEMO_ID
+            if player_server.is_demo(identifier):
+                build = player_server.demo_build()
+                server = player_server.get_server(host._game_root)
+                return {"ok": True, "url": server.url(identifier), "romSha256": build["romSha256"],
+                        "title": player_server.DEMO["title"], "demo": True}
+            root = host._game_root(identifier)
+            if root is None:
+                return {"ok": False, "error": "Unknown game."}
+            title = library.project_title(root)
+            if not library.has_web_export(root):
+                return {"ok": False, "title": title,
+                        "error": f"{title} has no playable build yet. Ask Hermes in its chat to build the game, "
+                                 "then press Play again."}
+            build = player_server.game_build(root)
+            server = player_server.get_server(host._game_root)
+            return {"ok": True, "url": server.url(identifier), "romSha256": build["romSha256"], "title": title}
+        except player_server.PlayerError as error:
+            return {"ok": False, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro player failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return player
+
+
+@rpc("presentations")
+def rpc_presentations(ctx):
+    """Games the agent presented (``chromatic_present_game``) after ``since`` (seconds), for a desktop
+    that did not hear the tool complete. ``now`` is the backend's clock for the next ``since``."""
+    def presentations(params, **_kwargs):
+        try:
+            since = (params or {}).get("since")
+            since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) else None
+            here = host._profile_identity()
+            listed = []
+            for item in host._registry().presentations(since)[-20:]:
+                owner = item.get("profile")
+                listed.append({"gameId": item["gameId"], "title": item.get("title"), "t": item["t"],
+                               "note": item.get("note"), "sessionId": item.get("sessionId"),
+                               "conversationId": item.get("conversationId"),
+                               "profile": _profile_name(owner) if owner else None,
+                               "thisProfile": owner == here if owner else None})
+            return {"ok": True, "now": time.time(), "presentations": listed}
+        except Exception as error:
+            logger.exception("hermretro presentations failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}", "presentations": []}
+    return presentations
+
+
+@rpc("captures")
+def rpc_captures(ctx):
+    def captures(params, **_kwargs):
+        try:
+            identifier = str((params or {}).get("id") or "")
+            root = _capture_root(identifier)
+            if root is None:
+                return {"ok": False, "error": "Unknown game.", "captures": []}
+            server = player_server.get_server(host._game_root)
+            found = player_server.list_captures(root, identifier)
+            return {"ok": True, "captures": [{"path": c["path"], "kind": c["kind"], "createdAt": c["createdAt"],
+                                              "url": server.capture_url(identifier, c["id"])} for c in found]}
+        except Exception as error:
+            logger.exception("hermretro captures failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}", "captures": []}
+    return captures
+
+
+@rpc("capture_image")
+def rpc_capture_image(ctx):
+    """Save a game-screen image (Ask Hermes / annotate) under the project's captures folder, so the
+    chat text can name a file the agent opens itself."""
+    def capture_image(params, **_kwargs):
+        try:
+            params = params or {}
+            identifier = str(params.get("id") or "")
+            root = _capture_root(identifier)
+            if root is None:
+                return {"ok": False, "error": "Unknown game."}
+            png = library.decode_png(params.get("png"), 4 * 1024 * 1024)
+            receipt = player_server.save_capture(root, identifier, "annotation", png, "image/png", None)
+            return {"ok": True, "path": receipt["path"]}
+        except (ValueError, player_server.PlayerError) as error:
+            return {"ok": False, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro capture_image failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return capture_image
+
+
+@rpc("build")
 def rpc_build(ctx):
     """The Build page's game ↔ conversation binding. Params use ``stored`` (a stored session id), never
     ``session_id``: the gateway would authorize that as a live session and refuse the whole call.
@@ -183,272 +296,3 @@ def rpc_build(ctx):
             logger.exception("hermretro build failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
     return build
-
-
-SHOW_ART_CONTEXT = (
-    "To show the user a game's art (a sprite, background or cover), put the real file on its own line as "
-    "MEDIA:<absolute path>, e.g. its assets/sprites/<name>.png: the Build page draws it in the game's colours, "
-    "animates a sprite and opens it in its viewer (frames, palette, scenes, versions) on a click. Do not draw a "
-    "preview or contact sheet to show existing art; make one only when the user asks for a picture that "
-    "does not exist yet.")
-
-
-def build_context(session_id=None, is_first_turn=False, **_kwargs):
-    """``pre_llm_call``: tell a game's Build conversation which game it is (ephemeral, per turn)."""
-    if not isinstance(session_id, str) or not session_id:
-        return None
-    try:
-        kind, bound = host._registry().binding_for(host._profile_identity(), [session_id])
-    except Exception:
-        return None
-    if kind == "game":
-        title = bound.get("title") or Path(bound.get("projectRoot") or "").name
-        return {"context": (f"[hermretro] This is the Build conversation of the game \"{title}\" "
-                            f"({bound.get('projectRoot')}). The game is selected for you on the first chromatic "
-                            "call. This conversation works on this one game: do not create or open other "
-                            "projects here; for another game the user uses New Game or picks it on the "
-                            "hermretro Build page. " + SHOW_ART_CONTEXT + " " + host.BUILD_REPORT_GUIDANCE)}
-    if kind == "pending":
-        name = bound.get("name")
-        called = f" called \"{name}\"" if name else ""
-        how = ("Plan it first: load hermretro:game-planning, interview the user briefly, create the project, and "
-               "write the game brief, backlog and test plan into it before building anything."
-               if bound.get("plan") else
-               "Ask the user a few quick questions first, then create the project, build it, fill in its game card "
-               "with chromatic_game_info and show it with chromatic_present_game.")
-        start = ("; their message is the idea. " + how) if is_first_turn else \
-            ". If its project does not exist yet, create it once the user is ready."
-        return {"context": (f"[hermretro] The user started a new Game Boy Color game{called} with New Game on the "
-                            "hermretro Build page" + start + " Create exactly one new "
-                            "project (chromatic_project_create or chromatic_project_create_blank): it becomes this "
-                            "conversation's game. " + host.BUILD_REPORT_GUIDANCE)}
-    return None
-
-
-def _snapshots_dir() -> Path:
-    return host._data_dir() / "snapshots"
-
-
-def _result_payload(result):
-    """A tool result as the model saw it: the JSON text, or the multimodal envelope's text summary."""
-    if isinstance(result, dict) and result.get("_multimodal"):
-        result = result.get("text_summary")
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except ValueError:
-            return None
-    return result if isinstance(result, dict) else None
-
-
-def build_succeeded(result, status=None) -> bool:
-    """Whether a delivered ``chromatic_rom_build`` result is a successful build: no error from Hermes or
-    the backend, and the engine's own ``structuredContent.success`` is true."""
-    if status not in (None, "", "ok"):
-        return False
-    payload = _result_payload(result)
-    if not payload or payload.get("error") or payload.get("isError"):
-        return False
-    structured = payload.get("structuredContent")
-    return isinstance(structured, dict) and structured.get("success") is True
-
-
-def _library_root_for(candidates) -> tuple[str, Path] | None:
-    """The first library game whose project is, or contains, one of ``candidates``."""
-    games = [entry for entry in host._registry().load()["games"].values()
-             if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str)]
-    roots = []
-    for entry in games:
-        try:
-            roots.append(Path(os.path.realpath(entry["projectRoot"])))
-        except (OSError, ValueError):
-            continue
-    for candidate in candidates:
-        if not isinstance(candidate, str) or not candidate:
-            continue
-        try:
-            real = Path(os.path.realpath(candidate))
-        except (OSError, ValueError):
-            continue
-        for root in roots:
-            if (real == root or root in real.parents) and root.is_dir():
-                return library.game_id(root), root
-    return None
-
-
-def snapshot_after_build(tool_name=None, args=None, result=None, status=None, conversation_id=None,
-                         session_id=None, **_kwargs):
-    """``post_tool_call``: after a successful build of a library game, keep a snapshot of its files for
-    the Build page's history (Restore). Never raises."""
-    try:
-        if tool_name != "chromatic_rom_build" or not build_succeeded(result, status):
-            return
-        args = args if isinstance(args, dict) else {}
-        if args.get("sourcePath"):
-            return  # a standalone C experiment, not the game's build
-        structured = (_result_payload(result) or {}).get("structuredContent") or {}
-        candidates = [structured.get("projectRoot"), args.get("projectPath")]
-        try:
-            candidates.append(host_tools._chat_project(str(conversation_id or ""), str(session_id or "")))
-        except Exception:
-            logger.debug("hermretro: no chat project for the build snapshot", exc_info=True)
-        candidates += [structured.get("outputPath"), structured.get("romPath")]
-        found = _library_root_for(candidates)
-        if found is None:
-            return
-        game, root = found
-        taken = snapshots.take(_snapshots_dir(), game, root, "build")
-        if taken.get("skipped"):
-            logger.debug("hermretro: build snapshot of %s skipped: %s", root, taken["skipped"])
-    except Exception:
-        logger.debug("hermretro snapshot_after_build failed", exc_info=True)
-
-
-def after_tool_call(**kwargs):
-    """``post_tool_call``: keep inspected image versions, then snapshot a successful build."""
-    host_assets.keep_inspected_images(**kwargs)
-    snapshot_after_build(**kwargs)
-
-
-def rpc_builds(ctx):
-    """The Build page's build history for one library game: ``{game}`` → its snapshots, newest first."""
-    def builds(params, **_kwargs):
-        try:
-            params = params if isinstance(params, dict) else {}
-            game = str(params.get("game") or "")
-            if host._game_root(game) is None:
-                return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library has builds."}
-            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game)}
-        except Exception as error:
-            logger.exception("hermretro builds failed")
-            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
-    return builds
-
-
-def rpc_build_restore(ctx):
-    """Put a game's files back as they were at one build (``{game, id}``). The current files are kept
-    first as a ``before-restore`` snapshot; the page then asks the agent to rebuild."""
-    def build_restore(params, **_kwargs):
-        try:
-            params = params if isinstance(params, dict) else {}
-            game = str(params.get("game") or "")
-            root = host._game_root(game)
-            if root is None:
-                return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be restored."}
-            identifier = str(params.get("id") or "")
-            return {"ok": True, **snapshots.restore(_snapshots_dir(), game, root, identifier)}
-        except snapshots.SnapshotError as error:
-            return {"ok": False, "code": error.code, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro build_restore failed")
-            return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
-    return build_restore
-
-
-def rpc_game_thumb(ctx):
-    def game_thumb(params, **_kwargs):
-        try:
-            params = params or {}
-            identifier = str(params.get("id") or "")
-            if host._game_root(identifier) is None:
-                return {"ok": False, "error": "Unknown game."}
-            png = library.decode_png(params.get("png"), library.MAX_THUMB_BYTES)
-            host._registry().save_thumb(identifier, png)
-            return {"ok": True}
-        except ValueError as error:
-            return {"ok": False, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro game_thumb failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return game_thumb
-
-
-def rpc_player(ctx):
-    """Open ModRetro's real player for one game, served from this process's loopback server. Without
-    an id (or with ``demo``) it opens the built-in demo cartridge, which needs no project."""
-    def player(params, **_kwargs):
-        try:
-            identifier = str((params or {}).get("id") or "") or player_server.DEMO_ID
-            if player_server.is_demo(identifier):
-                build = player_server.demo_build()
-                server = player_server.get_server(host._game_root)
-                return {"ok": True, "url": server.url(identifier), "romSha256": build["romSha256"],
-                        "title": player_server.DEMO["title"], "demo": True}
-            root = host._game_root(identifier)
-            if root is None:
-                return {"ok": False, "error": "Unknown game."}
-            title = library.project_title(root)
-            if not library.has_web_export(root):
-                return {"ok": False, "title": title,
-                        "error": f"{title} has no playable build yet. Ask Hermes in its chat to build the game, "
-                                 "then press Play again."}
-            build = player_server.game_build(root)
-            server = player_server.get_server(host._game_root)
-            return {"ok": True, "url": server.url(identifier), "romSha256": build["romSha256"], "title": title}
-        except player_server.PlayerError as error:
-            return {"ok": False, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro player failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return player
-
-
-def rpc_presentations(ctx):
-    """Games the agent presented (``chromatic_present_game``) after ``since`` (seconds), for a desktop
-    that did not hear the tool complete. ``now`` is the backend's clock for the next ``since``."""
-    def presentations(params, **_kwargs):
-        try:
-            since = (params or {}).get("since")
-            since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) else None
-            here = host._profile_identity()
-            listed = []
-            for item in host._registry().presentations(since)[-20:]:
-                owner = item.get("profile")
-                listed.append({"gameId": item["gameId"], "title": item.get("title"), "t": item["t"],
-                               "note": item.get("note"), "sessionId": item.get("sessionId"),
-                               "conversationId": item.get("conversationId"),
-                               "profile": _profile_name(owner) if owner else None,
-                               "thisProfile": owner == here if owner else None})
-            return {"ok": True, "now": time.time(), "presentations": listed}
-        except Exception as error:
-            logger.exception("hermretro presentations failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}", "presentations": []}
-    return presentations
-
-
-def rpc_captures(ctx):
-    def captures(params, **_kwargs):
-        try:
-            identifier = str((params or {}).get("id") or "")
-            root = _capture_root(identifier)
-            if root is None:
-                return {"ok": False, "error": "Unknown game.", "captures": []}
-            server = player_server.get_server(host._game_root)
-            found = player_server.list_captures(root, identifier)
-            return {"ok": True, "captures": [{"path": c["path"], "kind": c["kind"], "createdAt": c["createdAt"],
-                                              "url": server.capture_url(identifier, c["id"])} for c in found]}
-        except Exception as error:
-            logger.exception("hermretro captures failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}", "captures": []}
-    return captures
-
-
-def rpc_capture_image(ctx):
-    """Save a game-screen image (Ask Hermes / annotate) under the project's captures folder, so the
-    chat text can name a file the agent opens itself."""
-    def capture_image(params, **_kwargs):
-        try:
-            params = params or {}
-            identifier = str(params.get("id") or "")
-            root = _capture_root(identifier)
-            if root is None:
-                return {"ok": False, "error": "Unknown game."}
-            png = library.decode_png(params.get("png"), 4 * 1024 * 1024)
-            receipt = player_server.save_capture(root, identifier, "annotation", png, "image/png", None)
-            return {"ok": True, "path": receipt["path"]}
-        except (ValueError, player_server.PlayerError) as error:
-            return {"ok": False, "error": str(error)}
-        except Exception as error:
-            logger.exception("hermretro capture_image failed")
-            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    return capture_image

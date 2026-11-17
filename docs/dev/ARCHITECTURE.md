@@ -27,8 +27,9 @@ agreement and checks every tracked file sits in one of them).
 | `backend/hermes/` | Everything that touches Hermes: tools, hooks, prompt, contracts, results |
 | `backend/broker/` | The per-user broker process and its engine workers (stdlib only) |
 | `backend/setup/` | Setup page RPCs: toolchain install, removal, the studio profile |
-| `backend/library/` | Games, Build and Emulator RPCs, the library, game cards, build history |
+| `backend/library/` | Games, Build and Emulator RPCs, the library, game cards, the game tools |
 | `backend/assets/` | Game images for the Build page and their kept versions |
+| `backend/history/` | Build history: a snapshot of a game after each build, and restoring one |
 | `backend/player/` | The loopback server for the page's emulator |
 | `page/` | Source of the Hermes Desktop page and the player frame script |
 | `page/app/` | The page shell and page-wide plumbing (RPC names, routing, navigation) |
@@ -70,37 +71,56 @@ agreement and checks every tracked file sits in one of them).
 
 ## The agent half
 
-| Module | Job |
+The backend is one folder per feature (`backend/features.py` lists them in registration order). Each feature
+**declares** what it adds to Hermes in its own folder, **exposes** what other features may use in its front door
+(`__init__.py`: `__all__`, and the events it emits in `EVENTS`), and **reacts** to other features in
+`listeners.py`. `backend/system/` (the machine) and `backend/hermes/` (everything that touches Hermes) are shared
+layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
+
+| Feature | Declares | Front door / events |
+|---|---|---|
+| `backend/hermes/` | the 81 engine tools (`tools.py`), `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop` (`hooks.py`), the skills and the `hermretro.guide` section (`prompt.py`) | `host.py` (shared helpers: data folder, profile, library, the chat's project, broker client), `declare.py`; `api.py` is the one door to Hermes |
+| `backend/setup/` | RPCs `status`, `doctor`, `activity`, `studio_profile`, `install`, `remove_tools`; tool `chromatic_studio_device_cli`; `pre_tool_call` (the CLI download's approval) | the broker's install helpers; `setup.tools_removed`, `setup.studio_profile_ready` |
+| `backend/library/` | RPCs `games`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`; tools `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report`; `pre_llm_call` (the Build conversation's context) | the library (`Registry`, `game_id`, `cover_path`, …); `library.build_reported`, `library.game_presented` |
+| `backend/assets/` | RPCs `asset`, `asset_info`, `asset_restore`, `assets`; `post_llm_call`, `post_tool_call` (kept image versions) | nothing; `assets.image_restored`; listens to `library.build_reported` |
+| `backend/history/` | RPCs `builds`, `build_restore`; `post_tool_call` (a snapshot after each build) | nothing; `history.build_kept` |
+| `backend/player/` | nothing | the loopback player server (`get_server`, `game_build`, …) |
+| `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `BrokerUnavailable`) |
+| `backend/system/` | nothing | a shared layer: `paths.py`, `host.py`, `events.py`, `hermes_home.py` |
+
+`__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
+the page's RPCs in every profile; tools, skills, hooks and the prompt section only in the `hermretro` profile. A
+hook several features declare is registered once and calls each in feature order (`declare.chain`). The full list
+of registrations, in order, is pinned by `tests/repo/test_registration_snapshot.py`.
+
+How features may connect is checked by `tests/repo/test_boundaries.py`: a module imports the standard library,
+its own feature, the shared layers, and another feature only through its front door's `__all__`;
+`backend/system/` imports nothing above it (Hermes's answer for its home is handed down through
+`system/hermes_home.py` when `backend.hermes` is imported); events are declared once by their owner, emitted only
+by it, and listened to from `listeners.py`. A deliberate exception is a line comment
+`retrodev: allow <rule> — <reason>`, listed as a warning on every run.
+
+### Adding things
+
+| To add | Touch |
 |---|---|
-| `__init__.py` | `register()`: the page's RPCs everywhere; tools, skills, hooks and the prompt section only in the `hermretro` profile |
-| `backend/hermes/host.py` | Everything that touches Hermes: engine tool handlers, hooks, the prompt section, the helpers the modules below share (data folder, profile, library, broker client); re-exports their names through `_MOVED`, so `host.<name>` reaches every RPC and tool |
-| `backend/hermes/api.py` | The one door to Hermes itself: every Hermes name used, in `USED` (checked by `tools/ci/hermes_api_check.py`) |
-| `backend/hermes/contracts.py` | The engine's pinned tool contracts (`engine/pins/<v>/tools.json`) turned into Hermes schemas (`chromatic_*`) |
-| `backend/hermes/results.py` | A broker answer turned into a Hermes tool result without losing what the engine said (images saved, content-addressed) |
-| `backend/setup/rpcs.py` | Setup page RPCs: `status`, `install`, `remove_tools`, `studio_profile`, `activity`, `doctor` |
-| `backend/setup/provision.py` | ModRetro's CLI for this computer (from npm, pinned SHA-256), the prepared engine copy, removing downloads |
-| `backend/setup/progress.py` | The page's toolchain install: what gets downloaded and how far it got |
-| `backend/setup/studio_profile.py` | Creating and finishing the `hermretro` profile |
-| `backend/library/rpcs.py` | Games, Build and Emulator page RPCs (library, game ↔ conversation binding, build history, player, captures), the Build conversation's context, the build snapshot hook |
-| `backend/library/tools.py` | The plugin-owned tools: `chromatic_studio_device_cli`, `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` |
-| `backend/library/games.py`, `game_card.py`, `snapshots.py` | The library, each game's card (`game.json` + cover), build history |
-| `backend/assets/rpcs.py` | Game images for the Build page: `asset`, `asset_info`, `asset_restore`, `assets` |
-| `backend/assets/versions.py` | The kept versions of each image and the hooks that keep them (`MEDIA:` lines, inspected images) |
-| `backend/assets/sprites.py` | How a project shows a sprite or background: animations, palettes, the scenes that use it |
-| `backend/broker/broker.py` | The single authority on the machine: the `Broker`, identity, admission and the `call` op (the hardware gate, the setup lock); started as `python -m backend.broker` (`__main__.py`) |
-| `backend/broker/lane.py` | A conversation's lane: its engine worker (start, restart, idle close), writer leases per project, project selection and the one-game-per-conversation guard |
-| `backend/broker/control.py` | Control ops (`install_*`, `stats`, `shutdown`, `doctor`, `activity`, `lane_status`, leases and lanes), the page's toolchain install, housekeeping |
-| `backend/broker/server.py` | The broker's user-only Unix socket server (handshake, one JSON line per request) and `main()`: election lock, token, signals, the housekeeping tick |
-| `backend/broker/client.py` | Finds or starts the broker; refuses a stale one (code fingerprint) |
-| `backend/broker/engine.py` | Lossless stdio MCP client for one engine worker |
-| `backend/broker/leases.py` | Engine lease recovery |
-| `backend/player/server.py` | The page's emulator (ModRetro's real web player) |
-| `backend/system/paths.py` | Every location (`hermretro_home()`), engine verification, the code fingerprint, the version (from `plugin.yaml`) |
-| `backend/system/host.py` | Every Linux/macOS difference (peer credentials, Rosetta, architecture) and the Windows refusal |
+| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`. Then the page's `page/app/rpc.js`, a section in `CONTRACT.md`, and `python tests/repo/test_registration_snapshot.py --write` |
+| a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`, the snapshot |
+| a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`; the snapshot |
+| an event | the owner's front door `EVENTS` + `emit(...)` where it happens; listeners in `backend/<other>/listeners.py` with `@on(...)` |
+| a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its area in `tools/layout.toml` and the Map above; tests in `tests/backend/<name>/` |
+
+Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
+`backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
+(ModRetro's CLI, pinned SHA-256; removing downloads), `backend/broker/broker.py` (the single authority: identity,
+admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `control.py`
+(control ops, the page's install), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
+broker; refuses a stale one), `backend/system/paths.py` (every location, the code fingerprint, the version).
 
 Modules the broker imports stay standard-library only: the broker runs as `python -m backend.broker` with a
-minimal environment and no Hermes on its path, so nothing it reaches may import `backend/hermes/`, an `rpcs.py`
-or `tools.py` (`tests/repo/test_broker_imports.py` walks its imports).
+minimal environment and no Hermes on its path, so nothing it reaches may import `backend/hermes/`, a feature's
+`rpcs.py`, `tools.py`, `hooks.py` or `listeners.py`, or emit events (`tests/repo/test_broker_imports.py` walks its
+imports; there are no exceptions).
 
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the

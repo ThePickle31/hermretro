@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for supp
 
 from backend.system import paths  # noqa: E402
 from backend.setup import provision  # noqa: E402
+from tests.support import registered_hook  # noqa: E402
 from support import throwaway_deps  # noqa: E402
 
 
@@ -98,7 +99,7 @@ class ApprovalTests(unittest.TestCase):
         class Ctx:
             def get_config(self, key, default=None):
                 return default  # hardware off: the install must be gated regardless
-        self.hook = hermes_host.make_pre_tool_call(Ctx())
+        self.hook = registered_hook("pre_tool_call", Ctx())
 
     def test_installing_the_vendor_cli_always_asks_the_person(self):
         if provision.host_target()["target"] is None:

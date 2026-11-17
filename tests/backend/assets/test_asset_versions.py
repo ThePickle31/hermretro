@@ -11,6 +11,8 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import host as hermes_host  # noqa: E402
+from backend.assets import rpcs as assets_rpcs  # noqa: E402
+from backend.assets import versions as assets_versions  # noqa: E402
 
 PNG_A = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"A" * 20
 PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"B" * 20
@@ -30,7 +32,7 @@ class AssetVersions(unittest.TestCase):
                         mock.patch.object(hermes_host, "_registry", return_value=registry)]
         for patch in self.patches:
             patch.start()
-        self.asset = hermes_host.rpc_asset(None)
+        self.asset = assets_rpcs.rpc_asset(None)
 
     def tearDown(self):
         for patch in self.patches:
@@ -48,9 +50,9 @@ class AssetVersions(unittest.TestCase):
 
     def test_an_earlier_reply_keeps_the_version_it_delivered(self):
         self.write(PNG_A, 1000)
-        hermes_host.keep_delivered_images(assistant_response=f"New cover.\n\nMEDIA:{self.cover}\n\nDone.")
+        assets_versions.keep_delivered_images(assistant_response=f"New cover.\n\nMEDIA:{self.cover}\n\nDone.")
         self.write(PNG_B, 2000)
-        hermes_host.keep_delivered_images(assistant_response=f"MEDIA:`{self.cover}`")
+        assets_versions.keep_delivered_images(assistant_response=f"MEDIA:`{self.cover}`")
 
         first, answer = self.shown(at=1500 * 1000)
         self.assertEqual(first, PNG_A)
@@ -61,7 +63,7 @@ class AssetVersions(unittest.TestCase):
 
     def test_a_step_that_looked_at_an_image_keeps_it(self):
         self.write(PNG_A, 1000)
-        hermes_host.keep_inspected_images(tool_name="vision_analyze", args={"image_url": str(self.cover), "question": "?"})
+        assets_versions.keep_inspected_images(tool_name="vision_analyze", args={"image_url": str(self.cover), "question": "?"})
         self.write(PNG_B, 2000)
         self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
 
@@ -76,19 +78,19 @@ class AssetVersions(unittest.TestCase):
         self.shown()
         self.write(PNG_A, 2000)
         self.shown()
-        folder = hermes_host._versions_dir(self.cover.resolve())
+        folder = assets_versions._versions_dir(self.cover.resolve())
         self.assertEqual(len(list(folder.iterdir())), 1)
         outside = Path(self.tmp.name) / "elsewhere.png"
         outside.write_bytes(PNG_A)
-        hermes_host.keep_delivered_images(assistant_response=f"MEDIA:{outside}")
-        self.assertFalse(hermes_host._versions_dir(outside.resolve()).exists())
+        assets_versions.keep_delivered_images(assistant_response=f"MEDIA:{outside}")
+        self.assertFalse(assets_versions._versions_dir(outside.resolve()).exists())
 
 
     def test_versions_are_listed_picked_by_id_and_restored(self):
         self.write(PNG_A, 1000)
         self.shown()
         self.write(PNG_B, 2000)
-        info = hermes_host.rpc_asset_info(None)({"path": str(self.cover)})
+        info = assets_rpcs.rpc_asset_info(None)({"path": str(self.cover)})
         self.assertTrue(info["ok"], info)
         self.assertEqual(info["kind"], "cover")
         self.assertEqual([entry["current"] for entry in info["versions"]], [False, True])
@@ -98,12 +100,12 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(answer["versionId"], first)
         self.assertFalse(self.asset({"path": str(self.cover), "version": "../x"})["ok"])
 
-        restored = hermes_host.rpc_asset_restore(None)({"path": str(self.cover), "version": first})
+        restored = assets_rpcs.rpc_asset_restore(None)({"path": str(self.cover), "version": first})
         self.assertTrue(restored["ok"], restored)
         self.assertEqual(self.cover.read_bytes(), PNG_A)
         self.assertEqual(sum(entry["current"] for entry in restored["versions"]), 1)
         # The version that was replaced is still kept.
-        kept = [hermes_host._versions_dir(self.cover.resolve()) / f"{entry['id']}.png" for entry in restored["versions"]]
+        kept = [assets_versions._versions_dir(self.cover.resolve()) / f"{entry['id']}.png" for entry in restored["versions"]]
         self.assertIn(PNG_B, [path.read_bytes() for path in kept if path.is_file()])
 
     def test_a_sprite_knows_its_animations_palette_and_scenes(self):
@@ -129,7 +131,7 @@ class AssetVersions(unittest.TestCase):
         (scene_dir / "scene.gbsres").write_text(json.dumps({"id": "s1", "name": "Grassy Field", "type": "TOPDOWN", "backgroundId": "field", "width": 20, "height": 18}))
         (scene_dir / "actors" / "friend.gbsres").write_text(json.dumps({"name": "Friend", "spriteSheetId": "cat", "x": 3, "y": 4, "direction": "down", "paletteId": ""}))
 
-        info = hermes_host.rpc_asset_info(None)({"path": str(sprites / "cat.png")})
+        info = assets_rpcs.rpc_asset_info(None)({"path": str(sprites / "cat.png")})
         self.assertTrue(info["ok"], info)
         self.assertEqual(info["kind"], "sprite")
         self.assertEqual([animation["name"] for animation in info["sprite"]["animations"]][4], "Walk right")
@@ -141,7 +143,7 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual((friend["flip"], friend["tiles"][0]["sliceX"]), (False, 0))
         self.assertTrue(info["scenes"][0]["background"].endswith("field.png"))
 
-        background = hermes_host.rpc_asset_info(None)({"path": str(backgrounds / "field.png")})
+        background = assets_rpcs.rpc_asset_info(None)({"path": str(backgrounds / "field.png")})
         self.assertEqual((background["kind"], background["usedIn"][0]["scene"]), ("background", "Grassy Field"))
 
         # Thumbnails draw a sprite the way the game does: the asset call carries its palette, the frame
@@ -168,12 +170,12 @@ class AssetVersions(unittest.TestCase):
         outside.write_bytes(PNG_A)
         (sprites / "link.png").symlink_to(outside)
 
-        listed = hermes_host.rpc_assets(None)({"root": str(self.game)})
+        listed = assets_rpcs.rpc_assets(None)({"root": str(self.game)})
         self.assertTrue(listed["ok"], listed)
         self.assertEqual([(item["kind"], item["name"]) for item in listed["assets"]], [("cover", "Cover"), ("sprite", "Robin")])
         self.assertEqual(listed["assets"][1]["relative"], "assets/sprites/bird.png")
-        self.assertFalse(hermes_host.rpc_assets(None)({"root": self.tmp.name})["ok"])        # not a library game
-        self.assertFalse(hermes_host.rpc_assets(None)({})["ok"])
+        self.assertFalse(assets_rpcs.rpc_assets(None)({"root": self.tmp.name})["ok"])        # not a library game
+        self.assertFalse(assets_rpcs.rpc_assets(None)({})["ok"])
 
 
 if __name__ == "__main__":

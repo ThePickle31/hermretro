@@ -22,6 +22,7 @@ from backend.library import games  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from backend.system import paths  # noqa: E402
 from backend.player import server as player_server  # noqa: E402
+from backend.library import rpcs as library_rpcs  # noqa: E402
 from support import throwaway_profile  # noqa: E402
 
 PNG = base64.b64decode(
@@ -255,7 +256,7 @@ class PlayerRpcs(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_player_rpc_returns_a_working_url(self):
-        answer = hermes_host.rpc_player(self.ctx)({"id": self.gid})
+        answer = library_rpcs.rpc_player(self.ctx)({"id": self.gid})
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["title"], "Test Game")
         self.assertEqual(fetch(answer["url"])[0], 200)
@@ -264,24 +265,24 @@ class PlayerRpcs(unittest.TestCase):
 
     def test_player_rpc_explains_a_missing_web_build(self):
         (self.root / "build/web/js/binjgb.wasm").unlink()
-        answer = hermes_host.rpc_player(self.ctx)({"id": self.gid})
+        answer = library_rpcs.rpc_player(self.ctx)({"id": self.gid})
         self.assertFalse(answer["ok"])
         self.assertIn("chat", answer["error"])
-        self.assertFalse(hermes_host.rpc_player(self.ctx)({"id": "nope"})["ok"])
+        self.assertFalse(library_rpcs.rpc_player(self.ctx)({"id": "nope"})["ok"])
 
     def test_capture_image_then_captures_lists_it_with_a_loopback_url(self):
-        saved = hermes_host.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:image/png;base64,"
+        saved = library_rpcs.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:image/png;base64,"
                                                          + base64.b64encode(PNG).decode()})
         self.assertTrue(saved["ok"], saved)
         self.assertEqual(Path(saved["path"]).parent, self.root / "captures")
-        listed = hermes_host.rpc_captures(self.ctx)({"id": self.gid})["captures"]
+        listed = library_rpcs.rpc_captures(self.ctx)({"id": self.gid})["captures"]
         self.assertEqual([c["path"] for c in listed], [saved["path"]])
         self.assertEqual(listed[0]["kind"], "annotation")
         self.assertRegex(listed[0]["url"], rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/codex-captures/"
                                            r"[0-9a-f-]{36}/media$")
         status, _headers, body = fetch(listed[0]["url"])
         self.assertEqual((status, body), (200, PNG))
-        self.assertFalse(hermes_host.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:text/plain,hi"})["ok"])
+        self.assertFalse(library_rpcs.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:text/plain,hi"})["ok"])
 
 
 if __name__ == "__main__":
@@ -311,14 +312,14 @@ class DemoCartridge(unittest.TestCase):
     def test_player_rpc_opens_the_demo_by_id_and_without_one(self):
         rom = paths.ENGINE_ROOT / "examples/hello-color/hello-color.gbc"
         for params in ({"id": "demo"}, {}, None):
-            answer = hermes_host.rpc_player(self.ctx)(params)
+            answer = library_rpcs.rpc_player(self.ctx)(params)
             self.assertTrue(answer["ok"], answer)
             self.assertEqual((answer["title"], answer["demo"]), ("Hello Color", True))
             self.assertRegex(answer["url"], r"^http://127\.0\.0\.1:\d+/[0-9a-f]{64}/demo/index\.html$")
             self.assertEqual(answer["romSha256"], hashlib.sha256(rom.read_bytes()).hexdigest())
 
     def test_demo_serves_index_runtime_and_rom_to_any_origin(self):
-        url = hermes_host.rpc_player(self.ctx)({"id": "demo"})["url"]
+        url = library_rpcs.rpc_player(self.ctx)({"id": "demo"})["url"]
         base = url[: -len("index.html")]
         status, headers, body = fetch(url)
         self.assertEqual((status, headers["Access-Control-Allow-Origin"]), (200, "*"))
@@ -345,15 +346,15 @@ class DemoCartridge(unittest.TestCase):
 
     def test_demo_captures_go_to_the_library_folder(self):
         png = "data:image/png;base64," + base64.b64encode(PNG).decode()
-        saved = hermes_host.rpc_capture_image(self.ctx)({"id": "demo", "png": png})
+        saved = library_rpcs.rpc_capture_image(self.ctx)({"id": "demo", "png": png})
         self.assertTrue(saved["ok"], saved)
         self.assertEqual(Path(saved["path"]).parent, paths.library_dir() / "captures" / "demo")
-        listed = hermes_host.rpc_captures(self.ctx)({"id": "demo"})["captures"]
+        listed = library_rpcs.rpc_captures(self.ctx)({"id": "demo"})["captures"]
         self.assertEqual([c["path"] for c in listed], [saved["path"]])
         self.assertEqual(fetch(listed[0]["url"])[2], PNG)
 
     def test_games_reports_the_demo_beside_but_not_inside_the_library(self):
-        answer = hermes_host.rpc_games(self.ctx)({})
+        answer = library_rpcs.rpc_games(self.ctx)({})
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["games"], [])
         self.assertEqual(answer["demo"], {"id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example"})
@@ -363,6 +364,6 @@ class DemoCartridge(unittest.TestCase):
         root = make_export(Path(self.tmp.name))
         (root / "build/web/index.html").unlink()
         gid = games.Registry(paths.library_dir()).upsert(str(root))["id"]
-        answer = hermes_host.rpc_player(self.ctx)({"id": gid})
+        answer = library_rpcs.rpc_player(self.ctx)({"id": gid})
         self.assertFalse(answer["ok"])
         self.assertIn("no playable build", answer["error"])

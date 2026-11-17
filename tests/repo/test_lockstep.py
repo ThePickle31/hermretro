@@ -1,11 +1,21 @@
-"""Names that must change together across backend, page, manifest and docs. A failure says which list to edit.
+"""Names that must agree between the backend, the page, the manifest and the docs. A failure says which to edit.
 
-Adding a plugin tool: register it in __init__.py, list it under provides_tools in plugin.yaml, give it step words
-in page/pages/build/transcript/step-words.js (or hide it there), and describe it in docs/dev/CONTRACT.md (with the
-counts there). Tool and skill counts elsewhere in the tests are derived, not typed.
-Adding an RPC: register it in __init__.py, name it in page/app/rpc.js and in the README's RPC list, and
-give it a heading or table row in docs/dev/CONTRACT.md or docs/dev/STUDIO-PAGES.md.
+Backend features declare what they add in their own folder (backend/hermes/declare.py); registration, counts and
+order follow from those declarations (pinned by tests/repo/test_registration_snapshot.py). What is left to keep
+in step by hand:
+
+Adding a plugin tool (2 places + the page): the feature folder (a schema, a handler and its Tool(...) entry, with
+step words, in backend/<feature>/tools.py) and plugin.yaml's provides_tools. The page's copy of the step words in
+page/pages/build/transcript/step-words.js must match the Tool's step_words (or HIDDEN_STEPS for None); then
+document the tool in docs/dev/CONTRACT.md (the counts there are checked) and refresh tests/repo/registration.json.
+Adding an RPC (1 place + the page): the feature folder (@rpc("name") in backend/<feature>/rpcs.py), then the
+page's name list page/app/rpc.js, a heading or table row in docs/dev/CONTRACT.md or STUDIO-PAGES.md, and
+tests/repo/registration.json.
+Adding a hook: @hook(...) in backend/<feature>/hooks.py; a hook name no feature used before also goes under
+provides_hooks in plugin.yaml.
+Tool and skill counts elsewhere in the tests are derived, not typed.
 """
+import codecs
 import json
 import re
 import sys
@@ -15,6 +25,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from backend.features import FEATURES  # noqa: E402
+from backend.hermes import declare  # noqa: E402
 from backend.system import paths  # noqa: E402
 from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402
 
@@ -26,6 +38,10 @@ HERMES_TOOLS_WITH_WORDS = {"browser_exec", "clarify", "delegate_task", "desktop_
                            "skill_manage", "skill_view", "skills_list", "terminal", "todo", "tool_call", "tool_describe",
                            "tool_search", "vision_analyze", "web_extract", "web_search", "write_file"}
 RPC_HEADING = re.compile(r"^(?:### `(\w+)`|\| `(\w+)` \|)", re.M)
+
+
+def collect():
+    return declare.collect("backend", FEATURES)
 
 
 def plugin_owned_tools(registered: set[str]) -> set[str]:
@@ -56,17 +72,11 @@ class LockStep(unittest.TestCase):
         cls.tools = set(ctx.calls["tool"])
         cls.rpcs = set(ctx.calls["rpc"])
 
-    def test_rpc_names_agree_between_backend_page_readme_and_docs(self):
+    def test_rpc_names_agree_between_backend_page_and_docs(self):
         page = set(re.findall(r"`plugin\.\$\{ID\}\.(\w+)`", read("page/app/rpc.js")))
         self.assertEqual(page - self.rpcs, set(), "page/app/rpc.js names RPCs the backend does not register")
         self.assertEqual(self.rpcs - page - RPCS_THE_PAGE_DOES_NOT_CALL, set(),
                          "registered RPCs missing from page/app/rpc.js")
-        readme = read("README.md")
-        start = readme.index("RPCs (`status`")
-        end = re.compile(r";\s+see").search(readme, start)
-        assert end, "README RPC list must end with '; see …'"
-        listed = set(re.findall(r"`(\w+)`", readme[start:end.start()]))
-        self.assertEqual(listed, self.rpcs, "the README's RPC list")
         docs = read("docs/dev/CONTRACT.md") + read("docs/dev/STUDIO-PAGES.md")
         documented = {a or b for a, b in RPC_HEADING.findall(docs)}
         self.assertEqual(self.rpcs - documented, set(), "RPCs without a heading or table row in CONTRACT.md or STUDIO-PAGES.md")
@@ -100,6 +110,28 @@ class LockStep(unittest.TestCase):
         self.assertEqual((words | hidden | build) - short - HERMES_TOOLS_WITH_WORDS, set(),
                          "step-words.js names tools that do not exist (renamed?)")
         self.assertEqual(HERMES_TOOLS_WITH_WORDS - words - hidden - build, set(), "stale entries in HERMES_TOOLS_WITH_WORDS")
+
+    def test_plugin_tools_declare_the_step_words_the_page_shows(self):
+        source = read("page/pages/build/transcript/step-words.js")
+        table = source[source.index("const STEP_WORDS = {"):]
+        entries = dict(re.findall(r"^  (\w+): \[('(?:[^'\\]|\\.)*', '(?:[^'\\]|\\.)*')\],?$",
+                                  table[:table.index("\n}\n")], re.M))
+        hidden = set_literal(source, "HIDDEN_STEPS")
+        wrong = []
+        for tool in collect().tools:
+            if tool.make is not None:
+                continue   # the engine's tools: their words live on the page only
+            short = tool.name.removeprefix("chromatic_")
+            if tool.step_words is None:
+                if short not in hidden:
+                    wrong.append(f"{tool.name}: step_words=None, so HIDDEN_STEPS must list {short!r}")
+                continue
+            page = [codecs.decode(text, "unicode_escape") for text in re.findall(r"'((?:[^'\\]|\\.)*)'", entries.get(short, ""))]
+            if page != list(tool.step_words):
+                wrong.append(f"{tool.name}: declared {list(tool.step_words)}, step-words.js has {page or 'nothing'}")
+        self.assertEqual(wrong, [], "\nA plugin tool's step words are declared with its Tool(...) in "
+                         "backend/<feature>/tools.py; the page's copy must say the same\nFIX: make "
+                         "page/pages/build/transcript/step-words.js match the declaration")
 
     def test_every_tool_name_the_page_uses_exists(self):
         used = set()

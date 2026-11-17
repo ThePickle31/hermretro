@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import backend.hermes  # noqa: E402,F401  (tells backend.system how to ask Hermes for its home)
 from backend.broker import client  # noqa: E402
 from backend.system import paths  # noqa: E402
 

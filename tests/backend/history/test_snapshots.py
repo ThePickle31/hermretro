@@ -14,9 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for supp
 from backend.library import games  # noqa: E402
 from backend.hermes import host as hermes_host  # noqa: E402
 from backend.assets import versions as host_assets  # noqa: E402
-from backend.library import tools as host_tools  # noqa: E402
-from backend.library import snapshots  # noqa: E402
+from backend.history import snapshots  # noqa: E402
+from backend.history import hooks as history_hooks  # noqa: E402
 from tests.backend.library.test_games import make_project  # noqa: E402
+from backend.history import rpcs as history_rpcs  # noqa: E402
+from tests.support import registered_hook  # noqa: E402
 
 
 def success(root: Path, **extra) -> str:
@@ -168,11 +170,11 @@ class BuildHistoryHost(unittest.TestCase):
         self.tmp.cleanup()
 
     def hook(self, **kwargs):
-        hermes_host.after_tool_call(**{"tool_name": "chromatic_rom_build", "args": {},
+        registered_hook("post_tool_call")(**{"tool_name": "chromatic_rom_build", "args": {},
                                        "result": success(self.root), "status": "ok", **kwargs})
 
     def listed(self):
-        return hermes_host.rpc_builds(None)({"game": self.game})
+        return history_rpcs.rpc_builds(None)({"game": self.game})
 
     def test_only_a_successful_build_of_a_library_game_is_kept(self):
         self.hook(result=json.dumps({"error": "boom", "isError": True}), status="error")
@@ -192,7 +194,7 @@ class BuildHistoryHost(unittest.TestCase):
 
     def test_the_project_comes_from_the_chat_when_the_result_does_not_name_it(self):
         bare = json.dumps({"structuredContent": {"success": True}})
-        with mock.patch.object(host_tools, "_chat_project", lambda *_ids: str(self.root)):
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)):
             self.hook(result=bare, conversation_id="c1", session_id="s1")
         self.assertEqual(len(self.listed()["builds"]), 1)
 
@@ -203,18 +205,18 @@ class BuildHistoryHost(unittest.TestCase):
     def test_the_hook_never_raises(self):
         with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")):
             self.hook()
-        hermes_host.after_tool_call(tool_name=None)
-        hermes_host.after_tool_call()
+        registered_hook("post_tool_call")(tool_name=None)
+        registered_hook("post_tool_call")()
 
-    def test_the_hook_still_keeps_inspected_images(self):
-        with mock.patch.object(host_assets, "keep_inspected_images") as kept:
-            self.hook()
-        kept.assert_called_once()
+    def test_assets_keep_inspected_images_before_the_snapshot(self):
+        # post_tool_call is registered once: assets' callback, then build history's (backend/features.py order).
+        self.assertEqual(registered_hook("post_tool_call").callbacks,
+                         (host_assets.keep_inspected_images, history_hooks.snapshot_after_build))
 
     def test_builds_and_restore_rpcs(self):
-        restore = hermes_host.rpc_build_restore(None)
-        self.assertEqual(hermes_host.rpc_builds(None)({"game": "nope"})["code"], "NO_GAME")
-        self.assertEqual(hermes_host.rpc_builds(None)({})["code"], "NO_GAME")
+        restore = history_rpcs.rpc_build_restore(None)
+        self.assertEqual(history_rpcs.rpc_builds(None)({"game": "nope"})["code"], "NO_GAME")
+        self.assertEqual(history_rpcs.rpc_builds(None)({})["code"], "NO_GAME")
         self.assertEqual(restore({"game": games.game_id(self.outsider), "id": "1"})["code"], "NO_GAME")
         self.hook()
         first = self.listed()["builds"][0]["id"]

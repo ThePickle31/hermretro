@@ -8,6 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
+import backend.hermes  # noqa: E402,F401  (tells backend.system how to ask Hermes for its home)
 from backend.system import paths  # noqa: E402
 from backend.broker.engine import EngineProcess  # noqa: E402,F401
 

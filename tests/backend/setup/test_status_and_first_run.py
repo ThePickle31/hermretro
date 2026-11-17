@@ -17,6 +17,8 @@ from backend.system import host as host_os  # noqa: E402
 from backend.system import paths  # noqa: E402
 from backend.setup import provision  # noqa: E402
 from backend.setup import studio_profile  # noqa: E402
+from backend.library import rpcs as library_rpcs  # noqa: E402
+from backend.setup import rpcs as setup_rpcs  # noqa: E402
 from support import throwaway_deps, throwaway_profile  # noqa: E402
 
 CTX = mock.Mock(get_config=lambda key, default=None: default)
@@ -57,7 +59,7 @@ class NodeArchitecture(unittest.TestCase):
         with mock.patch.object(host_os, "describe", return_value={"system": "darwin", "machine": machine,
                                                                   "rosetta": False, "supported": True}), \
                 mock.patch.object(provision, "_node_platform", return_value=node):
-            return hermes_host._platform_report()
+            return setup_rpcs._platform_report()
 
     def test_an_intel_node_on_apple_silicon_is_reported_and_not_qualified(self):
         report = self.report("arm64", ("darwin", "x64"))
@@ -113,7 +115,7 @@ class FreshInstall(Home):
     def test_the_games_folder_exists_once_the_page_asks_for_it(self):
         games = self.base / "hr" / "games"
         self.assertFalse(games.exists())
-        answer = hermes_host.rpc_games(CTX)({})
+        answer = library_rpcs.rpc_games(CTX)({})
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(Path(answer["gamesDir"]), games)
         self.assertTrue(games.is_dir())
@@ -121,7 +123,7 @@ class FreshInstall(Home):
 
 class UpdatedOnDisk(Home):
     def test_status_says_when_hermes_must_restart(self):
-        status = hermes_host.rpc_status(CTX)
+        status = setup_rpcs.rpc_status(CTX)
         self.assertFalse(status({})["restart_needed"])
         with mock.patch.object(paths, "code_fingerprint", return_value="changed-on-disk"):
             self.assertTrue(status({})["restart_needed"])

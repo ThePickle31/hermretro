@@ -3,7 +3,9 @@
 tools/layout.toml maps every top-level folder and its areas with a one-line purpose; docs/dev/ARCHITECTURE.md
 ("Map") lists the same folders. These tests keep the tree, the map and the docs in agreement, so a newcomer
 (person or agent) can trust the map to say where a change belongs. Warnings (printed, never failing) mark
-what should be fixed soon: files over the warning size and features without a README.md.
+what should be fixed soon: files over the warning size, page features without a README.md, and every
+deliberate exception (``retrodev: allow`` comments, tests/repo/allowances.py). A backend feature without a
+README.md fails.
 
 Run alone: python -m unittest tests.repo.test_layout
 """
@@ -15,6 +17,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from tests.repo import allowances  # noqa: E402
+
 LAYOUT = tomllib.loads((ROOT / "tools" / "layout.toml").read_text(encoding="utf-8"))
 
 
@@ -93,14 +99,27 @@ class Layout(unittest.TestCase):
                          "tools/layout.toml with the reason")
 
     def test_features_have_a_readme(self):
-        # A warning for now: each feature folder should say what it owns and what it exposes.
-        features = [p for p in (ROOT / "backend").iterdir() if p.is_dir() and not p.name.startswith("__")]
-        features += [p for p in (ROOT / "page" / "pages").iterdir() if p.is_dir()]
-        for folder in sorted(features):
+        # Each feature folder says what it owns, what it adds and exposes, and where its tests are. A failure for
+        # backend features; a warning for page features until each page has one.
+        missing = []
+        for folder in sorted(p for p in (ROOT / "backend").iterdir() if p.is_dir() and not p.name.startswith("__")):
+            if not (folder / "README.md").is_file():
+                missing.append(f"{folder.relative_to(ROOT)}/README.md")
+        self.assertEqual(missing, [], "\nA backend feature's README is its map for the next person: what it does, "
+                         "what it adds (RPCs, tools, hooks, events), its front door and where its tests are:\n  "
+                         + "\n  ".join(missing) + "\nFIX: add the README (copy the shape of backend/library/README.md)")
+        for folder in sorted(p for p in (ROOT / "page" / "pages").iterdir() if p.is_dir()):
             if not (folder / "README.md").is_file():
                 warn(f"{folder.relative_to(ROOT)}/ has no README.md (what the feature owns and what it exposes); "
                      "add one")
 
+    def test_every_allowance_has_a_reason_and_stays_visible(self):
+        found = allowances.in_files(ROOT, files())
+        allowances.warn(found)
+        problems = [item.problem() for item in found if item.problem()]
+        self.assertEqual(problems, [], "\nAn exception to a structure rule needs its reason, so the next person "
+                         "knows whether it still holds:\n  " + "\n  ".join(problems) + "\nFIX: write it as "
+                         "'# retrodev: allow <rule> — <reason>' (rules: " + ", ".join(sorted(allowances.RULES)) + ")")
 
 if __name__ == "__main__":
     unittest.main()

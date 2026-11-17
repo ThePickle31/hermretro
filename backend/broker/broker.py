@@ -20,8 +20,7 @@ import threading
 import time
 from pathlib import Path
 
-from ..library import games
-from ..setup import provision
+from .. import library, setup
 from ..system import paths
 from . import leases
 from .control import ControlMixin
@@ -60,7 +59,7 @@ class Broker(LaneMixin, ControlMixin):
         self.generation = secrets.token_hex(8)
         self.token = secrets.token_hex(32)
         self.engine_check = paths.verify_engine()
-        self.games = games.Registry(paths.library_dir_for(state_dir))
+        self.games = library.Registry(paths.library_dir_for(state_dir))
         self.lanes: dict[tuple[str, str], Lane] = {}
         self.writer_leases: dict[str, tuple[str, str]] = {}
         self.table_lock = threading.RLock()
@@ -121,7 +120,7 @@ class Broker(LaneMixin, ControlMixin):
 
     def record_game(self, lane: Lane, tool: str, arguments: dict, structured: dict, failed: bool) -> None:
         """Keep the user's game library current: selections, creations, builds and previews."""
-        if tool not in games.SELECTORS and tool not in ("rom_build", "web_preview"):
+        if tool not in library.SELECTORS and tool not in ("rom_build", "web_preview"):
             return
         try:
             self.games.observe(tool, arguments, structured, failed, lane_root=lane.selected_root,
@@ -202,7 +201,7 @@ class Broker(LaneMixin, ControlMixin):
         if kind == "prepare":
             # First install: start from another install's verified download cache when there is one.
             try:
-                seeded = provision.seed_toolchain_cache()
+                seeded = setup.seed_toolchain_cache()
             except Exception as error:  # reuse is an optimisation; never let it block setup
                 seeded = {"seeded": False, "reason": f"{type(error).__name__}: {error}"}
             self.trace(event="toolchain_cache_seed", **seeded)
