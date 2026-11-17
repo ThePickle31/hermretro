@@ -146,7 +146,16 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
         rel = str(path.relative_to(root))
         parts = path.relative_to(root / "backend").parts
         feature = parts[0] if len(parts) > 1 else None
+        checked = []
         for line, target, imported, _asname in imports(root, path):
+            if target == "backend" and imported:
+                # `from backend import library` / `from .. import features` import modules: judge each as
+                # `import backend.<name>`, so the layer rules apply to them too.
+                for name, _alias in imported:
+                    checked.append((line, f"backend.{name}", None))
+                continue
+            checked.append((line, target, imported))
+        for line, target, imported in checked:
             pieces = target.split(".")
             if pieces[0] != "backend":
                 continue
@@ -162,10 +171,7 @@ def check(root: Path) -> list[tuple[str, str, int, str]]:
                     ("layer", rel, line, f"backend.system imports backend.{other}; system is the bottom layer")
                 )
                 continue
-            if other is None:  # `from backend import library` / `from .. import library`
-                for name, _alias in imported or []:
-                    if name in names and name not in SHARED and name != feature:
-                        continue  # the front door module itself; its attribute uses are checked below
+            if other is None:  # `import backend`
                 continue
             if other == feature or other in SHARED or feature is None:
                 continue
@@ -310,7 +316,10 @@ class Boundaries(unittest.TestCase):
                 "from ..library.games import Registry  " + reason + "planted on purpose\n"
                 "from ..library.games import game_id  " + reason + "\n"
             )
-            (copy / "backend" / "system" / "planted.py").write_text("from ..hermes import api\n")
+            (copy / "backend" / "system" / "planted.py").write_text(
+                "from ..hermes import api\nfrom .. import library\n"
+            )
+            (copy / "backend" / "library" / "planted_registry.py").write_text("from .. import features\n")
             problems = check(copy)
             allowed = allowances.in_text(assets.read_text(), "backend/assets/planted.py")
             text = report(problems, allowed)
@@ -321,6 +330,8 @@ class Boundaries(unittest.TestCase):
                 "planted.py:6: [event] emits 'library.build_reported', owned by library",
                 "planted.py:8: [front-door]",
                 "backend/system/planted.py:1: [layer]",
+                "backend/system/planted.py:2: [layer] backend.system imports backend.library",
+                "backend/library/planted_registry.py:1: [layer] imports backend.features",
             ):
                 self.assertIn(expected, text)
             self.assertNotIn("planted.py:7:", text)  # allowed, with a reason

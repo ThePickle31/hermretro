@@ -231,6 +231,15 @@ def inside(phase: str, out: str) -> int:
     return 0
 
 
+# Where each module the check drives lives, newest layout first (0.0.5 and earlier used adapter/).
+LAYOUTS = {
+    "paths": (".backend.system.paths", ".adapter.paths"),
+    "client": (".backend.broker.client", ".adapter.client"),
+    "host": (".backend.hermes.host", ".adapter.hermes_host"),
+    "studio_profile": (".backend.setup.studio_profile", ".adapter.studio_profile"),
+}
+
+
 def _use_the_plugin(phase: str, out: Path) -> dict:
     from hermes_cli.plugin_rpc import plugin_rpc_handler  # type: ignore[import-not-found]
 
@@ -245,15 +254,22 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
 
     rpc("status")  # loads the plugin
 
-    def module(suffix: str):
-        return next(m for name, m in list(sys.modules.items()) if name.endswith(suffix))
+    def module(role: str):
+        # Either version may be installed in either phase: a release from before the reorganization keeps its
+        # code in adapter/, every later one in backend/. Find the module by what the loaded version has.
+        for suffix in LAYOUTS[role]:
+            found = [m for name, m in list(sys.modules.items()) if name.endswith(suffix)]
+            if found:
+                return found[0]
+        raise SystemExit(f"the installed version has none of {LAYOUTS[role]}: add its layout to LAYOUTS")
 
     result: dict = {"problems": []}
+    paths, client_module = module("paths"), module("client")
     if phase == "old":
-        paths, host = module(".adapter.paths"), module(".adapter.hermes_host")
+        host = module("host")
         # The page's studio_profile RPC without its Hermes config commands (the caller enables the plugin). The
         # page creates the profile with the plugin's description, which the CLI cannot set: mark it as ours.
-        studio_profile = module(".adapter.studio_profile")
+        studio_profile = module("studio_profile")
         marker = studio_profile.studio_dir() / studio_profile.MARKER
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("{}")
@@ -266,9 +282,7 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
         rpc("build", {"action": "start", "stored": "update-check-chat", "name": "Second Game"})
         paths.DEPS_ROOT.mkdir(parents=True, exist_ok=True)
         (paths.DEPS_ROOT / "update-check.txt").write_text("downloads stay")
-        client_module = module(".adapter.client")
     else:
-        paths, client_module = module(".backend.system.paths"), module(".backend.broker.client")
         for kept in (paths.library_dir() / "thumbs", paths.DEPS_ROOT / "update-check.txt"):
             if not (any(kept.iterdir()) if kept.is_dir() else kept.is_file()):
                 result["problems"].append(f"{kept} is gone after the update")
