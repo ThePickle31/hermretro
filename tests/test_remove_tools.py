@@ -9,7 +9,10 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import hermes_host, host_setup, paths, provision  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.setup import rpcs as host_setup  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.setup import provision  # noqa: E402
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 

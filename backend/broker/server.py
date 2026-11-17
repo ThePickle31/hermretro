@@ -1,4 +1,4 @@
-"""The broker's Unix socket server and its entry point (`python -m adapter.broker` runs main()).
+"""The broker's Unix socket server and its entry point (`python -m backend.broker` runs main()).
 
 Stdlib only and no Hermes imports.
 """
@@ -16,9 +16,9 @@ import threading
 import time
 from pathlib import Path
 
-from . import host_os, paths
+from ..system import host as host_os, paths
 from .broker import Broker
-from .broker_lane import Denied
+from .lane import Denied
 
 
 class Handler(socketserver.StreamRequestHandler):

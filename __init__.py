@@ -10,14 +10,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Linux and macOS only. Checked before the rest of the adapter is imported (it uses POSIX-only modules), so
-# Windows gets one plain sentence in `hermes plugins list` instead of an import error. host_os is stdlib-only.
-from .adapter.host_os import unsupported_reason
+# Linux and macOS only. Checked before the rest of the backend is imported (it uses POSIX-only modules), so
+# Windows gets one plain sentence in `hermes plugins list` instead of an import error. backend.system.host is
+# stdlib-only.
+from .backend.system.host import unsupported_reason
 
 _UNSUPPORTED = unsupported_reason()
 
 if not _UNSUPPORTED:
-    from .adapter import contracts, hermes_host, studio_profile
+    from .backend.hermes import contracts, host as hermes_host
+    from .backend.setup import studio_profile
 
 
 def _profile(ctx) -> str | None:

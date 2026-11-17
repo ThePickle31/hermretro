@@ -8,7 +8,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import contracts, hermes_host, host_assets, host_tools  # noqa: E402
+from backend.hermes import contracts  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.assets import versions as host_assets  # noqa: E402
+from backend.library import tools as host_tools  # noqa: E402
 
 GOOD = {"title": "  Robin in the sky ", "summary": "The robin now flies.\n  Press A to flap.",
         "changes": [{"kind": "added", "text": "Flying robin sprite", "asset": "assets/sprites/robin.png"},

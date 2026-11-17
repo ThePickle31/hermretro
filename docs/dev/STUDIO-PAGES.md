@@ -2,7 +2,7 @@
 
 The maintainer approved clickable mockups (kept outside this repository; the table names their files) for a multi-page
 hermretro and asked to build all of them. This file is the shared contract between the
-page (`desktop-src/`, bundled into `desktop/plugin.js`) and the backend (`adapter/`). Both halves must match it exactly.
+page (`desktop-src/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). Both halves must match it exactly.
 
 ## Pages (one segmented control in the header, always in the same place)
 
@@ -290,7 +290,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 
 ## The emulator beside the chat
 
-User request: show **our** emulator (the Emulator page's bar + ModRetro's real player from `player_server`,
+User request: show **our** emulator (the Emulator page's bar + ModRetro's real player from `backend/player/server.py`,
 Hermes Edition Midnight) beside the chat instead of the engine's page in the in-app browser — and only
 when the agent is ready to present the game after making it, never for the whole of development
 (user requirement: "it should not be there the entire time"). Builds open nothing.
@@ -381,7 +381,7 @@ Params `{ "id": "…" }`. Result `{ "url": "http://127.0.0.1:<port>/<token>/<id>
 
 The backend runs one loopback HTTP server (stdlib `ThreadingHTTPServer`, `127.0.0.1`, random port, 32-byte random path token, started lazily in the gateway process, daemon thread). For `/<token>/<id>/…` it serves:
 - `index.html` = the game's `build/web/index.html` with, injected:
-  - in `<head>`, before anything else: the **frame shim** `player/frame-shim.js`, generated from `desktop-src/frame/` by `tools/bundle/bundle.mjs` (never edit it): in-memory `localStorage`/`sessionStorage` because the sandboxed frame has an opaque origin (the finish from `?color=`); the `document.oai.annotation` host the engine's annotation registers with; the inline view (`?view=screen|device` hides the player's own controls); the page's commands (see Page ↔ frame messages); player state, console error and focus/blur posts. `adapter/player_server.py` fills its `__DEFAULT_COLOR__`/`__COLOR_KEY__` placeholders.
+  - in `<head>`, before anything else: the **frame shim** `player/frame-shim.js`, generated from `desktop-src/frame/` by `tools/bundle/bundle.mjs` (never edit it): in-memory `localStorage`/`sessionStorage` because the sandboxed frame has an opaque origin (the finish from `?color=`); the `document.oai.annotation` host the engine's annotation registers with; the inline view (`?view=screen|device` hides the player's own controls); the page's commands (see Page ↔ frame messages); player state, console error and focus/blur posts. `backend/player/server.py` fills its `__DEFAULT_COLOR__`/`__COLOR_KEY__` placeholders.
   - before `js/script.js`: the engine bootstrap (`Binjgb` wrapper that sets `module.codexRuntimeSha256` and calls `installInputOwner` from `./codex-annotations/input-owner.js`) — copy it from `dist/server.js` `prepareAnnotations`.
   - before `</body>`: `<script type="application/json" id="codex-web-annotations-context">{romSha256, romPath, sourceRevision, runtimeSha256, captures:{generation}}</script>` and `<script type="module" src="./codex-annotations/bridge.js"></script>`.
 - the export's own files (`js/*`, `css/*`, `rom/*`, `gbstudio.json`) read-only, path-checked to stay inside `build/web`.
@@ -413,7 +413,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 ## Constraints that apply to both halves
 - The page's source is `desktop-src/`; `desktop/plugin.js` and `player/frame-shim.js` are generated from it by `tools/bundle/bundle.mjs` and committed. Never edit a generated file: change the sources, rebuild, commit them together. The bundle stays plain readable ESM (`jsx`/`jsxs`, not minified), imports only `@hermes/plugin-sdk`, `react`, `react/jsx-runtime`, scoped CSS under `.cs-page`, every colour a `var(--ui-*)`. Size: Hermes Desktop reads a plugin file up to 16 MiB through `readPluginSource`; an older shell without it stops at 512 KiB and says to update, and the bundle (about 635 KB) needs the newer one. Hermes's install scanner notes a file over 1024 KB; the bundler refuses a bundle over 1,000,000 bytes. `desktop/` holds only `plugin.js`: the app copies and lints that whole folder. Small art is a PNG in `desktop-src/art/` plus an import in `art/index.js` (the bundler embeds it as a data URL); device skins are served by the backend only.
 - Never edit `engine/`. Never touch hardware. No wording that trips the install scanner (see the trigger list in tools/skills_guard.py; never quote the triggers in our own files).
-- Verify: `node tools/bundle/bundle.mjs --check`, `python -m unittest discover -s tests`, `node --check desktop/plugin.js`, `node --test 'tests/desktop/**/*test*.mjs'` (it includes the page scenario files `page-*.test.mjs`), the preview build, and `python tests/acceptance/broker_acceptance.py` after adapter changes. Before a release: `node tools/bundle/bundle.mjs --check --same-esbuild`.
+- Verify: `node tools/bundle/bundle.mjs --check`, `python -m unittest discover -s tests`, `node --check desktop/plugin.js`, `node --test 'tests/desktop/**/*test*.mjs'` (it includes the page scenario files `page-*.test.mjs`), the preview build, and `python tests/acceptance/broker_acceptance.py` after backend changes. Before a release: `node tools/bundle/bundle.mjs --check --same-esbuild`.
 
 ## The page's source (`desktop-src/`)
 - One level of feature folders. Pages: `home/`, `setup/` (with `install/`, `onboarding/`), `prompts/`, `games/`, `emulator/`, `build/`. Build's parts: `build-chat/` (conversation state, gateway events, actions), `build-transcript/`, `build-composer/`, `build-assets/`, `build-viewer/`, `build-player/` (the game inside the conversation). Shared: `core/` (ids, RPC names, backend calls, formatting, prompts several features send), `ui/` (components), `player/` (the frame layer every player surface uses), `frame/` (the code that runs inside the player frame; built separately into `player/frame-shim.js`, never imports `sdk.js`), `side-emulator/` (the tab beside the chat), `shell/` (header and page switch), `styles/`, `art/`. `index.js` is the entry: the default export and the one `register()`.

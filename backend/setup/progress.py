@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-from . import host_os
+from ..system import host as host_os
 
 # What the engine's managed setup fetches for ["build", "emulator"]. Versions are the pins in
 # engine/modretro-chromatic/scripts/dependency-catalog.mjs (tests/test_onboarding.py keeps them in

@@ -1,4 +1,4 @@
-"""The broker starts in its own systemd scope only where that is proven to work (adapter/client.py)."""
+"""The broker starts in its own systemd scope only where that is proven to work (backend/broker/client.py)."""
 import os
 import subprocess
 import sys
@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from adapter import client  # noqa: E402
+from backend.broker import client  # noqa: E402
 
 
 class BrokerScope(unittest.TestCase):

@@ -6,7 +6,8 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest import mock
 
-from adapter import hermes_host, paths
+from backend.hermes import host as hermes_host
+from backend.system import paths
 
 
 def throwaway_profile(base: Path):

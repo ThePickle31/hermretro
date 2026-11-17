@@ -26,7 +26,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from . import games, paths
+from ..library import games
+from ..system import paths
 
 logger = logging.getLogger(__name__)
 

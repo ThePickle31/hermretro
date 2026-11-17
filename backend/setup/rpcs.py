@@ -1,18 +1,20 @@
 """The Setup page's RPCs: status, install, remove_tools, studio_profile, activity and doctor.
-Re-exported by hermes_host."""
+Re-exported by backend.hermes.host."""
 from __future__ import annotations
 
 import contextlib
 import time
 from pathlib import Path
 
-from . import hermes_host as host, host_os, onboarding, paths, provision, studio_profile
-from .client import BrokerUnavailable
+from ..broker.client import BrokerUnavailable
+from ..hermes import host
+from ..system import host as host_os, paths
+from . import progress as onboarding, provision, studio_profile
 
-logger = host.logger   # one logger for the host adapter, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, as before the split
 
-# Shared helpers (the data folder, the profile, the library, the broker client) stay in hermes_host and are
-# looked up there at call time, so one patch of hermes_host.<name> reaches every module.
+# Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
+# looked up there at call time, so one patch of host.<name> reaches every module.
 
 _COMPONENT_LABELS = {
     "node": "Node.js", "runtime": "Chromatic engine", "cli": "GB Studio CLI", "gbdk": "GBDK compiler",
@@ -31,7 +33,7 @@ def _platform_report() -> dict:
             and node_arch in (None, found["machine"])}
 
 
-# The adapter code this gateway process loaded. When the files on disk change (a plugin update), the running
+# The backend code this gateway process loaded. When the files on disk change (a plugin update), the running
 # Hermes keeps the old code until it restarts: the page says so.
 LOADED_FINGERPRINT = paths.code_fingerprint()
 

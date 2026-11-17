@@ -9,7 +9,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from adapter import paths  # noqa: E402
+from backend.system import paths  # noqa: E402
 
 # Where the version may legitimately appear as text: the manifest itself, the vendored engine (its own
 # versions), lockfiles, generated bundles and the README's note about upgrading from older versions.
@@ -18,7 +18,7 @@ ALLOWED = ("plugin.yaml", "engine/", "release/", "tools/npm/package-lock.json", 
 
 
 class OneVersion(unittest.TestCase):
-    def test_the_adapter_reads_its_version_from_plugin_yaml(self):
+    def test_the_backend_reads_its_version_from_plugin_yaml(self):
         manifest = (ROOT / "plugin.yaml").read_text(encoding="utf-8")
         self.assertEqual(len(re.findall(r"^version:", manifest, re.MULTILINE)), 1, "one top-level version line")
         self.assertEqual(paths.PLUGIN_VERSION, paths._manifest_version(ROOT / "plugin.yaml"))
@@ -58,7 +58,7 @@ class OneVersion(unittest.TestCase):
                 if pattern.search(line) and not line.startswith("Upgrading from "):
                     found.append(f"{name}:{number}")
         self.assertEqual(found, [], f"the version {paths.PLUGIN_VERSION} is repeated; read it from plugin.yaml "
-                                    "(adapter: paths.PLUGIN_VERSION; page: status.plugin.version)")
+                                    "(backend: paths.PLUGIN_VERSION; page: status.plugin.version)")
 
 
 if __name__ == "__main__":

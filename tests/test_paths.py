@@ -8,7 +8,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import client, paths  # noqa: E402
+from backend.broker import client  # noqa: E402
+from backend.system import paths  # noqa: E402
 
 CLEAN = {key: value for key, value in os.environ.items()
          if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")}

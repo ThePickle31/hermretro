@@ -29,9 +29,9 @@ sys.path.insert(0, str(REPO))
 HANDOFF = 3.0
 os.environ["HERMRETRO_WRITER_HANDOFF_SECONDS"] = str(HANDOFF)
 
-from adapter import paths  # noqa: E402
-from adapter.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402
-from adapter.engine import EngineProcess  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.broker.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402
+from backend.broker.engine import EngineProcess  # noqa: E402
 
 RUN = time.strftime("%Y%m%dT%H%M%S")
 # Resolved: on macOS /tmp and /var are links into /private, and the engine reports real paths.
@@ -522,7 +522,7 @@ def write_evidence(passed: bool, crashed: str | None = None) -> Path:
         "suite": "broker acceptance (real engine, outside Hermes)", "run": RUN,
         "passed": passed, "checks_passed": sum(c["passed"] for c in checks), "checks_total": len(checks),
         "crashed": crashed,
-        "adapter": {"version": paths.PLUGIN_VERSION, "protocol": paths.PROTOCOL,
+        "backend": {"version": paths.PLUGIN_VERSION, "protocol": paths.PROTOCOL,
                     "code_fingerprint": paths.code_fingerprint()},
         "engine": paths.verify_engine(),
         "host": {"node": subprocess.run([NODE, "--version"], capture_output=True, text=True).stdout.strip(),

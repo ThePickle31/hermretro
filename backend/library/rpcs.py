@@ -1,6 +1,6 @@
 """The Games, Build and Emulator pages' RPCs: the library, the game <-> conversation binding, build
 snapshots, the real player and captures, plus the Build conversation's per-turn context.
-Re-exported by hermes_host."""
+Re-exported by backend.hermes.host."""
 from __future__ import annotations
 
 import json
@@ -8,13 +8,16 @@ import os
 import time
 from pathlib import Path
 
-from . import hermes_host as host, host_assets, host_tools, paths, player_server, snapshots
-from . import games as library
+from ..assets import versions as host_assets
+from ..hermes import host
+from ..player import server as player_server
+from ..system import paths
+from . import games as library, snapshots, tools as host_tools
 
-logger = host.logger   # one logger for the host adapter, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, as before the split
 
-# Shared helpers (the data folder, the profile, the library, the broker client) stay in hermes_host and are
-# looked up there at call time, so one patch of hermes_host.<name> reaches every module.
+# Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
+# looked up there at call time, so one patch of host.<name> reaches every module.
 
 def _games_dir_made():
     """The games folder, created so "Open games folder" opens it on a fresh install (a reveal of a missing
@@ -240,7 +243,7 @@ def _result_payload(result):
 
 def build_succeeded(result, status=None) -> bool:
     """Whether a delivered ``chromatic_rom_build`` result is a successful build: no error from Hermes or
-    the adapter, and the engine's own ``structuredContent.success`` is true."""
+    the backend, and the engine's own ``structuredContent.success`` is true."""
     if status not in (None, "", "ok"):
         return False
     payload = _result_payload(result)

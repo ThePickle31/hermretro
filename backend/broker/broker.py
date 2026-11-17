@@ -8,9 +8,8 @@ Each trusted owner (Hermes profile + durable conversation) gets a private,
 lazily started engine worker. The engine binds a worker to one project root,
 so a lane is "conversation -> its project worker".
 
-Stdlib only and no Hermes imports: this runs as `python -m adapter.broker`. The lane work lives in
-broker_lane.py, control operations and housekeeping in broker_control.py, the socket server and main()
-in broker_server.py.
+Stdlib only and no Hermes imports: this runs as `python -m backend.broker`. The lane work lives in
+lane.py, control operations and housekeeping in control.py, the socket server and main() in server.py.
 """
 from __future__ import annotations
 
@@ -21,9 +20,12 @@ import threading
 import time
 from pathlib import Path
 
-from . import games, leases, paths, provision
-from .broker_control import ControlMixin
-from .broker_lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
+from ..library import games
+from ..setup import provision
+from ..system import paths
+from . import leases
+from .control import ControlMixin
+from .lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
 
 HARDWARE = frozenset({"device", "setup", "flash", "play", "device_capture"})
@@ -281,11 +283,3 @@ class Broker(LaneMixin, ControlMixin):
                 "engine_generation": lane.generation, "selected_root": lane.selected_root,
                 "writer": self.holds_writer(lane), "sessions_seen": list(lane.sessions_seen)}
 
-
-def main() -> int:
-    from . import broker_server   # imported here: broker_server imports this module
-    return broker_server.main()
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -1,7 +1,7 @@
 """A conversation's lane in the broker: its engine worker, its project selection and writer lease,
 and the one-game-per-conversation guard of the Build page.
 
-Stdlib only and no Hermes imports: the broker runs as `python -m adapter.broker`.
+Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`.
 """
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from . import games, paths
+from ..library import games
+from ..system import paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 
 DEFAULT_CALL_TIMEOUT = 900.0

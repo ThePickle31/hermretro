@@ -23,7 +23,7 @@ The agent guide (`AGENTS.md`) lists them; in short:
   and commit both built files with your sources.
 - Nothing under `engine/` changes outside an engine update (`docs/dev/ENGINE-UPDATE.md`).
 - `python tools/check.py scan` must say `safe` (`docs/dev/INSTALL-SCANNER.md` lists what trips it).
-- Everything works the same on Linux and macOS; differences go in `adapter/host_os.py`. Windows is not supported.
+- Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.
 
 ## Pull requests

@@ -69,7 +69,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
 
 - `engine/modretro-chromatic/` — the original engine, bundled with one small path change (see
   `THIRD_PARTY_NOTICES.md`) and verified against a manifest.
-- `adapter/` — the Hermes side. `broker.py` is the single authority on the machine: it gives each conversation
+- `backend/` — the Hermes side, one folder per feature. `broker/` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
   desktop page are its clients.
 - `desktop-src/` — the Hermes Desktop page, one small module per feature. `tools/bundle/bundle.mjs` bundles it into
@@ -84,7 +84,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   - **Prompts**: every prompt, editable, put into a new or the current chat (never sent for you).
   - **Games**: your library as cartridges: play, install on a Chromatic (through the chat's approval),
     open the game's chat.
-  - **Emulator**: ModRetro's real player, served by the plugin (`adapter/player_server.py`).
+  - **Emulator**: ModRetro's real player, served by the plugin (`backend/player/server.py`).
   - **Build**: one game, one conversation with HermRetro. When a turn has built the game, you play it
     right in that turn's build card, at a whole-number scale, with a play-test checklist from the build
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.

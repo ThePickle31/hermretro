@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import host_os
+from ..system import host as host_os
 
 PROTOCOL_VERSION = "2024-11-05"
 

@@ -10,7 +10,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from adapter import contracts, paths, results  # noqa: E402
+from backend.hermes import contracts  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.hermes import results  # noqa: E402
 
 PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"fake-image-bytes").decode()
 
@@ -69,14 +71,17 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(check["version"], paths.ENGINE_VERSION)
 
     def test_the_broker_fingerprint_covers_sub_packages_but_not_caches(self):
-        # A running broker is retired when any adapter source changes, including future sub-packages.
+        # A running broker is retired when any backend source changes, including future sub-packages.
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             for rel in ("broker.py", "host/rpc.py", "host/__pycache__/rpc.cpython-314.py", "notes.txt"):
                 (folder / rel).parent.mkdir(parents=True, exist_ok=True)
                 (folder / rel).write_text("# x\n")
-            self.assertEqual([rel for rel, _path in paths.adapter_sources(folder)], ["broker.py", "host/rpc.py"])
-        self.assertIn("paths.py", [rel for rel, _path in paths.adapter_sources(paths.PLUGIN_ROOT / "adapter")])
+            self.assertEqual([rel for rel, _path in paths.backend_sources(folder)], ["broker.py", "host/rpc.py"])
+        every = [rel for rel, _path in paths.backend_sources(paths.BACKEND_ROOT)]
+        self.assertEqual(paths.BACKEND_ROOT, paths.PLUGIN_ROOT / "backend")
+        self.assertIn("system/paths.py", every)
+        self.assertIn("broker/__main__.py", every)
 
     def test_the_linux_capture_ffmpeg_builds_are_not_shipped(self):
         # LGPL builds from a source that is not public: left out, and the engine still verifies without them.
@@ -148,7 +153,7 @@ class ResultTests(unittest.TestCase):
         self.assertNotIn("studioPlayerUrl", payload)
 
     def test_the_prompt_section_describes_presenting_not_auto_open(self):
-        from adapter import hermes_host
+        from backend.hermes import host as hermes_host
         section = hermes_host.SYSTEM_PROMPT_SECTION
         self.assertLessEqual(len(section), 2000)
         self.assertIn("chromatic_present_game", section)

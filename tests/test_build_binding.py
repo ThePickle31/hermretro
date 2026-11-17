@@ -11,8 +11,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import games, hermes_host  # noqa: E402
-from adapter.broker import Broker, Denied, Lane  # noqa: E402
+from backend.library import games  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.broker.broker import Broker, Denied, Lane  # noqa: E402
 from test_games import make_project  # noqa: E402
 
 PROFILE = "/profiles/studio"

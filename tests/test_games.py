@@ -12,8 +12,11 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import contracts, games, hermes_host, paths  # noqa: E402
-from adapter.broker import Broker, Lane  # noqa: E402
+from backend.hermes import contracts  # noqa: E402
+from backend.library import games  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.broker.broker import Broker, Lane  # noqa: E402
 
 def encode_png(width, height, pixel):
     """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
@@ -485,7 +488,7 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(hook(tool_name="chromatic_flash", args={})["action"], "approve")
 
     def test_the_present_tool_is_plugin_owned_not_an_engine_tool(self):
-        from adapter import contracts
+        from backend.hermes import contracts
         names = {schema["name"] for schema in contracts.hermes_schemas()}
         self.assertNotIn("chromatic_present_game", names)
         self.assertNotIn("present_game", {tool["name"] for tool in contracts.pinned_tools()})

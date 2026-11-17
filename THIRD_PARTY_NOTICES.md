@@ -1,6 +1,6 @@
 # Third-party notices
 
-The MIT licence in `LICENSE` covers the hermretro adapter, desktop page, skills and tooling in this
+The MIT licence in `LICENSE` covers the hermretro backend, desktop page, skills and tooling in this
 repository. It does not cover the bundled engine under `engine/modretro-chromatic/` or the components inside
 it, which keep their own licences, listed below.
 

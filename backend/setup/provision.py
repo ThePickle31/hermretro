@@ -31,7 +31,7 @@ from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from . import host_os, paths
+from ..system import host as host_os, paths
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"

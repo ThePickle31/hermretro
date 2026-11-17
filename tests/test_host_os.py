@@ -14,7 +14,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from adapter import client, host_os, paths  # noqa: E402
+from backend.broker import client  # noqa: E402
+from backend.system import host as host_os  # noqa: E402
+from backend.system import paths  # noqa: E402
 
 POSIX = host_os.LINUX or host_os.MACOS
 
@@ -38,7 +40,7 @@ class HostOs(unittest.TestCase):
             self.assertIn("Windows is not supported", host_os.unsupported_reason() or "")
 
     def test_the_cli_download_matches_the_nodejs_that_runs_it(self):
-        from adapter import provision
+        from backend.setup import provision
         with mock.patch.object(provision, "_node_platform", return_value=("darwin", "x64")), \
                 mock.patch.object(host_os, "native_arch", return_value="arm64"):
             self.assertEqual(provision.host_target()["target"], "darwin-x64")
@@ -61,9 +63,9 @@ class HostOs(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         with mock.patch.object(host_os, "LINUX", False), mock.patch.object(host_os, "MACOS", False), \
                 mock.patch.object(host_os.sys, "platform", "win32"), \
-                mock.patch.dict(sys.modules, {"hermretro_on_windows.adapter.host_os": host_os}):
+                mock.patch.dict(sys.modules, {"hermretro_on_windows.backend.system.host": host_os}):
             spec.loader.exec_module(module)
-        self.assertNotIn("hermretro_on_windows.adapter.hermes_host", sys.modules)
+        self.assertNotIn("hermretro_on_windows.backend.hermes.host", sys.modules)
         with self.assertRaises(RuntimeError) as caught:
             module.register(object())
         self.assertIn("Linux and macOS", str(caught.exception))

@@ -2,7 +2,7 @@
 import { Codicon, jsx, jsxs, useLayoutEffect, useRef, useState } from '../sdk.js'
 import { AGENT } from '../core/ids.js'
 
-// The two ways to start, as the backend tells the agent (hermes_host build context): keep the words in step.
+// The two ways to start, as the backend tells the agent (backend/library/rpcs.py build context): keep the words in step.
 // Starter ideas under New Game: each fills the box with an idea to edit (never sends it).
 const NEW_GAME_IDEAS = [
   ['Fly around a big sky', 'A little bird that flies around a big, bright daytime sky with clouds and treetops.'],

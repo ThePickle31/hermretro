@@ -1,18 +1,22 @@
 """The plugin-owned tools: chromatic_studio_device_cli, chromatic_present_game, chromatic_game_info and
-chromatic_build_report, with their schemas and handlers. Re-exported by hermes_host."""
+chromatic_build_report, with their schemas and handlers. Re-exported by backend.hermes.host."""
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 
-from . import game_card, hermes_host as host, host_assets, paths, player_server, provision
-from . import games as library
+from ..assets import versions as host_assets
+from ..hermes import host
+from ..player import server as player_server
+from ..setup import provision
+from ..system import paths
+from . import game_card, games as library
 
-logger = host.logger   # one logger for the host adapter, as before the split
+logger = host.logger   # one logger for the Hermes side of the backend, as before the split
 
-# Shared helpers (the data folder, the profile, the library, the broker client) stay in hermes_host and are
-# looked up there at call time, so one patch of hermes_host.<name> reaches every module.
+# Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
+# looked up there at call time, so one patch of host.<name> reaches every module.
 
 
 # -- plugin-owned setup tool ------------------------------------------------------

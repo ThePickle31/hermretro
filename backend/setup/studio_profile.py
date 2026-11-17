@@ -23,7 +23,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import hermes_api, paths
+from ..hermes import api as hermes_api
+from ..system import paths
 
 STUDIO_PROFILE = "hermretro"
 DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"

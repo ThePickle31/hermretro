@@ -10,7 +10,13 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import client, engine, hermes_host, host_os, paths, provision, studio_profile  # noqa: E402
+from backend.broker import client  # noqa: E402
+from backend.broker import engine  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.system import host as host_os  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.setup import provision  # noqa: E402
+from backend.setup import studio_profile  # noqa: E402
 from support import throwaway_deps, throwaway_profile  # noqa: E402
 
 CTX = mock.Mock(get_config=lambda key, default=None: default)

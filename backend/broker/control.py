@@ -1,7 +1,7 @@
 """The broker's control operations (everything but `call`): the desktop page's toolchain install,
 stats, shutdown, doctor, the page's activity and lane lookups, leases and lanes, and housekeeping.
 
-Stdlib only and no Hermes imports: the broker runs as `python -m adapter.broker`.
+Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`.
 """
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ import threading
 import time
 from pathlib import Path
 
-from . import onboarding, paths, provision
-from .broker_lane import Denied
+from ..setup import progress as onboarding, provision
+from ..system import paths
 from .engine import EngineError
+from .lane import Denied
 
 
 def _prepare_failure(result: dict, structured: dict) -> str:

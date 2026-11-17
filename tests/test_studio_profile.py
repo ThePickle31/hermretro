@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import paths, studio_profile as sp  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.setup import studio_profile as sp  # noqa: E402
 
 
 class StudioProfile(unittest.TestCase):

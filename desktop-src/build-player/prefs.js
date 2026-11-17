@@ -5,7 +5,7 @@ import { SCALES } from './scale.js'
 
 const KEY = 'inlinePlayer'
 
-/** The Hermes Edition finishes (adapter/player_server.py HERMES_COLORS), Midnight first. */
+/** The Hermes Edition finishes (backend/player/server.py HERMES_COLORS), Midnight first. */
 export const FINISHES = Object.freeze([
   { id: 'hermes-midnight', name: 'Midnight', swatch: '#15171c' },
   { id: 'hermes-blue', name: 'Nous Blue', swatch: '#0053fd' },

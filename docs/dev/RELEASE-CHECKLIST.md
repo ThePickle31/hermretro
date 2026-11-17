@@ -2,7 +2,7 @@
 
 CI proves the code on Linux, Apple Silicon and Intel macOS runners, including the real engine. What it cannot
 prove is the desktop app on a real machine. Before a stable release (and after any change to setup, the
-broker or `adapter/host_os.py`), run this on a MacBook and on a Linux desktop.
+broker or `backend/system/host.py`), run this on a MacBook and on a Linux desktop.
 
 ## On the machine
 

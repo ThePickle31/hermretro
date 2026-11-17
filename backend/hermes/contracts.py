@@ -12,7 +12,7 @@ import json
 import re
 from functools import lru_cache
 
-from . import paths
+from ..system import paths
 
 PREFIX = "chromatic_"
 TOOLSET = "chromatic"
@@ -69,7 +69,7 @@ def original_name(name: str) -> str:
 
 
 #: Tools that make a new project folder. In Hermes their destination is optional: without one the
-#: adapter puts the game in the hermretro games folder (``paths.games_dir``).
+#: backend puts the game in the hermretro games folder (``paths.games_dir``).
 CREATORS = frozenset({"project_create", "project_create_blank"})
 
 

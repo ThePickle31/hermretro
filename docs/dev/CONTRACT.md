@@ -140,7 +140,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `adapter/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
@@ -211,7 +211,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   Sports, Strategy, Story, Other`, and a cover. Placeholder words (TODO, TBD, lorem ipsum, …) do not count.
   Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12).
 - **Cover:** a PNG, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
-  Image Generation), not an unchanged copy of an image under `assets/`. Read by `adapter/game_card.py`
+  Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_card.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
   project? }`: with no fields it reports the card; otherwise it checks every field and stores all or

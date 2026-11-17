@@ -16,7 +16,9 @@ ENGINE_VERSION = "1.0.34"
 NODE_REQUIRED_MAJOR = 22
 PROTOCOL = 2
 
-PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+# backend/: every Python file in it is part of the code fingerprint (a change retires a running broker).
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 # `version: X.Y.Z`, optionally quoted, optionally followed by a comment.
@@ -48,7 +50,7 @@ def _hermes_root() -> Path:
     in a profile. Asks Hermes when it can be imported. The fallback (tests, CI, tools run outside Hermes)
     covers the plain cases only; the broker never relies on it, because the client hands it
     ``HERMRETRO_HOME``."""
-    from . import hermes_api
+    from ..hermes import api as hermes_api
     asked = hermes_api.default_hermes_root()
     if asked is not None:
         return asked
@@ -275,19 +277,19 @@ def select_engine() -> dict:
 
 
 def code_fingerprint() -> str:
-    """Identity of the adapter build ON DISK, so a client never talks to a stale broker.
+    """Identity of the backend build ON DISK, so a client never talks to a stale broker.
 
     Read fresh (cached per file stamp) rather than once per process: a gateway that loaded the plugin
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
-    folder = Path(__file__).resolve().parent
-    sources = [*adapter_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]   # holds the version
+    folder = BACKEND_ROOT
+    sources = [*backend_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]   # holds the version
     stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
     return _fingerprint_for(stamp)
 
 
-def adapter_sources(folder: Path) -> list[tuple[str, Path]]:
-    """Every Python file of the adapter, sub-packages included, as (posix path relative to folder, path),
+def backend_sources(folder: Path) -> list[tuple[str, Path]]:
+    """Every Python file of the backend, sub-packages included, as (posix path relative to folder, path),
     sorted. Caches are skipped; a change to any other file must retire a running broker."""
     return sorted((path.relative_to(folder).as_posix(), path) for path in folder.rglob("*.py")
                   if "__pycache__" not in path.relative_to(folder).parts)
@@ -297,7 +299,7 @@ def adapter_sources(folder: Path) -> list[tuple[str, Path]]:
 def _fingerprint_for(stamp: tuple) -> str:
     # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
     digest = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
-    folder = Path(__file__).resolve().parent
+    folder = BACKEND_ROOT
     for name, _mtime, _size in stamp:
         digest.update(name.encode())
         digest.update((folder / name).read_bytes())

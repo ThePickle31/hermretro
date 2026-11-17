@@ -18,7 +18,10 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import games, hermes_host, paths, player_server  # noqa: E402
+from backend.library import games  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.player import server as player_server  # noqa: E402
 from support import throwaway_profile  # noqa: E402
 
 PNG = base64.b64decode(

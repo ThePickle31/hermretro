@@ -8,8 +8,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from adapter import paths  # noqa: E402
-from adapter.engine import EngineProcess  # noqa: E402,F401
+from backend.system import paths  # noqa: E402
+from backend.broker.engine import EngineProcess  # noqa: E402,F401
 
 
 def dev_engine_root() -> Path:

@@ -1,4 +1,4 @@
-"""Stale recording-lease recovery (adapter/leases.py), with real processes and files."""
+"""Stale recording-lease recovery (backend/broker/leases.py), with real processes and files."""
 import json
 import os
 import subprocess
@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from adapter import leases  # noqa: E402
+from backend.broker import leases  # noqa: E402
 
 
 def write_lease(root: Path, pid: int, mtime: float | None = None, mode: int = 0o600, extra: dict | None = None) -> Path:

@@ -104,7 +104,7 @@ class DesktopBundleTests(unittest.TestCase):
 
 
 class FrameShimTests(unittest.TestCase):
-    """The script the player frame runs first, inlined by adapter/player_server.py."""
+    """The script the player frame runs first, inlined by backend/player/server.py."""
 
     def test_the_shim_is_current_and_was_not_edited_by_hand(self):
         text = FRAME_SHIM.read_text(encoding="utf-8")

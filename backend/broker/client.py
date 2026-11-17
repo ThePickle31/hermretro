@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import host_os, paths
+from ..system import host as host_os, paths
 
 
 class BrokerUnavailable(RuntimeError):
@@ -116,7 +116,7 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
            if key in os.environ}
     env.update({key: value for key, value in os.environ.items() if key.startswith("HERMRETRO_")})
     env["HERMRETRO_HOME"] = str(paths.hermretro_home())  # absolute; the broker cannot ask Hermes itself
-    command = [sys.executable, "-m", "adapter.broker", "--state-dir", str(state_dir), "--node", node]
+    command = [sys.executable, "-m", "backend.broker", "--state-dir", str(state_dir), "--node", node]
     Path(state_dir).mkdir(mode=0o700, parents=True, exist_ok=True)  # a caller may name a folder not made yet
     log_path = Path(state_dir) / "broker.stderr.log"
     if log_path.is_file() and log_path.stat().st_size > 5 * 1024 * 1024:
@@ -143,7 +143,7 @@ def try_connect(state_dir: Path) -> tuple[BrokerClient | None, Exception | None]
 def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
-    A broker left over from another build of this adapter is replaced when it is idle."""
+    A broker left over from another build of this backend is replaced when it is idle."""
     state_dir = Path(state_dir) if state_dir else paths.runtime_dir()
     node = paths.find_node()
     if not node.get("ok"):
@@ -163,7 +163,7 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
             if client.hello.get("code_fingerprint") == paths.code_fingerprint() and not other_install:
                 return client
-            # A broker from another build of this adapter. Replace it only when no conversation
+            # A broker from another build of this backend. Replace it only when no conversation
             # has a live worker; otherwise keep using it (same wire protocol) rather than kill
             # someone's running game. It retires itself once it is idle.
             answer = client.request({"op": "shutdown"})

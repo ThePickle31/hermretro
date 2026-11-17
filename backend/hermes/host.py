@@ -1,9 +1,9 @@
 """Everything that touches Hermes: tool handlers, hooks, the prompt section, and the helpers shared by
 the RPC and tool modules.
 
-The page's RPCs and the plugin-owned tools live in host_setup, host_tools, host_games and host_assets;
-this module re-exports their names (``hermes_host.rpc_status`` and so on), and those modules look the
-shared helpers up here at call time.
+The page's RPCs and the plugin-owned tools live in backend/setup/rpcs.py, backend/library/rpcs.py,
+backend/library/tools.py and backend/assets/; this module re-exports their names (``host.rpc_status`` and
+so on), and those modules look the shared helpers up here at call time.
 
 Handlers run wherever Hermes dispatches tools (gateway, plugin host or an isolated
 turn process). They hold no state of their own: every call goes to the broker.
@@ -17,10 +17,12 @@ import threading
 import time
 from pathlib import Path
 
-from . import contracts, hermes_api, paths, provision, results
-from . import games as library
-# try_connect is used by the area modules as hermes_host.try_connect, so a test's patch here reaches them.
-from .client import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401
+from ..library import games as library
+from ..setup import provision
+from ..system import paths
+from . import api as hermes_api, contracts, results
+# try_connect is used by the area modules as host.try_connect, so a test's patch here reaches them.
+from ..broker.client import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +157,7 @@ BUILD_REPORT_GUIDANCE = (
 # -- hooks -------------------------------------------------------------------------
 
 def make_pre_tool_call(ctx):
-    from .host_tools import DEVICE_CLI_TOOL
+    from ..library.tools import DEVICE_CLI_TOOL
 
     def pre_tool_call(tool_name=None, args=None, **_kwargs):
         """Send every hardware-changing call, and the vendor download, through Hermes's own
@@ -222,32 +224,36 @@ SYSTEM_PROMPT_SECTION = (
 
 
 # -- names that moved to the area modules ------------------------------------------
-# hermes_host.<name> keeps working for __init__.py and the tests. Resolved on first use, so an area module
-# can import this one at its top in any import order.
+# host.<name> keeps working for __init__.py and the tests. Keys are module paths under backend/. Resolved on
+# first use, so an area module can import this one at its top in any import order.
 _MOVED = {
-    "host_setup": (
+    "setup.rpcs": (
         "_COMPONENT_LABELS", "_OPTIONAL_COMPONENTS", "_platform_report", "LOADED_FINGERPRINT",
         "rpc_status", "rpc_install", "rpc_remove_tools", "BROKER_STOP_WAIT", "_REMOVE_BUSY",
         "_broker_lock", "rpc_studio_profile", "rpc_activity", "rpc_doctor",
     ),
-    "host_tools": (
+    "library.tools": (
         "DEVICE_CLI_TOOL", "device_cli_handler", "PRESENT_TOOL", "_chat_project", "_present_error",
         "_tool_project", "present_game_handler", "GAME_INFO_TOOL", "_CARD_FIELDS", "game_info_handler",
         "REPORT_LIMITS", "REPORT_COUNTS", "REPORT_KINDS", "REPORT_MESSAGE", "_report_list",
         "BUILD_REPORT_TOOL", "_report_text", "_report_asset", "build_report_handler",
     ),
-    "host_assets": (
+    "assets.versions": (
         "ASSET_SUFFIXES", "ASSET_MAX_BYTES", "_image_size", "_asset_kind", "ASSET_KEEP_VERSIONS",
         "_MEDIA_LINE", "_asset_roots", "_asset_file", "_versions_dir", "_keep_version", "_version_at",
-        "_keep_paths", "keep_delivered_images", "keep_inspected_images", "rpc_asset",
+        "_keep_paths", "keep_delivered_images", "keep_inspected_images", "_versions",
+    ),
+    "assets.sprites": (
         "_ANIMATION_NAMES", "_FACING_SLOT", "_ASSET_INFO_SCENES", "_ASSET_INFO_ACTORS", "_read_json",
         "_tiles", "_sprite_animations", "_standing_frame", "_project_index", "_palette",
         "_player_sprite_id", "_actor_palette", "_scene_view", "_SPRITE_USES", "_SPRITE_USES_ROOTS",
-        "_MOVING_OFFSET", "_project_stamp", "_sprite_uses", "_sprite_look", "_versions",
-        "rpc_asset_info", "rpc_asset_restore", "_ASSET_LIST_FOLDERS", "ASSET_LIST_LIMIT", "_list_root",
-        "rpc_assets",
+        "_MOVING_OFFSET", "_project_stamp", "_sprite_uses", "_sprite_look",
     ),
-    "host_games": (
+    "assets.rpcs": (
+        "rpc_asset", "rpc_asset_info", "rpc_asset_restore", "_ASSET_LIST_FOLDERS", "ASSET_LIST_LIMIT",
+        "_list_root", "rpc_assets",
+    ),
+    "library.rpcs": (
         "_games_dir_made", "_profile_name", "_chat_titles", "_existing_sessions", "_seed_library",
         "_demo_entry", "_capture_root", "rpc_games", "rpc_build", "SHOW_ART_CONTEXT", "build_context",
         "_snapshots_dir", "_result_payload", "build_succeeded", "_library_root_for",
@@ -262,4 +268,4 @@ def __getattr__(name):
     module = _HOME.get(name)
     if module is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    return getattr(importlib.import_module(f".{module}", __package__), name)
+    return getattr(importlib.import_module(f"..{module}", __package__), name)

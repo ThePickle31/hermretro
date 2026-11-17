@@ -151,7 +151,7 @@ def check_scan(args) -> str:
 
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
-    from adapter import paths  # noqa: E402  (the adapter decides where setup put the toolchain)
+    from backend.system import paths  # noqa: E402  (the backend decides where setup put the toolchain)
     if not paths.setup_root().is_dir():
         raise Skip(f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
                    "or point HERMRETRO_DEPS_ROOT at a folder that has one")

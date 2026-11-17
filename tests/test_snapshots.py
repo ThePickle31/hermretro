@@ -11,7 +11,11 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import games, hermes_host, host_assets, host_tools, snapshots  # noqa: E402
+from backend.library import games  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.assets import versions as host_assets  # noqa: E402
+from backend.library import tools as host_tools  # noqa: E402
+from backend.library import snapshots  # noqa: E402
 from test_games import make_project  # noqa: E402
 
 

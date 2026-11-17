@@ -15,7 +15,7 @@ single pull request (`chore/engine-<version>`).
 4. **Pin the tool contracts**: save the new engine's answers to `initialize` and `tools/list` as
    `engine/pins/<v>/tools.json`, in the same shape as the previous file (delete the old folder), and run `python tools/engine/reconcile_schemas.py engine/pins/<v>/tools.json` (it starts the engine and
    diffs every tool; keep its report as `engine/pins/<v>/schema-reconcile.json`).
-5. **Bump the version** in `adapter/paths.py` (`ENGINE_VERSION`), the `version:` line of the five adapted skills,
+5. **Bump the version** in `backend/system/paths.py` (`ENGINE_VERSION`), the `version:` line of the five adapted skills,
    and `THIRD_PARTY_NOTICES.md`. `python -m unittest tests/test_lockstep.py` lists anything missed.
 6. **Compare the skills by hand**: diff `engine/modretro-chromatic/skills/` against the previous release and carry
    real changes into `skills/` (keep the Hermes edits and each `## In hermretro` section).

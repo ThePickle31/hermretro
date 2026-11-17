@@ -11,7 +11,9 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import game_card, games, hermes_host  # noqa: E402
+from backend.library import game_card  # noqa: E402
+from backend.library import games  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
 from support import throwaway_profile  # noqa: E402
 from test_games import COVER, encode_png, make_project  # noqa: E402
 

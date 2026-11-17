@@ -16,7 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from adapter import client, paths  # noqa: E402
+from backend.broker import client  # noqa: E402
+from backend.system import paths  # noqa: E402
 
 LIMIT_SECONDS = 1200
 STALL_SECONDS = 420   # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)

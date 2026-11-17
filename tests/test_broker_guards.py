@@ -9,8 +9,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import hermes_host  # noqa: E402
-from adapter.broker import Broker, Denied, Lane  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402
+from backend.broker.broker import Broker, Denied, Lane  # noqa: E402
 
 
 class FakeEngine:
@@ -114,7 +114,7 @@ class Selection(unittest.TestCase):
 
 
     def test_creating_a_project_without_selecting_it_does_not_change_the_selection(self):
-        from adapter.broker import selects_project
+        from backend.broker.broker import selects_project
         self.assertTrue(selects_project("project_select", {"projectPath": "/games/two"}))
         self.assertTrue(selects_project("project_create_blank", {"select": True}))
         self.assertFalse(selects_project("project_create", {}))             # select defaults to false
@@ -180,7 +180,7 @@ class LivePlayer(unittest.TestCase):
         self.assertEqual((player["ready"], player["stale"]), (False, False))
 
     def build_result(self, player):
-        from adapter import results
+        from backend.hermes import results
         response = {"ok": True, "result": {"content": [], "structuredContent": {"success": True}}, "player": player}
         return json.loads(results.encode(response, "chromatic_rom_build", None, False))
 

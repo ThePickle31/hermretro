@@ -12,8 +12,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from adapter import broker as broker_module, onboarding  # noqa: E402
-from adapter.broker import Broker, Denied  # noqa: E402
+from backend.broker import broker as broker_module  # noqa: E402
+from backend.setup import progress as onboarding  # noqa: E402
+from backend.broker.broker import Broker, Denied  # noqa: E402
 
 CATALOG = (ROOT / "engine/modretro-chromatic/scripts/dependency-catalog.mjs").read_text()
 

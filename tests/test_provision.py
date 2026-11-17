@@ -9,7 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adapter import paths, provision  # noqa: E402
+from backend.system import paths  # noqa: E402
+from backend.setup import provision  # noqa: E402
 from support import throwaway_deps  # noqa: E402
 
 
@@ -92,7 +93,7 @@ class ProvisionTests(unittest.TestCase):
 
 class ApprovalTests(unittest.TestCase):
     def setUp(self):
-        from adapter import hermes_host
+        from backend.hermes import host as hermes_host
 
         class Ctx:
             def get_config(self, key, default=None):

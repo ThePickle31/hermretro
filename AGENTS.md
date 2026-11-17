@@ -12,7 +12,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | Path | What it is |
 |---|---|
 | `__init__.py`, `plugin.yaml` | The plugin's entry point and manifest (tools, hooks, RPCs, version) |
-| `adapter/` | Python backend: the broker process, engine workers, RPCs for the page, the browser player server |
+| `backend/` | Python backend, one folder per feature: `broker/` (the broker process, engine workers), `hermes/` (everything that touches Hermes), `setup/`, `library/`, `assets/` (RPCs for the page), `player/` (the browser player server), `system/` (locations, Linux/macOS differences) |
 | `engine/modretro-chromatic/` | The vendored ModRetro engine. Hash-pinned by `engine/pins/`; changes are refused at run time |
 | `desktop-src/` | Source of the Hermes Desktop page and the player frame script, one folder per feature |
 | `desktop/plugin.js`, `player/frame-shim.js` | Generated from `desktop-src/` by `tools/bundle/bundle.mjs` and committed |
@@ -38,7 +38,7 @@ node tools/bundle/bundle.mjs --watch    # rebuild on every save
 ```
 
 CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`)
-and, when a change touches `adapter/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
+and, when a change touches `backend/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
 nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
 naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 At the start of a session, look at the last nightly run (`gh run list --workflow nightly.yml -L 1`) and any open
@@ -55,7 +55,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
    instead); `sudo` in workflow files; zero-width or other invisible characters; binaries; symlinks that
    leave the repository; a `package.json` at the root (it makes every install ask about Node packages).
 4. **Linux and macOS, Apple Silicon and Intel.** Every change works on both systems. Locations come from
-   `adapter/paths.py`; a call that exists on only one system needs a branch for the other in the same
+   `backend/system/paths.py`; a call that exists on only one system needs a branch for the other in the same
    place. Windows is not supported.
 5. **One studio profile.** The plugin's tools, skills, hooks and prompt register only in the Hermes profile
    named `hermretro`; the page's chats go only there. To try the tools from another profile while

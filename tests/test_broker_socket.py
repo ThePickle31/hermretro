@@ -1,6 +1,6 @@
 """The broker's socket protocol, end to end against a real broker process (no engine work, about a second).
 
-The safety net for refactoring adapter/broker.py: every answer here comes over the real Unix socket, from the
+The safety net for refactoring backend/broker/: every answer here comes over the real Unix socket, from the
 handshake to a clean stop. The real engine's behaviour is the acceptance suite's job.
 """
 import json
@@ -16,7 +16,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adapter import client, paths  # noqa: E402
+from backend.broker import client  # noqa: E402
+from backend.system import paths  # noqa: E402
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 OWNER = {"profile": "socket-test", "conversation_id": "conv-1"}
