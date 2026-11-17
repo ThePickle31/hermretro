@@ -5,7 +5,15 @@ node_modules/
 # Where older versions kept downloads and games, inside the plugin folder (now ~/.hermes/hermretro)
 /deps/
 /games/
-# Local notes, evidence, mockups and temp files: never committed
+# Local notes, evidence, mockups and temp files: never committed (plans, reports and logs go in notes/)
 /notes/
+/scratch/
+/tmp/
+*.log
+*.orig
+*.rej
+*.bak
+*.swp
+.DS_Store
 # Worktrees Hermes makes for parallel work (Desktop's New worktree, /worktree new)
 /.worktrees/

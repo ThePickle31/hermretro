@@ -75,6 +75,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
    downloads, broker); in tests use `tests/support.py` and point `HERMRETRO_HOME` (or the other
    `HERMRETRO_*` folders) at a temp directory. `python tools/check.py unit` runs the suite with an empty
    home folder and fails if anything is written there. The unit tests must pass on a machine without Hermes.
+8. **Notes stay local.** Plans, reports, logs, summaries and evidence written while working go in `notes/`, which
+   git ignores. Committed documents are only those listed in `tools/layout.toml` `[docs]`; `tests/repo/test_docs.py`
+   fails on any other.
 
 ## How work lands
 

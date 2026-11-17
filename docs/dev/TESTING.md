@@ -52,7 +52,8 @@ The single required check is **All checks pass**.
 
 Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feature, `tests/page/` for the page
 (`page-*.test.mjs`, the shared `harness.mjs` and the browser preview), `tests/repo/` for repository-wide checks
-(names in lock step, the version, the folder map and file sizes, no personal paths, the bundle, the install scan) and
+(names in lock step, the version, the folder map and file sizes, only listed documents, no personal paths, the
+bundle, the install scan) and
 `tests/acceptance/` for the real-engine run. Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`.
 Shared helpers are `tests/support.py`; a test reaches another test's helpers as `from tests.backend.<feature>.<module>
