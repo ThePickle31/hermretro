@@ -72,7 +72,8 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
 - `backend/` — the Hermes side, one folder per feature. `broker/` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
   desktop page are its clients.
-- `desktop-src/` — the Hermes Desktop page, one small module per feature. `tools/bundle/bundle.mjs` bundles it into
+- `page/` — the Hermes Desktop page: `app/` (shell, routing, backend calls), one folder per page under
+  `pages/` with its tabs and areas inside, `shared/` and `frame/`. `tools/bundle/bundle.mjs` bundles it into
   `desktop/plugin.js`, the single file the app loads (generated and committed, because installing a plugin
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
@@ -137,7 +138,7 @@ The individual commands:
 
 ```sh
 python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
-node tools/bundle/bundle.mjs --check                            # the generated files match desktop-src/
+node tools/bundle/bundle.mjs --check                            # the generated files match page/
 node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
 python tools/ci/prepare_toolchain.py                        # install the toolchain the acceptance run needs
@@ -157,8 +158,8 @@ The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like e
 
 ## Working on the page
 
-Edit the modules in `desktop-src/`, never `desktop/plugin.js` or `player/frame-shim.js` (the script the
-player frame runs first, from `desktop-src/frame/`): both are generated, and the tests fail when they do not
+Edit the modules in `page/`, never `desktop/plugin.js` or `player/frame-shim.js` (the script the
+player frame runs first, from `page/frame/`): both are generated, and the tests fail when they do not
 match their sources.
 
 ```sh
@@ -170,7 +171,8 @@ node tools/bundle/bundle.mjs --report                           # lines per modu
 Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
 TypeScript, jsdom and React from the pinned `tools/npm/` (or a Hermes Desktop checkout; `tools/bundle/node-modules.mjs`
 has the search order). The plugin itself has no npm dependencies, and users never install `tools/npm/`. It also checks the source tree on every build: only `sdk.js` imports
-packages, feature folders are one level deep, no import cycles, no file over 400 lines (three large components are
+packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`) and none
+climbs a folder, no import cycles, no file over 400 lines (three large components are
 listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where code goes
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 

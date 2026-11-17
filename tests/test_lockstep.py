@@ -1,9 +1,9 @@
 """Names that must change together across backend, page, manifest and docs. A failure says which list to edit.
 
 Adding a plugin tool: register it in __init__.py, list it under provides_tools in plugin.yaml, give it step words
-in desktop-src/build-transcript/step-words.js (or hide it there), and describe it in docs/dev/CONTRACT.md (with the
+in page/pages/build/transcript/step-words.js (or hide it there), and describe it in docs/dev/CONTRACT.md (with the
 counts there). Tool and skill counts elsewhere in the tests are derived, not typed.
-Adding an RPC: register it in __init__.py, name it in desktop-src/core/rpc.js and in the README's RPC list, and
+Adding an RPC: register it in __init__.py, name it in page/app/rpc.js and in the README's RPC list, and
 give it a heading or table row in docs/dev/CONTRACT.md or docs/dev/STUDIO-PAGES.md.
 """
 import json
@@ -58,10 +58,10 @@ class LockStep(unittest.TestCase):
         cls.rpcs = set(ctx.calls["rpc"])
 
     def test_rpc_names_agree_between_backend_page_readme_and_docs(self):
-        page = set(re.findall(r"`plugin\.\$\{ID\}\.(\w+)`", read("desktop-src/core/rpc.js")))
-        self.assertEqual(page - self.rpcs, set(), "desktop-src/core/rpc.js names RPCs the backend does not register")
+        page = set(re.findall(r"`plugin\.\$\{ID\}\.(\w+)`", read("page/app/rpc.js")))
+        self.assertEqual(page - self.rpcs, set(), "page/app/rpc.js names RPCs the backend does not register")
         self.assertEqual(self.rpcs - page - RPCS_THE_PAGE_DOES_NOT_CALL, set(),
-                         "registered RPCs missing from desktop-src/core/rpc.js")
+                         "registered RPCs missing from page/app/rpc.js")
         readme = read("README.md")
         start = readme.index("RPCs (`status`")
         end = re.compile(r";\s+see").search(readme, start)
@@ -92,7 +92,7 @@ class LockStep(unittest.TestCase):
                       contract)
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
-        source = read("desktop-src/build-transcript/step-words.js")
+        source = read("page/pages/build/transcript/step-words.js")
         table = source[source.index("const STEP_WORDS = {"):]
         words = set(re.findall(r"^  (\w+): ", table[:table.index("\n}\n")], re.M))
         hidden, build = set_literal(source, "HIDDEN_STEPS"), set_literal(source, "BUILD_STEPS")
@@ -104,7 +104,7 @@ class LockStep(unittest.TestCase):
 
     def test_every_tool_name_the_page_uses_exists(self):
         used = set()
-        for path in (ROOT / "desktop-src").rglob("*.js"):
+        for path in (ROOT / "page").rglob("*.js"):
             used |= set(re.findall(r"chromatic_[a-z_]+", path.read_text(encoding="utf-8")))
         self.assertEqual(used - self.tools, set())
 

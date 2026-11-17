@@ -1,9 +1,10 @@
 /**
- * Rules for the modules in desktop-src/, checked on every build by tools/bundle/bundle.mjs. Each one guards
+ * Rules for the modules in page/, checked on every build by tools/bundle/bundle.mjs. Each one guards
  * something that used to be impossible to get wrong in a single file, or that Hermes's install
  * scanner would note:
- *   - only sdk.js imports a package; every other import is a file in the same folder or in a
- *     sibling folder (one level of feature folders, so no import climbs two folders); the frame
+ *   - only sdk.js imports a package; every other import is ./file.js (the same folder),
+ *     ./sub/file.js (a folder inside it) or an alias from bundle.mjs (#sdk, #app/, #pages/, #shared/,
+ *     #frame/); no import climbs a folder, so no relative path in the sources climbs at all; the frame
  *     shim's modules (frame/) never import sdk.js;
  *   - every source file is part of the bundle;
  *   - no import cycles (a module never reads a value before the module defining it has run);
@@ -16,8 +17,8 @@ import path from 'node:path'
 
 const LINE_LIMIT = 400
 // Files that are one large function today. Split them and remove them here; never add to this list.
-const OVER_LIMIT = new Set(['build-viewer/asset-viewer.js', 'build/build-page.js', 'shell/studio-page.js'])
-const CLIMBS_TWICE = '..' + '/..'
+const OVER_LIMIT = new Set(['pages/build/viewer/asset-viewer.js', 'pages/build/build-page.js', 'app/studio-page.js'])
+const CLIMBS = '..' + '/'
 
 // What counts as source (and goes into the banner's hash): modules and the art they import. Dotfiles and
 // editor leftovers (.orig, ~ backups) are not, so they cannot make a clean checkout look stale.
@@ -35,16 +36,28 @@ export function sourceFiles(dir, prefix = '') {
     .sort()
 }
 
-function layoutProblems(source, inputs, onDisk) {
+/** Whether `original` (as written in `file`) is an allowed specifier for `target`: ./ for the importer's own
+ *  folder and below, the alias whose folder holds the target for anything else. */
+function allowedImport(source, aliases, file, original, target) {
+  if (original.includes(CLIMBS) || !target.startsWith(`${source}/`)) {
+    return false
+  }
+
+  const inOwnFolder = target.startsWith(`${path.posix.dirname(file)}/`)
+
+  if (original.startsWith('./') || inOwnFolder) {
+    return original.startsWith('./') && inOwnFolder
+  }
+
+  return Object.entries(aliases).some(([alias, to]) => (to.endsWith('.js') ? original === alias && target === to : original.startsWith(`${alias}/`) && target.startsWith(`${to}/`)))
+}
+
+function layoutProblems(source, aliases, inputs, onDisk) {
   const problems = []
 
   for (const file of onDisk.filter(name => name.endsWith('.js'))) {
     if (!inputs[`${source}/${file}`]) {
       problems.push(`${file} is not imported by anything`)
-    }
-
-    if (file.split('/').length > 2) {
-      problems.push(`${file} is nested too deep: feature folders are one level`)
     }
   }
 
@@ -54,8 +67,8 @@ function layoutProblems(source, inputs, onDisk) {
         if (file !== `${source}/sdk.js`) {
           problems.push(`${file} imports ${original}: only sdk.js imports packages`)
         }
-      } else if (!original.startsWith('.') || original.includes(CLIMBS_TWICE) || !target.startsWith(`${source}/`)) {
-        problems.push(`${file} imports ${original}: use ./file.js or one climb to a sibling folder`)
+      } else if (!allowedImport(source, aliases, file, original, target)) {
+        problems.push(`${file} imports ${original}: use ./file.js, ./folder/file.js or an alias (${Object.entries(aliases).map(([alias, to]) => (to.endsWith('.js') ? alias : `${alias}/`)).join(', ')}), never ${CLIMBS}`)
       } else if (file.startsWith(`${source}/frame/`) && target === `${source}/sdk.js`) {
         problems.push(`${file} imports ${original}: the frame shim runs without React or the SDK`)
       }
@@ -124,7 +137,7 @@ function exportedNames(ts, statement) {
 }
 
 /** The two checks that need a parser: names used but never imported, and names exported twice. */
-function nameProblems(ts, root, files) {
+function nameProblems(ts, root, aliases, files) {
   const problems = []
   const exportedBy = new Map()
   const program = ts.createProgram(files.map(file => path.join(root, file)), {
@@ -135,7 +148,8 @@ function nameProblems(ts, root, files) {
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     types: [],
-    skipLibCheck: true
+    skipLibCheck: true,
+    paths: Object.fromEntries(Object.entries(aliases).map(([alias, to]) => (to.endsWith('.js') ? [alias, [path.join(root, to)]] : [`${alias}/*`, [path.join(root, to, '*')]])))
   })
   const relative = file => path.relative(root, file.fileName).split(path.sep).join('/')
   // TS2304 / TS2552: "Cannot find name". Every other diagnostic is type checking we do not do.
@@ -190,12 +204,12 @@ function sizeProblems(source, files, program, root) {
 
 /** Every problem with the source tree, as sentences. `inputs` are esbuild's metafile inputs of every
  *  output built from it (the page bundle and the frame shim). */
-export function lintSources({ root, source, inputs, ts }) {
+export function lintSources({ root, source, aliases, inputs, ts }) {
   const files = Object.keys(inputs).filter(file => file.endsWith('.js'))
-  const names = nameProblems(ts, root, files)
+  const names = nameProblems(ts, root, aliases, files)
 
   return [
-    ...layoutProblems(source, inputs, sourceFiles(path.join(root, source))),
+    ...layoutProblems(source, aliases, inputs, sourceFiles(path.join(root, source))),
     ...cycleProblems(inputs),
     ...names.problems,
     ...sizeProblems(source, files, names.program, root)

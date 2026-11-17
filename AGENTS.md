@@ -14,8 +14,8 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `__init__.py`, `plugin.yaml` | The plugin's entry point and manifest (tools, hooks, RPCs, version) |
 | `backend/` | Python backend, one folder per feature: `broker/` (the broker process, engine workers), `hermes/` (everything that touches Hermes), `setup/`, `library/`, `assets/` (RPCs for the page), `player/` (the browser player server), `system/` (locations, Linux/macOS differences) |
 | `engine/modretro-chromatic/` | The vendored ModRetro engine. Hash-pinned by `engine/pins/`; changes are refused at run time |
-| `desktop-src/` | Source of the Hermes Desktop page and the player frame script, one folder per feature |
-| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `desktop-src/` by `tools/bundle/bundle.mjs` and committed |
+| `page/` | Source of the Hermes Desktop page and the player frame script: `app/`, one folder per page under `pages/`, `shared/`, `frame/` |
+| `desktop/plugin.js`, `player/frame-shim.js` | Generated from `page/` by `tools/bundle/bundle.mjs` and committed |
 | `player/` | The browser player served to the page, and the device art |
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
@@ -33,7 +33,7 @@ One-time setup for page work: `npm ci --prefix tools/npm --ignore-scripts` (need
 python tools/check.py            # fast: unit, bundle, page, scan (together, about 11 s)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
-node tools/bundle/bundle.mjs            # rebuild the generated page files after editing desktop-src/
+node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
 ```
 
@@ -47,7 +47,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 ## Rules that protect users
 
 1. **Generated files.** Never edit `desktop/plugin.js` or `player/frame-shim.js` by hand. Change
-   `desktop-src/`, run `node tools/bundle/bundle.mjs`, and commit both generated files with the sources.
+   `page/`, run `node tools/bundle/bundle.mjs`, and commit both generated files with the sources.
 2. **The engine is untouched.** Nothing under `engine/` changes outside a deliberate engine update.
 3. **Install scanner.** One line rated high makes every install ask for confirmation; one rated critical
    blocks installs entirely. `python tools/check.py scan` must say `safe`. Things that trip it: piping a

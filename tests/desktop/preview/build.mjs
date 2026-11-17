@@ -17,7 +17,7 @@ const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'chromatic-pa
 const desktop = path.resolve(process.argv[3] || path.join(os.homedir(), '.hermes', 'hermes-agent', 'apps', 'desktop'))
 const require = createRequire(path.join(desktop, 'package.json'))
 const esbuild = require('esbuild')
-// The preview draws the built bundle: never one that no longer matches desktop-src/.
+// The preview draws the built bundle: never one that no longer matches page/.
 const stale = staleReasons()
 
 if (stale.length) {

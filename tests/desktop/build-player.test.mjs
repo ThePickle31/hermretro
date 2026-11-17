@@ -1,13 +1,17 @@
 // The inline player's pure logic: whole-number scaling and the play-test checklist.
 //   node --test tests/desktop/build-player.test.mjs
 import assert from 'node:assert/strict'
+import { register } from 'node:module'
 import test from 'node:test'
 
-import { checklist, progress, withReport, withTick } from '../../desktop-src/build-player/checks.js'
-import { playerSize } from '../../desktop-src/build-player/scale.js'
-import { cleanImage, cleanMarks, cleanNote } from '../../desktop-src/player/frame-values.js'
-import { DEVICE_SCREEN_SHARE } from '../../desktop-src/player/protocol.js'
-import { targetLabel, targetRect } from '../../desktop-src/player/targets.js'
+// The modules import each other through the page's aliases: resolve those first (aliases.mjs).
+register('./aliases.mjs', import.meta.url)
+
+const { checklist, progress, withReport, withTick } = await import('../../page/pages/build/player/checks.js')
+const { playerSize } = await import('../../page/pages/build/player/scale.js')
+const { cleanImage, cleanMarks, cleanNote } = await import('../../page/shared/player/frame-values.js')
+const { DEVICE_SCREEN_SHARE } = await import('../../page/shared/player/protocol.js')
+const { targetLabel, targetRect } = await import('../../page/shared/player/targets.js')
 
 test('Fit picks the largest whole step for the bare screen and for the handheld', () => {
   assert.deepEqual(playerSize('screen', 'fit', { width: 856, height: 942 }), { width: 800, height: 720, step: 5, fits: ['fit', 2, 3, 4] })

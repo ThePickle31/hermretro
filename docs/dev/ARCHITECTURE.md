@@ -1,7 +1,7 @@
 # How hermretro is built
 
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
-the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `desktop-src/`) is the
+the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
 hermretro page in Hermes Desktop. Underneath both is the **engine**: ModRetro's own Chromatic MCP server,
 vendored unchanged under `engine/modretro-chromatic/` (one recorded patch, see `ENGINE-UPDATE.md`).
 
@@ -56,15 +56,16 @@ changes and it is idle (the fingerprint covers every file under `backend/` and `
 
 ## The page half
 
-`desktop-src/` is the source, one folder per feature (rules in `STUDIO-PAGES.md`, "The page's source");
+`page/` is the source: `app/` (shell and the page-wide plumbing), one folder per page under `pages/` with its
+tabs and areas inside, `shared/` and `frame/`, joined by import aliases (rules in `STUDIO-PAGES.md`, "The page's source");
 `tools/bundle/bundle.mjs` builds it into two committed files: `desktop/plugin.js` (the page, one ESM file, because
 Hermes's loader evaluates exactly one file that may import only the SDK and React) and `player/frame-shim.js`
 (injected into the emulator frame). Installs run no build step, so the built files are committed and CI proves
 they match the source.
 
-The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `desktop-src/core/rpc.js`,
+The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `page/app/rpc.js`,
 shapes in `CONTRACT.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through
-the gateway (`desktop-src/build-chat/`), never in another profile (`core/routing.js` `studioTarget()`).
+the gateway (`page/pages/build/chat/`), never in another profile (`app/routing.js` `studioTarget()`).
 
 ## Where state lives
 

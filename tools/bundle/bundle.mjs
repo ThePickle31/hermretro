@@ -1,7 +1,7 @@
 /**
- * Builds the plugin's two generated scripts from the modules in desktop-src/:
- *   - desktop/plugin.js       the one file Hermes Desktop loads (entry desktop-src/index.js);
- *   - player/frame-shim.js    the script the player frame runs first (entry desktop-src/frame/index.js),
+ * Builds the plugin's two generated scripts from the modules in page/:
+ *   - desktop/plugin.js       the one file Hermes Desktop loads (entry page/index.js);
+ *   - player/frame-shim.js    the script the player frame runs first (entry page/frame/index.js),
  *                             inlined into the frame page by backend/player/server.py.
  *
  *   node tools/bundle/bundle.mjs                  build (writes only when the bytes change)
@@ -28,7 +28,17 @@ import { lineCount, lintSources, sourceFiles } from './lint.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const SOURCE = 'desktop-src'
+const SOURCE = 'page'
+// Import aliases: a module imports a file in its own folder (or a subfolder of it) as ./x.js and anything
+// else through one of these, so no source path climbs a folder (tools/bundle/lint.mjs). Part of the
+// sources hash, as this file is.
+export const ALIASES = {
+  '#sdk': `${SOURCE}/sdk.js`,
+  '#app': `${SOURCE}/app`,
+  '#pages': `${SOURCE}/pages`,
+  '#shared': `${SOURCE}/shared`,
+  '#frame': `${SOURCE}/frame`
+}
 const EXTERNAL = ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime']
 const MAX_LINE = 2_000
 const ART_ROW = 96
@@ -56,7 +66,7 @@ const TARGETS = [
     entry: `${SOURCE}/index.js`,
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
-      `Source: ${SOURCE}/ (one small module per feature). Rebuild: node tools/bundle/bundle.mjs`,
+      `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
       'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.'
     ],
     esbuild: { format: 'esm', external: EXTERNAL },
@@ -135,6 +145,7 @@ const options = target => ({
   write: false,
   metafile: true,
   logLevel: 'warning',
+  alias: Object.fromEntries(Object.entries(ALIASES).map(([alias, target]) => [alias, `./${target}`])),
   plugins: [pngDataUrl]
 })
 
@@ -193,7 +204,7 @@ function finish(results, tools) {
 
   return {
     texts,
-    problems: [...lintSources({ root: ROOT, source: SOURCE, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => outputProblems(target, texts[index]))]
+    problems: [...lintSources({ root: ROOT, source: SOURCE, aliases: ALIASES, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => outputProblems(target, texts[index]))]
   }
 }
 

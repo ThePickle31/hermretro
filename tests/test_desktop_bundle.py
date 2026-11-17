@@ -1,6 +1,6 @@
 """The desktop half and the player frame shim are built, and the built files are what ship.
 
-``desktop/plugin.js`` and ``player/frame-shim.js`` are generated from ``desktop-src/`` by
+``desktop/plugin.js`` and ``player/frame-shim.js`` are generated from ``page/`` by
 ``tools/bundle/bundle.mjs`` and committed, because installing a plugin runs no build. These tests need neither
 Node nor esbuild: each banner records a hash of the sources and a hash of the file's own body, so an
 output that was not rebuilt after a source change, or that someone edited by hand, fails here. They
@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "desktop" / "plugin.js"
 FRAME_SHIM = ROOT / "player" / "frame-shim.js"
-SOURCE = ROOT / "desktop-src"
+SOURCE = ROOT / "page"
 # Modules and the art they import; dotfiles and editor leftovers are not hashed (tools/bundle/lint.mjs).
 SOURCE_SUFFIXES = {".js", ".png"}
 REBUILD = "run: node tools/bundle/bundle.mjs"
@@ -28,11 +28,12 @@ IMPORT = re.compile(r'^import\s(?:[^;]*?\sfrom\s+)?"([^"]+)";$', re.M)
 # Hermes's install scanner notes a single file over 1024 KB.
 MAX_BYTES = 1_000_000
 MAX_LINE = 2_000
-# The characters the scanner treats as hidden text, and a path that climbs two folders; both are
+# The characters the scanner treats as hidden text, and a path that climbs folders; both are
 # assembled here so this file does not contain what it looks for.
 INVISIBLE = "".join(map(chr, [0x200B, 0x200C, 0x200D, 0x2060, 0x2062, 0x2063, 0x2064, 0xFEFF,
                               *range(0x202A, 0x202F), *range(0x2066, 0x206A)]))
 CLIMBS_TWICE = ".." + "/.."
+CLIMBS = ".." + "/"
 # Constructs Hermes's admission lint refuses in a desktop plugin (hermes_cli/plugin_validate_desktop.py).
 REFUSED = {
     "code evaluated from a string": re.compile(r"(?<![\w$.])" + "ev" + r"al\(|\bnew\s+Function\("),
@@ -72,7 +73,7 @@ class DesktopBundleTests(unittest.TestCase):
     def test_the_bundle_was_not_edited_by_hand(self):
         banner = self.banner()
         body = self.text[banner.end():].encode("utf-8")
-        self.assertEqual(sha256(body), banner.group(3), f"edit desktop-src/ instead, then {REBUILD}")
+        self.assertEqual(sha256(body), banner.group(3), f"edit page/ instead, then {REBUILD}")
 
     def test_the_bundle_was_built_from_the_current_sources(self):
         self.assertEqual(sources_hash(), self.banner().group(2), f"desktop/plugin.js is stale; {REBUILD}")
@@ -97,9 +98,10 @@ class DesktopBundleTests(unittest.TestCase):
         self.assertFalse(BUNDLE.is_symlink())
         self.assertFalse((ROOT / "plugin.js").exists())
 
-    def test_no_source_import_climbs_two_folders(self):
+    def test_no_source_path_climbs_a_folder(self):
+        # Imports across folders use the aliases in tools/bundle/bundle.mjs (#app/, #pages/, ...).
         offenders = [path.relative_to(ROOT).as_posix() for path in SOURCE.rglob("*.js")
-                     if CLIMBS_TWICE in path.read_text(encoding="utf-8")]
+                     if CLIMBS in path.read_text(encoding="utf-8")]
         self.assertEqual(offenders, [])
 
 
@@ -111,7 +113,7 @@ class FrameShimTests(unittest.TestCase):
         banner = BANNER.match(text)
         self.assertIsNotNone(banner, f"player/frame-shim.js has no build banner; {REBUILD}")
         self.assertEqual(sha256(text[banner.end():].encode("utf-8")), banner.group(3),
-                         f"edit desktop-src/frame/ instead, then {REBUILD}")
+                         f"edit page/frame/ instead, then {REBUILD}")
         self.assertEqual(sources_hash(), banner.group(2), f"player/frame-shim.js is stale; {REBUILD}")
 
     def test_the_shim_imports_nothing(self):

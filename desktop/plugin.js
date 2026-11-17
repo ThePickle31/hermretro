@@ -1,12 +1,12 @@
 /**
  * hermretro — Hermes Desktop half. GENERATED FILE, do not edit.
- * Source: desktop-src/ (one small module per feature). Rebuild: node tools/bundle/bundle.mjs
+ * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 bc41a65fa32e643abcc5f59815f48938cd681bca19fd5ecd72bc3f1f53e3bb57
- * body: sha256 b2f251c7863f7b2ea6b186e44f6781193228f93506d5e8ba9b3a40f989be7b43
+ * sources: sha256 bb9ef099244196ccf6da1f0bdf64674dbfc0ef1822d50684eb8342e5253d021f
+ * body: sha256 752e927e2146c32d65ca0aaebcf003e0dd9b6649fb1e39cb2e4f274d09da78e8
  */
-// desktop-src/sdk.js
+// page/sdk.js
 import {
   atom,
   Button,
@@ -28,7 +28,7 @@ import {
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 
-// desktop-src/core/ids.js
+// page/app/ids.js
 var ID = "hermretro";
 var ROUTE = "/hermretro";
 var DEMO_ID = "demo";
@@ -44,7 +44,7 @@ var LINKS = {
 };
 var AGENT = "HermRetro";
 
-// desktop-src/core/rpc.js
+// page/app/rpc.js
 var RPC_STATUS = `plugin.${ID}.status`;
 var RPC_DOCTOR = `plugin.${ID}.doctor`;
 var RPC_STUDIO_PROFILE = `plugin.${ID}.studio_profile`;
@@ -64,7 +64,7 @@ var RPC_BUILDS = `plugin.${ID}.builds`;
 var RPC_BUILD_RESTORE = `plugin.${ID}.build_restore`;
 var RPC_ASSETS = `plugin.${ID}.assets`;
 
-// desktop-src/core/routing.js
+// page/app/routing.js
 var routing = { route: null, profile: null, scannedAt: 0, studio: false, ambientStudio: false };
 var StudioProfileMissing = class extends Error {
   constructor() {
@@ -142,7 +142,7 @@ async function adoptStudioRoute() {
   return null;
 }
 
-// desktop-src/core/backend.js
+// page/app/backend.js
 function describeRequestError(error) {
   const message = String(error?.message ?? error ?? "");
   const notLoaded = error?.code === -32601 || /-32601|unknown method|method not found/i.test(message);
@@ -267,7 +267,7 @@ function studioError(error, what) {
   return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in, then press Refresh.` : message || "Unknown error";
 }
 
-// desktop-src/build-chat/attachments.js
+// page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
 function mergeAttachments(current, more) {
   const known = new Set(current.map(attachmentKey));
@@ -275,12 +275,12 @@ function mergeAttachments(current, more) {
 }
 var attachmentLine = (item) => item.detail ?? `About ${item.path}:`;
 
-// desktop-src/core/tools.js
+// page/app/tools.js
 var PRESENT_TOOL = "chromatic_present_game";
 var BUILD_TOOLS = /* @__PURE__ */ new Set(["chromatic_rom_build", "chromatic_web_preview"]);
 var REPORT_TOOL = "chromatic_build_report";
 
-// desktop-src/build-chat/report.js
+// page/pages/build/chat/report.js
 var REPORT_KINDS = /* @__PURE__ */ new Set(["added", "changed", "removed"]);
 function normalizeReport(value) {
   if (!value || typeof value !== "object") {
@@ -309,7 +309,7 @@ function normalizeReport(value) {
 }
 var reportOf = (name, args) => String(name ?? "") === REPORT_TOOL ? normalizeReport(args) : null;
 
-// desktop-src/build-chat/tool-results.js
+// page/pages/build/chat/tool-results.js
 function toolResultObject(value) {
   if (value && typeof value === "object") {
     return value._multimodal ? toolResultObject(value.text_summary ?? value.content?.[0]?.text) : value;
@@ -349,7 +349,7 @@ function unwrapCalls(id, name, args) {
   return [{ id, name: String(name ?? "tool"), args: parsed && typeof parsed === "object" ? parsed : null }];
 }
 
-// desktop-src/build-chat/steps.js
+// page/pages/build/chat/steps.js
 function toolFailed(payload) {
   const result = toolResultObject(payload?.result);
   return Boolean(payload?.error || result?.ok === false || result?.isError === true || result && typeof result.error === "string" && result.error);
@@ -401,7 +401,7 @@ function withInfo(chat, info) {
   return next.model === current.model && next.provider === current.provider && next.effort === current.effort ? chat : { ...chat, info: next };
 }
 
-// desktop-src/build-chat/history.js
+// page/pages/build/chat/history.js
 function messageText(message) {
   if (typeof message.text === "string" && message.text) {
     return message.text;
@@ -491,7 +491,7 @@ function historyItems(messages, running = false) {
   return items;
 }
 
-// desktop-src/build-chat/reducer.js
+// page/pages/build/chat/reducer.js
 var lastItem = (chat) => chat.items[chat.items.length - 1];
 function sealText(chat) {
   const last = lastItem(chat);
@@ -704,7 +704,7 @@ function reduceChat(chat, event) {
   }
 }
 
-// desktop-src/build-chat/store.js
+// page/pages/build/chat/store.js
 var BUILD_VIEWING = atom(null);
 var BUILD_INJECT = atom({});
 function injectBuildDraft(stored, text2) {
@@ -767,7 +767,7 @@ function patchChat(stored, change) {
   }
 }
 
-// desktop-src/build-chat/model-pick.js
+// page/pages/build/chat/model-pick.js
 async function pickBuildModel(stored, pick) {
   const chat = BUILD_CHATS.get()[stored];
   if (!chat?.runtime) {
@@ -828,7 +828,7 @@ function cancelBuildPick(stored) {
   });
 }
 
-// desktop-src/build-chat/requests.js
+// page/pages/build/chat/requests.js
 var promptChecks = /* @__PURE__ */ new Map();
 function toolRunning(chat) {
   return Boolean(chat?.busy && chat.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "running")));
@@ -875,7 +875,7 @@ function schedulePromptCheck(stored, delay = 1200) {
 }
 var APPROVAL_LABELS = { once: "Allow once", session: "Allow for this chat", always: "Always allow", deny: "Deny" };
 
-// desktop-src/build-chat/actions.js
+// page/pages/build/chat/actions.js
 async function openBuildChat(stored) {
   const known = BUILD_CHATS.get()[stored];
   if (known?.runtime || known?.opening) {
@@ -1079,7 +1079,7 @@ function openInFullChat(stored) {
   }
 }
 
-// desktop-src/build-chat/events.js
+// page/pages/build/chat/events.js
 var queuedEvents = /* @__PURE__ */ new Map();
 var queuedFlush = null;
 var STREAM_EVENTS = /* @__PURE__ */ new Set(["message.delta", "reasoning.delta", "thinking.delta", "tool.progress"]);
@@ -1151,7 +1151,7 @@ function watchBuildChats(ctx) {
   }
 }
 
-// desktop-src/art/cart-hermretro.png
+// page/shared/art/cart-hermretro.png
 var cart_hermretro_default = [
   "data:image/png;base64,",
   "iVBORw0KGgoAAAANSUhEUgAAASsAAAFUCAYAAAB80BqgAACvQUlEQVR4nO39245lS3bm+YVHxN55TmaSTCaTWaoSUI8gQPfq",
@@ -1780,7 +1780,7 @@ var cart_hermretro_default = [
   "f0eusCHk5u5Evrqjxk26X3zxxU+uGda0zeU3v/nNZ59//vlP/of/4d9fmU//f28B5rINcwryAAAAAElFTkSuQmCC"
 ].join("");
 
-// desktop-src/art/chrom-body.png
+// page/shared/art/chrom-body.png
 var chrom_body_default = [
   "data:image/png;base64,",
   "iVBORw0KGgoAAAANSUhEUgAAASwAAAIvAQMAAAD0z3QFAAAABlBMVEUAAAAAAAClZ7nPAAAAAXRSTlMAQObYZgAAOMpJREFU",
@@ -1989,7 +1989,7 @@ var chrom_body_default = [
   "AABJRU5ErkJggg=="
 ].join("");
 
-// desktop-src/art/chrom-wing.png
+// page/shared/art/chrom-wing.png
 var chrom_wing_default = [
   "data:image/png;base64,",
   "iVBORw0KGgoAAAANSUhEUgAAAVQAAAFPAQMAAAAoTaSuAAAABlBMVEUAAAAAAAClZ7nPAAAAAXRSTlMAQObYZgAAHl1JREFU",
@@ -2104,7 +2104,7 @@ var chrom_wing_default = [
   "tAAAAABJRU5ErkJggg=="
 ].join("");
 
-// desktop-src/art/hermes.png
+// page/shared/art/hermes.png
 var hermes_default = [
   "data:image/png;base64,",
   "iVBORw0KGgoAAAANSUhEUgAAASwAAAGQAQMAAAAuu884AAAABlBMVEUAAAAAAAClZ7nPAAAAAXRSTlMAQObYZgAAI4hJREFU",
@@ -2237,15 +2237,15 @@ var hermes_default = [
   "YWxWgn3QiDWZgeRirclEZJOA/wdlkpII1K/nGAAAAABJRU5ErkJggg=="
 ].join("");
 
-// desktop-src/art/index.js
+// page/shared/art/index.js
 var ART_DATA = { hermes: hermes_default, cart: cart_hermretro_default, chromBody: chrom_body_default, chromWing: chrom_wing_default };
 
-// desktop-src/core/paths.js
+// page/app/paths.js
 var baseName = (value) => String(value ?? "").split(/[\\/]/).filter(Boolean).pop() ?? "";
 var isAbsolute = (value) => typeof value === "string" && (value.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("file://"));
 var joinPath = (root, relative) => root ? `${root.replace(/[\\/]+$/, "")}/${relative.replace(/^\.?[\\/]+/, "")}` : null;
 
-// desktop-src/build-composer/attachment-chip.js
+// page/pages/build/composer/attachment-chip.js
 function AttachmentChip({ item, onRemove = null }) {
   const label = item.name || baseName(item.path);
   return jsxs("span", {
@@ -2259,7 +2259,7 @@ function AttachmentChip({ item, onRemove = null }) {
   });
 }
 
-// desktop-src/build-assets/cache.js
+// page/pages/build/assets/cache.js
 var assetCache = /* @__PURE__ */ new Map();
 var ASSET_CACHE_LIMIT = 200;
 var ASSET_RETRY_MS = 15e3;
@@ -2326,7 +2326,7 @@ function useAsset(path, version) {
   return entry.done ? entry.value ? { state: "ok", asset: entry.value } : { state: "none" } : { state: "loading" };
 }
 
-// desktop-src/build-assets/sprite.js
+// page/pages/build/assets/sprite.js
 var SPRITE_SHADES = /* @__PURE__ */ new Map([[14743759, 0], [8831084, 1], [3172432, 2], [464929, 3]]);
 var paintedSheets = /* @__PURE__ */ new WeakMap();
 function paintSheet(image, colors) {
@@ -2406,7 +2406,7 @@ function canvasImage(canvas, image) {
   return Object.assign(canvas, { naturalHeight: image.naturalHeight, naturalWidth: image.naturalWidth });
 }
 
-// desktop-src/build-assets/images.js
+// page/pages/build/assets/images.js
 function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
   const { state, asset: loaded } = useAsset(asset.path, asset.version);
   if (state === "none") {
@@ -2574,7 +2574,7 @@ function imagePalette(image, max = 16) {
   }
 }
 
-// desktop-src/build-composer/mentions.js
+// page/pages/build/composer/mentions.js
 var MENTION_AT = /(^|\s)@([^\s@]{0,40})$/;
 var later = (fn) => typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : fn();
 var MENTION_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", image: "Image" };
@@ -2627,7 +2627,7 @@ function AssetTile({ asset, size = "sm", animate = false }) {
   });
 }
 
-// desktop-src/build-composer/composer.js
+// page/pages/build/composer/composer.js
 function attachToBuild(stored, attachments, text2 = "") {
   const all = BUILD_INJECT.get();
   const current = all[stored];
@@ -2798,7 +2798,7 @@ ${inject.text}` : inject.text);
   });
 }
 
-// desktop-src/build-composer/model-names.js
+// page/pages/build/composer/model-names.js
 var EFFORTS = [
   ["none", "Off", "No extra thinking"],
   ["minimal", "Minimal", "Fastest. Fine for small tweaks"],
@@ -2835,7 +2835,7 @@ function modelName(id) {
 }
 var providerMark = (name) => (String(name ?? "?").replace(/[^A-Za-z0-9]/g, "")[0] ?? "?").toUpperCase();
 
-// desktop-src/build-composer/model-picker.js
+// page/pages/build/composer/model-picker.js
 function useModelOptions(runtime) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
@@ -3137,7 +3137,7 @@ function useDraftPick(ctx) {
   return [pick, update];
 }
 
-// desktop-src/player/frame-values.js
+// page/shared/player/frame-values.js
 var PNG = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
 var COLOR = /^#[0-9a-f]{6}$/i;
 var MAX_MARKS = 20;
@@ -3176,7 +3176,7 @@ function cleanNote(data) {
   };
 }
 
-// desktop-src/player/protocol.js
+// page/shared/player/protocol.js
 var TO_FRAME = "cmd";
 var CMD = Object.freeze({
   KEY: "key",
@@ -3227,7 +3227,7 @@ var SCREEN_H = 144;
 var DEVICE_RATIO = 850 / 1440;
 var DEVICE_SCREEN_SHARE = 0.621177;
 
-// desktop-src/player/bridge.js
+// page/shared/player/bridge.js
 var GAME_KEYS = /* @__PURE__ */ new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "z", "Z", "x", "X", "Enter", "Shift", "p", "P"]);
 var TYPING = "input, textarea, select, [contenteditable]";
 var CONTROL = "button, a[href], [role=button], [role=tab], [role=radio], [role=menuitem], [role=menuitemradio]";
@@ -3375,7 +3375,7 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
   return { focused, frame: { ...state, press }, marks, snap, send, press, takeMarks };
 }
 
-// desktop-src/player/live.js
+// page/shared/player/live.js
 var LIVE_PLAYER = atom(null);
 var claimLive = (surface) => {
   if (LIVE_PLAYER.get() !== surface) {
@@ -3388,7 +3388,7 @@ var releaseLive = (surface) => {
   }
 };
 
-// desktop-src/core/chat-insert.js
+// page/app/chat-insert.js
 async function insertText(target, text2) {
   try {
     return await host.composer.insertText(target, text2, { mode: "block" }) === true;
@@ -3466,13 +3466,13 @@ async function sendToGameChat(ctx, game, text2) {
   await sendPromptToChat(ctx, text2);
 }
 
-// desktop-src/core/game-prompts.js
+// page/app/game-prompts.js
 var gameLabel = (game) => `"${game.title}"${game.projectRoot ? ` (${game.projectRoot})` : ""}`;
 function buildPrompt(game) {
   return `Build ${gameLabel(game)} and its playable web player, so I can play it on the Emulator page of hermretro.`;
 }
 
-// desktop-src/styles/tokens.js
+// page/shared/styles/tokens.js
 var C = {
   primary: "var(--ui-text-primary)",
   secondary: "var(--ui-text-secondary)",
@@ -3502,7 +3502,7 @@ var S = {
 var MONO = "var(--dt-font-mono, 'JetBrains Mono', ui-monospace, monospace)";
 var DISPLAY = "'Collapse', var(--dt-font-sans, system-ui), sans-serif";
 
-// desktop-src/ui/links.js
+// page/shared/ui/links.js
 function ExternalLink({ ctx, href, children, variant = "link" }) {
   return jsxs(Button, {
     onClick: () => void ctx.os.openExternal(href),
@@ -3521,7 +3521,7 @@ function CommandLine({ command }) {
   });
 }
 
-// desktop-src/ui/text.js
+// page/shared/ui/text.js
 function Lede({ children }) {
   return jsx("p", { className: "cs-lede", children });
 }
@@ -3535,7 +3535,7 @@ function Facts({ rows }) {
   });
 }
 
-// desktop-src/ui/page.js
+// page/shared/ui/page.js
 function Footer({ ctx }) {
   return jsxs("footer", {
     className: "cs-foot",
@@ -3595,7 +3595,7 @@ function AsyncButton({ run, disabled, icon, title, variant = "outline", children
   });
 }
 
-// desktop-src/ui/working.js
+// page/shared/ui/working.js
 var LEMNISCATE = "M0 0C.35-.6 1.15-.6 1.15 0S.35.6 0 0-1.15-.6-1.15 0-.35.6 0 0Z";
 function Working({ children, quiet = false }) {
   return jsxs("div", {
@@ -3616,7 +3616,7 @@ function Working({ children, quiet = false }) {
   });
 }
 
-// desktop-src/player/stage.js
+// page/shared/player/stage.js
 function playableSha(game) {
   return game?.web?.sha256 ?? game?.rom?.sha256 ?? null;
 }
@@ -3683,7 +3683,7 @@ function PlayerAway({ where, onBring }) {
   });
 }
 
-// desktop-src/player/targets.js
+// page/shared/player/targets.js
 var KIND_WORDS = { sprite: "Sprite", background: "Background tile", window: "Window tile", frame: "Whole screen" };
 function targetKind(role) {
   return String(role ?? "").replace(/^game-/, "") || "frame";
@@ -3701,7 +3701,7 @@ function targetRect(metadata) {
   return found ? { x: Number(found[1]), y: Number(found[2]), w: Number(found[3]), h: Number(found[4]) } : null;
 }
 
-// desktop-src/player/capture.js
+// page/shared/player/capture.js
 async function saveCapture(game, png) {
   if (!png) {
     return { path: null, failure: "the frame could not be captured" };
@@ -3749,7 +3749,7 @@ async function askAboutGame(ctx, game, snap) {
   }
 }
 
-// desktop-src/build-player/annotate.js
+// page/pages/build/player/annotate.js
 function useAnnotate(bridge) {
   const [notes, setNotes] = useState({});
   const active = bridge.frame.annotating;
@@ -3808,7 +3808,7 @@ async function sendMarks({ bridge, game, stored, build, notes }) {
   }
 }
 
-// desktop-src/build-player/arrow-keys.js
+// page/pages/build/player/arrow-keys.js
 var NEXT = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 function moveFocus(event, container, selector) {
   const items = [...container?.querySelectorAll(selector) ?? []].filter((item) => !item.disabled);
@@ -3822,7 +3822,7 @@ function moveFocus(event, container, selector) {
   return target;
 }
 
-// desktop-src/build-player/menu.js
+// page/pages/build/player/menu.js
 var ITEM = "[role^=menuitem]";
 function BarMenu({ label, icon, text: text2 = null, items, onPick, disabled = false }) {
   const [open, setOpen] = useState(false);
@@ -3904,7 +3904,7 @@ function BarMenu({ label, icon, text: text2 = null, items, onPick, disabled = fa
   });
 }
 
-// desktop-src/build-player/scale.js
+// page/pages/build/player/scale.js
 var SCALES = Object.freeze(["fit", 2, 3, 4]);
 var screenAt = (step) => ({ width: SCREEN_W * step, height: SCREEN_H * step });
 var deviceAt = (step) => {
@@ -3929,7 +3929,7 @@ function playerSize(view, scale, box) {
   return { ...sizeAt(step), step, fits: SCALES.filter((entry) => entry === "fit" || entry <= most) };
 }
 
-// desktop-src/build-player/prefs.js
+// page/pages/build/player/prefs.js
 var KEY = "inlinePlayer";
 var FINISHES = Object.freeze([
   { id: "hermes-midnight", name: "Midnight", swatch: "#15171c" },
@@ -3960,7 +3960,7 @@ function usePlayerPrefs(ctx) {
   return [prefs, update];
 }
 
-// desktop-src/build-player/control-bar.js
+// page/pages/build/player/control-bar.js
 var scaleLabel = (scale) => scale === "fit" ? "Fit" : `${scale}×`;
 function BarButton({ icon, label, text: text2 = null, onClick, pressed, disabled = false, primary = false }) {
   return jsxs("button", {
@@ -4044,7 +4044,7 @@ function ControlBar({ title, hint, prefs, setPrefs, fits, frame, ready, panelTog
   });
 }
 
-// desktop-src/build-player/annotate-panel.js
+// page/pages/build/player/annotate-panel.js
 function AnnotateBar({ title, count, busy, onCancel, onDone }) {
   return jsxs("div", {
     className: "cs-ip-bar annotating",
@@ -4138,7 +4138,7 @@ function AnnotatePanel({ layout, annotate }) {
   });
 }
 
-// desktop-src/build-player/playtest-panel.js
+// page/pages/build/player/playtest-panel.js
 var KEYS = [
   ["← ↑ ↓ →", "move"],
   ["Z", "A"],
@@ -4307,7 +4307,7 @@ function FoldedPanel({ counts, onOpen }) {
   });
 }
 
-// desktop-src/build-player/report-flow.js
+// page/pages/build/player/report-flow.js
 async function attachFrame({ game, stored, image, text: text2 }) {
   if (!stored) {
     return;
@@ -4328,7 +4328,7 @@ async function askAboutMoment({ bridge, game, stored }) {
   await attachFrame({ game, stored, image: await bridge.snap(), text: `About what ${game.title} shows here: ` });
 }
 
-// desktop-src/build-player/checks.js
+// page/pages/build/player/checks.js
 var KEPT_BUILDS = 12;
 var keyOf = (text2) => String(text2).trim().toLowerCase();
 function reportChecks(report) {
@@ -4390,7 +4390,7 @@ function progress(items) {
   return { done, total: items.length, left, complete: items.length > 0 && done === items.length };
 }
 
-// desktop-src/build-player/use-playtest.js
+// page/pages/build/player/use-playtest.js
 var KEY2 = "playtest";
 var KEPT_GAMES = 40;
 var readAll = (ctx) => {
@@ -4418,7 +4418,7 @@ function usePlaytest(ctx, gameId, n, report) {
   };
 }
 
-// desktop-src/build-player/inline-player.js
+// page/pages/build/player/inline-player.js
 var PANEL_WIDTH = 300;
 var FOLD_WIDTH = 34;
 var STAGE_PAD = 16;
@@ -4593,7 +4593,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   });
 }
 
-// desktop-src/core/time.js
+// page/app/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
   if (elapsed < 5) {
@@ -4642,12 +4642,12 @@ function timeOfDay(at) {
   }
 }
 
-// desktop-src/ui/screen.js
+// page/shared/ui/screen.js
 function Screen({ game, className = "cs-screen" }) {
   return game?.thumb ? jsx("img", { alt: `${game.title} title screen`, className, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: `${className} ph`, children: game?.title ?? "" });
 }
 
-// desktop-src/build-player/play-card.js
+// page/pages/build/player/play-card.js
 function PlayCard({ game, frame, state, note, onPlay, onOpenAsset }) {
   const ready = state === "ready";
   const builtAt = game?.web?.builtAt ?? game?.rom?.builtAt ?? null;
@@ -4680,7 +4680,7 @@ function PlayCard({ game, frame, state, note, onPlay, onOpenAsset }) {
   });
 }
 
-// desktop-src/build-transcript/step-words.js
+// page/pages/build/transcript/step-words.js
 var guideName = (args) => String(args?.name ?? "a").replace(/^hermretro:/, "").replace(/[-_]/g, " ");
 var fileWords = (running, done, fallback = "a file") => (args) => {
   const name = baseName(args?.path ?? args?.file_path) || fallback;
@@ -4855,7 +4855,7 @@ function assetKind(path) {
   return "Image";
 }
 
-// desktop-src/build-transcript/groups.js
+// page/pages/build/transcript/groups.js
 var PLAN_STEPS = /* @__PURE__ */ new Set(["skill_view", "project_select", "project_inspect", "project_inventory", "project_discover", "project_refresh", "toolchain_doctor", "toolchain_prepare", "web_search", "web_extract", "clarify", "read_file", "search_files"]);
 var MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/;
 var WORK_GROUPS = [
@@ -4936,7 +4936,7 @@ function rootOf(game, items) {
   return null;
 }
 
-// desktop-src/build-transcript/status.js
+// page/pages/build/transcript/status.js
 function BuildStatus({ chat, onStop, onJump }) {
   const now = useNow(Boolean(chat?.busy));
   if (!chat?.busy) {
@@ -4986,7 +4986,7 @@ function BuildStatus({ chat, onStop, onJump }) {
   });
 }
 
-// desktop-src/build-transcript/reply.js
+// page/pages/build/transcript/reply.js
 var MEDIA_IMAGE_LINE = /^[ \t]*MEDIA:[ \t]*([`"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$/gim;
 function replySegments(text2, root) {
   const segments = [];
@@ -5063,7 +5063,7 @@ var AgentText = memo(
   (previous, next) => previous.item.text === next.item.text && previous.root === next.root && previous.onOpenAsset === next.onOpenAsset
 );
 
-// desktop-src/build-transcript/turns.js
+// page/pages/build/transcript/turns.js
 function deriveTurns(items) {
   const turns = [];
   let current = null;
@@ -5220,7 +5220,7 @@ function madeAssets(parts, root) {
   return made;
 }
 
-// desktop-src/build-viewer/checks.js
+// page/pages/build/viewer/checks.js
 function artChecks(image, kind, info) {
   if (!image) {
     return [];
@@ -5303,7 +5303,7 @@ function artChecks(image, kind, info) {
   return checks;
 }
 
-// desktop-src/build-viewer/in-game.js
+// page/pages/build/viewer/in-game.js
 function SceneCanvas({ scene, images, scale, highlight, refresh }) {
   const ref = useRef(null);
   const width = (Number(scene.width) || 20) * 8;
@@ -5394,7 +5394,7 @@ function CoverInGame({ image, game }) {
   });
 }
 
-// desktop-src/build-viewer/info.js
+// page/pages/build/viewer/info.js
 var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
 function useAssetInfo(path, refresh) {
   const [info, setInfo] = useState(null);
@@ -5434,7 +5434,7 @@ function useImages(paths, version) {
   return images;
 }
 
-// desktop-src/build-viewer/sprite-canvas.js
+// page/pages/build/viewer/sprite-canvas.js
 function SpriteFrameCanvas({ image, sprite, tiles, flip, scale, colors, under = null }) {
   const ref = useRef(null);
   const width = sprite?.canvasWidth ?? 16;
@@ -5460,7 +5460,7 @@ function SpriteFrameCanvas({ image, sprite, tiles, flip, scale, colors, under = 
   return jsx("canvas", { className: "cs-v-px", ref });
 }
 
-// desktop-src/build-viewer/stage.js
+// page/pages/build/viewer/stage.js
 var ZOOM_STEPS = [1, 2, 3, 4, 6, 8, 12, 16];
 function versionTime(entry) {
   return entry?.at ? timeOfDay(entry.at) : "";
@@ -5549,7 +5549,7 @@ function ImageStage({ image, scale, grid, gridSize = [8, 8], area, onArea, picki
   });
 }
 
-// desktop-src/build-viewer/asset-viewer.js
+// page/pages/build/viewer/asset-viewer.js
 function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root, game }) {
   const asset = assets[index];
   const path = asset?.path ?? null;
@@ -6090,7 +6090,7 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
   });
 }
 
-// desktop-src/build-transcript/build-card.js
+// page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
 function dropAsset(path) {
   for (const key of [...assetCache.keys()]) {
@@ -6240,7 +6240,7 @@ function NextSteps({ stored, suggestions }) {
   });
 }
 
-// desktop-src/build-transcript/questions.js
+// page/pages/build/transcript/questions.js
 var SUGGESTED = /\s*\((recommended|suggested)\)\s*$/i;
 function BuildQuestions({ stored, item }) {
   const payload = item.payload ?? {};
@@ -6370,13 +6370,13 @@ function BuildPromptCard({ stored, item }) {
   });
 }
 
-// desktop-src/ui/elapsed.js
+// page/shared/ui/elapsed.js
 function Elapsed({ since }) {
   const now = useNow(Boolean(since));
   return since ? clock(now - since) : "";
 }
 
-// desktop-src/build-transcript/worked.js
+// page/pages/build/transcript/worked.js
 function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
   const [running, done] = stepWords(tool);
   const live = tool.state === "running";
@@ -6595,7 +6595,7 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
   });
 }
 
-// desktop-src/build-transcript/turn-view.js
+// page/pages/build/transcript/turn-view.js
 function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
   const parts = turnParts(turn, root);
   const user = turn.user;
@@ -6729,7 +6729,7 @@ var TurnMemo = memo(
   (previous, next) => sameItems(previous.turn.items, next.turn.items) && previous.turn.user === next.turn.user && previous.live === next.live && previous.turnStartedAt === next.turnStartedAt && previous.previousModel?.model === next.previousModel?.model && previous.previousModel?.effort === next.previousModel?.effort && previous.chatBusy === next.chatBusy && previous.latestBuild === next.latestBuild && previous.build === next.build && previous.isLast === next.isLast && previous.playerOpen === next.playerOpen && previous.root === next.root && previous.stored === next.stored && (!next.latestBuild || previous.game === next.game) && previous.onOpenAsset === next.onOpenAsset
 );
 
-// desktop-src/build-transcript/transcript.js
+// page/pages/build/transcript/transcript.js
 var TURN_PAGE = 40;
 function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null }) {
   const items = chat?.items ?? [];
@@ -6958,7 +6958,7 @@ function LostTurnCard({ chat, stored }) {
   });
 }
 
-// desktop-src/side-emulator/state.js
+// page/pages/emulator/beside-chat/state.js
 var ALWAYS_VISIBLE = atom(true);
 var BUILD_TICK = atom(0);
 var PRESENTED = atom({});
@@ -6967,7 +6967,7 @@ var presentationsSeen = /* @__PURE__ */ new Set();
 var sideSurface = (id) => `side:${id}`;
 var sideKey = (id) => `${ID}.emulator.${id}`;
 
-// desktop-src/build/binding.js
+// page/pages/build/binding.js
 async function buildRpc(params) {
   try {
     const answer = await callStudioOnly(RPC_BUILD, params);
@@ -6988,7 +6988,7 @@ function newGamePrompt({ name, idea, plan }) {
   return plan ? `Use hermretro to help me plan a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Interview me briefly, then create the project, and write the game brief, backlog and test plan into it before building anything.` : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.`;
 }
 
-// desktop-src/build/builds-menu.js
+// page/pages/build/builds-menu.js
 function BuildPill({ builds, chat, game }) {
   const last = builds[builds.length - 1] ?? null;
   const good = [...builds].reverse().find((build) => build.state === "built") ?? null;
@@ -7167,7 +7167,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
   });
 }
 
-// desktop-src/build/new-game.js
+// page/pages/build/new-game.js
 var NEW_GAME_IDEAS = [
   ["Fly around a big sky", "A little bird that flies around a big, bright daytime sky with clouds and treetops."],
   ["Top-down adventure room", "A top-down adventure: a hero explores one room, talks to a villager and finds a key."],
@@ -7311,7 +7311,7 @@ function BuildNewGame({ onStart, picker = null }) {
   });
 }
 
-// desktop-src/prompts/library.js
+// page/pages/prompts/library.js
 var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
 var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
 var PROMPT_SECTIONS = [
@@ -7428,7 +7428,7 @@ var promptById = (id) => ALL_PROMPTS.find((prompt) => prompt.id === id) ?? ALL_P
 var FLASH_PROMPT = promptById("flash").text;
 var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
 
-// desktop-src/games/model.js
+// page/pages/games/model.js
 var KIND_LABELS = { gbstudio: "GB Studio", gbdk: "GBDK" };
 var GAME_STATES = {
   ready: ["good", "Ready"],
@@ -7456,7 +7456,7 @@ ${game.error}
 ` : ". "}Find the cause, fix it, rebuild, and show me the result.`;
 }
 
-// desktop-src/build/switcher.js
+// page/pages/build/switcher.js
 function switcherEntries(games, pending, states, selected) {
   const sub = (state, fallback) => state?.waiting ? "Needs your answer" : state?.busy ? `${AGENT} is working…` : state?.unread ? "New reply" : fallback;
   return [
@@ -7761,7 +7761,7 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
   });
 }
 
-// desktop-src/build/build-page.js
+// page/pages/build/build-page.js
 function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
@@ -8124,7 +8124,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   return jsx("div", { className: "cs-b", children: main });
 }
 
-// desktop-src/install/installer.js
+// page/pages/setup/install/installer.js
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
 }
@@ -8216,7 +8216,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
 }
 
-// desktop-src/build/studio-needed.js
+// page/pages/build/studio-needed.js
 function StudioNeeded({ status }) {
   const profile = status.data?.profile;
   const [working, setWorking] = useState(false);
@@ -8270,7 +8270,7 @@ function StudioNeeded({ status }) {
   });
 }
 
-// desktop-src/ui/art.js
+// page/shared/ui/art.js
 function Art() {
   return jsx("div", { "aria-hidden": true, className: "cs-art" });
 }
@@ -8295,7 +8295,7 @@ function Flyer() {
   });
 }
 
-// desktop-src/games/games-folder.js
+// page/pages/games/games-folder.js
 async function openFolder(ctx, path) {
   const shown = await ctx.os?.revealPath?.(path).catch(() => false);
   if (!shown) {
@@ -8322,7 +8322,7 @@ function GamesFolder({ ctx, path }) {
   });
 }
 
-// desktop-src/games/game-card.js
+// page/pages/games/game-card.js
 var COVER_PROMPT = "Make this game’s card: draw a 160x144 pixel-art cover in the game’s own palette and write its tagline, description and genres, with chromatic_game_info.";
 var GAME_STATUS = {
   ready: ["good", "Ready"],
@@ -8487,7 +8487,7 @@ function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   });
 }
 
-// desktop-src/games/games-page.js
+// page/pages/games/games-page.js
 function DeviceStrip({ hardwareOn, onSetUpDevice }) {
   return hardwareOn ? jsxs("div", {
     className: "cs-dev on",
@@ -8626,7 +8626,7 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
   ];
 }
 
-// desktop-src/emulator/emulator-bar.js
+// page/pages/emulator/emulator-bar.js
 function Captures({ game, open }) {
   const captures = useQuery({
     queryKey: [ID, "captures", game?.id ?? null],
@@ -8716,13 +8716,13 @@ function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, captures
   ];
 }
 
-// desktop-src/games/state-tag.js
+// page/pages/games/state-tag.js
 function StateTag({ game }) {
   const [tone, label] = GAME_STATES[game.state] ?? GAME_STATES.unbuilt;
   return jsx("span", { className: `cs-tag ${tone}`, children: label });
 }
 
-// desktop-src/setup/steps.js
+// page/pages/setup/steps.js
 var HARDWARE_STEPS = ["firmware", "devmode", "devicecli", "hardware"];
 var STEP_ORDER = ["profile", "toolchain", ...HARDWARE_STEPS];
 var STEP_TITLES = {
@@ -8800,12 +8800,12 @@ var STEP_SHORT = {
   hardware: "Hardware tools"
 };
 
-// desktop-src/ui/prompt-button.js
+// page/shared/ui/prompt-button.js
 function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
   return jsx(AsyncButton, { disabled, icon: "comment-discussion", run: () => sendPromptToChat(ctx, prompt, { fresh }), title: "Puts the prompt in a chat, not sent", variant, children: label });
 }
 
-// desktop-src/home/home-page.js
+// page/pages/home/home-page.js
 var QUICK_STARTS = [
   { id: "start", title: "Start a new game", text: "Hermes asks what you want to make, creates it and shows the first frame." },
   { id: "remix", title: "Remix an example", text: "Start from Wrecklight and make it your own." },
@@ -9004,7 +9004,7 @@ function HomePage({ ctx, steps, auto, autoId, choosing, status, doctor, memory, 
   });
 }
 
-// desktop-src/core/format.js
+// page/app/format.js
 function formatBytes(bytes, approx = false) {
   if (!Number.isFinite(bytes) || bytes < 0) {
     return "";
@@ -9021,7 +9021,7 @@ function shortPath(path, keep = 4) {
   return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
 }
 
-// desktop-src/ui/glyph.js
+// page/shared/ui/glyph.js
 var INDICATOR = {
   done: { icon: "pass-filled", color: C.good, label: "Done" },
   todo: { icon: "circle-large-outline", color: C.warn, label: "To do" },
@@ -9080,7 +9080,7 @@ function Chip({ tone = "", children }) {
   return jsxs("span", { className: `cs-chip ${tone}`, children: [jsx("i", {}), children] });
 }
 
-// desktop-src/install/install-panel.js
+// page/pages/setup/install/install-panel.js
 var ROW_LABEL = { done: "verified", running: "installing", failed: "failed", pending: "" };
 function DownloadTable({ manifest, install, phase, profileRow }) {
   const components = install?.run?.components ?? {};
@@ -9300,7 +9300,7 @@ function InstallPanel({ ctx, status, install, step, profileStep }) {
   });
 }
 
-// desktop-src/onboarding/onboarding.js
+// page/pages/setup/onboarding/onboarding.js
 var ONBOARD_STAGES = [
   ["install", "Install"],
   ["chromatic", "Your hardware"],
@@ -9547,7 +9547,7 @@ function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFi
   return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body });
 }
 
-// desktop-src/player/frame-image.js
+// page/shared/player/frame-image.js
 function shrinkFrame(dataUrl) {
   return new Promise((resolve) => {
     try {
@@ -9578,7 +9578,7 @@ function shrinkFrame(dataUrl) {
   });
 }
 
-// desktop-src/prompts/prompts-page.js
+// page/pages/prompts/prompts-page.js
 function fillPrompt(prompt, values) {
   return prompt.text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);
 }
@@ -9783,7 +9783,7 @@ function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardwareOn, 
   ];
 }
 
-// desktop-src/ui/prompt-block.js
+// page/shared/ui/prompt-block.js
 function PromptActions({ ctx, prompt, primaryLabel = "Use in chat", primaryVariant = "secondary" }) {
   const [pending, setPending] = useState(false);
   const run = async () => {
@@ -9819,7 +9819,7 @@ function PromptBlock({ ctx, prompt, label }) {
   });
 }
 
-// desktop-src/setup/hardware-steps.js
+// page/pages/setup/hardware-steps.js
 function Confirm({ step, update }) {
   return step.state === "done" ? jsx(Button, { onClick: () => update({ [MANUAL_STEPS[step.id]]: false }), size: "sm", variant: "ghost", children: "Mark as not done" }) : jsxs(Button, {
     onClick: () => update({ [MANUAL_STEPS[step.id]]: true }),
@@ -10018,7 +10018,7 @@ function HardwareChoice({ steps, update }) {
   });
 }
 
-// desktop-src/setup/setup-complete.js
+// page/pages/setup/setup-complete.js
 function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
   const data = status.data ?? {};
   const report = doctor.data?.ok ? doctor.data : null;
@@ -10072,7 +10072,7 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
   });
 }
 
-// desktop-src/setup/profile-step.js
+// page/pages/setup/profile-step.js
 var PROFILE_FACTS = [
   ["Sign-in", "It uses your existing sign-in and keys, so there is nothing to log in to again."],
   ["Skills", "hermretro and its six skills are turned on there, with a game-developer persona."],
@@ -10133,7 +10133,7 @@ function ProfileBody({ status }) {
   });
 }
 
-// desktop-src/setup/remove-tools.js
+// page/pages/setup/remove-tools.js
 var megabytes = (bytes) => `${Math.round((bytes || 0) / 1e6).toLocaleString()} MB`;
 function RemoveTools({ status, doctor }) {
   const [state, setState] = useState("idle");
@@ -10181,7 +10181,7 @@ function RemoveTools({ status, doctor }) {
   });
 }
 
-// desktop-src/setup/toolchain-step.js
+// page/pages/setup/toolchain-step.js
 var COMPONENT_STATUS = { ready: "Ready", missing: "Missing", incompatible: "Incompatible", unknown: "Unknown" };
 function ComponentRow({ component }) {
   const status = component.optional && component.status !== "ready" ? "optional" : component.status ?? "unknown";
@@ -10272,7 +10272,7 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
   });
 }
 
-// desktop-src/setup/wizard.js
+// page/pages/setup/wizard.js
 function stepBody(step, props) {
   switch (step.id) {
     case "profile":
@@ -10428,7 +10428,7 @@ function SetupWizard({ ctx, steps, shown, autoId, backend, status, doctor, gatew
   });
 }
 
-// desktop-src/build-assets/assets.css.js
+// page/pages/build/assets/assets.css.js
 var ASSETS_CSS = `
 /* images */
 .cs-b-strip { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 6px; }
@@ -10452,7 +10452,7 @@ var ASSETS_CSS = `
 @keyframes cs-b-skel { 50% { opacity: .45; } }
 `;
 
-// desktop-src/build-composer/composer.css.js
+// page/pages/build/composer/composer.css.js
 var COMPOSER_CSS = `
 /* status and the message box */
 .cs-b-comp { align-self: center; background: var(--ui-bg-secondary); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; margin: 0 clamp(14px, 3cqi, 28px) 16px; max-width: var(--cs-b-width); padding: 9px 9px 9px 14px; width: calc(100% - 2 * clamp(14px, 3cqi, 28px)); }
@@ -10475,7 +10475,7 @@ var COMPOSER_CSS = `
 @keyframes cs-b-pulse-y { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ui-yellow) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
 `;
 
-// desktop-src/build-composer/mentions.css.js
+// page/pages/build/composer/mentions.css.js
 var MENTIONS_CSS = `
 /* @ assets */
 .cs-b-comp { position: relative; }
@@ -10490,7 +10490,7 @@ var MENTIONS_CSS = `
 .cs-b-mention p { margin: 6px; }
 `;
 
-// desktop-src/build-composer/model-picker.css.js
+// page/pages/build/composer/model-picker.css.js
 var MODEL_PICKER_CSS = `
 /* model and effort */
 .cs-b-mp { position: relative; min-width: 0; }
@@ -10541,7 +10541,7 @@ var MODEL_PICKER_CSS = `
 .cs-b-link { appearance: none; background: none; border: 0; color: var(--ui-accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
 `;
 
-// desktop-src/build-player/inline-player.css.js
+// page/pages/build/player/inline-player.css.js
 var INLINE_PLAYER_CSS = `
 /* the game */
 .cs-b-pc { align-items: center; animation: cs-b-in .2s ease-out; background: var(--ui-bg-secondary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; gap: 12px; max-width: 520px; padding: 8px 12px 8px 8px; transition: opacity .2s ease; }
@@ -10639,7 +10639,7 @@ var INLINE_PLAYER_CSS = `
 @media (prefers-reduced-motion: reduce) { .cs-ip, .cs-b-pc, .cs-b-live.on { animation: none; } }
 `;
 
-// desktop-src/build-transcript/build-card.css.js
+// page/pages/build/transcript/build-card.css.js
 var BUILD_CARD_CSS = `
 /* the build card (a turn that built the game, or reported what it did) */
 .cs-b-bc { animation: cs-b-in .2s ease-out; background: var(--ui-bg-secondary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
@@ -10688,7 +10688,7 @@ var BUILD_CARD_CSS = `
 .cs-b-hint-tiles i:nth-child(2) { opacity: .6; } .cs-b-hint-tiles i:nth-child(3) { opacity: .35; }
 `;
 
-// desktop-src/build-transcript/cards.css.js
+// page/pages/build/transcript/cards.css.js
 var CARDS_CSS = `
 /* cards */
 .cs-b-card { animation: cs-b-in .2s ease-out; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
@@ -10724,7 +10724,7 @@ var CARDS_CSS = `
 .cs-b-jump { align-items: center; appearance: none; background: var(--ui-bg-secondary); border: 0; border-radius: 999px; bottom: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 6px 18px color-mix(in srgb, black 30%, transparent); color: var(--ui-text-primary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 6px; left: 50%; padding: 5px 12px; position: absolute; transform: translateX(-50%); }
 `;
 
-// desktop-src/build-transcript/transcript.css.js
+// page/pages/build/transcript/transcript.css.js
 var TRANSCRIPT_CSS = `
 /* the conversation */
 .cs-b-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
@@ -10790,7 +10790,7 @@ var TRANSCRIPT_CSS = `
 @keyframes cs-b-in { from { opacity: 0; transform: translateY(4px); } }
 `;
 
-// desktop-src/build-transcript/worked-mode.css.js
+// page/pages/build/transcript/worked-mode.css.js
 var WORKED_MODE_CSS = `
 /* Worked for…: Simple / Technical, and what it did in words */
 .cs-b-wk-mode { display: flex; justify-content: flex-end; margin: 2px 0 4px; max-width: 680px; }
@@ -10798,7 +10798,7 @@ var WORKED_MODE_CSS = `
 .cs-b-gist { max-width: 56ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
-// desktop-src/build-transcript/worked.css.js
+// page/pages/build/transcript/worked.css.js
 var WORKED_CSS = `
 /* Worked for… */
 .cs-b-wk { display: flex; flex-direction: column; }
@@ -10863,7 +10863,7 @@ var WORKED_CSS = `
 .cs-b-latest b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
-// desktop-src/build-viewer/viewer.css.js
+// page/pages/build/viewer/viewer.css.js
 var VIEWER_CSS = `
 /* the asset viewer */
 .cs-b-dim { align-items: center; animation: cs-b-fade .15s ease-out; background: color-mix(in srgb, var(--ui-bg-editor) 78%, transparent); backdrop-filter: blur(3px); display: flex; inset: 0; justify-content: center; padding: 20px; position: absolute; z-index: 20; }
@@ -10980,7 +10980,7 @@ var VIEWER_CSS = `
 @media (prefers-reduced-motion: reduce) { .cs-v { animation: none; } }
 `;
 
-// desktop-src/build/build-responsive.css.js
+// page/pages/build/build-responsive.css.js
 var BUILD_RESPONSIVE_CSS = `
 @container (max-width: 640px) {
   .cs-b-sw-pop.cs-b-builds { width: min(420px, calc(100cqi - 24px)); }
@@ -10999,7 +10999,7 @@ var BUILD_RESPONSIVE_CSS = `
 }
 `;
 
-// desktop-src/build/build.css.js
+// page/pages/build/build.css.js
 var BUILD_CSS = `
 /* build: games rail · the conversation with the agent (the game plays inside it) */
 .cs-pad.build { gap: 0; padding: 0; }
@@ -11021,7 +11021,7 @@ var BUILD_CSS = `
 @keyframes cs-b-spin { to { transform: rotate(360deg); } }
 `;
 
-// desktop-src/build/header.css.js
+// page/pages/build/header.css.js
 var HEADER_CSS = `
 /* the header: status pill and Builds */
 .cs-b-pill { align-items: center; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 11.5px; gap: 6px; padding: 2px 10px; white-space: nowrap; }
@@ -11040,7 +11040,7 @@ var HEADER_CSS = `
 .cs-b-brow-acts { display: flex; flex: none; gap: 4px; }
 `;
 
-// desktop-src/build/new-game.css.js
+// page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
 /* New Game: the Build page's composer, centred, with the two ways to start under it */
 .cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
@@ -11060,7 +11060,7 @@ var NEW_GAME_CSS = `
 .cs-b-opt em { color: var(--ui-text-quaternary, var(--ui-text-tertiary)); display: block; font: 700 10px/1.3 ${MONO}; font-style: normal; letter-spacing: .1em; margin-top: 7px; text-transform: uppercase; }
 `;
 
-// desktop-src/emulator/emulator.css.js
+// page/pages/emulator/emulator.css.js
 var EMULATOR_CSS = `
 /* emulator: bar above ModRetro's real player */
 .cs-reload { align-items: center; background: var(--ui-bg-secondary); color: var(--ui-text-primary); display: flex; flex-wrap: wrap; gap: 12px; padding: 10px clamp(12px, 2cqi, 32px); }
@@ -11101,7 +11101,7 @@ var EMULATOR_CSS = `
 .cs-rp-msg { align-content: center; display: grid; gap: 14px; height: 100%; justify-items: start; margin: 0 auto; max-width: 560px; padding: 24px; }
 `;
 
-// desktop-src/games/games.css.js
+// page/pages/games/games.css.js
 var GAMES_CSS = `
 /* games: Shelf of real cartridges */
 .cs-dev { align-items: center; background: var(--ui-bg-quaternary); display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 11px 14px; }
@@ -11163,7 +11163,7 @@ button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-te
 .cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
-// desktop-src/home/home.css.js
+// page/pages/home/home.css.js
 var HOME_CSS = `
 /* home: hero, then Continue / Start something / Studio */
 .cs-home { display: flex; flex-direction: column; gap: clamp(28px, 3cqi, 48px); }
@@ -11203,7 +11203,7 @@ var HOME_CSS = `
 .cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
 `;
 
-// desktop-src/onboarding/onboarding.css.js
+// page/pages/setup/onboarding/onboarding.css.js
 var ONBOARDING_CSS = `
 /* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
 .cs-bad { color: var(--ui-red); }
@@ -11276,7 +11276,7 @@ var ONBOARDING_CSS = `
 }
 `;
 
-// desktop-src/prompts/prompts.css.js
+// page/pages/prompts/prompts.css.js
 var PROMPTS_CSS = `
 /* prompts: Reader */
 .cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
@@ -11300,7 +11300,7 @@ var PROMPTS_CSS = `
 .cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
 `;
 
-// desktop-src/setup/setup.css.js
+// page/pages/setup/setup.css.js
 var SETUP_CSS = `
 /* setup: rail, current step, flying Chromatic */
 .cs-setup { align-items: start; display: grid; gap: clamp(24px, 3.6cqi, 64px); grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 820px) minmax(130px, 1fr); }
@@ -11364,7 +11364,7 @@ var SETUP_CSS = `
 .cs-choice .cs-actions { margin-top: auto; padding-top: 8px; }
 `;
 
-// desktop-src/shell/shell.css.js
+// page/app/shell.css.js
 var SHELL_CSS = `
 /* header: wordmark, one segmented control, refresh */
 .cs-top { align-items: center; background: var(--ui-bg-editor); border-bottom: 1px solid var(--ui-stroke-tertiary); display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 14px clamp(16px, 3.5cqi, 64px); position: sticky; top: 0; z-index: 10; }
@@ -11406,7 +11406,7 @@ var SHELL_CSS = `
 .cs-note { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
 `;
 
-// desktop-src/ui/flyer.css.js
+// page/shared/ui/flyer.css.js
 var FLYER_CSS = `
 /* The flying Chromatic: the body and one wing drawn twice (the left one mirrored), each a 1-bit
    mask painted in the accent colour. Wings beat around the point where they meet the case; the
@@ -11432,7 +11432,7 @@ var FLYER_CSS = `
 @keyframes cs-fly-shadow { 0%, 100% { opacity: .9; transform: scaleX(1); } 50% { opacity: .45; transform: scaleX(.7); } }
 `;
 
-// desktop-src/styles/base.css.js
+// page/shared/styles/base.css.js
 var BASE_CSS = `
 .cs-page { container-type: inline-size; box-sizing: border-box; color: var(--ui-text-primary); display: flex; flex-direction: column; font-size: 13px; line-height: 1.55; min-height: 100%; overflow-x: clip; position: relative; width: 100%; }
 .cs-page *, .cs-page *::before, .cs-page *::after { box-sizing: border-box; }
@@ -11455,7 +11455,7 @@ var BASE_CSS = `
 .cs-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 `;
 
-// desktop-src/styles/responsive.css.js
+// page/shared/styles/responsive.css.js
 var RESPONSIVE_CSS = `
 @container (max-width: 1100px) {
   .cs-band { grid-template-columns: 1fr 1fr; }
@@ -11511,7 +11511,7 @@ var RESPONSIVE_CSS = `
 }
 `;
 
-// desktop-src/styles/index.js
+// page/shared/styles/index.js
 var CSS = [
   BASE_CSS,
   SHELL_CSS,
@@ -11543,7 +11543,7 @@ function PageStyle() {
   return jsx("style", { children: CSS });
 }
 
-// desktop-src/side-emulator/tab.js
+// page/pages/emulator/beside-chat/tab.js
 function openSideEmulator(ctx, game) {
   if (!game || typeof host.openWorkspace !== "function") {
     return false;
@@ -11678,7 +11678,7 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
   });
 }
 
-// desktop-src/side-emulator/row.js
+// page/pages/emulator/beside-chat/row.js
 function SideEmulatorRow({ ctx, game }) {
   const canOpen = typeof host.openWorkspace === "function";
   return jsxs("div", {
@@ -11696,7 +11696,7 @@ function SideEmulatorRow({ ctx, game }) {
   });
 }
 
-// desktop-src/shell/nav.js
+// page/app/nav.js
 var PAGES = [
   ["home", "Home"],
   ["build", "Build"],
@@ -11772,7 +11772,7 @@ function StudioNav({ page, onGo, setupPending, playing, onRefresh, refreshing, v
   });
 }
 
-// desktop-src/shell/not-running.js
+// page/app/not-running.js
 function NotRunning({ backend, status, gateway }) {
   let title = "Checking hermretro…";
   let body = jsx(Working, { children: "Asking the plugin for its status." });
@@ -11836,7 +11836,7 @@ function NotRunning({ backend, status, gateway }) {
   });
 }
 
-// desktop-src/shell/studio-page.js
+// page/app/studio-page.js
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
@@ -12199,7 +12199,7 @@ function StudioPage({ ctx }) {
   });
 }
 
-// desktop-src/side-emulator/present.js
+// page/pages/emulator/beside-chat/present.js
 function presentedGame(payload) {
   const name = payload?.name === "tool_call" ? unwrapCalls(null, "tool_call", payload.args)[0]?.name : payload?.name;
   if (!payload || name !== PRESENT_TOOL || payload.error) {
@@ -12294,7 +12294,7 @@ function watchBuilds(ctx) {
   });
 }
 
-// desktop-src/index.js
+// page/index.js
 var index_default = {
   id: ID,
   name: "hermretro",

@@ -20,8 +20,8 @@
 
 Called with `host.request('plugin.hermretro.<name>', params)`.
 A disabled or missing backend answers JSON-RPC error `-32601`.
-The page's copy of these names is `desktop-src/core/rpc.js`; the agent tool names it reacts to are in
-`desktop-src/core/tools.js`.
+The page's copy of these names is `page/app/rpc.js`; the agent tool names it reacts to are in
+`page/app/tools.js`.
 
 ### `status` — params `{ chat?: string }`
 

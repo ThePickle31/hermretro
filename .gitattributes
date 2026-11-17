@@ -3,12 +3,12 @@
 engine/** -text
 # Its hash decides whether an unedited studio-profile SOUL may be upgraded.
 profile/SOUL.md -text
-# The desktop half and the player frame shim are built from desktop-src/ by tools/bundle/bundle.mjs, and each
+# The desktop half and the player frame shim are built from page/ by tools/bundle/bundle.mjs, and each
 # banner carries a hash of both: their bytes must be the same on every checkout. A merge must never write conflict
 # markers into the bundle (a linked checkout hot-loads it): with -merge git keeps our side and reports
 # the conflict. Merge the sources, then rebuild.
-desktop-src/**/*.js text eol=lf
-desktop-src/**/*.png binary
+page/**/*.js text eol=lf
+page/**/*.png binary
 tools/bundle/bundle.mjs text eol=lf
 desktop/plugin.js text eol=lf -merge linguist-generated=true
 player/frame-shim.js text eol=lf -merge linguist-generated=true

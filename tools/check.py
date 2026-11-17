@@ -4,7 +4,7 @@
     python tools/check.py full           fast checks plus the real-engine acceptance run
     python tools/check.py unit page      only the named checks
 
-Checks: unit (Python unit tests), bundle (generated files match desktop-src/), page (page tests in jsdom),
+Checks: unit (Python unit tests), bundle (generated files match page/), page (page tests in jsdom),
 scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real
 engine, compiler and emulator; needs the toolchain from setup).
 
@@ -100,7 +100,7 @@ def check_page(args) -> str:
     if result.returncode:
         raise AssertionError(tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
                              "tests/desktop/page-<name>.test.mjs, named in the failure above); after editing "
-                             "desktop-src/ run node tools/bundle/bundle.mjs first")
+                             "page/ run node tools/bundle/bundle.mjs first")
     counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
     return ", ".join(line[2:] for line in counts) or "ok"
 

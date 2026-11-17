@@ -19,7 +19,7 @@ only in a profile named `hermretro`; set `HERMRETRO_EVERY_PROFILE=1` for the gat
 
 The agent guide (`AGENTS.md`) lists them; in short:
 
-- Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `desktop-src/`, run `node tools/bundle/bundle.mjs`
+- Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
 - Nothing under `engine/` changes outside an engine update (`docs/dev/ENGINE-UPDATE.md`).
 - `python tools/check.py scan` must say `safe` (`docs/dev/INSTALL-SCANNER.md` lists what trips it).

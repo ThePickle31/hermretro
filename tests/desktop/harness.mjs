@@ -1,6 +1,6 @@
 // Shared harness for the page tests (tests/desktop/page-*.test.mjs): it loads the built desktop/plugin.js
 // (what ships) with the SDK stand-in from sdk-stub.mjs into jsdom, and hands each scenario file a fresh page,
-// scenario object and the helpers below. After editing desktop-src/ run node tools/bundle/bundle.mjs first.
+// scenario object and the helpers below. After editing page/ run node tools/bundle/bundle.mjs first.
 // Needs react, react-dom and jsdom (tools/bundle/node-modules.mjs says where they come from):
 //   node tests/desktop/page-<name>.test.mjs [path to a node_modules folder]
 // The bundle keeps module-level state (the Build conversations, the profile route), so each file runs in its
@@ -20,7 +20,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // The SDK stand-in, the bundle rewritten to use it, and the jsdom globals, in a temp folder that is removed
 // however the file ends.
 async function load() {
-  // The page under test is the built bundle: never test one that no longer matches desktop-src/.
+  // The page under test is the built bundle: never test one that no longer matches page/.
   const stale = staleReasons()
 
   if (stale.length) {
