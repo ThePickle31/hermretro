@@ -1,12 +1,12 @@
 # Third-party notices
 
-The MIT licence in `LICENSE` covers the hermretro adapter, desktop page, skills and tooling in this
+The MIT licence in `LICENSE` covers the hermretro backend, desktop page, skills and tooling in this
 repository. It does not cover the bundled engine under `engine/modretro-chromatic/` or the components inside
 it, which keep their own licences, listed below.
 
 hermretro bundles one third-party package under `engine/modretro-chromatic/`, with one small change (below).
 Every file in it is recorded with size, mode and SHA-256 in
-`release/baseline/engine-1.0.34.manifest.json`, and the plugin refuses to start an engine that does not
+`engine/pins/1.0.34/manifest.json`, and the plugin refuses to start an engine that does not
 match that record.
 
 **Change made by hermretro** (allowed by the engine's MIT licence; recorded as `local_patches` in the
@@ -34,7 +34,7 @@ binaries, capturing a real Chromatic's video on Linux reports itself unavailable
   2026 Eric Provencher), edited for Hermes.
 
 Its Node dependencies are installed from the engine's pinned lock file. Known advisories in them, and why each is
-accepted until an engine update, are listed in `SECURITY.md`.
+accepted until an engine update, are listed in `.github/SECURITY.md`.
 
 ## ModRetro Chromatic CLI 1.2.1 (proprietary, not bundled)
 

@@ -6,7 +6,27 @@
 - Toolset: `chromatic`.
 - Where things register (`__init__.register`): the 85 tools, 6 skills, 6 hooks and the `hermretro.guide` prompt
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
-  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/test_registration.py`.
+  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`;
+  every registration, in order, is pinned in `tests/repo/registration.json`.
+- Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
+  `hooks.py`; the table in `ARCHITECTURE.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
+  `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
+  feature's `tools.py` (with its Build-page step words), `plugin.yaml` `provides_tools`, the page's
+  `step-words.js` and a line here. Then refresh the snapshot: `python tests/repo/test_registration_snapshot.py --write`.
+
+## Events between backend features
+
+Declared by the owning feature in its front door (`EVENTS`), emitted only by it, heard in other features'
+`listeners.py` (`backend/system/events.py`; a failing listener is logged and never breaks the emitter).
+
+| Event | Payload | Emitted when | Heard by |
+|---|---|---|---|
+| `library.build_reported` | `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
+| `library.game_presented` | `game`, `root` | `chromatic_present_game` showed a game | — |
+| `setup.tools_removed` | `root` | `remove_tools` emptied the download folder | — |
+| `setup.studio_profile_ready` | `profile` | `studio_profile` finished the profile | — |
+| `assets.image_restored` | `path` | `asset_restore` put a kept version back | — |
+| `history.build_kept` | `game`, `root` | a successful build was kept as a snapshot | — |
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
@@ -20,8 +40,10 @@
 
 Called with `host.request('plugin.hermretro.<name>', params)`.
 A disabled or missing backend answers JSON-RPC error `-32601`.
-The page's copy of these names is `desktop-src/core/rpc.js`; the agent tool names it reacts to are in
-`desktop-src/core/tools.js`.
+The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generated from the `@rpc` declarations into
+`page/app/rpc-names.js` by `tools/bundle/rpc_names.py` (`node tools/bundle/bundle.mjs` runs it; the bundle check
+fails when it is stale); the agent tool names it reacts to are in
+`page/app/tools.js`.
 
 ### `status` — params `{ chat?: string }`
 
@@ -140,7 +162,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `adapter/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
@@ -211,7 +233,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   Sports, Strategy, Story, Other`, and a cover. Placeholder words (TODO, TBD, lorem ipsum, …) do not count.
   Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12).
 - **Cover:** a PNG, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
-  Image Generation), not an unchanged copy of an image under `assets/`. Read by `adapter/game_card.py`
+  Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_card.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
   project? }`: with no fields it reports the card; otherwise it checks every field and stores all or

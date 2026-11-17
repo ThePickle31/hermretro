@@ -9,7 +9,7 @@
 | The last toolchain install | `~/.hermes/hermretro/.cache/toolchain/last-run.json` |
 | Hardware operations (read only) | `~/.codex-gb-studio/chromatic/<id>/operation.json` (the engine's journal) |
 | What a tool returned in a chat | the profile's `state.db`, table `messages` (open read-only) |
-| What the page's RPC answers | `node tools/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
+| What the page's RPC answers | `node tools/debug/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
 
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
 capped at 104 bytes on macOS).
@@ -17,7 +17,7 @@ capped at 104 bytes on macOS).
 ## Common symptoms
 
 - **Setup says "The hermretro broker did not start", and the trace shows `broker_started`/`broker_stopped` pairs
-  about twice a second.** The gateway loaded an older adapter than the one on disk and keeps retiring new brokers.
+  about twice a second.** The gateway loaded an older backend than the one on disk and keeps retiring new brokers.
   Restart the gateway (`hermes gateway restart`, from a terminal outside Hermes). The toolchain is fine.
 - **A page action fails with -32601.** The gateway has not loaded the new RPC yet: restart it (Python changes
   need a gateway restart; page changes need an app reload).
@@ -27,7 +27,7 @@ capped at 104 bytes on macOS).
 - **"hermretro is still running an older session for a game in a chat."** A broker from older code is kept
   alive by a live game; it retires when that chat's game closes. A forced restart kills open players.
 - **The emulator lease is stuck** (`recordingAccessFailure`). The broker clears it only when its owner is dead
-  (`adapter/leases.py`); the trace says so.
+  (`backend/broker/leases.py`); the trace says so.
 
 ## Environment variables
 
@@ -46,9 +46,9 @@ For development, tests and unusual setups; users need none of them.
 | `HERMRETRO_LANE_IDLE_SECONDS` | How long an idle chat's engine worker stays (default 1800) |
 | `HERMRETRO_WRITER_HANDOFF_SECONDS` | How long a chat keeps a project's writer lease while idle (default 45) |
 
-`tests/test_lockstep.py` checks that every `HERMRETRO_*` variable the adapter reads is in this table.
+`tests/repo/test_lockstep.py` checks that every `HERMRETRO_*` variable the backend reads is in this table.
 
 ## Stopping the broker by hand
 
-Send `{"op": "shutdown", "force": true}` through `adapter.client.ensure_broker()` (or stop the process). Workers
+Send `{"op": "shutdown", "force": true}` through `backend.broker.client.ensure_broker()` (or stop the process). Workers
 exit when the broker's pipe closes. Open emulator tabs stop working until the next start.

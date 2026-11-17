@@ -1,13 +1,13 @@
 /**
  * hermretro — the player frame shim. GENERATED FILE, do not edit.
- * Source: desktop-src/frame/. Rebuild: node tools/bundle.mjs
- * Inlined first in the player frame page by adapter/player_server.py; imports nothing.
+ * Source: page/frame/. Rebuild: node tools/bundle/bundle.mjs
+ * Inlined first in the player frame page by backend/player/server.py; imports nothing.
  * build: esbuild 0.28.2
- * sources: sha256 d2aa888efb4f93c85ef3b87f3f3fabc0cf8c9c9aebc288d7b92ec20090b1eb4b
- * body: sha256 6adc57eebb611a70f471d62b088bfd9935a008c5b41c569dc615f78ae046dd6e
+ * sources: sha256 9b5d9e6d27b91c21dbd61a231975a35413c6294178f734da89d3e851b99be1ff
+ * body: sha256 95927e7c4af1969f6960a485bc1b138d8055abf5b36c8c9f6bc670d3bc852a0e
  */
 (() => {
-  // desktop-src/player/protocol.js
+  // page/shared/player/protocol.js
   var TO_FRAME = "cmd";
   var CMD = Object.freeze({
     KEY: "key",
@@ -55,7 +55,7 @@
   var PRESSABLE = Object.freeze(["play", "sound", "restart", "history", "screenshot", "record-video", "annotate"]);
   var DEVICE_RATIO = 850 / 1440;
 
-  // desktop-src/frame/crop.js
+  // page/frame/crop.js
   function frameImage(canvas) {
     try {
       return canvas ? canvas.toDataURL("image/png") : "";
@@ -90,7 +90,7 @@
     }
   }
 
-  // desktop-src/player/targets.js
+  // page/shared/player/targets.js
   var KIND_WORDS = { sprite: "Sprite", background: "Background tile", window: "Window tile", frame: "Whole screen" };
   function targetKind(role) {
     return String(role ?? "").replace(/^game-/, "") || "frame";
@@ -104,7 +104,7 @@
     return KIND_WORDS[kind] ?? "Part of the screen";
   }
 
-  // desktop-src/frame/note-card.js
+  // page/frame/note-card.js
   function openNoteCard(overlay, target, { onAsk, onCancel }) {
     overlay.root.querySelector(".hr-card")?.remove();
     const bounds = overlay.bounds();
@@ -138,7 +138,7 @@
     note.focus();
   }
 
-  // desktop-src/frame/overlay.js
+  // page/frame/overlay.js
   var element = (className, text) => {
     const node = document.createElement("div");
     node.className = className;
@@ -212,7 +212,7 @@
     };
   }
 
-  // desktop-src/frame/post.js
+  // page/frame/post.js
   function post(message) {
     try {
       parent.postMessage(message, "*");
@@ -220,7 +220,7 @@
     }
   }
 
-  // desktop-src/frame/view.css.js
+  // page/frame/view.css.js
   var FULL = `
 .codex-game-view .cgv-color[data-device-color^="hermes-"]{order:-4}
 html:not([data-hr-ui=inline]) .codex-game-view .cgv-player,
@@ -264,7 +264,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
 `;
   var FRAME_CSS = FULL + INLINE + ENGINE_ANNOTATE + OVERLAY;
 
-  // desktop-src/frame/view.js
+  // page/frame/view.js
   var html = document.documentElement;
   function installStyles() {
     const add = () => {
@@ -294,7 +294,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
   }
   var inlineUi = () => html.dataset.hrUi === "inline";
 
-  // desktop-src/frame/annotate-host.js
+  // page/frame/annotate-host.js
   var SURFACE_ID = "hermretro";
   var clone = (value) => {
     try {
@@ -471,7 +471,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
     return { setActive, setColor, removeMark, takeMarks, isActive: () => active };
   }
 
-  // desktop-src/frame/engine.js
+  // page/frame/engine.js
   var ROOT = ".codex-game-view";
   var playerRoot = () => document.querySelector(ROOT);
   var gameCanvas = () => document.querySelector("#mainCanvas");
@@ -531,7 +531,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
     waiting.observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  // desktop-src/frame/commands.js
+  // page/frame/commands.js
   var holdGame = (held) => {
     const { vm, Audio: sound } = (
       /** @type {any} */
@@ -586,7 +586,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
     addEventListener("blur", () => post({ cs: FROM_FRAME.FOCUS, value: false }));
   }
 
-  // desktop-src/frame/sandbox.js
+  // page/frame/sandbox.js
   var describe = (value) => {
     if (value instanceof Error) {
       return value.stack || value.message;
@@ -648,7 +648,7 @@ html[data-hr-ui=inline] .codex-game-view[data-annotating=true] .cgv-status{displ
     };
   }
 
-  // desktop-src/frame/index.js
+  // page/frame/index.js
   var params = new URLSearchParams(location.search);
   forwardLogs();
   installStorage(params, "__DEFAULT_COLOR__", "__COLOR_KEY__");

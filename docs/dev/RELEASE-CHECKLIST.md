@@ -2,7 +2,7 @@
 
 CI proves the code on Linux, Apple Silicon and Intel macOS runners, including the real engine. What it cannot
 prove is the desktop app on a real machine. Before a stable release (and after any change to setup, the
-broker or `adapter/host_os.py`), run this on a MacBook and on a Linux desktop.
+broker or `backend/system/host.py`), run this on a MacBook and on a Linux desktop.
 
 ## On the machine
 
@@ -25,6 +25,17 @@ broker or `adapter/host_os.py`), run this on a MacBook and on a Linux desktop.
 10. With a Chromatic (optional, hardware tools turned on): device status, then play on the device.
 
 Write the result (system, Hermes version, pass or what failed) in the release pull request.
+
+## Updating from the last release
+
+CI proves that the release users have now updates to the candidate: `python tools/ci/clean_install_check.py
+--update-from` installs the newest `v*` tag on `origin/main` into a throwaway Hermes home, uses it (studio profile,
+a library game with a thumbnail, a New Game chat, a running broker), then runs `hermes plugins update hermretro`
+and checks the update asks nothing, the new code registers only in `hermretro`, reads the library back, and
+replaces the old broker when its code changed (keeps it when not). It works from a release in either layout
+(`adapter/` before the reorganization, `backend/` after; `LAYOUTS` in `tools/ci/update_check.py`). Pull requests also update
+from `origin/dev`. Nothing to edit when releasing: once the new tag is on `main`, every later run updates from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
+lives (`backend/system/paths.py`) or what the broker answers to `hello` must keep this check green, or migrate.
 
 ## Then release
 

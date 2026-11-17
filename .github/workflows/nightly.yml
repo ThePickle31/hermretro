@@ -39,6 +39,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
+          fetch-depth: 0  # every tag and origin/main: the update check installs the newest release first
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -56,12 +57,14 @@ jobs:
             echo "FIX: plugin.yaml provides_tools / provides_hooks must match what __init__.register adds"
             exit 1
           fi
-      - name: python tools/hermes_api_check.py
-        run: '"$HERMES_RUNTIME_PY" -I tools/hermes_api_check.py'
+      - name: python tools/ci/hermes_api_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/ci/hermes_api_check.py'
       - name: python tools/check.py scan (newest scanner)
         run: python3 tools/check.py scan --strict --hermes-source "$HERMES_SOURCE"
-      - name: python tools/clean_install_check.py
-        run: python3 tools/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
+      - name: python tools/ci/clean_install_check.py
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
+      - name: python tools/ci/clean_install_check.py --update-from
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from
 
   integration:
     name: Integration

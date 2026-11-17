@@ -69,10 +69,11 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
 
 - `engine/modretro-chromatic/` — the original engine, bundled with one small path change (see
   `THIRD_PARTY_NOTICES.md`) and verified against a manifest.
-- `adapter/` — the Hermes side. `broker.py` is the single authority on the machine: it gives each conversation
+- `backend/` — the Hermes side, one folder per feature. `broker/` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
   desktop page are its clients.
-- `desktop-src/` — the Hermes Desktop page, one small module per feature. `tools/bundle.mjs` bundles it into
+- `page/` — the Hermes Desktop page: `app/` (shell, routing, backend calls), one folder per page under
+  `pages/` with its tabs and areas inside, `shared/` and `frame/`. `tools/bundle/bundle.mjs` bundles it into
   `desktop/plugin.js`, the single file the app loads (generated and committed, because installing a plugin
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
@@ -84,18 +85,18 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   - **Prompts**: every prompt, editable, put into a new or the current chat (never sent for you).
   - **Games**: your library as cartridges: play, install on a Chromatic (through the chat's approval),
     open the game's chat.
-  - **Emulator**: ModRetro's real player, served by the plugin (`adapter/player_server.py`).
+  - **Emulator**: ModRetro's real player, served by the plugin (`backend/player/server.py`).
   - **Build**: one game, one conversation with HermRetro. When a turn has built the game, you play it
     right in that turn's build card, at a whole-number scale, with a play-test checklist from the build
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.
 
-  The page talks to the backend through `plugin.hermretro.*` RPCs (`status`, `doctor`, `install`,
-  `remove_tools`, `studio_profile`, `activity`, `games`, `game_thumb`, `player`, `presentations`, `captures`,
-  `capture_image`, `build`, `builds`, `build_restore`, `asset`, `asset_info`, `asset_restore`, `assets`;
-  see `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
+  The page talks to the backend through `plugin.hermretro.*` RPCs, each declared by its backend feature
+  (`backend/<feature>/rpcs.py`; every name and shape in `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
 - `skills/` — agent skills.
-- `schemas/`, `release/` — pinned contracts, engine manifest and test evidence.
+- `engine/pins/<version>/` — the engine's pinned tool contracts and file manifest.
+- `tests/` — mirrors the code (`backend/<feature>/`, `page/`, `repo/`, `acceptance/`); the full folder map is in
+  `docs/dev/ARCHITECTURE.md` and `tools/layout.toml`.
 
 ## Supported systems
 
@@ -132,16 +133,19 @@ and set up again from the hermretro page; nothing is moved for you.
 ## Test
 
 `python tools/check.py` runs the fast checks the same way CI does (`full` adds the acceptance run; see
-`AGENTS.md`). Page work needs the pinned dev tools once: `npm ci --prefix tools/dev --ignore-scripts`.
+`AGENTS.md`). The pinned dev tools are set up once: `python tools/py/setup.py` (ruff, the Python linter and
+formatter, into `.dev/py`) and, for page work, `npm ci --prefix tools/npm --ignore-scripts`. `python tools/check.py fix`
+applies the automatic lint fixes and the Python formatting.
 The individual commands:
 
 ```sh
-python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
-node tools/bundle.mjs --check                            # the generated files match desktop-src/
-node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
+python -m unittest discover -s tests -t .                   # fast unit tests (no Hermes needed)
+node tools/bundle/bundle.mjs --check                            # the generated files match page/
+node --test 'tests/page/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
-python tools/prepare_toolchain.py                        # install the toolchain the acceptance run needs
-python tools/clean_install_check.py                      # clean install into a throwaway Hermes home
+python tools/ci/prepare_toolchain.py                        # install the toolchain the acceptance run needs
+python tools/ci/clean_install_check.py                      # clean install into a throwaway Hermes home
+python tools/ci/clean_install_check.py --update-from        # the newest release, updated to this commit
 hermes -p hermretro tools list                           # the chromatic toolset, only in that profile
 ```
 
@@ -149,35 +153,36 @@ hermes -p hermretro tools list                           # the chromatic toolset
 it reports every tool and hook as "declared but not registered". That is expected; `clean_install_check.py`
 checks registration where it matters.
 
-The page test glob already includes the page scenario files (`tests/desktop/page-*.test.mjs`, sharing
-`tests/desktop/harness.mjs`); run one on its own only to read its full output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
+The page test glob already includes the page scenario files (`tests/page/page-*.test.mjs`, sharing
+`tests/page/harness.mjs`); run one on its own only to read its full output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
 folder: its Unix socket path must stay under 104 characters (macOS's limit; Linux allows 108).
 
 The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like everything in `notes/`).
 
 ## Working on the page
 
-Edit the modules in `desktop-src/`, never `desktop/plugin.js` or `player/frame-shim.js` (the script the
-player frame runs first, from `desktop-src/frame/`): both are generated, and the tests fail when they do not
+Edit the modules in `page/`, never `desktop/plugin.js` or `player/frame-shim.js` (the script the
+player frame runs first, from `page/frame/`): both are generated, and the tests fail when they do not
 match their sources.
 
 ```sh
-node tools/bundle.mjs                                    # build desktop/plugin.js and player/frame-shim.js
-node tools/bundle.mjs --watch                            # rebuild on save; a linked checkout hot-reloads
-node tools/bundle.mjs --report                           # lines per module
+node tools/bundle/bundle.mjs                                    # build desktop/plugin.js and player/frame-shim.js
+node tools/bundle/bundle.mjs --watch                            # rebuild on save; a linked checkout hot-reloads
+node tools/bundle/bundle.mjs --report                           # lines per module
 ```
 
 Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
-TypeScript, jsdom and React from the pinned `tools/dev/` (or a Hermes Desktop checkout; `tools/node-modules.mjs`
-has the search order). The plugin itself has no npm dependencies, and users never install `tools/dev/`. It also checks the source tree on every build: only `sdk.js` imports
-packages, feature folders are one level deep, no import cycles, no file over 400 lines (three large components are
-listed as exceptions in `tools/bundle_lint.mjs` until they are split). Where code goes
+TypeScript, jsdom and React from the pinned `tools/npm/` (or a Hermes Desktop checkout; `tools/bundle/node-modules.mjs`
+has the search order). The plugin itself has no npm dependencies, and users never install `tools/npm/`. It also checks the source tree on every build: only `sdk.js` imports
+packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`) and none
+climbs a folder, no import cycles, no file over 400 lines (three large components are
+listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where code goes
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 
 ## Contributing
 
-Start with `CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
-problems privately (`SECURITY.md`).
+Start with `.github/CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
+problems privately (`.github/SECURITY.md`).
 
 ## Licence
 

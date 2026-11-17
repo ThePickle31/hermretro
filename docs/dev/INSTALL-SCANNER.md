@@ -16,7 +16,7 @@ verdict is `safe`; CI runs it on every pull request, and nightly against the new
 - A per-process path under the proc filesystem written out literally.
 - Zero-width or other invisible characters.
 - Binaries (compiled executables, wasm), symlinks that leave the repository, a `package.json` at the root
-  (development tools live in `tools/dev/package.json`).
+  (development tools live in `tools/npm/package.json`).
 
 The scanner rules live in Hermes (`tools/skills_guard.py`, `tools/plugin_guard.py`). When `check.py scan` fails it
 prints each high or critical finding with its file and line. Medium and low findings are notes and are fine.
