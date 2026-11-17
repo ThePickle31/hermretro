@@ -15,6 +15,59 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
                                                └─ player server (loopback) for the page's emulator
 ```
 
+## Map
+
+Every folder in the repository, from `tools/layout.toml` (`tests/repo/test_layout.py` keeps the two in
+agreement and checks every tracked file sits in one of them).
+
+| Folder | What it holds |
+|---|---|
+| `backend/` | Python backend, one folder per feature |
+| `backend/system/` | Locations and every Linux/macOS difference (stdlib only) |
+| `backend/hermes/` | Everything that touches Hermes: tools, hooks, prompt, contracts, results |
+| `backend/broker/` | The per-user broker process and its engine workers (stdlib only) |
+| `backend/setup/` | Setup page RPCs: toolchain install, removal, the studio profile |
+| `backend/library/` | Games, Build and Emulator RPCs, the library, game cards, build history |
+| `backend/assets/` | Game images for the Build page and their kept versions |
+| `backend/player/` | The loopback server for the page's emulator |
+| `page/` | Source of the Hermes Desktop page and the player frame script |
+| `page/app/` | The page shell and page-wide plumbing (RPC names, routing, navigation) |
+| `page/pages/` | One folder per page, its tabs and areas inside |
+| `page/shared/` | UI parts, styles, art and player helpers used by several pages |
+| `page/frame/` | The script injected into the emulator frame |
+| `desktop/` | Generated page bundle (plugin.js) that Hermes Desktop loads |
+| `player/` | The browser player served to the page, its device art and the generated frame script |
+| `player/web/` | ModRetro's web player (vendored) |
+| `player/devices/` | Device art for the player |
+| `engine/` | The vendored ModRetro engine and its pins |
+| `engine/modretro-chromatic/` | The vendored engine, unchanged outside a deliberate engine update |
+| `engine/pins/` | Per engine version: tool contracts and file manifest |
+| `skills/` | Skills the plugin gives the agent |
+| `skills/authoring/` | Making a game project |
+| `skills/deployment/` | Getting a game onto a Chromatic |
+| `skills/game-planning/` | Planning a game |
+| `skills/pixel-art/` | Drawing sprites and backgrounds |
+| `skills/rom-debugging/` | Finding faults in a built ROM |
+| `skills/setup/` | Setting up the toolchain and device |
+| `profile/` | Files for the hermretro studio profile |
+| `tests/` | Tests, mirroring the code layout; support.py holds the shared temp-folder helpers |
+| `tests/backend/` | Python unit tests, one folder per backend feature |
+| `tests/page/` | Page tests in jsdom, their harness and the browser preview |
+| `tests/repo/` | Repository-wide checks: names in lock step, version, layout, portability, bundle, scan |
+| `tests/acceptance/` | The real-engine run through the broker |
+| `tools/` | Developer tools; check.py runs every check |
+| `tools/bundle/` | Builds page/ into the generated files |
+| `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
+| `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
+| `tools/debug/` | Debugging helpers for a running gateway |
+| `tools/npm/` | Pinned npm tools for development only |
+| `docs/` | Documentation |
+| `docs/dev/` | Developer references: architecture, testing, debugging, contract, pages, engine update |
+| `.github/` | CI workflows, templates and community files |
+| `.github/workflows/` | CI, integration and nightly workflows |
+| `.github/actions/` | Shared workflow steps |
+| `.github/ISSUE_TEMPLATE/` | Issue forms |
+
 ## The agent half
 
 | Module | Job |
@@ -47,7 +100,7 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
 
 Modules the broker imports stay standard-library only: the broker runs as `python -m backend.broker` with a
 minimal environment and no Hermes on its path, so nothing it reaches may import `backend/hermes/`, an `rpcs.py`
-or `tools.py` (`tests/test_broker_imports.py` walks its imports).
+or `tools.py` (`tests/repo/test_broker_imports.py` walks its imports).
 
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the

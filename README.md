@@ -96,7 +96,9 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   see `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
 - `skills/` — agent skills.
-- `schemas/`, `release/` — pinned contracts, engine manifest and test evidence.
+- `engine/pins/<version>/` — the engine's pinned tool contracts and file manifest.
+- `tests/` — mirrors the code (`backend/<feature>/`, `page/`, `repo/`, `acceptance/`); the full folder map is in
+  `docs/dev/ARCHITECTURE.md` and `tools/layout.toml`.
 
 ## Supported systems
 
@@ -137,9 +139,9 @@ and set up again from the hermretro page; nothing is moved for you.
 The individual commands:
 
 ```sh
-python -m unittest discover -s tests                     # fast unit tests (no Hermes needed)
+python -m unittest discover -s tests -t .                   # fast unit tests (no Hermes needed)
 node tools/bundle/bundle.mjs --check                            # the generated files match page/
-node --test 'tests/desktop/**/*test*.mjs'                # page tests, including the built page in jsdom
+node --test 'tests/page/**/*test*.mjs'                # page tests, including the built page in jsdom
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
 python tools/ci/prepare_toolchain.py                        # install the toolchain the acceptance run needs
 python tools/ci/clean_install_check.py                      # clean install into a throwaway Hermes home
@@ -150,8 +152,8 @@ hermes -p hermretro tools list                           # the chromatic toolset
 it reports every tool and hook as "declared but not registered". That is expected; `clean_install_check.py`
 checks registration where it matters.
 
-The page test glob already includes the page scenario files (`tests/desktop/page-*.test.mjs`, sharing
-`tests/desktop/harness.mjs`); run one on its own only to read its full output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
+The page test glob already includes the page scenario files (`tests/page/page-*.test.mjs`, sharing
+`tests/page/harness.mjs`); run one on its own only to read its full output. Run the acceptance test through `python tools/check.py acceptance`, which picks a short temporary
 folder: its Unix socket path must stay under 104 characters (macOS's limit; Linux allows 108).
 
 The acceptance run writes its evidence to `notes/evidence/` (git-ignored, like everything in `notes/`).

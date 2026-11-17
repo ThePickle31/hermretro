@@ -13,7 +13,7 @@
  * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
  * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources, body), so a stale or hand-edited output is detected without
- * esbuild (here, and in tests/test_desktop_bundle.py).
+ * esbuild (here, and in tests/repo/test_desktop_bundle.py).
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
  * tools/npm/node_modules, or a Hermes Desktop checkout).
  */
@@ -46,7 +46,7 @@ const ART_ROW = 96
 const INVISIBLE = /[\u200b-\u200d\u2060\u2062-\u2064\ufeff\u202a-\u202e\u2066-\u2069]/
 const CLIMBS_TWICE = '..' + '/..'
 // What Hermes's admission lint refuses in a desktop plugin (hermes_cli/plugin_validate_desktop.py);
-// tests/test_desktop_bundle.py holds the same list.
+// tests/repo/test_desktop_bundle.py holds the same list.
 const REFUSED = {
   'code evaluated from a string': new RegExp('(?<![\\w$.])' + 'ev' + 'al\\(|\\bnew\\s+Function\\('),
   'a dynamic import': /\bimport\(/,

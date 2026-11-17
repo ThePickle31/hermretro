@@ -29,7 +29,7 @@
  * carries its own scoped stylesheet (shared/styles/, classes `cs-*`); every colour is a theme variable
  * (`var(--ui-*)`), so light, dark and every skin repaint it.
  * The artwork is the PNGs in shared/art/, embedded as data URLs by the bundler.
- * Look at it with tests/desktop/preview/build.mjs (light and dark).
+ * Look at it with tests/page/preview/build.mjs (light and dark).
  */
 
 import { host, jsx, PALETTE_AREA, ROUTES_AREA, SIDEBAR_NAV_AREA } from './sdk.js'

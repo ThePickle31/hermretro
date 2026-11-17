@@ -13,7 +13,7 @@ from pathlib import Path
 from ..system import host as host_os
 
 # What the engine's managed setup fetches for ["build", "emulator"]. Versions are the pins in
-# engine/modretro-chromatic/scripts/dependency-catalog.mjs (tests/test_onboarding.py keeps them in
+# engine/modretro-chromatic/scripts/dependency-catalog.mjs (tests/backend/setup/test_onboarding.py keeps them in
 # step). Sizes were measured on linux-x64; other platforms differ a little, so the page shows them
 # as approximate there.
 MEASURED_ON = "linux-x64"

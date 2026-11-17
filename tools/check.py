@@ -62,11 +62,11 @@ def check_unit(_args) -> str:
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")}
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests", *slowest], env={**env, "HOME": home})
+        result = run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest], env={**env, "HOME": home})
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-                             "python -m unittest tests/<file>.py")
+                             "python -m unittest tests/<area>/<feature>/test_<name>.py")
     if leaked:
         raise AssertionError("the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
                              "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
@@ -76,7 +76,10 @@ def check_unit(_args) -> str:
     # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
     timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
-    return (ran[-1] if ran else "ok") + slow
+    # tests/repo/test_layout.py prints what should be fixed soon (big files, missing READMEs) without failing.
+    warnings = sum("layout warning: " in line for line in lines)
+    noted = f"; {warnings} layout warnings (python -m unittest tests.repo.test_layout)" if warnings else ""
+    return (ran[-1] if ran else "ok") + noted + slow
 
 
 def check_bundle(args) -> str:
@@ -93,13 +96,13 @@ def check_bundle(args) -> str:
 
 def check_page(args) -> str:
     node = need("node")
-    result = run([node, "--test", "tests/desktop/**/*test*.mjs"])
+    result = run([node, "--test", "tests/page/**/*test*.mjs"])
     output = result.stdout + result.stderr
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
     if result.returncode:
         raise AssertionError(tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
-                             "tests/desktop/page-<name>.test.mjs, named in the failure above); after editing "
+                             "tests/page/page-<name>.test.mjs, named in the failure above); after editing "
                              "page/ run node tools/bundle/bundle.mjs first")
     counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
     return ", ".join(line[2:] for line in counts) or "ok"

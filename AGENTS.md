@@ -13,17 +13,21 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 |---|---|
 | `__init__.py`, `plugin.yaml` | The plugin's entry point and manifest (tools, hooks, RPCs, version) |
 | `backend/` | Python backend, one folder per feature: `broker/` (the broker process, engine workers), `hermes/` (everything that touches Hermes), `setup/`, `library/`, `assets/` (RPCs for the page), `player/` (the browser player server), `system/` (locations, Linux/macOS differences) |
-| `engine/modretro-chromatic/` | The vendored ModRetro engine. Hash-pinned by `engine/pins/`; changes are refused at run time |
+| `engine/` | `modretro-chromatic/`, the vendored ModRetro engine (changes are refused at run time), and `pins/<version>/` (its tool contracts and file manifest) |
 | `page/` | Source of the Hermes Desktop page and the player frame script: `app/`, one folder per page under `pages/`, `shared/`, `frame/` |
 | `desktop/plugin.js`, `player/frame-shim.js` | Generated from `page/` by `tools/bundle/bundle.mjs` and committed |
 | `player/` | The browser player served to the page, and the device art |
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
-| `schemas/`, `release/` | Pinned engine tool contracts and the engine's file manifest |
-| `tests/` | Python unit tests, `tests/desktop/` page tests, `tests/acceptance/` real-engine run |
-| `tools/` | `check.py` (all checks), `bundle.mjs` (page build), `dev/` (pinned npm tools for development only) |
-| `docs/dev/` | `ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
-| `.github/CONTRIBUTING.md`, `.github/SECURITY.md`, `.github/CODE_OF_CONDUCT.md` | For people opening pull requests or reporting problems |
+| `tests/` | Mirrors the code: `backend/<feature>/` unit tests, `page/` page tests, `repo/` repository-wide checks (lock step, version, layout, portability), `acceptance/` real-engine run; `support.py` temp-folder helpers |
+| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` (pinned npm tools for development only) |
+| `docs/dev/` | `ARCHITECTURE.md` (how it fits together, and the full folder Map), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
+| `.github/` | Workflows, templates, and `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` for people opening pull requests or reporting problems |
+
+Every file belongs to a folder in `tools/layout.toml`; `tests/repo/test_layout.py` fails on a file outside the map
+and on Python or page source over 600 lines (it warns above 400), and `tests/repo/test_portable.py` fails on a
+personal home folder, user id or name. A new folder gets a line in `tools/layout.toml` and the same line in the Map
+of `docs/dev/ARCHITECTURE.md`.
 
 ## Checks
 
@@ -80,14 +84,14 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - Agents never merge. The owner merges.
 - When two pull requests both change the page, the generated files conflict. Fix it with
   `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the two generated files.
-- Names that must change together are checked by `tests/test_lockstep.py`, whose opening comment lists every
+- Names that must change together are checked by `tests/repo/test_lockstep.py`, whose opening comment lists every
   place to edit when adding a plugin tool or an RPC (manifest, registration, page names, step words, docs) and
   which also keeps the engine version in agreement.
 - This guide changes in the same pull request as any command or rule it describes.
 
 ## Releases (only when the owner asks)
 
-The version lives only in `plugin.yaml` (`tests/test_version.py` refuses copies elsewhere); versions are
+The version lives only in `plugin.yaml` (`tests/repo/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
 
 1. Run `docs/dev/RELEASE-CHECKLIST.md` on a real machine (a MacBook at least), or say in the release notes that

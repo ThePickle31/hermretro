@@ -46,7 +46,7 @@ For development, tests and unusual setups; users need none of them.
 | `HERMRETRO_LANE_IDLE_SECONDS` | How long an idle chat's engine worker stays (default 1800) |
 | `HERMRETRO_WRITER_HANDOFF_SECONDS` | How long a chat keeps a project's writer lease while idle (default 45) |
 
-`tests/test_lockstep.py` checks that every `HERMRETRO_*` variable the backend reads is in this table.
+`tests/repo/test_lockstep.py` checks that every `HERMRETRO_*` variable the backend reads is in this table.
 
 ## Stopping the broker by hand
 

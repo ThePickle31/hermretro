@@ -16,10 +16,10 @@ single pull request (`chore/engine-<version>`).
    `engine/pins/<v>/tools.json`, in the same shape as the previous file (delete the old folder), and run `python tools/engine/reconcile_schemas.py engine/pins/<v>/tools.json` (it starts the engine and
    diffs every tool; keep its report as `engine/pins/<v>/schema-reconcile.json`).
 5. **Bump the version** in `backend/system/paths.py` (`ENGINE_VERSION`), the `version:` line of the five adapted skills,
-   and `THIRD_PARTY_NOTICES.md`. `python -m unittest tests/test_lockstep.py` lists anything missed.
+   and `THIRD_PARTY_NOTICES.md`. `python -m unittest tests/repo/test_lockstep.py` lists anything missed.
 6. **Compare the skills by hand**: diff `engine/modretro-chromatic/skills/` against the previous release and carry
    real changes into `skills/` (keep the Hermes edits and each `## In hermretro` section).
-7. **New or renamed tools**: `tests/test_lockstep.py` names every place (step words, manifest, CONTRACT counts).
+7. **New or renamed tools**: `tests/repo/test_lockstep.py` names every place (step words, manifest, CONTRACT counts).
 8. Run `python tools/check.py full` and the clean install; CI runs integration on Linux and macOS.
 
 Every existing prepared engine (`~/.hermes/hermretro/.cache/engine-<old version>`) is ignored after the bump; the
