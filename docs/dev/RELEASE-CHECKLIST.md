@@ -26,6 +26,16 @@ broker or `backend/system/host.py`), run this on a MacBook and on a Linux deskto
 
 Write the result (system, Hermes version, pass or what failed) in the release pull request.
 
+## Updating from the last release
+
+CI proves that the release users have now updates to the candidate: `python tools/ci/clean_install_check.py
+--update-from` installs the newest `v*` tag on `origin/main` into a throwaway Hermes home, uses it (studio profile,
+a library game with a thumbnail, a New Game chat, a running broker), then runs `hermes plugins update hermretro`
+and checks the update asks nothing, the new code registers only in `hermretro`, reads the library back and
+replaces the old broker. Nothing to edit when releasing: once the new tag is on `main`, every later run updates
+from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
+lives (`backend/system/paths.py`) or what the broker answers to `hello` must keep this check green, or migrate.
+
 ## Then release
 
 The release steps are in the agent guide ("Releases").

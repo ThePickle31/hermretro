@@ -162,16 +162,35 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
         )
 
 
-def try_connect(state_dir: Path) -> tuple[BrokerClient | None, Exception | None]:
+class BrokenBroker(BrokerUnavailable):
+    """A broker failed inside its own handshake, so it cannot say which code it runs. ``stopping`` tells
+    whether it agreed to stop."""
+
+    def __init__(self, hello: dict, stopping: bool):
+        super().__init__(json.dumps(hello))
+        self.stopping = stopping
+
+
+def try_connect(state_dir: Path, retire_broken: bool = False) -> tuple[BrokerClient | None, Exception | None]:
     try:
         client = BrokerClient(state_dir)
     except (BrokerUnavailable, FileNotFoundError, json.JSONDecodeError) as error:
         return None, error
     if client.hello.get("ok"):
         return client, None
-    error = BrokerUnavailable(json.dumps(client.hello))  # the token raced a restart
+    failure = BrokerUnavailable(json.dumps(client.hello))  # the token raced a restart
+    if retire_broken and "error" in client.hello and "denied" not in client.hello:
+        # The handshake failed inside the broker, after it had accepted the token. A broker of the releases
+        # before the backend/ layout does this once an update has removed adapter/, the folder it reads its
+        # fingerprint from: it can never be compared, and every attempt keeps it from idling out. Ask it to
+        # stop, as a broker of another build is asked.
+        try:
+            stopping = bool(client.request({"op": "shutdown"}).get("ok"))
+        except (BrokerUnavailable, ValueError):
+            stopping = False
+        failure = BrokenBroker(client.hello, stopping)
     client.close()
-    return None, error
+    return None, failure
 
 
 def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
@@ -188,9 +207,18 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
         )
     deadline = time.monotonic() + wait
     last: Exception | None = None
-    spawned = False
+    spawned: subprocess.Popen | None = None
     while time.monotonic() < deadline:
-        client, last = try_connect(state_dir)
+        client, last = try_connect(state_dir, retire_broken=True)
+        if isinstance(last, BrokenBroker):
+            if not last.stopping:
+                raise BrokerUnavailable(
+                    "The previous version of hermretro is still running games. Finish or close those chats "
+                    "(it stops by itself once they are idle), then try again."
+                )
+            time.sleep(0.4)
+            spawned = None
+            continue
         if client is not None:
             # Compared as real paths, read now: a plugin folder swapped for a link (a dev checkout) while
             # this process ran would otherwise look like another install and shut down every broker the
@@ -215,10 +243,10 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
                 return client
             client.close()
             time.sleep(0.4)
-            spawned = False
+            spawned = None
             continue
-        if not spawned:
-            spawn_broker(state_dir, node["path"])
-            spawned = True
+        # Again when the one started lost the election (exit 3) to a broker that was still stopping.
+        if spawned is None or spawned.poll() == 3:
+            spawned = spawn_broker(state_dir, node["path"])
         time.sleep(0.05)
     raise BrokerUnavailable(f"The hermretro broker did not start: {last}")

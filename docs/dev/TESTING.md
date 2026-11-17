@@ -11,6 +11,7 @@
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
+| update | `python tools/ci/clean_install_check.py --update-from [REF]` | ~55 s | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker replaced. Needs the tags (`git fetch --tags`) |
 
 One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
 for the page checks (Node 22 or newer). The checks never install anything themselves.
@@ -37,11 +38,12 @@ and `.dev/` are not linted.
 ## CI tiers
 
 - **Every pull request** (`.github/workflows/ci.yml`): unit on Linux (Python 3.11 and 3.14), Apple Silicon and
-  Intel macOS; bundle and page; scan; `plugins validate` and the clean install with the oldest supported Hermes.
+  Intel macOS; bundle and page; scan; `plugins validate`, the clean install and the update from the newest release
+  with the oldest supported Hermes.
   About 3 minutes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push.
-- **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install) on Linux and macOS,
+- **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
   and integration on Linux, Apple Silicon and Intel macOS.
 
 The single required check is **All checks pass**.

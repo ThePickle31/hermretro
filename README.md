@@ -145,6 +145,7 @@ node --test 'tests/page/**/*test*.mjs'                # page tests, including th
 python tests/acceptance/broker_acceptance.py             # real engine, compiler and emulator (~2 min)
 python tools/ci/prepare_toolchain.py                        # install the toolchain the acceptance run needs
 python tools/ci/clean_install_check.py                      # clean install into a throwaway Hermes home
+python tools/ci/clean_install_check.py --update-from        # the newest release, updated to this commit
 hermes -p hermretro tools list                           # the chromatic toolset, only in that profile
 ```
 

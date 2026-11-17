@@ -44,7 +44,8 @@ node tools/bundle/bundle.mjs --watch    # rebuild on every save
 node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (boundaries between pages)
 ```
 
-CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`)
+CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`;
+with `--update-from` it installs the newest release first and updates it to the commit)
 and, when a change touches `backend/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
 nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
 naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
