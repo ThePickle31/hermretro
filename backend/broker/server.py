@@ -46,16 +46,15 @@ class Handler(socketserver.StreamRequestHandler):
                         ):
                             raise Denied("UNAUTHENTICATED", "Handshake required.")
                         authenticated = True
-                        try:
-                            fingerprint = paths.code_fingerprint()
-                        except OSError:  # an update replaced or removed this broker's files: any client replaces it
-                            fingerprint = None
                         response = {
                             "ok": True,
                             "protocol": paths.PROTOCOL,
                             "broker_generation": broker.generation,
                             "pid": os.getpid(),
-                            "code_fingerprint": fingerprint,
+                            "code_fingerprint": broker.code_fingerprint,  # of the loaded code, never the disk
+                            # The same value, under the name clients trust: a broker that lacks it read its
+                            # fingerprint from disk at each hello and so cannot tell an update happened.
+                            "loaded_fingerprint": broker.code_fingerprint,
                             "plugin_root": str(paths.PLUGIN_ROOT),
                             "engine": broker.engine_check,
                         }
