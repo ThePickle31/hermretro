@@ -133,9 +133,28 @@ def approve(ctx, topic: str, words: str | None) -> int:
     record.update(path=str(path), approved={"at": state.now(), "words": words.strip(), "sha256": fingerprint(path)})
     state.save_plan(ctx.top, record)
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
-    ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
-    ctx.out.set(topic=topic, approved=record["approved"])
+    linked = linked_branches(ctx, topic)
+    if linked:
+        for row in linked:
+            where = row["worktree"] or "no worktree (git worktree add <folder> <branch> to go on)"
+            ctx.out.say(f"next: {row['branch']} already works under it: cd {where} && python tools/retrodev status")
+        ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
+    else:
+        ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
+    ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+def linked_branches(ctx, topic: str) -> list[dict]:
+    """The recorded branches working under this plan (named by --plan or plan link, or by their own topic), with
+    their worktree (None when it is gone)."""
+    trees = {str(tree.branch): str(tree.path) for tree in repo.worktrees(ctx.main()) if tree.path.is_dir()}
+    found = []
+    for record in state.branches(ctx.top):
+        branch = record.get("branch")
+        if branch and (record.get("plan") or record.get("topic")) == topic:
+            found.append({"branch": branch, "worktree": trees.get(branch) or None})
+    return sorted(found, key=lambda row: row["branch"])
 
 
 def link(ctx, topic: str) -> int:

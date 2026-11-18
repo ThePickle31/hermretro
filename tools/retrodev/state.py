@@ -28,6 +28,17 @@ def root(cwd: Path | str) -> Path:
     return Path(override).expanduser().resolve() if override else repo.common_dir(cwd) / "retrodev"
 
 
+def override_warning() -> str | None:
+    """A line naming RETRODEV_STATE_DIR when it is set: a leaked override silently redirects every record."""
+    value = os.environ.get("RETRODEV_STATE_DIR")
+    if not value:
+        return None
+    return (
+        f"warning: RETRODEV_STATE_DIR={value} moves retrodev's records out of the main checkout's .git/retrodev "
+        "(meant for a sandbox or trial; if it leaked into this shell: unset RETRODEV_STATE_DIR)"
+    )
+
+
 def now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
 

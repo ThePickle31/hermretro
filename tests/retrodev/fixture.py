@@ -7,8 +7,11 @@ bundle generator. Git runs with a throwaway global config and identity, so nothi
 
 Speed: every test has its own folders and passes its own working folder, output stream and gh to retrodev, so
 `parallel()` runs a module's tests on threads (git and Python subprocesses dominate), with the one environment
-they share set once around them. Run alone (python -m unittest tests.retrodev.test_x.Case.test_y), a test sets
-that environment itself.
+they share set once around them. Under discovery the package's load_tests (`one_pool`) puts every module's tests
+in ONE pool (a module without `parallel` joins it class by class; `alone` keeps a module out of it). The threads
+share one interpreter lock, so the per-test copy and removal run as cp and rm. Never patch a module's global in
+a test (mock.patch.object): another thread may be using it; set up the real state instead. Run alone (python -m
+unittest tests.retrodev.test_x.Case.test_y), a test sets that environment itself.
 """
 
 from __future__ import annotations
@@ -16,19 +19,19 @@ from __future__ import annotations
 import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import tomllib
 import unittest
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
 import retrodev
 from retrodev import cli, state
+
+from tests.retrodev.pool import SHARED, alone, one_pool, parallel  # noqa: F401 (the modules import them from here)
 
 POLICY = Path(retrodev.__file__).with_name("policy.toml")
 
@@ -202,80 +205,6 @@ def shared_env() -> dict:
     return env
 
 
-class _Recorded(unittest.TestResult):
-    """Keeps every call a test makes on its result, to replay them on the real one in order."""
-
-    def __init__(self):
-        super().__init__()
-        self.calls: list[tuple[str, tuple]] = []
-
-    def __getattribute__(self, name):
-        attr = super().__getattribute__(name)
-        if name in REPLAYED:
-            calls = super().__getattribute__("calls")
-
-            def record(*args):
-                calls.append((name, args))
-                return attr(*args)
-
-            return record
-        return attr
-
-
-REPLAYED = {
-    "startTest",
-    "stopTest",
-    "addSuccess",
-    "addError",
-    "addFailure",
-    "addSkip",
-    "addExpectedFailure",
-    "addUnexpectedSuccess",
-    "addSubTest",
-    "addDuration",
-}
-_SHARED = {"on": False}
-
-
-class ParallelSuite(unittest.BaseTestSuite):
-    def run(self, result, debug=False):
-        tests = list(_flatten(self))
-        if not tests:
-            return result
-
-        def one(test):
-            recorded = _Recorded()
-            test(recorded)
-            return recorded.calls
-
-        with mock.patch.dict(os.environ, shared_env(), clear=True):
-            _SHARED["on"] = True
-            try:
-                with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 2, len(tests))) as pool:
-                    outcomes = list(pool.map(one, tests))
-            finally:
-                _SHARED["on"] = False
-        for calls in outcomes:
-            for name, args in calls:
-                method = getattr(result, name, None)
-                if method is not None:
-                    method(*args)
-        return result
-
-
-def _flatten(suite):
-    for item in suite:
-        if isinstance(item, unittest.TestSuite | unittest.BaseTestSuite):
-            yield from _flatten(item)
-        else:
-            yield item
-
-
-def parallel(loader, tests, pattern):
-    """A module's load_tests: its tests on threads (each RepoCase is independent)."""
-    return ParallelSuite(list(_flatten(tests)))
-
-
 class FakeGH:
     """Answers gh calls from a table of (argument prefix -> (code, stdout, stderr)); records every call."""
 
@@ -303,17 +232,22 @@ class RepoCase(unittest.TestCase):
     """Each test gets its own copy of the template (main checkout, origin, worktree root beside them)."""
 
     def setUp(self):
-        temp = tempfile.TemporaryDirectory(prefix="retrodev-")
-        self.addCleanup(temp.cleanup)
-        self.base = Path(temp.name).resolve()
-        if not _SHARED["on"]:  # run alone, not through parallel(): set the shared environment here
+        self.base = Path(tempfile.mkdtemp(prefix="retrodev-")).resolve()
+        # Copied and removed by cp and rm, outside this process: the threads share one interpreter lock, and
+        # Python's own copy and removal of a test's folders were most of what they waited for.
+        self.addCleanup(subprocess.run, ["rm", "-rf", str(self.base)], check=True)
+        if not SHARED["on"]:  # run alone, not through parallel(): set the shared environment here
             patch = mock.patch.dict(os.environ, shared_env(), clear=True)
             patch.start()
             self.addCleanup(patch.stop)
-        shutil.copytree(Template.get(), self.base, dirs_exist_ok=True, symlinks=True)
+        template = Template.get()
+        subprocess.run(["cp", "-R", f"{template}/.", str(self.base)], check=True)
         self.main = self.base / "hermretro"
         self.origin = self.base / "origin.git"
-        git(self.main, "remote", "set-url", "origin", str(self.origin))
+        config = self.main / ".git" / "config"  # the origin's address, as git remote set-url writes it
+        text = config.read_text()
+        assert str(template / "origin.git") in text, text  # never push into the template's origin
+        config.write_text(text.replace(str(template / "origin.git"), str(self.origin)))
         self.gh = FakeGH()
         self.fakes: dict = {}  # passed to retrodev as Context.fakes (the reviewer's runner, its database, sleep)
 

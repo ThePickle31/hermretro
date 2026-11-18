@@ -8,6 +8,8 @@ win over the policy's [config] defaults. Only keys the policy declares can be se
 
 from __future__ import annotations
 
+import copy
+import functools
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -23,7 +25,13 @@ def load_policy(top: Path) -> dict:
     """The policy of the checkout being worked on (its own rules), else the one beside this code."""
     candidate = top / "tools" / "retrodev" / "policy.toml"
     path = candidate if candidate.is_file() else OWN_POLICY
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return copy.deepcopy(_parse(path.read_text(encoding="utf-8")))
+
+
+@functools.lru_cache(maxsize=8)
+def _parse(text: str) -> dict:
+    # Keyed by the text, so an edited policy is read anew (check --watch); every command makes several contexts.
+    return tomllib.loads(text)
 
 
 def local_path(cwd: Path | str) -> Path:
@@ -65,13 +73,17 @@ class Context:
     policy: dict = field(default_factory=dict)
     local: dict = field(default_factory=dict)
     fakes: dict = field(default_factory=dict)
+    started: Path = Path()  # where the command was started (kept by at(): a removed worktree may be the shell's)
 
     @classmethod
-    def make(cls, cwd: Path | str, out: Out, gh_runner=None, fakes: dict | None = None) -> Context:
+    def make(
+        cls, cwd: Path | str, out: Out, gh_runner=None, fakes: dict | None = None, started: Path | None = None
+    ) -> Context:
         cwd = Path(cwd).resolve()
         top = repo.toplevel(cwd)
         return cls(
             cwd=cwd,
+            started=started or cwd,
             out=out,
             gh_runner=gh_runner,
             top=top,
@@ -82,7 +94,7 @@ class Context:
 
     def at(self, path: Path | str) -> Context:
         """The same command's context in another checkout (a worktree, or the main checkout)."""
-        return Context.make(path, self.out, gh_runner=self.gh_runner, fakes=self.fakes)
+        return Context.make(path, self.out, gh_runner=self.gh_runner, fakes=self.fakes, started=self.started)
 
     def get(self, key: str) -> str:
         if key not in self.policy["config"]:

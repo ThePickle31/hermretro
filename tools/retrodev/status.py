@@ -8,6 +8,8 @@ CI) and the next step as one line. In the main checkout: every open record and w
 
 from __future__ import annotations
 
+import os
+
 from . import gates, github, plan, repo, reviews, state
 
 
@@ -108,6 +110,10 @@ def show_branch(ctx, facts: dict) -> None:
 def run(ctx) -> int:
     branch = repo.branch(ctx.top)
     main = ctx.main()
+    warning = state.override_warning()
+    if warning:
+        ctx.out.say(warning)
+        ctx.out.set(state_override=os.environ["RETRODEV_STATE_DIR"])
     if branch and branch not in ctx.policy["branches"]["protected"]:
         record = state.load_branch(ctx.top, branch) if state.branch_path(ctx.top, branch).is_file() else {}
         facts = branch_facts(ctx, branch, ctx.top, record)

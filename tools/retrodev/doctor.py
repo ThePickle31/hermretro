@@ -19,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import github, repo, reviews
+from . import github, repo, reviews, state
 from .checks import short_tmp
 from .review import runner as review_runner
 from .output import Failure
@@ -230,6 +230,10 @@ def reviewer(ctx) -> list[dict]:
 
 
 def run(ctx, everything: bool = False) -> int:
+    warning = state.override_warning()
+    if warning:
+        ctx.out.say(warning)
+        ctx.out.set(state_override=os.environ["RETRODEV_STATE_DIR"])
     rows = tools(ctx) + checkout(ctx)
     for row in rows:
         ctx.out.say(f"  {'ok' if row['ok'] else 'NO':>2}  {row['name']}: {row['detail']}")

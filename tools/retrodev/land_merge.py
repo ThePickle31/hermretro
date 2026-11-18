@@ -74,6 +74,7 @@ def finish(ctx, number: int, rec: dict) -> int:
         gc.run(ctx.at(tops), only=landing["branch"])
         landing["gc"] = True
         reviews.save(ctx, rec)
-    ctx.out.say(f"next: python tools/retrodev summary {number} (the step-8 note for the owner)")
+    move = f"cd {ctx.out.data['cd']} && " if ctx.out.data.get("cd") else ""  # gc removed the folder it started in
+    ctx.out.say(f"next: {move}python tools/retrodev summary {number} (the step-8 note for the owner)")
     ctx.out.set(merged=True, head=landing["head"], action="merged", landing=landing)
     return 0
