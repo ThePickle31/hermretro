@@ -7,6 +7,7 @@ Run alone: python -m unittest tests.retrodev.test_land_sync
 import json
 import unittest
 
+from retrodev import land_carry
 from retrodev.review import records
 
 from tests.retrodev.fixture import git, parallel
@@ -129,7 +130,17 @@ class DevMergedAfterReview(LandCase):
     def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
         """Both sides change a binary file and sync keeps the branch's: the merged tree equals git's own merge
         (0 lines differ), but a binary conflict cannot be judged in lines, so it is reviewed."""
-        art = "player/art.bin"
+        self.binary_conflict_kept_as_ours("player/art.bin")
+
+    def test_a_binary_conflict_on_a_non_ascii_name_still_needs_a_new_round(self):
+        """git quotes a non-ASCII name (core.quotePath); the conflicted path must still be the real file, not a
+        quoted name that matches nothing and so checks nothing."""
+        self.binary_conflict_kept_as_ours("player/caf\u00e9.bin")
+
+    def test_a_binary_conflict_on_a_name_with_a_double_quote_still_needs_a_new_round(self):
+        self.binary_conflict_kept_as_ours('player/say "hi".bin')
+
+    def binary_conflict_kept_as_ours(self, art):
         tree = self.open_pr(change=lambda t: self.commit_bytes(t, art, b"\x00\x01ours\x00" * 40))
         self.ci(PENDING, code=8)
         self.reviewer("OK\n", reply("s1"))
@@ -201,3 +212,26 @@ class DevMergedAfterReview(LandCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MergeTreeOutput(unittest.TestCase):
+    OID = "0" * 40
+
+    def test_reads_the_tree_and_the_conflicted_paths_as_they_are(self):
+        out = f"{self.OID}\0player/caf\u00e9.bin\0say \"hi\".bin\0\0" + "1\0say \"hi\".bin\0CONFLICT (binary)\0msg\n\0"
+        parsed = land_carry.merge_tree_output(1, out)
+        self.assertEqual(parsed, (self.OID, ["player/caf\u00e9.bin", 'say "hi".bin']))
+        self.assertEqual(land_carry.merge_tree_output(0, self.OID + "\0"), (self.OID, []))
+
+    def test_anything_it_cannot_read_is_none_so_a_review_is_due(self):
+        for code, out in [
+            (1, self.OID + "\n\"player/caf\\303\\251.bin\"\n"),  # without -z: quoted, newline separated
+            (1, self.OID + "\0"),  # a conflict with no path
+            (1, self.OID + "\0a.bin\0"),  # no messages section
+            (0, self.OID + "\0a.bin\0"),  # clean, yet paths follow
+            (2, self.OID + "\0"),
+            (0, "not-a-tree\0"),
+            (0, ""),
+        ]:
+            with self.subTest(out=out):
+                self.assertIsNone(land_carry.merge_tree_output(code, out))
