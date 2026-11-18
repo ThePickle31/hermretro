@@ -225,7 +225,10 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             # new files start, in a loop.
             theirs = client.hello.get("plugin_root")
             other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
-            if client.hello.get("code_fingerprint") == paths.code_fingerprint() and not other_install:
+            # Only loaded_fingerprint counts: brokers of builds without it named the files on disk, which after
+            # an update are the new build's, so their code_fingerprint matched while they ran the old code.
+            loaded = client.hello.get("loaded_fingerprint")
+            if loaded is not None and loaded == paths.code_fingerprint() and not other_install:
                 return client
             # A broker from another build of this backend. Replace it only when no conversation
             # has a live worker; otherwise keep using it (same wire protocol) rather than kill
