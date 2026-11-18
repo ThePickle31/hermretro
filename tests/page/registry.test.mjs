@@ -127,12 +127,13 @@ test('pages listen for their whole life: a cover request and a presentation reac
   assert.deepEqual(BUILD_PRESENTED.get().frog, { seq: 3, note: 'try it', t: 5 })
 })
 
-// Filling a real slot changes only its line in `contributions` below; the empty case uses a table of its own.
-test('slots: the real ones are declared, and what fills each', () => {
+// Filling a real slot changes only the `filled` assertion below (a new, empty slot only the declared list); the
+// empty case renders on a table of its own.
+test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual([...PAGE_SLOTS.declared().keys()].sort(), ['emulator.barActions', 'games.cardMenu'])
-  const contributions = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]))
+  const filled = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]).filter(([, list]) => list.length))
 
-  assert.deepEqual(contributions, { 'emulator.barActions': [InstallButton], 'games.cardMenu': [] })
+  assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
 })
 
 test('an empty slot renders nothing', async () => {
