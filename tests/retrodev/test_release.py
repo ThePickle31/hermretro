@@ -8,7 +8,7 @@ import unittest
 
 from retrodev import release_verify, state
 
-from tests.retrodev.fixture import RepoCase, git, parallel
+from tests.retrodev.fixture import RepoCase, git, parallel, write
 
 load_tests = parallel
 
@@ -91,6 +91,25 @@ class Prepare(ReleaseCase):
         ran = [entry.get("names") or entry.get("script") for entry in self.check_log()]
         self.assertIn(["acceptance"], ran)  # plugin.yaml changed: the real-engine run and the clean install too
 
+    def test_a_reused_release_worktree_that_is_dirty_off_branch_or_carries_more_is_refused(self):
+        self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
+        tree = self.worktree(f"chore/release-{NEXT}")
+        write(tree, "docs/guide.md", "# Unrelated work\n")  # dirty: commit -a would have taken it
+        code, data = self.run_cli("release", "prepare", "--owner-words", WORDS, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("uncommitted changes", data["error"]["message"])
+        self.assertIn("git worktree remove", data["error"]["fix"])
+        self.commit(tree, "docs/guide.md", "# Unrelated work\n", "Unrelated")  # committed: still not a release
+        code, data = self.run_cli("release", "prepare", "--owner-words", WORDS, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("more than plugin.yaml's version line (docs/guide.md", data["error"]["message"])
+        git(tree, "switch", "-q", "-c", "feat/elsewhere", "origin/dev")  # the right folder, the wrong branch
+        code, data = self.run_cli("release", "prepare", "--owner-words", WORDS, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn(f"not chore/release-{NEXT}", data["error"]["message"])
+        self.assertEqual(self.gh.called("pr", "create"), [])
+        self.assertEqual(self.remote(f"refs/heads/chore/release-{NEXT}"), "", "nothing was pushed")
+
     def test_an_rc_is_numbered_after_the_last_candidate(self):
         git(self.main, "tag", f"v{NEXT}-rc.1", "HEAD")
         self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
@@ -170,6 +189,33 @@ class Publish(ReleaseCase):
         self.assertEqual(len(self.gh.called("release", "create")), 1, "nothing is done twice")
         self.assertEqual(len(self.check_log()), 1, "the update check's pass is kept for this commit")
 
+    def test_a_retry_after_dev_moves_releases_the_commit_the_first_publish_chose(self):
+        sha = self.merged_release(pr=None)  # no version pull request: the release commit is dev's head
+        self.gh.answers[("release", "create")] = (1, "", "HTTP 502")  # stopped after the tag was pushed
+        code, data = self.publish()
+        self.assertEqual(code, 1, data)
+        self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), sha)
+        self.assertEqual(state.load_release(self.main, NEXT)["sha"], sha, "kept before any step ran")
+        self.on_dev("docs/later.md", "# Later\n")  # dev moves on before the retry
+        moved = git(self.base / "other", "rev-parse", "HEAD").strip()
+        self.ci(moved, runs("success"))
+        self.gh.answers[("release", "create")] = (0, URL + "\n", "")
+        code, data = self.publish()
+        self.assertEqual(code, 0, data)
+        self.assertEqual((data["sha"], self.remote("refs/heads/main")), (sha, sha))
+        self.assertEqual(state.load_release(self.main, NEXT)["approved"]["sha"], sha)
+
+    def test_a_retry_before_tagging_keeps_the_chosen_commit_too(self):
+        sha = self.merged_release(pr=None)
+        self.ci(sha, runs(None, "in_progress"))
+        self.assertEqual(self.publish()[0], 2)  # waits for CI, nothing done yet
+        self.on_dev("docs/later.md", "# Later\n")
+        self.ci(git(self.base / "other", "rev-parse", "HEAD").strip(), runs("success"))
+        self.ci(sha, runs("success"))
+        code, data = self.publish()
+        self.assertEqual((code, data.get("sha")), (0, sha), data)
+        self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), sha)
+
     def test_a_release_candidate_tags_dev_and_leaves_main_alone(self):
         version = f"{NEXT}-rc.1"
         sha = self.merged_release(version, pr=None, words="make a release candidate")
@@ -202,6 +248,47 @@ class Verify(ReleaseCase):
         self.assertEqual(code, 0, out)
         self.assertIn("immutable", out)
         self.assertEqual(self.gh.called("release", "edit"), [["release", "edit", f"v{NEXT}", "--draft=false"]])
+
+    def test_publish_needs_the_owners_words(self):
+        self.released()
+        record = state.load_release(self.main, NEXT)
+        del record["words"]
+        state.save_release(self.main, record)
+        code, data = self.run_cli("release", "verify", NEXT, "--publish", as_json=True)
+        self.assertEqual((code, self.failed_gates(data)), (3, ["owner asked for this release"]), data)
+        self.assertEqual(self.gh.called("release", "edit"), [])
+        self.assertEqual(self.run_cli("release", "verify", NEXT, as_json=True)[0], 0, "read-only verify still works")
+
+    def test_publish_needs_ci_green_on_the_tagged_commit(self):
+        sha = self.released()
+        self.ci(sha, runs("failure"))
+        code, data = self.run_cli("release", "verify", NEXT, "--publish", as_json=True)
+        self.assertEqual((code, self.failed_gates(data)), (1, [f"CI green on {sha[:9]}"]), data)
+        self.assertEqual(self.gh.called("release", "edit"), [])
+
+    def test_a_hand_made_candidate_draft_or_a_moved_tag_is_never_published(self):
+        version = f"{NEXT}-rc.1"
+        sha = self.merged_release(version, pr=None, words="make a release candidate")
+        git(self.main, "tag", f"v{version}", sha)  # made by hand: release publish never ran
+        git(self.main, "push", "-q", "origin", f"refs/tags/v{version}")
+        view = {"tagName": f"v{version}", "isDraft": True, "isPrerelease": True, "body": "- A thing", "url": URL}
+        self.gh.answers[("release", "view", f"v{version}", "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        code, data = self.run_cli("release", "verify", version, "--publish", as_json=True)
+        self.assertEqual((code, self.failed_gates(data)), (3, ["release publish approved this commit"]), data)
+        record = state.load_release(self.main, version)
+        record["approved"] = {"sha": sha, "at": "then"}  # publish approved sha; then the tag moves to a later commit
+        state.save_release(self.main, record)
+        self.on_dev("docs/later.md", "# Later\n")
+        later = git(self.base / "other", "rev-parse", "HEAD").strip()
+        git(self.main, "fetch", "-q", "origin")
+        git(self.main, "tag", "-f", f"v{version}", later)
+        git(self.main, "push", "-q", "-f", "origin", f"refs/tags/v{version}")
+        self.ci(later, runs("success"))
+        code, data = self.run_cli("release", "verify", version, "--publish", as_json=True)
+        self.assertEqual(code, 3, data)
+        self.assertIn("release publish approved this commit", self.failed_gates(data))
+        self.assertEqual(self.gh.called("release", "edit"), [])
 
     def test_empty_notes_or_a_tag_off_mains_head_are_refused(self):
         self.released(body="  ")

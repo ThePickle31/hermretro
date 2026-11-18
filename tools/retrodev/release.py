@@ -141,6 +141,25 @@ def set_version(path: Path, version: str) -> None:
     manifest.write_text(new, encoding="utf-8")
 
 
+def release_only(ctx, path: Path, branch: str) -> None:
+    """A release worktree (new or reused) is on its branch, clean, and differs from the base only by plugin.yaml's
+    version line: the release pull request's body says exactly that, so nothing else may ride along."""
+    redo = f"git worktree remove {path} (after saving anything in it you want), then release prepare again"
+    on = repo.git(["branch", "--show-current"], path, check=False).strip()
+    if on != branch:
+        raise Failure(f"{path} is on '{on or 'a detached HEAD'}', not {branch}", redo)
+    dirty = repo.git(["status", "--porcelain"], path, check=False).strip()
+    if dirty:
+        raise Failure(f"{path} has uncommitted changes:\n{dirty[:600]}", f"commit or drop them elsewhere; {redo}")
+    span = f"{ctx.remote_base}...HEAD"  # since the branch left the base
+    names = repo.git(["diff", "--name-only", span], path, check=False).split()
+    lines = repo.git(["diff", "-U0", span, "--", "plugin.yaml"], path, check=False).splitlines()
+    changed = [line for line in lines if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+    if set(names) - {"plugin.yaml"} or any(not VERSION_LINE.match(line[1:]) for line in changed):
+        shown = ", ".join(names) + ("" if not changed else "; plugin.yaml: " + " | ".join(changed[:6]))
+        raise Failure(f"{branch} changes more than plugin.yaml's version line ({shown[:600]})", redo)
+
+
 def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) -> int:
     words = words_gate(words)
     repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.main())
@@ -149,6 +168,8 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
     if found and found.get("published"):
         raise Failure(f"{version} is published already", f"python tools/retrodev release verify {version}")
     record = found or {"version": version}
+    for chosen in ("sha", "approved"):  # asked again: publish chooses the commit afresh (an existing tag still holds)
+        record.pop(chosen, None)
     record.update(words=words, at=state.now(), rc=rc, base_version=current)
     title = f"Release {stable(version)}"
     ctx.out.set(version=version, title=title, pr_needed=needs_pr)
@@ -169,9 +190,12 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
     if not path.exists():
         start.run(ctx, branch, no_plan=True)
     tree = ctx.at(path)
+    release_only(tree, path, branch)
     if version_at(tree, "HEAD") != stable(version):
         set_version(path, stable(version))
-        repo.git(["commit", "--quiet", "-am", title], path)
+        repo.git(["add", "--", "plugin.yaml"], path)
+        repo.git(["commit", "--quiet", "-m", title], path)  # only the staged manifest, never commit -a
+        release_only(tree, path, branch)
         ctx.out.say(f"committed: {title} (plugin.yaml version {current} to {stable(version)})")
     resume = (
         f"cd {path} && python tools/retrodev check && python tools/retrodev ship --title '{title}' --body {body_file}"

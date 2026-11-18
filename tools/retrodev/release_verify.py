@@ -5,15 +5,18 @@ remote; for a stable release it points at main's head and plugin.yaml there says
 it is a prerelease on a base-branch commit. Then `tools/ci/clean_install_check.py --update-from v<previous stable>`
 runs on the tagged commit in a throwaway checkout: users of the last release update to it. With --publish and
 everything ok, it says that a published release is immutable and runs `gh release edit v<version> --draft=false`.
+--publish also needs the authorization: the owner's words recorded for this version (release prepare), the tag at
+the very commit `release publish` approved after all its gates passed (kept in the release record), and the
+required CI job green on that commit. So a draft made by hand, or a tag moved since, is never published.
 """
 
 from __future__ import annotations
 
 import json
 
-from . import gates, github, release, repo, state, trial
+from . import gates, github, release, release_publish, repo, state, trial
 from .gates import Gate
-from .output import Failure
+from .output import OWNER, Failure
 
 FIELDS = "tagName,isDraft,isPrerelease,body,url,name"
 
@@ -28,6 +31,34 @@ def remote_tag(ctx, tag: str) -> str | None:
 def remote_head(ctx, branch: str) -> str | None:
     _code, out, _err = repo.run(["git", "ls-remote", "--heads", ctx.remote, f"refs/heads/{branch}"], ctx.top)
     return out.split("\t")[0].strip() or None
+
+
+def authorized(ctx, version: str, sha: str | None) -> list[Gate]:
+    """--publish only: the owner's words, publish's approval of exactly this commit, CI green on it."""
+    rec = state.load_release(ctx.top, version) or {}
+    prepare = f'python tools/retrodev release prepare{" --rc" if "-rc." in version else ""} --owner-words "..."'
+    found = [
+        gates.passed("owner asked for this release", f'{rec.get("at")}: "{rec["words"]}"')
+        if rec.get("words")
+        else Gate(
+            "owner asked for this release",
+            False,
+            f"no owner's words are recorded for {version}: a release is published only when the owner asks",
+            f"ask the owner; when they say it: {prepare}, then release publish {version}",
+            OWNER,
+        )
+    ]
+    approved = (rec.get("approved") or {}).get("sha")
+    name = "release publish approved this commit"
+    if not sha or approved != sha:
+        why = f"publish approved {approved[:9]}" if approved else "release publish never passed its gates"
+        found.append(
+            Gate(name, False, f"{why}; the tag is at {(sha or 'nothing')[:9]}", f"release publish {version}", OWNER)
+        )
+        return found
+    found.append(gates.passed(name, f"{sha[:9]} at {rec['approved'].get('at')}"))
+    found.append(release_publish.ci_gate(ctx, sha))
+    return found
 
 
 def run(ctx, version: str, publish: bool = False) -> int:
@@ -94,6 +125,8 @@ def run(ctx, version: str, publish: bool = False) -> int:
             if result["ok"]
             else Gate("update from the last release", False, detail, "read the update check's FIX above")
         )
+    if publish and info.get("isDraft"):
+        found += authorized(ctx, version, sha)
     gates.enforce(ctx, found, f"release verify {version}")
     ctx.out.say(f"{tag} checks out: {info.get('url')}")
     if not info.get("isDraft"):

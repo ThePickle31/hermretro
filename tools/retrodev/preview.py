@@ -23,8 +23,11 @@ from .output import OK, Failure
 SCRIPT = "tests/page/preview/build.mjs"
 
 
-def desktop_dir(given: str | None) -> Path:
-    return Path(given).expanduser().resolve() if given else hermes_source() / "apps" / "desktop"
+def desktop_dir(given: str | None, source: Path | None = None) -> Path:
+    """The Desktop folder, symlinks resolved either way: the build links its stylesheets by this path, and the
+    server serves only the resolved assets folder, so both must name the same one."""
+    folder = Path(given).expanduser() if given else (source or hermes_source()) / "apps" / "desktop"
+    return folder.resolve()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -73,7 +76,7 @@ def build(ctx, out: Path, desktop: Path) -> Path:
 
 def run(ctx, serve: bool = False, out_dir: str | None = None, desktop: str | None = None) -> int:
     out = Path(out_dir).expanduser().resolve() if out_dir else state.root(ctx.top) / "preview"
-    folder = desktop_dir(desktop)
+    folder = desktop_dir(desktop, ctx.fakes.get("hermes_source"))
     index = build(ctx, out, folder)
     ctx.out.say(str(index))
     ctx.out.say(f"open: file://{index}?s=choice&mode=dark&p=home (p = home, setup, prompts, games, emulator)")
@@ -85,7 +88,7 @@ def run(ctx, serve: bool = False, out_dir: str | None = None, desktop: str | Non
     ctx.out.set(url=url)
     ctx.out.say(f"serving {out} on {url} (loopback only; Ctrl+C stops)")
     try:
-        server.serve_forever()
+        (ctx.fakes.get("preview_serve") or (lambda running: running.serve_forever()))(server)
     except KeyboardInterrupt:
         ctx.out.say("stopped")
     finally:

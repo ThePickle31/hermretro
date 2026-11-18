@@ -27,16 +27,22 @@ from .gates import Gate
 from .output import OWNER, WAITING, Failure
 
 MAIN = "main"
+REPICK = (
+    "ask the owner; python tools/retrodev release prepare again forgets the chosen commit (the tag gate still holds)"
+)
 
 
 def commit_gate(ctx, rec: dict | None, version: str) -> tuple[str | None, Gate]:
-    """The release commit: the version pull request's merge commit, else the base branch's head."""
+    """The release commit: the version pull request's merge commit, else the base branch's head when publish first
+    ran (kept in the record as "sha", so a retry releases the same commit however the base branch moved since)."""
     name = "release pull request merged"
     if not rec:
         return None, Gate(name, False, f"no release {version} is recorded", "release prepare first", OWNER)
+    pinned = rec.get("sha")
     if not rec.get("pr"):
-        sha = repo.head(ctx.top, ctx.remote_base)
-        return sha, gates.passed(name, f"no version pull request was needed; {ctx.remote_base} at {(sha or '')[:9]}")
+        sha = pinned or repo.head(ctx.top, ctx.remote_base)
+        how = f"kept from the first publish ({pinned[:9]})" if pinned else f"{ctx.remote_base} at {(sha or '')[:9]}"
+        return sha, gates.passed(name, f"no version pull request was needed; {how}")
     number = rec["pr"]
     code, out, err = github.gh(ctx, ["pr", "view", str(number), "--json", "state,mergeCommit"], check=False)
     info = json.loads(out) if code == 0 and out.strip() else {}
@@ -50,6 +56,8 @@ def commit_gate(ctx, rec: dict | None, version: str) -> tuple[str | None, Gate]:
             f"python tools/retrodev land {number} (after the owner's approve), then publish again",
             WAITING,
         )
+    if pinned and pinned != sha:
+        return None, Gate(name, False, f"#{number} merged as {sha[:9]}, but publish chose {pinned[:9]}", REPICK, OWNER)
     return sha, gates.passed(name, f"#{number} merged as {sha[:9]}")
 
 
@@ -177,6 +185,9 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
         found.append(gates.passed("owner asked for this release", f'{rec["at"]}: "{rec["words"]}"'))
     sha, gate = commit_gate(ctx, rec, version)
     found.append(gate)
+    if sha and rec and not dry_run and rec.get("sha") != sha:
+        rec["sha"] = sha  # chosen once, before any check or step: a retry releases this commit, revalidated
+        state.save_release(ctx.top, rec)
     tag_now = "new"
     if sha:
         on_base = repo.is_ancestor(ctx.top, sha, ctx.remote_base)
@@ -203,6 +214,9 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
     gates.enforce(ctx, found + [install_gate(ctx, rec, sha, dry_run)], f"release publish {version}")
     todo = steps(ctx, version, sha, rc, tag_now)
     ctx.out.set(version=version, sha=sha, rc=rc, dry_run=dry_run, commands=[shown(s) for s in todo])
+    if not dry_run:  # release verify --publish publishes only a tag at this commit
+        rec["approved"] = {"sha": sha, "at": state.now(), "gates": [gate.name for gate in found]}
+        state.save_release(ctx.top, rec)
     if dry_run:
         ctx.out.say("would run:")
         for step in todo:

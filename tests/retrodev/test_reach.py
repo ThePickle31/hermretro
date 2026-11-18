@@ -4,10 +4,12 @@ Run alone: python -m unittest tests.retrodev.test_reach
 """
 
 import io
+import subprocess
 import threading
 import unittest
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from retrodev import config, mac, output, preview
 
@@ -102,14 +104,53 @@ class Mac(RepoCase):
         sha = git(tree, "rev-parse", "HEAD").strip()
         host, command = ssh.calls[-1]
         self.assertEqual(host, "mbp")
-        self.assertEqual(
+        self.assertTrue(command.startswith("cd ~/Projects/hermretro && git fetch --quiet origin && "), command)
+        self.assertIn(f'git worktree add --quiet --detach "$tree" {sha} && ', command)
+        self.assertIn('(cd "$tree" && python3 tools/check.py unit page)', command)
+        self.assertTrue(
+            command.endswith('rm -rf "$tmp"; git worktree prune; exit $code'),
             command,
-            f"cd ~/Projects/hermretro && git fetch --quiet origin && git -c advice.detachedHead=false checkout --quiet "
-            f"--detach {sha} && python3 tools/check.py unit page",
         )
+        for never in ("checkout", "reset", "stash", "clean"):
+            self.assertNotIn(never, command, "the clone's own checkout is never switched or reset")
         self.assertIn("ok  unit", out)
         ssh.code = 1
         self.assertEqual(self.run_cli("mac", "--host", "mbp", cwd=tree)[0], 1)
+
+    def test_the_mac_script_tests_the_pushed_commit_not_the_clones_local_changes(self):
+        """The script itself, run by a local shell against a clone with uncommitted changes (the mac stand-in)."""
+        clone = self.base / "macclone"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(clone))
+        broken = "import sys\nprint('the local change ran')\nsys.exit(7)\n"
+        write(clone, "tools/check.py", broken)  # a local edit on the mac that must neither run nor be lost
+        tree = self.worktree("feat/thing")
+        self.commit(tree, "docs/guide.md", "# Guide 2\n")
+        git(tree, "push", "-q", "origin", "feat/thing")
+        sha = git(tree, "rev-parse", "HEAD").strip()
+        (self.base / "mactmp").mkdir()
+        self.fakes["mac_tmp"] = self.base / "mactmp"
+        lines = []
+
+        def local_ssh(args, say):
+            if args[-1] == "true":
+                return 0
+            done = subprocess.run(["sh", "-c", args[-1]], text=True, capture_output=True)
+            for line in (done.stdout + done.stderr).splitlines():
+                say(line)
+                lines.append(line)
+            return done.returncode
+
+        self.fakes["ssh"] = local_ssh
+        self.run_cli("config", "set", "mac_repo", str(clone), cwd=tree)
+        code, out = self.run_cli("mac", "--host", "mbp", "--", "unit", cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("the local change ran", "\n".join(lines))
+        self.assertEqual(self.check_log()[-1]["names"], ["unit"], "the committed check.py ran")
+        self.assertEqual((clone / "tools/check.py").read_text(), broken, "the local change is kept")
+        self.assertEqual(git(clone, "rev-parse", "HEAD").strip(), git(clone, "rev-parse", "origin/dev").strip())
+        self.assertNotEqual(sha, git(clone, "rev-parse", "HEAD").strip(), "the clone's checkout did not move")
+        self.assertEqual(len(git(clone, "worktree", "list").splitlines()), 1, "the temp worktree is gone")
+        self.assertEqual(list((self.base / "mactmp").iterdir()), [])
 
     def test_doctor_reports_the_mac_as_optional(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()), fakes={"ssh": FakeSSH(up=False)})
@@ -154,6 +195,40 @@ class Preview(RepoCase):
         code, data = self.run_cli("preview", "--desktop", str(self.desktop()), as_json=True)
         self.assertEqual(code, 1, data)
         self.assertIn("node tools/bundle/bundle.mjs", data["error"]["fix"])
+
+    def test_serving_with_a_symlinked_hermes_source_serves_the_stylesheet_the_build_links(self):
+        source = self.base / "hermes-agent"
+        write(source, "apps/desktop/package.json", "{}")
+        write(source, "apps/desktop/dist/assets/main-abc.css", "body{}")
+        link = self.base / "linked-hermes"
+        link.symlink_to(source, target_is_directory=True)
+
+        def build(command, cwd):  # like build.mjs: the stylesheet linked by its absolute path in <desktop>/dist/assets
+            css = f"{command[3]}/dist/assets/main-abc.css"
+            write(Path(command[2]), "index.html", f'<link rel="stylesheet" href="{css}">')
+            return 0, "", ""
+
+        got = {}
+
+        def serve(server):
+            threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True).start()
+            index = self.main / ".git" / "retrodev" / "preview" / "index.html"
+            href = index.read_text().split('href="')[1].split('"')[0]
+            try:
+                url = f"http://127.0.0.1:{server.server_address[1]}{href}"
+                with urllib.request.urlopen(url, timeout=5) as answer:
+                    got["css"] = answer.read().decode()
+            except urllib.error.HTTPError as error:
+                got["css"] = f"HTTP {error.code}"
+                error.close()
+            finally:
+                server.shutdown()
+
+        self.fakes.update(preview_run=build, preview_serve=serve, hermes_source=link)
+        code, data = self.run_cli("preview", "--serve", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(got["css"], "body{}")
+        self.assertEqual(data["desktop"], str(source / "apps" / "desktop"))
 
     def test_the_server_is_loopback_and_serves_the_preview_and_the_desktop_stylesheets_only(self):
         out = self.base / "out"

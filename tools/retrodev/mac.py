@@ -3,7 +3,10 @@
 The host is the personal setting mac_host (no default: unset means no mac, and CI's macOS runners cover it,
 exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable). Then on
 the mac, in the clone at mac_repo (default ~/Projects/hermretro, the ~ expanded there), it fetches, checks out
-this checkout's commit detached and runs `python3 tools/check.py [args]`, its output streamed here. The commit
+this checkout's commit into a fresh detached worktree in a temp folder (`git worktree add --detach`), runs
+`python3 tools/check.py [args]` there (a /tmp/rd-mac.* folder), its output streamed here, and removes it afterwards (the folder, then `git worktree prune`). The clone's
+own checkout is never switched or reset, so its local changes neither leak into the result nor get lost; the
+temp worktree borrows the clone's set-up tools (.dev and tools/npm/node_modules, linked when present). The commit
 must be on the remote (the mac fetches it from there). It never pushes from the mac.
 """
 
@@ -53,12 +56,24 @@ def remote_path(path: str) -> str:
     return shlex.quote(path)
 
 
+# Short and the same on every mac (the checks open Unix sockets, whose paths are limited to about 104 characters).
+MAC_TMP = "/tmp"
+# The tools the clone has set up, linked into the temp worktree (it starts without git-ignored files).
+BORROWED = (".dev", "tools/npm/node_modules")
+
+
 def script(ctx, sha: str, args: list[str]) -> str:
+    """Plain POSIX shell for the mac: a fresh detached worktree at ``sha``, the checks there, then it is removed."""
     folder = remote_path(ctx.get("mac_repo"))
+    temp = shlex.quote(str(ctx.fakes.get("mac_tmp") or MAC_TMP))  # tests point it into their own folder
     check = " ".join(shlex.quote(word) for word in ["python3", "tools/check.py", *args])
+    links = "".join(f'if [ -e {p} ]; then ln -s "$PWD/{p}" "$tree/{p}"; fi; ' for p in BORROWED)
     return (
         f"cd {folder} && git fetch --quiet {shlex.quote(ctx.remote)} && "
-        f"git -c advice.detachedHead=false checkout --quiet --detach {sha} && {check}"
+        f"tmp=$(mktemp -d {temp}/rd-mac.XXXXXX) || exit 1; "
+        'tree="$tmp/tree"; '
+        f'git worktree add --quiet --detach "$tree" {sha} && {{ {links}(cd "$tree" && {check}); }}; code=$?; '
+        'rm -rf "$tmp"; git worktree prune; exit $code'
     )
 
 

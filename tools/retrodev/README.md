@@ -45,8 +45,8 @@ a MacBook, `preview` builds the page's browser preview, and `release ...` makes 
 | `doctor [--all]` | git, gh and its account, git identity, Python, Node, the npm tools and ruff, Hermes and a hermes-agent source for the scan, the main checkout, the worktree root, a short temp folder; each problem with its fix. `--all` adds the reviewer (`review_profile` set, and a live probe of its provider) and the MacBook's reachability (optional, never a problem) |
 | `config list` / `get <key>` / `set <key> <value>` | Personal settings; `set <key> ""` goes back to the default |
 | `try <pr> [--keep] [--no-setup]` | Fetches the pull request's head (`<remote> refs/pull/<n>/head`, forks too) into a detached throwaway worktree in a short temp folder outside the repository, sets it up and runs `check --full` there; removes it afterwards (the folder, then `git worktree prune`), also on a failure, unless `--keep` (its path and the commands that remove it are printed). Nothing in any agent's worktree changes |
-| `mac [--host H] [-- <check.py args>]` | Optional: the checks on a MacBook over ssh. The host is `--host` or the personal `mac_host` (no default: unset prints "no mac configured; CI's macOS runners cover it", exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable, CI covers macOS). The commit must be on the remote; on the mac, in `mac_repo` (default `~/Projects/hermretro`, `~` expanded there), it fetches, checks the commit out detached and runs `python3 tools/check.py [args]`, streaming its output. It never pushes from the mac |
-| `preview [--serve] [--out DIR] [--desktop DIR]` | Builds the page's browser preview (`node tests/page/preview/build.mjs`, docs/dev/TESTING.md) into `<state>/preview` and prints its `index.html`. Needs a built Hermes Desktop source: `--desktop`, else `$HERMES_SOURCE/apps/desktop` (default `~/.hermes/hermes-agent`). `--serve` serves it on 127.0.0.1 on a free port (the standard library's http.server, loopback only, the Desktop's stylesheets included) until Ctrl+C |
+| `mac [--host H] [-- <check.py args>]` | Optional: the checks on a MacBook over ssh. The host is `--host` or the personal `mac_host` (no default: unset prints "no mac configured; CI's macOS runners cover it", exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable, CI covers macOS). The commit must be on the remote; on the mac, in `mac_repo` (default `~/Projects/hermretro`, `~` expanded there), it fetches, adds a fresh detached worktree of the commit in a `/tmp/rd-mac.*` folder (the clone's `.dev` and `tools/npm/node_modules` linked in), runs `python3 tools/check.py [args]` there, streaming its output, and removes the worktree. The clone's own checkout is never switched or reset, so its local changes neither reach the result nor get lost. It never pushes from the mac |
+| `preview [--serve] [--out DIR] [--desktop DIR]` | Builds the page's browser preview (`node tests/page/preview/build.mjs`, docs/dev/TESTING.md) into `<state>/preview` and prints its `index.html`. Needs a built Hermes Desktop source: `--desktop`, else `$HERMES_SOURCE/apps/desktop` (default `~/.hermes/hermes-agent`), symlinks resolved either way. `--serve` serves it on 127.0.0.1 on a free port (the standard library's http.server, loopback only, the Desktop's stylesheets included) until Ctrl+C |
 | `release prepare [--rc] [--version X.Y.Z] --owner-words "..."` | Only when the owner asks for a release: without their words (naming a release) exit 3. Below |
 | `release publish <version> [--dry-run]` | The gates, the update check, then main, the tag and the draft release. Below |
 | `release verify <version> [--publish]` | Reads the draft and proves the update path; `--publish` publishes it. Below |
@@ -101,11 +101,15 @@ The rules are in the agent guide's "Releases"; these commands carry them out. Th
 1. `release prepare --owner-words "<the owner's exact words>"`: refuses (exit 3) without words that ask for a
    release. Fetches; the version is the patch after `plugin.yaml` on `dev` (or `dev`'s own version when it is not
    tagged yet: an earlier candidate bumped it, and no pull request is needed). Records the words in
-   `<state>/releases/<version>.json`, then `start chore/release-X.Y.Z --no-plan`, changes only the `version:` line,
-   commits `Release X.Y.Z`, runs `check` and `ship`s the pull request "Release X.Y.Z". Then it lands like any pull
+   `<state>/releases/<version>.json` (asked again, it forgets the commit an earlier publish chose), then `start
+   chore/release-X.Y.Z --no-plan` (a worktree left from an earlier run is reused only when it is on that branch,
+   clean, and differs from `origin/dev` by the `version:` line alone; otherwise it refuses with the FIX), changes
+   only the `version:` line, stages only `plugin.yaml`, commits `Release X.Y.Z`, runs `check` and `ship`s the pull request "Release X.Y.Z". Then it lands like any pull
    request: `approve <n> --words "..."`, `land <n>`.
 2. `release publish <version> --dry-run`, then without `--dry-run`. Gates, all reported: the owner's words are
-   recorded for this version; the version pull request is merged (its merge commit is the release commit); that
+   recorded for this version; the version pull request is merged (its merge commit is the release commit; without
+   one, `origin/dev`'s head when publish first runs, kept in the release record so a retry after `dev` moves releases
+   the same commit, its gates checked again); that
    commit is on `origin/dev` and its `plugin.yaml` says the version; "All checks pass" is green on that exact
    commit (`gh api repos/{owner}/{repo}/commits/<sha>/check-runs`; still running: exit 2); `origin/main` is an
    ancestor of it (main only fast-forwards; otherwise exit 3); the tag is free or already at that commit. Then
@@ -114,13 +118,16 @@ The rules are in the agent guide's "Releases"; these commands carry them out. Th
    `git push origin <sha>` onto `main` (a plain fast-forward push, with `HERMES_RELEASE=1` in that one push's
    environment for the local guard hooks), `git tag -a v<version> <sha>`, `git push origin refs/tags/v<version>`,
    `gh release create v<version> --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`. It
-   prints the draft's address and the next step. `--dry-run` fetches nothing, runs nothing and changes nothing: it
+   prints the draft's address and the next step. Before the steps it records that commit as approved (all gates
+   passed) in the release record. `--dry-run` fetches nothing, runs nothing and changes nothing: it
    prints the gates and every command.
 3. Read the draft (add a short summary on top, and whether the real-machine checklist ran), then
    `release verify <version>`: the release exists and its notes are not empty; the tag points at `main`'s head and
    `plugin.yaml` there says the version; `clean_install_check.py --update-from v<previous stable>` passes on it.
-   `release verify <version> --publish` does the same and, when all is well, says that a published release is
-   immutable and runs `gh release edit v<version> --draft=false`.
+   `release verify <version> --publish` does the same, and also needs the owner's words recorded for the version,
+   the tag at exactly the commit `release publish` approved, and "All checks pass" green on it (so a draft made by
+   hand or a tag moved since is refused, exit 3); when all is well, it says that a published release is immutable
+   and runs `gh release edit v<version> --draft=false`.
 
 A release candidate: `release prepare --rc ...` names `X.Y.Z-rc.M` (the next M); `release publish X.Y.Z-rc.M` tags
 the `dev` commit and adds `--prerelease`; `main` does not move; `release verify` checks it is a prerelease on `dev`.
