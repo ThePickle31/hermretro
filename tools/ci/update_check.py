@@ -16,6 +16,7 @@ import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -69,6 +70,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
     studio = root / "profiles" / "hermretro"
     plugin = root / "plugins" / "hermretro"
     brokers: list[int] = []
+    held = None
     print(f"updating from {ref} ({old[:10]}) to HEAD ({new[:10]})", flush=True)
     try:
         # As a user does: install into their own profile; the page then creates the studio profile, which
@@ -77,6 +79,10 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         run(root, "profile", "create", "hermretro", "--no-alias", "--no-skills")
         before = _drive(args, tmp, root, "old")
         brokers.append(before["broker_pid"])
+        # The old broker idles out a minute after its last connection closes (the drive sets that), which
+        # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
+        # silent connection holds it (an idle exit waits for none); it is closed just before the new drive.
+        held = hold_open(before["broker_socket"])
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile
         problems = []
         dirty = _git("status", "--porcelain", cwd=plugin)
@@ -110,10 +116,16 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
                 report[-2000:] + "\nFIX: after the update `hermes plugins validate` no longer matches plugin.yaml; "
                 "check __init__.register and provides_tools / provides_hooks"
             )
+        held.close()
+        gone = old_broker_gone(before["broker_pid"], _alive(before["broker_pid"]), fix)
+        if gone:
+            raise SystemExit(gone)
         after = _drive(args, tmp, root, "new")
         brokers.append(after.get("broker_pid") or 0)
         problems += _compare(before, after, fix)
     finally:
+        if held is not None:
+            held.close()
         for pid in brokers:  # whatever happened, leave no broker of the throwaway home running
             if pid:
                 try:
@@ -141,14 +153,30 @@ def _leftovers(plugin: Path, fix: str) -> list[str]:
             f"after the update the plugin folder has files git does not ignore:\n{untracked}\n"
             "FIX: ignore them in .gitignore, or stop writing them into the plugin folder" + fix
         )
-    for line in _git("status", "--porcelain", "--ignored", cwd=plugin).splitlines():
-        path = line[3:]
-        if line.startswith("!!") and not re.search(r"(^|/)__pycache__/$|\.pyc$", path):
+    # Every ignored path on its own: plain --ignored folds a folder holding only ignored files into `!! dir/`,
+    # which hides what is inside. With these flags a folder is listed only when an ignore rule names it.
+    listing = _git("status", "--porcelain", "-z", "--ignored=matching", "--untracked-files=all", cwd=plugin)
+    return problems + ignored_problems(listing, fix)
+
+
+def ignored_problems(listing: str, fix: str) -> list[str]:
+    """Judge each ignored entry of `git status --porcelain -z --ignored=matching --untracked-files=all`."""
+    problems = []
+    for entry in listing.split("\0"):
+        if not entry.startswith("!! "):
+            continue
+        path = entry[3:]
+        if not is_bytecode(path):
             problems.append(
                 f"after the update the plugin folder holds {path} (ignored by git, not a bytecode cache)\n"
                 "FIX: make sure the new code never reads it, or keep it out of the plugin folder" + fix
             )
     return problems
+
+
+def is_bytecode(path: str) -> bool:
+    """A bytecode cache folder, a file inside one, or a compiled module."""
+    return "__pycache__" in path.rstrip("/").split("/") or path.endswith((".pyc", ".pyo"))
 
 
 def _compare(before: dict, after: dict, fix: str) -> list[str]:
@@ -304,6 +332,7 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
     if client is None:
         raise SystemExit(f"no broker answers after the doctor RPC: {error}")
     with client:
+        result["broker_socket"] = str(paths.runtime_dir() / "broker.sock")
         result["broker_pid"] = client.hello.get("pid")
         result["broker_code"] = client.hello.get("code_fingerprint")
         result["code"] = paths.code_fingerprint() if hasattr(paths, "code_fingerprint") else None
@@ -321,6 +350,33 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
             result["problems"].append(f"the old version's broker (pid {old_pid}) is still running")
             result["fix"] = "a broker from another build must exit when asked to shut down while idle"
     return result
+
+
+def hold_open(socket_path: str) -> socket.socket:
+    """A connection to the broker that sends nothing: while it is open the broker never exits for idleness."""
+    held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        held.connect(socket_path)
+    except OSError as error:
+        held.close()
+        raise SystemExit(
+            f"the old version's broker no longer listens at {socket_path} right after its drive: {error}\n"
+            "FIX: the old drive must leave its broker running; reproduce with "
+            "python tools/ci/clean_install_check.py --update-from"
+        ) from error
+    return held
+
+
+def old_broker_gone(pid: int, alive: bool, fix: str) -> str | None:
+    """None while the old broker still runs; otherwise why the replacement it was to prove cannot be shown."""
+    if alive:
+        return None
+    return (
+        f"the old version's broker (pid {pid}) exited before the new version's first call, so the check cannot "
+        "show whether the update replaces it or keeps it\nFIX: keep the old broker running until the new drive "
+        "(update_check.hold_open must hold a connection to it); reproduce with "
+        f"python tools/ci/clean_install_check.py{fix}"
+    )
 
 
 def _alive(pid: int) -> bool:
