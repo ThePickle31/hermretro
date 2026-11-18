@@ -4,13 +4,15 @@ edits are copied into a test repository (no rebuild, no checks; test_scaffold_tr
 Run alone: python -m unittest tests.retrodev.test_scaffold
 """
 
+import ast
+import codecs
 import re
 import shutil
 import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import scaffold
+from retrodev import repo, scaffold
 
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
@@ -140,6 +142,80 @@ class New(RepoCase):
         self.assertIn("TOOLS = (\n    Tool(SNAP_TOOL", self.read("backend/history/tools.py"))
         self.assertIn("    Tool(SECOND_TOOL, second_handler", self.read("backend/history/tools.py"))
         self.assertIn("81 tools, plus six", self.read("docs/dev/CONTRACT.md"))
+
+    def test_a_tool_on_a_feature_whose_tools_are_not_a_plain_tuple_is_refused_and_nothing_changes(self):
+        for name in ("backend/hermes/__init__.py", "backend/hermes/tools.py"):  # TOOLS is a function there
+            write(self.tree, name, (ROOT / name).read_text())
+        annotated = "from ..hermes.declare import Tool\n\nTOOLS: tuple[Tool, ...] = ()\n"
+        write(self.tree, "backend/history/tools.py", annotated)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Shapes")
+        for feature in ("hermes", "history"):
+            out = self.new("tool", feature, "snap", code=1)
+            self.assertIn("not a plain tuple or list", out["error"]["message"], feature)
+            self.assertIn("fix", out["error"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", f"{feature}: no file may change")
+
+    def test_a_tool_extends_a_list_and_keeps_its_entries(self):
+        tools = (
+            '"""Tools."""\n\nimport json\n\nfrom ..hermes import host\nfrom ..hermes.declare import Tool\n\n'
+            "logger = host.logger\nA_TOOL = {}\n\n\ndef a_handler(args, **_kwargs):\n    return json.dumps({})\n\n\n"
+            'TOOLS = [Tool(A_TOOL, a_handler, step_words=("Aing", "Aed"))]  # the one\n'
+        )
+        write(self.tree, "backend/history/tools.py", tools)
+        self.new("tool", "history", "snap")
+        source = self.read("backend/history/tools.py")
+        found = [node for node in ast.parse(source).body if isinstance(node, ast.Assign)]
+        listed = [ast.unparse(e.func) + " " + ast.unparse(e.args[0]) for e in found[-1].value.elts]
+        self.assertEqual(listed, ["Tool A_TOOL", "Tool SNAP_TOOL"])
+        self.assertIn("]  # the one", source)
+
+    def test_quoted_step_words_make_valid_python_and_javascript(self):
+        (self.tree / ".dev").mkdir(exist_ok=True)
+        if (ROOT / ".dev/py/bin/ruff").is_file():  # apply formats with it, as in a real worktree
+            (self.tree / ".dev/py").symlink_to(ROOT / ".dev/py")
+        words = {"quoted": ('Reading "ROM"', 'Read "ROM"'), "apostrophe": ("Reading the cart's header", "Read it's")}
+        for short, (running, done) in words.items():
+            self.new("tool", "history", short, "--step", running, done)
+            test = self.read(f"tests/backend/history/test_tool_{short}.py")
+            expected = [n for n in ast.walk(ast.parse(test)) if isinstance(n, ast.Tuple) and len(n.elts) == 2]
+            self.assertIn((running, done), [ast.literal_eval(n) for n in expected])
+            page = re.search(
+                rf"^  {short}: \[('(?:[^'\\]|\\.)*'), ('(?:[^'\\]|\\.)*')\],$", self.read(scaffold_words()), re.M
+            )
+            assert page, short
+            self.assertEqual([codecs.decode(t[1:-1], "unicode_escape") for t in page.groups()], [running, done])
+        source = self.read("backend/history/tools.py")
+        declared = [
+            ast.literal_eval(k.value)
+            for n in ast.walk(ast.parse(source))
+            if isinstance(n, ast.Call)
+            for k in n.keywords
+            if k.arg == "step_words"
+        ]
+        self.assertEqual(declared, list(words.values()))
+        ruff = ROOT / ".dev/py/bin/ruff"
+        if ruff.is_file():
+            files = ["backend/history/tools.py", *(f"tests/backend/history/test_tool_{s}.py" for s in words)]
+            config = ["--config", str(ROOT / "tools/py/ruff.toml")]
+            for command in (["check", "-q", *config], ["format", "--check", "-q", *config]):
+                code, out, err = repo.run([str(ruff), *command, *files], self.tree, timeout=60)
+                self.assertEqual(code, 0, out + err)
+
+    def test_an_event_keeps_the_entries_of_a_one_line_events_dict(self):
+        door = self.read("backend/history/__init__.py")
+        door = re.sub(
+            r"EVENTS = \{\n(.*?)\n\}", lambda m: "EVENTS = {" + m.group(1).strip().rstrip(",") + "}", door, flags=re.S
+        )
+        self.assertIn('EVENTS = {"history.build_kept": ', door)
+        write(self.tree, "backend/history/__init__.py", door)
+        self.new("event", "history", "pruned", "--payload", "game")
+        declared = next(
+            n.value
+            for n in ast.parse(self.read("backend/history/__init__.py")).body
+            if getattr(n, "targets", [None])[0] is not None and getattr(n.targets[0], "id", "") == "EVENTS"
+        )
+        self.assertEqual(sorted(ast.literal_eval(declared)), ["history.build_kept", "history.pruned"])
 
     def test_an_event_is_declared_emitted_once_and_documented(self):
         self.new("event", "history", "pruned", "--payload", "game")

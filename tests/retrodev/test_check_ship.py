@@ -65,6 +65,15 @@ class Check(RepoCase):
         self.assertEqual(self.check_log()[0]["names"], ["lint"], "only the failed check runs again")
         self.assertIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
 
+    def test_scaffold_changes_add_the_scaffold_check_beside_the_fast_ones(self):
+        tree = self.worktree("chore/templates")
+        write(tree, "tools/retrodev/templates/tool/tool.py.tmpl", "# changed\n")
+        git(tree, "add", "-A")
+        git(tree, "commit", "-q", "-m", "Change a template")
+        code, data = self.run_cli("check", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(self.check_log()[0]["names"], FAST + ["scaffold"])
+
     def test_backend_changes_add_acceptance_and_the_clean_install(self):
         tree = self.worktree("chore/move")
         git(tree, "mv", "backend/hermes/glue.py", "backend/hermes/seam.py")

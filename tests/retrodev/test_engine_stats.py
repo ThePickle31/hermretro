@@ -78,6 +78,42 @@ class EngineUpdate(RepoCase):
         self.run_cli("engine", "update", "9.9.9", "--owner-words", WORDS, cwd=tree)
         self.assertEqual(git(tree, "status", "--porcelain"), before, "it changes nothing in the tree itself")
 
+    def test_manual_steps_wait_until_acknowledged_by_number(self):
+        tree = self.tree()
+        write(tree, "engine/modretro-chromatic/package.json", '{"version": "9.9.9"}\n')
+        for name in ("dist/server.js", "dist/device-capture/linux-helper.js"):
+            write(tree, f"engine/modretro-chromatic/{name}", "spawn(ffmpeg, ['-i', '/dev/fd/6'])\n")
+        write(tree, "engine/pins/9.9.9/manifest.json", '{"local_patches": []}\n')
+        for name in ("tools.json", "schema-reconcile.json"):
+            write(tree, f"engine/pins/9.9.9/{name}", "{}\n")
+        write(tree, "tools/engine/manifest.py", "")  # stand-ins of the read-only helpers: they pass
+        for name in ("tests/__init__.py", "tests/repo/__init__.py"):
+            write(tree, name, "")
+        write(
+            tree,
+            "tests/repo/test_lockstep.py",
+            "import unittest\n\n\nclass T(unittest.TestCase):\n    def test(self):\n        pass\n",
+        )
+        write(tree, "backend/system/paths.py", 'ENGINE_VERSION = "9.9.9"\n')
+        update = ("engine", "update", "9.9.9", "--owner-words", WORDS)
+        code, data = self.run_cli(*update, cwd=tree, as_json=True)
+        self.assertEqual(code, 2, data)  # every tree step is done; steps 6 and 8 are by hand
+        self.assertEqual([step["state"] for step in data["steps"] if step["number"] not in (6, 8)], ["done"] * 6)
+        manual = [step["number"] for step in data["steps"] if step["state"] == "manual"]
+        self.assertEqual(manual, [6, 8])
+        self.assertEqual(data["outstanding"], [6, 8])
+        code, out = self.run_cli(*update, "--done", "6", cwd=tree)
+        self.assertEqual(code, 2, out)
+        self.assertIn("--done 8", out)
+        code, data = self.run_cli(*update, "--done", "5", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)  # the tree judges step 5: it cannot be waved through
+        code, data = self.run_cli(*update, "--done", "8", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, data)
+        record = json.loads(self.records()[0].read_text())
+        self.assertEqual(sorted(record["done"]), ["6", "8"])
+        self.assertEqual(record["done"]["6"]["by"], "the agent")
+        self.assertTrue(record["done"]["6"]["at"])
+
     def test_a_version_must_look_like_one(self):
         code, out = self.run_cli("engine", "update", "latest", "--owner-words", WORDS, cwd=self.tree())
         self.assertEqual(code, 1, out)

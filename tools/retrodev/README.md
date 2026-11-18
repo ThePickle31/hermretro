@@ -57,7 +57,7 @@ a MacBook, `preview` builds the page's browser preview, and `release ...` makes 
 | `new tab <page> <id> [--label "..."]` | `page/pages/<page>/<id>/index.js` (`<PAGE>_<ID>_TAB`: `{ id, label, Page }`; the page is one bundle, so every exported name is unique, and new refuses a taken one), imported and listed in the page's `tabs`, the README's **Tabs:** line; then the bundle |
 | `new slot <page> <name> [--doc "..."]` | `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the README's **Slots:** line; then the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's |
 | `stats` | Read-only: pull requests landed through retrodev (review records with a merge) against all merged into `dev` (git subjects ending `(#N)`); per landed pull request its review rounds, findings per round and answers; the mean time from the first `ship` (recorded from now on) and from the owner's approval to the merge; check times from the branch records; rows and open rows of the main checkout's `notes/friction.md` |
-| `engine update <version> --owner-words "..." [--dry-run]` | `docs/dev/ENGINE-UPDATE.md` as a checklist. Without the owner's words exit 3 (a dry run too): anything under `engine/` needs the owner. Then only on `chore/engine-<version>`; records the words in `<state>/engine/<version>.json`; judges each step from the tree (the vendored `package.json`, the local patch, `engine/pins/<version>/`, `ENGINE_VERSION`), runs only the read-only helpers (`manifest.py verify`, the lock-step test) and prints the others with the version filled in. Exit 2 while a step is left (the next one named), 0 when all are done. It never changes `engine/` itself. `--dry-run` records and runs nothing |
+| `engine update <version> --owner-words "..." [--done N ...] [--dry-run]` | `docs/dev/ENGINE-UPDATE.md` as a checklist. Without the owner's words exit 3 (a dry run too): anything under `engine/` needs the owner. Then only on `chore/engine-<version>`; records the words in `<state>/engine/<version>.json`; judges each step from the tree (the vendored `package.json`, the local patch, `engine/pins/<version>/`, `ENGINE_VERSION`), runs only the read-only helpers (`manifest.py verify`, the lock-step test) and prints the others with the version filled in. A step the tree cannot show (comparing the skills, the full checks) is manual: once done, `--done <its number>` records it (the time, and that the agent did it) in the same record; `--done` on a step the tree judges is refused. Exit 2 while a step is left, an unrecorded manual one included (the next one named, with its `--done`), 0 only when every step is done. It never changes `engine/` itself. `--dry-run` records and runs nothing |
 | `release prepare [--rc] [--version X.Y.Z] --owner-words "..."` | Only when the owner asks for a release: without their words (naming a release) exit 3. Below |
 | `release publish <version> [--dry-run]` | The gates, the update check, then main, the tag and the draft release. Below |
 | `release verify <version> [--publish]` | Reads the draft and proves the update path; `--publish` publishes it. Below |
@@ -71,9 +71,16 @@ those files are inputs of (lint, bundle, unit, page; the install scan waits for 
 It refuses (`FIX:`) a name that exists or breaks the naming rules (features, RPCs, tools and events: lowercase and
 underscores; pages and tabs: lowercase and dashes; slots: camelCase), never overwrites a file, and runs only on a
 work branch (never `dev` or `main`). `--dry-run` lists the files and writes nothing; `--no-check` skips the checks;
-`--no-build` skips the rebuild (when several `new` run in a row, let the last one rebuild). The generated code
-passes the real checks as written: `tests/retrodev/test_scaffold_tree.py` runs every kind on a copy of the
-repository and then lint, the bundle, the structure tests and the page tests there.
+`--no-build` skips the rebuild (when several `new` run in a row, let the last one rebuild). It never writes a broken
+or partial change: every edit is made in memory first, each Python file of it must parse, and only then is anything
+written. It extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `EVENTS` a dict literal,
+on one line or several, its entries kept) and otherwise refuses with a `FIX:` and changes no file (the hermes
+feature's `TOOLS` is a function: its tools come from the engine). Step words may hold quotes; each is written as a
+proper Python and JavaScript string. The generated code passes the real checks as written:
+`python tools/check.py scaffold` (`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; a few seconds,
+so not in the fast unit run) runs every kind on a copy of the repository, then lint, the bundle, the structure tests
+and the page tests there. It is part of `check.py full` and `check --full`, `check` adds it when the branch changed
+the scaffolds or the files they edit (`policy.toml` `[checks.triggers]`), and CI's page job runs it.
 
 Every command takes `--json` (one JSON object: `command`, `ok`, `code`, `status`, the command's data, and `error`
 with `message` and `fix` on a failure).

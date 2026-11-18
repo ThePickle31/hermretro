@@ -129,6 +129,9 @@ def parser() -> argparse.ArgumentParser:
     update.add_argument("version")
     update.add_argument("--owner-words", help="the owner's exact words asking for the engine update")
     update.add_argument("--dry-run", action="store_true", help="print the gates and the checklist; change nothing")
+    update.add_argument(
+        "--done", type=int, action="append", default=[], metavar="N", help="record manual step N as done"
+    )
     p = add("try", "a pull request's full checks in a throwaway checkout outside the repository")
     p.add_argument("pr", type=int)
     p.add_argument("--keep", action="store_true", help="keep the throwaway checkout (its path is printed)")
@@ -209,7 +212,7 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
             setattr(args, missing, getattr(args, missing, None))
         return scaffold.run(ctx, args)
     if command == "engine":
-        return engine_update.run(ctx, args.version, args.owner_words, dry_run=args.dry_run)
+        return engine_update.run(ctx, args.version, args.owner_words, dry_run=args.dry_run, done=args.done)
     if command == "stats":
         return stats.run(ctx)
     if command == "release":

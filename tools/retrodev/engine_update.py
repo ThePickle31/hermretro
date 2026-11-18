@@ -1,6 +1,6 @@
 """`engine update <version>`: docs/dev/ENGINE-UPDATE.md as a checklist, gated on the owner's words.
 
-    engine update <version> --owner-words "<the owner's exact words>" [--dry-run]
+    engine update <version> --owner-words "<the owner's exact words>" [--done N ...] [--dry-run]
 
 Anything under engine/ needs the owner (the agent guide's rule 2): without their words it refuses with exit 3, a
 dry run included. With them it checks the branch is chore/engine-<version> (one deliberate pull request), records
@@ -8,8 +8,10 @@ the words in <state>/engine/<version>.json, then walks the guide's numbered step
 which are done (the vendored folder's version, the local patch, the pins folder, ENGINE_VERSION). It runs only the
 read-only helpers a step names (tools/engine/manifest.py verify, the lock-step test); a helper that writes, a
 download and the copy of the new engine stay the agent's and owner's to do, so each is printed with the version
-filled in. Exit 2 while a step is left (the next one is named), 0 when every step is done. It never changes
-engine/ itself. --dry-run records nothing and runs nothing: it prints the gates and the whole checklist.
+filled in. A step the tree cannot show (comparing the skills, the full checks) is manual: after doing it, record it
+with --done <its number> (the time and who, kept in the same record). Exit 2 while a step is left, a manual one
+not recorded included (the next one is named), 0 when every step is done. It never changes engine/ itself.
+--dry-run records nothing and runs nothing: it prints the gates and the whole checklist.
 """
 
 from __future__ import annotations
@@ -133,7 +135,30 @@ def _lockstep(ctx, version: str, run_helpers: bool) -> dict:
     }
 
 
-def run(ctx, version: str, words: str | None, dry_run: bool = False) -> int:
+def acknowledged(ctx, version: str, guide_steps: list[dict], done: list[int], dry_run: bool) -> dict:
+    """{step number: {at, by}}: the manual steps recorded as done, earlier and now (--done N)."""
+    path = state.root(ctx.top) / "engine" / f"{version}.json"
+    try:
+        acks = dict(json.loads(path.read_text(encoding="utf-8")).get("done", {}))
+    except (OSError, ValueError):
+        acks = {}
+    if done and dry_run:
+        raise Failure("--done records a manual step, and a dry run records nothing", "run it again without --dry-run")
+    numbers = {step["number"]: step for step in guide_steps}
+    for number in done:
+        step = numbers.get(number)
+        if step is None:
+            raise Failure(f"{GUIDE} has no step {number}", f"use a step number from 1 to {max(numbers, default=0)}")
+        if judge(ctx, step, version, run_helpers=False)["state"] != "manual":
+            raise Failure(
+                f"step {number} ({step['title']}) is judged from the tree, so it cannot be marked done by hand",
+                "do what the step says; the next engine update run sees it",
+            )
+        acks[str(number)] = {"at": state.now(), "by": "the agent"}
+    return acks
+
+
+def run(ctx, version: str, words: str | None, dry_run: bool = False, done: list[int] | None = None) -> int:
     out = ctx.out
     if not (words or "").strip():
         raise Failure(
@@ -158,12 +183,19 @@ def run(ctx, version: str, words: str | None, dry_run: bool = False) -> int:
             f"an engine update is one deliberate pull request on {wanted}; this checkout is on {branch}",
             f"python tools/retrodev start {wanted} --no-plan, then run this there",
         )
+    guide_steps = steps(guide.read_text(encoding="utf-8"))
+    acks = acknowledged(ctx, version, guide_steps, done or [], dry_run)
     if not dry_run:
-        record = {"version": version, "words": words.strip(), "at": state.now(), "branch": branch}
+        record = {"version": version, "words": words.strip(), "at": state.now(), "branch": branch, "done": acks}
         state.write_atomic(state.root(ctx.top) / "engine" / f"{version}.json", json.dumps(record, indent=2) + "\n")
-    rows, first_todo = [], None
-    for step in steps(guide.read_text(encoding="utf-8")):
+    rows, waiting, outstanding = [], None, []
+    for step in guide_steps:
         result = judge(ctx, step, version, run_helpers=not dry_run)
+        ack = acks.get(str(step["number"])) if result["state"] == "manual" else None
+        if ack:
+            result |= {"state": "done", "why": f"done by hand: recorded {ack['at']} by {ack['by']}"}
+        elif result["state"] == "manual":
+            outstanding.append(step)
         rows.append({"number": step["number"], "title": step["title"], **result})
         out.say(f"[{result['state']:>6}] {step['number']}. {step['title']}: {result['why']}")
         for ran in result["ran"]:
@@ -173,17 +205,21 @@ def run(ctx, version: str, words: str | None, dry_run: bool = False) -> int:
                 out.say(f"         {command}")
             if result["state"] == "manual" or not result["commands"]:
                 out.say(f"         {step['text'][:300]}")
-        if result["state"] == "todo" and first_todo is None:
-            first_todo = step
-    out.set(steps=rows)
+            waiting = waiting or step
+    out.set(steps=rows, outstanding=[step["number"] for step in outstanding])
     if dry_run:
         out.say("dry run: nothing recorded, no helper run, nothing changed")
         return OK
-    if first_todo is not None:
-        out.say(
-            f"next: step {first_todo['number']} ({first_todo['title']}), then python tools/retrodev engine update {version} --owner-words ... again"
-        )
-        out.set(next=f"step {first_todo['number']}")
+    again = f"python tools/retrodev engine update {version} --owner-words ..."
+    if outstanding:
+        listed = ", ".join(f"{step['number']} ({step['title']})" for step in outstanding)
+        out.say(f"manual steps not yet recorded as done: {listed}")
+    if waiting is not None:
+        number = waiting["number"]
+        by_hand = waiting in outstanding
+        tail = f" by hand, then {again} --done {number}" if by_hand else f", then {again} again"
+        out.say(f"next: step {number} ({waiting['title']}){tail}")
+        out.set(next=f"step {number}")
         return WAITING
-    out.say("every step the tree shows is done; next: python tools/retrodev check --full, commit, ship")
+    out.say("every step is done (the tree's and those recorded by hand); next: commit, then python tools/retrodev ship")
     return OK if rows else FAILED

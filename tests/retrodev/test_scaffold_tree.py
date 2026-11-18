@@ -1,15 +1,17 @@
 """`new` on a copy of the real repository: the generated code passes the repository's own checks.
 
-The one slow-ish retrodev test (about 10 s): it copies what a commit of this tree would hold into a short temp
+The one slow retrodev test (a few seconds), so it runs only with RD_SCAFFOLD_FULL set: `python tools/check.py
+scaffold` (part of `check.py full` and `retrodev check --full`, added by `retrodev check` when a branch changes the
+scaffolds or the files they edit; CI's page job runs it). It copies what a commit of this tree would hold into a short temp
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdprobe`, `new rpc`, `new tool`,
 `new event`, `new page rdprobe`, `new tab rdprobe extra` and `new slot rdprobe extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
-reach (the registry, the nav). The full `tools/check.py lint bundle unit page` runs there instead with
-RD_SCAFFOLD_FULL=1 (it nests the whole unit suite, so it is not the default). Skipped when node, the npm
-tools or the pinned ruff are not set up here (CI's unit jobs: the page job runs the page side).
+reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
+there instead (it nests the whole unit suite). Skipped when node, the npm tools or the pinned ruff are not set up
+here (check.py scaffold then says so).
 
-Run alone: python -m unittest tests.retrodev.test_scaffold_tree
+Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ BORROWED = (".dev/py", "tools/npm/node_modules")  # linked; .dev itself stays re
 STEPS = [
     ["feature", "rdprobe", "--purpose", "A probe feature made by retrodev new"],
     ["rpc", "rdprobe", "rdprobe_ping"],
-    ["tool", "rdprobe", "rdprobe_ping"],
+    ["tool", "rdprobe", "rdprobe_ping", "--step", 'Pinging "it"', "Pinged the probe's twin"],
     ["event", "rdprobe", "pinged", "--payload", "count"],
     ["page", "rdprobe"],
     ["tab", "rdprobe", "extra"],
@@ -70,6 +72,7 @@ def copy_tree(source: Path, target: Path, env: dict) -> None:
 
 
 @unittest.skipIf(os.environ.get(NESTED), "inside its own throwaway run")
+@unittest.skipUnless(os.environ.get("RD_SCAFFOLD_FULL"), "slow: python tools/check.py scaffold runs it")
 class GeneratedCodePassesTheRealChecks(unittest.TestCase):
     def test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests(self):
         if not shutil.which("node") or not shutil.which("tar"):
@@ -85,6 +88,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         env = {key: value for key, value in os.environ.items() if not key.startswith(("RETRODEV_", "GIT_DIR"))}
         env |= {
             NESTED: "1",
+            "RD_SCAFFOLD_FULL": "",
             "RETRODEV_STATE_DIR": str(base / "state"),
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
@@ -106,7 +110,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             last = step is STEPS[-1]
             done = run([*retrodev, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
             self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
-        if os.environ.get("RD_SCAFFOLD_FULL"):
+        if os.environ.get("RD_SCAFFOLD_FULL") == "nested":
             commands = [[sys.executable, "tools/check.py", "lint", "bundle", "unit", "page"]]
         else:  # the same judges, faster: the page tests the new names reach, and the structure tests, side by side
             commands = [

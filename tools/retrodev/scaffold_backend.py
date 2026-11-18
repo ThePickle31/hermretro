@@ -26,6 +26,7 @@ from .scaffold import (
     readme_item,
     render,
 )
+from .scaffold_source import add_event, add_tool, js_str, py_str
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -169,20 +170,24 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
         raise Failure(f"a tool named {full} exists (plugin.yaml, the engine or step-words.js)", "pick another name")
     running, done = step or (f"Running {short.replace('_', ' ')}", f"Ran {short.replace('_', ' ')}")
     for text in (running, done):
-        if "'" in text or "\\" in text or "\n" in text:
-            raise Failure("step words go into a quoted JavaScript string", "use words without quotes or backslashes")
+        if "\\" in text or not text.strip() or not all(" " <= char <= "~" for char in text):
+            raise Failure(
+                "step words are one line of plain ASCII without backslashes (tests/repo/test_lockstep.py reads them)",
+                "pass --step '<while it runs>' '<once it is done>' in plain words",
+            )
+    words = f"({py_str(running)}, {py_str(done)})"
     values = {"name": feature_name, "Name": label(feature_name), "tool": full, "short": short, "Short": pascal(short)}
-    values |= {"TOOL": const(short), "words": repr((running, done)).replace("'", '"')}
+    values |= {"TOOL": const(short), "words": words}
     source = f"backend/{feature_name}/tools.py"
     plan.ensure(source, render("tool", "tools.py.tmpl", **values))
-    entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words=({running!r}, {done!r})),".replace("'", '"')
-    plan.edit(source, lambda text: _add_tool(text, render("tool", "tool.py.tmpl", **values), entry))
+    entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
+    plan.edit(source, lambda text: add_tool(text, source, render("tool", "tool.py.tmpl", **values), entry))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     plan.create(f"tests/backend/{feature_name}/test_tool_{short}.py", render("tool", "test_tool.py.tmpl", **values))
     owned = [tool_name for tool_name in listed if tool_name not in engine_tools(plan)]
     anchor = re.compile(rf"^  - {owned[-1]}$" if owned else r"^provides_tools:")
     plan.edit(MANIFEST, lambda text: insert_after(text, anchor, f"  - {full}", MANIFEST, last=False))
-    words_line = f"  {short}: ['{running}', '{done}'],"
+    words_line = f"  {short}: [{js_str(running)}, {js_str(done)}],"
     plan.edit(STEP_WORDS, lambda text: insert_before(text, re.compile(r"^  skill_view: "), words_line, STEP_WORDS))
     plan.edit(CONTRACT, lambda text: _contract_tool(text, full, feature_name))
     readme(plan, feature_name, "Tools", f"`{full}`")
@@ -192,37 +197,6 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
     ]
     return f"tool {full}"
-
-
-def _add_tool(text: str, block: str, entry: str) -> str:
-    tree = ast.parse(text)
-    found = next(
-        (n for n in tree.body if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "TOOLS" for t in n.targets)),
-        None,
-    )
-    if found is None:  # one entry: ruff keeps a one-element tuple on one line
-        return text.rstrip("\n") + "\n" + block + "\n\nTOOLS = (" + entry.strip() + ")\n"
-    lines = text.split("\n")
-    if isinstance(found.value, ast.Tuple) and found.lineno == found.end_lineno:  # TOOLS = (Tool(...),)
-        inner = lines[found.lineno - 1].split("=", 1)[1].strip()[1:-1].strip()
-        lines[found.lineno - 1 : found.lineno] = ["TOOLS = (", "    " + inner, ")"]
-        text = "\n".join(lines)
-        found = next(
-            n for n in ast.parse(text).body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "TOOLS"
-        )
-        lines = text.split("\n")
-    if not isinstance(found.value, ast.Tuple) or lines[found.end_lineno - 1].strip() != ")":
-        raise Failure(
-            "TOOLS is not a tuple ending in a ')' line", "add the Tool(...) entry to TOOLS by hand:\n" + entry
-        )
-    head, tools_lines, rest = (
-        lines[: found.lineno - 1],
-        lines[found.lineno - 1 : found.end_lineno - 1],
-        lines[found.end_lineno - 1 :],
-    )
-    if tools_lines and not tools_lines[-1].rstrip().endswith((",", "(")):
-        tools_lines[-1] += ","
-    return "\n".join(head).rstrip("\n") + "\n" + block + "\n\n" + "\n".join(tools_lines + [entry] + rest)
 
 
 def _contract_tool(text: str, full: str, feature_name: str) -> str:
@@ -258,7 +232,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None) -> str:
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
     comment = f'    # emits.{name}(...) where it happens (emit("{full}", ...)); others: @on("{full}") in listeners.py'
-    plan.edit(door, lambda text: _add_event(text, comment, f"    {json.dumps(full)}: {json.dumps(payload)},"))
+    plan.edit(door, lambda text: add_event(text, comment, f"    {json.dumps(full)}: {json.dumps(payload)},"))
     row = f"| `{full}` | {payload} | say when | — |"
     plan.edit(
         CONTRACT,
@@ -285,26 +259,3 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None) -> str:
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
     ]
     return f"event {full}"
-
-
-def _add_event(text: str, comment: str, entry: str) -> str:
-    tree = ast.parse(text)
-    for node in tree.body:
-        target = (
-            node.target
-            if isinstance(node, ast.AnnAssign)
-            else (node.targets[0] if isinstance(node, ast.Assign) else None)
-        )
-        if getattr(target, "id", "") != "EVENTS" or not isinstance(node.value, ast.Dict):
-            continue
-        lines = text.split("\n")
-        first, last = node.lineno - 1, node.end_lineno - 1
-        if first == last:  # EVENTS = {} on one line
-            opening = lines[first][: lines[first].rindex("{") + 1]
-            return "\n".join(lines[:first] + [opening, comment, entry, "}"] + lines[first + 1 :])
-        if lines[last].strip() != "}":
-            raise Failure("EVENTS does not end in a '}' line", "add the entry by hand:\n" + entry)
-        if not lines[last - 1].rstrip().endswith((",", "{")):
-            lines[last - 1] += ","
-        return "\n".join(lines[:last] + [comment, entry] + lines[last:])
-    raise Failure("the front door has no EVENTS dict", "add EVENTS = {} to it (backend/system/events.py)")

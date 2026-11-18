@@ -3,7 +3,7 @@
     check                    the fast checks whose inputs changed since their last pass on this branch, plus the
                              real-engine run and the clean install when the branch changed what they cover
     check unit lint          just these        check --again    ignore earlier passes
-    check --full             the fast checks, acceptance and the clean install
+    check --full             the fast checks, scaffold, acceptance and the clean install
     check --watch            run again on every file change or commit (Ctrl+C stops; watch.py)
 
 Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept per branch against that digest
@@ -26,7 +26,7 @@ from . import repo, state
 from .output import Failure
 
 ROW = re.compile(r"^\s*(ok|skipped|FAILED)  (\S+)\s+([\d.]+) s(?:  (.*))?$")
-CHECK_PY = ("unit", "bundle", "lint", "page", "scan", "acceptance")
+CHECK_PY = ("unit", "bundle", "lint", "page", "scan", "scaffold", "acceptance")
 SCRIPTS = {
     "clean_install": ["tools/ci/clean_install_check.py"],
     "update": ["tools/ci/clean_install_check.py", "--update-from"],
@@ -73,7 +73,7 @@ def select(ctx, names: list[str], full: bool, need: dict[str, str] | None = None
         return {name: "asked" for name in names}
     wanted = dict(need if need is not None else required(ctx))
     if full:
-        wanted |= {"acceptance": "--full", "clean_install": "--full"}
+        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"}
     return wanted
 
 

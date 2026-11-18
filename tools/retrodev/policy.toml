@@ -44,6 +44,7 @@ page = ["page/*", "tests/page/*", "tools/bundle/*", "desktop/*", "player/frame-s
         "tools/npm/package-lock.json", "tools/check.py", "tools/retrodev/policy.toml"]
 unit = ["*"]
 scan = ["*"]
+scaffold = ["*"]
 acceptance = ["*"]
 clean_install = ["*"]
 update = ["*"]
@@ -51,6 +52,10 @@ update = ["*"]
 [checks.triggers]
 # Added to `check` automatically when the branch changed one of these files since it left the base branch.
 acceptance = ["backend/*", "engine/*", "player/*", "tools/ci/prepare_toolchain.py", "plugin.yaml"]
+# `retrodev new` on a copy of the tree (a few seconds, so not in the fast unit run): its code and what it edits.
+scaffold = ["tools/retrodev/scaffold*", "tools/retrodev/templates/*", "tests/retrodev/test_scaffold_tree.py",
+            "backend/features.py", "docs/dev/CONTRACT.md", "docs/dev/ARCHITECTURE.md", "tools/layout.toml",
+            "page/pages/index.js", "page/pages/build/transcript/step-words.js"]
 clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]
 
 [checks.budgets]

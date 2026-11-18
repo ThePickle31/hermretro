@@ -18,6 +18,7 @@ refuses a name that exists or breaks the naming rules, and works only on a work 
 
 from __future__ import annotations
 
+import ast
 import keyword
 import re
 import sys
@@ -80,6 +81,20 @@ def render(kind: str, file: str, **values: str) -> str:
     return text.replace("{{", "{").replace("}}", "}")
 
 
+def parses(rel: str, text: str) -> str:
+    """``text``, once it is known to be valid Python when ``rel`` is a Python file: a plan never holds broken code
+    (it is built whole in memory and written only after every file of it was made)."""
+    if rel.endswith(".py"):
+        try:
+            ast.parse(text, rel)
+        except SyntaxError as error:
+            raise Failure(
+                f"new would write invalid Python to {rel} (line {error.lineno}: {error.msg}); nothing was written",
+                "change the words that broke it, or make the change by hand",
+            ) from None
+    return text
+
+
 @dataclass
 class Plan:
     """The files one `new` creates or changes, applied together (or only listed, on a dry run)."""
@@ -107,15 +122,15 @@ class Plan:
     def create(self, rel: str, text: str) -> None:
         if self.exists(rel):
             raise Failure(f"{rel} exists already; new never overwrites a file", "pick another name, or edit it by hand")
-        self.created[rel] = text
+        self.created[rel] = parses(rel, text)
 
     def ensure(self, rel: str, text: str) -> None:
         if not self.exists(rel):
-            self.created[rel] = text
+            self.created[rel] = parses(rel, text)
 
     def edit(self, rel: str, change) -> None:
         before = self.read(rel)
-        after = change(before)
+        after = parses(rel, change(before))
         if after == before:
             return
         if rel in self.created:

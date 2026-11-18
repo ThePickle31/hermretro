@@ -22,5 +22,9 @@ single pull request (`chore/engine-<version>`).
 7. **New or renamed tools**: `tests/repo/test_lockstep.py` names every place (step words, manifest, CONTRACT counts).
 8. Run `python tools/check.py full` and the clean install; CI runs integration on Linux and macOS.
 
+`python tools/retrodev engine update <v> --owner-words "..."` walks these steps, judging from the tree which are done.
+Steps 6 and 8 cannot be seen in the tree: after doing one, record it with `--done 6` (or `--done 8`); the checklist
+finishes only when both are recorded.
+
 Every existing prepared engine (`~/.hermes/hermretro/.cache/engine-<old version>`) is ignored after the bump; the
 device CLI shows as missing until it is installed again for the new version.
