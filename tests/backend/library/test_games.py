@@ -13,15 +13,15 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.hermes import contracts  # noqa: E402
-from backend.library import games  # noqa: E402
-from backend.hermes import host as hermes_host  # noqa: E402
-from backend.system import paths  # noqa: E402
-from backend.broker.broker import Broker, Lane  # noqa: E402
-from backend.library import rpcs as library_rpcs  # noqa: E402
-from backend.library import tools as library_tools  # noqa: E402
-from backend.setup import tools as setup_tools  # noqa: E402
-from tests.support import registered_hook  # noqa: E402
+from backend.hermes import contracts  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Broker, Lane  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import tools as setup_tools  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def encode_png(width, height, pixel):

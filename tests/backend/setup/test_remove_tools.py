@@ -10,11 +10,11 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
-from backend.hermes import host as hermes_host  # noqa: E402
-from backend.setup import rpcs as host_setup  # noqa: E402
-from backend.system import paths  # noqa: E402
-from backend.setup import provision  # noqa: E402
-from backend.setup import rpcs as setup_rpcs  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import rpcs as host_setup  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 

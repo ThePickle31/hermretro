@@ -46,7 +46,7 @@ def tool_results_take_images() -> bool:
         from tools.vision_tools import _should_use_native_vision_fast_path
 
         return bool(_should_use_native_vision_fast_path())
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - any failure means the route takes no images
         return False
 
 
@@ -73,5 +73,5 @@ def enabled_plugins() -> list[str]:
 
         enabled = ((load_config_readonly() or {}).get("plugins") or {}).get("enabled") or []
         return [str(name) for name in enabled]
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - an unreadable config means no plugins are on
         return []

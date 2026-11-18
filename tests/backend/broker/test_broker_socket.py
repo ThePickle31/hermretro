@@ -18,8 +18,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import client  # noqa: E402
-from backend.system import paths  # noqa: E402
+from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 OWNER = {"profile": "socket-test", "conversation_id": "conv-1"}

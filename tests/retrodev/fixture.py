@@ -31,7 +31,7 @@ from unittest import mock
 import retrodev
 from retrodev import cli, state
 
-from tests.retrodev.pool import SHARED, alone, one_pool, parallel  # noqa: F401 (the modules import them from here)
+from tests.retrodev.pool import SHARED, alone, one_pool, parallel  # noqa: F401 - the modules import them from here
 
 POLICY = Path(retrodev.__file__).with_name("policy.toml")
 

@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.features import FEATURES  # noqa: E402
-from backend.hermes import declare  # noqa: E402
+from backend.features import FEATURES  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import declare  # noqa: E402 - the repository root goes on sys.path first
 
 
 class Declarations(unittest.TestCase):

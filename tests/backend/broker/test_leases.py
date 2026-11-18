@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from backend.broker import leases  # noqa: E402
+from backend.broker import leases  # noqa: E402 - the repository root goes on sys.path first
 
 
 def write_lease(root: Path, pid: int, mtime: float | None = None, mode: int = 0o600, extra: dict | None = None) -> Path:

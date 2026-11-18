@@ -10,8 +10,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.hermes import host as hermes_host  # noqa: E402
-from backend.broker.broker import Broker, Denied, Lane  # noqa: E402
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Broker, Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
 
 
 class FakeEngine:

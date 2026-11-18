@@ -92,7 +92,7 @@ def check_unit(_args) -> str:
     # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
     timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
-    # tests/repo/test_layout.py prints what should be fixed soon (big files, missing READMEs) without failing.
+    # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
     warnings = sum("layout warning: " in line for line in lines)
     noted = f"; {warnings} layout warnings (python -m unittest tests.repo.test_layout)" if warnings else ""
     return (ran[-1] if ran else "ok") + noted + slow
@@ -149,7 +149,7 @@ def check_lint(args) -> str:
                 tail(lint_out, 40) + "\nruff's rules catch likely bugs (unused or undefined names, "
                 "mistakes bugbear knows) and older syntax; `.dev/py/bin/ruff rule <CODE>` explains one.\n"
                 "FIX: python tools/check.py fix for the automatic fixes, then fix the rest as each "
-                "message says (a deliberate exception: # noqa: <CODE> \u2014 <reason> on its line)"
+                "message says (a deliberate exception: # noqa: <CODE> - <reason> on its line)"
             )
         if ruff[1].returncode:
             files = [line.split(":", 1)[0] for line in format_out.splitlines() if "unformatted:" in line]
@@ -294,7 +294,7 @@ def check_scaffold(_args) -> str:
 
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
-    from backend.system import paths  # noqa: E402  (the backend decides where setup put the toolchain)
+    from backend.system import paths  # noqa: E402 - the backend decides where setup put the toolchain
 
     if not paths.setup_root().is_dir():
         raise Skip(

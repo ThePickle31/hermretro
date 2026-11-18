@@ -11,9 +11,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from backend.hermes import contracts  # noqa: E402
-from backend.system import paths  # noqa: E402
-from backend.hermes import results  # noqa: E402
+from backend.hermes import contracts  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import results  # noqa: E402 - the repository root goes on sys.path first
 
 PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"fake-image-bytes").decode()
 

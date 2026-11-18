@@ -44,6 +44,8 @@ STEPS = [
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs"]
 STRUCTURE = [
     "tests.repo.test_layout",
+    "tests.repo.test_readmes",
+    "tests.repo.test_noqa",
     "tests.repo.test_docs",
     "tests.repo.test_boundaries",
     "tests.repo.test_lockstep",

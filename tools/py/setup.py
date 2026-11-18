@@ -11,6 +11,7 @@ it does nothing while requirements.txt is unchanged and the tools still start. .
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import shutil
 import subprocess
@@ -39,6 +40,23 @@ def ready() -> bool:
         return False
 
 
+def venv_fix(error: BaseException) -> str:
+    """The FIX for a failed venv creation, from the error itself: only a missing venv/ensurepip is the package."""
+    again = "then run python tools/py/setup.py again"
+    code = getattr(error, "errno", None)
+    if code in (errno.ENOSPC, errno.EDQUOT):
+        return (
+            f"the disk holding {VENV.parent} is full: free space on that filesystem (or put the checkout on "
+            f"another one), {again}"
+        )
+    if code in (errno.EACCES, errno.EPERM, errno.EROFS):
+        where = getattr(error, "filename", None) or VENV.parent
+        return f"this user cannot write {where}: check the permissions on that path (ls -ld {where}), {again}"
+    if isinstance(error, subprocess.CalledProcessError) or "ensurepip" in str(error):
+        return f"install your Python's venv module (on Debian and Ubuntu: the python3-venv package), {again}"
+    return f"read the error above (it names the path and the cause), fix that, {again}"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").strip().splitlines()[0])
     parser.add_argument("--force", action="store_true", help="remove .dev/py and install again")
@@ -55,10 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         venv.EnvBuilder(with_pip=True, clear=True).create(VENV)
     except (OSError, subprocess.CalledProcessError) as error:
-        print(
-            f"could not create the venv: {error}\nFIX: install your Python's venv module (on Debian and "
-            "Ubuntu: the python3-venv package), then run python tools/py/setup.py again"
-        )
+        print(f"could not create the venv: {error}\nFIX: {venv_fix(error)}")
         return 1
     python = VENV / "bin" / "python"
     result = subprocess.run(

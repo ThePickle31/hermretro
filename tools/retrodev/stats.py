@@ -143,7 +143,7 @@ def run(ctx) -> int:
     say(f"pull requests: {len(landed)} landed with retrodev; {len(in_git)} merged into {ctx.base} in all")
     for pr in landed:
         rounds = ", ".join(str(n) for n in pr["findings"]) or "none"
-        extra = f"; reviews skipped ({pr['reviews_skipped']})" if pr["reviews_skipped"] else ""
+        extra = f"; reviews skipped: {pr['reviews_skipped']}" if pr["reviews_skipped"] else ""
         timing = f"; ship->merge {pr['ship_to_merge_hours']} h" if pr["ship_to_merge_hours"] is not None else ""
         say(
             f"  #{pr['pr']}: {pr['rounds']} rounds, findings per round: {rounds}, answered {pr['answered']}{extra}{timing}"

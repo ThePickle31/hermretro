@@ -209,3 +209,18 @@ class Stats(RepoCase):
         self.assertEqual((data["friction"]["rows"], data["friction"]["open"]), (2, 1))
         code, text = self.run_cli("stats")
         self.assertIn("#7: 2 rounds, findings per round: 2, 0, answered 2; ship->merge 2.5 h", text)
+
+    def test_skipped_reviews_print_the_recorded_reason_and_never_the_owner(self):
+        reviews = state.root(self.main) / "reviews"
+        reviews.mkdir(parents=True)
+        landed = {
+            "pr": 9,
+            "rounds": [],
+            "skipped": {"reason": "land --no-review"},
+            "merged": {"at": "2026-11-17T12:30:00-0800", "subject": "Thing (#9)"},
+        }
+        (reviews / "9.json").write_text(json.dumps(landed))
+        code, text = self.run_cli("stats")
+        self.assertEqual(code, 0, text)
+        self.assertIn("#9: 0 rounds, findings per round: none, answered 0; reviews skipped: land --no-review", text)
+        self.assertNotIn("owner", text)
