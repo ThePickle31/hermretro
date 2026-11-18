@@ -13,7 +13,7 @@ from . import github, plan, repo, state
 
 def next_step(facts: dict) -> str:
     """The one next command for a branch, from its facts (pure: the tests drive it directly)."""
-    topic = facts.get("topic") or "<topic>"
+    topic = facts.get("plan") or facts.get("topic") or "<topic>"
     if facts.get("protected"):
         return "next: python tools/retrodev start <kind>/<topic> (work happens in a worktree on its own branch)"
     if facts.get("needs_plan") and not facts.get("plan_approved"):
@@ -44,13 +44,15 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     kind, _, named = branch.partition("/")
     topic = record.get("topic") or (named if state.NAME.match(named) else None)
     kind = record.get("kind") or kind
-    plan_row = plan.describe(ctx, topic) if topic else None
+    plan_topic = record.get("plan") or topic
+    plan_row = plan.describe(ctx, plan_topic) if plan_topic else None
     pr = (record.get("pr") or {}).get("number")
     jobs = github.checks(ctx, pr) if pr and with_ci else None
     return {
         "branch": branch,
         "path": str(path),
         "topic": topic,
+        "plan": plan_topic,
         "protected": branch in ctx.policy["branches"]["protected"],
         "needs_plan": record.get("plan") is not None or (not record and kind not in ctx.policy["branches"]["no_plan"]),
         "plan_approved": bool(plan_row and plan_row["approved"]),
@@ -69,9 +71,9 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
 def show_branch(ctx, facts: dict) -> None:
     say = ctx.out.say
     say(f"branch {facts['branch']}  ({facts['path']})")
-    if facts["topic"]:
+    if facts["plan"]:
         approval = "approved" if facts["plan_approved"] else "NOT approved"
-        say(f"  plan:   {facts['topic']} ({approval}" + ("; changed since" if facts["plan_changed"] else "") + ")")
+        say(f"  plan:   {facts['plan']} ({approval}" + ("; changed since" if facts["plan_changed"] else "") + ")")
     say(f"  checks: {'passed on this tree' if facts['checks_passed'] else 'not passed on this tree'}")
     say(f"  tree:   {'uncommitted changes' if facts['dirty'] else 'committed'}; head {(facts['head'] or '')[:9]}")
     if facts["pr"]:

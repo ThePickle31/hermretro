@@ -135,3 +135,29 @@ def approve(ctx, topic: str, words: str | None) -> int:
     ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
     ctx.out.set(topic=topic, approved=record["approved"])
     return 0
+
+
+def link(ctx, topic: str) -> int:
+    """Record that the current branch works under an approved plan (a plan may cover several branches)."""
+    topic = state.check_topic(topic)
+    here = ctx.cwd
+    branch = repo.branch(here)
+    if not branch or branch in ctx.policy["branches"]["protected"]:
+        raise Failure(
+            f"{branch or 'a detached HEAD'} is not a work branch; a plan is linked from the branch that does the work",
+            "cd into the branch's worktree (python tools/retrodev status in the main checkout lists them)",
+        )
+    if not plan_file(ctx, topic).is_file():
+        raise Failure(f"there is no plan '{topic}'", f"python tools/retrodev plan new {topic}")
+    record = state.load_branch(ctx.top, branch)
+    kind, _, named = branch.partition("/")
+    record.setdefault("branch", branch)
+    record.setdefault("kind", kind)
+    record.setdefault("topic", named)
+    record.setdefault("worktree", str(repo.toplevel(here)))
+    record["plan"] = topic
+    state.save_branch(ctx.top, record)
+    row = describe(ctx, topic)
+    ctx.out.say(f"{branch} works under the plan {topic} ({'approved' if row['approved'] else 'NOT approved yet'})")
+    ctx.out.set(branch=branch, plan=topic, approved=bool(row["approved"]))
+    return 0

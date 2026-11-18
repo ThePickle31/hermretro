@@ -71,6 +71,32 @@ class Start(RepoCase):
         self.assertEqual(code, 1)
         self.assertIn("already exists", out)
 
+    def test_one_plan_covers_several_branches(self):
+        self.run_cli("plan", "new", "bigplan")
+        code, out = self.run_cli("start", "feat/part-one", "--plan", "bigplan", "--no-setup")
+        self.assertEqual(code, 3, out)
+        self.assertIn("'bigplan' is not approved", out)
+        self.run_cli("plan", "approve", "bigplan", "--words", "start")
+        code, data = self.run_cli("start", "feat/part-one", "--plan", "bigplan", "--no-setup", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(state.load_branch(self.main, "feat/part-one")["plan"], "bigplan")
+        code, data = self.run_cli("status", cwd=self.base / "hermretro-wt" / "part-one", as_json=True)
+        self.assertEqual((data["plan"], data["plan_approved"]), ("bigplan", True), data)
+
+    def test_a_branch_made_by_hand_links_to_its_plan(self):
+        self.run_cli("plan", "new", "bigplan")
+        self.run_cli("plan", "approve", "bigplan", "--words", "start")
+        path = self.base / "by-hand"
+        git(self.main, "worktree", "add", "-q", "-b", "feat/by-hand", str(path), "dev")
+        code, out = self.run_cli("plan", "link", "bigplan", cwd=path)
+        self.assertEqual(code, 0, out)
+        self.assertIn("works under the plan bigplan (approved)", out)
+        code, data = self.run_cli("status", cwd=path, as_json=True)
+        self.assertEqual((data["plan"], data["plan_approved"]), ("bigplan", True), data)
+        code, out = self.run_cli("plan", "link", "bigplan")  # the main checkout is on dev
+        self.assertEqual(code, 1, out)
+        self.assertIn("is not a work branch", out)
+
     def test_start_refuses_while_the_main_checkout_is_dirty_or_off_dev(self):
         write(self.main, "docs/draft.md", "owner's work\n")
         code, out = self.run_cli("start", "docs/tidy", "--no-plan", "--no-setup")

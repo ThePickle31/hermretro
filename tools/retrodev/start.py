@@ -57,9 +57,10 @@ def run_setup(ctx, path: Path) -> list[dict]:
     return results
 
 
-def run(ctx, name: str, no_plan: bool = False, setup: bool = True) -> int:
+def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: str | None = None) -> int:
     kinds = ctx.policy["branches"]["kinds"]
     kind, topic = gates.parse_branch(name, kinds)
+    plan_topic = state.check_topic(plan_topic) if plan_topic else topic  # one plan may cover several branches
     checks = []
     if no_plan and kind not in ctx.policy["branches"]["no_plan"]:
         raise Failure(
@@ -68,7 +69,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True) -> int:
             f"python tools/retrodev plan new {topic}, then ask the owner",
             code=OWNER,
         )
-    checks.append(gates.passed("plan", "--no-plan (small change)") if no_plan else gates.plan_approved(ctx, topic))
+    checks.append(gates.passed("plan", "--no-plan (small change)") if no_plan else gates.plan_approved(ctx, plan_topic))
     checks.append(main_checkout_gate(ctx))
     path = worktree_path(ctx, topic)
     main = ctx.main()
@@ -103,7 +104,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True) -> int:
         branch=name,
         kind=kind,
         topic=topic,
-        plan=None if no_plan else topic,
+        plan=None if no_plan else plan_topic,
         worktree=str(path),
         base=base,
         created=state.now(),

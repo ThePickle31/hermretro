@@ -43,10 +43,14 @@ def parser() -> argparse.ArgumentParser:
     approve = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
     approve.add_argument("topic")
     approve.add_argument("--words", required=True, help="the owner's exact words")
+    plans.add_parser(
+        "link", help="this branch works under a plan (one plan may cover several branches)", parents=[common]
+    ).add_argument("topic")
 
     p = add("start", "a worktree on a new <kind>/<topic> branch from the base branch, set up")
     p.add_argument("branch", help="feat/<topic>, fix/<topic>, docs/<topic> or chore/<topic>")
     p.add_argument("--no-plan", action="store_true", help="docs/ and chore/ only: a small change without a plan")
+    p.add_argument("--plan", metavar="TOPIC", help="the approved plan this branch is part of (default: its topic)")
     p.add_argument("--no-setup", action="store_true", help="skip npm ci and the ruff setup")
 
     p = add("check", "the checks whose inputs changed (cached passes print 'ok (cached)')")
@@ -84,9 +88,11 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
             return plan.new(ctx, args.topic)
         if args.action == "show":
             return plan.show(ctx, args.topic)
+        if args.action == "link":
+            return plan.link(ctx, args.topic)
         return plan.approve(ctx, args.topic, args.words)
     if command == "start":
-        return start.run(ctx, args.branch, no_plan=args.no_plan, setup=not args.no_setup)
+        return start.run(ctx, args.branch, no_plan=args.no_plan, setup=not args.no_setup, plan_topic=args.plan)
     if command == "check":
         if args.watch:
             return checks.watch(ctx, args.names, full=args.full)
