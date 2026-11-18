@@ -19,7 +19,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
-import check  # noqa: E402  (tools/check.py, imported from its folder)
+import check  # noqa: E402 - tools/check.py is imported from its own folder
 
 PROBE = ["-c", "import probe; print(probe.WORD)"]
 OK = "Ran 1 test in 0.001s\n\nOK\n"
