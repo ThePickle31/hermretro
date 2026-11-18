@@ -37,6 +37,12 @@ replaces the old broker when its code changed (keeps it when not). It works from
 from `origin/dev`. Nothing to edit when releasing: once the new tag is on `main`, every later run updates from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
 lives (`backend/system/paths.py`) or what the broker answers to `hello` must keep this check green, or migrate.
 
+Before a release, `python tools/retrodev mac` runs the checks on the MacBook when one is set up
+(`retrodev config set mac_host <host>`; asleep or unset, CI's macOS runners cover it). Once `release publish` has
+made the draft, `python tools/retrodev release verify <version>` repeats the update check from the previous stable release on
+the tagged commit, with the notes and the tag; `--publish` then publishes it.
+
 ## Then release
 
-The release steps are in the agent guide ("Releases").
+The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release prepare`,
+`release publish` and `release verify` (`tools/retrodev/README.md`, "Releases").

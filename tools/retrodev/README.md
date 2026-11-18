@@ -19,6 +19,9 @@ Python 3.11+, development only (it never runs inside Hermes). Tests: `tests/retr
 | 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts; the agent adds the prose |
 
 At any time `status` names the one next step, `doctor` checks the machine, `sync` brings in `dev`, `gc` tidies up.
+Beyond one change: `try <pr>` runs any pull request's full checks in a throwaway checkout, `mac` runs the checks on
+a MacBook, `preview` builds the page's browser preview, and `release ...` makes a release when the owner asks
+(below).
 
 ## Commands
 
@@ -39,8 +42,14 @@ At any time `status` names the one next step, `doctor` checks the machine, `sync
 | `status` | On a branch: plan, approval, checks on this tree, PR, pushed head, CI, and the next step. In the main checkout: every record and worktree |
 | `sync` | `git fetch`, then merges `origin/dev` (never a rebase). Conflicts only in generated files: takes dev's side, rebuilds them, finishes the merge. Any other conflict: stops with the source files and leaves the merge open; resolve those (never the generated ones), `git add` them and run `sync` again: it rebuilds the generated files and makes the merge commit (no `git commit` by hand). A clean merge rebuilds the generated files too and commits them if they changed |
 | `gc [--dry-run]` | Removes worktrees whose pushed branch is merged into `origin/dev`, whose pull request merged, or which the remote deleted, only when clean and holding no ignored file beyond the rebuildable caches in `policy.toml` `[gc] caches` (`node_modules/`, `.dev/`, `__pycache__/`, `*.pyc`, ...): a worktree with ignored `notes/`, `games/`, scratch or logs is kept with its branch, naming those paths and a `FIX:` (move them out, e.g. into the main checkout's `notes/`). Deletes those branches and their records. A worktree folder deleted by hand loses only git's note of it: its branch and record stay unless the branch passes the same checks, and every later gc judges that recorded branch again (removed once merged). Removes folders in the main checkout whose whole subtree is bytecode caches and empty folders (a hidden or skipped folder, a symlink or any other file keeps it). A dry run fetches nothing and changes nothing |
-| `doctor [--all]` | git, gh and its account, git identity, Python, Node, the npm tools and ruff, Hermes and a hermes-agent source for the scan, the main checkout, the worktree root, a short temp folder; each problem with its fix. `--all` adds the reviewer: `review_profile` set, and a live probe of its provider |
+| `doctor [--all]` | git, gh and its account, git identity, Python, Node, the npm tools and ruff, Hermes and a hermes-agent source for the scan, the main checkout, the worktree root, a short temp folder; each problem with its fix. `--all` adds the reviewer (`review_profile` set, and a live probe of its provider) and the MacBook's reachability (optional, never a problem) |
 | `config list` / `get <key>` / `set <key> <value>` | Personal settings; `set <key> ""` goes back to the default |
+| `try <pr> [--keep] [--no-setup]` | Fetches the pull request's head (`<remote> refs/pull/<n>/head`, forks too) into a detached throwaway worktree in a short temp folder outside the repository, sets it up and runs `check --full` there; removes it afterwards (the folder, then `git worktree prune`), also on a failure, unless `--keep` (its path and the commands that remove it are printed). Nothing in any agent's worktree changes |
+| `mac [--host H] [-- <check.py args>]` | Optional: the checks on a MacBook over ssh. The host is `--host` or the personal `mac_host` (no default: unset prints "no mac configured; CI's macOS runners cover it", exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable, CI covers macOS). The commit must be on the remote; on the mac, in `mac_repo` (default `~/Projects/hermretro`, `~` expanded there), it fetches, checks the commit out detached and runs `python3 tools/check.py [args]`, streaming its output. It never pushes from the mac |
+| `preview [--serve] [--out DIR] [--desktop DIR]` | Builds the page's browser preview (`node tests/page/preview/build.mjs`, docs/dev/TESTING.md) into `<state>/preview` and prints its `index.html`. Needs a built Hermes Desktop source: `--desktop`, else `$HERMES_SOURCE/apps/desktop` (default `~/.hermes/hermes-agent`). `--serve` serves it on 127.0.0.1 on a free port (the standard library's http.server, loopback only, the Desktop's stylesheets included) until Ctrl+C |
+| `release prepare [--rc] [--version X.Y.Z] --owner-words "..."` | Only when the owner asks for a release: without their words (naming a release) exit 3. Below |
+| `release publish <version> [--dry-run]` | The gates, the update check, then main, the tag and the draft release. Below |
+| `release verify <version> [--publish]` | Reads the draft and proves the update path; `--publish` publishes it. Below |
 
 Every command takes `--json` (one JSON object: `command`, `ok`, `code`, `status`, the command's data, and `error`
 with `message` and `fix` on a failure).
@@ -84,6 +93,38 @@ export's digest. Other worktrees are not watched (agents at work there change th
 and run once more from a fresh export; a second void stops for the owner. Every round, its raw output and audit
 are in `<state>/reviews/<pr>.json`, readable in the main checkout's `notes/reviews/pr<N>.md`.
 
+## Releases (only when the owner says "make a release")
+
+The rules are in the agent guide's "Releases"; these commands carry them out. The version lives only in
+`plugin.yaml` and moves one patch at a time unless the owner names another (`--version`).
+
+1. `release prepare --owner-words "<the owner's exact words>"`: refuses (exit 3) without words that ask for a
+   release. Fetches; the version is the patch after `plugin.yaml` on `dev` (or `dev`'s own version when it is not
+   tagged yet: an earlier candidate bumped it, and no pull request is needed). Records the words in
+   `<state>/releases/<version>.json`, then `start chore/release-X.Y.Z --no-plan`, changes only the `version:` line,
+   commits `Release X.Y.Z`, runs `check` and `ship`s the pull request "Release X.Y.Z". Then it lands like any pull
+   request: `approve <n> --words "..."`, `land <n>`.
+2. `release publish <version> --dry-run`, then without `--dry-run`. Gates, all reported: the owner's words are
+   recorded for this version; the version pull request is merged (its merge commit is the release commit); that
+   commit is on `origin/dev` and its `plugin.yaml` says the version; "All checks pass" is green on that exact
+   commit (`gh api repos/{owner}/{repo}/commits/<sha>/check-runs`; still running: exit 2); `origin/main` is an
+   ancestor of it (main only fast-forwards; otherwise exit 3); the tag is free or already at that commit. Then
+   `tools/ci/clean_install_check.py --update-from` runs on that commit in a throwaway checkout (its pass is kept for
+   the commit). Then, each step skipped when done already, so a stopped publish resumes:
+   `git push origin <sha>` onto `main` (a plain fast-forward push, with `HERMES_RELEASE=1` in that one push's
+   environment for the local guard hooks), `git tag -a v<version> <sha>`, `git push origin refs/tags/v<version>`,
+   `gh release create v<version> --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`. It
+   prints the draft's address and the next step. `--dry-run` fetches nothing, runs nothing and changes nothing: it
+   prints the gates and every command.
+3. Read the draft (add a short summary on top, and whether the real-machine checklist ran), then
+   `release verify <version>`: the release exists and its notes are not empty; the tag points at `main`'s head and
+   `plugin.yaml` there says the version; `clean_install_check.py --update-from v<previous stable>` passes on it.
+   `release verify <version> --publish` does the same and, when all is well, says that a published release is
+   immutable and runs `gh release edit v<version> --draft=false`.
+
+A release candidate: `release prepare --rc ...` names `X.Y.Z-rc.M` (the next M); `release publish X.Y.Z-rc.M` tags
+the `dev` commit and adds `--prerelease`; `main` does not move; `release verify` checks it is a prerelease on `dev`.
+
 ## Exit codes
 
 `0` ok, `1` failed (fix it and run again), `2` still waiting (run again later), `3` needs the owner (an approval,
@@ -94,7 +135,9 @@ or the owner's checkout). Every failure ends with a line starting `FIX:`.
 Records live in `<git common dir>/retrodev/` (the main checkout's `.git/retrodev/`, shared by every worktree,
 never committed): `branches/<branch>.json` (plan, checks with their input digests, the passing tree, the pull
 request and pushed head, the owner's approval, land's last step), `plans/<topic>.json` (the plan's approval),
-`reviews/<pr>.json` and `reviews/<pr>/round<N>/` (every review round), `config.toml` (personal settings).
+`reviews/<pr>.json` and `reviews/<pr>/round<N>/` (every review round), `releases/<version>.json` (the owner's
+words, the pull request, the update check's pass and the steps done), `preview/` (the page preview),
+`config.toml` (personal settings).
 `RETRODEV_STATE_DIR` moves the folder (for a sandbox or a trial that must leave the checkout alone).
 
 The rules everyone shares are in `policy.toml` beside this file: check inputs and triggers, budgets, generated
@@ -109,9 +152,11 @@ override its `[config]` defaults:
 | `github_account` | empty | When set, `doctor` checks gh is logged in as this account |
 | `review_profile` | empty | The Hermes profile the reviewer runs from (personal; empty: land skips the reviews) |
 | `review_provider`, `review_model`, `review_reasoning` | `openai-codex`, `gpt-6.1-sol`, `high` | The reviewer's provider, model and reasoning |
+| `mac_host` | empty | The ssh host of a MacBook for `mac` and `doctor --all` (personal; empty: CI's macOS runners cover it) |
+| `mac_repo` | `~/Projects/hermretro` | The clone on the mac (`~` is expanded there) |
 
 ## What it never does
 
-Rewrite a remote branch, push to `main`, run the hardware tools, or restart Hermes; `tests/retrodev/test_rules.py`
-checks the source for the commands that would. It never merges a pull request the owner did not approve, or one
+Rewrite a remote branch, push to `main` (except `release publish`'s one fast-forward, only after its gates), run the
+hardware tools, or restart Hermes; `tests/retrodev/test_rules.py` checks the source for the commands that would. It never merges a pull request the owner did not approve, or one
 whose exact head has not passed CI.

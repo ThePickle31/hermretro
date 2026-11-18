@@ -3,6 +3,8 @@
   1 discuss   2 plan new / plan show   3 plan approve, start   4 check, ship   5 report
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
+  reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
+  releases, only when the owner says 'make a release': release prepare, release publish, release verify
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
 --json prints one JSON object instead of text. Read tools/retrodev/README.md for the whole flow.
@@ -15,7 +17,28 @@ import functools
 import os
 from pathlib import Path
 
-from . import approve, checks, config, doctor, gc, land, plan, report, ship, start, status, summary, sync, watch
+from . import (
+    approve,
+    checks,
+    config,
+    doctor,
+    gc,
+    land,
+    mac,
+    plan,
+    preview,
+    release,
+    release_publish,
+    release_verify,
+    report,
+    ship,
+    start,
+    status,
+    summary,
+    sync,
+    trial,
+    watch,
+)
 from .output import FAILED, Failure, Out
 
 
@@ -93,6 +116,18 @@ def parser() -> argparse.ArgumentParser:
         "--all", action="store_true", help="also the optional items"
     )
     add("status", "where this change stands, and the next step")
+    releases(sub, common)
+    p = add("try", "a pull request's full checks in a throwaway checkout outside the repository")
+    p.add_argument("pr", type=int)
+    p.add_argument("--keep", action="store_true", help="keep the throwaway checkout (its path is printed)")
+    p.add_argument("--no-setup", action="store_true", help="skip npm ci and the ruff setup there")
+    p = add("mac", "the checks on the MacBook over ssh (optional; mac_host, mac_repo)")
+    p.add_argument("--host", help="the ssh host (default: the mac_host setting)")
+    p.add_argument("rest", nargs=argparse.REMAINDER, help="-- then tools/check.py's arguments")
+    p = add("preview", "build the page's browser preview and print its path")
+    p.add_argument("--serve", action="store_true", help="serve it on 127.0.0.1 on a free port")
+    p.add_argument("--out", help="the output folder (default: <state>/preview)")
+    p.add_argument("--desktop", help="a built Hermes Desktop source (default: $HERMES_SOURCE/apps/desktop)")
     p = add("config", "personal settings (never committed)")
     p.add_argument("action", choices=["get", "set", "list"])
     p.add_argument("key", nargs="?")
@@ -100,8 +135,36 @@ def parser() -> argparse.ArgumentParser:
     return top
 
 
+def releases(sub, common) -> None:
+    help_text = "releases, only when the owner says 'make a release': prepare, publish, verify"
+    p = sub.add_parser("release", help=help_text, description=help_text, parents=[common])
+    steps = p.add_subparsers(dest="action", required=True, metavar="<action>")
+    prepare = steps.add_parser("prepare", help="the chore/release-X.Y.Z pull request", parents=[common])
+    prepare.add_argument("--owner-words", help="the owner's exact words asking for the release")
+    prepare.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
+    prepare.add_argument("--version", help="the version the owner named (default: the next patch)")
+    publish = steps.add_parser("publish", help="main, the tag and the draft release, after the gates", parents=[common])
+    publish.add_argument("version")
+    publish.add_argument("--dry-run", action="store_true", help="print the gates and every command; change nothing")
+    verify = steps.add_parser("verify", help="read the draft, check it, then (--publish) publish", parents=[common])
+    verify.add_argument("version")
+    verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")
+
+
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
+    if command == "release":
+        if args.action == "prepare":
+            return release.prepare(ctx, args.owner_words, rc=args.rc, named=args.version)
+        if args.action == "publish":
+            return release_publish.run(ctx, args.version, dry_run=args.dry_run)
+        return release_verify.run(ctx, args.version, publish=args.publish)
+    if command == "try":
+        return trial.run(ctx, args.pr, keep=args.keep, setup=not args.no_setup)
+    if command == "mac":
+        return mac.run(ctx, args.host, args.rest)
+    if command == "preview":
+        return preview.run(ctx, serve=args.serve, out_dir=args.out, desktop=args.desktop)
     if command == "plan":
         if args.action == "new":
             return plan.new(ctx, args.topic)
@@ -142,7 +205,7 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None, cwd: Path | str | None = None, gh_runner=None, stream=None, fakes=None) -> int:
     args = parser().parse_args(argv)
     out = Out(as_json=args.json, stream=stream)
-    name = args.command + (f" {args.action}" if args.command in ("plan", "config") else "")
+    name = args.command + (f" {args.action}" if args.command in ("plan", "config", "release") else "")
     try:
         ctx = config.Context.make(cwd or os.getcwd(), out, gh_runner=gh_runner, fakes=fakes)
         code = dispatch(ctx, args)

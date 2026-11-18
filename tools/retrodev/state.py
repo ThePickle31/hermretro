@@ -2,6 +2,7 @@
 
     branches/<branch>.json   one per branch: plan, checks and the tree they passed on, the PR and its head
     plans/<topic>.json       one per plan: where it is, and the owner's approval (time and exact words)
+    releases/<version>.json  one per release: the owner's words, its pull request, commit and steps done
     config.toml              personal settings (config.py)
 
 Writes are atomic (a temp file in the same folder, then a rename), so a crash never leaves half a record.
@@ -106,6 +107,20 @@ def load_plan(cwd: Path | str, topic: str) -> dict | None:
 
 def save_plan(cwd: Path | str, record: dict) -> dict:
     return _write(plan_path(cwd, record["topic"]), record)
+
+
+def release_path(cwd: Path | str, version: str) -> Path:
+    if not NAME.match(version or ""):
+        raise Failure(f"'{version}' is not a version", "use the form 0.0.N (or 0.0.N-rc.M)")
+    return root(cwd) / "releases" / (version + ".json")
+
+
+def load_release(cwd: Path | str, version: str) -> dict | None:
+    return _read(release_path(cwd, version))
+
+
+def save_release(cwd: Path | str, record: dict) -> dict:
+    return _write(release_path(cwd, record["version"]), record)
 
 
 def plans(cwd: Path | str) -> list[dict]:

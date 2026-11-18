@@ -1,0 +1,218 @@
+"""release prepare, publish and verify against a temp origin with a main branch and a released tag, and a fake gh.
+
+Run alone: python -m unittest tests.retrodev.test_release
+"""
+
+import json
+import unittest
+
+from retrodev import release_verify, state
+
+from tests.retrodev.fixture import RepoCase, git, parallel
+
+load_tests = parallel
+
+WORDS = "make a release"
+PR = "40"
+NEXT = "0.0.2"
+URL = f"https://github.com/o/r/releases/tag/v{NEXT}"
+
+
+def runs(conclusion: str | None, status: str = "completed") -> str:
+    run = {"name": "All checks pass", "status": status, "conclusion": conclusion, "started_at": "2026-01-01T00:00:00Z"}
+    return json.dumps({"check_runs": [run, {"name": "unit", "status": "completed", "conclusion": "failure"}]})
+
+
+class ReleaseCase(RepoCase):
+    def setUp(self):
+        super().setUp()
+        self.fakes["tmp_root"] = self.base  # throwaway checkouts inside the test's folder
+        git(self.main, "tag", "-a", "v0.0.1", "-m", "Release 0.0.1")
+        git(self.main, "push", "-q", "origin", "dev:main", "refs/tags/v0.0.1")
+        self.gh.answers[("release", "view")] = (1, "", "release not found")
+        self.gh.answers[("release", "create")] = (0, URL + "\n", "")
+
+    def remote(self, ref: str) -> str:
+        return git(self.origin, "rev-parse", "-q", "--verify", ref, check=False).strip()
+
+    def merged_release(self, version: str = NEXT, pr: str | None = PR, words: str = WORDS) -> str:
+        """The version pull request merged into origin/dev (as land leaves it), and the release recorded."""
+        self.on_dev("plugin.yaml", f"version: {version.split('-rc.')[0]}\n", f"Release {version} (#{pr})")
+        git(self.main, "fetch", "-q", "origin")
+        sha = git(self.main, "rev-parse", "origin/dev").strip()
+        record = {
+            "version": version,
+            "words": words,
+            "at": "now",
+            "rc": "-rc." in version,
+            "pr": int(pr) if pr else None,
+        }
+        state.save_release(self.main, record)
+        if pr:
+            self.gh.answers[("pr", "view", pr)] = (0, json.dumps({"state": "MERGED", "mergeCommit": {"oid": sha}}), "")
+        self.ci(sha, runs("success"))
+        return sha
+
+    def ci(self, sha: str, answer: str) -> None:
+        self.gh.answers[("api", f"repos/{{owner}}/{{repo}}/commits/{sha}/check-runs?per_page=100")] = (0, answer, "")
+
+    def publish(self, version: str = NEXT, *extra: str):
+        return self.run_cli("release", "publish", version, *extra, as_json=True)
+
+    def failed_gates(self, data: dict) -> list[str]:
+        return [gate["name"] for gate in data["gates"] if not gate["ok"]]
+
+
+class Prepare(ReleaseCase):
+    def test_no_release_without_the_owners_words(self):
+        for words in ([], ["--owner-words", "  "], ["--owner-words", "ship the new page"]):
+            code, data = self.run_cli("release", "prepare", *words, as_json=True)
+            self.assertEqual(code, 3, data)
+            self.assertIn("release", data["error"]["message"])
+            self.assertIn("--owner-words", data["error"]["fix"])
+        self.assertFalse((state.root(self.main) / "releases").exists())
+        self.assertEqual(self.gh.calls, [])
+
+    def test_prepare_bumps_only_the_version_checks_and_ships_the_release_pull_request(self):
+        self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
+        code, data = self.run_cli("release", "prepare", "--owner-words", WORDS, as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual((data["version"], data["pr"]), (NEXT, int(PR)))
+        tree = self.base / "hermretro-wt" / f"release-{NEXT}"
+        self.assertEqual(git(tree, "branch", "--show-current").strip(), f"chore/release-{NEXT}")
+        self.assertEqual(git(tree, "diff", "--name-only", "origin/dev", "HEAD").split(), ["plugin.yaml"])
+        self.assertEqual((tree / "plugin.yaml").read_text(), f"version: {NEXT}\n")
+        self.assertTrue(self.remote(f"refs/heads/chore/release-{NEXT}"), "the branch was pushed")
+        create = self.gh.called("pr", "create")[0]
+        self.assertEqual(create[create.index("--title") + 1], f"Release {NEXT}")
+        self.assertEqual(create[create.index("--base") + 1], "dev")
+        record = state.load_release(self.main, NEXT)
+        self.assertEqual((record["words"], record["pr"]), (WORDS, int(PR)))
+        ran = [entry.get("names") or entry.get("script") for entry in self.check_log()]
+        self.assertIn(["acceptance"], ran)  # plugin.yaml changed: the real-engine run and the clean install too
+
+    def test_an_rc_is_numbered_after_the_last_candidate(self):
+        git(self.main, "tag", f"v{NEXT}-rc.1", "HEAD")
+        self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
+        code, data = self.run_cli(
+            "release", "prepare", "--rc", "--owner-words", "make a release candidate", as_json=True
+        )
+        self.assertEqual((code, data["version"]), (0, f"{NEXT}-rc.2"), data)
+
+
+class Publish(ReleaseCase):
+    def test_a_release_without_words_is_refused(self):
+        code, data = self.publish()
+        self.assertEqual(code, 3, data)
+        self.assertIn("owner asked for this release", self.failed_gates(data))
+
+    def test_an_unmerged_release_pull_request_waits(self):
+        self.merged_release()
+        self.gh.answers[("pr", "view", PR)] = (0, json.dumps({"state": "OPEN", "mergeCommit": None}), "")
+        code, data = self.publish()
+        self.assertEqual((code, self.failed_gates(data)), (2, ["release pull request merged"]), data)
+        self.assertIn(f"land {PR}", data["error"]["fix"])
+
+    def test_red_or_running_ci_on_the_release_commit_is_refused(self):
+        sha = self.merged_release()
+        self.ci(sha, runs("failure"))
+        code, data = self.publish()
+        self.assertEqual((code, self.failed_gates(data)), (1, [f"CI green on {sha[:9]}"]), data)
+        self.ci(sha, runs(None, "in_progress"))
+        self.assertEqual(self.publish()[0], 2)
+        self.assertEqual(self.remote("refs/heads/main"), self.remote("refs/tags/v0.0.1^{commit}"))
+
+    def test_main_that_cannot_fast_forward_needs_the_owner(self):
+        self.merged_release()
+        other = self.base / "other"
+        git(other, "fetch", "-q", "origin")
+        git(other, "switch", "-q", "-c", "hotfix", "origin/main")
+        self.commit(other, "docs/hot.md", "# Hot\n", "Hotfix on main")
+        git(other, "push", "-q", "origin", "hotfix:main")
+        code, data = self.publish()
+        self.assertEqual((code, self.failed_gates(data)), (3, ["main fast-forwards"]), data)
+        self.assertEqual(self.gh.called("release", "create"), [])
+
+    def test_dry_run_prints_every_command_and_changes_nothing(self):
+        sha = self.merged_release()
+        before = self.remote("refs/heads/main")
+        code, data = self.publish(NEXT, "--dry-run")
+        self.assertEqual(code, 0, data)
+        self.assertEqual(
+            data["commands"],
+            [
+                f"HERMES_RELEASE=1 git push origin {sha}:main",
+                f"git tag -a v{NEXT} {sha} -m 'Release {NEXT}'",
+                f"git push origin refs/tags/v{NEXT}",
+                f"gh release create v{NEXT} --verify-tag --generate-notes --notes-start-tag v0.0.1 --draft",
+            ],
+        )
+        self.assertEqual((self.remote("refs/heads/main"), self.remote(f"refs/tags/v{NEXT}")), (before, ""))
+        self.assertEqual(git(self.main, "tag", "-l", f"v{NEXT}").strip(), "")
+        self.assertEqual((self.gh.called("release", "create"), self.check_log()), ([], []))
+
+    def test_publish_fast_forwards_main_tags_and_drafts_then_resumes_without_repeating(self):
+        sha = self.merged_release()
+        code, data = self.publish()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(self.remote("refs/heads/main"), sha)
+        self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), sha)
+        self.assertEqual(git(self.origin, "cat-file", "-t", f"v{NEXT}").strip(), "tag", "annotated")
+        create = self.gh.called("release", "create")
+        self.assertEqual(create[0][-3:], ["--notes-start-tag", "v0.0.1", "--draft"])
+        self.assertEqual(data["url"], URL)
+        self.assertEqual(self.check_log()[0]["script"], ["--update-from"])  # the update check, at the release commit
+        self.assertEqual(self.check_log()[0]["head"], sha)
+        self.assertEqual([p.name for p in self.base.glob("rd-*")], [], "the throwaway checkout is gone")
+        self.gh.answers[("release", "view")] = (0, json.dumps({"url": URL}), "")
+        code, again = self.publish()
+        self.assertEqual(code, 0, again)
+        self.assertEqual(len(self.gh.called("release", "create")), 1, "nothing is done twice")
+        self.assertEqual(len(self.check_log()), 1, "the update check's pass is kept for this commit")
+
+    def test_a_release_candidate_tags_dev_and_leaves_main_alone(self):
+        version = f"{NEXT}-rc.1"
+        sha = self.merged_release(version, pr=None, words="make a release candidate")
+        main = self.remote("refs/heads/main")
+        code, data = self.publish(version)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(self.remote("refs/heads/main"), main)
+        self.assertEqual(self.remote(f"refs/tags/v{version}^{{commit}}"), sha)
+        self.assertEqual(self.gh.called("release", "create")[0][-2:], ["--draft", "--prerelease"])
+        self.assertFalse(any(":main" in command for command in data["commands"]))
+
+
+class Verify(ReleaseCase):
+    def released(self, body: str = "## Changes\n- A thing") -> str:
+        sha = self.merged_release()
+        self.assertEqual(self.publish()[0], 0)
+        self.clear_log()
+        view = {"tagName": f"v{NEXT}", "isDraft": True, "isPrerelease": False, "body": body, "url": URL}
+        self.gh.answers[("release", "view", f"v{NEXT}", "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        return sha
+
+    def test_verify_checks_the_draft_and_publishes_only_when_asked(self):
+        self.released()
+        code, data = self.run_cli("release", "verify", NEXT, as_json=True)
+        self.assertEqual((code, data["published"]), (0, False), data)
+        self.assertEqual(self.check_log()[0]["script"], ["--update-from", "v0.0.1"])
+        self.assertEqual(self.gh.called("release", "edit"), [])
+        code, out = self.run_cli("release", "verify", NEXT, "--publish")
+        self.assertEqual(code, 0, out)
+        self.assertIn("immutable", out)
+        self.assertEqual(self.gh.called("release", "edit"), [["release", "edit", f"v{NEXT}", "--draft=false"]])
+
+    def test_empty_notes_or_a_tag_off_mains_head_are_refused(self):
+        self.released(body="  ")
+        self.on_dev("docs/later.md", "# Later\n")
+        other = self.base / "other"
+        git(other, "push", "-q", "origin", "dev:main")  # main moved past the tag
+        code, data = self.run_cli("release", "verify", NEXT, "--publish", as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertEqual(self.failed_gates(data), ["notes", "tag is main's head"])
+        self.assertEqual(self.gh.called("release", "edit"), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
