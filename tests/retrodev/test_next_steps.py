@@ -7,6 +7,8 @@ Run alone: python -m unittest tests.retrodev.test_next_steps
 
 import json
 import re
+import shutil
+import subprocess
 import unittest
 
 from retrodev import state
@@ -52,6 +54,26 @@ class PlanApprove(RepoCase):
         add = line[line.index("git worktree add") :].split(" && ")[0].split()
         git(self.main, *add[1:])  # the printed command works
         self.assertTrue(tree.is_dir())
+
+    def test_a_linked_branch_whose_folder_was_deleted_by_hand_gets_a_command_that_works(self):
+        self.run_cli("plan", "new", "big")
+        tree = self.worktree("fix/part")
+        record = state.load_branch(self.main, "fix/part")
+        record["plan"] = "big"
+        state.save_branch(self.main, record)
+        shutil.rmtree(tree)  # deleted by hand: git still has the worktree registered, and no gc ran
+        self.assertIn(f"worktree {tree}", git(self.main, "worktree", "list", "--porcelain"))
+        code, out = self.run_cli("plan", "approve", "big", "--words", "start")
+        self.assertEqual(code, 0, out)
+        line = next(line for line in out.splitlines() if line.startswith("next: fix/part"))
+        command = f"git worktree prune && git worktree add {tree} fix/part && cd {tree} && python tools/retrodev status"
+        self.assertTrue(line.endswith(command), line)
+        # the printed command works (up to the status call, which needs this checkout's tools)
+        shell = line[line.index("git worktree prune") :].rsplit(" && python", 1)[0]
+        done = subprocess.run(shell, shell=True, cwd=self.main, capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue(tree.is_dir())
+        self.assertEqual(git(tree, "branch", "--show-current").strip(), "fix/part")
 
     def test_a_plan_without_branches_still_says_start(self):
         self.run_cli("plan", "new", "alone")

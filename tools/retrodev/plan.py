@@ -135,15 +135,18 @@ def approve(ctx, topic: str, words: str | None) -> int:
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
     linked = linked_branches(ctx, topic)
     if linked:
+        # a folder deleted by hand stays registered in git, and git worktree add refuses it until a prune
+        stale = {str(tree.branch): tree.path for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
         for row in linked:
             branch, where = row["branch"], row["worktree"]
             if where:
                 ctx.out.say(f"next: {branch} already works under it: cd {where} && python tools/retrodev status")
                 continue
-            folder = ctx.worktree_root() / branch.partition("/")[2]  # where start puts it
+            folder = stale.get(branch) or ctx.worktree_root() / branch.partition("/")[2]  # where start puts it
+            prune = "git worktree prune && " if branch in stale else ""
             ctx.out.say(
                 f"next: {branch} already works under it, but its worktree is gone: "
-                f"git worktree add {folder} {branch} && cd {folder} && python tools/retrodev status"
+                f"{prune}git worktree add {folder} {branch} && cd {folder} && python tools/retrodev status"
             )
         ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
     else:
