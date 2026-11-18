@@ -12,6 +12,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import game_card, games as library
+from .tool_args import _present_error, _tool_project  # shared by every tool module (re-exported here)
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -49,35 +50,6 @@ PRESENT_TOOL = {
         "additionalProperties": False,
     },
 }
-
-
-def _present_error(message: str, code: str) -> str:
-    return json.dumps({"ok": False, "error": message, "code": code})
-
-
-def _tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str | None]:
-    """The project a plugin-owned tool acts on: ``project`` when given, else this chat's. Returns
-    ``(root, None)`` or ``(None, error json)``."""
-    conversation_id = str(kwargs.get("conversation_id") or "")
-    session_id = str(kwargs.get("session_id") or "")
-    project = args.get("project")
-    if project is not None and (not isinstance(project, str) or not project.strip()):
-        return None, _present_error("project must be an absolute folder path.", "INVALID_ARGUMENTS")
-    if project:
-        candidate = Path(project).expanduser()
-        if not candidate.is_absolute() or not candidate.is_dir():
-            return None, _present_error(
-                f"{project} is not an existing project folder (give an absolute path).", "PROJECT_NOT_FOUND"
-            )
-        return str(candidate), None
-    root = host._chat_project(conversation_id, session_id)
-    if not root or not Path(root).is_dir():
-        return None, _present_error(
-            f"This chat has no current project. Select or create the game's project, then call {tool} again (or "
-            "pass project).",
-            "NO_PROJECT",
-        )
-    return root, None
 
 
 def present_game_handler(args: dict, **kwargs) -> str:
@@ -532,7 +504,11 @@ def build_report_handler(args: dict, **kwargs) -> str:
                 }
             )
         # The card shows each image as it is now, even after a later turn rewrites it (assets listens).
-        emit("library.build_reported", assets=[change["asset"] for change in report["changes"] if change.get("asset")])
+        emit(
+            "library.build_reported",
+            game=library.game_id(root) if root else None,
+            assets=[change["asset"] for change in report["changes"] if change.get("asset")],
+        )
         answer = {"ok": True, "report": report, "project": str(root) if root else None, "message": REPORT_MESSAGE}
         if warnings:
             answer["warnings"] = warnings
