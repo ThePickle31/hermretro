@@ -3,7 +3,9 @@
 `retrodev new` writes stubs whose prose asks the author to fill it in (a CONTRACT section, a tool's line, an event
 row, a feature's purpose, a page's README and component). The stubs pass every other check on purpose, so a
 pull request can still ship them unfilled; this test is what notices. It is not one of the structure tests the
-scaffold check runs on its fresh, unfilled copy (tests/retrodev/test_scaffold_tree.py).
+scaffold check runs on its fresh, unfilled copy (tests/retrodev/test_scaffold_tree.py), and it skips itself in the
+checks `retrodev new` runs right after writing the stubs (RETRODEV_SCAFFOLD_CHECK, set by tools/retrodev/scaffold.py,
+which keeps no pass from that run).
 """
 
 import os
@@ -47,6 +49,7 @@ def scanned() -> list[Path]:
 
 
 class ScaffoldPlaceholderTests(unittest.TestCase):
+    @unittest.skipIf(os.environ.get("RETRODEV_SCAFFOLD_CHECK"), "retrodev new's own run: the stubs are not filled yet")
     def test_no_scaffold_placeholder_is_left(self):
         found = []
         for path in scanned():

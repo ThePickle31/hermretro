@@ -25,8 +25,9 @@ on the current tree is what `python tools/retrodev ship` requires.
   installs the committed tree, so uncommitted edits are not what it tests (and `ship` needs a committed tree anyway).
 - A branch that changes `backend/` (or `engine/`, `player/`, the toolchain, `plugin.yaml`) makes `retrodev check`
   add the real-engine acceptance run, about a minute more. Without the toolchain (`python
-  tools/ci/prepare_toolchain.py`, or `HERMRETRO_DEPS_ROOT` pointed at a folder that has one) it is skipped, and CI
-  runs it on Linux and macOS.
+  tools/ci/prepare_toolchain.py`) it is skipped, and CI runs it on Linux and macOS. `retrodev check` always uses the
+  toolchain that setup put in place: it clears `HERMRETRO_DEPS_ROOT` for the run. To use a toolchain somewhere else,
+  run the check directly: `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
 
 One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
 for the page checks (Node 22 or newer). The checks never install anything themselves.
@@ -86,10 +87,11 @@ the size limit (`tools/layout.toml` `[exceptions]` lists those, each with its re
 a new file beside it named for what it tests (`test_<topic>.py`, `page-<page>-<topic>.test.mjs`).
 
 **Proving a regression test.** Run it against the old code and see it fail, then against the fix: `git stash` the
-fix (or check out the old file), run `python -B -m unittest tests/<area>/<feature>/test_<name>.py`, restore, run
-again. Keep the `-B`: an edit of the same size in the same second as the cached `.pyc` makes Python reuse the old
-bytecode, so the "before" run would test the fixed code. `python tools/check.py unit` already runs without
-bytecode.
+fix (or check out the old file), run `PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest
+tests/<area>/<feature>/test_<name>.py`, restore, run again. An edit of the same size in the same second as a cached
+`.pyc` makes Python reuse the old bytecode, so the "before" run would test the fixed code; `-B` alone does not stop
+that (it only stops writing `.pyc` files), the fresh, empty `PYTHONPYCACHEPREFIX` does (or delete the
+`__pycache__` folders first). `python tools/check.py unit` already gives its run a fresh, empty one.
 
 ## Rules for tests
 

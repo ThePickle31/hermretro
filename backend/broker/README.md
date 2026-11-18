@@ -17,10 +17,11 @@ The per-user broker process (`python -m backend.broker`): the single authority o
 
 ## Adding here
 
-- an RPC: `python tools/retrodev new rpc broker <name>` writes the `@rpc("<name>")` stub in `rpcs.py` (a factory returning the handler `(params, **kwargs)` that answers `{ok, ...}` and never raises), its test, its `docs/dev/CONTRACT.md` section and this README's line, then regenerates `page/app/rpc-names.js` and `tests/repo/registration.json`. RPC names are global and flat (`plugin.hermretro.<name>`): pick one no other feature uses.
-- a tool: `python tools/retrodev new tool broker <name> --step "<while it runs>" "<once done>"` writes the schema, handler and `Tool(...)` entry in `tools.py`, its test, the `plugin.yaml` line, the Build page's step words, the `docs/dev/CONTRACT.md` line and counts and this README's line, then refreshes the snapshot.
-- a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`.
-- an event: `python tools/retrodev new event broker <name> --payload "..."` declares `"broker.<name>"` in this front door's `EVENTS`, writes the function in `emits.py` that emits it (call it where it happens), its test, the `docs/dev/CONTRACT.md` row and this README's line.
-- a listener (reacting to another feature's event): `@on("<feature>.<event>")` on a function in this feature's `listeners.py` (`backend/system/events.py`), by hand: `retrodev new` has no listener kind yet.
+The broker declares no RPCs, tools, hooks, events or listeners (it stays standard library only, outside Hermes);
+the gateway's features reach it only through this front door. `retrodev new` refuses an rpc, tool or event here.
 
-The broker declares no RPCs, tools or hooks itself; expose a client function in the front door instead.
+- an RPC, a tool or an event that needs the broker: declare it in a gateway-side feature (`backend/setup/`,
+  `backend/library/`, or the one it belongs to) with `python tools/retrodev new rpc|tool|event <that feature> ...`,
+  and have its handler call the broker through `backend.broker` (`ensure_broker`, `try_connect`).
+- a new broker operation: add it on the broker side and a client function in `client.py`, export that from this
+  front door, and cover it in `tests/backend/broker/` (read `test_broker_socket.py` first).

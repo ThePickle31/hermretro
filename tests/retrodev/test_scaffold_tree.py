@@ -9,7 +9,8 @@ installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature 
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite). Skipped when node, the npm tools or the pinned ruff are not set up
-here (check.py scaffold then says so).
+here (check.py scaffold then says so). A second test runs `new rpc history trial_ping` with its own checks: it
+completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -59,6 +60,9 @@ def run(command: list[str], cwd: Path, env: dict) -> subprocess.CompletedProcess
     return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, stdin=subprocess.DEVNULL)
 
 
+RETRODEV = [sys.executable, str(ROOT / "tools" / "retrodev")]
+
+
 def copy_tree(source: Path, target: Path, env: dict) -> None:
     listing = run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], source, env).stdout
     names = [name for name in listing.split("\0") if name and (source / name).is_file()]
@@ -74,7 +78,8 @@ def copy_tree(source: Path, target: Path, env: dict) -> None:
 @unittest.skipIf(os.environ.get(NESTED), "inside its own throwaway run")
 @unittest.skipUnless(os.environ.get("RD_SCAFFOLD_FULL"), "slow: python tools/check.py scaffold runs it")
 class GeneratedCodePassesTheRealChecks(unittest.TestCase):
-    def test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests(self):
+    def make_tree(self) -> tuple[Path, Path, dict]:
+        """A copy of this tree in a fresh git repository on a work branch, its tools borrowed: (base, tree, env)."""
         if not shutil.which("node") or not shutil.which("tar"):
             self.skipTest("node and tar are needed")
         if not all((ROOT / path).exists() for path in BORROWED):
@@ -105,10 +110,13 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         for command in (["init", "-q", "-b", "feat/demo"], ["add", "-A"], ["commit", "-q", "-m", "Start"]):
             self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
         (tree / ".git" / "info" / "exclude").write_text("/.dev\n/tools/npm/node_modules\n")
-        retrodev = [sys.executable, str(ROOT / "tools" / "retrodev")]
+        return base, tree, env
+
+    def test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests(self):
+        _, tree, env = self.make_tree()
         for step in STEPS:  # several in a row: the generated files are rebuilt once, after the last
             last = step is STEPS[-1]
-            done = run([*retrodev, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
+            done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
             self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
         if os.environ.get("RD_SCAFFOLD_FULL") == "nested":
             commands = [[sys.executable, "tools/check.py", "lint", "bundle", "unit", "page"]]
@@ -126,6 +134,17 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
+
+    def test_new_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
+        base, tree, env = self.make_tree()
+        done = run([*RETRODEV, "new", "rpc", "history", "trial_ping"], tree, env)  # with its checks, unit among them
+        self.assertEqual(done.returncode, 0, f"new rpc history trial_ping:\n{done.stdout}{done.stderr}")
+        self.assertIn("next: ", done.stdout)
+        kept = [path.read_text() for path in (base / "state").rglob("*.json")]
+        self.assertFalse(any('"unit"' in text for text in kept), "new's own run must not keep a unit pass")
+        gate = run([sys.executable, "-m", "unittest", "tests.repo.test_placeholders"], tree, env)
+        self.assertNotEqual(gate.returncode, 0, f"the unfilled stub must fail an ordinary run:\n{gate.stderr}")
+        self.assertIn("Describe what it does, its params and its result here.", gate.stderr)
 
 
 if __name__ == "__main__":

@@ -116,8 +116,9 @@ class New(RepoCase):
         self.assertEqual(out["created"], ["tests/backend/history/test_rpc_rdprobe_ping.py"])
         self.assertIn('@rpc("rdprobe_ping")\ndef rpc_rdprobe_ping(ctx):', self.read("backend/history/rpcs.py"))
         self.assertIn("### `rdprobe_ping` — params `{ echo? }`", self.read("docs/dev/CONTRACT.md"))
-        self.assertIn(
-            "- RPCs (`rpcs.py`): `builds`, `build_restore`, `rdprobe_ping`.", self.read("backend/history/README.md")
+        self.assertRegex(  # appended after the RPCs already there (a branch's own `new rpc history` may add one)
+            self.read("backend/history/README.md"),
+            r"\n- RPCs \(`rpcs.py`\): `builds`, `build_restore`(, `\w+`)*, `rdprobe_ping`\.\n",
         )
         self.new("rpc", "history", "rdprobe_ping", code=1)
 

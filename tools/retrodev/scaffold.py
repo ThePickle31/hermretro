@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import ast
 import keyword
+import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import checks, repo
+from . import checks, repo, state
 from .output import Failure, cmd
 
 TEMPLATES = Path(__file__).resolve().with_name("templates")
@@ -240,6 +241,26 @@ def shown(command: list[str]) -> str:
     return cmd(*["python" if word == sys.executable else word for word in command])
 
 
+SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py skips its gate while it is set
+
+
+def validate(ctx, names: list[str]) -> None:
+    """The checks right after writing the stubs: without the placeholder gate (the stubs are not filled in yet), so
+    their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship)."""
+    branch = repo.branch(ctx.top)
+    kept = state.load_branch(ctx.top, branch)
+    before = os.environ.get(SCAFFOLD_CHECK)
+    os.environ[SCAFFOLD_CHECK] = "1"
+    try:
+        checks.run(ctx, names)
+    finally:
+        if before is None:
+            os.environ.pop(SCAFFOLD_CHECK, None)
+        else:
+            os.environ[SCAFFOLD_CHECK] = before
+        state.save_branch(ctx.top, kept)
+
+
 def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bool = True) -> int:
     out = ctx.out
     verb = "would " if dry_run else ""
@@ -278,7 +299,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     names = affected(ctx, plan.paths()) if run_checks else []
     if names:
         out.say("checks: " + " ".join(names))
-        checks.run(ctx, names)
+        validate(ctx, names)
     for step in plan.next_steps:
         out.say("next: " + step)
     out.say("then: python tools/retrodev check, commit, python tools/retrodev ship")
