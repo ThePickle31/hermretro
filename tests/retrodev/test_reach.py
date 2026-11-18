@@ -64,14 +64,15 @@ class Try(RepoCase):
 
 
 class FakeSSH:
-    def __init__(self, up: bool = True, code: int = 0):
-        self.up, self.code, self.calls = up, code, []
+    def __init__(self, up: bool = True, code: int = 0, rows: tuple = ("     ok  unit         1.0 s  fine",)):
+        self.up, self.code, self.calls, self.rows = up, code, [], rows
 
     def __call__(self, args, say):
         self.calls.append(list(args))
         if args[-1] == "true":
             return 0 if self.up else 255
-        say("     ok  unit         1.0 s  fine")
+        for row in self.rows:
+            say(row)
         return self.code
 
 
@@ -106,7 +107,7 @@ class Mac(RepoCase):
         self.assertEqual(host, "mbp")
         self.assertTrue(command.startswith("cd ~/Projects/hermretro && git fetch --quiet origin && "), command)
         self.assertIn(f'git worktree add --quiet --detach "$tree" {sha} && ', command)
-        self.assertIn('(cd "$tree" && python3 tools/check.py unit page)', command)
+        self.assertIn('(cd "$tree" && python3 tools/check.py --strict unit page)', command)
         self.assertTrue(
             command.endswith('rm -rf "$tmp"; git worktree prune; exit $code'),
             command,
@@ -145,12 +146,27 @@ class Mac(RepoCase):
         code, out = self.run_cli("mac", "--host", "mbp", "--", "unit", cwd=tree)
         self.assertEqual(code, 0, out)
         self.assertNotIn("the local change ran", "\n".join(lines))
-        self.assertEqual(self.check_log()[-1]["names"], ["unit"], "the committed check.py ran")
+        self.assertEqual(self.check_log()[-1]["names"], ["--strict", "unit"], "the committed check.py ran")
         self.assertEqual((clone / "tools/check.py").read_text(), broken, "the local change is kept")
         self.assertEqual(git(clone, "rev-parse", "HEAD").strip(), git(clone, "rev-parse", "origin/dev").strip())
         self.assertNotEqual(sha, git(clone, "rev-parse", "HEAD").strip(), "the clone's checkout did not move")
         self.assertEqual(len(git(clone, "worktree", "list").splitlines()), 1, "the temp worktree is gone")
         self.assertEqual(list((self.base / "mactmp").iterdir()), [])
+
+    def test_a_skipped_check_that_exits_zero_is_unverified_not_passed(self):
+        """An older check.py (or one that ignores --strict) skips acceptance without the toolchain and exits 0."""
+        skipped = "skipped  acceptance   0.0 s  the toolchain is not installed (python tools/ci/prepare_toolchain.py)"
+        self.fakes["ssh"] = ssh = FakeSSH(rows=("     ok  unit         1.0 s  fine", skipped))
+        tree = self.worktree("feat/thing")
+        git(tree, "push", "-q", "origin", "feat/thing")
+        code, data = self.run_cli("mac", "--host", "mbp", "--", "acceptance", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("unverified on mbp", data["error"]["message"])
+        self.assertIn("skipped there (acceptance), so not passed", data["error"]["message"])
+        self.assertEqual(data["skipped"], ["acceptance"])
+        self.assertIn("python3 tools/check.py --strict acceptance", ssh.calls[-1][1])
+        code, out = self.run_cli("mac", "--host", "mbp", "--", "acceptance", cwd=tree)
+        self.assertNotIn("passed on mbp", out)
 
     def test_doctor_reports_the_mac_as_optional(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()), fakes={"ssh": FakeSSH(up=False)})

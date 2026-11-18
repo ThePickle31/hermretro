@@ -3,8 +3,10 @@
 The host is the personal setting mac_host (no default: unset means no mac, and CI's macOS runners cover it,
 exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable). Then on
 the mac, in the clone at mac_repo (default ~/Projects/hermretro, the ~ expanded there), it fetches, checks out
-this checkout's commit into a fresh detached worktree in a temp folder (`git worktree add --detach`), runs
-`python3 tools/check.py [args]` there (a /tmp/rd-mac.* folder), its output streamed here, and removes it afterwards (the folder, then `git worktree prune`). The clone's
+this checkout's commit into a fresh detached worktree in a temp folder (`git worktree add --detach`, in a
+/tmp/rd-mac.* folder), runs `python3 tools/check.py --strict [args]` there, its output streamed here, and removes it
+afterwards (the folder, then `git worktree prune`). --strict: a requested check that cannot run on the mac (acceptance
+without its toolchain) fails; a skipped row in the output is reported as unverified, never as passed. The clone's
 own checkout is never switched or reset, so its local changes neither leak into the result nor get lost; the
 temp worktree borrows the clone's set-up tools (.dev and tools/npm/node_modules, linked when present). The commit
 must be on the remote (the mac fetches it from there). It never pushes from the mac.
@@ -12,6 +14,7 @@ must be on the remote (the mac fetches it from there). It never pushes from the 
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 
@@ -19,6 +22,7 @@ from . import repo
 from .output import OK, WAITING, Failure
 
 PROBE = ["-o", "ConnectTimeout=3", "-o", "BatchMode=yes"]
+SKIPPED = re.compile(r"^\s*skipped\s+\S")  # check.py's row for a check that could not run
 
 
 def real_ssh(args: list[str], say) -> int:
@@ -66,7 +70,8 @@ def script(ctx, sha: str, args: list[str]) -> str:
     """Plain POSIX shell for the mac: a fresh detached worktree at ``sha``, the checks there, then it is removed."""
     folder = remote_path(ctx.get("mac_repo"))
     temp = shlex.quote(str(ctx.fakes.get("mac_tmp") or MAC_TMP))  # tests point it into their own folder
-    check = " ".join(shlex.quote(word) for word in ["python3", "tools/check.py", *args])
+    strict = [] if "--strict" in args else ["--strict"]  # asked for and cannot run there: a failure, never a skip
+    check = " ".join(shlex.quote(word) for word in ["python3", "tools/check.py", *strict, *args])
     links = "".join(f'if [ -e {p} ]; then ln -s "$PWD/{p}" "$tree/{p}"; fi; ' for p in BORROWED)
     return (
         f"cd {folder} && git fetch --quiet {shlex.quote(ctx.remote)} && "
@@ -110,8 +115,21 @@ def run(ctx, given: str | None, args: list[str]) -> int:
         )
     command = script(ctx, sha, args)
     ctx.out.say(f"on {name}: {command}")
-    code = ssh_runner(ctx)([name, command], ctx.out.say)
-    ctx.out.set(ran=True, sha=sha, command=command, exit=code)
+    skipped: list[str] = []
+
+    def say(line: str) -> None:
+        ctx.out.say(line)
+        if SKIPPED.match(line):
+            skipped.append(line.split()[1])
+
+    code = ssh_runner(ctx)([name, command], say)
+    ctx.out.set(ran=True, sha=sha, command=command, exit=code, skipped=skipped)
+    if skipped:  # never a pass: an older check.py on the mac may ignore --strict, so the rows are read too
+        raise Failure(
+            f"unverified on {name} at {sha[:9]}: skipped there ({', '.join(skipped)}), so not passed",
+            "set up what the skipped check needs on the mac (its row above says what; python tools/retrodev doctor "
+            "there), then python tools/retrodev mac again",
+        )
     if code:
         raise Failure(
             f"the checks failed on {name} at {sha[:9]} (exit {code})",

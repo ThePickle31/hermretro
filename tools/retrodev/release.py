@@ -8,16 +8,20 @@ prepare refuses (exit 3) without the owner's exact words. The version lives only
 the patch after the version on the base branch (another only when the owner names it: --version). It starts a
 chore/release-X.Y.Z worktree (start, no plan), changes only the `version:` line, commits, runs check and ships
 the pull request 'Release X.Y.Z'; the agent then lands it like any pull request. When the base branch already
-carries an untagged version (an earlier release candidate bumped it), no pull request is needed.
+carries an untagged version (an earlier release candidate bumped it), no pull request is needed, and the record
+says so (no_pr). A prepare stopped after recording its branch (check or ship failed) prints the same prepare command
+to finish it: run again, it reuses the worktree, checks, ships and records the pull request, or, when the pull
+request exists already (even merged), records it (gh pr list --head chore/release-X.Y.Z --state all).
 --rc names the next candidate X.Y.Z-rc.M; publishing it tags a base-branch commit and leaves main alone.
 """
 
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 
-from . import checks, gates, repo, ship, start, state
+from . import checks, gates, github, repo, ship, start, state
 from .output import OWNER, Failure
 
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
@@ -160,6 +164,29 @@ def release_only(ctx, path: Path, branch: str) -> None:
         raise Failure(f"{branch} changes more than plugin.yaml's version line ({shown[:600]})", redo)
 
 
+def resume_command(version: str, words: str, rc: bool) -> str:
+    """The command that finishes (or resumes) an interrupted prepare of this version."""
+    flags = " --rc" if rc else ""
+    return (
+        f"python tools/retrodev release prepare{flags} --version {stable(version)} --owner-words {shlex.quote(words)}"
+    )
+
+
+def bind(ctx, record: dict, pr: dict) -> int:
+    """An interrupted prepare's pull request, found by its branch: recorded, and the next step named."""
+    number = pr["number"]
+    record.update(pr=number, no_pr=False)
+    state.save_release(ctx.top, record)
+    ctx.out.set(pr=number, resumed=True)
+    ctx.out.say(f"resumed: {record['branch']} has pull request #{number} ({pr.get('state')}); recorded")
+    version = record["version"]
+    if pr.get("state") == "MERGED":
+        ctx.out.say(f"next: python tools/retrodev release publish {version} --dry-run, then without --dry-run")
+    else:
+        ctx.out.say(f"next: land #{number} like any pull request, then python tools/retrodev release publish {version}")
+    return 0
+
+
 def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) -> int:
     words = words_gate(words)
     repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.main())
@@ -170,21 +197,30 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
     record = found or {"version": version}
     for chosen in ("sha", "approved"):  # asked again: publish chooses the commit afresh (an existing tag still holds)
         record.pop(chosen, None)
-    record.update(words=words, at=state.now(), rc=rc, base_version=current)
+    # An earlier prepare that recorded its branch but not its pull request was interrupted: resume it, even when
+    # the base branch says the version already (its pull request may have landed since).
+    pending = bool(found and found.get("branch") and not found.get("pr"))
+    record.update(words=words, at=state.now(), rc=rc)
+    if not (pending and record.get("base_version")):
+        record["base_version"] = current
     title = f"Release {stable(version)}"
-    ctx.out.set(version=version, title=title, pr_needed=needs_pr)
+    branch = f"chore/release-{stable(version)}"
+    ctx.out.set(version=version, title=title, pr_needed=needs_pr or pending)
+    if pending:
+        pr = github.branch_pr(ctx, branch)
+        if pr:
+            return bind(ctx, record, pr)
     if not needs_pr:
-        record.update(pr=None, branch=None)
+        record.update(pr=None, branch=None, no_pr=True)  # decided here, explicitly: publish takes the base's head
         state.save_release(ctx.top, record)
         ctx.out.say(f"{ctx.remote_base} already says {stable(version)} (untagged): no version pull request needed")
         ctx.out.say(f"next: python tools/retrodev release publish {version} --dry-run, then without --dry-run")
         return 0
-    branch = f"chore/release-{stable(version)}"
-    record.update(branch=branch, title=title)
+    record.update(branch=branch, title=title, pr=None, no_pr=False)
     state.save_release(ctx.top, record)  # the owner's words are kept even if a step below fails
     ctx.out.say(f'recorded the owner\'s words for {version}: "{record["words"]}"')
     body_file = state.release_path(ctx.top, version).with_suffix(".md")
-    state.write_atomic(body_file, body(version, current, words, rc))
+    state.write_atomic(body_file, body(version, record["base_version"], words, rc))
     _kind, topic = gates.parse_branch(branch, ctx.policy["branches"]["kinds"])
     path = start.worktree_path(ctx, topic)
     if not path.exists():
@@ -197,9 +233,7 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
         repo.git(["commit", "--quiet", "-m", title], path)  # only the staged manifest, never commit -a
         release_only(tree, path, branch)
         ctx.out.say(f"committed: {title} (plugin.yaml version {current} to {stable(version)})")
-    resume = (
-        f"cd {path} && python tools/retrodev check && python tools/retrodev ship --title '{title}' --body {body_file}"
-    )
+    resume = resume_command(version, words, rc) + " (it resumes: the same worktree, check, ship, the record)"
     try:
         checks.run(tree, [])
         ship.run(tree, title, str(body_file))

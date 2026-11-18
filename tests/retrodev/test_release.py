@@ -4,6 +4,7 @@ Run alone: python -m unittest tests.retrodev.test_release
 """
 
 import json
+import shlex
 import unittest
 
 from retrodev import release_verify, state
@@ -46,6 +47,7 @@ class ReleaseCase(RepoCase):
             "at": "now",
             "rc": "-rc." in version,
             "pr": int(pr) if pr else None,
+            "no_pr": not pr,  # what prepare records when it decided no version pull request was needed
         }
         state.save_release(self.main, record)
         if pr:
@@ -117,6 +119,69 @@ class Prepare(ReleaseCase):
             "release", "prepare", "--rc", "--owner-words", "make a release candidate", as_json=True
         )
         self.assertEqual((code, data["version"]), (0, f"{NEXT}-rc.2"), data)
+
+
+class Interrupted(ReleaseCase):
+    """A prepare stopped after recording its branch, before its pull request number (check or ship failed)."""
+
+    BRANCH = f"chore/release-{NEXT}"
+
+    def land(self) -> str:
+        """The version pull request squash-merged into origin/dev (as land's gh merge leaves it), then dev moves on."""
+        self.on_dev("plugin.yaml", f"version: {NEXT}\n", f"Release {NEXT} (#{PR})")
+        merge = git(self.base / "other", "rev-parse", "HEAD").strip()
+        self.gh.answers[("pr", "view", PR)] = (0, json.dumps({"state": "MERGED", "mergeCommit": {"oid": merge}}), "")
+        self.ci(merge, runs("success"))
+        self.on_dev("docs/later.md", "# Later\n")
+        self.ci(git(self.base / "other", "rev-parse", "HEAD").strip(), runs("success"))
+        return merge
+
+    def test_the_printed_recovery_resumes_prepare_and_publish_takes_the_merge_commit(self):
+        self.gh.answers[("pr", "create")] = (1, "", "HTTP 502")
+        code, data = self.run_cli("release", "prepare", "--owner-words", WORDS, as_json=True)
+        self.assertEqual(code, 1, data)
+        record = state.load_release(self.main, NEXT)
+        self.assertEqual((record["branch"], record["pr"], record["no_pr"]), (self.BRANCH, None, False))
+        fix = data["error"]["fix"]
+        recovery = f"python tools/retrodev release prepare --version {NEXT} --owner-words 'make a release'"
+        self.assertIn(recovery, fix)
+        code, data = self.publish()
+        self.assertEqual((code, self.failed_gates(data)), (1, ["release pull request merged"]), data)
+        self.assertIn("did not finish", data["gates"][1]["message"])
+        self.assertIn(recovery, data["error"]["fix"])
+        self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
+        code, data = self.run_cli(*shlex.split(recovery)[2:], as_json=True)  # follow it, as printed
+        self.assertEqual((code, data.get("pr")), (0, int(PR)), data)
+        self.assertEqual(state.load_release(self.main, NEXT)["pr"], int(PR))
+        merge = self.land()
+        code, data = self.publish()
+        self.assertEqual(code, 0, data)
+        self.assertEqual((data["sha"], self.remote("refs/heads/main")), (merge, merge))
+        self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), merge)
+
+    def test_publish_finds_the_pull_request_by_its_branch_and_keeps_it(self):
+        record = {"version": NEXT, "words": WORDS, "at": "now", "rc": False, "branch": self.BRANCH, "pr": None}
+        state.save_release(self.main, record)
+        code, data = self.publish()  # no pull request from the branch yet: refused, never dev's head
+        self.assertEqual((code, self.failed_gates(data)), (1, ["release pull request merged"]), data)
+        self.assertIn(f"release prepare --version {NEXT}", data["error"]["fix"])
+        self.assertNotIn("sha", state.load_release(self.main, NEXT), "nothing was pinned")
+        merge = self.land()  # shipped and landed by hand meanwhile
+        listed = [{"number": int(PR), "state": "MERGED", "mergeCommit": {"oid": merge}}]
+        self.gh.answers[("pr", "list", "--head", self.BRANCH, "--state", "all")] = (0, json.dumps(listed), "")
+        code, data = self.publish()
+        self.assertEqual((code, data.get("sha")), (0, merge), data)
+        self.assertEqual(state.load_release(self.main, NEXT)["pr"], int(PR))
+
+    def test_prepare_again_after_the_merge_records_the_pull_request_not_no_pr(self):
+        state.save_release(self.main, {"version": NEXT, "words": WORDS, "at": "now", "branch": self.BRANCH, "pr": None})
+        merge = self.land()  # dev now says the version: without the record, prepare would see no pull request needed
+        listed = [{"number": 39, "state": "CLOSED"}, {"number": int(PR), "state": "MERGED"}]
+        self.gh.answers[("pr", "list", "--head", self.BRANCH, "--state", "all")] = (0, json.dumps(listed), "")
+        code, data = self.run_cli("release", "prepare", "--version", NEXT, "--owner-words", WORDS, as_json=True)
+        self.assertEqual((code, data.get("pr"), data.get("resumed")), (0, int(PR), True), data)
+        self.assertFalse(state.load_release(self.main, NEXT)["no_pr"])
+        self.assertEqual(self.publish()[1].get("sha"), merge)
 
 
 class Publish(ReleaseCase):

@@ -47,6 +47,28 @@ def open_pr(ctx, branch: str) -> dict | None:
     return found[0] if found else None
 
 
+def branch_pr(ctx, branch: str) -> dict | None:
+    """The pull request from ``branch`` that counts (merged, else open; newest first), or None. Raises when gh
+    cannot tell, so a caller never mistakes an unanswered question for 'there is none'."""
+    code, out, err = gh(
+        ctx, ["pr", "list", "--head", branch, "--state", "all", "--json", "number,state,mergeCommit"], check=False
+    )
+    try:
+        found = json.loads(out or "[]") if code == 0 else None
+    except json.JSONDecodeError:
+        found = None
+    if found is None:
+        raise Failure(
+            f"gh pr list --head {branch} failed: {(err or out).strip()[:300]}", "python tools/retrodev doctor"
+        )
+    found = sorted(found, key=lambda pr: -int(pr.get("number") or 0))
+    for wanted in ("MERGED", "OPEN"):
+        for pr in found:
+            if pr.get("state") == wanted:
+                return pr
+    return None
+
+
 def pr_state(ctx, number: int) -> str | None:
     """MERGED, CLOSED or OPEN, or None when gh cannot tell."""
     code, out, _err = gh(ctx, ["pr", "view", str(number), "--json", "state", "--jq", ".state"], check=False)

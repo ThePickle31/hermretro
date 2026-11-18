@@ -1,7 +1,8 @@
 """release publish <version> [--dry-run]: main fast-forwards to the release commit, the tag, the draft release.
 
 Gates, all reported at once: the owner's words are recorded for this version (release prepare); its version pull
-request is merged (the merge commit is the release commit; without one, the base branch's head); that commit is
+request is merged (the merge commit is the release commit; only when prepare recorded that none was needed, the
+base branch's head; an interrupted prepare's pull request is found by its branch, else refused); that commit is
 on the base branch, its plugin.yaml says the version, and the required CI job ("All checks pass") is green on that
 exact commit (gh api .../commits/<sha>/check-runs); for a stable release main can fast-forward to it. Then
 `tools/ci/clean_install_check.py --update-from` runs on that commit in a throwaway checkout (its pass is kept for
@@ -32,17 +33,32 @@ REPICK = (
 )
 
 
-def commit_gate(ctx, rec: dict | None, version: str) -> tuple[str | None, Gate]:
-    """The release commit: the version pull request's merge commit, else the base branch's head when publish first
-    ran (kept in the record as "sha", so a retry releases the same commit however the base branch moved since)."""
+def commit_gate(ctx, rec: dict | None, version: str, dry_run: bool = False) -> tuple[str | None, Gate]:
+    """The release commit: the version pull request's merge commit, else (only when prepare decided no pull request
+    was needed: no_pr) the base branch's head when publish first ran (kept in the record as "sha", so a retry
+    releases the same commit however the base branch moved since). A prepare that recorded its branch but not its
+    pull request was interrupted: the pull request is looked up by that branch and recorded, else refused."""
     name = "release pull request merged"
     if not rec:
         return None, Gate(name, False, f"no release {version} is recorded", "release prepare first", OWNER)
     pinned = rec.get("sha")
-    if not rec.get("pr"):
+    if not rec.get("pr") and rec.get("no_pr"):
         sha = pinned or repo.head(ctx.top, ctx.remote_base)
         how = f"kept from the first publish ({pinned[:9]})" if pinned else f"{ctx.remote_base} at {(sha or '')[:9]}"
         return sha, gates.passed(name, f"no version pull request was needed; {how}")
+    if not rec.get("pr"):
+        resume = release.resume_command(version, rec.get("words") or "<the owner's words>", bool(rec.get("rc")))
+        branch = rec.get("branch")
+        try:
+            found = github.branch_pr(ctx, branch) if branch else None
+        except Failure as failure:
+            return None, Gate(name, False, failure.message, failure.fix)
+        if not found:
+            why = f"no pull request from {branch} is recorded or found" if branch else "it recorded no outcome"
+            return None, Gate(name, False, f"release prepare for {version} did not finish: {why}", resume)
+        rec["pr"] = found["number"]
+        if not dry_run:
+            state.save_release(ctx.top, rec)  # found by its branch: kept, so every later step uses this one
     number = rec["pr"]
     code, out, err = github.gh(ctx, ["pr", "view", str(number), "--json", "state,mergeCommit"], check=False)
     info = json.loads(out) if code == 0 and out.strip() else {}
@@ -183,7 +199,7 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
         )
     else:
         found.append(gates.passed("owner asked for this release", f'{rec["at"]}: "{rec["words"]}"'))
-    sha, gate = commit_gate(ctx, rec, version)
+    sha, gate = commit_gate(ctx, rec, version, dry_run)
     found.append(gate)
     if sha and rec and not dry_run and rec.get("sha") != sha:
         rec["sha"] = sha  # chosen once, before any check or step: a retry releases this commit, revalidated
