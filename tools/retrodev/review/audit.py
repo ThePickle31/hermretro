@@ -236,12 +236,19 @@ def audit(
     after: dict,
     db: Path | None = None,
     env=None,
+    unaudited: int = 0,
 ) -> dict:
-    """Audit one round. Returns {ok, violations, calls, db}; any violation voids the round."""
+    """Audit one round. Returns {ok, violations, calls, db}; any violation voids the round. ``unaudited``: how
+    many of the round's reviewer runs printed no session id (their tool calls are unknown, even when a later run
+    of the same round succeeded)."""
     violations = compare(before, after)
+    if unaudited:
+        violations.append(
+            f"{unaudited} reviewer run(s) of this round printed no session id, so their tool calls cannot be audited"
+        )
     calls: list[dict] = []
     db = Path(db) if db else state_db(profile, env)
-    if not session_ids:
+    if not session_ids and not unaudited:
         violations.append("the reviewer printed no session id, so its tool calls cannot be audited")
     else:
         try:

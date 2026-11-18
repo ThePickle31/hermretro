@@ -83,6 +83,18 @@ class RunRound(unittest.TestCase):
         self.assertEqual([r["void"] for r in rec["rounds"]], [True, False])
         self.assertIsNone(rec["rounds"][0]["result"])
 
+    def test_a_run_without_a_session_id_voids_the_round_even_if_its_retry_succeeds(self):
+        fake = FakeHermes(
+            "no session and no json",  # its tool calls are unknown
+            "Session: good\n{\"verdict\": \"clean\", \"findings\": []}\nsession_id: good\n",
+            "Session: good2\n{\"verdict\": \"clean\", \"findings\": []}\nsession_id: good2\n",
+        )
+        result = self.go(fake, {"good": self.reads(), "good2": self.reads()})
+        first = result["attempts"][0]["audit"]
+        self.assertFalse(first["ok"])
+        self.assertIn("printed no session id", " ".join(first["violations"]))
+        self.assertEqual((result["status"], result["action"]), ("reviewed", "merge"))  # the rerun was audited
+
     def test_void_twice_needs_the_owner(self):
         def tamper(_cmd, cwd):
             (cwd / "src" / "README.md").write_text("changed by the reviewer\n")

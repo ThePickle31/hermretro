@@ -212,7 +212,13 @@ def run_review(
         if sid and sid not in sessions:
             sessions.append(sid)
         attempts.append(
-            {"cmd": cmd, "returncode": done.returncode, "seconds": round(done.seconds, 1), "timed_out": done.timed_out}
+            {
+                "cmd": cmd,
+                "returncode": done.returncode,
+                "seconds": round(done.seconds, 1),
+                "timed_out": done.timed_out,
+                "session_id": sid,  # None: this run's tool calls cannot be audited, so the round cannot count
+            }
         )
         if done.timed_out:
             return None, [f"timed out after {s['timeout']} s"], sid

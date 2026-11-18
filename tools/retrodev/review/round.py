@@ -106,6 +106,7 @@ def run_round(
             after=after,
             db=db,
             env=env,
+            unaudited=sum(1 for a in reply["attempts"] if not a.get("session_id")),
         )
         entry = {
             "round": round_no,
