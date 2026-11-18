@@ -5,6 +5,8 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -98,6 +100,95 @@ class OldBroker(unittest.TestCase):
                     held.close()
                     accepted.settimeout(2)
                     self.assertEqual(accepted.recv(1), b"")  # closed
+
+    def test_the_old_broker_is_held_through_the_new_drive_past_its_idle_deadline(self):
+        # Idle deadline reached after the liveness check, before the new client connects (Hermes starting, the
+        # plugin loading): with the hold released first, the old broker is gone and a fresh one looks replaced.
+        with tempfile.TemporaryDirectory(dir="/tmp") as tmp:  # short: a Unix socket path is at most 104 bytes
+            broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.3)
+            held = update_check.hold_open(broker.path)
+            broker.wait_for_connections(1)
+
+            def drive():
+                time.sleep(1.0)  # well past the idle deadline
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as new_client:
+                    new_client.connect(broker.path)  # refused when the old broker idled out
+                return "driven"
+
+            try:
+                self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
+                self.assertFalse(broker.gone, "the old broker idled out during the new drive")
+                self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
+                broker.wait_for_connections(0)
+                time.sleep(0.6)
+                self.assertTrue(broker.gone, "released, the old broker idles out as before")
+            finally:
+                held.close()
+                broker.stop()
+
+    def test_a_gone_old_broker_stops_before_the_new_drive_and_releases_the_hold(self):
+        held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        with self.assertRaises(SystemExit) as raised:
+            update_check.drive_holding(held, 1234, lambda _: False, lambda: self.fail("drove a gone broker"), "")
+        self.assertIn("pid 1234", str(raised.exception))
+        self.assertEqual(held.fileno(), -1)
+
+
+class IdleBroker:
+    """A stand-in for the broker's idle exit: it stops listening once no connection has been open for `idle`."""
+
+    def __init__(self, path: str, idle: float):
+        self.path, self.idle, self.gone = path, idle, False
+        self.open = 0
+        self.lock = threading.Condition()
+        self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.listener.bind(path)
+        self.listener.listen(8)
+        self.last = time.monotonic()
+        threading.Thread(target=self._accept, daemon=True).start()
+        threading.Thread(target=self._idle, daemon=True).start()
+
+    def _accept(self):
+        while True:
+            try:
+                conn, _ = self.listener.accept()
+            except OSError:
+                return
+            with self.lock:
+                self.open += 1
+                self.lock.notify_all()
+            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
+
+    def _serve(self, conn):
+        with conn:
+            while conn.recv(1024):
+                pass
+        with self.lock:
+            self.open -= 1
+            self.last = time.monotonic()
+            self.lock.notify_all()
+
+    def _idle(self):
+        while not self.gone:
+            time.sleep(0.02)
+            with self.lock:
+                if self.open == 0 and time.monotonic() - self.last >= self.idle:
+                    self.stop()
+
+    def wait_for_connections(self, count: int):
+        with self.lock:
+            self.lock.wait_for(lambda: self.open == count, timeout=5)
+
+    def stop(self):
+        if self.gone:
+            return
+        self.gone = True  # as the broker does on its way out: the socket file goes, so a connect is refused
+        Path(self.path).unlink(missing_ok=True)
+        try:
+            self.listener.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self.listener.close()
 
 
 if __name__ == "__main__":

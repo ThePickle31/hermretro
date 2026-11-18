@@ -81,7 +81,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         brokers.append(before["broker_pid"])
         # The old broker idles out a minute after its last connection closes (the drive sets that), which
         # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
-        # silent connection holds it (an idle exit waits for none); it is closed just before the new drive.
+        # silent connection holds it (an idle exit waits for none) until the new drive has replaced it.
         held = hold_open(before["broker_socket"])
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile
         problems = []
@@ -116,11 +116,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
                 report[-2000:] + "\nFIX: after the update `hermes plugins validate` no longer matches plugin.yaml; "
                 "check __init__.register and provides_tools / provides_hooks"
             )
-        held.close()
-        gone = old_broker_gone(before["broker_pid"], _alive(before["broker_pid"]), fix)
-        if gone:
-            raise SystemExit(gone)
-        after = _drive(args, tmp, root, "new")
+        after = drive_holding(held, before["broker_pid"], _alive, lambda: _drive(args, tmp, root, "new"), fix)
         brokers.append(after.get("broker_pid") or 0)
         problems += _compare(before, after, fix)
     finally:
@@ -342,7 +338,7 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
     old_run = json.loads((out.parent / "old.json").read_text()) if phase == "new" else {}
     if phase == "new" and old_run.get("broker_code") != result["code"]:
         old_pid = old_run["broker_pid"]
-        for _ in range(50):  # the replaced broker exits once its last connection has closed
+        for _ in range(50):  # the replaced broker exits on the shutdown, with the caller's held connection open
             if not _alive(old_pid):
                 break
             time.sleep(0.1)
@@ -365,6 +361,22 @@ def hold_open(socket_path: str) -> socket.socket:
             "python tools/ci/clean_install_check.py --update-from"
         ) from error
     return held
+
+
+def drive_holding(held: socket.socket, pid: int, alive, drive, fix: str):
+    """Run the new drive while `held` still holds the old broker, then let go of it.
+
+    Closed only afterwards: closed before, the old broker could idle out between this liveness check and the new
+    client's connect, and a broker started from nothing would look like a replaced one. Holding it does not stop
+    the replacement: the broker exits on an explicit shutdown with connections open (a silent one included;
+    tests/backend/broker/test_broker_socket.py pins that)."""
+    try:
+        gone = old_broker_gone(pid, alive(pid), fix)
+        if gone:
+            raise SystemExit(gone)
+        return drive()
+    finally:
+        held.close()
 
 
 def old_broker_gone(pid: int, alive: bool, fix: str) -> str | None:
