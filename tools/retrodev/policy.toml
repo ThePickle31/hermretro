@@ -1,0 +1,78 @@
+# retrodev's rules for this repository (committed; the same for everyone). Personal settings go in
+# <git common dir>/retrodev/config.toml, never committed: python tools/retrodev config set <key> <value>.
+# Patterns are fnmatch over repository paths, where * also matches /.
+
+[config]
+# Defaults of the personal settings (the only keys `config set` accepts).
+base = "dev"            # the branch pull requests go into and worktrees start from
+remote = "origin"
+worktree_root = ""      # empty: <main checkout's parent>/<main checkout's name>-wt; a worktree is <root>/<topic>
+github_account = ""     # when set, doctor checks gh is logged in as this account
+
+[branches]
+kinds = ["feat", "fix", "docs", "chore"]
+# Kinds that may start without an approved plan, with --no-plan (small changes).
+no_plan = ["docs", "chore"]
+protected = ["dev", "main", "master"]
+
+[setup]
+# Run once in a new worktree by `start` ({python} is the Python running retrodev).
+commands = [
+  ["npm", "ci", "--prefix", "tools/npm", "--ignore-scripts", "--no-audit", "--no-fund"],
+  ["{python}", "tools/py/setup.py"],
+]
+
+[checks]
+fast = ["unit", "bundle", "lint", "page", "scan"]
+# May be skipped (the tool it needs is not on this machine) without blocking ship: CI runs it on Linux and macOS.
+may_skip = ["acceptance"]
+
+[checks.inputs]
+# A check reruns only when a file it reads changed since its last pass on the branch.
+lint = ["*.py", "page/*", "tools/bundle/*", "tools/py/*", "tools/npm/package-lock.json"]
+bundle = ["page/*", "backend/*/rpcs.py", "tools/bundle/*"]
+page = ["page/*", "tests/page/*", "tools/bundle/*", "desktop/*", "player/frame-shim.js"]
+unit = ["*"]
+scan = ["*"]
+acceptance = ["*"]
+clean_install = ["*"]
+update = ["*"]
+
+[checks.triggers]
+# Added to `check` automatically when the branch changed one of these files since it left the base branch.
+acceptance = ["backend/*", "engine/*", "player/*", "tools/ci/prepare_toolchain.py", "plugin.yaml"]
+clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]
+
+[checks.budgets]
+# Seconds. Over twice its budget a check is named in a warning (never a failure: machines differ).
+fast_total = 15
+lint = 2
+scan = 15
+default = 6
+acceptance = 240
+clean_install = 90
+update = 120
+
+[generated]
+# Files built from sources. sync takes the base branch's side on a conflict in them, then rebuilds them.
+files = ["desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "tests/repo/registration.json"]
+regenerate = [
+  ["node", "tools/bundle/bundle.mjs"],
+  ["{python}", "tests/repo/test_registration_snapshot.py", "--write"],
+]
+
+[ship]
+# Every section of .github/pull_request_template.md must have content.
+sections = ["Why", "What changed", "How verified", "Risk and rollback", "Not done"]
+
+[labels]
+# Pull request labels from the areas a change touches (docs get none; hardware is never automatic).
+backend = ["backend/*", "__init__.py", "plugin.yaml"]
+page = ["page/*", "desktop/*", "player/frame-shim.js"]
+engine = ["engine/*"]
+ci = [".github/*", "tools/*"]
+
+[restart]
+# What the owner must do after the change lands in a checkout Hermes loads.
+gateway = ["backend/*", "__init__.py", "plugin.yaml", "skills/*", "profile/*"]
+app = ["desktop/plugin.js"]

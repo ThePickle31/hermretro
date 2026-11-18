@@ -62,6 +62,7 @@ areas.backend = "Python unit tests, one folder per backend feature"
 areas.page = "Page tests in jsdom, their harness and the browser preview"
 areas.repo = "Repository-wide checks: names in lock step, version, layout, portability, bundle, scan"
 areas.acceptance = "The real-engine run through the broker"
+areas.retrodev = "Tests for the development CLI"
 
 [folders.tools]
 purpose = "Developer tools; check.py runs every check"
@@ -71,6 +72,7 @@ areas.engine = "Engine update helpers: manifest, schema reconciliation"
 areas.debug = "Debugging helpers for a running gateway"
 areas.npm = "Pinned npm tools for development only"
 areas.py = "Pinned Python tools for development only (ruff) and their settings"
+areas.retrodev = "The development CLI: gates and commands for the working agreement (python tools/retrodev)"
 
 [folders.docs]
 purpose = "Documentation"
@@ -111,6 +113,7 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "profile/SOUL.md" = "The studio profile's personality"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
+"tools/retrodev/README.md" = "The development CLI: every command, the flow from plan to merge, state, config, exit codes"
 
 [size]
 # Python and page source files: a warning above `warn` lines, a failure above `fail`.

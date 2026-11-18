@@ -19,8 +19,8 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `player/` | The browser player served to the page, and the device art |
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
-| `tests/` | Mirrors the code: `backend/<feature>/` unit tests, `page/` page tests, `repo/` repository-wide checks (lock step, version, layout, portability), `acceptance/` real-engine run; `support.py` temp-folder helpers |
-| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` (pinned npm tools for development only), `py/` (pinned Python tools: ruff and its settings) |
+| `tests/` | Mirrors the code: `backend/<feature>/` unit tests, `page/` page tests, `repo/` repository-wide checks (lock step, version, layout, portability), `acceptance/` real-engine run, `retrodev/` the development CLI's tests; `support.py` temp-folder helpers |
+| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` (pinned npm tools for development only), `py/` (pinned Python tools: ruff and its settings), `retrodev/` (the development CLI) |
 | `docs/dev/` | `ARCHITECTURE.md` (how it fits together, and the full folder Map), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
 | `.github/` | Workflows, templates, and `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` for people opening pull requests or reporting problems |
 
@@ -43,6 +43,14 @@ node tools/bundle/bundle.mjs            # rebuild the generated page files after
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
 node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (boundaries between pages)
 ```
+
+`python tools/retrodev check` runs the same checks through `check.py`, but only those whose input files changed
+since their last pass on the branch (a cached pass prints `ok (cached)`; `--again` reruns, `--full` adds the
+real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
+`engine/`, `player/`, the toolchain or `plugin.yaml`, and the clean install (with the update check when files moved
+or were deleted) when it changed the registration side; it prints each check's time against its budget.
+`python tools/retrodev check --watch` reruns the affected checks on every save. `python tools/retrodev doctor` says
+what this machine is missing, each with its fix.
 
 CI runs the same checks, plus a clean install into a throwaway Hermes home (`python tools/ci/clean_install_check.py`;
 with `--update-from` it installs the newest release first and updates it to the commit)
@@ -81,6 +89,13 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 
 ## How work lands
 
+- `python tools/retrodev` walks each change through these steps and refuses to skip one (`tools/retrodev/README.md`):
+  `plan new <topic>` writes the plan in `notes/plans/`; `plan approve <topic> --words "..."` records the owner's
+  go in their words; `start feat/<topic>` makes the worktree from a fresh `dev` and sets it up; `check`; `ship
+  --title ... --body <file>` pushes and opens the draft pull request only for a committed tree that passed `check`,
+  with every template section filled in; `report` gives the facts for the report to the owner; `status` names the
+  next step; `sync` merges `dev` in and rebuilds generated files on their conflicts; `gc` tidies merged worktrees.
+  Exit codes: 0 ok, 1 failed, 2 waiting, 3 needs the owner; `--json` for agents.
 - `dev` takes changes only through pull requests, squash-merged. `main` moves only when the owner
   releases: a fast-forward to a green `dev` commit, a tag and generated release notes.
 - Work in a worktree on its own branch from `dev`, named `feat/…`, `fix/…`, `docs/…` or `chore/…`. A

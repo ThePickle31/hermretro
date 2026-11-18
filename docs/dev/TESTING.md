@@ -13,6 +13,13 @@
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | ~55 s | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker replaced. Needs the tags (`git fetch --tags`) |
 
+While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
+pass there (`ok (cached)` for the rest; inputs per check in `tools/retrodev/policy.toml`), adds acceptance and the
+clean install when the branch touched what they cover, and prints each time against its budget (fast checks 15 s
+together, lint 2 s, the scan 15 s, others 6 s; over twice a budget is a warning, not a failure).
+`python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
+on the current tree is what `python tools/retrodev ship` requires.
+
 One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
 for the page checks (Node 22 or newer). The checks never install anything themselves.
 
@@ -54,7 +61,8 @@ Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feat
 (`page-*.test.mjs`, the shared `harness.mjs` and the browser preview), `tests/repo/` for repository-wide checks
 (names in lock step, the version, the folder map and file sizes, only listed documents, no personal paths, the
 bundle, the install scan) and
-`tests/acceptance/` for the real-engine run. Each folder is a package, so discovery runs from the root:
+`tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
+bare origin and a fake `gh`; its modules run their tests on threads to stay under a second). Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`.
 Shared helpers are `tests/support.py`; a test reaches another test's helpers as `from tests.backend.<feature>.<module>
 import ...`.
