@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from engine_dev import EngineProcess, dev_engine_root, paths  # noqa: E402
+from engine_dev import EngineProcess, dev_engine_root, paths  # noqa: E402 - the repository root goes on sys.path first
 
 FIELDS = ("description", "inputSchema", "outputSchema", "annotations", "title")
 

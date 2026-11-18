@@ -9,13 +9,13 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.hermes import contracts  # noqa: E402
-from backend.hermes import host as hermes_host  # noqa: E402
-from backend.assets import versions as host_assets  # noqa: E402
-from backend.library import tools as host_tools  # noqa: E402
-from backend.library import hooks as library_hooks  # noqa: E402
-from backend.library import tools as library_tools  # noqa: E402
-from tests.support import registered_hook  # noqa: E402
+from backend.hermes import contracts  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import tools as host_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
     "title": "  Robin in the sky ",

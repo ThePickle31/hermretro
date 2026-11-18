@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.system import paths  # noqa: E402
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 # Where the version may legitimately appear as text: the manifest itself, the vendored engine (its own
 # versions), lockfiles, generated bundles and the README's note about upgrading from older versions.

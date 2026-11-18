@@ -17,9 +17,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import client, server  # noqa: E402
-from backend.broker.broker import Broker  # noqa: E402
-from backend.system import paths  # noqa: E402
+from backend.broker import client, server  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 NEW_BUILD = "new-build-on-disk"

@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from backend.broker import client  # noqa: E402
+from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
 
 
 class BrokerScope(unittest.TestCase):

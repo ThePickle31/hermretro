@@ -12,14 +12,14 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
-from backend.library import games  # noqa: E402
-from backend.hermes import host as hermes_host  # noqa: E402
-from backend.assets import versions as host_assets  # noqa: E402
-from backend.history import snapshots  # noqa: E402
-from backend.history import hooks as history_hooks  # noqa: E402
-from tests.backend.library.test_games import make_project  # noqa: E402
-from backend.history import rpcs as history_rpcs  # noqa: E402
-from tests.support import registered_hook  # noqa: E402
+from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
+from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
+from backend.history import hooks as history_hooks  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
+from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:

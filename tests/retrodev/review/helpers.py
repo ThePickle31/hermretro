@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from retrodev.review.runner import Completed  # noqa: E402
+from retrodev.review.runner import Completed  # noqa: E402 - the repository root goes on sys.path first
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 GIT = [

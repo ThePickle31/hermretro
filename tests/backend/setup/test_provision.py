@@ -10,10 +10,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
-from backend.system import paths  # noqa: E402
-from backend.setup import provision  # noqa: E402
-from tests.support import registered_hook  # noqa: E402
-from support import throwaway_deps  # noqa: E402
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
 
 class _Response(io.BytesIO):

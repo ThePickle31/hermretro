@@ -15,9 +15,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from backend.broker import client  # noqa: E402
-from backend.system import host as host_os  # noqa: E402
-from backend.system import paths  # noqa: E402
+from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import host as host_os  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = host_os.LINUX or host_os.MACOS
 

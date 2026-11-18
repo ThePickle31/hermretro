@@ -30,9 +30,9 @@ sys.path.insert(0, str(REPO))
 HANDOFF = 3.0
 os.environ["HERMRETRO_WRITER_HANDOFF_SECONDS"] = str(HANDOFF)
 
-from backend.system import paths  # noqa: E402
-from backend.broker.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402
-from backend.broker.engine import EngineProcess  # noqa: E402
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.engine import EngineProcess  # noqa: E402 - the repository root goes on sys.path first
 
 RUN = time.strftime("%Y%m%dT%H%M%S")
 # Resolved: on macOS /tmp and /var are links into /private, and the engine reports real paths.
