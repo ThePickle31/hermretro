@@ -36,8 +36,7 @@ current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs N
 
 ```sh
 python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 11 s)
-python tools/check.py full       # plus scaffold (retrodev new on a copy of the tree) and the real-engine acceptance run
-                                 # (python tools/ci/prepare_toolchain.py first)
+python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
