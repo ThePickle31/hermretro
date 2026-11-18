@@ -20,6 +20,7 @@ import shutil
 from pathlib import Path
 
 from . import github, repo, state
+from .output import cmd
 
 SKIP_DIRS = {".git", ".dev", "node_modules", "notes"}
 
@@ -62,8 +63,8 @@ def verdict(ctx, tree: repo.Worktree, record: dict, before: dict, after: dict) -
         if held:
             names = ", ".join(held[:3]) + (f" and {len(held) - 3} more" if len(held) > 3 else "")
             fix = (
-                f"move them out (e.g. into the main checkout's notes/: mv {tree.path}/{held[0].rstrip('/')} "
-                f"{main}/notes/), then run gc again; or remove the worktree by hand once nothing in it is needed"
+                f"move them out (e.g. into the main checkout's notes/: "
+                f"{cmd('mv', tree.path / held[0].rstrip('/'), str(main / 'notes') + '/')}), then run gc again; or remove the worktree by hand once nothing in it is needed"
             )
             return False, f"ignored files that are not caches would be deleted with it: {names}", fix
     tip = repo.head(main, f"refs/heads/{branch}") or tree.head or ""
@@ -144,7 +145,7 @@ def run(ctx, dry_run: bool = False, only: str | None = None) -> int:
                 repo.git(["worktree", "remove", str(tree.path)], main)
                 if inside(ctx.started, tree.path):
                     moved.append(str(tree.path))
-                    ctx.out.say(f"your shell may still be in {tree.path} (removed): cd {main}")
+                    ctx.out.say(f"your shell may still be in {tree.path} (removed): {cmd('cd', main)}")
             repo.git(["branch", "-D", tree.branch], main)
             state.drop_branch(main, tree.branch)
 

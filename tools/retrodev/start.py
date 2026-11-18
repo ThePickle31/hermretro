@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import gates, repo, state
 from .gates import Gate
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
 
 
 def worktree_path(ctx, topic: str) -> Path:
@@ -28,7 +28,7 @@ def main_checkout_gate(ctx) -> Gate:
             "main checkout on the base branch",
             False,
             f"{main} is on '{branch}', not '{ctx.base}' (a checkout Hermes loads stays on {ctx.base})",
-            f"ask the owner to switch {main} back to {ctx.base} (git -C {main} switch {ctx.base})",
+            f"ask the owner to switch {main} back to {ctx.base} ({cmd('git', '-C', main, 'switch', ctx.base)})",
             OWNER,
         )
     changes = repo.dirty(main)
@@ -37,7 +37,7 @@ def main_checkout_gate(ctx) -> Gate:
             "main checkout clean",
             False,
             f"{main} has {len(changes)} uncommitted change(s); they are the owner's and must not be mixed in",
-            f"ask the owner to commit, stash or remove them (git -C {main} status)",
+            f"ask the owner to commit, stash or remove them ({cmd('git', '-C', main, 'status')})",
             OWNER,
         )
     return gates.passed("main checkout on the base branch and clean", str(main))
@@ -53,7 +53,7 @@ def run_setup(ctx, path: Path) -> list[dict]:
         results.append({"command": " ".join(words), "ok": code == 0, "detail": tail[0] if tail else ""})
         ctx.out.say(f"  {'ok' if code == 0 else 'FAILED'}  {' '.join(words)}" + (f"  {tail[0]}" if tail else ""))
         if code:
-            ctx.out.say(f"      FIX: cd {path} && {' '.join(command)}  (then python tools/retrodev doctor)")
+            ctx.out.say(f"      FIX: {cmd('cd', path)} && {cmd(*command)}  (then python tools/retrodev doctor)")
     return results
 
 
@@ -93,7 +93,9 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
     repo.git(["fetch", "--quiet", ctx.remote], main)
     base = ctx.remote_base
     if not repo.head(main, base):
-        raise Failure(f"{base} does not exist after the fetch", f"git -C {main} fetch {ctx.remote}; check the remote")
+        raise Failure(
+            f"{base} does not exist after the fetch", f"{cmd('git', '-C', main, 'fetch', ctx.remote)}; check the remote"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     # --no-track: the branch must never push to the base branch; ship sets its own upstream.
     repo.git(["worktree", "add", "--quiet", "--no-track", "-b", name, str(path), base], main)
@@ -112,6 +114,6 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
     )
     state.save_branch(main, record)
     ctx.out.say(str(path))
-    ctx.out.say(f"next: cd {path}, build, then python tools/retrodev check")
+    ctx.out.say(f"next: {cmd('cd', path)}, build, then python tools/retrodev check")
     ctx.out.set(path=str(path), branch=name, topic=topic, setup=setup_results)
     return 0

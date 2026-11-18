@@ -22,7 +22,7 @@ from pathlib import Path
 from . import github, repo, reviews, state
 from .checks import short_tmp
 from .review import runner as review_runner
-from .output import Failure
+from .output import Failure, cmd
 
 
 def item(name: str, ok: bool, detail: str, fix: str = "") -> dict:
@@ -170,7 +170,7 @@ def checkout(ctx) -> list[dict]:
             "main checkout clean",
             not changes,
             f"{len(changes)} uncommitted change(s)",
-            f"ask the owner about git -C {main} status",
+            f"ask the owner about {cmd('git', '-C', main, 'status')}",
         )
     )
     root = ctx.worktree_root()

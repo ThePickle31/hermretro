@@ -8,7 +8,7 @@ on the base branch and clean; gc that branch only) and never merges again.
 from __future__ import annotations
 
 from . import gc, github, land_gates, repo, reviews, state
-from .output import Failure
+from .output import Failure, cmd
 
 RECHECK = "state,baseRefName,headRefOid"
 
@@ -59,7 +59,7 @@ def finish(ctx, number: int, rec: dict) -> int:
             except repo.GitError as error:
                 raise Failure(
                     f"#{number} is merged, but updating the main checkout {tops} failed: {error.message}",
-                    f"let {ctx.base} there fast-forward (git -C {tops} status; no commits of its own), then "
+                    f"let {ctx.base} there fast-forward ({cmd('git', '-C', tops, 'status')}; no commits of its own), then "
                     f"python tools/retrodev land {number} (it finishes the steps after the merge, never merges again)",
                 )
             landing["pulled"] = True
@@ -74,7 +74,9 @@ def finish(ctx, number: int, rec: dict) -> int:
         gc.run(ctx.at(tops), only=landing["branch"])
         landing["gc"] = True
         reviews.save(ctx, rec)
-    move = f"cd {ctx.out.data['cd']} && " if ctx.out.data.get("cd") else ""  # gc removed the folder it started in
+    move = (
+        cmd("cd", ctx.out.data["cd"]) + " && " if ctx.out.data.get("cd") else ""
+    )  # gc removed the folder it started in
     ctx.out.say(f"next: {move}python tools/retrodev summary {number} (the step-8 note for the owner)")
     ctx.out.set(merged=True, head=landing["head"], action="merged", landing=landing)
     return 0

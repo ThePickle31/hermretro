@@ -231,8 +231,10 @@ class FakeGH:
 class RepoCase(unittest.TestCase):
     """Each test gets its own copy of the template (main checkout, origin, worktree root beside them)."""
 
+    prefix = "retrodev-"  # of the test's folder: a class with a space in it puts every path under a spaced folder
+
     def setUp(self):
-        self.base = Path(tempfile.mkdtemp(prefix="retrodev-")).resolve()
+        self.base = Path(tempfile.mkdtemp(prefix=self.prefix)).resolve()
         # Copied and removed by cp and rm, outside this process: the threads share one interpreter lock, and
         # Python's own copy and removal of a test's folders were most of what they waited for.
         self.addCleanup(subprocess.run, ["rm", "-rf", str(self.base)], check=True)

@@ -13,7 +13,7 @@ import hashlib
 from pathlib import Path
 
 from . import repo, state
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
 
 TEMPLATE = """# Plan: {topic}
 
@@ -135,24 +135,31 @@ def approve(ctx, topic: str, words: str | None) -> int:
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
     linked = linked_branches(ctx, topic)
     if linked:
-        # a folder deleted by hand stays registered in git, and git worktree add refuses it until a prune
-        stale = {str(tree.branch): tree.path for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
+        stale = {str(tree.branch): tree for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
         for row in linked:
             branch, where = row["branch"], row["worktree"]
             if where:
-                ctx.out.say(f"next: {branch} already works under it: cd {where} && python tools/retrodev status")
+                ctx.out.say(
+                    f"next: {branch} already works under it: {cmd('cd', where)} && python tools/retrodev status"
+                )
                 continue
-            folder = stale.get(branch) or ctx.worktree_root() / branch.partition("/")[2]  # where start puts it
-            prune = "git worktree prune && " if branch in stale else ""
-            ctx.out.say(
-                f"next: {branch} already works under it, but its worktree is gone: "
-                f"{prune}git worktree add {folder} {branch} && cd {folder} && python tools/retrodev status"
-            )
+            gone = restore_command(ctx, branch, stale.get(branch))
+            ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")
         ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
     else:
         ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+def restore_command(ctx, branch: str, registered=None) -> str:
+    """The command (run in the main checkout) that brings back a branch's worktree: at the folder git still has
+    registered, after a prune (a folder deleted by hand stays registered, and git worktree add refuses it until
+    then), or where start puts it."""
+    folder = registered.path if registered else ctx.worktree_root() / branch.partition("/")[2]
+    prune = "git worktree prune && " if registered else ""
+    add = cmd("git", "worktree", "add", folder, branch)
+    return f"{prune}{add} && {cmd('cd', folder)} && python tools/retrodev status"
 
 
 def linked_branches(ctx, topic: str) -> list[dict]:

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from . import land_gates, repo, reviews, state
 from .github import gh
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
 from .review import records
 
 
@@ -54,7 +54,7 @@ def approve(ctx, number: int, words: str | None) -> int:
         readied = True
         ctx.out.say(f"marked #{number} ready for review (it was a draft)")
     ctx.out.say(
-        f"next: cd {ctx.main()} && python tools/retrodev land {number}  (from the main checkout: the merge removes "
+        f"next: {cmd('cd', ctx.main())} && python tools/retrodev land {number}  (from the main checkout: the merge removes "
         "the worktree; in the background: reviews and CI take many minutes)"
     )
     ctx.out.set(pr=number, branch=branch, approval=approval, readied=readied)
