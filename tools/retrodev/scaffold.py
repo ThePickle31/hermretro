@@ -74,6 +74,19 @@ def one_line(text: str, what: str) -> str:
     return text.strip()
 
 
+def js_label(text: str | None, fallback: str) -> str:
+    """A page or tab label, once it is safe inside a quoted JavaScript string and a // comment: no quote, backslash,
+    line terminator (U+2028 and U+2029 included) or other unprintable character (the templates interpolate it)."""
+    text = one_line(text or fallback, "label")
+    if any(char in "'\\" or not char.isprintable() for char in text):
+        raise Failure(
+            f"the label {text!r} goes into a quoted JavaScript string: no quotes, backslashes or line breaks; "
+            "nothing was written",
+            "pass --label 'plain words' (letters, digits, spaces and punctuation other than ' and \\)",
+        )
+    return text
+
+
 def render(kind: str, file: str, **values: str) -> str:
     """A template with each {key} of ``values`` replaced; other {...} stay, then {{ and }} become braces."""
     text = (TEMPLATES / kind / file).read_text(encoding="utf-8")
@@ -103,6 +116,7 @@ class Plan:
     created: dict[str, str] = field(default_factory=dict)
     changed: dict[str, str] = field(default_factory=dict)
     regenerate: bool = False
+    stdlib_only: tuple[str, ...] = ()  # policy.toml [new]: features new adds no rpc, tool or event to
     notes: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
 
@@ -274,7 +288,7 @@ def run(ctx, args) -> int:
     from . import scaffold_backend, scaffold_page  # the kinds; they import this module
 
     guard(ctx)
-    plan = Plan(ctx.top)
+    plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
     kind = args.kind
     if kind == "feature":
         what = scaffold_backend.feature(plan, args.name, args.purpose)

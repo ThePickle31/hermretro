@@ -10,7 +10,20 @@ from __future__ import annotations
 import re
 
 from .output import Failure
-from .scaffold import CAMEL, KEBAB, Plan, check_name, const, insert_after, label, one_line, pascal, readme_item, render
+from .scaffold import (
+    CAMEL,
+    KEBAB,
+    Plan,
+    check_name,
+    const,
+    insert_after,
+    js_label,
+    label,
+    one_line,
+    pascal,
+    readme_item,
+    render,
+)
 from .scaffold import camel as to_camel
 
 REGISTRY = "page/pages/index.js"
@@ -23,9 +36,7 @@ SLOTS_LIST = re.compile(
 
 def page(plan: Plan, page_id: str, page_label: str | None) -> str:
     check_name(page_id, KEBAB, "page", "games")
-    page_label = one_line(page_label or label(page_id), "label")
-    if "'" in page_label:
-        raise Failure("the label goes into a quoted JavaScript string", "pass --label without quotes")
+    page_label = js_label(page_label, label(page_id))
     folder = f"page/pages/{page_id}"
     if plan.exists(folder) or f"'./{page_id}/index.js'" in plan.read(REGISTRY):
         raise Failure(f"{folder} exists or the registry lists it", "pick another page id")
@@ -131,9 +142,7 @@ def known_page(plan: Plan, page_id: str) -> str:
 def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None) -> str:
     door = known_page(plan, page_id)
     check_name(tab_id, KEBAB, "tab", "history")
-    tab_label = one_line(tab_label or label(tab_id), "label")
-    if "'" in tab_label:
-        raise Failure("the label goes into a quoted JavaScript string", "pass --label without quotes")
+    tab_label = js_label(tab_label, label(tab_id))
     name = f"{const(page_id)}_{const(tab_id)}_TAB"  # one bundle: every exported name is unique across pages
     if plan.exists(f"page/pages/{page_id}/{tab_id}"):
         raise Failure(f"page/pages/{page_id}/{tab_id} exists", "pick another tab id")

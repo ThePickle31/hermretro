@@ -26,7 +26,7 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import add_event, add_tool, js_str, py_str
+from .scaffold_source import add_event, add_tool, js_str, module_names, py_str
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -45,8 +45,15 @@ def features(plan: Plan) -> list[str]:
     raise Failure(f"{FEATURES} has no FEATURES list", f"restore {FEATURES} (git checkout -- {FEATURES})")
 
 
-def known_feature(plan: Plan, name: str) -> str:
+def known_feature(plan: Plan, name: str, kind: str = "") -> str:
     check_name(name, SNAKE, "feature", "history")
+    if kind and name in plan.stdlib_only:
+        raise Failure(
+            f"backend/{name} stays stdlib-only (policy.toml [new] stdlib_only), and a generated {kind} module imports "
+            "backend.hermes or backend.system.events; nothing was written",
+            f"declare the gateway-side {kind} in another feature (setup, library, ...): python tools/retrodev new "
+            f"{kind} <feature> <name>, and reach backend/{name} through its front door",
+        )
     if name not in features(plan) or not plan.exists(f"backend/{name}/__init__.py"):
         raise Failure(
             f"backend/{name} is not a feature listed in {FEATURES}",
@@ -114,7 +121,7 @@ def rpc_names(plan: Plan) -> set[str]:
 
 
 def rpc_(plan: Plan, feature_name: str, name: str) -> str:
-    known_feature(plan, feature_name)
+    known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
     if name in rpc_names(plan) or name in {a or b for a, b in documented}:
@@ -161,7 +168,7 @@ def engine_tools(plan: Plan) -> set[str]:
 
 
 def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> str:
-    known_feature(plan, feature_name)
+    known_feature(plan, feature_name, "tool")
     short = check_name(name.removeprefix(TOOL_PREFIX), SNAKE, "tool", "game_info")
     full = TOOL_PREFIX + short
     manifest = plan.read(MANIFEST)
@@ -180,6 +187,12 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
     values |= {"TOOL": const(short), "words": words}
     source = f"backend/{feature_name}/tools.py"
     plan.ensure(source, render("tool", "tools.py.tmpl", **values))
+    taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(source)))
+    if taken:  # a second binding would replace the first: the tool that uses it would lose its schema or handler
+        raise Failure(
+            f"{source} binds {' and '.join(taken)} already, which tool {full} would define; nothing was written",
+            f"pick another tool name, e.g. python tools/retrodev new tool {feature_name} {short}_more",
+        )
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
     plan.edit(source, lambda text: add_tool(text, source, render("tool", "tool.py.tmpl", **values), entry))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
@@ -221,7 +234,7 @@ def _contract_tool(text: str, full: str, feature_name: str) -> str:
 
 
 def event(plan: Plan, feature_name: str, name: str, payload: str | None) -> str:
-    known_feature(plan, feature_name)
+    known_feature(plan, feature_name, "event")
     check_name(name, SNAKE, "event", "build_kept")
     if name in ("emit", "annotations"):
         raise Failure(f"'{name}' would shadow a name emits.py uses", "pick another event name, e.g. build_kept")

@@ -70,7 +70,10 @@ rebuilds the generated files when the change feeds them (`policy.toml` `[generat
 those files are inputs of (lint, bundle, unit, page; the install scan waits for `check`) and prints the next steps.
 It refuses (`FIX:`) a name that exists or breaks the naming rules (features, RPCs, tools and events: lowercase and
 underscores; pages and tabs: lowercase and dashes; slots: camelCase), never overwrites a file, and runs only on a
-work branch (never `dev` or `main`). `--dry-run` lists the files and writes nothing; `--no-check` skips the checks;
+work branch (never `dev` or `main`). It refuses a tool whose schema constant or handler name the module binds already
+(a second binding would replace the first), a page or tab label with a quote, backslash or line terminator (it goes
+into a JavaScript string), and an RPC, tool or event in a stdlib-only feature (`policy.toml` `[new] stdlib_only`:
+broker, system; their gateway-side pieces go in setup, library or another feature). `--dry-run` lists the files and writes nothing; `--no-check` skips the checks;
 `--no-build` skips the rebuild (when several `new` run in a row, let the last one rebuild). It never writes a broken
 or partial change: every edit is made in memory first, each Python file of it must parse, and only then is anything
 written. It extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `EVENTS` a dict literal,

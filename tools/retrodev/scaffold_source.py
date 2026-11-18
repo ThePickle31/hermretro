@@ -3,6 +3,7 @@ only when its shape is known, and every other shape is refused before anything i
 
     add_tool(text, rel, block, entry)   the schema and handler before TOOLS, the Tool(...) entry inside it
     add_event(text, entry, comment)     a "feature.event": "payload" entry at the end of EVENTS
+    module_names(text)                  every top-level name a module binds
     py_str(text), js_str(text)          string literals for Python and for the page's JavaScript
 """
 
@@ -36,6 +37,11 @@ def bound(node: ast.stmt) -> set[str]:
     return {
         name.id for target in targets if target is not None for name in ast.walk(target) if isinstance(name, ast.Name)
     }
+
+
+def module_names(text: str) -> set[str]:
+    """Every name the module binds at its top level (assignments, functions, classes, imports)."""
+    return set().union(*(bound(statement) for statement in ast.parse(text).body))
 
 
 def shape(node: ast.stmt) -> str:

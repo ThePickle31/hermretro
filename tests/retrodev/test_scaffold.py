@@ -250,6 +250,56 @@ class New(RepoCase):
         write(self.tree, "page/pages/home/other.js", "export function RdprobeTwoPage() {}\n")
         self.new("page", "rdprobe-two", code=1)  # the bundle needs unique export names
 
+    def test_a_tool_whose_schema_or_handler_name_is_bound_already_is_refused_and_nothing_changes(self):
+        for name in ("backend/library/__init__.py", "backend/library/README.md", "backend/library/tools.py"):
+            write(self.tree, name, (ROOT / name).read_text())
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Library")
+        before = self.read("backend/library/tools.py")
+        out = self.new("tool", "library", "present", code=1)  # PRESENT_TOOL is chromatic_present_game's schema
+        self.assertIn("binds PRESENT_TOOL already", out["error"]["message"])
+        self.assertIn("pick another tool name", out["error"]["fix"])
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+        self.assertEqual(self.read("backend/library/tools.py"), before)
+        write(self.tree, "backend/history/tools.py", "from ..hermes.declare import Tool\n\n\ndef snap_handler(): ...\n")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Handler")
+        out = self.new("tool", "history", "snap", code=1)
+        self.assertIn("binds snap_handler already", out["error"]["message"])
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+
+    def test_labels_that_would_break_the_javascript_string_are_refused_and_nothing_changes(self):
+        for label in ("Ends in \\", "Two\\nlines", "Line\u2028sep", "Para\u2029sep", "Car\rriage", "It's"):
+            self.new("page", "rdprobe-odd", "--label", label, code=1)
+            self.new("tab", "home", "odd", "--label", label, code=1)
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", repr(label))
+
+    def test_a_label_with_double_quotes_and_accents_makes_javascript_that_parses(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not on this machine")
+        self.new("page", "rdprobe-notes", "--label", 'Notes "beta" — ü')
+        self.new("tab", "rdprobe-notes", "extra", "--label", 'Extra "one"')
+        folder = self.tree / "page/pages/rdprobe-notes"
+        for source in (folder / "index.js", folder / "rdprobe-notes-page.js", folder / "extra/index.js"):
+            copy = source.with_suffix(".mjs")
+            copy.write_text(source.read_text())
+            code, out, err = repo.run([node, "--check", str(copy)], self.tree, timeout=60)
+            self.assertEqual(code, 0, f"{source}: {out}{err}")
+
+    def test_no_rpc_tool_or_event_goes_into_a_stdlib_only_feature(self):
+        for name in ("backend/broker/__init__.py", "backend/broker/README.md"):
+            write(self.tree, name, (ROOT / name).read_text())
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Broker")
+        for argv in (["rpc", "broker", "probe"], ["tool", "broker", "probe"], ["event", "broker", "pinged"]):
+            out = self.new(*argv, code=1)
+            self.assertIn("stays stdlib-only", out["error"]["message"], argv)
+            self.assertIn("another feature", out["error"]["fix"], argv)
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", argv)
+        out = self.new("event", "system", "pinged", code=1)
+        self.assertIn("stays stdlib-only", out["error"]["message"])
+
     def test_the_text_output_names_each_file_and_the_next_step(self):
         out = self.new("rpc", "history", "rdprobe_ping", as_json=False)
         self.assertIn("create  tests/backend/history/test_rpc_rdprobe_ping.py", out)

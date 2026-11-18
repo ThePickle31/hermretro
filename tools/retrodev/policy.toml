@@ -68,6 +68,12 @@ acceptance = 240
 clean_install = 90
 update = 120
 
+[new]
+# Features whose modules stay stdlib-only (tests/repo/test_broker_imports.py; system is the bottom layer in
+# tests/repo/test_boundaries.py): `new rpc|tool|event` refuses them, as their generated modules import backend.hermes
+# or backend.system.events. Their gateway-side pieces belong in a feature such as setup or library.
+stdlib_only = ["broker", "system"]
+
 [gc]
 # Ignored files gc may delete with a finished worktree: caches that are rebuilt on demand (a folder pattern ends in
 # /; a pattern matches the whole path or its last part). Any other ignored file (notes/, games/, scratch/, logs)
