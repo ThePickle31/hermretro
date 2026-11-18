@@ -5,8 +5,9 @@ the reviewer is given (only the ``file`` toolset) and by checking what it did:
 
 1. Its session's tool calls, read from the reviewer profile's state.db (opened read-only): only read_file and
    search_files, and only on paths inside the round folder. Anything else is a violation.
-2. Snapshots before and after: every worktree's ``git status --porcelain`` and HEAD, ``git worktree list``,
-   ``git ls-remote origin`` (the GitHub branches), and a digest of the round's own src/ export.
+2. Snapshots before and after of what else it could reach: the pull request's own worktree (``git status
+   --porcelain`` and HEAD), the pull request's branch on origin (``git ls-remote origin refs/heads/<branch>``) and a
+   digest of the round's own src/ export. Other worktrees are left out: agents at work there change them.
 
 A violation voids the round.
 """
@@ -163,48 +164,64 @@ def _git(cwd, *args) -> str:
     return proc.stdout if proc.returncode == 0 else f"(git {' '.join(args)} failed: {proc.stderr.strip()})"
 
 
-def ls_remote_origin(repo: Path) -> str:
-    out = _git(repo, "ls-remote", "origin")
-    return "\n".join(sorted(out.splitlines()))
+def branch_of(worktree: Path) -> str | None:
+    out = _git(worktree, "symbolic-ref", "--short", "-q", "HEAD").strip()
+    return None if not out or out.startswith("(git") else out
 
 
-def snapshot(repo: Path, src: Path, ls_remote: Callable[[Path], str] | None = None, skip=()) -> dict:
-    """The live state the reviewer must not change: worktrees (files and HEAD), the remote's branches, src/.
+def ls_remote_branch(repo: Path, branch: str | None, remote: str = "origin") -> str:
+    """The remote's own ref for ``branch`` (``git ls-remote <remote> refs/heads/<branch>``)."""
+    if not branch:
+        return "(no branch)"
+    return _git(repo, "ls-remote", remote, f"refs/heads/{branch}").strip()
 
-    ``skip`` names worktrees another agent is busy in (their changes are not the reviewer's); they are left out
-    and listed under "skipped", so the record shows what was not watched."""
-    skipped = {os.path.realpath(t) for t in skip}
-    blocks = _git(repo, "worktree", "list", "--porcelain").strip().split("\n\n")
-    kept, trees = [], []
-    for block in blocks:
-        first = block.splitlines()[0] if block.strip() else ""
-        tree = first[len("worktree ") :] if first.startswith("worktree ") else None
-        if tree and os.path.realpath(tree) in skipped:
-            continue
-        kept.append(block)
-        if tree:
-            trees.append(tree)
+
+def snapshot(
+    worktree: Path,
+    src: Path,
+    branch: str | None = None,
+    ls_remote: Callable[[Path, str | None], str] | None = None,
+) -> dict:
+    """What a file-only reviewer could have changed besides its audited tool calls: the PR's own worktree (files
+    and HEAD), the PR's branch on the remote, and the round's src/ export.
+
+    Other worktrees are not watched: agents working there in parallel change them, which voided clean rounds; the
+    tool-call audit is what proves the reviewer wrote nothing anywhere."""
+    worktree = Path(worktree)
+    branch = branch or branch_of(worktree)
+    status = _git(worktree, "status", "--porcelain", "--untracked-files=all")
     return {
-        "worktrees": "\n\n".join(kept),
-        "heads": {tree: _git(tree, "rev-parse", "HEAD").strip() for tree in trees},
-        "status": {tree: _git(tree, "status", "--porcelain", "--untracked-files=all") for tree in trees},
-        "remote": (ls_remote or ls_remote_origin)(Path(repo)),
+        "worktree": str(worktree),
+        "head": _git(worktree, "rev-parse", "HEAD").strip(),
+        "status": status,
+        "changed_files": _changed_digest(worktree, status),
+        "branch": branch,
+        "remote": (ls_remote or ls_remote_branch)(worktree, branch),
         "src": tree_digest(src),
-        "skipped": sorted(skipped),
     }
+
+
+def _changed_digest(worktree: Path, status: str) -> str:
+    """A digest of the files git status lists (a second edit of an already changed file keeps its status line)."""
+    h = hashlib.sha256()
+    for line in status.splitlines():
+        name = line[3:].split(" -> ")[-1].strip('"')
+        path = worktree / name
+        h.update(f"{name}\0".encode())
+        if path.is_file() and not path.is_symlink():
+            h.update(path.read_bytes())
+    return h.hexdigest()
 
 
 def compare(before: dict, after: dict) -> list[str]:
     changes = []
-    if before.get("worktrees") != after.get("worktrees"):
-        changes.append("the worktree list changed")
-    for key, label in (("heads", "HEAD"), ("status", "files")):
-        b, a = before.get(key, {}), after.get(key, {})
-        for tree in sorted(set(b) | set(a)):
-            if b.get(tree) != a.get(tree):
-                changes.append(f"{label} of worktree {tree} changed")
+    tree = before.get("worktree")
+    if before.get("head") != after.get("head"):
+        changes.append(f"HEAD of the pull request's worktree {tree} changed")
+    if before.get("status") != after.get("status") or before.get("changed_files") != after.get("changed_files"):
+        changes.append(f"files of the pull request's worktree {tree} changed")
     if before.get("remote") != after.get("remote"):
-        changes.append("the branches on origin changed")
+        changes.append(f"the branch {before.get('branch')} on origin changed")
     if before.get("src") != after.get("src"):
         changes.append("the round's src/ export changed")
     return changes
@@ -244,5 +261,5 @@ def audit(
         "calls": len(calls),
         "tools": tools,
         "db": str(db),
-        "unwatched": before.get("skipped", []),
+        "watched": {"worktree": before.get("worktree"), "branch": before.get("branch")},
     }

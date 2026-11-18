@@ -1,6 +1,7 @@
 """retrodev: hermretro's working agreement as commands, each refusing to skip a step.
 
   1 discuss   2 plan new / plan show   3 plan approve, start   4 check, ship   5 report
+  6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
@@ -14,7 +15,7 @@ import functools
 import os
 from pathlib import Path
 
-from . import checks, config, doctor, gc, plan, report, ship, start, status, sync, watch
+from . import approve, checks, config, doctor, gc, land, plan, report, ship, start, status, summary, sync, watch
 from .output import FAILED, Failure, Out
 
 
@@ -66,6 +67,24 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="run the gates and print what it would do")
 
     add("report", "the factual half of the step-5 report")
+
+    p = add("approve", "record the owner's approval of a pull request (once); readies a draft")
+    p.add_argument("pr", type=int)
+    p.add_argument("--words", required=True, help="the owner's exact words")
+    p = add("land", "review rounds, CI on the exact head and the squash merge of an approved pull request")
+    p.add_argument("pr", type=int)
+    p.add_argument("--no-review", action="store_true", help="skip the reviews (the owner's call), merge on green CI")
+    p.add_argument("--ci-timeout", type=float, metavar="SECONDS", help="how long to wait for CI (policy default 1500)")
+    p.add_argument("--dry-run", action="store_true", help="print the gates and the next step; change nothing")
+    p = add("answer", "answer a review round's finding: the fix's commit, or why it is wrong with proof")
+    p.add_argument("pr", type=int)
+    p.add_argument("round", type=int)
+    p.add_argument("index", nargs="?", type=int, help="the finding's number (as land printed it)")
+    p.add_argument("text", nargs="?", help="the answer")
+    p.add_argument("--all", metavar="TEXT", dest="every", help="the same answer for every finding of the round")
+    add("summary", "the step-8 note's facts: added, changed, fixed, removed, reviews, CI, restarts").add_argument(
+        "pr", type=int
+    )
     add("sync", "merge the base branch in; generated-file conflicts are rebuilt, others stop")
     add("gc", "remove merged worktrees, their branches and records, bytecode-only leftovers").add_argument(
         "--dry-run", action="store_true"
@@ -101,6 +120,14 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
         return ship.run(ctx, args.title, args.body, dry_run=args.dry_run)
     if command == "report":
         return report.run(ctx)
+    if command == "approve":
+        return approve.approve(ctx, args.pr, args.words)
+    if command == "answer":
+        return approve.answer(ctx, args.pr, args.round, args.index, args.text, every=args.every)
+    if command == "land":
+        return land.run(ctx, args.pr, no_review=args.no_review, ci_timeout=args.ci_timeout, dry_run=args.dry_run)
+    if command == "summary":
+        return summary.run(ctx, args.pr)
     if command == "sync":
         return sync.run(ctx)
     if command == "gc":
@@ -112,12 +139,12 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     return config.run(ctx, args.action, args.key, args.value)
 
 
-def main(argv: list[str] | None = None, cwd: Path | str | None = None, gh_runner=None, stream=None) -> int:
+def main(argv: list[str] | None = None, cwd: Path | str | None = None, gh_runner=None, stream=None, fakes=None) -> int:
     args = parser().parse_args(argv)
     out = Out(as_json=args.json, stream=stream)
     name = args.command + (f" {args.action}" if args.command in ("plan", "config") else "")
     try:
-        ctx = config.Context.make(cwd or os.getcwd(), out, gh_runner=gh_runner)
+        ctx = config.Context.make(cwd or os.getcwd(), out, gh_runner=gh_runner, fakes=fakes)
         code = dispatch(ctx, args)
     except Failure as failure:
         return out.finish(name, failure=failure)

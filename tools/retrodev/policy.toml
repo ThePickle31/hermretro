@@ -8,6 +8,10 @@ base = "dev"            # the branch pull requests go into and worktrees start f
 remote = "origin"
 worktree_root = ""      # empty: <main checkout's parent>/<main checkout's name>-wt; a worktree is <root>/<topic>
 github_account = ""     # when set, doctor checks gh is logged in as this account
+review_profile = ""     # personal, no default: the Hermes profile the reviewer runs from (empty: reviews skipped)
+review_provider = "openai-codex"
+review_model = "gpt-6.1-sol"
+review_reasoning = "high"
 
 [branches]
 kinds = ["feat", "fix", "docs", "chore"]
@@ -81,6 +85,16 @@ backend = ["backend/*", "__init__.py", "plugin.yaml"]
 page = ["page/*", "desktop/*", "player/frame-shim.js"]
 engine = ["engine/*"]
 ci = [".github/*", "tools/*"]
+
+[land]
+# land merges only on green CI for the pull request's exact head: every job must pass or be skipped, except these
+# (names as gh pr checks prints them), and the required ones must be there (no jobs yet is still waiting).
+required_jobs = ["All checks pass"]
+ignore_jobs = []
+ci_poll = 20            # seconds between CI polls
+ci_timeout = 1500       # default --ci-timeout: then land stops with 2 (still waiting; run land again)
+# Commits the reviewer is told to skip (subject patterns, fnmatch): a formatter pass, generated output.
+mechanical = ["Format*", "*(no code changes)*"]
 
 [restart]
 # What the owner must do after the change lands in a checkout Hermes loads.

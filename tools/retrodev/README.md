@@ -14,9 +14,9 @@ Python 3.11+, development only (it never runs inside Hermes). Tests: `tests/retr
 | 3 go | owner says start | `plan approve <topic> --words "<the owner's exact words>"` (the agent runs it) |
 | 4 build | agent | `start feat/<topic>`, edit, `check` (or `check --watch`), commit, `ship --title ... --body <file>` |
 | 5 report | agent | `report` gives the facts (PR, commits, files by area, checks, CI, what to restart); the agent adds the prose |
-| 6 approve | owner | (the review and landing commands come in the next version) |
-| 7 land | | CI, the review loop and the merge (next version) |
-| 8 summary | agent | (next version) |
+| 6 approve | owner says approve, merge or go ahead | `approve <pr> --words "<the owner's exact words>"` (the agent runs it), once per pull request |
+| 7 land | agent | `land <pr>` in the background: up to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding, then runs `land` again |
+| 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts; the agent adds the prose |
 
 At any time `status` names the one next step, `doctor` checks the machine, `sync` brings in `dev`, `gc` tidies up.
 
@@ -31,15 +31,55 @@ At any time `status` names the one next step, `doctor` checks the machine, `sync
 | `start <kind>/<topic> [--plan <topic>] [--no-plan] [--no-setup]` | kind: feat, fix, docs, chore. `--plan` names the plan when one plan covers several branches (default: the branch's topic). Needs an approved plan (docs and chore may say `--no-plan`), the main checkout on `dev` and clean. Fetches, makes the worktree at `<worktree_root>/<topic>` on a new branch from `origin/dev` (no upstream: it can never push to `dev`), runs `npm ci --prefix tools/npm` and `python tools/py/setup.py` there, prints the path |
 | `check [names...] [--again] [--full] [--watch]` | Runs `tools/check.py` for the checks whose inputs changed since their last pass on the branch (`ok (cached)` otherwise; a check's inputs, in `policy.toml` `[checks.inputs]`, include the tools it runs and their pins, `tools/check.py` and `policy.toml`); `--watch` runs again on every file change and on a commit or a clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run, later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or were deleted) when the branch changed what they cover; prints times against budgets. The clean install and update check install the committed HEAD, so they run only on a committed, clean tree (otherwise: commit first). A pass of everything the branch needs records the tree's digest (contents and file modes) and which checks those were; ship accepts it only while they cover what the policy requires now; a failed rerun takes it back |
 | `ship --title "..." --body <file> [--dry-run]` | Gates: a work branch, the owner approved its plan (the record's plan, else the branch's topic; docs and chore may go without one), a one-line title without a trailing period, every template section filled in and a line saying an agent made it, everything committed, `check` passed on this exact tree, commits beyond `dev`, the remote branch not moved (if it moved: `git fetch origin && git merge origin/<branch>`, then check and ship again). Then a plain `git push -u` and `gh pr create --draft --base dev` with area labels, or `gh pr edit` of the open one. An open pull request into another branch (one opened by hand into `main`) is refused with `FIX: gh pr edit <n> --base dev`; ship never retargets it |
-| `report` | The factual half of the step-5 report (`--json` too) |
+| `report` | The factual half of the step-5 report (`--json` too), with the owner's approval and the review rounds |
+| `approve <pr> --words "..."` | Records the owner's approval of the pull request (time, exact words, its head then) in its branch record (found by the pull request's head branch) and its review record; marks a draft ready (`gh pr ready`). Empty words: exit 3 |
+| `land <pr> [--no-review] [--ci-timeout S] [--dry-run]` | Takes an approved pull request through the review loop, CI and the merge (below). Resumable: run it again after each stop. `--no-review` skips the reviews (the owner's call; recorded). `--dry-run` prints the gates and the next step and changes nothing |
+| `answer <pr> <round> <index> "<text>"` / `answer <pr> <round> --all "<text>"` | The answer to one finding (or every finding of a round): the fix's commit, or why it is wrong with proof. The next round's reviewer reads them |
+| `summary <pr>` | The step-8 note's facts: files added, changed, moved, removed by area (from the squash commit; before the merge, the head against the base branch), the findings fixed with their answers, the rounds, CI, and whether the owner restarts the gateway (`backend/`, `__init__.py`, `plugin.yaml`, `skills/`, `profile/`) or reloads the app (`desktop/plugin.js`). Read-only |
 | `status` | On a branch: plan, approval, checks on this tree, PR, pushed head, CI, and the next step. In the main checkout: every record and worktree |
 | `sync` | `git fetch`, then merges `origin/dev` (never a rebase). Conflicts only in generated files: takes dev's side, rebuilds them, finishes the merge. Any other conflict: stops with the source files and leaves the merge open; resolve those (never the generated ones), `git add` them and run `sync` again: it rebuilds the generated files and makes the merge commit (no `git commit` by hand). A clean merge rebuilds the generated files too and commits them if they changed |
 | `gc [--dry-run]` | Removes worktrees whose pushed branch is merged into `origin/dev`, whose pull request merged, or which the remote deleted, only when clean and holding no ignored file beyond the rebuildable caches in `policy.toml` `[gc] caches` (`node_modules/`, `.dev/`, `__pycache__/`, `*.pyc`, ...): a worktree with ignored `notes/`, `games/`, scratch or logs is kept with its branch, naming those paths and a `FIX:` (move them out, e.g. into the main checkout's `notes/`). Deletes those branches and their records. A worktree folder deleted by hand loses only git's note of it: its branch and record stay unless the branch passes the same checks, and every later gc judges that recorded branch again (removed once merged). Removes folders in the main checkout whose whole subtree is bytecode caches and empty folders (a hidden or skipped folder, a symlink or any other file keeps it). A dry run fetches nothing and changes nothing |
-| `doctor [--all]` | git, gh and its account, git identity, Python, Node, the npm tools and ruff, Hermes and a hermes-agent source for the scan, the main checkout, the worktree root, a short temp folder; each problem with its fix |
+| `doctor [--all]` | git, gh and its account, git identity, Python, Node, the npm tools and ruff, Hermes and a hermes-agent source for the scan, the main checkout, the worktree root, a short temp folder; each problem with its fix. `--all` adds the reviewer: `review_profile` set, and a live probe of its provider |
 | `config list` / `get <key>` / `set <key> <value>` | Personal settings; `set <key> ""` goes back to the default |
 
 Every command takes `--json` (one JSON object: `command`, `ok`, `code`, `status`, the command's data, and `error`
 with `message` and `fix` on a failure).
+
+## What land does
+
+Gates first, all reported at once: the owner's approval is recorded (else 3); the pull request is open, into
+`dev` (a draft is marked ready); the worktree's head is the pull request's head and pushed; the tree is clean and
+`check` passed on it. Then, from the records (`records.next_action`):
+
+| State | land |
+|---|---|
+| a round is due: none at this head yet, fewer than 3, earlier findings all answered | probes the reviewer once; unavailable, or no `review_profile`: reviews skipped with the reason recorded, on to CI. Else runs the round (minutes; CI runs meanwhile) |
+| the round has findings | prints each (severity file:line problem, fix) and the steps: fix, `check`, commit, `ship`, `answer` each, `land` again. Exit 1 (`action: fix`) |
+| findings not answered yet | names them. Exit 1 |
+| every finding answered, nothing new pushed | the next round judges the answers |
+| round 3 had findings, all answered | no 4th round: on to CI |
+| the round was void (the audit failed) twice, or gave no valid JSON twice | exit 3 with the audit's findings: the owner decides |
+| clean on this head, or reviews skipped | waits for CI on the exact head, polling every 20 s up to `--ci-timeout` (default 1500 s) |
+| CI failing | names the jobs and links, `gh run view <run> --log-failed`. Exit 1 (`action: fix CI`) |
+| CI still running at the timeout | exit 2: run `land` again (nothing is reviewed twice) |
+| CI green | `gh pr merge <n> --squash --delete-branch --match-head-commit <sha> --subject "<title> (#<n>)"`, `git pull --ff-only` in the main checkout when it is on `dev` and clean, `gc` of that branch only, then `summary <n>`. Exit 0 |
+
+CI is green when every job passes or is skipped, except those in `policy.toml` `[land] ignore_jobs`, and the
+`[land] required_jobs` ("All checks pass") are there. A push while waiting stops land (its head moved). GitHub
+auto-merge stays off: land merges only itself, only through this path.
+
+### The reviewer stays read-only
+
+Hermes runs an agent's tools inside its gateway, so no sandbox around the command holds. Instead
+(`review/`): the reviewer gets only the `file` toolset (no terminal, so no git, gh or network), reads a throwaway
+`git archive` export of the head with no `.git` plus a `review/` folder of patches and the brief
+(`review/brief.md`, filled in per round), in `<state>/reviews/<pr>/round<N>/`, outside every worktree's files.
+After the round its session's tool calls are read from the reviewer profile's `state.db`: anything but
+`read_file`/`search_files`, or a path outside the round folder, voids it. Snapshots before and after must match:
+the pull request's own worktree (status, the changed files' bytes, HEAD), its branch on `origin`, and the
+export's digest. Other worktrees are not watched (agents at work there change them). A void round is discarded
+and run once more from a fresh export; a second void stops for the owner. Every round, its raw output and audit
+are in `<state>/reviews/<pr>.json`, readable in the main checkout's `notes/reviews/pr<N>.md`.
 
 ## Exit codes
 
@@ -50,7 +90,8 @@ or the owner's checkout). Every failure ends with a line starting `FIX:`.
 
 Records live in `<git common dir>/retrodev/` (the main checkout's `.git/retrodev/`, shared by every worktree,
 never committed): `branches/<branch>.json` (plan, checks with their input digests, the passing tree, the pull
-request and pushed head), `plans/<topic>.json` (the approval), `config.toml` (personal settings).
+request and pushed head, the owner's approval, land's last step), `plans/<topic>.json` (the plan's approval),
+`reviews/<pr>.json` and `reviews/<pr>/round<N>/` (every review round), `config.toml` (personal settings).
 `RETRODEV_STATE_DIR` moves the folder (for a sandbox or a trial that must leave the checkout alone).
 
 The rules everyone shares are in `policy.toml` beside this file: check inputs and triggers, budgets, generated
@@ -63,8 +104,11 @@ override its `[config]` defaults:
 | `remote` | `origin` | The remote to fetch from and push to |
 | `worktree_root` | empty: `<main checkout's parent>/<its name>-wt` | Where `start` puts worktrees (relative: beside the main checkout) |
 | `github_account` | empty | When set, `doctor` checks gh is logged in as this account |
+| `review_profile` | empty | The Hermes profile the reviewer runs from (personal; empty: land skips the reviews) |
+| `review_provider`, `review_model`, `review_reasoning` | `openai-codex`, `gpt-6.1-sol`, `high` | The reviewer's provider, model and reasoning |
 
 ## What it never does
 
 Rewrite a remote branch, push to `main`, run the hardware tools, or restart Hermes; `tests/retrodev/test_rules.py`
-checks the source for the commands that would.
+checks the source for the commands that would. It never merges a pull request the owner did not approve, or one
+whose exact head has not passed CI.

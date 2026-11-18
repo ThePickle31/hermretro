@@ -53,7 +53,10 @@ def save_local(cwd: Path | str, values: dict) -> None:
 
 @dataclass
 class Context:
-    """Everything a command needs: where it runs, the rules, the settings, the gh runner and the output."""
+    """Everything a command needs: where it runs, the rules, the settings, the gh runner and the output.
+
+    ``fakes`` replaces what tests must never start for real: ``review_run`` (the reviewer's process runner),
+    ``review_db`` (the session database the audit reads), ``sleep`` and ``clock`` (CI polling)."""
 
     cwd: Path
     out: Out
@@ -61,12 +64,25 @@ class Context:
     top: Path = Path()
     policy: dict = field(default_factory=dict)
     local: dict = field(default_factory=dict)
+    fakes: dict = field(default_factory=dict)
 
     @classmethod
-    def make(cls, cwd: Path | str, out: Out, gh_runner=None) -> Context:
+    def make(cls, cwd: Path | str, out: Out, gh_runner=None, fakes: dict | None = None) -> Context:
         cwd = Path(cwd).resolve()
         top = repo.toplevel(cwd)
-        return cls(cwd=cwd, out=out, gh_runner=gh_runner, top=top, policy=load_policy(top), local=load_local(top))
+        return cls(
+            cwd=cwd,
+            out=out,
+            gh_runner=gh_runner,
+            top=top,
+            policy=load_policy(top),
+            local=load_local(top),
+            fakes=dict(fakes or {}),
+        )
+
+    def at(self, path: Path | str) -> Context:
+        """The same command's context in another checkout (a worktree, or the main checkout)."""
+        return Context.make(path, self.out, gh_runner=self.gh_runner, fakes=self.fakes)
 
     def get(self, key: str) -> str:
         if key not in self.policy["config"]:

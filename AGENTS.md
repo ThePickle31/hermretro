@@ -93,8 +93,12 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   `plan new <topic>` writes the plan in `notes/plans/`; `plan approve <topic> --words "..."` records the owner's
   go in their words; `start feat/<topic>` makes the worktree from a fresh `dev` and sets it up; `check`; `ship
   --title ... --body <file>` pushes and opens the draft pull request only for a committed tree that passed `check`,
-  with every template section filled in; `report` gives the facts for the report to the owner; `status` names the
-  next step; `sync` merges `dev` in and rebuilds generated files on their conflicts; `gc` tidies merged worktrees.
+  with every template section filled in; `report` gives the facts for the report to the owner; `approve <n> --words
+  "..."` records the owner's approval of the pull request in their words; `land <n>` takes it through up to three
+  read-only review rounds, CI on its exact head and the squash merge (`answer <n> <round> <index> "..."` records
+  how each finding was fixed, between rounds); `summary <n>` gives the facts for the note after it lands; `status`
+  names the next step; `sync` merges `dev` in and rebuilds generated files on their conflicts; `gc` tidies merged
+  worktrees.
   Exit codes: 0 ok, 1 failed, 2 waiting, 3 needs the owner; `--json` for agents.
 - `dev` takes changes only through pull requests, squash-merged. `main` moves only when the owner
   releases: a fast-forward to a green `dev` commit, a tag and generated release notes.
@@ -104,7 +108,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   `gh pr create --base dev`. The title is a plain sentence; it becomes the commit and the release-note line.
 - Fill in every section of the pull request template. Say which systems you tested on, and say so when an
   agent made the change.
-- Agents never merge. The owner merges.
+- The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
+  CI green on the exact head and the review loop done (a clean round, or round 3's findings fixed, or reviews
+  skipped because the reviewer was unavailable, recorded). GitHub auto-merge stays off.
 - When two pull requests both change the page, the generated files conflict. Fix it with
   `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the generated files.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through

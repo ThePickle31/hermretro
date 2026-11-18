@@ -105,13 +105,15 @@ class Calls(unittest.TestCase):
 
 
 class Snapshots(unittest.TestCase):
+    """Only what a file-only reviewer could reach besides its tool calls: the PR's worktree, its remote branch, src/."""
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="retrodev-snap-"))
         cls.info = make_repo(cls.tmp)
-        cls.repo = cls.info["repo"]
-        cls.wt = cls.tmp / "wt"
-        git(cls.repo, "worktree", "add", "-q", str(cls.wt), "origin/dev")
+        cls.repo = cls.info["repo"]  # the pull request's worktree (on feat/x)
+        cls.other = cls.tmp / "wt"  # another agent's worktree
+        git(cls.repo, "worktree", "add", "-q", str(cls.other), "origin/dev")
         cls.src = cls.tmp / "src"
         cls.src.mkdir()
         (cls.src / "a.py").write_text("A\n")
@@ -120,41 +122,66 @@ class Snapshots(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
 
-    def snap(self, remote="abc refs/heads/dev"):
-        return audit.snapshot(self.repo, self.src, ls_remote=lambda _repo: remote)
+    def snap(self, remote="abc refs/heads/feat/x"):
+        seen = []
+
+        def ls_remote(repo, branch):
+            seen.append(branch)
+            return remote
+
+        found = audit.snapshot(self.repo, self.src, ls_remote=ls_remote)
+        self.assertEqual(seen, ["feat/x"], "the PR's own branch is asked for, by its checked-out name")
+        return found
 
     def test_unchanged(self):
         before = self.snap()
-        self.assertEqual(len(before["heads"]), 2)
+        self.assertEqual((before["branch"], before["worktree"]), ("feat/x", str(self.repo)))
         self.assertEqual(audit.compare(before, self.snap()), [])
 
-    def test_every_change_is_seen(self):
+    def test_every_change_the_reviewer_could_make_is_seen(self):
         before = self.snap()
-        (self.wt / "new.txt").write_text("x")
-        self.addCleanup((self.wt / "new.txt").unlink)
-        self.assertEqual(len(audit.compare(before, self.snap())), 1)
-        self.assertIn("branches on origin", audit.compare(before, self.snap("def refs/heads/dev"))[-1])
+        (self.repo / "new.txt").write_text("x")
+        self.addCleanup((self.repo / "new.txt").unlink)
+        self.assertEqual(
+            audit.compare(before, self.snap()), [f"files of the pull request's worktree {self.repo} changed"]
+        )
+        self.assertIn("feat/x on origin", audit.compare(before, self.snap("def refs/heads/feat/x"))[-1])
+        dirty = self.snap()
+        (self.repo / "new.txt").write_text("y")  # the same status line, other bytes
+        self.assertEqual(len(audit.compare(dirty, self.snap())), 1)
 
-    def test_busy_worktree_is_left_out_and_recorded(self):
-        before = audit.snapshot(self.repo, self.src, lambda _r: "r", skip=[self.wt])
-        (self.wt / "busy.txt").write_text("another agent at work")
-        self.addCleanup((self.wt / "busy.txt").unlink)
-        git(self.wt, "checkout", "-q", "--detach", self.info["commits"][0])
-        self.addCleanup(git, self.wt, "checkout", "-q", "--detach", self.info["dev"])
-        after = audit.snapshot(self.repo, self.src, lambda _r: "r", skip=[self.wt])
-        self.assertEqual(audit.compare(before, after), [])
-        self.assertEqual(before["skipped"], [str(self.wt.resolve())])
-        self.assertEqual(list(before["heads"]), [str(self.repo)])
+    def test_other_worktrees_changing_never_void_a_round(self):
+        before = self.snap()
+        (self.other / "busy.txt").write_text("another agent at work")
+        self.addCleanup((self.other / "busy.txt").unlink)
+        git(self.other, "checkout", "-q", "--detach", self.info["commits"][0])
+        self.addCleanup(git, self.other, "checkout", "-q", "--detach", self.info["dev"])
+        third = self.tmp / "third"
+        git(self.repo, "worktree", "add", "-q", str(third), "origin/dev")  # a new worktree appears too
+        self.addCleanup(git, self.repo, "worktree", "remove", "--force", str(third))
+        self.assertEqual(audit.compare(before, self.snap()), [])
 
     def test_src_edit_and_head_move(self):
         before = self.snap()
         (self.src / "a.py").write_text("B\n")
-        git(self.wt, "checkout", "-q", "--detach", self.info["commits"][0])
-        changes = audit.compare(before, self.snap())
+        self.addCleanup((self.src / "a.py").write_text, "A\n")
+        git(self.repo, "checkout", "-q", "--detach", self.info["commits"][0])
+        self.addCleanup(git, self.repo, "checkout", "-q", "feat/x")
+        after = audit.snapshot(self.repo, self.src, branch="feat/x", ls_remote=lambda _r, _b: "abc refs/heads/feat/x")
+        changes = audit.compare(before, after)
         self.assertTrue(any("src/" in c for c in changes))
-        self.assertTrue(any(c.startswith("HEAD of worktree") for c in changes))
-        (self.src / "a.py").write_text("A\n")
-        git(self.wt, "checkout", "-q", "--detach", self.info["dev"])
+        self.assertTrue(any(c.startswith("HEAD of the pull request") for c in changes))
+
+    def test_the_real_remote_branch_is_read(self):
+        origin = self.tmp / "origin.git"
+        git(self.tmp, "init", "-q", "--bare", str(origin))
+        self.addCleanup(shutil.rmtree, origin)
+        git(self.repo, "remote", "add", "origin", str(origin))
+        self.addCleanup(git, self.repo, "remote", "remove", "origin")
+        self.assertEqual(audit.ls_remote_branch(self.repo, "feat/x"), "")
+        git(self.repo, "push", "-q", "origin", "feat/x")
+        head = git(self.repo, "rev-parse", "feat/x").strip()
+        self.assertEqual(audit.ls_remote_branch(self.repo, "feat/x"), f"{head}\trefs/heads/feat/x")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ Session: local-fa20d033c476b69a4212305ef6e5baa0254c78674617f0df564b5451e4e63a7b
       "file": "tools/ci/update_check.py",
       "line": 253,
       "problem": "The automatic newest-release update check stops working as soon as this repository layout is released. Every `old` phase assumes the installed release has adapter modules. Once the newest stable tag contains backend/, the check fails during fixture setup with StopIteration, before attempting an update. This contradicts the documented promise that subsequent releases require no changes to the check.",
-      "fix": "Choose the installed-version helpers based on its actual layout, supporting both adapter/ releases and backend/ releases independently of the old/new phase. Cover a backend-layout starting revision as well as v0.0.5.",
+      "fix": "Choose the installed-version helpers based on its actual layout, supporting both adapter/ releases and backend/ releases independently of the old/new phase. Cover a backend-layout starting revision as well as v0.0.4.",
       "evidence": "latest_release() selects the newest stable tag on origin/main, and update() always calls `_drive(..., \"old\")` for that tag. Lines 253, 256 and 269 unconditionally look up `.adapter.paths`, `.adapter.hermes_host`, `.adapter.studio_profile` and `.adapter.client`; module() uses next() without a fallback. This PR removes adapter/ and loads `.backend.*` modules instead. docs/dev/RELEASE-CHECKLIST.md:35–36 explicitly says every later run automatically updates from the newly published tag."
     }
   ],

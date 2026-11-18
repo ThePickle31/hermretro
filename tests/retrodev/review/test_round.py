@@ -39,7 +39,7 @@ class RunRound(unittest.TestCase):
             goal="g",
             run=fake,
             probe={"available": True, "reason": "ok", "seconds": 1.0},
-            ls_remote=lambda _r: REMOTE,
+            ls_remote=lambda _r, _b: REMOTE,
             root=self.root,
             notes=self.notes,
             db=self.db,

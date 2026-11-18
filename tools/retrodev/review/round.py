@@ -3,7 +3,7 @@
     result = run_round(repo, pr, sha, settings, title=..., goal=...)
     result["status"]: "skipped" | "reviewed" | "invalid" | "void" | "limit"
 
-A void audit (a write, a path outside the round folder, a changed worktree or remote) discards the reply and
+A void audit (a write, a path outside the round folder, a change to the PR's worktree or remote branch) discards the reply and
 runs the round once more from a fresh export; a second void stops with 'needs-owner'.
 """
 
@@ -35,22 +35,24 @@ def run_round(
     moves=(),
     probe: dict | None = None,
     run: runner.Runner | None = None,
-    ls_remote: Callable[[Path], str] | None = None,
+    ls_remote: Callable[[Path, str | None], str] | None = None,
     root: Path | str | None = None,
     notes: Path | str | None = None,
     brief_override: str | None = None,
     env=None,
     db: Path | None = None,
-    busy_worktrees=(),
+    branch: str | None = None,
 ) -> dict:
     """Run the next round of ``pr`` at ``sha``. Returns {status, action, round, result, audit, record, probe,
     attempts, inputs}; ``action`` is records.next_action as if CI were green (the caller checks CI).
-    ``busy_worktrees``: worktrees other agents are working in, left out of the snapshots (and so recorded)."""
+    ``repo`` is the pull request's worktree; its files and HEAD, ``branch`` on origin (default: its checked-out
+    branch) and the round's src/ export must be unchanged afterwards (audit.snapshot)."""
     repo = Path(repo)
     sha = inputs.resolve(repo, sha)
     root = inputs.reviews_root(repo, root)
     notes = Path(notes) if notes else records.notes_dir(repo)
     settings = runner.settings_with_defaults(settings)
+    branch = branch or audit_mod.branch_of(repo)
 
     def finish(status: str, record: dict, **extra) -> dict:
         return {
@@ -92,10 +94,10 @@ def run_round(
             brief_override=brief_override,
         )
         started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-        before = audit_mod.snapshot(repo, prepared.src, ls_remote, busy_worktrees)
+        before = audit_mod.snapshot(repo, prepared.src, branch, ls_remote)
         out = root / str(pr) / f"round{round_no}{'' if attempt == 1 else f'-attempt{attempt}'}.out"
         reply = runner.run_review(settings, prepared.brief, prepared.dir, out, run)
-        after = audit_mod.snapshot(repo, prepared.src, ls_remote, busy_worktrees)
+        after = audit_mod.snapshot(repo, prepared.src, branch, ls_remote)
         checked = audit_mod.audit(
             profile=settings["profile"],
             session_ids=reply["session_ids"],

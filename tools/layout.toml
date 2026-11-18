@@ -114,6 +114,7 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
 "tools/retrodev/README.md" = "The development CLI: every command, the flow from plan to merge, state, config, exit codes"
+"tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]
 # Python and page source files: a warning above `warn` lines, a failure above `fail`.
