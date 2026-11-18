@@ -24,17 +24,46 @@ FORBIDDEN = [
 ]
 
 
+# The one push that moves main: release publish's fast-forward of a green dev commit (<sha> onto main).
+RELEASE_PUSH = ("release_publish.py", 'found.append({"run": ["git", "push", ctx.remote, f"{sha}' + ':' + 'main"]')
+
+
 class NeverDoes(unittest.TestCase):
     def test_the_source_never_rewrites_remotes_pushes_to_main_or_restarts_hermes(self):
         hits = []
         for path in sorted(SOURCE.rglob("*.py")) + [SOURCE / "policy.toml"]:
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if (path.name, line.strip()[: len(RELEASE_PUSH[1])]) == RELEASE_PUSH:
+                    continue  # the release fast-forward, checked on its own below
                 hits += [f"{path.name}:{number}: {word}" for word in FORBIDDEN if word in line]
         self.assertEqual(
             hits,
             [],
-            "retrodev never force-pushes, never pushes to main and never restarts Hermes\nFIX: remove those lines",
+            "retrodev never force-pushes, never pushes to main (but for the release fast-forward in "
+            "release_publish.py) and never restarts Hermes\nFIX: remove those lines",
         )
+
+    def test_main_moves_only_in_the_release_module_and_only_by_one_plain_push(self):
+        hits = []
+        for path in sorted(SOURCE.rglob("*.py")):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if ":" + "main" in line:
+                    hits.append((path.name, number, line.strip()))
+        self.assertEqual(len(hits), 1, hits)
+        name, _number, line = hits[0]
+        self.assertEqual(name, RELEASE_PUSH[0])
+        self.assertTrue(line.startswith(RELEASE_PUSH[1]), line)
+
+    def test_force_appears_nowhere_and_the_mac_never_pushes(self):
+        hits = [
+            f"{path.relative_to(SOURCE)}:{number}"
+            for path in sorted(SOURCE.rglob("*"))
+            if path.is_file() and path.suffix in (".py", ".toml", ".md")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+            if "--" + "force" in line
+        ]
+        self.assertEqual(hits, [], "FIX: never a forced push or removal; remove those lines")
+        self.assertNotIn("push", (SOURCE / "mac.py").read_text(encoding="utf-8").replace("pushes", ""))
 
     def test_the_package_marker_is_the_agreed_line(self):
         self.assertEqual(

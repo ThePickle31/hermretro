@@ -24,11 +24,13 @@ class GitError(Failure):
     pass
 
 
-def run(command: list[str], cwd: Path | str, timeout: float | None = None) -> tuple[int, str, str]:
+def run(
+    command: list[str], cwd: Path | str, timeout: float | None = None, env: dict | None = None
+) -> tuple[int, str, str]:
     """Run a command (every git and tool call retrodev makes, except gh and the checks' live output)."""
     try:
         done = subprocess.run(
-            command, cwd=str(cwd), text=True, capture_output=True, stdin=subprocess.DEVNULL, timeout=timeout
+            command, cwd=str(cwd), text=True, capture_output=True, stdin=subprocess.DEVNULL, timeout=timeout, env=env
         )
     except subprocess.TimeoutExpired:
         return 124, "", f"{command[0]} did not finish in {timeout:g} s"

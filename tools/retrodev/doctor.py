@@ -5,7 +5,8 @@
 git and gh, gh's login (and that it is the configured github_account), git's identity, Python and Node versions,
 the pinned npm tools and ruff, Hermes and a hermes-agent source for the install scan, the main checkout on the
 base branch and clean, a writable worktree root and a short temp folder for Unix sockets. With --all also the
-reviewer: review_profile set, and a live probe of its provider (a few seconds).
+reviewer: review_profile set, and a live probe of its provider (a few seconds), and the MacBook's reachability
+(optional, never a problem: mac_host unset or the mac asleep means CI's macOS runners cover it).
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import github, repo, reviews, state
+from . import github, mac, repo, reviews, state
 from .checks import short_tmp
 from .review import runner as review_runner
 from .output import Failure, cmd
@@ -240,9 +241,10 @@ def run(ctx, everything: bool = False) -> int:
         if not row["ok"]:
             ctx.out.say(f"      FIX: {row['fix']}")
     if everything:
-        extra = reviewer(ctx)
+        extra = reviewer(ctx) + [mac.doctor_item(ctx)]
         for row in extra:
-            ctx.out.say(f"  {'ok' if row['ok'] else 'NO':>2}  {row['name']}: {row['detail']}")
+            mark = "--" if row.get("optional") else ("ok" if row["ok"] else "NO")
+            ctx.out.say(f"  {mark:>2}  {row['name']}: {row['detail']}" + (" (optional)" if row.get("optional") else ""))
             if not row["ok"]:
                 ctx.out.say(f"      FIX: {row['fix']}")
         rows += extra

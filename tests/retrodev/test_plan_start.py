@@ -135,7 +135,7 @@ class Config(RepoCase):
         code, out = self.run_cli("config", "set", "wrokt", "x")
         self.assertEqual(code, 1)
         self.assertIn(
-            "FIX: use one of: base, github_account, remote, review_model, review_profile, review_provider, review_reasoning, worktree_root",
+            "FIX: use one of: base, github_account, mac_host, mac_repo, remote, review_model, review_profile, review_provider, review_reasoning, worktree_root",
             out,
         )
 

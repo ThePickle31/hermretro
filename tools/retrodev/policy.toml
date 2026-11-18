@@ -12,6 +12,8 @@ review_profile = ""     # personal, no default: the Hermes profile the reviewer 
 review_provider = "openai-codex"
 review_model = "gpt-6.1-sol"
 review_reasoning = "high"
+mac_host = ""           # personal, no default: the ssh host of a MacBook for `mac` (empty: CI's macOS runners cover it)
+mac_repo = "~/Projects/hermretro"  # the clone on the mac (~ is expanded there)
 
 [branches]
 kinds = ["feat", "fix", "docs", "chore"]

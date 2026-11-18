@@ -7,6 +7,7 @@ handshake to a clean stop. The real engine's behaviour is the acceptance suite's
 import json
 import os
 import shutil
+import socket
 import tempfile
 import time
 import unittest
@@ -123,8 +124,12 @@ class BrokerSocket(unittest.TestCase):
         )
 
     def test_5_an_idle_broker_stops_cleanly_when_asked(self):
-        self.assertEqual(self.ask({"op": "shutdown"}), {"ok": True})
-        self.assertTrue(self.reap(), "the broker did not exit")
+        # Even with another connection open and silent: the update check (tools/ci/update_check.py) holds one so
+        # the old broker cannot idle out, and relies on the new client's shutdown not waiting for it.
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as silent:
+            silent.connect(str(self.state / "broker.sock"))
+            self.assertEqual(self.ask({"op": "shutdown"}), {"ok": True})
+            self.assertTrue(self.reap(), "the broker did not exit")
         self.assertFalse((self.state / "broker.sock").exists())
         self.assertFalse((self.state / "broker.token").exists())
 

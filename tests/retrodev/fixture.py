@@ -47,9 +47,12 @@ with open(base / "checks.log", "a") as handle:
     handle.write(json.dumps({"names": names, "tmpdir": os.environ.get("TMPDIR"),
                              "deps": os.environ.get("HERMRETRO_DEPS_ROOT")}) + "\\n")
 failing = (base / "fail-checks").read_text().split() if (base / "fail-checks").is_file() else []
+skipping = (base / "skip-checks").read_text().split() if (base / "skip-checks").is_file() else []
 code = 0
 for name in names:
-    if name in failing:
+    if name in skipping:  # as check.py does without a tool: a skipped row, and no failure
+        print(f"{'skipped':>7}  {name:<10} {0.0:5.1f} s  the toolchain is not installed")
+    elif name in failing:
         print(f"{'FAILED':>7}  {name:<10} {0.2:5.1f} s  it broke")
         print("         FIX: fix " + name)
         code = 1
@@ -256,6 +259,10 @@ class RepoCase(unittest.TestCase):
     def fail_checks(self, *names: str) -> None:
         """Make the stand-in check.py fail these checks (none: pass them all again)."""
         (self.base / "fail-checks").write_text(" ".join(names))
+
+    def skip_checks(self, *names: str) -> None:
+        """Make the stand-in check.py print a skipped row (and exit 0) for these checks."""
+        (self.base / "skip-checks").write_text(" ".join(names))
 
     def run_cli(self, *argv: str, cwd: Path | None = None, as_json: bool = False):
         """(exit code, output text or parsed JSON)."""
