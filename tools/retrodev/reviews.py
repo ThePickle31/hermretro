@@ -1,8 +1,9 @@
 """Review and landing facts shared by approve, answer, land, summary, status, report and doctor.
 
 Review records live in <state root>/reviews/<pr>.json (review/records.py), with a readable copy in the main
-checkout's notes/reviews/pr<N>.md. The owner's approval of a pull request is kept in its branch record and copied
-into its review record, which outlives the branch (gc drops a branch's record once it merged).
+checkout's notes/reviews/pr<N>.md. The owner's approval of a pull request is kept, with its number, in its branch
+record and its review record, which outlives the branch (gc drops a branch's record once it merged); land reads it
+from the review record, so it belongs to that pull request only.
 """
 
 from __future__ import annotations
@@ -63,6 +64,20 @@ def branch_record(ctx, branch: str) -> dict:
     if state.branch_path(ctx.top, branch).is_file():
         return state.load_branch(ctx.top, branch)
     return {"branch": branch, "checks": {}}
+
+
+def record_pr(record: dict, number: int, url: str | None, head: str | None, title: str | None, **more) -> dict:
+    """Record the branch's pull request. An approval of another pull request (a replacement from the same branch)
+    no longer counts: it moves to record['approvals'] (the history). Pushes to the same pull request keep it."""
+    current = record.get("pr") or {}
+    approval = record.get("approval")
+    if approval and approval.get("pr", current.get("number")) != number:
+        record.setdefault("approvals", []).append(record.pop("approval"))
+    if current.get("number") != number:
+        current = {"number": number}
+    found = {"url": url, "head": head, "title": title, **more}
+    record["pr"] = current | {key: value for key, value in found.items() if value is not None}
+    return record
 
 
 def findings(entry: dict) -> list[dict]:

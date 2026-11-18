@@ -2,7 +2,8 @@
 
 Every job must pass or be skipped (neutral counts as passed), except those in policy.toml [land] ignore_jobs; the
 [land] required_jobs (the "All checks pass" aggregate) must be there, so a head whose jobs have not started yet is
-still waiting, never green. The head is checked on every poll: a push while waiting stops land (run it again).
+still waiting, never green. Every poll rechecks the pull request (land_gates.recheck): a push while waiting
+stops land (run it again); closed, merged elsewhere or retargeted away from the base branch stops it too.
 """
 
 from __future__ import annotations
@@ -10,9 +11,10 @@ from __future__ import annotations
 import re
 import time
 
-from . import github, reviews
+from . import github, land_gates, reviews
 from .output import FAILED, WAITING, Failure
 
+POLL_FIELDS = "state,baseRefName,headRefOid,statusCheckRollup"
 PASSED = {"pass", "skipping", "neutral"}
 FAILING = {"fail", "cancel"}
 
@@ -76,13 +78,8 @@ def wait(ctx, number: int, sha: str, timeout: float, poll: float | None = None) 
     sleep, clock = ctx.fakes.get("sleep", time.sleep), ctx.fakes.get("clock", time.monotonic)
     started, last = clock(), None
     while True:
-        view = reviews.pr_view(ctx, number, "headRefOid,statusCheckRollup")
-        if view.get("headRefOid") != sha:
-            raise Failure(
-                f"the head of #{number} moved from {sha[:9]} to {str(view.get('headRefOid'))[:9]} while waiting for "
-                "CI (a push): CI and the reviews must pass on what is merged",
-                f"python tools/retrodev land {number} (it reviews and waits for the new head)",
-            )
+        view = reviews.pr_view(ctx, number, POLL_FIELDS)
+        land_gates.recheck(ctx, number, sha, view)
         jobs = github.checks(ctx, number)
         if jobs is None:
             jobs = from_rollup(view.get("statusCheckRollup"))

@@ -4,9 +4,11 @@
     answer <pr> <round> <index> "<text>"        one finding: the fix's commit, or a reasoned refusal with proof
     answer <pr> <round> --all "<text>"          every finding of that round
 
-approve records the time, the words and the pull request's head at that moment in the branch record (found by the
-pull request's head branch) and its review record, and marks a draft ready for review (gh pr ready). From then on
-`land` takes it through the review rounds, CI and the merge with no further approval.
+approve records the time, the words, the pull request's number and its head at that moment in the branch record
+(found by the pull request's head branch) and its review record, and marks a draft ready for review (gh pr ready).
+From then on `land` takes that pull request (and review-fix pushes to it) through the review rounds, CI and the
+merge with no further approval. The approval belongs to that number: a replacement pull request from the same
+branch needs its own (ship moves the old one to the branch record's history).
 """
 
 from __future__ import annotations
@@ -31,11 +33,16 @@ def approve(ctx, number: int, words: str | None) -> int:
             f"gh pr view {number} (a merged one needs no approval: python tools/retrodev summary {number})",
         )
     branch = info["headRefName"]
-    approval = {"at": state.now(), "words": words.strip(), "head": info["headRefOid"]}
+    approval = {
+        "at": state.now(),
+        "words": words.strip(),
+        "head": info["headRefOid"],
+        "pr": number,
+        "url": info.get("url"),
+    }
     record = reviews.branch_record(ctx, branch)
+    reviews.record_pr(record, number, info.get("url"), info["headRefOid"], info.get("title"))
     record["approval"] = approval
-    record.setdefault("pr", {"number": number, "url": info.get("url"), "head": info["headRefOid"]})
-    record["pr"].setdefault("title", info.get("title"))
     state.save_branch(ctx.top, record)
     review = reviews.load(ctx, number)
     review["approval"] = approval

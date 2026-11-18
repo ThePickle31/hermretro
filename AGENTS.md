@@ -109,8 +109,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - Fill in every section of the pull request template. Say which systems you tested on, and say so when an
   agent made the change.
 - The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
-  CI green on the exact head and the review loop done (a clean round, or round 3's findings fixed, or reviews
-  skipped because the reviewer was unavailable, recorded). GitHub auto-merge stays off.
+  CI green on the exact head and the review loop done on that head (a clean round of it, or the one head that
+  fixes round 3's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
+  request needs its own approval. GitHub auto-merge stays off.
 - When two pull requests both change the page, the generated files conflict. Fix it with
   `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the generated files.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through

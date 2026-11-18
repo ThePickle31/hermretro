@@ -5,119 +5,33 @@
 It runs until it needs the agent or the owner, or the pull request is merged; run it again and it resumes from the
 records (nothing is reviewed twice). It runs for many minutes: start it in the background.
 
-  gates (all reported at once)     the owner's approval recorded; open, into the base branch (a draft is marked
-                                   ready); the worktree's head is the pull request's head and pushed; clean; check
-                                   passed on it                                                     else 1, or 3
+  gates (all reported at once)     the owner's approval of THIS pull request; open, into the base branch (a draft
+                                   is marked ready); the worktree's head is the pull request's head and pushed;
+                                   clean; check passed on it (land_gates.py)                        else 1, or 3
   the last round was void or invalid twice                                               3 needs the owner
   findings not answered yet                                                              1, naming them
   a round is due (none at this head, under 3 rounds, earlier findings answered)
       probe the reviewer once: unavailable or no review_profile -> reviews skipped (recorded), on to CI
       run the round (minutes; CI runs meanwhile): findings -> 1 'fix' with the next steps;
       void or invalid -> 3; clean -> on to CI
-  round 3 had findings, all answered                                     on to CI (never a 4th round)
-  CI on the exact head: failing -> 1 with the jobs; still running after --ci-timeout -> 2
+  round 3 had findings, all answered      on to CI with this head, accepted once (never a 4th round)
+  3 rounds ran and the head moved past the clean or accepted head        3 the owner decides (--no-review or not)
+  CI on the exact head: failing -> 1 with the jobs; still running after --ci-timeout -> 2; every poll and the
+  moment before the merge recheck the pull request: closed, merged elsewhere, retargeted or pushed -> 1, no merge
   merge: gh pr merge <n> --squash --delete-branch --match-head-commit <sha>; pull the main checkout (on the base
-  branch and clean); gc that branch only; the summary                                    0
+  branch and clean); gc that branch only; the summary (land_merge.py: a failed step is finished by land again) 0
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from . import ci, gates, gc, github, repo, reviews, state
+from . import ci, gates, github, land_gates, land_merge, reviews
 from .gates import Gate
+from .land_merge import progress
 from .output import FAILED, OWNER, Failure
 from .review import audit, records
 from .review import round as review_round
-
-
-def find_worktree(ctx, branch: str) -> Path | None:
-    for tree in repo.worktrees(ctx.main()):
-        if tree.branch == branch and tree.path.is_dir():
-            return tree.path
-    return None
-
-
-def remote_head(ctx, tree: Path, branch: str) -> str | None:
-    out = repo.git(["ls-remote", ctx.remote, f"refs/heads/{branch}"], tree, check=False).strip()
-    return out.split()[0] if out else None
-
-
-def collect_gates(ctx, info: dict, record: dict, tree: Path | None) -> list[Gate]:
-    number, branch = info["number"], info["headRefName"]
-    approval = record.get("approval")
-    found = [
-        gates.passed("owner approved", f"{approval['at']}: \"{approval['words']}\"")
-        if approval
-        else Gate(
-            "owner approved",
-            False,
-            f"the owner has not approved #{number}: land merges only what the owner approved",
-            f'when the owner approves: python tools/retrodev approve {number} --words "<their exact words>"',
-            OWNER,
-        )
-    ]
-    found.append(
-        gates.passed("pull request open")
-        if info.get("state") == "OPEN"
-        else Gate("pull request open", False, f"#{number} is {str(info.get('state')).lower()}", f"gh pr view {number}")
-    )
-    found.append(
-        gates.passed("into " + ctx.base)
-        if info.get("baseRefName") == ctx.base
-        else Gate(
-            "into " + ctx.base,
-            False,
-            f"#{number} goes into {info.get('baseRefName')}; changes reach {ctx.base} only through pull requests into it",
-            f"gh pr edit {number} --base {ctx.base}, then land again",
-        )
-    )
-    found.append(gates.passed("ready for review", "a draft: land marks it ready" if info.get("isDraft") else ""))
-    if tree is None:
-        found.append(
-            Gate(
-                "worktree",
-                False,
-                f"no worktree has {branch} checked out: land checks the tree that passed the checks",
-                f"git worktree add <folder> {branch} (or python tools/retrodev status to find it)",
-            )
-        )
-        return found
-    wctx = ctx.at(tree)
-    local, pr_head = repo.head(tree), info.get("headRefOid")
-    if local == pr_head:
-        found.append(gates.passed("pull request head is this branch's head", (local or "")[:9]))
-    else:
-        found.append(
-            Gate(
-                "pull request head is this branch's head",
-                False,
-                f"#{number} is at {str(pr_head)[:9]}, {branch} here at {str(local)[:9]}: what is reviewed and merged "
-                "must be what passed the checks here",
-                "python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
-                if local and pr_head and repo.is_ancestor(tree, pr_head, local)
-                else f"git fetch {ctx.remote} && git merge {ctx.remote}/{branch}, then check and ship",
-            )
-        )
-    pushed = remote_head(ctx, tree, branch)
-    found.append(
-        gates.passed("pushed", f"{ctx.remote}/{branch} at {(pushed or '')[:9]}")
-        if pushed and pushed == local
-        else Gate(
-            "pushed",
-            False,
-            f"{ctx.remote}/{branch} is at {(pushed or 'nothing')[:9]}, not {str(local)[:9]}",
-            "python tools/retrodev ship --title '<title>' --body <file>",
-        )
-    )
-    found += [gates.committed(wctx), gates.checks_on_tree(wctx, record, repo.tree_digest(tree))]
-    return found
-
-
-def progress(ctx, record: dict, step: str, **facts) -> None:
-    """Remember the landing's last step in the branch record (status shows it; a rerun resumes from the records)."""
-    record["land"] = {"step": step, "at": state.now(), **facts}
-    state.save_branch(ctx.top, record)
 
 
 def decide(rec: dict, sha: str) -> str:
@@ -143,6 +57,24 @@ def owner_failure(rec: dict, number: int) -> Failure:
         f"run land {number} --no-review (merge on green CI) or look into the reviewer",
         code=OWNER,
         data={"action": "needs-owner", "details": details},
+    )
+
+
+def exhausted_failure(rec: dict, number: int, sha: str) -> Failure:
+    last = records.valid_rounds(rec)[-1]
+    accepted = (rec.get("accepted") or {}).get("head")
+    seen = (
+        f"the head accepted with round 3's fixes ({accepted[:9]})"
+        if accepted
+        else f"round 3's head ({last['sha'][:9]})"
+    )
+    return Failure(
+        f"reviews exhausted on #{number}: {records.MAX_ROUNDS} rounds ran and the head moved past {seen} to "
+        f"{sha[:9]}: those commits were never reviewed",
+        f"the owner decides: python tools/retrodev land {number} --no-review (merge on green CI without a review "
+        "of the new commits; recorded), or not",
+        code=OWNER,
+        data={"action": "reviews-exhausted", "reviewed": accepted or last["sha"], "head": sha},
     )
 
 
@@ -250,6 +182,8 @@ def review_step(ctx, info: dict, tree: Path, record: dict, sha: str, no_review: 
     ctx.out.set(review_action=action)
     if action == "needs-owner":
         raise owner_failure(rec, number)
+    if action == "reviews-exhausted":
+        raise exhausted_failure(rec, number, sha)
     if reviews.unanswered(rec):
         raise unanswered_failure(ctx, rec, number)
     if action == "review":
@@ -257,42 +191,14 @@ def review_step(ctx, info: dict, tree: Path, record: dict, sha: str, no_review: 
     if action == "merge-on-green":
         ctx.out.say(f"reviews skipped ({rec['skipped']['reason']}): merging on green CI")
     elif action == "fix-then-merge":
-        ctx.out.say("review round 3's findings are answered: merging on green CI (no 4th round)")
+        rec = records.accept_head(root, number, sha, notes)
+        ctx.out.say(
+            f"review round 3's findings are answered: merging {sha[:9]} on green CI (no 4th round; a later push "
+            "needs the owner)"
+        )
     else:
         ctx.out.say(f"review: {reviews.describe(rec)}; clean on this head")
     return rec
-
-
-def merge(ctx, info: dict, sha: str, record: dict, jobs: list[dict]) -> int:
-    number, branch = info["number"], info["headRefName"]
-    main = ctx.at(ctx.main())
-    subject = f"{info['title']} (#{number})"
-    args = ["pr", "merge", str(number), "--squash", "--delete-branch", "--match-head-commit", sha, "--subject", subject]
-    ctx.out.say(f"merging #{number} at {sha[:9]}: gh {' '.join(args[:7])} ...")
-    code, out, err = github.gh(main, args, check=False)
-    if code and github.pr_state(main, number) != "MERGED":
-        raise Failure(
-            f"gh pr merge {number} failed: {(err or out).strip()[:300]}",
-            f"gh pr view {number} (a head that moved is refused by --match-head-commit: land again)",
-        )
-    if code:
-        ctx.out.say(f"merged (gh also said: {(err or out).strip()[:200]})")
-    rec = reviews.load(ctx, number)
-    rec["merged"] = {"at": state.now(), "head": sha, "subject": subject, "ci": [j.get("name") for j in jobs]}
-    rec.setdefault("approval", record.get("approval"))
-    reviews.save(ctx, rec)
-    progress(ctx, record, "merged", head=sha)
-    ctx.out.say(f"merged #{number} into {ctx.base} (squash)")
-    tops = ctx.main()
-    if repo.branch(tops) == ctx.base and not repo.dirty(tops):
-        repo.git(["pull", "--ff-only", "--quiet", ctx.remote, ctx.base], tops)
-        ctx.out.say(f"updated the main checkout {tops} ({ctx.base} at {(repo.head(tops) or '')[:9]})")
-    else:
-        ctx.out.say(f"left the main checkout {tops} alone (not on {ctx.base}, or uncommitted changes): pull it later")
-    gc.run(main, only=branch)
-    ctx.out.say(f"next: python tools/retrodev summary {number} (the step-8 note for the owner)")
-    ctx.out.set(merged=True, head=sha, action="merged")
-    return 0
 
 
 def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = None, dry_run: bool = False) -> int:
@@ -302,13 +208,16 @@ def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = No
     ctx.out.set(pr=number, branch=branch, head=info.get("headRefOid"), dry_run=dry_run)
     if info.get("state") == "MERGED":
         rec = reviews.load(ctx, number)
+        if land_merge.unfinished(rec):
+            ctx.out.say(f"#{number} is merged; finishing the steps after the merge (it is not merged again)")
+            return land_merge.finish(ctx, number, rec)
         ctx.out.say(f"review: {reviews.describe(rec)}")
         ctx.out.say(f"#{number} is already merged. next: python tools/retrodev summary {number}")
         ctx.out.set(action="merged", review=reviews.rounds(rec))
         return 0
     record = reviews.branch_record(ctx, branch)
-    tree = find_worktree(ctx, branch) if branch else None
-    found = collect_gates(ctx, info, record, tree)
+    tree = land_gates.find_worktree(ctx, branch) if branch else None
+    found = land_gates.collect_gates(ctx, info, record, tree)
     if dry_run:
         return dry(ctx, info, found, record)
     gates.enforce(ctx, found, "land")
@@ -317,15 +226,12 @@ def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = No
     if info.get("isDraft"):
         github.gh(ctx, ["pr", "ready", str(number)])
         ctx.out.say(f"marked #{number} ready for review")
-    rec = review_step(ctx, info, tree, record, sha, no_review)
-    if rec.get("approval") is None and record.get("approval"):
-        rec["approval"] = record["approval"]
-        reviews.save(ctx, rec)
+    review_step(ctx, info, tree, record, sha, no_review)
     timeout = float(ci_timeout if ci_timeout is not None else ctx.policy.get("land", {}).get("ci_timeout", 1500))
     progress(ctx, record, "waiting for CI", head=sha)
     ctx.out.say(f"waiting for CI on {sha[:9]} (up to {int(timeout)} s) ...")
     jobs = ci.wait(ctx, number, sha, timeout)
-    return merge(ctx, info, sha, record, jobs)
+    return land_merge.merge(ctx, info, sha, record, jobs)
 
 
 def dry(ctx, info: dict, found: list[Gate], record: dict) -> int:
@@ -345,8 +251,9 @@ def dry(ctx, info: dict, found: list[Gate], record: dict) -> int:
         "review": f"probe the reviewer, then run review round {records.next_round(rec)}",
         "answer": "stop: findings not answered yet",
         "needs-owner": "stop: the last round needs the owner",
+        "reviews-exhausted": "stop: 3 rounds ran and the head moved past the reviewed one; the owner decides",
         "merge-on-green": "wait for CI, then merge (reviews skipped)",
-        "fix-then-merge": "wait for CI, then merge (round 3 answered)",
+        "fix-then-merge": "wait for CI, then merge (round 3 answered; this head is the one accepted)",
         "merge": "wait for CI, then merge (the last round is clean on this head)",
     }
     ctx.out.say(f"review: {reviews.describe(rec)}")

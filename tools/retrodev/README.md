@@ -32,8 +32,8 @@ At any time `status` names the one next step, `doctor` checks the machine, `sync
 | `check [names...] [--again] [--full] [--watch]` | Runs `tools/check.py` for the checks whose inputs changed since their last pass on the branch (`ok (cached)` otherwise; a check's inputs, in `policy.toml` `[checks.inputs]`, include the tools it runs and their pins, `tools/check.py` and `policy.toml`); `--watch` runs again on every file change and on a commit or a clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run, later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or were deleted) when the branch changed what they cover; prints times against budgets. The clean install and update check install the committed HEAD, so they run only on a committed, clean tree (otherwise: commit first). A pass of everything the branch needs records the tree's digest (contents and file modes) and which checks those were; ship accepts it only while they cover what the policy requires now; a failed rerun takes it back |
 | `ship --title "..." --body <file> [--dry-run]` | Gates: a work branch, the owner approved its plan (the record's plan, else the branch's topic; docs and chore may go without one), a one-line title without a trailing period, every template section filled in and a line saying an agent made it, everything committed, `check` passed on this exact tree, commits beyond `dev`, the remote branch not moved (if it moved: `git fetch origin && git merge origin/<branch>`, then check and ship again). Then a plain `git push -u` and `gh pr create --draft --base dev` with area labels, or `gh pr edit` of the open one. An open pull request into another branch (one opened by hand into `main`) is refused with `FIX: gh pr edit <n> --base dev`; ship never retargets it |
 | `report` | The factual half of the step-5 report (`--json` too), with the owner's approval and the review rounds |
-| `approve <pr> --words "..."` | Records the owner's approval of the pull request (time, exact words, its head then) in its branch record (found by the pull request's head branch) and its review record; marks a draft ready (`gh pr ready`). Empty words: exit 3 |
-| `land <pr> [--no-review] [--ci-timeout S] [--dry-run]` | Takes an approved pull request through the review loop, CI and the merge (below). Resumable: run it again after each stop. `--no-review` skips the reviews (the owner's call; recorded). `--dry-run` prints the gates and the next step and changes nothing |
+| `approve <pr> --words "..."` | Records the owner's approval of that pull request (time, exact words, its number and head then) in its branch record (found by the pull request's head branch) and its review record; marks a draft ready (`gh pr ready`). The approval belongs to that number: review-fix pushes to it keep it; a replacement pull request from the same branch needs its own (`ship` moves the old one to the branch record's `approvals` history). Empty words: exit 3 |
+| `land <pr> [--no-review] [--ci-timeout S] [--dry-run]` | Takes an approved pull request through the review loop, CI and the merge (below). Resumable: run it again after each stop, also after the merge (it finishes the steps after it, never merging again). `--no-review` skips the reviews (the owner's call; recorded). `--dry-run` prints the gates and the next step and changes nothing |
 | `answer <pr> <round> <index> "<text>"` / `answer <pr> <round> --all "<text>"` | The answer to one finding (or every finding of a round): the fix's commit, or why it is wrong with proof. The next round's reviewer reads them |
 | `summary <pr>` | The step-8 note's facts: files added, changed, moved, removed by area (from the squash commit; before the merge, the head against the base branch), the findings fixed with their answers, the rounds, CI, and whether the owner restarts the gateway (`backend/`, `__init__.py`, `plugin.yaml`, `skills/`, `profile/`) or reloads the app (`desktop/plugin.js`). Read-only |
 | `status` | On a branch: plan, approval, checks on this tree, PR, pushed head, CI, and the next step. In the main checkout: every record and worktree |
@@ -47,7 +47,7 @@ with `message` and `fix` on a failure).
 
 ## What land does
 
-Gates first, all reported at once: the owner's approval is recorded (else 3); the pull request is open, into
+Gates first, all reported at once: the owner's approval of this pull request (its number) is recorded (else 3); the pull request is open, into
 `dev` (a draft is marked ready); the worktree's head is the pull request's head and pushed; the tree is clean and
 `check` passed on it. Then, from the records (`records.next_action`):
 
@@ -57,15 +57,18 @@ Gates first, all reported at once: the owner's approval is recorded (else 3); th
 | the round has findings | prints each (severity file:line problem, fix) and the steps: fix, `check`, commit, `ship`, `answer` each, `land` again. Exit 1 (`action: fix`) |
 | findings not answered yet | names them. Exit 1 |
 | every finding answered, nothing new pushed | the next round judges the answers |
-| round 3 had findings, all answered | no 4th round: on to CI |
+| round 3 had findings, all answered | no 4th round: on to CI with this head, recorded as the one accepted (`accepted` in the review record) |
+| 3 rounds ran and the head moved past round 3's clean head or the accepted head (a CI fix, say) | exit 3 (`action: reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not |
 | the round was void (the audit failed) twice, or gave no valid JSON twice | exit 3 with the audit's findings: the owner decides |
-| clean on this head, or reviews skipped | waits for CI on the exact head, polling every 20 s up to `--ci-timeout` (default 1500 s) |
+| clean on this head (a clean round counts only for the head it reviewed), or reviews skipped | waits for CI on the exact head, polling every 20 s up to `--ci-timeout` (default 1500 s) |
 | CI failing | names the jobs and links, `gh run view <run> --log-failed`. Exit 1 (`action: fix CI`) |
 | CI still running at the timeout | exit 2: run `land` again (nothing is reviewed twice) |
-| CI green | `gh pr merge <n> --squash --delete-branch --match-head-commit <sha> --subject "<title> (#<n>)"`, `git pull --ff-only` in the main checkout when it is on `dev` and clean, `gc` of that branch only, then `summary <n>`. Exit 0 |
+| CI green | the pull request rechecked (open, into `dev`, at the head), then `gh pr merge <n> --squash --delete-branch --match-head-commit <sha> --subject "<title> (#<n>)"`, `git pull --ff-only` in the main checkout when it is on `dev` and clean, `gc` of that branch only, then `summary <n>`. Exit 0. Each step after the merge is recorded (`landing` in the review record): when one fails (the pull cannot fast-forward), fix it and run `land <n>` again; it does the steps left, never merging again |
 
 CI is green when every job passes or is skipped, except those in `policy.toml` `[land] ignore_jobs`, and the
-`[land] required_jobs` ("All checks pass") are there. A push while waiting stops land (its head moved). GitHub
+`[land] required_jobs` ("All checks pass") are there. Every poll and the moment before the merge recheck the pull
+request: a push (its head moved), a close, a merge by someone else or a retarget away from `dev` (the head unchanged,
+so `--match-head-commit` would not catch it) stops land with the reason, and nothing is merged. GitHub
 auto-merge stays off: land merges only itself, only through this path.
 
 ### The reviewer stays read-only

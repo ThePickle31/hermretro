@@ -97,7 +97,7 @@ class CI(LandCase):
             self.info["headRefOid"] = "f" * 40
             self.answer_view()
 
-        self.gh.effects[("pr", "view", PR, "--json", "headRefOid,statusCheckRollup")] = moved
+        self.gh.effects[("pr", "view", PR, "--json", ci.POLL_FIELDS)] = moved
         code, data = self.land()
         self.assertEqual(code, 1, data)
         self.assertIn("moved", data["error"]["message"])

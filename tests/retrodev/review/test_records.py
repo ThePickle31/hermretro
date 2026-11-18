@@ -20,10 +20,12 @@ def rnd(n, sha, verdict="findings", void=False, stopped=None):
     return entry
 
 
-def record(*rounds, skipped=None, head=None):
+def record(*rounds, skipped=None, head=None, accepted=None):
     rec = {"pr": 5, "rounds": list(rounds), "skipped": skipped, "probes": []}
     if head:
         rec["head"] = head
+    if accepted:
+        rec["accepted"] = accepted
     return rec
 
 
@@ -42,6 +44,27 @@ class NextAction(unittest.TestCase):
             ("round 3 findings", record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c")), True, "c", "fix-then-merge"),
             ("round 3 findings, fixed", record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c")), True, "d", "fix-then-merge"),
             ("round 3 clean", record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c", "clean")), True, "c", "merge"),
+            (
+                "round 3 clean, then a push",
+                record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c", "clean")),
+                True,
+                "d",
+                "reviews-exhausted",
+            ),
+            (
+                "round 3 fixes accepted, this head",
+                record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c"), accepted={"head": "d"}),
+                True,
+                "d",
+                "fix-then-merge",
+            ),
+            (
+                "round 3 fixes accepted, then a push",
+                record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c"), accepted={"head": "d"}),
+                True,
+                "e",
+                "reviews-exhausted",
+            ),
             ("void rounds do not count", record(rnd(1, "a"), rnd(2, "b", void=True)), True, "b", "review"),
             (
                 "void twice",

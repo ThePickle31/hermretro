@@ -140,13 +140,26 @@ def next_round(record: dict) -> int:
     return len(valid_rounds(record)) + 1
 
 
+def accept_head(root: Path, pr: int, sha: str, notes: Path | None = None) -> dict:
+    """Remember the one head accepted after round 3's findings (the fixes of round 3, merged without a 4th round)."""
+    record = load(root, pr)
+    if not record.get("accepted"):
+        record["accepted"] = {"head": sha, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        save(root, record, notes)
+    return record
+
+
 def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     """What landing does next.
 
     'merge-on-green' reviews were skipped (reason in record['skipped']); 'needs-owner' the last round was void
-    twice; 'review' no valid round yet, or fixes were pushed after findings and fewer than 3 rounds ran; 'fix' the
-    last round has findings and nothing new is pushed; 'fix-then-merge' round 3 had findings (fix, green CI,
-    merge); 'merge' the last round is clean on the current head and CI is green; 'wait-ci' clean, CI not green."""
+    twice; 'review' no valid round yet, or a push after the last round and fewer than 3 rounds ran; 'fix' the
+    last round has findings and nothing new is pushed; 'fix-then-merge' round 3 had findings and this head is the
+    one accepted with their fixes (or none is accepted yet: landing records this one); 'merge' the last round is
+    clean on the current head and CI is green; 'wait-ci' clean, CI not green; 'reviews-exhausted' 3 rounds ran and
+    the head moved past the reviewed (or accepted) head: the owner decides.
+
+    A clean verdict counts only for the head it reviewed, whatever the round count."""
     if record.get("skipped"):
         return "merge-on-green"
     if record["rounds"] and record["rounds"][-1].get("stopped"):
@@ -156,12 +169,14 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
         return "review"
     last = rounds[-1]
     head = head or record.get("head") or last["sha"]
+    exhausted = len(rounds) >= MAX_ROUNDS
     if last["result"]["verdict"] == "clean":
-        if head != last["sha"] and len(rounds) < MAX_ROUNDS:
-            return "review"
-        return "merge" if ci_green else "wait-ci"
-    if len(rounds) >= MAX_ROUNDS:
-        return "fix-then-merge"
+        if head == last["sha"]:
+            return "merge" if ci_green else "wait-ci"
+        return "reviews-exhausted" if exhausted else "review"
+    if exhausted:
+        accepted = (record.get("accepted") or {}).get("head")
+        return "fix-then-merge" if accepted in (None, head) else "reviews-exhausted"
     return "review" if head != last["sha"] else "fix"
 
 
