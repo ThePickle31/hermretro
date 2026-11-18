@@ -5,7 +5,7 @@ scaffold` (part of `check.py full` and `retrodev check --full`, added by `retrod
 scaffolds or the files they edit; CI's page job runs it). It copies what a commit of this tree would hold into a short temp
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdprobe`, `new rpc`, `new tool`,
-`new event`, `new page rdprobe`, `new tab rdprobe extra` and `new slot rdprobe extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
+`new event`, `new listener`, `new page rdprobe`, `new tab rdprobe extra` and `new slot rdprobe extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite). Skipped when node, the npm tools or the pinned ruff are not set up
@@ -38,6 +38,7 @@ STEPS = [
     ["rpc", "rdprobe", "rdprobe_ping"],
     ["tool", "rdprobe", "rdprobe_ping", "--step", 'Pinging "it"', "Pinged the probe's twin"],
     ["event", "rdprobe", "pinged", "--payload", "count"],
+    ["listener", "rdprobe", "library.build_reported"],
     ["page", "rdprobe"],
     ["tab", "rdprobe", "extra"],
     ["slot", "rdprobe", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
@@ -53,6 +54,7 @@ STRUCTURE = [
     "tests.backend.rdprobe.test_rpc_rdprobe_ping",
     "tests.backend.rdprobe.test_tool_rdprobe_ping",
     "tests.backend.rdprobe.test_event_pinged",
+    "tests.backend.rdprobe.test_listener_on_library_build_reported",
 ]
 
 

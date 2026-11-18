@@ -12,6 +12,7 @@ import fnmatch
 import functools
 import hashlib
 import os
+import shlex
 import stat
 import subprocess
 from dataclasses import dataclass
@@ -44,7 +45,7 @@ def git(args: list[str], cwd: Path | str, check: bool = True) -> str:
     code, out, err = run(["git", *args], cwd)
     if check and code:
         raise GitError(
-            f"git {' '.join(args)} failed: {(err or out).strip()}",
+            f"git {shlex.join(args)} failed: {(err or out).strip()}",
             "read git's message above; run the same git command yourself to see the whole state",
         )
     return out

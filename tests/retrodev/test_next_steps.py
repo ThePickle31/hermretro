@@ -23,7 +23,7 @@ ROOT = (".git", "retrodev", "reviews")
 
 class PlanApprove(RepoCase):
     def test_a_branch_already_under_the_plan_is_pointed_at_instead_of_a_new_start(self):
-        self.run_cli("plan", "new", "big")
+        self.new_plan("big")
         tree = self.worktree("fix/part")
         record = state.load_branch(self.main, "fix/part")
         record["plan"] = "big"  # start fix/part --plan big, or plan link big
@@ -32,12 +32,12 @@ class PlanApprove(RepoCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(data["linked"], [{"branch": "fix/part", "worktree": str(tree)}])
         code, out = self.run_cli("plan", "approve", "big", "--words", "start")
-        self.assertIn(f"next: fix/part already works under it: cd {tree} && python tools/retrodev status", out)
+        self.assertIn(f"next: fix/part already works under it: cd {tree} && python tools/retrodev check", out)
         self.assertIn("python tools/retrodev start <kind>/<topic> --plan big", out)
         self.assertNotIn("start feat/big", out)
 
     def test_a_linked_branch_whose_worktree_was_removed_gets_a_valid_command(self):
-        self.run_cli("plan", "new", "big")
+        self.new_plan("big")
         tree = self.worktree("fix/part")
         record = state.load_branch(self.main, "fix/part")
         record["plan"] = "big"
@@ -56,7 +56,7 @@ class PlanApprove(RepoCase):
         self.assertTrue(tree.is_dir())
 
     def test_a_linked_branch_whose_folder_was_deleted_by_hand_gets_a_command_that_works(self):
-        self.run_cli("plan", "new", "big")
+        self.new_plan("big")
         tree = self.worktree("fix/part")
         record = state.load_branch(self.main, "fix/part")
         record["plan"] = "big"
@@ -76,7 +76,7 @@ class PlanApprove(RepoCase):
         self.assertEqual(git(tree, "branch", "--show-current").strip(), "fix/part")
 
     def test_a_plan_without_branches_still_says_start(self):
-        self.run_cli("plan", "new", "alone")
+        self.new_plan("alone")
         code, out = self.run_cli("plan", "approve", "alone", "--words", "start")
         self.assertEqual(code, 0, out)
         self.assertIn("next: python tools/retrodev start feat/alone", out)

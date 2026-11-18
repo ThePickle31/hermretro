@@ -4,6 +4,7 @@ Run alone: python -m unittest tests.retrodev.test_land
 """
 
 import json
+import shlex
 import unittest
 
 from retrodev import state
@@ -124,6 +125,19 @@ class Rounds(LandCase):
         for heading in ("Added", "Changed", "Fixed", "Removed", "Reviews:", "CI: passing", "The owner:"):
             self.assertIn(heading, out)
         self.assertIn("restarts the Hermes gateway", out)
+
+    def test_the_fix_steps_ship_with_the_recorded_title_and_a_custom_body_path(self):
+        self.open_pr()
+        record = state.load_branch(self.main, BRANCH)
+        custom = str(self.base / "bodies" / "my body.md")
+        record["body"] = custom
+        record["pr"]["title"] = "Change the value"
+        state.save_branch(self.main, record)
+        self.reviewer("OK\n", reply("s1", findings=1))
+        code, out = self.land(as_json=False)
+        self.assertEqual(code, 1, out)
+        step = next(line for line in out.splitlines() if "tools/retrodev ship" in line)
+        self.assertIn(shlex.join(["--title", "Change the value", "--body", custom]), step)
 
     def test_round_three_findings_merge_once_answered_without_a_fourth_round(self):
         tree = self.open_pr()

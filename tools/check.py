@@ -1,6 +1,6 @@
 """Run hermretro's checks, the same way here and in CI.
 
-    python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 12 s)
+    python tools/check.py                fast checks: unit, bundle, lint, page, scan (together, about 15 s)
     python tools/check.py full           fast checks plus scaffold and the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
@@ -180,7 +180,8 @@ def check_lint(args) -> str:
                 "(a deliberate exception: // retrodev: allow <rule> \u2014 <reason> on its line)"
             )
         else:
-            done.insert(0, "page: " + (output.splitlines()[-1] if output else "ok"))
+            warned = ", ".join(r.split()[1].rsplit(":", 1)[0] for r in output.splitlines() if r[:9] == "warning: ")
+            done.insert(0, "page: " + (output.splitlines() or ["ok"])[-1] + (warned and f" (warnings: {warned})"))
     if problems:
         raise AssertionError(("page lint skipped: " + page_skip + "\n" if page_skip else "") + "\n".join(problems))
     if page_skip and (args.strict or not done):

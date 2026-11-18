@@ -1,9 +1,15 @@
 """Step 4 ends: push the branch and open its draft pull request (or update the open one).
 
-    ship --title "<one plain sentence>" --body <file> [--dry-run]
+    ship --title "<one plain sentence>" [--body <file>] [--new-body] [--dry-run]
+
+The body defaults to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
+that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
+plan's Goal as the Why and a line saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under
+the template's '## Made by' when it has one, else after a closing '---', so it fills no section), and stops: fill it
+in, then ship again.
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
-a one-line title without a trailing period; a body with every section of the pull request template filled in
+a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
 and a line saying an agent made it; everything committed;
 `check` passed on exactly this tree; the branch has commits; the remote branch has not moved away from it.
 Then `git push -u <remote> <branch>` (a plain push, never anything that rewrites the remote) and
@@ -13,11 +19,15 @@ when that one goes into another branch than the base: the FIX retargets it, ship
 
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 
-from . import gates, github, repo, reviews, state
+from . import gates, github, plan, repo, reviews, state
 from .gates import Gate
-from .output import Failure
+from .output import Failure, cmd
+
+TEMPLATE = ".github/pull_request_template.md"
 from .review import records
 
 
@@ -47,6 +57,14 @@ def ahead_gate(ctx) -> Gate:
     count = int(repo.git(["rev-list", "--count", f"{base}..HEAD"], ctx.top).strip() or 0)
     if not count:
         return Gate("has commits", False, f"the branch has no commits beyond {base}", "commit your change first")
+    fork = repo.git(["merge-base", base, "HEAD"], ctx.top, check=False).strip()
+    if fork and not repo.git(["diff", "--name-only", fork, "HEAD"], ctx.top).strip():
+        return Gate(
+            "has commits",
+            False,
+            f"nothing to ship: the branch changes no file ({count} commit(s), but no change since it left {base})",
+            "commit the change itself (commits that undo each other, or empty ones, ship nothing)",
+        )
     return gates.passed("has commits", f"{count} beyond {base}")
 
 
@@ -64,17 +82,80 @@ def base_gate(ctx, existing: dict) -> Gate:
     return gates.passed("pull request into " + ctx.base, f"#{number}")
 
 
-def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
+def default_body(ctx, branch: str | None, record: dict) -> Path:
+    """notes/pr/<topic>.md in the main checkout: git-ignored, outside the worktree (gc never keeps it for this)."""
+    topic = record.get("topic") or (branch or "").partition("/")[2] or "detached"
+    return repo.main_checkout(ctx.top) / "notes" / "pr" / f"{topic}.md"
+
+
+def owner(ctx) -> str:
+    url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
+    found = re.search(r"github\.com[:/]([^/]+)/", url)
+    account = found.group(1) if found else ctx.get("github_account")
+    return f"@{account}" if account else "the owner"
+
+
+def skeleton(ctx, branch: str, record: dict) -> str:
+    """The pull request template with the plan's Goal as the Why and the line saying an agent made it."""
+    source = ctx.top / TEMPLATE
+    sections = ctx.policy["ship"]["sections"]
+    text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
+    named = gates.plan_for(ctx, branch, record)
+    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
+    goal = gates.section_lines(path.read_text(encoding="utf-8")).get("Goal", []) if path and path.is_file() else []
+    if goal:
+        text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + "\n".join(goal) + "\n", text, count=1, flags=re.M)
+    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
+    line = f"Made by an agent ({agent}) for {owner(ctx)}."
+    made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
+    if made:  # the template's own section for it (after its comments)
+        return text[: made.end()] + line + "\n" + text[made.end() :]
+    return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
+
+
+def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> Path:
+    """The body to ship: --body, else notes/pr/<topic>.md. Writes that skeleton and stops when it is missing (or
+    with --new-body; an existing file is kept), so the agent fills in a file instead of writing one from scratch."""
+    if body and not new_body:
+        path = Path(body).expanduser()
+        return path if path.is_absolute() else ctx.cwd / path
+    path = default_body(ctx, branch, record)
+    if path.is_file() and not new_body:
+        ctx.out.say(f"body: {path}")
+        return path
+    if dry_run or not branch or branch in ctx.policy["branches"]["protected"]:
+        return path  # the body gate reports it missing; a dry run writes nothing
+    if path.is_file():
+        ctx.out.say(f"kept: {path} exists (nothing was overwritten)")
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(skeleton(ctx, branch, record), encoding="utf-8")
+        ctx.out.say(f"wrote {path} from {TEMPLATE} (the plan's Goal is its Why)")
+    again = cmd("python", "tools/retrodev", "ship", "--title", title, "--body", path)
+    raise Failure(f"the pull request body {path} is not filled in yet", f"fill in {path}, then {again}")
+
+
+def again(record: dict) -> str:
+    """The ship command that pushes this branch's next commits, with its recorded title and body."""
+    pr = record.get("pr") or {}
+    words = ["python", "tools/retrodev", "ship", "--title", pr.get("title") or "<title>"]
+    if record.get("body"):
+        words += ["--body", record["body"]]
+    return cmd(*words)
+
+
+def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
-    body_path = Path(body).expanduser()
-    if not body_path.is_absolute():
-        body_path = ctx.cwd / body_path
+    body_path = body_file(ctx, title, body, new_body, dry_run, branch, record)
     text = body_path.read_text(encoding="utf-8") if body_path.is_file() else None
+    body_gate = gates.body_gate(text, ctx.policy["ship"]["sections"])
+    if text is None and not body:
+        body_gate.fix = f"python tools/retrodev ship --title ... without --dry-run writes {body_path} to fill in"
     found = [
         gates.on_work_branch(ctx, branch),
         gates.title_gate(title),
-        gates.body_gate(text, ctx.policy["ship"]["sections"]),
+        body_gate,
         gates.committed(ctx),
         gates.checks_on_tree(ctx, record, repo.tree_digest(ctx.top)),
     ]
@@ -96,7 +177,8 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
         if not dry_run:
             raise
         existing = None
-        ctx.out.say(f"(could not ask GitHub for an open pull request: {failure.message})")
+        if not isinstance(failure, github.NoGitHub):  # that one printed its note already
+            ctx.out.say(f"(could not ask GitHub for an open pull request: {failure.message})")
     if existing:
         gates.enforce(ctx, [base_gate(ctx, existing)], "ship")
         gh_args = github.edit_args(existing["number"], title, str(body_path))
@@ -105,7 +187,7 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
     plan = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
     ctx.out.set(**plan, dry_run=dry_run)
     if dry_run:
-        ctx.out.say("would run:\n  " + " ".join(push) + "\n  " + " ".join(_quoted(["gh", *gh_args])))
+        ctx.out.say("would run:\n  " + cmd(*push) + "\n  " + cmd("gh", *gh_args))
         ctx.out.say("dry run: nothing was pushed or opened")
         return 0
     repo.git(push[1:], ctx.top)
@@ -125,6 +207,7 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
         ctx.out.say(f"opened draft pull request #{number} {url}")
     reviews.record_pr(record, number, url, sha, title, at=state.now())
     record["pushed"] = sha
+    record["body"] = str(body_path)
     state.save_branch(ctx.top, record)
     review = reviews.load(ctx, number)  # outlives the branch record: stats reads the first ship's time from it
     if not review.get("shipped"):
@@ -133,7 +216,3 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
     ctx.out.set(pr=record["pr"])
     ctx.out.say("next: python tools/retrodev report (the step-5 report for the owner)")
     return 0
-
-
-def _quoted(words: list[str]) -> list[str]:
-    return [f"'{word}'" if (" " in word or not word) else word for word in words]

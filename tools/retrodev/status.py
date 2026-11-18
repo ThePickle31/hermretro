@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from . import gates, github, plan, repo, reviews, state
+from . import gates, github, plan, repo, reviews, ship, state
 from .output import cmd
 
 
@@ -19,6 +19,8 @@ def next_step(facts: dict) -> str:
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
     if facts.get("protected"):
         return "next: python tools/retrodev start <kind>/<topic> (work happens in a worktree on its own branch)"
+    if facts.get("needs_plan") and not facts.get("plan_approved") and facts.get("plan_exists") is False:
+        return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
     if facts.get("needs_plan") and not facts.get("plan_approved"):
         return (
             f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
@@ -27,11 +29,21 @@ def next_step(facts: dict) -> str:
     if not facts.get("checks_passed"):
         return "next: python tools/retrodev check"
     if facts.get("dirty"):
-        return "next: git add -A && git commit -m '<what changed>' (the checks passed on these changes)"
+        return (
+            "next: "
+            + cmd("git", "add", "-A")
+            + " && "
+            + cmd("git", "commit", "-m", "<what changed>")
+            + (" (the checks passed on these changes)")
+        )
     if not facts.get("pr"):
-        return "next: python tools/retrodev ship --title '<one plain sentence>' --body <file>"
+        return (
+            "next: "
+            + cmd("python", "tools/retrodev", "ship", "--title", "<one plain sentence>")
+            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md)"
+        )
     if facts.get("head") != facts.get("pushed"):
-        return "next: python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
+        return f"next: {facts.get('ship_again') or 'python tools/retrodev ship'} (pushes the new commits)"
     pr = facts["pr"]
     # land runs from the main checkout: the merge removes this worktree
     land = (cmd("cd", facts["main"]) + " && " if facts.get("main") else "") + f"python tools/retrodev land {pr}"
@@ -73,6 +85,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "plan": plan_topic,
         "protected": branch in ctx.policy["branches"]["protected"],
         "needs_plan": gates.plan_for(ctx, branch, record) is not None,  # ship's own rule
+        "plan_exists": bool(plan_row and plan_row["exists"]) if plan_row else None,
         "plan_approved": bool(plan_row and plan_row["approved"]),
         "plan_changed": bool(plan_row and plan_row["changed_since_approval"]),
         "checks_passed": record.get("passed_tree") == repo.tree_digest(path),
@@ -81,6 +94,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "pr_url": (record.get("pr") or {}).get("url"),
         "head": repo.head(path),
         "pushed": record.get("pushed"),
+        "ship_again": ship.again(record),
         "ci": github.ci_summary(jobs) if pr and with_ci else None,
         "ci_jobs": jobs or [],
         "approved": record.get("approval"),
@@ -93,7 +107,9 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
 def show_branch(ctx, facts: dict) -> None:
     say = ctx.out.say
     say(f"branch {facts['branch']}  ({facts['path']})")
-    if facts["plan"]:
+    if facts["plan"] and facts.get("plan_exists") is False:
+        say(f"  plan:   {facts['plan']} (none written)")
+    elif facts["plan"]:
         approval = "approved" if facts["plan_approved"] else "NOT approved"
         say(f"  plan:   {facts['plan']} ({approval}" + ("; changed since" if facts["plan_changed"] else "") + ")")
     say(f"  checks: {'passed on this tree' if facts['checks_passed'] else 'not passed on this tree'}")

@@ -26,10 +26,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import ci, gates, github, land_carry, land_gates, land_merge, reviews
+from . import ci, gates, github, land_carry, land_gates, land_merge, reviews, ship
 from .gates import Gate
 from .land_merge import progress
-from .output import FAILED, OWNER, Failure
+from .output import FAILED, OWNER, Failure, cmd
 from .review import audit, records
 from .review import round as review_round
 
@@ -91,7 +91,7 @@ def unanswered_failure(ctx, rec: dict, number: int) -> Failure:
     )
 
 
-def findings_failure(ctx, number: int, round_no: int, result: dict) -> Failure:
+def findings_failure(ctx, number: int, round_no: int, result: dict, record: dict) -> Failure:
     items = result.get("findings") or []
     ctx.out.say(f"review round {round_no}: {len(items)} finding(s)")
     for n, finding in enumerate(items):
@@ -100,9 +100,10 @@ def findings_failure(ctx, number: int, round_no: int, result: dict) -> Failure:
     steps = [
         "fix each finding (or, when one is wrong, prove it: a test or command output)",
         "python tools/retrodev check",
-        "git add -A && git commit -m '<what the fixes change>'",
-        "python tools/retrodev ship --title '<the title>' --body <file>",
-        f"python tools/retrodev answer {number} {round_no} <index> '<fixed in <sha>: how>' for each of 0..{len(items) - 1}",
+        cmd("git", "add", "-A") + " && " + cmd("git", "commit", "-m", "<what the fixes change>"),
+        ship.again(record) + " (the first ship's title and body file)",
+        cmd("python", "tools/retrodev", "answer", number, round_no, "<index>", "<fixed in <sha>: how>")
+        + f" for each of 0..{len(items) - 1}",
         f"python tools/retrodev land {number}"
         + (
             " (round 3 was the last: it merges on green CI, no 4th round)"
@@ -167,7 +168,7 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         raise owner_failure(rec, number)
     if result["result"]["verdict"] == "findings":
         progress(ctx, record, "fix", round=round_no, head=sha)
-        raise findings_failure(ctx, number, round_no, result["result"])
+        raise findings_failure(ctx, number, round_no, result["result"], record)
     ctx.out.say(f"review round {round_no}: clean")
     return rec
 

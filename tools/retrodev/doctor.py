@@ -4,7 +4,7 @@
 
 git and gh, gh's login (and that it is the configured github_account), git's identity, Python and Node versions,
 the pinned npm tools and ruff, Hermes and a hermes-agent source for the install scan, the main checkout on the
-base branch and clean, a writable worktree root and a short temp folder for Unix sockets. With --all also the
+base branch (a warning: only start and land need it) and clean, a writable worktree root and a short temp folder for Unix sockets. With --all also the
 reviewer: review_profile set, and a live probe of its provider (a few seconds), and the MacBook's reachability
 (optional, never a problem: mac_host unset or the mac asleep means CI's macOS runners cover it).
 """
@@ -28,6 +28,11 @@ from .output import Failure, cmd
 
 def item(name: str, ok: bool, detail: str, fix: str = "") -> dict:
     return {"name": name, "ok": ok, "detail": detail, "fix": "" if ok else fix}
+
+
+def warning(name: str, ok: bool, detail: str, fix: str) -> dict:
+    """Worth knowing, never a reason the machine is not ready (ok stays True; `warning` says why)."""
+    return {"name": name, "ok": True, "detail": detail, "fix": "" if ok else fix, "warning": not ok}
 
 
 def _version(command: list[str]) -> str | None:
@@ -159,11 +164,11 @@ def checkout(ctx) -> list[dict]:
     branch = repo.branch(main)
     changes = repo.dirty(main)
     found.append(
-        item(
+        warning(
             "main checkout on the base branch",
             branch == ctx.base,
-            f"{main} on {branch}",
-            f"ask the owner to switch {main} to {ctx.base}",
+            f"{main} on {branch}" + ("" if branch == ctx.base else f": only start and land need it on {ctx.base}"),
+            f"before start or land, ask the owner to switch {main} to {ctx.base}",
         )
     )
     found.append(
@@ -237,8 +242,9 @@ def run(ctx, everything: bool = False) -> int:
         ctx.out.set(state_override=os.environ["RETRODEV_STATE_DIR"])
     rows = tools(ctx) + checkout(ctx)
     for row in rows:
-        ctx.out.say(f"  {'ok' if row['ok'] else 'NO':>2}  {row['name']}: {row['detail']}")
-        if not row["ok"]:
+        mark = "!!" if row.get("warning") else ("ok" if row["ok"] else "NO")
+        ctx.out.say(f"  {mark:>2}  {row['name']}: {row['detail']}" + (" (a warning)" if row.get("warning") else ""))
+        if not row["ok"] or row.get("warning"):
             ctx.out.say(f"      FIX: {row['fix']}")
     if everything:
         extra = reviewer(ctx) + [mac.doctor_item(ctx)]

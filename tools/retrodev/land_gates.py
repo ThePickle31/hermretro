@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import gates, github, repo, reviews
+from . import gates, github, repo, reviews, ship
 from .gates import Gate
 from .output import OWNER, Failure, cmd
 
@@ -93,7 +93,7 @@ def collect_gates(ctx, info: dict, record: dict, tree: Path | None) -> list[Gate
                 False,
                 f"#{number} is at {str(pr_head)[:9]}, {branch} here at {str(local)[:9]}: what is reviewed and merged "
                 "must be what passed the checks here",
-                "python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
+                ship.again(record) + " (pushes the new commits)"
                 if local and pr_head and repo.is_ancestor(tree, pr_head, local)
                 else f"git fetch {ctx.remote} && git merge {ctx.remote}/{branch}, then check and ship",
             )
@@ -106,7 +106,7 @@ def collect_gates(ctx, info: dict, record: dict, tree: Path | None) -> list[Gate
             "pushed",
             False,
             f"{ctx.remote}/{branch} is at {(pushed or 'nothing')[:9]}, not {str(local)[:9]}",
-            "python tools/retrodev ship --title '<title>' --body <file>",
+            ship.again(record),
         )
     )
     found += [gates.committed(wctx), gates.checks_on_tree(wctx, record, repo.tree_digest(tree))]
