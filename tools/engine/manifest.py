@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from engine_dev import dev_engine_root  # noqa: E402
+from engine_dev import dev_engine_root  # noqa: E402 - tools/engine goes on sys.path first
 
 
 def scan(root: Path) -> list[dict]:

@@ -118,7 +118,7 @@ class RoundThree(LandCase):
         self.assertEqual(data["action"], "reviews-exhausted")
         self.assertIn("--no-review", data["error"]["fix"])
         self.assertEqual((self.hermes.calls, self.merges()), ([], []))
-        code, data = self.land("--no-review")  # the owner's call
+        code, data = self.land("--no-review")  # the owner decides here
         self.assertEqual(code, 0, data)
         self.assertEqual(len(self.merges()), 1)
 

@@ -28,10 +28,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.features import FEATURES  # noqa: E402
-from backend.hermes import declare  # noqa: E402
-from backend.system import paths  # noqa: E402
-from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402
+from backend.features import FEATURES  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import declare  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402 - the repository root goes on sys.path first
 
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
 HERMES_TOOLS_WITH_WORDS = {

@@ -1,6 +1,6 @@
 """Step 7: an owner-approved pull request through read-only Codex review rounds, CI on its exact head and the merge.
 
-    land <pr> [--no-review] [--ci-timeout SECONDS] [--dry-run]
+    land <pr> [--no-review [--reason TEXT]] [--ci-timeout SECONDS] [--dry-run]
 
 It runs until it needs the agent or the owner, or the pull request is merged; run it again and it resumes from the
 records (nothing is reviewed twice). It runs for many minutes: start it in the background.
@@ -173,12 +173,18 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
     return rec
 
 
-def review_step(ctx, info: dict, tree: Path, record: dict, sha: str, no_review: bool) -> dict:
+NO_REVIEW = "land --no-review"
+
+
+def review_step(
+    ctx, info: dict, tree: Path, record: dict, sha: str, no_review: bool, reason: str | None = None
+) -> dict:
     number = info["number"]
     root, notes = reviews.root(ctx), reviews.notes(ctx)
     rec = records.note_head(root, number, sha, notes)
     if no_review and not rec.get("skipped"):
-        rec = records.mark_skipped(root, number, "land --no-review (the owner's call)", notes)
+        # Who decided is not known here (an agent can pass --no-review too), so only the reason given is recorded.
+        rec = records.mark_skipped(root, number, (reason or "").strip() or NO_REVIEW, notes)
     rec = land_carry.carry(ctx, tree, rec, sha)
     action = decide(rec, sha)
     ctx.out.set(review_action=action)
@@ -210,7 +216,19 @@ def stop_on_conflict(ctx, info: dict, tree: Path) -> None:
         raise land_gates.conflict_failure(ctx, info, tree)
 
 
-def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = None, dry_run: bool = False) -> int:
+def run(
+    ctx,
+    number: int,
+    no_review: bool = False,
+    ci_timeout: float | None = None,
+    dry_run: bool = False,
+    reason: str | None = None,
+) -> int:
+    if reason is not None and not no_review:
+        raise Failure(
+            "--reason says why the reviews were skipped, so it only goes with --no-review",
+            f"python tools/retrodev land {number} --no-review --reason '...', or leave --reason out",
+        )
     info = reviews.pr_view(ctx, number)
     branch = info["headRefName"]
     ctx.out.say(f"land #{number}: {info.get('title')} ({branch}, {info.get('url')})")
@@ -242,7 +260,7 @@ def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = No
     if info.get("isDraft"):
         github.gh(ctx, ["pr", "ready", str(number)])
         ctx.out.say(f"marked #{number} ready for review")
-    review_step(ctx, info, tree, record, sha, no_review)
+    review_step(ctx, info, tree, record, sha, no_review, reason)
     timeout = float(ci_timeout if ci_timeout is not None else ctx.policy.get("land", {}).get("ci_timeout", 1500))
     stop_on_conflict(ctx, info, tree)
     progress(ctx, record, "waiting for CI", head=sha)

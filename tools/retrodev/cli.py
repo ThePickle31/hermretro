@@ -105,7 +105,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--words", required=True, help="the owner's exact words")
     p = add("land", "review rounds, CI on the exact head and the squash merge of an approved pull request")
     p.add_argument("pr", type=int)
-    p.add_argument("--no-review", action="store_true", help="skip the reviews (the owner's call), merge on green CI")
+    p.add_argument("--no-review", action="store_true", help="skip the reviews (recorded), merge on green CI")
+    p.add_argument(
+        "--reason", metavar="TEXT", help="with --no-review: why the reviews were skipped (default 'land --no-review')"
+    )
     p.add_argument("--ci-timeout", type=float, metavar="SECONDS", help="how long to wait for CI (policy default 1500)")
     p.add_argument("--dry-run", action="store_true", help="print the gates and the next step; change nothing")
     p = add("answer", "answer a review round's finding: the fix's commit, or why it is wrong with proof")
@@ -265,7 +268,14 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     if command == "answer":
         return approve.answer(ctx, args.pr, args.round, args.index, args.text, every=args.every)
     if command == "land":
-        return land.run(ctx, args.pr, no_review=args.no_review, ci_timeout=args.ci_timeout, dry_run=args.dry_run)
+        return land.run(
+            ctx,
+            args.pr,
+            no_review=args.no_review,
+            ci_timeout=args.ci_timeout,
+            dry_run=args.dry_run,
+            reason=args.reason,
+        )
     if command == "summary":
         return summary.run(ctx, args.pr)
     if command == "sync":

@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from backend.hermes import api as hermes_api  # noqa: E402
+from backend.hermes import api as hermes_api  # noqa: E402 - the repository root goes on sys.path first
 
 
 def main() -> int:

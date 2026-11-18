@@ -20,7 +20,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402
+from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402 - the repository root goes on sys.path first
 
 SNAPSHOT = Path(__file__).with_name("registration.json")
 

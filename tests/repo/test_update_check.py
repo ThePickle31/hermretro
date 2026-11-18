@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "ci"))
 
-import update_check  # noqa: E402
+import update_check  # noqa: E402 - the repository root goes on sys.path first
 
 
 # A throwaway repository: no identity, signing or hooks of whoever runs the tests.

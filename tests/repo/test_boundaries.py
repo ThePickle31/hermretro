@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tests.repo import allowances  # noqa: E402
+from tests.repo import allowances  # noqa: E402 - the repository root goes on sys.path first
 
 SHARED = ("system", "hermes")
 

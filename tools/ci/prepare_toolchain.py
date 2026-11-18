@@ -17,9 +17,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import backend.hermes  # noqa: E402,F401  (tells backend.system how to ask Hermes for its home)
-from backend.broker import client  # noqa: E402
-from backend.system import paths  # noqa: E402
+import backend.hermes  # noqa: E402, F401 - tells backend.system how to ask Hermes for its home
+from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 LIMIT_SECONDS = 1200
 STALL_SECONDS = 420  # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)
