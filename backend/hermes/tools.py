@@ -7,7 +7,7 @@ from . import contracts, host
 from .declare import Tool
 
 
-def TOOLS() -> list[Tool]:  # noqa: N802 (the name every feature's tools.py uses)
+def TOOLS() -> list[Tool]:  # noqa: N802 - the name every feature's tools.py uses
     return [
         Tool(contracts.hermes_schema(tool), make=lambda ctx, tool=tool: host.make_tool_handler(ctx, tool))
         for tool in contracts.pinned_tools()

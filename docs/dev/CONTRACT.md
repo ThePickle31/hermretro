@@ -21,7 +21,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 
 | Event | Payload | Emitted when | Heard by |
 |---|---|---|---|
-| `library.build_reported` | `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
+| `library.build_reported` | `game` (the game's id, `null` without a project), `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
 | `library.game_presented` | `game`, `root` | `chromatic_present_game` showed a game | — |
 | `setup.tools_removed` | `root` | `remove_tools` emptied the download folder | — |
 | `setup.studio_profile_ready` | `profile` | `studio_profile` finished the profile | — |

@@ -153,7 +153,7 @@ class HermesHomeHandOver(unittest.TestCase):
             hermes_home._ask = saved
 
     def test_importing_the_hermes_layer_hands_it_over(self):
-        import backend.hermes  # noqa: F401
+        import backend.hermes  # noqa: F401 - importing it is what the test checks
         from backend.hermes import api
         from backend.system import hermes_home
 

@@ -23,7 +23,7 @@ from ..system import paths
 from . import api as hermes_api, contracts, results
 
 # try_connect is used by the feature modules as host.try_connect, so a test's patch here reaches them.
-from ..broker import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401
+from ..broker import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401 - used as host.try_connect (above)
 
 logger = logging.getLogger(__name__)
 

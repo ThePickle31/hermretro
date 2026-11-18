@@ -363,7 +363,7 @@ def list_captures(root: Path, identifier: str) -> list[dict]:
     for path in entries:
         if path.suffix.lower() not in MEDIA_EXTENSIONS or path.name.startswith(".") or not path.is_file():
             continue
-        sidecar = library.read_json(path.with_name(path.name + ".json"))  # noqa: SLF001
+        sidecar = library.read_json(path.with_name(path.name + ".json"))  # noqa: SLF001 - the library's shared JSON reader
         kind = (
             sidecar.get("kind")
             if isinstance(sidecar.get("kind"), str)

@@ -121,7 +121,7 @@ def main() -> int:
     def racer():
         try:
             clients.append(ensure_broker(STATE))
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:  # noqa: BLE001 - every racer's failure is collected and reported
             errors.append(repr(error))
 
     threads = [threading.Thread(target=racer) for _ in range(4)]

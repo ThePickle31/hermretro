@@ -30,7 +30,7 @@ if not _UNSUPPORTED:
 def _profile(ctx) -> str | None:
     try:
         return ctx.profile_name
-    except Exception:  # noqa: BLE001  (an older Hermes without it: the plugin's data folder names the profile)
+    except Exception:  # noqa: BLE001 - an older Hermes without it: the plugin's data folder names the profile
         return studio_profile.profile_name(hermes_host._data_dir().parents[1])
 
 

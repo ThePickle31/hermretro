@@ -56,7 +56,21 @@ class Skips(LandCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(self.hermes.calls, [])
         rec = records.load(self.main / ".git" / "retrodev" / "reviews", 12)
-        self.assertIn("--no-review", rec["skipped"]["reason"])
+        self.assertEqual(rec["skipped"]["reason"], "land --no-review", "an agent can run it: no claim of who decided")
+
+    def test_no_review_records_the_reason_given(self):
+        self.open_pr()
+        code, data = self.land("--no-review", "--reason", "the reviewer is down for the day")
+        self.assertEqual(code, 0, data)
+        rec = records.load(self.main / ".git" / "retrodev" / "reviews", 12)
+        self.assertEqual(rec["skipped"]["reason"], "the reviewer is down for the day")
+
+    def test_a_reason_without_no_review_is_refused(self):
+        self.open_pr()
+        code, data = self.land("--reason", "why")
+        self.assertEqual(code, 1, data)
+        self.assertIn("--no-review", data["error"]["fix"])
+        self.assertEqual(self.merges(), [])
 
 
 class CI(LandCase):

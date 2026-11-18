@@ -440,7 +440,7 @@ tests with the exact problem.
 label: '<Label>', Page }`, where `Page({ shell })` renders it from `shell` (the data and actions every page
 shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `steps`, `games`, `play(id)`, `player`…).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
-`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_layout.py` fails without one).
+`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
 `contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. Or:
 `python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's

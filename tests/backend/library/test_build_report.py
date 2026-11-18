@@ -15,6 +15,7 @@ from backend.assets import versions as host_assets  # noqa: E402 - the repositor
 from backend.library import tools as host_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import games, tool_args  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
@@ -73,6 +74,41 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(answer["project"], str(self.root))
         self.assertIn("one or two short sentences", answer["message"])
         self.assertNotIn("warnings", answer)
+
+    def test_the_build_event_carries_the_game_and_its_images(self):
+        with mock.patch.object(library_tools, "emit") as emit:
+            self.assertTrue(self.report(dict(GOOD))["ok"])
+        emit.assert_called_once_with(
+            "library.build_reported",
+            game=games.game_id(self.root),
+            assets=[str((self.root / "assets" / "sprites" / "robin.png").resolve())],
+        )
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
+            with mock.patch.object(library_tools, "emit") as emit:
+                self.assertTrue(self.report({"title": "t", "summary": "s"})["ok"])
+        emit.assert_called_once_with("library.build_reported", game=None, assets=[])
+
+    def test_the_assets_listener_still_keeps_the_reported_images(self):
+        self.assertTrue(self.report(dict(GOOD))["ok"])  # the real emit reaches backend/assets/listeners.py
+        host_assets._keep_paths.assert_called_once_with(
+            [str((self.root / "assets" / "sprites" / "robin.png").resolve())]
+        )
+
+    def test_the_shared_tool_helpers_live_in_tool_args(self):
+        self.assertIs(library_tools._tool_project, tool_args.tool_project)
+        self.assertIs(library_tools._present_error, tool_args.tool_error)
+        self.assertEqual(json.loads(tool_args.tool_error("no", "X")), {"ok": False, "error": "no", "code": "X"})
+        self.assertEqual(tool_args.tool_project("t", {}, {}), (str(self.root), None))
+        self.assertEqual(tool_args.tool_project("t", {"project": str(self.base)}, {}), (str(self.base), None))
+        for bad, code in (("relative", "PROJECT_NOT_FOUND"), ("  ", "INVALID_ARGUMENTS"), (3, "INVALID_ARGUMENTS")):
+            root, error = tool_args.tool_project("t", {"project": bad}, {})
+            self.assertIsNone(root)
+            self.assertEqual(json.loads(error)["code"], code)
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
+            root, error = tool_args.tool_project("chromatic_x", {}, {})
+        self.assertIsNone(root)
+        self.assertEqual(json.loads(error)["code"], "NO_PROJECT")
+        self.assertIn("chromatic_x", json.loads(error)["error"])
 
     def test_only_title_and_summary_are_required(self):
         answer = self.report({"title": "Chubbier robin", "summary": "The robin is rounder."})

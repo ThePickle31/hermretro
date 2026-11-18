@@ -53,6 +53,16 @@ def review_records(root: Path) -> list[dict]:
     return found
 
 
+# The default reason before it was made neutral; old records still carry it, so it is shown as today's default.
+LEGACY_SKIP_REASON = "land --no-review (the owner's call)"
+SKIP_REASON = "land --no-review"
+
+
+def skip_reason(record: dict) -> str | None:
+    reason = (record.get("skipped") or {}).get("reason")
+    return SKIP_REASON if reason == LEGACY_SKIP_REASON else reason
+
+
 def pull_request(record: dict) -> dict:
     rounds = [entry for entry in record.get("rounds", []) if not entry.get("void")]
     findings = [len((entry.get("result") or {}).get("findings") or []) for entry in rounds]
@@ -67,7 +77,7 @@ def pull_request(record: dict) -> dict:
         "rounds": len(rounds),
         "findings": findings,
         "answered": answered,
-        "reviews_skipped": (record.get("skipped") or {}).get("reason"),
+        "reviews_skipped": skip_reason(record),
         "ship_to_merge_hours": _hours(shipped, merged),
         "approval_to_merge_hours": _hours(approved, merged),
     }
@@ -143,7 +153,7 @@ def run(ctx) -> int:
     say(f"pull requests: {len(landed)} landed with retrodev; {len(in_git)} merged into {ctx.base} in all")
     for pr in landed:
         rounds = ", ".join(str(n) for n in pr["findings"]) or "none"
-        extra = f"; reviews skipped ({pr['reviews_skipped']})" if pr["reviews_skipped"] else ""
+        extra = f"; reviews skipped: {pr['reviews_skipped']}" if pr["reviews_skipped"] else ""
         timing = f"; ship->merge {pr['ship_to_merge_hours']} h" if pr["ship_to_merge_hours"] is not None else ""
         say(
             f"  #{pr['pr']}: {pr['rounds']} rounds, findings per round: {rounds}, answered {pr['answered']}{extra}{timing}"
