@@ -60,6 +60,13 @@ class Broker(LaneMixin, ControlMixin):
         self.read_only = {n for n, t in self.tools.items() if t.get("annotations", {}).get("readOnlyHint")}
         self.generation = secrets.token_hex(8)
         self.token = secrets.token_hex(32)
+        # The build this process runs, read once at start: the handshake must name the code loaded here, not
+        # the files on disk now. Read at each hello, a broker that `hermes plugins update` rewrote underneath
+        # claimed the new build's fingerprint, so the new client kept it (old code) instead of replacing it.
+        try:
+            self.code_fingerprint: str | None = paths.code_fingerprint()
+        except OSError:  # files already moving under it: any client replaces it
+            self.code_fingerprint = None
         self.engine_check = paths.verify_engine()
         self.games = library.Registry(paths.library_dir_for(state_dir))
         self.lanes: dict[tuple[str, str], Lane] = {}

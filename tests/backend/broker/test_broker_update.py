@@ -117,6 +117,7 @@ class BrokerAfterUpdate(unittest.TestCase):
             hello={
                 "ok": True,
                 "code_fingerprint": client.paths.code_fingerprint(),
+                "loaded_fingerprint": client.paths.code_fingerprint(),
                 "plugin_root": str(client.paths.PLUGIN_ROOT),
             }
         )
