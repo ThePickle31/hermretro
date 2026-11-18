@@ -5,7 +5,8 @@ row, a feature's purpose, a page's README and component). The stubs pass every o
 pull request can still ship them unfilled; this test is what notices. It is not one of the structure tests the
 scaffold check runs on its fresh, unfilled copy (tests/retrodev/test_scaffold_tree.py), and it skips itself in the
 checks `retrodev new` runs right after writing the stubs (RETRODEV_SCAFFOLD_CHECK, set by tools/retrodev/scaffold.py,
-which keeps no pass from that run).
+which keeps no pass from that run, and by tests/retrodev/test_scaffold_tree.py for its RD_SCAFFOLD_FULL=nested run on
+its throwaway copy).
 """
 
 import os

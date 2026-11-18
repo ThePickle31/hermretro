@@ -100,9 +100,11 @@ class Flow(RepoCase):
         tree = self.worktree("feat/credit")
         self.commit(tree, "docs/guide.md", "# Credit\n")
         path = self.main / "notes" / "pr" / "credit.md"
-        real = (ROOT / ".github/pull_request_template.md").read_text()
-        made_by = real.rstrip("\n") + "\n\n## Made by\n<!-- Which agent, for whom. -->\n"
-        for template in (None, real, made_by):  # none (the policy's sections), the real one, one with '## Made by'
+        real = (ROOT / ".github/pull_request_template.md").read_text()  # the real one has a '## Made by'
+        made_by = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", real, flags=re.M | re.S)
+        self.assertIsNotNone(made_by, "the real template asks who made the change under '## Made by'")
+        without = real[: made_by.start()].rstrip("\n") + "\n"  # an older template, with no '## Made by'
+        for template in (None, without, real):  # none (the policy's sections), one without '## Made by', the real one
             if template is not None:
                 self.commit(tree, ".github/pull_request_template.md", template, "Template")
             self.passed(tree, "feat/credit")
@@ -110,8 +112,9 @@ class Flow(RepoCase):
             self.assertEqual(self.run_cli("ship", "--title", "Credit", cwd=tree)[0], 1)
             text = path.read_text()
             self.assertEqual(text.count("Made by an agent (Hermes) for the owner."), 1, text)
-            if template == made_by:
-                self.assertIn("## Made by\n<!-- Which agent, for whom. -->\nMade by an agent", text)
+            if template == real:
+                self.assertIn(made_by.group(0) + "Made by an agent (Hermes) for the owner.\n", text)
+                self.assertNotIn("\n---\n", text)
             else:
                 self.assertTrue(text.endswith("\n---\n\nMade by an agent (Hermes) for the owner.\n"), text)
             filled = re.sub(
