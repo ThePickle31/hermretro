@@ -60,7 +60,8 @@ def collect(ctx, number: int) -> dict:
     layout_path = ctx.top / "tools" / "layout.toml"
     layout = tomllib.loads(layout_path.read_text(encoding="utf-8")) if layout_path.is_file() else {}
     moved_to = [name.split(" -> ")[1] for name in changes["moved"]]
-    every = changes["added"] + changes["changed"] + changes["removed"] + moved_to
+    moved_from = [name.split(" -> ")[0] for name in changes["moved"]]  # leaving an area changes it too
+    every = changes["added"] + changes["changed"] + changes["removed"] + moved_to + moved_from
     rec = reviews.load(ctx, number)
     jobs = github.checks(ctx, number)
     return {

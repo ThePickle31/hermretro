@@ -209,6 +209,12 @@ def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = No
     if info.get("state") == "MERGED":
         rec = reviews.load(ctx, number)
         if land_merge.unfinished(rec):
+            if dry_run:
+                left = [step for step in ("pulled", "gc") if not (rec.get("landing") or {}).get(step)]
+                ctx.out.say(f"#{number} is merged; still to do after the merge: {', '.join(left)}")
+                ctx.out.say("dry run: nothing was changed; python tools/retrodev land " + f"{number} finishes them")
+                ctx.out.set(action="finish", left=left)
+                return 0
             ctx.out.say(f"#{number} is merged; finishing the steps after the merge (it is not merged again)")
             return land_merge.finish(ctx, number, rec)
         ctx.out.say(f"review: {reviews.describe(rec)}")

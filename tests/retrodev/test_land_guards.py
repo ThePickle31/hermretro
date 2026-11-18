@@ -155,6 +155,14 @@ class Resume(LandCase):
         self.assertIn("land 12", data["error"]["fix"])
         self.assertTrue(tree.exists(), "nothing tidied before the main checkout is updated")
 
+        # A dry run reports the steps left and does none of them.
+        before = records.load(self.main.joinpath(*ROOT), 12)["landing"]
+        code, data = self.land("--dry-run")
+        self.assertEqual((code, data["action"], data["left"]), (0, "finish", ["pulled", "gc"]), data)
+        self.assertTrue(tree.exists())
+        self.assertEqual(records.load(self.main.joinpath(*ROOT), 12)["landing"], before)
+        self.assertEqual(git(self.main, "log", "-1", "--format=%s").strip(), "A local commit: dev cannot fast-forward")
+
         git(self.main, "reset", "-q", "--hard", "HEAD~1")
         self.hermes.calls.clear()
         code, data = self.land()
@@ -168,6 +176,20 @@ class Resume(LandCase):
         code, out = self.land(as_json=False)  # finished: nothing left to do
         self.assertEqual(code, 0, out)
         self.assertIn("already merged", out)
+
+
+class Summary(LandCase):
+    def test_a_file_moved_out_of_a_restart_area_still_needs_the_restart(self):
+        from unittest import mock
+
+        from retrodev import summary
+
+        self.open_pr()
+        moved = {"added": [], "changed": [], "removed": [], "moved": ["skills/demo/SKILL.md -> docs/demo.md"]}
+        with mock.patch.object(summary, "file_changes", return_value=moved):
+            code, data = self.run_cli("summary", PR, as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertIn("gateway", data["owner"])
 
 
 if __name__ == "__main__":
