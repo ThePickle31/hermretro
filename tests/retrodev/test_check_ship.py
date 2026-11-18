@@ -86,6 +86,19 @@ class Check(RepoCase):
         self.assertNotIn("passed_tree", record, "a tree that just failed a check may not ship")
         self.assertNotIn("passed_at", record)
 
+    def test_a_check_reruns_when_its_tools_or_their_pins_change(self):
+        tree = self.worktree()
+        self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)
+        self.clear_log()
+        write(tree, "tools/npm/package-lock.json", '{"jsdom": "30.0.0"}\n')  # new pins of the page tests' tools
+        self.run_cli("check", cwd=tree)
+        self.assertEqual(self.check_log()[0]["names"], FAST, "page, bundle and lint run with the npm tools")
+        for runner in ("tools/check.py", "tools/retrodev/policy.toml"):
+            self.clear_log()
+            write(tree, runner, (tree / runner).read_text() + "\n# changed\n")
+            self.run_cli("check", cwd=tree)
+            self.assertEqual(self.check_log()[0]["names"], FAST, f"every check is run by or decided in {runner}")
+
     def test_the_install_checks_run_only_on_a_committed_tree_and_install_its_head(self):
         tree = self.worktree("chore/glue")
         write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # not committed: the install would miss it
@@ -133,8 +146,28 @@ class Check(RepoCase):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         before = checks.snapshot(ctx)
         write(tree, "docs/new.md", "# New\n")
-        self.assertEqual(checks.changed_since(before, checks.snapshot(ctx)), ["docs/new.md"])
+        self.assertEqual(checks.changed_since(before, checks.snapshot(ctx)), [":clean", "docs/new.md"])
         self.assertEqual(checks.watch(ctx, [], rounds=1), 0)
+
+    def test_watch_wakes_on_a_commit_that_edits_no_file(self):
+        tree = self.worktree("chore/glue")
+        from retrodev import config, output
+
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # a registration change: installs wait for a commit
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            if len(waits) == 1:
+                self.assertNotIn("script", json.dumps(self.check_log()), "no install of an uncommitted tree")
+                git(tree, "commit", "-q", "-am", "Change the glue")  # no file is touched
+            elif len(waits) > 5:
+                raise AssertionError("the watcher never woke after the commit")
+
+        self.assertEqual(checks.watch(ctx, [], rounds=2, sleep=sleep), 0)
+        installs = [entry for entry in self.check_log() if "script" in entry]
+        self.assertEqual(installs[0], {"script": [], "head": git(tree, "rev-parse", "HEAD").strip()})
 
 
 class Ship(RepoCase):

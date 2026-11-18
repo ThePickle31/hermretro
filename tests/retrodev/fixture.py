@@ -87,7 +87,7 @@ purpose = "tools"
 """
 FILES = {
     "plugin.yaml": "version: 0.0.1\n",
-    ".gitignore": "notes/\n__pycache__/\n",
+    ".gitignore": "notes/\n__pycache__/\nnode_modules/\n",
     ".gitattributes": "desktop/plugin.js -merge\n",
     "page/a.js": "export const a = 1\n",
     "desktop/plugin.js": "// built\nexport const a = 1\n",

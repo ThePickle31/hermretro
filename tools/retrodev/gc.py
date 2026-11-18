@@ -2,11 +2,13 @@
 
     gc [--dry-run]
 
-A worktree goes only when its branch is done and nothing in it would be lost: it has no uncommitted changes, it
-was pushed, and its branch is merged into the base branch, its pull request is merged (squash merges leave no
+A worktree goes only when its branch is done and nothing in it would be lost: it has no uncommitted changes, no
+ignored file outside the rebuildable caches policy.toml [gc] lists (notes/, games/, scratch: removing the worktree
+would delete them), it was pushed, and its branch is merged into the base branch, its pull request is merged (squash merges leave no
 ancestry), or the remote deleted the branch while it still pointed at what was pushed. A dirty or never-pushed
 worktree is always kept, and said why; a worktree whose folder was deleted by hand loses only git's note of
-it, never its branch, unless that branch passes the same checks. It also removes folders in the main checkout
+it, never its branch, unless that branch passes the same checks. A recorded branch with no worktree (its note
+pruned by an earlier gc) is judged again on every run, and goes with its record once it passes them. It also removes folders in the main checkout
 whose whole subtree holds nothing but bytecode caches and empty folders (left behind when a package moved).
 --dry-run fetches nothing and changes nothing.
 """
@@ -28,33 +30,57 @@ def remote_shas(ctx) -> dict[str, str]:
     return {ref.removeprefix(prefix): sha for ref, sha in (line.split() for line in out.splitlines())}
 
 
-def verdict(ctx, tree: repo.Worktree, record: dict, before: dict, after: dict) -> tuple[bool, str]:
-    """(remove?, why) for one worktree. A missing folder proves nothing: its branch is judged like any other."""
+def held_data(ctx, path: Path) -> list[str]:
+    """Ignored paths in a worktree that are not rebuildable caches: removing the worktree would delete them."""
+    out = repo.git(
+        ["--no-optional-locks", "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=all"], path
+    )
+    caches = ctx.policy.get("gc", {}).get("caches", [])
+    found = []
+    for entry in out.split("\0"):
+        if entry.startswith("!! "):
+            name = entry[3:]
+            leaf = name.rstrip("/").rsplit("/", 1)[-1] + ("/" if name.endswith("/") else "")
+            if not (repo.matches(name, caches) or repo.matches(leaf, caches)):
+                found.append(name)
+    return sorted(found)
+
+
+def verdict(ctx, tree: repo.Worktree, record: dict, before: dict, after: dict) -> tuple[bool, str, str]:
+    """(remove?, why, fix) for one worktree. A missing folder proves nothing: its branch is judged like any other."""
     branch, main = tree.branch, ctx.main()
     if not branch:
-        return False, "detached HEAD"
+        return False, "detached HEAD", ""
     if branch in ctx.policy["branches"]["protected"]:
-        return False, "a protected branch"
+        return False, "a protected branch", ""
     gone = "its folder is gone; " if not tree.path.is_dir() else ""
     if not gone:
         changes = repo.dirty(tree.path)
         if changes:
-            return False, f"{len(changes)} uncommitted change(s) (never removed)"
+            return False, f"{len(changes)} uncommitted change(s) (never removed)", ""
+        held = held_data(ctx, tree.path)
+        if held:
+            names = ", ".join(held[:3]) + (f" and {len(held) - 3} more" if len(held) > 3 else "")
+            fix = (
+                f"move them out (e.g. into the main checkout's notes/: mv {tree.path}/{held[0].rstrip('/')} "
+                f"{main}/notes/), then run gc again; or remove the worktree by hand once nothing in it is needed"
+            )
+            return False, f"ignored files that are not caches would be deleted with it: {names}", fix
     tip = repo.head(main, f"refs/heads/{branch}") or tree.head or ""
     pushed = record.get("pushed") or before.get(branch) or after.get(branch)
     if not pushed:
-        return False, gone + "never pushed"
+        return False, gone + "never pushed", ""
     if pushed != tip and not repo.is_ancestor(main, tip, pushed):
-        return False, gone + "has commits that were never pushed"
+        return False, gone + "has commits that were never pushed", ""
     base = ctx.remote_base
     if repo.head(main, base) and repo.is_ancestor(main, tip, base):
-        return True, gone + f"merged into {base}"
+        return True, gone + f"merged into {base}", ""
     number = (record.get("pr") or {}).get("number")
     if number and github.pr_state(ctx, number) == "MERGED":
-        return True, gone + f"pull request #{number} merged"
+        return True, gone + f"pull request #{number} merged", ""
     if branch not in after:
-        return True, gone + f"deleted on {ctx.remote} after it was pushed"
-    return False, gone + "still open"
+        return True, gone + f"deleted on {ctx.remote} after it was pushed", ""
+    return False, gone + "still open", ""
 
 
 def leftover_folders(main: Path) -> list[Path]:
@@ -99,23 +125,38 @@ def run(ctx, dry_run: bool = False) -> int:
         repo.git(["fetch", "--quiet", "--prune", ctx.remote], main)
         after = remote_shas(ctx)
     records = {record.get("branch"): record for record in state.branches(main)}
-    removed, kept = [], []
-    for tree in repo.worktrees(main):
-        if tree.main:
-            continue
-        remove, why = verdict(ctx, tree, records.get(tree.branch, {}), before, after)
-        (removed if remove else kept).append({"path": str(tree.path), "branch": tree.branch, "why": why})
-        ctx.out.say(f"{'remove' if remove else 'keep':>6}  {tree.path}  ({tree.branch}: {why})")
-        if not tree.path.is_dir() and not dry_run:
+    removed, kept, judged = [], [], set()
+
+    def judge(tree: repo.Worktree, what: str) -> None:
+        remove, why, fix = verdict(ctx, tree, records.get(tree.branch, {}), before, after)
+        row = {"path": str(tree.path) if what == "worktree" else None, "branch": tree.branch, "why": why}
+        (removed if remove else kept).append(row | ({"fix": fix} if fix else {}))
+        judged.add(tree.branch)
+        label = str(tree.path) if what == "worktree" else f"branch {tree.branch}, no worktree"
+        ctx.out.say(f"{'remove' if remove else 'keep':>6}  {label}  ({tree.branch}: {why})")
+        if fix:
+            ctx.out.say(f"{'':>6}  FIX: {fix}")
+        if what == "worktree" and not tree.path.is_dir() and not dry_run:
             repo.git(["worktree", "prune"], main)  # only git's note of the folder; the branch is judged above
         if remove and not dry_run:
-            if tree.path.is_dir():
+            if what == "worktree" and tree.path.is_dir():
                 repo.git(["worktree", "remove", str(tree.path)], main)
             repo.git(["branch", "-D", tree.branch], main)
             state.drop_branch(main, tree.branch)
-    live = {tree.branch for tree in repo.worktrees(main)} if not dry_run else set()
+
+    for tree in repo.worktrees(main):
+        if not tree.main:
+            judge(tree, "worktree")
+    live = {tree.branch for tree in repo.worktrees(main)}
     local = set(repo.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], main).split())
-    stale = [name for name in records if name and name not in local and (dry_run or name not in live)]
+    for name in sorted(n for n in records if n and n in local and n not in live and n not in judged):
+        # Recorded, its branch here, no worktree (an earlier gc pruned a missing folder's note): judged again.
+        nowhere = repo.common_dir(main) / "retrodev" / "no-worktree"  # never a folder: judged as gone
+        judge(repo.Worktree(path=nowhere, head=None, branch=name, main=False), "branch")
+    if not dry_run:
+        local = set(repo.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], main).split())
+    gone = {row["branch"] for row in removed}
+    stale = [name for name in records if name and name not in local and name not in gone and name not in live]
     for name in stale:
         ctx.out.say(f"{'forget':>6}  record of {name} (the branch no longer exists)")
         if not dry_run:

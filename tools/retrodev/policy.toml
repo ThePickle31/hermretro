@@ -28,10 +28,14 @@ fast = ["unit", "bundle", "lint", "page", "scan"]
 may_skip = ["acceptance"]
 
 [checks.inputs]
-# A check reruns only when a file it reads changed since its last pass on the branch.
-lint = ["*.py", "page/*", "tools/bundle/*", "tools/py/*", "tools/npm/package-lock.json"]
-bundle = ["page/*", "backend/*/rpcs.py", "tools/bundle/*"]
-page = ["page/*", "tests/page/*", "tools/bundle/*", "desktop/*", "player/frame-shim.js"]
+# A check reruns only when a file it reads changed since its last pass on the branch: its sources, the tools it
+# runs and their pins, and what runs and decides every check (tools/check.py, this file).
+lint = ["*.py", "page/*", "tools/bundle/*", "tools/py/*", "tools/npm/package.json", "tools/npm/package-lock.json",
+        "tools/check.py", "tools/retrodev/policy.toml"]
+bundle = ["page/*", "backend/*/rpcs.py", "tools/bundle/*", "tools/npm/package.json", "tools/npm/package-lock.json",
+          "tools/check.py", "tools/retrodev/policy.toml"]
+page = ["page/*", "tests/page/*", "tools/bundle/*", "desktop/*", "player/frame-shim.js", "tools/npm/package.json",
+        "tools/npm/package-lock.json", "tools/check.py", "tools/retrodev/policy.toml"]
 unit = ["*"]
 scan = ["*"]
 acceptance = ["*"]
@@ -52,6 +56,12 @@ default = 6
 acceptance = 240
 clean_install = 90
 update = 120
+
+[gc]
+# Ignored files gc may delete with a finished worktree: caches that are rebuilt on demand (a folder pattern ends in
+# /; a pattern matches the whole path or its last part). Any other ignored file (notes/, games/, scratch/, logs)
+# keeps the worktree and its branch: removing the worktree would delete it.
+caches = ["node_modules/", ".dev/", "__pycache__/", "*.pyc", "*.pyo", ".ruff_cache/", ".pytest_cache/"]
 
 [generated]
 # Files built from sources. sync takes the base branch's side on a conflict in them, then rebuilds them.

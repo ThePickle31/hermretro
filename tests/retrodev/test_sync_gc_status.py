@@ -148,6 +148,45 @@ class GC(RepoCase):
         self.assertNotIn(str(lost), git(self.main, "worktree", "list"), "the stale worktree entry is pruned")
         self.assertEqual(git(self.main, "branch", "--list", "docs/done"), "")
 
+    def test_a_finished_worktree_holding_ignored_data_is_kept(self):
+        notes = self.committed("docs/notes")
+        caches = self.committed("docs/caches")
+        git(self.main, "push", "-q", "origin", "docs/notes", "docs/caches")
+        other = self.base / "other"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(other))
+        git(other, "merge", "-q", "origin/docs/notes", "origin/docs/caches")  # both merged, both clean
+        git(other, "push", "-q", "origin", "dev")
+        write(notes, "notes/x.md", "the owner's notes\n")  # ignored: git status calls this tree clean
+        write(caches, "node_modules/x/index.js", "cache\n")
+        write(caches, "backend/library/__pycache__/core.cpython-311.pyc", "x")
+        code, data = self.run_cli("gc", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual([row["branch"] for row in data["removed"]], ["docs/caches"])
+        kept = {row["branch"]: row for row in data["kept"]}
+        self.assertIn("notes/", kept["docs/notes"]["why"])
+        self.assertIn("move them out", kept["docs/notes"]["fix"])
+        self.assertTrue((notes / "notes" / "x.md").is_file())
+        self.assertNotEqual(git(self.main, "branch", "--list", "docs/notes"), "", "the branch stays too")
+        self.assertFalse(caches.exists())
+        code, out = self.run_cli("gc")
+        self.assertIn("FIX: move them out", out)
+
+    def test_a_branch_whose_worktree_was_pruned_goes_once_it_is_merged(self):
+        later = self.committed("docs/later")
+        git(self.main, "push", "-q", "origin", "docs/later")
+        shutil.rmtree(later)
+        code, data = self.run_cli("gc", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertIn("still open", {row["branch"]: row["why"] for row in data["kept"]}["docs/later"])
+        self.assertNotIn(str(later), git(self.main, "worktree", "list"))
+        git(self.main, "push", "-q", "origin", "docs/later:dev")  # merged later
+        code, data = self.run_cli("gc", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual([row["branch"] for row in data["removed"]], ["docs/later"])
+        self.assertEqual(data["forgotten"], [], "a record removed with its branch is not forgotten twice")
+        self.assertEqual(git(self.main, "branch", "--list", "docs/later"), "")
+        self.assertFalse(state.branch_path(self.main, "docs/later").exists())
+
 
 class StatusReportDoctor(RepoCase):
     def test_status_on_a_branch_and_in_the_main_checkout(self):

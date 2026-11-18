@@ -4,7 +4,7 @@
                              real-engine run and the clean install when the branch changed what they cover
     check unit lint          just these        check --again    ignore earlier passes
     check --full             the fast checks, acceptance and the clean install
-    check --watch            run again on every file change (Ctrl+C stops)
+    check --watch            run again on every file change or commit (Ctrl+C stops)
 
 Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept per branch against that digest
 and prints "ok (cached)" while nothing it reads changed. When every check the branch needs has passed on the
@@ -299,16 +299,21 @@ def budget_warnings(ctx, rows: list[dict], wall: float | None, whole_fast: bool)
     return found
 
 
-def snapshot(ctx) -> dict[str, tuple[int, int]]:
-    """(mtime, size) of every file a commit would hold: what --watch compares."""
+def snapshot(ctx) -> dict[str, object]:
+    """(mtime, size) of every file a commit would hold, plus HEAD and whether the tree is clean: what --watch compares.
+
+    A commit touches no file, yet it lets the install checks run (they wait for a clean, committed tree).
+    """
     out = repo.git(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], ctx.top)
-    found = {}
+    found: dict[str, object] = {}
     for name in filter(None, out.split("\0")):
         try:
             info = (ctx.top / name).stat()
         except OSError:
             continue
         found[name] = (info.st_mtime_ns, info.st_size)
+    found[":HEAD"] = repo.head(ctx.top)
+    found[":clean"] = not repo.dirty(ctx.top)
     return found
 
 
@@ -316,8 +321,13 @@ def changed_since(before: dict, after: dict) -> list[str]:
     return sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
 
 
-def watch(ctx, names: list[str], full: bool = False, interval: float = 0.5, rounds: int | None = None) -> int:
-    """Run the checks, then again whenever a file changes (only the affected ones rerun: the rest are cached)."""
+def watch(
+    ctx, names: list[str], full: bool = False, interval: float = 0.5, rounds: int | None = None, sleep=time.sleep
+) -> int:
+    """Run the checks, then again whenever a file changes or a commit is made (only the affected ones rerun).
+
+    ``rounds`` stops after that many runs and ``sleep`` replaces time.sleep: a test drives the loop with them.
+    """
     try:
         seen, done = snapshot(ctx), 0
         while True:
@@ -330,9 +340,10 @@ def watch(ctx, names: list[str], full: bool = False, interval: float = 0.5, roun
                 return 0
             ctx.out.say("watching for changes (Ctrl+C stops) ...")
             while not (changed := changed_since(seen, snapshot(ctx))):
-                time.sleep(interval)
-            time.sleep(interval)  # let a save that writes several files finish
+                sleep(interval)
+            sleep(interval)  # let a save that writes several files finish
             seen = snapshot(ctx)
-            ctx.out.say(f"changed: {', '.join(changed[:5])}" + (" ..." if len(changed) > 5 else ""))
+            shown = [{":HEAD": "HEAD (a commit)", ":clean": "clean/dirty"}.get(name, name) for name in changed]
+            ctx.out.say(f"changed: {', '.join(shown[:5])}" + (" ..." if len(shown) > 5 else ""))
     except KeyboardInterrupt:
         return 0
