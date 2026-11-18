@@ -12,6 +12,7 @@ import fnmatch
 import functools
 import hashlib
 import os
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -159,13 +160,23 @@ def moved_or_deleted(cwd: Path | str, base: str) -> list[str]:
 
 
 def _blob_id(path: Path) -> str:
-    """git's blob id for a file's current content (a symlink: its target), as `git hash-object` gives it."""
-    data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
-    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+    """git's mode and blob id for a file as it is now, as `git ls-files -s` would give them once it is added.
+
+    A symlink is mode 120000 with its target as content; a file is 100755 when its owner may run it, else 100644.
+    """
+    info = path.lstat()
+    if stat.S_ISLNK(info.st_mode):
+        mode, data = "120000", os.readlink(path).encode()
+    else:
+        mode, data = ("100755" if info.st_mode & stat.S_IXUSR else "100644"), path.read_bytes()
+    return f"{mode} " + hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
 
 
 def file_ids(cwd: Path | str) -> dict[str, str]:
-    """{path: blob id} for what a commit of this tree would hold: tracked files plus new, not ignored files."""
+    """{path: "mode blob-id"} for what a commit of this tree would hold: tracked files plus new, not ignored files.
+
+    The mode is part of a file's identity: an executable bit or a file turned symlink changes the digest.
+    """
     root = Path(cwd)
     ids = {}
     for entry in git(["ls-files", "-s", "-z"], root).split("\0"):
@@ -174,7 +185,7 @@ def file_ids(cwd: Path | str) -> dict[str, str]:
         meta, _, name = entry.partition("\t")
         mode, sha, _stage = meta.split()
         if mode != "160000":  # a submodule has no content here
-            ids[name] = sha
+            ids[name] = f"{mode} {sha}"
     status = git(
         ["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"], root
     )
@@ -187,6 +198,18 @@ def file_ids(cwd: Path | str) -> dict[str, str]:
             ids[name] = _blob_id(path)
         else:
             ids.pop(name, None)  # deleted in the worktree
+    return ids
+
+
+def head_ids(cwd: Path | str) -> dict[str, str]:
+    """{path: "mode blob-id"} of the committed HEAD (what an install from the commit gets), as file_ids."""
+    ids = {}
+    for entry in git(["ls-tree", "-r", "-z", "--full-tree", "HEAD"], cwd).split("\0"):
+        meta, _, name = entry.partition("\t")
+        if meta:
+            mode, _kind, sha = meta.split()
+            if mode != "160000":
+                ids[name] = f"{mode} {sha}"
     return ids
 
 

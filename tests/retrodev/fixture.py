@@ -55,11 +55,13 @@ for name in names:
 sys.exit(code)
 '''
 )
+# Like the real one, it installs the committed HEAD: it logs which commit that was.
 FAKE_INSTALL = (
-    "import json, sys\n"
+    "import json, subprocess, sys\n"
     + FIND_BASE
-    + '''with open(base / "checks.log", "a") as handle:
-    handle.write(json.dumps({"script": sys.argv[1:]}) + "\\n")
+    + '''head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+with open(base / "checks.log", "a") as handle:
+    handle.write(json.dumps({"script": sys.argv[1:], "head": head}) + "\\n")
 print("clean install ok")
 '''
 )

@@ -71,8 +71,49 @@ class Check(RepoCase):
         self.assertEqual(log[1]["names"], ["acceptance"])
         self.assertEqual(log[1]["tmpdir"], checks.short_tmp())
         self.assertIsNone(log[1]["deps"], "acceptance uses the toolchain setup put in place")
-        self.assertEqual(log[2:], [{"script": []}, {"script": ["--update-from"]}])
+        head = git(tree, "rev-parse", "HEAD").strip()
+        self.assertEqual(log[2:], [{"script": [], "head": head}, {"script": ["--update-from"], "head": head}])
         self.assertEqual([row["name"] for row in data["checks"]], FAST + ["acceptance", "clean_install", "update"])
+
+    def test_a_failed_rerun_takes_back_the_tree_s_pass(self):
+        tree = self.worktree()
+        self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)
+        self.assertIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
+        self.fail_checks("lint")
+        code, out = self.run_cli("check", "--again", "lint", cwd=tree)
+        self.assertEqual(code, 1, out)
+        record = state.load_branch(self.main, "docs/tidy")
+        self.assertNotIn("passed_tree", record, "a tree that just failed a check may not ship")
+        self.assertNotIn("passed_at", record)
+
+    def test_the_install_checks_run_only_on_a_committed_tree_and_install_its_head(self):
+        tree = self.worktree("chore/glue")
+        write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # not committed: the install would miss it
+        code, out = self.run_cli("check", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertNotIn("script", "".join(json.dumps(entry) for entry in self.check_log()))
+        self.assertTrue(out.rstrip().endswith("FIX: commit first, then python tools/retrodev check"), out)
+        self.assertNotIn("passed_tree", state.load_branch(self.main, "chore/glue"))
+        git(tree, "commit", "-q", "-am", "Change the glue")
+        self.clear_log()
+        code, out = self.run_cli("check", cwd=tree)
+        self.assertEqual(code, 0, out)
+        installs = [entry for entry in self.check_log() if "script" in entry]
+        self.assertEqual(installs, [{"script": [], "head": git(tree, "rev-parse", "HEAD").strip()}])
+        record = state.load_branch(self.main, "chore/glue")
+        self.assertEqual(record["passed_tree"], repo.tree_digest(tree))
+
+    def test_the_digest_sees_modes_and_symlinks(self):
+        tree = self.worktree()
+        self.commit(tree, "docs/link.md", "guide.md")
+        before = repo.tree_digest(tree)
+        os.chmod(tree / "docs" / "guide.md", 0o755)
+        self.assertNotEqual(repo.tree_digest(tree), before, "an executable bit is part of the tree")
+        os.chmod(tree / "docs" / "guide.md", 0o644)
+        self.assertEqual(repo.tree_digest(tree), before)
+        (tree / "docs" / "link.md").unlink()
+        os.symlink("guide.md", tree / "docs" / "link.md")  # the same bytes as the file it replaced
+        self.assertNotEqual(repo.tree_digest(tree), before, "a symlink is not the file it replaced")
 
     def test_budgets_warn_but_never_fail(self):
         tree = self.worktree()
@@ -162,7 +203,44 @@ class Ship(RepoCase):
         git(other, "push", "-q", "origin", "docs/tidy")
         code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)
         self.assertEqual(code, 1, out)
-        self.assertIn("FIX: python tools/retrodev sync", out)
+        self.assertIn("FIX: git fetch origin && git merge origin/docs/tidy, then python tools/retrodev check", out)
+        git(tree, "fetch", "-q", "origin")  # following the FIX makes the gate pass
+        git(tree, "merge", "-q", "origin/docs/tidy")
+        self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)
+        self.gh.answers[("pr", "create")] = (0, "https://github.com/o/r/pull/3\n", "")
+        code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(git(self.origin, "rev-parse", "docs/tidy"), git(tree, "rev-parse", "HEAD"))
+
+    def test_ship_needs_an_approved_plan_unless_docs_or_chore(self):
+        body = str(write(self.base, "body.md", GOOD_BODY))
+        path = self.base / "by-hand"
+        git(self.main, "worktree", "add", "-q", "-b", "feat/by-hand", str(path), "origin/dev")
+        self.commit(path, "docs/guide.md", "# By hand\n")
+        self.passed(path, "feat/by-hand")  # a record without a plan, as check leaves on a hand-made branch
+
+        def plan_gate():
+            code, data = self.run_cli("ship", "--title", "T", "--body", body, "--dry-run", cwd=path, as_json=True)
+            return code, next(gate for gate in data["gates"] if gate["name"] == "plan approved")
+
+        code, gate = plan_gate()
+        self.assertEqual((code, gate["ok"]), (3, False))
+        self.assertIn("there is no plan 'by-hand'", gate["message"])
+        self.run_cli("plan", "new", "bigplan")
+        self.run_cli("plan", "link", "bigplan", cwd=path)
+        code, gate = plan_gate()
+        self.assertEqual((code, gate["ok"]), (3, False))
+        self.assertIn("'bigplan' is not approved", gate["message"])
+        self.run_cli("plan", "approve", "bigplan", "--words", "start")
+        code, gate = plan_gate()
+        self.assertEqual((code, gate["ok"]), (0, True))
+
+        tree = self.worktree("fix/noplan")  # recorded with no plan: only docs and chore may do that
+        self.commit(tree, "docs/guide.md", "# Fix\n")
+        self.passed(tree, "fix/noplan")
+        code, data = self.run_cli("ship", "--title", "T", "--body", body, "--dry-run", cwd=tree, as_json=True)
+        self.assertEqual(code, 3, data)
+        self.assertEqual([gate["name"] for gate in data["gates"] if not gate["ok"]], ["plan approved"])
 
     def test_dev_itself_is_never_shipped(self):
         body = write(self.base, "body.md", GOOD_BODY)

@@ -72,12 +72,14 @@ def edit_args(number: int, title: str, body_file: str) -> list[str]:
 def checks(ctx, number: int) -> list[dict] | None:
     """CI jobs of a pull request: [{name, state, bucket, link}] (bucket: pass, fail, pending, skipping, cancel)."""
     code, out, _err = gh(ctx, ["pr", "checks", str(number), "--json", "name,state,bucket,link"], check=False)
-    if code not in (0, 8) or not out.strip():  # gh exits 8 while checks are pending
+    # gh prints the JSON and exits 1 when a check failed, 8 while some are pending; anything else is an error.
+    if code not in (0, 1, 8) or not out.strip():
         return None
     try:
-        return json.loads(out)
+        jobs = json.loads(out)
     except json.JSONDecodeError:
         return None
+    return jobs if isinstance(jobs, list) else None
 
 
 def ci_summary(jobs: list[dict] | None) -> str:

@@ -187,11 +187,24 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
     wall = time.monotonic() - started
     if "acceptance" in todo:
         results |= run_check_py(ctx, ["acceptance"], env_for("acceptance"))
+    # The install checks install the committed HEAD: they run only when it is exactly the tree being checked, and
+    # their pass is recorded against HEAD's own files (with uncommitted changes they would test other code).
+    installs = [name for name in todo if name in SCRIPTS]
+    uncommitted = installs if installs and repo.dirty(ctx.top) else []
+    committed = repo.head_ids(ctx.top) if installs and not uncommitted else {}
     for name in todo:
-        if name in SCRIPTS:
+        if name in uncommitted:
+            detail = "not run: it installs the committed HEAD and this tree has uncommitted changes"
+            results[name] = {"state": "skipped", "seconds": 0.0, "detail": detail, "more": []}
+            ctx.out.say(_row_text("skipped", name, 0.0, detail))
+        elif name in SCRIPTS:
             results[name] = run_script(ctx, name, env_for(name))
+            digests[name] = repo.digest(committed, ctx.policy["checks"]["inputs"][name])
     for name in todo:
         result = results[name]
+        if name in uncommitted:
+            rows.append({"name": name, "cached": False, **result})
+            continue
         record["checks"][name] = {
             "state": result["state"],
             "digest": digests[name],
@@ -227,6 +240,9 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
     )
     if good:
         record.update(passed_tree=tree, passed_at=state.now())
+    else:  # a pass recorded earlier is taken back: this run shows the tree no longer passes everything it needs
+        record.pop("passed_tree", None)
+        record.pop("passed_at", None)
     if branch != "detached":
         state.save_branch(ctx.top, record)
     ctx.out.set(
@@ -238,12 +254,21 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
         fast_wall=round(wall, 1) if fast else None,
     )
     failed = [row["name"] for row in rows if row["state"] == "FAILED"]
-    skipped = [row["name"] for row in rows if row["state"] == "skipped" and row["name"] not in may_skip]
+    skipped = [
+        row["name"]
+        for row in rows
+        if row["state"] == "skipped" and row["name"] not in may_skip and row["name"] not in uncommitted
+    ]
     if failed:
         raise Failure(
             f"failed: {', '.join(failed)}",
             "read each failure's FIX line above, fix it, run "
             "python tools/retrodev check again (passing checks stay cached)",
+        )
+    if uncommitted:
+        raise Failure(
+            f"not run on uncommitted changes: {', '.join(uncommitted)} (an install gets only what is committed)",
+            "commit first, then python tools/retrodev check",
         )
     if skipped:
         raise Failure(

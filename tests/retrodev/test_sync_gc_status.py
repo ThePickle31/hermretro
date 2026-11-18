@@ -4,6 +4,7 @@ Run alone: python -m unittest tests.retrodev.test_sync_gc_status
 """
 
 import json
+import shutil
 import unittest
 
 from retrodev import repo, state, sync
@@ -104,6 +105,48 @@ class GC(RepoCase):
         self.assertFalse(state.branch_path(self.main, "docs/merged").exists())
         self.assertFalse((self.main / "adapter").exists())
         self.assertTrue((self.main / "backend" / "library" / "__pycache__").is_dir())
+
+    def test_bytecode_cleanup_never_touches_anything_else(self):
+        outside = write(self.base, "outside/data.txt", "precious\n").parent
+        keep = {
+            "hidden": "hidden/.history/important",
+            "notes": "notes-pkg/notes/plan.md",
+            "deep": "deep/sub/node_modules/x/index.js",
+            "dotfile": "dotfile/.keep",
+        }
+        for name, path in keep.items():
+            write(self.main, f"{name}/__pycache__/old.pyc" if name != "notes" else "notes-pkg/x.pyc", "x")
+            write(self.main, path, "data\n")
+        write(self.main, "linked/__pycache__/old.pyc", "x")
+        (self.main / "linked" / "data").symlink_to(outside, target_is_directory=True)
+        write(self.main, "linkfile/__pycache__/old.pyc", "x")
+        (self.main / "linkfile" / "mod.pyc").symlink_to(outside / "data.txt")
+        write(self.main, "gone/__pycache__/old.pyc", "x")
+        (self.main / "gone" / "empty" / "deeper").mkdir(parents=True)
+        code, data = self.run_cli("gc", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(data["folders"], [str(self.main / "gone")])
+        for path in keep.values():
+            self.assertTrue((self.main / path).is_file(), path)
+        self.assertTrue((self.main / "linked" / "__pycache__").is_dir() and (outside / "data.txt").is_file())
+        self.assertTrue((self.main / "linkfile" / "mod.pyc").is_symlink())
+
+    def test_a_missing_worktree_folder_never_costs_its_branch(self):
+        lost = self.committed("docs/lost")  # unpushed work: the branch is its only copy
+        done = self.committed("docs/done")
+        git(self.main, "push", "-q", "origin", "docs/done")
+        git(self.main, "push", "-q", "origin", "docs/done:dev")  # merged
+        for path in (lost, done):
+            shutil.rmtree(path)
+        code, data = self.run_cli("gc", as_json=True)
+        self.assertEqual(code, 0, data)
+        kept = {row["branch"]: row["why"] for row in data["kept"]}
+        self.assertIn("never pushed", kept["docs/lost"])
+        self.assertEqual([row["branch"] for row in data["removed"]], ["docs/done"])
+        self.assertNotEqual(git(self.main, "branch", "--list", "docs/lost"), "", "the branch stays")
+        self.assertTrue(state.branch_path(self.main, "docs/lost").is_file(), "and so does its record")
+        self.assertNotIn(str(lost), git(self.main, "worktree", "list"), "the stale worktree entry is pruned")
+        self.assertEqual(git(self.main, "branch", "--list", "docs/done"), "")
 
 
 class StatusReportDoctor(RepoCase):

@@ -5,8 +5,10 @@
 A worktree goes only when its branch is done and nothing in it would be lost: it has no uncommitted changes, it
 was pushed, and its branch is merged into the base branch, its pull request is merged (squash merges leave no
 ancestry), or the remote deleted the branch while it still pointed at what was pushed. A dirty or never-pushed
-worktree is always kept, and said why. It also removes folders in the main checkout that hold nothing but
-bytecode caches (left behind when a package moved). --dry-run fetches nothing and changes nothing.
+worktree is always kept, and said why; a worktree whose folder was deleted by hand loses only git's note of
+it, never its branch, unless that branch passes the same checks. It also removes folders in the main checkout
+whose whole subtree holds nothing but bytecode caches and empty folders (left behind when a package moved).
+--dry-run fetches nothing and changes nothing.
 """
 
 from __future__ import annotations
@@ -27,50 +29,63 @@ def remote_shas(ctx) -> dict[str, str]:
 
 
 def verdict(ctx, tree: repo.Worktree, record: dict, before: dict, after: dict) -> tuple[bool, str]:
-    """(remove?, why) for one worktree."""
+    """(remove?, why) for one worktree. A missing folder proves nothing: its branch is judged like any other."""
     branch, main = tree.branch, ctx.main()
     if not branch:
         return False, "detached HEAD"
     if branch in ctx.policy["branches"]["protected"]:
         return False, "a protected branch"
-    if not tree.path.is_dir():
-        return True, "its folder is gone"
-    changes = repo.dirty(tree.path)
-    if changes:
-        return False, f"{len(changes)} uncommitted change(s) (never removed)"
-    tip = tree.head or ""
+    gone = "its folder is gone; " if not tree.path.is_dir() else ""
+    if not gone:
+        changes = repo.dirty(tree.path)
+        if changes:
+            return False, f"{len(changes)} uncommitted change(s) (never removed)"
+    tip = repo.head(main, f"refs/heads/{branch}") or tree.head or ""
     pushed = record.get("pushed") or before.get(branch) or after.get(branch)
     if not pushed:
-        return False, "never pushed"
+        return False, gone + "never pushed"
     if pushed != tip and not repo.is_ancestor(main, tip, pushed):
-        return False, "has commits that were never pushed"
+        return False, gone + "has commits that were never pushed"
     base = ctx.remote_base
     if repo.head(main, base) and repo.is_ancestor(main, tip, base):
-        return True, f"merged into {base}"
+        return True, gone + f"merged into {base}"
     number = (record.get("pr") or {}).get("number")
     if number and github.pr_state(ctx, number) == "MERGED":
-        return True, f"pull request #{number} merged"
+        return True, gone + f"pull request #{number} merged"
     if branch not in after:
-        return True, f"deleted on {ctx.remote} after it was pushed"
-    return False, "still open"
+        return True, gone + f"deleted on {ctx.remote} after it was pushed"
+    return False, gone + "still open"
 
 
 def leftover_folders(main: Path) -> list[Path]:
-    """The top-most folders under ``main`` whose every file is Python bytecode (and which hold at least one)."""
-    seen: dict[Path, tuple[bool, bool]] = {}  # folder -> (holds bytecode, holds anything else)
-    order = []
-    for folder, dirs, files in os.walk(main):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+    """The top-most folders under ``main`` whose whole subtree is bytecode (at least one file) and empty folders.
+
+    Nothing is skipped unseen: a folder retrodev does not look into (.git, notes, node_modules, any hidden one),
+    a symlink (never followed), an unreadable folder or any other file is content, so no folder above it goes.
+    """
+    blocked: set[Path] = set()  # folders holding something other than bytecode, somewhere below
+    code: set[Path] = set()  # folders holding bytecode, somewhere below
+
+    def mark(found: set[Path], path) -> None:
+        path = Path(path)
+        while path != main and main in path.parents and path not in found:
+            found.add(path)
+            path = path.parent
+
+    def unreadable(error: OSError) -> None:
+        mark(blocked, error.filename or main)
+
+    for folder, dirs, files in os.walk(main, onerror=unreadable):
         here = Path(folder)
-        order.append(here)
-        other = any(not name.endswith((".pyc", ".pyo")) or (here / name).is_symlink() for name in files)
-        seen[here] = (any(name.endswith((".pyc", ".pyo")) for name in files), other)
-    for folder in reversed(order):  # children before parents: fold each child into its parent
-        if folder != main:
-            code, other = seen[folder]
-            parent_code, parent_other = seen[folder.parent]
-            seen[folder.parent] = (parent_code or code, parent_other or other)
-    only = {folder for folder, (code, other) in seen.items() if code and not other and folder != main}
+        for name in list(dirs):
+            if name in SKIP_DIRS or name.startswith(".") or (here / name).is_symlink():
+                mark(blocked, here)
+                dirs.remove(name)
+        for name in files:
+            path = here / name
+            bytecode = name.endswith((".pyc", ".pyo")) and not path.is_symlink() and path.is_file()
+            mark(code if bytecode else blocked, here)
+    only = code - blocked
     return sorted(folder for folder in only if folder.name != "__pycache__" and folder.parent not in only)
 
 
@@ -91,11 +106,11 @@ def run(ctx, dry_run: bool = False) -> int:
         remove, why = verdict(ctx, tree, records.get(tree.branch, {}), before, after)
         (removed if remove else kept).append({"path": str(tree.path), "branch": tree.branch, "why": why})
         ctx.out.say(f"{'remove' if remove else 'keep':>6}  {tree.path}  ({tree.branch}: {why})")
+        if not tree.path.is_dir() and not dry_run:
+            repo.git(["worktree", "prune"], main)  # only git's note of the folder; the branch is judged above
         if remove and not dry_run:
             if tree.path.is_dir():
                 repo.git(["worktree", "remove", str(tree.path)], main)
-            else:
-                repo.git(["worktree", "prune"], main)
             repo.git(["branch", "-D", tree.branch], main)
             state.drop_branch(main, tree.branch)
     live = {tree.branch for tree in repo.worktrees(main)} if not dry_run else set()

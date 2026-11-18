@@ -3,6 +3,7 @@
 Run alone: python -m unittest tests.retrodev.test_rules
 """
 
+import json
 import unittest
 from pathlib import Path
 
@@ -129,6 +130,20 @@ class CI(unittest.TestCase):
         self.assertEqual(github.ci_summary([{"bucket": "pass"}, {"bucket": "fail"}]), "failing")
         self.assertEqual(github.ci_summary([{"bucket": "pass"}, {"bucket": "skipping"}]), "passing")
         self.assertEqual(github.pr_number("https://github.com/o/r/pull/42"), 42)
+
+    def test_gh_pr_checks_json_is_read_on_failing_and_pending_exits(self):
+        from types import SimpleNamespace
+
+        from tests.retrodev.fixture import FakeGH
+
+        failed = [{"name": "unit", "state": "FAILURE", "bucket": "fail", "link": "l"}]
+        for code in (0, 1, 8):  # gh exits 1 when a check failed, 8 while some are pending
+            ctx = SimpleNamespace(gh_runner=FakeGH({("pr", "checks"): (code, json.dumps(failed), "")}), top=".")
+            self.assertEqual(github.checks(ctx, 3), failed, code)
+            self.assertEqual(github.ci_summary(github.checks(ctx, 3)), "failing")
+        for answer in ((1, "", "no checks reported"), (1, "not json", ""), (4, "[]", "auth")):
+            ctx = SimpleNamespace(gh_runner=FakeGH({("pr", "checks"): answer}), top=".")
+            self.assertIsNone(github.checks(ctx, 3), answer)
 
 
 class Patterns(unittest.TestCase):

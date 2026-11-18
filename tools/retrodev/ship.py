@@ -2,8 +2,9 @@
 
     ship --title "<one plain sentence>" --body <file> [--dry-run]
 
-Gates (all reported at once): a work branch; a one-line title without a trailing period; a body with every
-section of the pull request template filled in and a line saying an agent made it; everything committed;
+Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
+a one-line title without a trailing period; a body with every section of the pull request template filled in
+and a line saying an agent made it; everything committed;
 `check` passed on exactly this tree; the branch has commits; the remote branch has not moved away from it.
 Then `git push -u <remote> <branch>` (a plain push, never anything that rewrites the remote) and
 `gh pr create --draft` with labels from the areas the change touches, or `gh pr edit` on the open one.
@@ -31,7 +32,8 @@ def remote_gate(ctx, branch: str) -> Gate:
             "remote branch not moved",
             False,
             f"{ctx.remote}/{branch} has commits this branch does not (someone pushed); a push must never drop them",
-            "python tools/retrodev sync (it merges; then check and ship again)",
+            f"git fetch {ctx.remote} && git merge {ctx.remote}/{branch}, then python tools/retrodev check and ship "
+            "again (a merge keeps their commits; never a rebase or a forced push)",
         )
     return gates.passed("remote branch not moved", "new branch" if not remote_sha else remote_sha[:9])
 
@@ -61,6 +63,7 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
         gates.checks_on_tree(ctx, record, repo.tree_digest(ctx.top)),
     ]
     if branch and found[0].ok:
+        found.insert(1, gates.plan_gate(ctx, branch, record))
         if not dry_run:
             repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
         found += [ahead_gate(ctx), remote_gate(ctx, branch)]

@@ -91,7 +91,8 @@ def known_topics(ctx) -> list[str]:
 def show(ctx, topic: str | None) -> int:
     if topic is None:
         branch = repo.branch(ctx.top)
-        topic = state.load_branch(ctx.top, branch).get("topic") if branch else None
+        record = state.load_branch(ctx.top, branch) if branch else {}
+        topic = record.get("plan") or record.get("topic")  # the plan it works under, which may cover several
     if topic is None:
         rows = [describe(ctx, name) for name in known_topics(ctx)]
         for row in rows:

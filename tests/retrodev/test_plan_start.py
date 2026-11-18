@@ -82,6 +82,8 @@ class Start(RepoCase):
         self.assertEqual(state.load_branch(self.main, "feat/part-one")["plan"], "bigplan")
         code, data = self.run_cli("status", cwd=self.base / "hermretro-wt" / "part-one", as_json=True)
         self.assertEqual((data["plan"], data["plan_approved"]), ("bigplan", True), data)
+        code, data = self.run_cli("plan", "show", cwd=self.base / "hermretro-wt" / "part-one", as_json=True)
+        self.assertEqual((code, data.get("topic")), (0, "bigplan"), data)
 
     def test_a_branch_made_by_hand_links_to_its_plan(self):
         self.run_cli("plan", "new", "bigplan")
@@ -93,6 +95,8 @@ class Start(RepoCase):
         self.assertIn("works under the plan bigplan (approved)", out)
         code, data = self.run_cli("status", cwd=path, as_json=True)
         self.assertEqual((data["plan"], data["plan_approved"]), ("bigplan", True), data)
+        code, data = self.run_cli("plan", "show", cwd=path, as_json=True)
+        self.assertEqual((code, data.get("topic")), (0, "bigplan"), data)
         code, out = self.run_cli("plan", "link", "bigplan")  # the main checkout is on dev
         self.assertEqual(code, 1, out)
         self.assertIn("is not a work branch", out)

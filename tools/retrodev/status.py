@@ -8,7 +8,7 @@ CI) and the next step as one line. In the main checkout: every open record and w
 
 from __future__ import annotations
 
-from . import github, plan, repo, state
+from . import gates, github, plan, repo, state
 
 
 def next_step(facts: dict) -> str:
@@ -41,9 +41,8 @@ def next_step(facts: dict) -> str:
 
 
 def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> dict:
-    kind, _, named = branch.partition("/")
+    named = branch.partition("/")[2]
     topic = record.get("topic") or (named if state.NAME.match(named) else None)
-    kind = record.get("kind") or kind
     plan_topic = record.get("plan") or topic
     plan_row = plan.describe(ctx, plan_topic) if plan_topic else None
     pr = (record.get("pr") or {}).get("number")
@@ -54,7 +53,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "topic": topic,
         "plan": plan_topic,
         "protected": branch in ctx.policy["branches"]["protected"],
-        "needs_plan": record.get("plan") is not None or (not record and kind not in ctx.policy["branches"]["no_plan"]),
+        "needs_plan": gates.plan_for(ctx, branch, record) is not None,  # ship's own rule
         "plan_approved": bool(plan_row and plan_row["approved"]),
         "plan_changed": bool(plan_row and plan_row["changed_since_approval"]),
         "checks_passed": record.get("passed_tree") == repo.tree_digest(path),
@@ -104,7 +103,12 @@ def run(ctx) -> int:
             facts = branch_facts(ctx, name, tree.path, record, with_ci=False)
             facts["next"] = next_step(facts)
         else:
-            facts = {"branch": name, "path": None, "next": "no worktree (python tools/retrodev gc forgets it)"}
+            facts = {
+                "branch": name,
+                "path": None,
+                "next": "no worktree; its branch is kept (git worktree add <folder> <branch> to go on; gc removes "
+                "it once merged)",
+            }
         rows.append(facts)
         ctx.out.say(f"  {name:<34} {facts['path'] or '-'}\n    {facts['next']}")
     if not rows:

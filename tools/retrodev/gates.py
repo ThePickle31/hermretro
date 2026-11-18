@@ -73,6 +73,35 @@ def plan_approved(ctx, topic: str) -> Gate:
     return Gate("plan approved", False, message, fix, OWNER)
 
 
+def plan_for(ctx, branch: str, record: dict) -> str | None:
+    """The plan a branch's work needs approved, or None when it may go without one (docs and chore only).
+
+    A record from start or plan link names its plan (None: started with --no-plan); a branch made by hand, or
+    one whose record only check wrote, follows its kind: feat and fix need the plan named by their topic.
+    """
+    kind, _, topic = branch.partition("/")
+    named = record.get("plan")
+    if named is None and (record.get("kind") or kind) not in ctx.policy["branches"]["no_plan"]:
+        named = record.get("topic") or topic  # only docs and chore may go without a plan
+    return named
+
+
+def plan_gate(ctx, branch: str, record: dict) -> Gate:
+    """Ship's form of the working agreement's step 3: the owner approved the plan this branch works under."""
+    named = plan_for(ctx, branch, record)
+    if named is None:
+        return passed("plan approved", "a small docs or chore change: no plan needed")
+    if not state.NAME.match(named):
+        return Gate(
+            "plan approved",
+            False,
+            f"'{branch}' names no plan (a feat or fix change needs one the owner approved)",
+            "python tools/retrodev plan link <topic> (or work on a branch <kind>/<topic>)",
+            OWNER,
+        )
+    return plan_approved(ctx, named)
+
+
 def on_work_branch(ctx, branch: str | None) -> Gate:
     protected = ctx.policy["branches"]["protected"]
     if not branch:
