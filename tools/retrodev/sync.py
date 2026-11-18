@@ -4,9 +4,10 @@
 
 Conflicts only in generated files (policy.toml [generated]: the page bundle, the frame script, the page's RPC
 names, the registration snapshot) are resolved here: the base branch's side is taken, the files are rebuilt from
-the merged sources and the merge is finished. Any other conflict stops with the list of files and leaves the
-merge open for you to resolve. After a clean merge the generated files are rebuilt anyway, and committed if they
-changed, so they always match the merged sources.
+the merged sources and the merge is finished. Any other conflict stops with the list of source files and leaves
+the merge open: resolve those (never the generated ones), git add them and run sync again, which rebuilds the
+generated files and finishes the merge itself (no git commit by hand). After a clean merge the generated files are
+rebuilt anyway, and committed if they changed, so they always match the merged sources.
 """
 
 from __future__ import annotations
@@ -37,8 +38,57 @@ def generated_changes(ctx) -> list[str]:
     return [line[3:] for line in out.splitlines() if line.strip()]
 
 
+RESUME = (
+    "resolve each listed source file (keep both changes; leave the generated ones, retrodev rebuilds them), "
+    "git add those files, then python tools/retrodev sync again: it rebuilds the generated files and finishes the "
+    "merge, making the merge commit itself (git merge --abort undoes the merge)"
+)
+
+
+def merging(ctx) -> bool:
+    return repo.run(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], ctx.top)[0] == 0
+
+
+def unresolved(ctx) -> list[str]:
+    return repo.git(["diff", "--name-only", "--diff-filter=U"], ctx.top).split()
+
+
+def finish(ctx, conflicts: list[str], resumed: bool = False) -> int:
+    """Take the base's side of the conflicted generated files, rebuild every generated file, commit the merge."""
+    base = ctx.remote_base
+    if conflicts:
+        repo.git(["checkout", "--theirs", "--", *conflicts], ctx.top)
+    problems = regenerate(ctx)
+    if problems:
+        raise Failure(
+            "could not rebuild the generated files: " + "; ".join(problems),
+            "fix what the generator says, then python tools/retrodev sync again (it finishes the merge)",
+        )
+    repo.git(["add", "--", *conflicts, *generated_changes(ctx)], ctx.top)
+    repo.git(["commit", "--no-edit", "--quiet"], ctx.top)
+    done = "finished the merge" if resumed else f"merged {base}"
+    ctx.out.say(f"{done}; rebuilt the generated files" + (f" ({', '.join(conflicts)} conflicted)" if conflicts else ""))
+    ctx.out.set(merged=True, resolved=conflicts, resumed=resumed, head=repo.head(ctx.top))
+    return _next(ctx)
+
+
+def resume(ctx) -> int:
+    """A merge left open by a source conflict: once the sources are resolved and added, finish it."""
+    generated = set(ctx.policy["generated"]["files"])
+    left = unresolved(ctx)
+    other = [name for name in left if name not in generated]
+    ctx.out.set(conflicts=left, other=other)
+    if other:
+        raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", RESUME)
+    ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
+    return finish(ctx, left, resumed=True)
+
+
 def run(ctx) -> int:
     branch = repo.branch(ctx.top)
+    if merging(ctx):
+        gates.enforce(ctx, [gates.on_work_branch(ctx, branch)], "sync")
+        return resume(ctx)
     gates.enforce(ctx, [gates.on_work_branch(ctx, branch), gates.committed(ctx)], "sync")
     repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
     base = ctx.remote_base
@@ -46,7 +96,7 @@ def run(ctx) -> int:
     merge_code, merge_out, merge_err = repo.run(["git", "merge", "--no-edit", base], ctx.top)
     generated = set(ctx.policy["generated"]["files"])
     if merge_code:
-        conflicts = repo.git(["diff", "--name-only", "--diff-filter=U"], ctx.top).split()
+        conflicts = unresolved(ctx)
         if not conflicts:
             raise Failure(
                 f"git merge {base} failed: {(merge_err or merge_out).strip()}",
@@ -62,22 +112,10 @@ def run(ctx) -> int:
                     if len(other) < len(conflicts)
                     else ""
                 ),
-                "edit each file to keep both changes, git add them, git commit --no-edit, then python tools/retrodev "
-                "sync again (or git merge --abort to undo)",
+                RESUME,
             )
         ctx.out.say(f"conflicts only in generated files ({', '.join(conflicts)}): taking {base}'s side, rebuilding")
-        repo.git(["checkout", "--theirs", "--", *conflicts], ctx.top)
-        problems = regenerate(ctx)
-        if problems:
-            raise Failure(
-                "could not rebuild the generated files: " + "; ".join(problems),
-                "fix what the generator says, run it again, git add the files, git commit --no-edit",
-            )
-        repo.git(["add", "--", *conflicts, *generated_changes(ctx)], ctx.top)
-        repo.git(["commit", "--no-edit", "--quiet"], ctx.top)
-        ctx.out.say(f"merged {base}; resolved {len(conflicts)} generated file(s) by rebuilding them")
-        ctx.out.set(merged=True, resolved=conflicts, head=repo.head(ctx.top))
-        return _next(ctx)
+        return finish(ctx, conflicts)
     after = repo.head(ctx.top)
     if after == before:
         ctx.out.say(f"already up to date with {base}")

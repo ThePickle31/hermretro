@@ -47,8 +47,48 @@ class Sync(RepoCase):
         code, out = self.run_cli("sync", cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertIn("conflicts in files only a person can merge: page/a.js", out)
-        self.assertIn("FIX: edit each file", out)
+        self.assertIn("FIX: resolve each listed source file", out)
         self.assertIn("UU page/a.js", git(tree, "status", "--porcelain"), "the merge stays open to resolve")
+
+    def test_after_a_source_conflict_sync_again_rebuilds_and_finishes_the_merge(self):
+        tree = self.worktree()
+        write(tree, "page/a.js", "export const a = 'mine'\n")
+        self.build(tree)
+        self.commit(tree, "page/a.js", "export const a = 'mine'\n", "Mine")
+        other = self.base / "other"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(other))
+        write(other, "page/a.js", "export const a = 'theirs'\n")
+        self.build(other)
+        self.commit(other, "page/a.js", "export const a = 'theirs'\n", "Theirs")
+        git(other, "push", "-q", "origin", "dev")
+        code, out = self.run_cli("sync", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn(
+            "only a person can merge: page/a.js (and generated ones retrodev rebuilds: desktop/plugin.js)", out
+        )
+        fix = out.rstrip().splitlines()[-1]
+        self.assertIn("git add", fix)
+        self.assertIn("python tools/retrodev sync", fix)
+        self.assertNotIn("git commit", fix, "sync finishes the merge itself")
+        write(tree, "page/a.js", "export const a = 'both'\n")  # following the FIX: the source only
+        git(tree, "add", "page/a.js")
+        code, data = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual((tree / BUILT).read_text(), "// built\nexport const a = 'both'\n")
+        self.assertEqual(git(tree, "status", "--porcelain"), "")
+        self.assertEqual(len(git(tree, "rev-list", "--parents", "-n", "1", "HEAD").split()), 3, "a merge commit")
+        self.assertEqual(git(tree, "show", f"HEAD:{BUILT}"), "// built\nexport const a = 'both'\n")
+        self.assertTrue(repo.is_ancestor(tree, git(tree, "rev-parse", "origin/dev").strip(), "HEAD"))
+
+    def test_sync_again_with_a_source_still_unresolved_stops(self):
+        tree = self.worktree()
+        self.commit(tree, "page/a.js", "export const a = 'mine'\n")
+        self.on_dev("page/a.js", "export const a = 'theirs'\n")
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 1)
+        code, out = self.run_cli("sync", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("still unresolved: page/a.js", out)
+        self.assertIn("UU page/a.js", git(tree, "status", "--porcelain"), "the merge stays open")
 
     def test_a_clean_merge_rebuilds_stale_generated_files(self):
         tree = self.worktree()

@@ -7,7 +7,8 @@ a one-line title without a trailing period; a body with every section of the pul
 and a line saying an agent made it; everything committed;
 `check` passed on exactly this tree; the branch has commits; the remote branch has not moved away from it.
 Then `git push -u <remote> <branch>` (a plain push, never anything that rewrites the remote) and
-`gh pr create --draft` with labels from the areas the change touches, or `gh pr edit` on the open one.
+`gh pr create --draft` with labels from the areas the change touches, or `gh pr edit` on the open one (refused
+when that one goes into another branch than the base: the FIX retargets it, ship never does).
 """
 
 from __future__ import annotations
@@ -48,6 +49,20 @@ def ahead_gate(ctx) -> Gate:
     return gates.passed("has commits", f"{count} beyond {base}")
 
 
+def base_gate(ctx, existing: dict) -> Gate:
+    """The open pull request goes into the base branch (one opened by hand may point elsewhere, e.g. main)."""
+    base, number = existing.get("baseRefName"), existing["number"]
+    if base != ctx.base:
+        return Gate(
+            "pull request into " + ctx.base,
+            False,
+            f"the open pull request #{number} goes into {base or 'an unknown branch'}; changes reach "
+            f"{ctx.base} only through pull requests into it (ship never retargets one itself)",
+            f"gh pr edit {number} --base {ctx.base}, then ship again",
+        )
+    return gates.passed("pull request into " + ctx.base, f"#{number}")
+
+
 def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
@@ -82,6 +97,7 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
         existing = None
         ctx.out.say(f"(could not ask GitHub for an open pull request: {failure.message})")
     if existing:
+        gates.enforce(ctx, [base_gate(ctx, existing)], "ship")
         gh_args = github.edit_args(existing["number"], title, str(body_path))
     else:
         gh_args = github.create_args(ctx.base, branch, title, str(body_path), chosen)

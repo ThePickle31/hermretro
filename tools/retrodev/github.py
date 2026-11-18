@@ -41,7 +41,7 @@ def login(ctx) -> str | None:
 def open_pr(ctx, branch: str) -> dict | None:
     """The open pull request from ``branch``, or None."""
     _code, out, _err = gh(
-        ctx, ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,headRefOid,isDraft"]
+        ctx, ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,headRefOid,isDraft,baseRefName"]
     )
     found = json.loads(out or "[]")
     return found[0] if found else None

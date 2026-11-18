@@ -14,7 +14,7 @@ import functools
 import os
 from pathlib import Path
 
-from . import checks, config, doctor, gc, plan, report, ship, start, status, sync
+from . import checks, config, doctor, gc, plan, report, ship, start, status, sync, watch
 from .output import FAILED, Failure, Out
 
 
@@ -56,7 +56,7 @@ def parser() -> argparse.ArgumentParser:
     p = add("check", "the checks whose inputs changed (cached passes print 'ok (cached)')")
     names = ", ".join(config.load_policy(Path(__file__).resolve().parents[2])["checks"]["inputs"])
     p.add_argument("names", nargs="*", help="only these checks: " + names)
-    p.add_argument("--again", action="store_true", help="ignore earlier passes")
+    p.add_argument("--again", action="store_true", help="ignore earlier passes (with --watch: on its first run)")
     p.add_argument("--full", action="store_true", help="also the real-engine run and the clean install")
     p.add_argument("--watch", action="store_true", help="run again on every file change")
 
@@ -95,7 +95,7 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
         return start.run(ctx, args.branch, no_plan=args.no_plan, setup=not args.no_setup, plan_topic=args.plan)
     if command == "check":
         if args.watch:
-            return checks.watch(ctx, args.names, full=args.full)
+            return watch.watch(ctx, args.names, full=args.full, again=args.again)
         return checks.run(ctx, args.names, again=args.again, full=args.full)
     if command == "ship":
         return ship.run(ctx, args.title, args.body, dry_run=args.dry_run)

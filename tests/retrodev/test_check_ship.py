@@ -6,9 +6,14 @@ Run alone: python -m unittest tests.retrodev.test_check_ship
 import io
 import json
 import os
+import subprocess
+import sys
+import threading
 import unittest
+from pathlib import Path
 
-from retrodev import checks, repo, state
+import retrodev
+from retrodev import checks, repo, state, watch
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
@@ -144,10 +149,10 @@ class Check(RepoCase):
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        before = checks.snapshot(ctx)
+        before = watch.snapshot(ctx)
         write(tree, "docs/new.md", "# New\n")
-        self.assertEqual(checks.changed_since(before, checks.snapshot(ctx)), [":clean", "docs/new.md"])
-        self.assertEqual(checks.watch(ctx, [], rounds=1), 0)
+        self.assertEqual(watch.changed_since(before, watch.snapshot(ctx)), [":clean", "docs/new.md"])
+        self.assertEqual(watch.watch(ctx, [], rounds=1), 0)
 
     def test_watch_wakes_on_a_commit_that_edits_no_file(self):
         tree = self.worktree("chore/glue")
@@ -165,16 +170,66 @@ class Check(RepoCase):
             elif len(waits) > 5:
                 raise AssertionError("the watcher never woke after the commit")
 
-        self.assertEqual(checks.watch(ctx, [], rounds=2, sleep=sleep), 0)
+        self.assertEqual(watch.watch(ctx, [], rounds=2, sleep=sleep), 0)
         installs = [entry for entry in self.check_log() if "script" in entry]
         self.assertEqual(installs[0], {"script": [], "head": git(tree, "rev-parse", "HEAD").strip()})
+
+    def test_watch_reloads_the_policy_and_runs_a_check_it_now_requires(self):
+        tree = self.worktree()
+        self.commit(tree, "docs/guide.md", "# Guide, better\n")
+        from retrodev import config, output
+
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            if len(waits) == 1:  # while watching, the policy starts calling for the clean install on docs
+                self.assertIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
+                policy = tree / "tools/retrodev/policy.toml"
+                text = policy.read_text().replace('clean_install = ["__init__', 'clean_install = ["docs/*", "__init__')
+                self.commit(tree, "tools/retrodev/policy.toml", text, "Docs need the clean install")
+            elif len(waits) > 5:
+                raise AssertionError("the watcher never woke after the policy change")
+
+        self.assertEqual(watch.watch(ctx, [], rounds=2, sleep=sleep), 0)
+        installs = [entry for entry in self.check_log() if "script" in entry]
+        self.assertEqual(installs, [{"script": [], "head": git(tree, "rev-parse", "HEAD").strip()}])
+        record = state.load_branch(self.main, "docs/tidy")
+        self.assertEqual(record["passed_tree"], repo.tree_digest(tree))
+        self.assertIn("clean_install", record.get("passed_checks", []))
+
+    def test_watch_again_reruns_cached_checks_on_its_first_run(self):
+        tree = self.worktree()
+        self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)
+        self.clear_log()
+        tools = str(Path(retrodev.__file__).resolve().parents[1])
+        env = dict(os.environ, PYTHONPATH=tools)
+        command = [sys.executable, "-m", "retrodev", "check", "--watch", "--again"]
+        with subprocess.Popen(command, cwd=tree, env=env, text=True, stdout=subprocess.PIPE) as process:
+            seen = []
+            timer = threading.Timer(60, process.kill)
+            timer.start()
+            try:
+                for line in process.stdout:
+                    seen.append(line)
+                    if "watching for changes" in line:
+                        break
+            finally:
+                timer.cancel()
+                process.terminate()
+        self.assertIn("watching for changes", "".join(seen), "".join(seen))
+        self.assertEqual([entry["names"] for entry in self.check_log()], [FAST], "--again reran the cached passes")
 
 
 class Ship(RepoCase):
     def passed(self, tree, name):
         """Record a passing check of this tree, as `check` does (Check tests the real thing)."""
+        from retrodev import config, output
+
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)
-        record["passed_tree"] = repo.tree_digest(tree)
+        record.update(passed_tree=repo.tree_digest(tree), passed_checks=sorted(checks.required(ctx)))
         state.save_branch(self.main, record)
 
     def ready(self, name="docs/tidy"):
@@ -220,7 +275,7 @@ class Ship(RepoCase):
         record = state.load_branch(self.main, "chore/both")
         self.assertEqual((record["pr"]["number"], record["pushed"]), (12, head))
 
-        self.gh.answers[("pr", "list")] = (0, json.dumps([{"number": 12, "url": "u"}]), "")
+        self.gh.answers[("pr", "list")] = (0, json.dumps([{"number": 12, "url": "u", "baseRefName": "dev"}]), "")
         self.gh.answers[("pr", "edit")] = (0, "", "")
         code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, cwd=tree, as_json=True)
         self.assertEqual(code, 0, data)
@@ -274,6 +329,41 @@ class Ship(RepoCase):
         code, data = self.run_cli("ship", "--title", "T", "--body", body, "--dry-run", cwd=tree, as_json=True)
         self.assertEqual(code, 3, data)
         self.assertEqual([gate["name"] for gate in data["gates"] if not gate["ok"]], ["plan approved"])
+
+    def test_a_pass_recorded_before_the_policy_required_more_is_refused(self):
+        tree, body = self.ready()
+        policy = tree / "tools/retrodev/policy.toml"
+        text = policy.read_text().replace('clean_install = ["__init__', 'clean_install = ["docs/*", "__init__')
+        self.commit(tree, "tools/retrodev/policy.toml", text, "Docs need the clean install")
+        record = state.load_branch(self.main, "docs/tidy")  # as a watcher holding the old policy recorded it
+        record.update(passed_tree=repo.tree_digest(tree), passed_checks=FAST)
+        state.save_branch(self.main, record)
+        code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, "--dry-run", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)
+        gate = next(gate for gate in data["gates"] if gate["name"] == "checks passed on this tree")
+        self.assertFalse(gate["ok"])
+        self.assertIn("clean_install", gate["message"])
+        self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)  # following the FIX makes the gate pass
+        code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, "--dry-run", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, data)
+
+    def test_an_open_pull_request_into_another_base_is_refused(self):
+        tree, body = self.ready()
+        answer = [{"number": 12, "url": "u", "baseRefName": "main"}]
+        self.gh.answers[("pr", "list")] = (0, json.dumps(answer), "")
+        self.gh.answers[("pr", "edit")] = (0, "", "")
+        code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("into main", out)
+        self.assertTrue(out.rstrip().endswith("FIX: gh pr edit 12 --base dev, then ship again"), out)
+        self.assertEqual(self.gh.called("pr", "edit"), [], "ship never retargets or edits it itself")
+        self.assertEqual(git(self.origin, "branch", "--list", "docs/tidy"), "", "nothing was pushed")
+        self.assertIn("baseRefName", self.gh.called("pr", "list")[0][-1])
+        answer[0]["baseRefName"] = "dev"  # what following the FIX does
+        self.gh.answers[("pr", "list")] = (0, json.dumps(answer), "")
+        code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.gh.called("pr", "edit")[0][:3], ["pr", "edit", "12"])
 
     def test_dev_itself_is_never_shipped(self):
         body = write(self.base, "body.md", GOOD_BODY)

@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass
 
-from . import repo, state
+from . import checks, repo, state
 from .output import FAILED, OWNER, Failure
 
 
@@ -130,9 +130,16 @@ def committed(ctx) -> Gate:
 
 
 def checks_on_tree(ctx, record: dict, digest: str) -> Gate:
-    if record.get("passed_tree") == digest:
+    """The pass recorded for exactly this tree covered every check the policy requires of this change now."""
+    missing = sorted(set(checks.required(ctx)) - set(record.get("passed_checks") or []))
+    if record.get("passed_tree") == digest and not missing:
         return passed("checks passed on this tree", f"at {record.get('passed_at')}")
-    reason = "no passing check run is recorded" if not record.get("passed_tree") else "the tree changed since"
+    if not record.get("passed_tree"):
+        reason = "no passing check run is recorded"
+    elif record["passed_tree"] != digest:
+        reason = "the tree changed since"
+    else:
+        reason = f"the recorded pass did not include {', '.join(missing)}, which the policy now requires"
     return Gate(
         "checks passed on this tree",
         False,

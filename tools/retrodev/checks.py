@@ -4,11 +4,12 @@
                              real-engine run and the clean install when the branch changed what they cover
     check unit lint          just these        check --again    ignore earlier passes
     check --full             the fast checks, acceptance and the clean install
-    check --watch            run again on every file change or commit (Ctrl+C stops)
+    check --watch            run again on every file change or commit (Ctrl+C stops; watch.py)
 
 Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept per branch against that digest
 and prints "ok (cached)" while nothing it reads changed. When every check the branch needs has passed on the
-current tree, that tree's digest is recorded: ship pushes only a tree that passed. Times are printed against the
+current tree, that tree's digest is recorded with the names of those checks: ship pushes only a tree that passed
+everything the policy requires of it now. Times are printed against the
 budgets in policy.toml; over twice a budget is a warning naming the check, never a failure (machines differ).
 """
 
@@ -239,10 +240,10 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
         for name in need
     )
     if good:
-        record.update(passed_tree=tree, passed_at=state.now())
+        record.update(passed_tree=tree, passed_at=state.now(), passed_checks=sorted(need))
     else:  # a pass recorded earlier is taken back: this run shows the tree no longer passes everything it needs
-        record.pop("passed_tree", None)
-        record.pop("passed_at", None)
+        for key in ("passed_tree", "passed_at", "passed_checks"):
+            record.pop(key, None)
     if branch != "detached":
         state.save_branch(ctx.top, record)
     ctx.out.set(
@@ -297,53 +298,3 @@ def budget_warnings(ctx, rows: list[dict], wall: float | None, whole_fast: bool)
     if wall is not None and whole_fast and wall > 2 * total:
         found.append(f"the fast checks took {wall:.1f} s together, over twice their {total:g} s budget")
     return found
-
-
-def snapshot(ctx) -> dict[str, object]:
-    """(mtime, size) of every file a commit would hold, plus HEAD and whether the tree is clean: what --watch compares.
-
-    A commit touches no file, yet it lets the install checks run (they wait for a clean, committed tree).
-    """
-    out = repo.git(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], ctx.top)
-    found: dict[str, object] = {}
-    for name in filter(None, out.split("\0")):
-        try:
-            info = (ctx.top / name).stat()
-        except OSError:
-            continue
-        found[name] = (info.st_mtime_ns, info.st_size)
-    found[":HEAD"] = repo.head(ctx.top)
-    found[":clean"] = not repo.dirty(ctx.top)
-    return found
-
-
-def changed_since(before: dict, after: dict) -> list[str]:
-    return sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
-
-
-def watch(
-    ctx, names: list[str], full: bool = False, interval: float = 0.5, rounds: int | None = None, sleep=time.sleep
-) -> int:
-    """Run the checks, then again whenever a file changes or a commit is made (only the affected ones rerun).
-
-    ``rounds`` stops after that many runs and ``sleep`` replaces time.sleep: a test drives the loop with them.
-    """
-    try:
-        seen, done = snapshot(ctx), 0
-        while True:
-            try:
-                run(ctx, names, full=full)
-            except Failure as failure:
-                ctx.out.say(failure.message + "\nFIX: " + failure.fix)
-            done += 1
-            if rounds is not None and done >= rounds:
-                return 0
-            ctx.out.say("watching for changes (Ctrl+C stops) ...")
-            while not (changed := changed_since(seen, snapshot(ctx))):
-                sleep(interval)
-            sleep(interval)  # let a save that writes several files finish
-            seen = snapshot(ctx)
-            shown = [{":HEAD": "HEAD (a commit)", ":clean": "clean/dirty"}.get(name, name) for name in changed]
-            ctx.out.say(f"changed: {', '.join(shown[:5])}" + (" ..." if len(shown) > 5 else ""))
-    except KeyboardInterrupt:
-        return 0
