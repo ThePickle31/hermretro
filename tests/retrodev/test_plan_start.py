@@ -134,7 +134,10 @@ class Config(RepoCase):
     def test_unknown_keys_are_refused(self):
         code, out = self.run_cli("config", "set", "wrokt", "x")
         self.assertEqual(code, 1)
-        self.assertIn("FIX: use one of: base, github_account, remote, worktree_root", out)
+        self.assertIn(
+            "FIX: use one of: base, github_account, remote, review_model, review_profile, review_provider, review_reasoning, worktree_root",
+            out,
+        )
 
 
 if __name__ == "__main__":

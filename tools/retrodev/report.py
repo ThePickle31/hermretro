@@ -4,14 +4,14 @@
 
 The pull request, its commits, the files changed grouped by the map's areas (tools/layout.toml), the checks with
 their times (ran or cached), CI per job, whether the owner must restart the Hermes gateway or reload the app once
-it lands, and the open review rounds.
+it lands, the owner's approval and the review rounds.
 """
 
 from __future__ import annotations
 
 import tomllib
 
-from . import github, repo, state
+from . import github, repo, reviews, state
 
 
 def area_of(name: str, layout: dict) -> str:
@@ -72,7 +72,9 @@ def collect(ctx) -> dict:
         "checks_on_this_tree": record.get("passed_tree") == tree,
         "ci": {"summary": github.ci_summary(jobs) if pr else "no pull request", "jobs": jobs or []},
         "restart": restarts(ctx, files),
-        "review_rounds": record.get("review_rounds", []),
+        "approval": record.get("approval"),
+        "review": reviews.describe(reviews.load(ctx, pr["number"])) if pr else None,
+        "review_rounds": reviews.rounds(reviews.load(ctx, pr["number"])) if pr else [],
     }
 
 
@@ -103,5 +105,7 @@ def run(ctx) -> int:
         say(f"  {RESTART_TEXT[what]}: {', '.join(names[:4])}" + (" ..." if len(names) > 4 else ""))
     if not data["restart"]:
         say("  nothing to restart or reload")
-    say(f"\nReview rounds: {len(data['review_rounds']) or 'none yet'}")
+    say(f"\nReview rounds: {data['review'] or 'none yet'}")
+    approval = data["approval"]
+    say("Owner's approval: " + (f"{approval['at']}: \"{approval['words']}\"" if approval else "not yet"))
     return 0

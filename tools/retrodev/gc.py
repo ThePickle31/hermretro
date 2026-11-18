@@ -115,7 +115,8 @@ def leftover_folders(main: Path) -> list[Path]:
     return sorted(folder for folder in only if folder.name != "__pycache__" and folder.parent not in only)
 
 
-def run(ctx, dry_run: bool = False) -> int:
+def run(ctx, dry_run: bool = False, only: str | None = None) -> int:
+    """Tidy everything, or with ``only`` just that branch's worktree, branch and record (land, after a merge)."""
     main = ctx.main()
     before = remote_shas(ctx)
     if dry_run:
@@ -145,11 +146,13 @@ def run(ctx, dry_run: bool = False) -> int:
             state.drop_branch(main, tree.branch)
 
     for tree in repo.worktrees(main):
-        if not tree.main:
+        if not tree.main and (only is None or tree.branch == only):
             judge(tree, "worktree")
     live = {tree.branch for tree in repo.worktrees(main)}
     local = set(repo.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], main).split())
     for name in sorted(n for n in records if n and n in local and n not in live and n not in judged):
+        if only is not None and name != only:
+            continue
         # Recorded, its branch here, no worktree (an earlier gc pruned a missing folder's note): judged again.
         nowhere = repo.common_dir(main) / "retrodev" / "no-worktree"  # never a folder: judged as gone
         judge(repo.Worktree(path=nowhere, head=None, branch=name, main=False), "branch")
@@ -157,11 +160,12 @@ def run(ctx, dry_run: bool = False) -> int:
         local = set(repo.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], main).split())
     gone = {row["branch"] for row in removed}
     stale = [name for name in records if name and name not in local and name not in gone and name not in live]
+    stale = [name for name in stale if only is None or name == only]
     for name in stale:
         ctx.out.say(f"{'forget':>6}  record of {name} (the branch no longer exists)")
         if not dry_run:
             state.drop_branch(main, name)
-    folders = leftover_folders(main)
+    folders = leftover_folders(main) if only is None else []
     for folder in folders:
         ctx.out.say(f"{'remove':>6}  {folder}/ (only bytecode caches left)")
         if not dry_run:

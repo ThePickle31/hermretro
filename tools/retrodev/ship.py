@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import gates, github, repo, state
+from . import gates, github, repo, reviews, state
 from .gates import Gate
 from .output import Failure
 
@@ -122,7 +122,8 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
                 f"gh pr list --head {branch} (the pull request may exist; ship again records it)",
             )
         ctx.out.say(f"opened draft pull request #{number} {url}")
-    record.update(pr={"number": number, "url": url, "head": sha, "title": title, "at": state.now()}, pushed=sha)
+    reviews.record_pr(record, number, url, sha, title, at=state.now())
+    record["pushed"] = sha
     state.save_branch(ctx.top, record)
     ctx.out.set(pr=record["pr"])
     ctx.out.say("next: python tools/retrodev report (the step-5 report for the owner)")

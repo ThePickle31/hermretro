@@ -283,9 +283,13 @@ class FakeGH:
         self.answers = {("api", "user"): (0, "you\n", ""), ("pr", "list"): (0, "[]", "")}
         self.answers.update(answers or {})
         self.calls: list[list[str]] = []
+        self.effects: dict = {}  # argument prefix -> callable(args), run before answering (a merge that merges)
 
     def __call__(self, args, cwd):
         self.calls.append(list(args))
+        for prefix, effect in self.effects.items():
+            if tuple(args[: len(prefix)]) == prefix:
+                effect(list(args))
         for prefix, answer in sorted(self.answers.items(), key=lambda item: -len(item[0])):
             if tuple(args[: len(prefix)]) == prefix:
                 return answer
@@ -311,6 +315,7 @@ class RepoCase(unittest.TestCase):
         self.origin = self.base / "origin.git"
         git(self.main, "remote", "set-url", "origin", str(self.origin))
         self.gh = FakeGH()
+        self.fakes: dict = {}  # passed to retrodev as Context.fakes (the reviewer's runner, its database, sleep)
 
     def fail_checks(self, *names: str) -> None:
         """Make the stand-in check.py fail these checks (none: pass them all again)."""
@@ -320,7 +325,7 @@ class RepoCase(unittest.TestCase):
         """(exit code, output text or parsed JSON)."""
         stream = io.StringIO()
         args = (["--json"] if as_json else []) + list(argv)
-        code = cli.main(args, cwd=cwd or self.main, gh_runner=self.gh, stream=stream)
+        code = cli.main(args, cwd=cwd or self.main, gh_runner=self.gh, stream=stream, fakes=self.fakes)
         text = stream.getvalue()
         return code, (json.loads(text) if as_json else text)
 

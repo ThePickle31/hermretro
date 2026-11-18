@@ -8,7 +8,7 @@ CI) and the next step as one line. In the main checkout: every open record and w
 
 from __future__ import annotations
 
-from . import gates, github, plan, repo, state
+from . import gates, github, plan, repo, reviews, state
 
 
 def next_step(facts: dict) -> str:
@@ -29,6 +29,15 @@ def next_step(facts: dict) -> str:
         return "next: python tools/retrodev ship --title '<one plain sentence>' --body <file>"
     if facts.get("head") != facts.get("pushed"):
         return "next: python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
+    pr = facts["pr"]
+    if facts.get("unanswered"):
+        first = facts["unanswered"][0]
+        return (
+            f"next: fix the review findings, check and ship, then python tools/retrodev answer {pr} {first[0]} <index> "
+            f"'<fixed in <sha>: how>' for each ({len(facts['unanswered'])} open), then python tools/retrodev land {pr}"
+        )
+    if facts.get("approved"):
+        return f"next: python tools/retrodev land {pr} (in the background: reviews, CI and the merge take minutes)"
     ci = facts.get("ci")
     if ci == "pending":
         return f"next: wait for CI (gh pr checks {facts['pr']} --watch), then python tools/retrodev report"
@@ -37,7 +46,10 @@ def next_step(facts: dict) -> str:
             f"next: read the failure (gh pr checks {facts['pr']}; gh run view <run> --log-failed), fix it, "
             "check and ship again"
         )
-    return "next: python tools/retrodev report, and give the owner the step-5 report"
+    return (
+        f"next: python tools/retrodev report, and give the owner the step-5 report; when they approve: "
+        f'python tools/retrodev approve {pr} --words "<their exact words>"'
+    )
 
 
 def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> dict:
@@ -47,6 +59,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     plan_row = plan.describe(ctx, plan_topic) if plan_topic else None
     pr = (record.get("pr") or {}).get("number")
     jobs = github.checks(ctx, pr) if pr and with_ci else None
+    review = reviews.load(ctx, pr) if pr else None
     return {
         "branch": branch,
         "path": str(path),
@@ -64,6 +77,10 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "pushed": record.get("pushed"),
         "ci": github.ci_summary(jobs) if pr and with_ci else None,
         "ci_jobs": jobs or [],
+        "approved": record.get("approval"),
+        "review": reviews.describe(review) if review else None,
+        "unanswered": [[r, i] for r, i, _f in reviews.unanswered(review)] if review else [],
+        "landing": record.get("land"),
     }
 
 
@@ -78,6 +95,11 @@ def show_branch(ctx, facts: dict) -> None:
     if facts["pr"]:
         pushed = "pushed" if facts["pushed"] == facts["head"] else "NOT pushed"
         say(f"  pr:     #{facts['pr']} {facts['pr_url'] or ''} (head {pushed}); CI {facts['ci']}")
+        approval = facts.get("approved")
+        say("  owner:  " + (f"approved {approval['at']}: \"{approval['words']}\"" if approval else "not approved yet"))
+        say(f"  review: {facts.get('review')}")
+        if facts.get("landing"):
+            say(f"  land:   {facts['landing'].get('step')} ({facts['landing'].get('at')})")
     else:
         say("  pr:     none")
     say(facts["next"])

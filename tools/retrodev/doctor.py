@@ -4,7 +4,8 @@
 
 git and gh, gh's login (and that it is the configured github_account), git's identity, Python and Node versions,
 the pinned npm tools and ruff, Hermes and a hermes-agent source for the install scan, the main checkout on the
-base branch and clean, a writable worktree root and a short temp folder for Unix sockets.
+base branch and clean, a writable worktree root and a short temp folder for Unix sockets. With --all also the
+reviewer: review_profile set, and a live probe of its provider (a few seconds).
 """
 
 from __future__ import annotations
@@ -18,8 +19,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import github, repo
+from . import github, repo, reviews
 from .checks import short_tmp
+from .review import runner as review_runner
 from .output import Failure
 
 
@@ -198,6 +200,35 @@ def checkout(ctx) -> list[dict]:
     return found
 
 
+def reviewer(ctx) -> list[dict]:
+    """With --all: the reviewer is configured, and a live probe (a few seconds) says its provider answers.
+
+    Without either, land skips the reviews and merges on green CI; so these are reported, not required."""
+    settings = reviews.settings(ctx)
+    configured = bool(settings["profile"])
+    found = [
+        item(
+            "reviewer configured",
+            configured,
+            f"profile {settings['profile']}, {settings['provider']} {settings['model']} ({settings['reasoning']})"
+            if configured
+            else "no review_profile: land skips the reviews",
+            "python tools/retrodev config set review_profile <the Hermes profile to run the reviewer from>",
+        )
+    ]
+    if configured:
+        probe = review_runner.probe(settings, ctx.fakes.get("review_run"))
+        found.append(
+            item(
+                "reviewer answers",
+                bool(probe.get("available")),
+                f"{probe.get('reason')} ({probe.get('seconds')} s)",
+                "check the provider's login and limits (hermes -p <profile> auth); land skips reviews while it is down",
+            )
+        )
+    return found
+
+
 def run(ctx, everything: bool = False) -> int:
     rows = tools(ctx) + checkout(ctx)
     for row in rows:
@@ -205,7 +236,12 @@ def run(ctx, everything: bool = False) -> int:
         if not row["ok"]:
             ctx.out.say(f"      FIX: {row['fix']}")
     if everything:
-        ctx.out.say("  --  reviewer reachable, mac host: not part of this version (later pull requests)")
+        extra = reviewer(ctx)
+        for row in extra:
+            ctx.out.say(f"  {'ok' if row['ok'] else 'NO':>2}  {row['name']}: {row['detail']}")
+            if not row["ok"]:
+                ctx.out.say(f"      FIX: {row['fix']}")
+        rows += extra
     bad = [row for row in rows if not row["ok"]]
     ctx.out.set(items=rows, ready=not bad)
     if bad:
