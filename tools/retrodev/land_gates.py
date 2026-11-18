@@ -8,11 +8,14 @@ its own approval. Review-fix pushes to the same pull request keep it.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from . import gates, repo, reviews
+from . import gates, github, repo, reviews
 from .gates import Gate
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
+
+CONFLICT_WORDS = ("merge conflict", "not mergeable")  # in gh pr merge's error when GitHub cannot merge it
 
 
 def find_worktree(ctx, branch: str) -> Path | None:
@@ -134,3 +137,30 @@ def recheck(ctx, number: int, sha: str, view: dict) -> None:
             "CI (a push): CI and the reviews must pass on what is merged",
             f"python tools/retrodev land {number} (it reviews and waits for the new head)",
         )
+
+
+def mergeable(ctx, number: int) -> str | None:
+    """GitHub's word on merging the pull request: MERGEABLE, CONFLICTING or UNKNOWN (still computing), or None."""
+    code, out, _err = github.gh(ctx, ["pr", "view", str(number), "--json", "mergeable"], check=False)
+    try:
+        found = json.loads(out) if code == 0 else None
+    except json.JSONDecodeError:
+        return None
+    return found.get("mergeable") if isinstance(found, dict) else None
+
+
+def conflicted(text: str) -> bool:
+    return any(word in (text or "").lower() for word in CONFLICT_WORDS)
+
+
+def conflict_failure(ctx, info: dict, tree: Path | None) -> Failure:
+    """The pull request conflicts with the base branch: merge it in with sync in the worktree, then land again."""
+    number = info["number"]
+    where = cmd("cd", tree) if tree else "cd <the worktree of " + str(info.get("headRefName")) + ">"
+    ship = cmd("python", "tools/retrodev", "ship", "--title", info.get("title") or "<title>", "--body") + " <file>"
+    return Failure(
+        f"#{number} has merge conflicts with {ctx.base}: GitHub cannot merge it (nothing was merged)",
+        f"{where} && python tools/retrodev sync (it lists the files to resolve; git add them and sync again), then "
+        f"python tools/retrodev check, {ship}, then {cmd('cd', ctx.main())} && python tools/retrodev land {number}",
+        data={"action": "sync", "worktree": str(tree) if tree else None},
+    )

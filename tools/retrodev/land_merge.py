@@ -28,6 +28,8 @@ def merge(ctx, info: dict, sha: str, record: dict, jobs: list[dict]) -> int:
     ctx.out.say(f"merging #{number} at {sha[:9]}: gh {' '.join(args[:7])} ...")
     code, out, err = github.gh(main, args, check=False)
     if code and github.pr_state(main, number) != "MERGED":
+        if land_gates.conflicted(err or out) or land_gates.mergeable(main, number) == "CONFLICTING":
+            raise land_gates.conflict_failure(ctx, info, land_gates.find_worktree(ctx, branch))
         raise Failure(
             f"gh pr merge {number} failed: {(err or out).strip()[:300]}",
             f"gh pr view {number} (a head that moved is refused by --match-head-commit: land again)",

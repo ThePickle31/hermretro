@@ -58,7 +58,11 @@ with `message` and `fix` on a failure).
 
 Gates first, all reported at once: the owner's approval of this pull request (its number) is recorded (else 3); the pull request is open, into
 `dev` (a draft is marked ready); the worktree's head is the pull request's head and pushed; the tree is clean and
-`check` passed on it. Then, from the records (`records.next_action`):
+`check` passed on it. A pull request GitHub reports as conflicting (`gh pr view --json mergeable` says
+`CONFLICTING`, checked right after the gates and again before waiting for CI; `UNKNOWN` goes on) stops with exit 1
+(`action: sync`) and the fix `cd <worktree> && python tools/retrodev sync`, resolve, `check`, `ship`, then
+`cd <main checkout> && python tools/retrodev land <n>`; `gh pr merge` refused for merge conflicts says the same. Then,
+from the records (`records.next_action`):
 
 | State | land |
 |---|---|
@@ -68,6 +72,7 @@ Gates first, all reported at once: the owner's approval of this pull request (it
 | every finding answered, nothing new pushed | the next round judges the answers |
 | round 3 had findings, all answered | no 4th round: on to CI with this head, recorded as the one accepted (`accepted` in the review record) |
 | 3 rounds ran and the head moved past round 3's clean head or the accepted head (a CI fix, say) | exit 3 (`action: reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not |
+| the head only merged `dev` after the clean or accepted head (`sync`) | the review carries over: no new round when every commit since it (beyond `dev`'s) is a merge or touches only generated files, and the head differs from git's own merge of the reviewed head and `dev` (`git merge-tree`, generated files aside) by at most `policy.toml` `[land] max_sync_resolution_lines` (20) lines of conflict resolution; recorded (`carried` in the review record), and `summary` shows `merge resolution, not reviewed: N lines`. A larger resolution, a commit of its own or anything it cannot judge: a round is due as for any new head (after round 3, the owner decides) |
 | the round was void (the audit failed) twice, or gave no valid JSON twice | exit 3 with the audit's findings: the owner decides |
 | clean on this head (a clean round counts only for the head it reviewed), or reviews skipped | waits for CI on the exact head, polling every 20 s up to `--ci-timeout` (default 1500 s) |
 | CI failing | names the jobs and links, `gh run view <run> --log-failed`. Exit 1 (`action: fix CI`) |

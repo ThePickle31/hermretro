@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import ci, gates, github, land_gates, land_merge, reviews
+from . import ci, gates, github, land_carry, land_gates, land_merge, reviews
 from .gates import Gate
 from .land_merge import progress
 from .output import FAILED, OWNER, Failure
@@ -178,6 +178,7 @@ def review_step(ctx, info: dict, tree: Path, record: dict, sha: str, no_review: 
     rec = records.note_head(root, number, sha, notes)
     if no_review and not rec.get("skipped"):
         rec = records.mark_skipped(root, number, "land --no-review (the owner's call)", notes)
+    rec = land_carry.carry(ctx, tree, rec, sha)
     action = decide(rec, sha)
     ctx.out.set(review_action=action)
     if action == "needs-owner":
@@ -197,8 +198,15 @@ def review_step(ctx, info: dict, tree: Path, record: dict, sha: str, no_review: 
             "needs the owner)"
         )
     else:
-        ctx.out.say(f"review: {reviews.describe(rec)}; clean on this head")
+        seen = records.reviewed_as(rec, sha)
+        ctx.out.say(f"review: {reviews.describe(rec)}; clean on " + ("this head" if seen == sha else seen[:9]))
     return rec
+
+
+def stop_on_conflict(ctx, info: dict, tree: Path) -> None:
+    """A pull request GitHub cannot merge is reported at once (UNKNOWN, still computing, goes on)."""
+    if land_gates.mergeable(ctx, info["number"]) == "CONFLICTING":
+        raise land_gates.conflict_failure(ctx, info, tree)
 
 
 def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = None, dry_run: bool = False) -> int:
@@ -225,22 +233,24 @@ def run(ctx, number: int, no_review: bool = False, ci_timeout: float | None = No
     tree = land_gates.find_worktree(ctx, branch) if branch else None
     found = land_gates.collect_gates(ctx, info, record, tree)
     if dry_run:
-        return dry(ctx, info, found, record)
+        return dry(ctx, info, found, record, tree)
     gates.enforce(ctx, found, "land")
     assert tree is not None
     sha = info["headRefOid"]
+    stop_on_conflict(ctx, info, tree)
     if info.get("isDraft"):
         github.gh(ctx, ["pr", "ready", str(number)])
         ctx.out.say(f"marked #{number} ready for review")
     review_step(ctx, info, tree, record, sha, no_review)
     timeout = float(ci_timeout if ci_timeout is not None else ctx.policy.get("land", {}).get("ci_timeout", 1500))
+    stop_on_conflict(ctx, info, tree)
     progress(ctx, record, "waiting for CI", head=sha)
     ctx.out.say(f"waiting for CI on {sha[:9]} (up to {int(timeout)} s) ...")
     jobs = ci.wait(ctx, number, sha, timeout)
     return land_merge.merge(ctx, info, sha, record, jobs)
 
 
-def dry(ctx, info: dict, found: list[Gate], record: dict) -> int:
+def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = None) -> int:
     """Print the gates and what land would do next; change nothing."""
     number = info["number"]
     code = 0
@@ -249,7 +259,7 @@ def dry(ctx, info: dict, found: list[Gate], record: dict) -> int:
     except Failure as failure:
         code = failure.code
         ctx.out.say(f"gates: {failure.message}")
-    rec = reviews.load(ctx, number)
+    rec = land_carry.carry(ctx, tree, reviews.load(ctx, number), info.get("headRefOid") or "", save=False)
     action = decide(rec, info.get("headRefOid") or "")
     if reviews.unanswered(rec):
         action = "answer"
