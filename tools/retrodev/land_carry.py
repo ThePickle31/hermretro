@@ -6,7 +6,8 @@ generated files, and the merges changed nothing of their own: the head's tree is
 and the base branch into by itself (git merge-tree), generated files aside. What a conflict resolution changed
 beyond that is counted in lines: up to policy.toml [land] max_sync_resolution_lines it is accepted and recorded
 (record['carried'], shown by summary as "merge resolution, not reviewed: N lines"); more, and the review round is
-due as before. Anything this cannot judge (a git error, a binary file) keeps today's rule: a new head is reviewed.
+due as before. Anything this cannot judge (a git error, a binary file, a conflict on a binary file even when the
+resolution kept one side whole) keeps today's rule: a new head is reviewed.
 """
 
 from __future__ import annotations
@@ -51,8 +52,12 @@ def resolution_lines(ctx, tree: Path, reviewed: str, head: str, generated: list[
     )
     if code not in (0, 1) or not out.split():
         return None
+    merged, _, info = out.partition("\n")
+    conflicted = sorted({name for name in info.partition("\n\n")[0].splitlines() if name and name not in generated})
+    if code == 1 and conflicted and not lines_judge(tree, reviewed, point, conflicted):
+        return None  # a binary conflict: git's merge kept one side whole, so the head's line count says nothing
     excluded = [f":(exclude){name}" for name in generated]
-    stat = repo.git(["diff", "--numstat", "--no-renames", out.split()[0], head, "--", ".", *excluded], tree)
+    stat = repo.git(["diff", "--numstat", "--no-renames", merged, head, "--", ".", *excluded], tree)
     total = 0
     for line in stat.splitlines():
         added, removed, _name = line.split("\t", 2)
@@ -60,6 +65,13 @@ def resolution_lines(ctx, tree: Path, reviewed: str, head: str, generated: list[
             return None  # a binary file: no line count, so it is reviewed
         total += int(added) + int(removed)
     return total
+
+
+def lines_judge(tree: Path, reviewed: str, point: str, conflicted: list[str]) -> bool:
+    """Every conflicted path is text on both sides, so its resolution can be counted in lines."""
+    paths = [f":(literal){name}" for name in conflicted]
+    stat = repo.git(["diff", "--numstat", "--no-renames", reviewed, point, "--", *paths], tree)
+    return all(line.split("\t", 2)[:2] != ["-", "-"] for line in stat.splitlines())
 
 
 def carry(ctx, tree: Path | None, rec: dict, head: str, save: bool = True) -> dict:

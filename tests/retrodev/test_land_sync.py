@@ -126,6 +126,38 @@ class DevMergedAfterReview(LandCase):
         self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
         self.assertNotIn("carried", self.review_record())
 
+    def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
+        """Both sides change a binary file and sync keeps the branch's: the merged tree equals git's own merge
+        (0 lines differ), but a binary conflict cannot be judged in lines, so it is reviewed."""
+        art = "player/art.bin"
+        tree = self.open_pr(change=lambda t: self.commit_bytes(t, art, b"\x00\x01ours\x00" * 40))
+        self.ci(PENDING, code=8)
+        self.reviewer("OK\n", reply("s1"))
+        self.assertEqual(self.land()[0], 2)
+        other = self.base / "other"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(other))
+        self.commit_bytes(other, art, b"\x00\x02dev\x00" * 40)
+        git(other, "push", "-q", "origin", "dev")
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 1)
+        git(tree, "checkout", "--ours", "--", art)
+        git(tree, "add", art)
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
+        head = self.publish(tree)
+        self.ci(GREEN)
+        self.hermes.calls.clear()
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.hermes.calls), 2, "a probe, then round 2 on the merged head")
+        self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
+        self.assertNotIn("carried", self.review_record())
+
+    def commit_bytes(self, tree, name, data):
+        (tree / name).parent.mkdir(parents=True, exist_ok=True)
+        (tree / name).write_bytes(data)
+        git(tree, "add", "-A")
+        git(tree, "commit", "-q", "-m", "Change the art")
+
     def test_the_head_accepted_after_round_three_carries_over_a_dev_merge(self):
         tree = self.open_pr()
         root = self.main / ".git" / "retrodev" / "reviews"
