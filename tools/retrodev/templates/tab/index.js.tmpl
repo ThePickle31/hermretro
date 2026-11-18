@@ -1,0 +1,13 @@
+// The {Label} tab of the {page} page: its descriptor ({{ id, label, Page }}, as a page has; app/registry.js).
+import { jsx } from '#sdk'
+import { Lede } from '#shared/ui/text.js'
+
+function {Component}() {
+  return jsx(Lede, { children: '{Label}: describe what this tab shows.' })
+}
+
+export const {CONST}_TAB = {
+  id: '{tab}',
+  label: '{Label}',
+  Page: {Component}
+}

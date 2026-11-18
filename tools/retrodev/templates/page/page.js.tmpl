@@ -1,0 +1,7 @@
+// The {Label} page. `shell` holds the data and actions every page shares (app/studio-page.js).
+import { jsx } from '#sdk'
+import { Lede } from '#shared/ui/text.js'
+
+export function {Component}() {
+  return jsx('div', { className: 'cs-col', children: jsx(Lede, { children: '{Label}: describe what this page shows.' }) })
+}

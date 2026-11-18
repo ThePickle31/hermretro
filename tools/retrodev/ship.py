@@ -18,6 +18,7 @@ from pathlib import Path
 from . import gates, github, repo, reviews, state
 from .gates import Gate
 from .output import Failure
+from .review import records
 
 
 def labels(ctx, files: list[str]) -> list[str]:
@@ -125,6 +126,10 @@ def run(ctx, title: str, body: str, dry_run: bool = False) -> int:
     reviews.record_pr(record, number, url, sha, title, at=state.now())
     record["pushed"] = sha
     state.save_branch(ctx.top, record)
+    review = reviews.load(ctx, number)  # outlives the branch record: stats reads the first ship's time from it
+    if not review.get("shipped"):
+        review["shipped"] = {"at": state.now(), "head": sha}
+        records.save(reviews.root(ctx), review)
     ctx.out.set(pr=record["pr"])
     ctx.out.say("next: python tools/retrodev report (the step-5 report for the owner)")
     return 0

@@ -19,6 +19,8 @@ Python 3.11+, development only (it never runs inside Hermes). Tests: `tests/retr
 | 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts; the agent adds the prose |
 
 At any time `status` names the one next step, `doctor` checks the machine, `sync` brings in `dev`, `gc` tidies up.
+While building, `new <kind> ...` adds a feature, RPC, tool, event, page, tab or slot in the repository's shape, and
+`stats` shows how the flow is going. `engine update <version>` walks an engine update, only with the owner's words.
 Beyond one change: `try <pr>` runs any pull request's full checks in a throwaway checkout, `mac` runs the checks on
 a MacBook, `preview` builds the page's browser preview, and `release ...` makes a release when the owner asks
 (below).
@@ -47,9 +49,31 @@ a MacBook, `preview` builds the page's browser preview, and `release ...` makes 
 | `try <pr> [--keep] [--no-setup]` | Fetches the pull request's head (`<remote> refs/pull/<n>/head`, forks too) into a detached throwaway worktree in a short temp folder outside the repository, sets it up and runs `check --full` there (a `skipped` row, such as acceptance without the toolchain, makes it unverified: exit 1, never a pass); removes it afterwards (the folder, then `git worktree prune`), also on a failure, unless `--keep` (its path and the commands that remove it are printed). Nothing in any agent's worktree changes |
 | `mac [--host H] [-- <check.py args>]` | Optional: the checks on a MacBook over ssh. The host is `--host` or the personal `mac_host` (no default: unset prints "no mac configured; CI's macOS runners cover it", exit 0). It must answer `ssh -o ConnectTimeout=3 -o BatchMode=yes <host> true` (else exit 2: unreachable, CI covers macOS). The commit must be on the remote; on the mac, in `mac_repo` (default `~/Projects/hermretro`, `~` expanded there), it fetches, adds a fresh detached worktree of the commit in a `/tmp/rd-mac.*` folder (the clone's `.dev` and `tools/npm/node_modules` linked in), runs `python3 tools/check.py --strict [args]` there, streaming its output, and removes the worktree. A requested check that cannot run there (acceptance without the toolchain) fails under `--strict`, and any `skipped` row in the output is reported as unverified (exit 1), never as passed. The clone's own checkout is never switched or reset, so its local changes neither reach the result nor get lost. It never pushes from the mac |
 | `preview [--serve] [--out DIR] [--desktop DIR]` | Builds the page's browser preview (`node tests/page/preview/build.mjs`, docs/dev/TESTING.md) into `<state>/preview` and prints its `index.html`. Needs a built Hermes Desktop source: `--desktop`, else `$HERMES_SOURCE/apps/desktop` (default `~/.hermes/hermes-agent`), symlinks resolved either way. `--serve` serves it on 127.0.0.1 on a free port (the standard library's http.server, loopback only, the Desktop's stylesheets included) until Ctrl+C |
+| `new feature <name> [--purpose "..."]` | `backend/<name>/` (front door `__init__.py` with its docstring, `__all__ = []` and `EVENTS = {}`; `README.md`), `tests/backend/<name>/` (a front-door test), and the registry lines: `backend/features.py`, the area in `tools/layout.toml`, the Map and "The agent half" rows in `docs/dev/ARCHITECTURE.md`. An empty feature registers nothing, so the registration snapshot stays |
+| `new rpc <feature> <name>` | An `@rpc("<name>")` stub in `backend/<feature>/rpcs.py` (made with its imports when missing), `tests/backend/<feature>/test_rpc_<name>.py`, a `### \`<name>\`` section in `docs/dev/CONTRACT.md`, the README line; then rebuilds `page/app/rpc-names.js` (`RPC_<NAME>`) and `tests/repo/registration.json` |
+| `new tool <feature> <name> [--step RUNNING DONE]` | A schema, handler and `Tool(..., step_words=(RUNNING, DONE))` in `backend/<feature>/tools.py` (`TOOLS` made when missing), its unit test, the `provides_tools` line in `plugin.yaml` (after the plugin-owned tools), the page's `step-words.js` entry, the counts and a line in `CONTRACT.md`, the README line; then the snapshot. Tool names take the `chromatic_` prefix (given or not) |
+| `new event <feature> <name> [--payload "..."]` | The `"<feature>.<name>"` entry in the front door's `EVENTS`, a function in `backend/<feature>/emits.py` that emits it (the boundary test refuses an event nothing emits) with its test, the CONTRACT events row and the README line. Listening stays in the other feature's `listeners.py` (`@on(...)`, `backend/system/events.py`) |
+| `new page <id> [--label "..."]` | `page/pages/<id>/` (`index.js` with the `<ID>_PAGE` descriptor, `<id>-page.js`, `README.md`), its import and place (last) in `PAGES` of `page/pages/index.js`, and the nav list in `tests/page/registry.test.mjs`; then the bundle |
+| `new tab <page> <id> [--label "..."]` | `page/pages/<page>/<id>/index.js` (`<PAGE>_<ID>_TAB`: `{ id, label, Page }`; the page is one bundle, so every exported name is unique, and new refuses a taken one), imported and listed in the page's `tabs`, the README's **Tabs:** line; then the bundle |
+| `new slot <page> <name> [--doc "..."]` | `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the README's **Slots:** line; then the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's |
+| `stats` | Read-only: pull requests landed through retrodev (review records with a merge) against all merged into `dev` (git subjects ending `(#N)`); per landed pull request its review rounds, findings per round and answers; the mean time from the first `ship` (recorded from now on) and from the owner's approval to the merge; check times from the branch records; rows and open rows of the main checkout's `notes/friction.md` |
+| `engine update <version> --owner-words "..." [--dry-run]` | `docs/dev/ENGINE-UPDATE.md` as a checklist. Without the owner's words exit 3 (a dry run too): anything under `engine/` needs the owner. Then only on `chore/engine-<version>`; records the words in `<state>/engine/<version>.json`; judges each step from the tree (the vendored `package.json`, the local patch, `engine/pins/<version>/`, `ENGINE_VERSION`), runs only the read-only helpers (`manifest.py verify`, the lock-step test) and prints the others with the version filled in. Exit 2 while a step is left (the next one named), 0 when all are done. It never changes `engine/` itself. `--dry-run` records and runs nothing |
 | `release prepare [--rc] [--version X.Y.Z] --owner-words "..."` | Only when the owner asks for a release: without their words (naming a release) exit 3. Below |
 | `release publish <version> [--dry-run]` | The gates, the update check, then main, the tag and the draft release. Below |
 | `release verify <version> [--publish]` | Reads the draft and proves the update path; `--publish` publishes it. Below |
+
+### new: the rules every kind follows
+
+Each `new` writes from the templates in `templates/<kind>/` (`{key}` filled in; `{{` and `}}` are literal braces),
+prints every file it created (`create`) or changed (`change`), formats the Python it touched with the pinned ruff,
+rebuilds the generated files when the change feeds them (`policy.toml` `[generated] regenerate`), runs the checks
+those files are inputs of (lint, bundle, unit, page; the install scan waits for `check`) and prints the next steps.
+It refuses (`FIX:`) a name that exists or breaks the naming rules (features, RPCs, tools and events: lowercase and
+underscores; pages and tabs: lowercase and dashes; slots: camelCase), never overwrites a file, and runs only on a
+work branch (never `dev` or `main`). `--dry-run` lists the files and writes nothing; `--no-check` skips the checks;
+`--no-build` skips the rebuild (when several `new` run in a row, let the last one rebuild). The generated code
+passes the real checks as written: `tests/retrodev/test_scaffold_tree.py` runs every kind on a copy of the
+repository and then lint, the bundle, the structure tests and the page tests there.
 
 Every command takes `--json` (one JSON object: `command`, `ok`, `code`, `status`, the command's data, and `error`
 with `message` and `fix` on a failure).
@@ -148,7 +172,8 @@ or the owner's checkout). Every failure ends with a line starting `FIX:`.
 Records live in `<git common dir>/retrodev/` (the main checkout's `.git/retrodev/`, shared by every worktree,
 never committed): `branches/<branch>.json` (plan, checks with their input digests, the passing tree, the pull
 request and pushed head, the owner's approval, land's last step), `plans/<topic>.json` (the plan's approval),
-`reviews/<pr>.json` and `reviews/<pr>/round<N>/` (every review round), `releases/<version>.json` (the owner's
+`reviews/<pr>.json` and `reviews/<pr>/round<N>/` (every review round; `shipped` is the first ship's time, for
+`stats`), `engine/<version>.json` (the owner's words for an engine update), `releases/<version>.json` (the owner's
 words, the pull request, the update check's pass and the steps done), `preview/` (the page preview),
 `config.toml` (personal settings).
 `RETRODEV_STATE_DIR` moves the folder (for a sandbox or a trial that must leave the checkout alone); `status` and `doctor`

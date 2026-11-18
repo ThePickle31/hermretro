@@ -281,6 +281,8 @@ class Ship(RepoCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(self.gh.called("pr", "edit")[0][:3], ["pr", "edit", "12"])
         self.assertEqual(len(self.gh.called("pr", "create")), 1)
+        review = json.loads((state.root(self.main) / "reviews" / "12.json").read_text())
+        self.assertEqual(review["shipped"]["head"], head, "the first ship's time stays (stats: ship to merge)")
 
     def test_a_remote_that_moved_is_never_overwritten(self):
         tree, body = self.ready()

@@ -9,8 +9,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, t
   // 1. Not switched on anywhere: an explanation, not a setup step.
   scenario.status = notLoaded
   await render()
+  // The registry test (registry.test.mjs) pins every page in nav order; here the shell draws them, the built-in ones
+  // first, so a page added at the end (python tools/retrodev new page) changes only the registry and its test.
   check('one segmented control in the header: Home · Build · Setup · Prompts · Games · Emulator, Home first', () => {
-    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent), ['Home', 'Build', 'Setup', 'Prompts', 'Games', 'Emulator'])
+    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent).slice(0, 6), ['Home', 'Build', 'Setup', 'Prompts', 'Games', 'Emulator'])
     assert.equal(currentTab(), 'Home')
   })
   check('with the backend off there are no setup steps, only how to switch it on', () => {
