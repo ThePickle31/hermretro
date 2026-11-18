@@ -14,6 +14,17 @@
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
 capped at 104 bytes on macOS).
 
+## Logging
+
+Each backend module logs through `logger = logging.getLogger(__name__)` and starts every message with
+`hermretro:` (`logger.debug("hermretro: no chat project for the build snapshot", exc_info=True)`), so its lines
+are found with `grep hermretro:`. Hermes loads the plugin as `hermes_plugins.<name>`, so a gateway records INFO
+and above in the profile's `logs/gateway.log` and `logs/agent.log` (its `logging.level`, INFO by default), and
+WARNING and above also in `logs/errors.log`; DEBUG is recorded nowhere by default. So: `debug` for an expected,
+handled failure (a missing optional file), `info` for something the user did that is worth a line, `warning` for
+something wrong that hermretro worked around, and never a token, ticket or file content. The broker writes its own
+trace (above), not these logs.
+
 ## Common symptoms
 
 - **Setup says "The hermretro broker did not start", and the trace shows `broker_started`/`broker_stopped` pairs

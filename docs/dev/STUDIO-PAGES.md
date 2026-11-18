@@ -448,8 +448,10 @@ nav list (it goes last; move it in both).
 
 **A tab.** Make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
-`app/page-view.js` draws the tab bar and remembers the choice per page; the page's own `Page`, if it keeps one,
-renders between the tab bar and the tab. Mention the tab in the page's `README.md`. Or:
+`app/page-view.js` draws the tab bar and remembers the choice per page. With tabs, the page's own `Page` is not
+the page's body any more: if the descriptor keeps one it renders only as a strip between the tab bar and the
+chosen tab (given `{ shell, tab }`), so move its content into a tab, or drop `Page` when the tabs are the whole
+page. Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line).
 
 **An event.** The page it happens in owns it: add `events: { '<page>.<name>': 'what happened; the payload' }`
@@ -466,7 +468,11 @@ screen. Or: `python tools/retrodev new slot <page> <name> --doc '...'` declares 
 test); rendering the `Slot` stays yours.
 
 **A contribution to a slot.** In the contributing page's `index.js`: `contributes: { '<page>.<name>':
-[Component] }`. `Component` gets the host's props. It lives in the contributing page's folder.
+[Component] }`. It lives in the contributing page's folder. `Component` gets the host's props: read the slot's
+doc string in the host page's `index.js` (`slots: { ... }`) for what they are and what to return. For example
+`games.cardMenu` passes `{ ctx, game, hardwareOn, item }`, where `item(icon, label, run, { disabled, why })` makes a
+menu button, so a contribution returns `item(...)` (or `null` for no button); `emulator.barActions` passes
+`{ ctx, game, hardwareOn }` and its contribution renders a button.
 
 Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
 `games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

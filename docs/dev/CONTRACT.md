@@ -38,7 +38,11 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 
 ## Backend RPC (desktop → Python)
 
-Called with `host.request('plugin.hermretro.<name>', params)`.
+Called with `host.request('plugin.hermretro.<name>', params)`. RPC names are global and flat: one namespace,
+`plugin.hermretro.<name>`, for every feature, with no feature or page prefix and no dots in `<name>` (`builds`,
+not `history.builds`). One name is declared once across all features: the page-name generator
+(`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second, and `python tools/retrodev
+new rpc <feature> <name>` refuses a taken one.
 A disabled or missing backend answers JSON-RPC error `-32601`.
 The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generated from the `@rpc` declarations into
 `page/app/rpc-names.js` by `tools/bundle/rpc_names.py` (`node tools/bundle/bundle.mjs` runs it; the bundle check

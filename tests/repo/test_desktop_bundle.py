@@ -10,6 +10,7 @@ also hold the bundle to what Hermes Desktop's loader and the install scanner acc
 
 import hashlib
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[2]
 BUNDLE = ROOT / "desktop" / "plugin.js"
 FRAME_SHIM = ROOT / "player" / "frame-shim.js"
 SOURCE = ROOT / "page"
+# The folders each banner's sources hash covers: what that output bundles (the `sources` of its target in
+# tools/bundle/bundle.mjs, whose build fails when an output bundles a file outside them). Per output, so a
+# page-only edit restamps desktop/plugin.js and leaves the frame shim alone.
+SOURCES = {"desktop/plugin.js": ["page"], "player/frame-shim.js": ["page/frame", "page/shared"]}
 # Modules and the art they import; dotfiles and editor leftovers are not hashed (tools/bundle/lint.mjs).
 SOURCE_SUFFIXES = {".js", ".png"}
 REBUILD = "run: node tools/bundle/bundle.mjs"
@@ -64,18 +69,24 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def sources_hash() -> str:
-    """The same digest tools/bundle/bundle.mjs writes: path, a zero byte, then the bytes, in path order."""
-    files = [
-        path.relative_to(ROOT).as_posix()
-        for path in SOURCE.rglob("*")
+def source_files(folder: str, root: Path = ROOT) -> list[str]:
+    base = root / folder
+    return [
+        path.relative_to(root).as_posix()
+        for path in base.rglob("*")
         if path.is_file()
         and path.suffix in SOURCE_SUFFIXES
-        and not any(part.startswith(".") for part in path.relative_to(SOURCE).parts)
+        and not any(part.startswith(".") for part in path.relative_to(base).parts)
     ]
+
+
+def sources_hash(output: str, root: Path = ROOT) -> str:
+    """The digest tools/bundle/bundle.mjs writes for `output`: over its source folders and the build tool,
+    path, a zero byte, then the bytes, in path order."""
+    files = [name for folder in SOURCES[output] for name in source_files(folder, root)]
     digest = hashlib.sha256()
     for rel in sorted([*files, "tools/bundle/bundle.mjs"]):
-        digest.update(rel.encode() + b"\0" + (ROOT / rel).read_bytes())
+        digest.update(rel.encode() + b"\0" + (root / rel).read_bytes())
     return digest.hexdigest()
 
 
@@ -97,7 +108,9 @@ class DesktopBundleTests(unittest.TestCase):
         self.assertEqual(sha256(body), banner.group(3), f"edit page/ instead, then {REBUILD}")
 
     def test_the_bundle_was_built_from_the_current_sources(self):
-        self.assertEqual(sources_hash(), self.banner().group(2), f"desktop/plugin.js is stale; {REBUILD}")
+        self.assertEqual(
+            sources_hash("desktop/plugin.js"), self.banner().group(2), f"desktop/plugin.js is stale; {REBUILD}"
+        )
 
     def test_the_bundle_imports_exactly_what_the_loader_allows(self):
         self.assertEqual(sorted(IMPORT.findall(self.text)), ALLOWED_IMPORTS)
@@ -139,10 +152,32 @@ class FrameShimTests(unittest.TestCase):
         self.assertEqual(
             sha256(text[banner.end() :].encode("utf-8")), banner.group(3), f"edit page/frame/ instead, then {REBUILD}"
         )
-        self.assertEqual(sources_hash(), banner.group(2), f"player/frame-shim.js is stale; {REBUILD}")
+        self.assertEqual(
+            sources_hash("player/frame-shim.js"), banner.group(2), f"player/frame-shim.js is stale; {REBUILD}"
+        )
 
     def test_the_shim_imports_nothing(self):
         self.assertEqual(IMPORT.findall(FRAME_SHIM.read_text(encoding="utf-8")), [])
+
+
+class SourcesHashTests(unittest.TestCase):
+    """Each output's banner hashes only what it bundles."""
+
+    def test_a_page_edit_restamps_only_the_desktop_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for folder in ("page/pages/home", "page/frame", "page/shared", "tools/bundle"):
+                (root / folder).mkdir(parents=True)
+            for name in ("page/index.js", "page/pages/home/home-page.js", "page/frame/index.js", "page/shared/a.js"):
+                (root / name).write_text("// one\n")
+            (root / "tools/bundle/bundle.mjs").write_text("// tool\n")
+            before = {output: sources_hash(output, root) for output in SOURCES}
+            (root / "page/pages/home/home-page.js").write_text("// two\n")
+            changed = [output for output in SOURCES if sources_hash(output, root) != before[output]]
+            self.assertEqual(changed, ["desktop/plugin.js"])
+            (root / "page/shared/a.js").write_text("// two\n")
+            changed = [output for output in SOURCES if sources_hash(output, root) != before[output]]
+            self.assertEqual(changed, ["desktop/plugin.js", "player/frame-shim.js"])
 
 
 if __name__ == "__main__":

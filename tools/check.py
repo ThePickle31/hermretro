@@ -1,6 +1,6 @@
 """Run hermretro's checks, the same way here and in CI.
 
-    python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 25 s)
+    python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 12 s)
     python tools/check.py full           fast checks plus scaffold and the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
@@ -63,7 +63,8 @@ def need(tool: str) -> str:
 
 def check_unit(_args) -> str:
     # The suite runs with an empty home folder and no Hermes or hermretro locations set, so a test that
-    # would write to the real Hermes home (games, library, toolchain, broker) shows up as a file here.
+    # would write to the real Hermes home (games, library, toolchain, broker) shows up as a file here. No bytecode is
+    # read or written (-B), so a test run against a same-size edit within a second never reuses a stale .pyc.
     with tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home:
         env = {
             key: value
@@ -72,14 +73,14 @@ def check_unit(_args) -> str:
         }
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
         result = run(
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env={**env, "HOME": home},
+            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
+            env={**env, "HOME": home, "PYTHONDONTWRITEBYTECODE": "1"},
         )
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-            "python -m unittest tests/<area>/<feature>/test_<name>.py"
+            "python -B -m unittest tests/<area>/<feature>/test_<name>.py"
         )
     if leaked:
         raise AssertionError(

@@ -1,10 +1,10 @@
 # Testing
 
-`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 11 s; the install scan is the floor); CI runs the same ones. Every failure ends with a `FIX:` line.
+`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
-| unit | `python tools/check.py unit` | ~3 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
+| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` |
 | lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, 226 checks over five files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
@@ -20,6 +20,13 @@ clean install when the branch touched what they cover, and prints each time agai
 together, lint 2 s, the scan 15 s, others 6 s; over twice a budget is a warning, not a failure).
 `python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
 on the current tree is what `python tools/retrodev ship` requires.
+
+- Run `python tools/check.py fix` and commit before `python tools/retrodev check`: when the clean install is due it
+  installs the committed tree, so uncommitted edits are not what it tests (and `ship` needs a committed tree anyway).
+- A branch that changes `backend/` (or `engine/`, `player/`, the toolchain, `plugin.yaml`) makes `retrodev check`
+  add the real-engine acceptance run, about a minute more. Without the toolchain (`python
+  tools/ci/prepare_toolchain.py`, or `HERMRETRO_DEPS_ROOT` pointed at a folder that has one) it is skipped, and CI
+  runs it on Linux and macOS.
 
 One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
 for the page checks (Node 22 or newer). The checks never install anything themselves.
@@ -65,9 +72,24 @@ bundle, the install scan) and
 `tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
 bare origin and a fake `gh`; under discovery the whole package runs in one thread pool, about 1.3 s; a test there
 never patches a module's global, since other threads use it: `tests/retrodev/pool.py`). Each folder is a package, so discovery runs from the root:
-`python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`.
+`python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`;
+one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
+folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
+run that before committing.
 Shared helpers are `tests/support.py`; a test reaches another test's helpers as `from tests.backend.<feature>.<module>
 import ...`.
+
+## Adding a test
+
+Put it beside the tests of the code it covers, in the same folder. When the file you would add to is already over
+the size limit (`tools/layout.toml` `[exceptions]` lists those, each with its reason, and they may not grow), make
+a new file beside it named for what it tests (`test_<topic>.py`, `page-<page>-<topic>.test.mjs`).
+
+**Proving a regression test.** Run it against the old code and see it fail, then against the fix: `git stash` the
+fix (or check out the old file), run `python -B -m unittest tests/<area>/<feature>/test_<name>.py`, restore, run
+again. Keep the `-B`: an edit of the same size in the same second as the cached `.pyc` makes Python reuse the old
+bytecode, so the "before" run would test the fixed code. `python tools/check.py unit` already runs without
+bytecode.
 
 ## Rules for tests
 

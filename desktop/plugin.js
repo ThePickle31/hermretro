@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 9b5d9e6d27b91c21dbd61a231975a35413c6294178f734da89d3e851b99be1ff
- * body: sha256 4b8aec7a5b2f6b5e152157726fc71dfc362d9becd6f85b9767c377a2caeb55aa
+ * sources: sha256 e97e7b24f205618e8825686230c9a60e99a13e6248d3e2ce35378bc4d10047bd
+ * body: sha256 f26e49db01f8ea1164b03ee2acaf5c74516cfd04358bd266b971f0464f5ad23b
  */
 // page/sdk.js
 import {
@@ -6519,87 +6519,6 @@ function assetKind(path) {
   return "Image";
 }
 
-// page/pages/build/transcript/groups.js
-var PLAN_STEPS = /* @__PURE__ */ new Set(["skill_view", "project_select", "project_inspect", "project_inventory", "project_discover", "project_refresh", "toolchain_doctor", "toolchain_prepare", "web_search", "web_extract", "clarify", "read_file", "search_files"]);
-var MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/;
-var WORK_GROUPS = [
-  ["plan", "Planning", "Planned it"],
-  ["art", "Drawing the art", "Drew the art", "Worked on the art"],
-  ["level", "Setting up the level", "Set up the level"],
-  ["build", "Building it", "Built it"],
-  ["test", "Play-testing it", "Play-tested it"],
-  ["other", "Working on it", "Worked on it"]
-];
-var GROUP_MIN_STEPS = 8;
-var GIST_WORDS = { plan: "planned", art: "drew the art", level: "set up the level", build: "built it", test: "played it" };
-var ART_HINT = /\.(png|gif|aseprite)\b|art-src|sprite|background|cover|palette/i;
-function phaseOf(tool) {
-  const short = shortTool(tool.name);
-  if (PLAN_STEPS.has(short)) {
-    return "plan";
-  }
-  if (/^(sprite_|asset_|palette_|graphics_|native_graphics_|tilemap_|image_generate$|game_info$)/.test(short)) {
-    return "art";
-  }
-  if (/^(project_create|scene_|actor_|trigger_|script_|dialogue_|collision_|variable_|settings_|engine_field_|world_dependencies$)/.test(short)) {
-    return "level";
-  }
-  if (/^(rom_|web_build|web_preview|present_game$)/.test(short)) {
-    return "build";
-  }
-  if (/^emulator_/.test(short)) {
-    return "test";
-  }
-  if (/^(terminal|execute_code|write_file|patch)$/.test(short) && ART_HINT.test(JSON.stringify(tool.args ?? {}))) {
-    return "art";
-  }
-  return null;
-}
-function workGroups(entries) {
-  const groups = /* @__PURE__ */ new Map();
-  const before = [];
-  let current = null;
-  for (const entry of entries) {
-    const kind = entry.type === "step" ? phaseOf(entry.tool) : null;
-    if (kind) {
-      current = kind;
-      if (!groups.has(kind)) {
-        groups.set(kind, []);
-      }
-      groups.get(kind).push(...before.splice(0), entry);
-    } else if (current) {
-      groups.get(current).push(entry);
-    } else {
-      before.push(entry);
-    }
-  }
-  if (before.length) {
-    groups.set("other", before);
-    current = current ?? "other";
-  }
-  return {
-    groups: WORK_GROUPS.filter(([kind]) => groups.has(kind)).map(([kind]) => ({ kind, entries: groups.get(kind) })),
-    last: current
-  };
-}
-function groupTitle(group, live, made) {
-  const words = WORK_GROUPS.find(([kind]) => kind === group.kind) ?? WORK_GROUPS[WORK_GROUPS.length - 1];
-  return live ? words[1] : group.kind === "art" && !made && words[3] ? words[3] : words[2];
-}
-function rootOf(game, items) {
-  if (game?.projectRoot) {
-    return game.projectRoot;
-  }
-  for (const item of items) {
-    for (const tool of item.kind === "tools" ? item.tools : []) {
-      if (tool.info?.projectRoot) {
-        return tool.info.projectRoot;
-      }
-    }
-  }
-  return null;
-}
-
 // page/pages/build/transcript/status.js
 function BuildStatus({ chat, onStop, onJump }) {
   const now = useNow(Boolean(chat?.busy));
@@ -7752,6 +7671,87 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
       ]
     })
   });
+}
+
+// page/pages/build/transcript/groups.js
+var PLAN_STEPS = /* @__PURE__ */ new Set(["skill_view", "project_select", "project_inspect", "project_inventory", "project_discover", "project_refresh", "toolchain_doctor", "toolchain_prepare", "web_search", "web_extract", "clarify", "read_file", "search_files"]);
+var MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/;
+var WORK_GROUPS = [
+  ["plan", "Planning", "Planned it"],
+  ["art", "Drawing the art", "Drew the art", "Worked on the art"],
+  ["level", "Setting up the level", "Set up the level"],
+  ["build", "Building it", "Built it"],
+  ["test", "Play-testing it", "Play-tested it"],
+  ["other", "Working on it", "Worked on it"]
+];
+var GROUP_MIN_STEPS = 8;
+var GIST_WORDS = { plan: "planned", art: "drew the art", level: "set up the level", build: "built it", test: "played it" };
+var ART_HINT = /\.(png|gif|aseprite)\b|art-src|sprite|background|cover|palette/i;
+function phaseOf(tool) {
+  const short = shortTool(tool.name);
+  if (PLAN_STEPS.has(short)) {
+    return "plan";
+  }
+  if (/^(sprite_|asset_|palette_|graphics_|native_graphics_|tilemap_|image_generate$|game_info$)/.test(short)) {
+    return "art";
+  }
+  if (/^(project_create|scene_|actor_|trigger_|script_|dialogue_|collision_|variable_|settings_|engine_field_|world_dependencies$)/.test(short)) {
+    return "level";
+  }
+  if (/^(rom_|web_build|web_preview|present_game$)/.test(short)) {
+    return "build";
+  }
+  if (/^emulator_/.test(short)) {
+    return "test";
+  }
+  if (/^(terminal|execute_code|write_file|patch)$/.test(short) && ART_HINT.test(JSON.stringify(tool.args ?? {}))) {
+    return "art";
+  }
+  return null;
+}
+function workGroups(entries) {
+  const groups = /* @__PURE__ */ new Map();
+  const before = [];
+  let current = null;
+  for (const entry of entries) {
+    const kind = entry.type === "step" ? phaseOf(entry.tool) : null;
+    if (kind) {
+      current = kind;
+      if (!groups.has(kind)) {
+        groups.set(kind, []);
+      }
+      groups.get(kind).push(...before.splice(0), entry);
+    } else if (current) {
+      groups.get(current).push(entry);
+    } else {
+      before.push(entry);
+    }
+  }
+  if (before.length) {
+    groups.set("other", before);
+    current = current ?? "other";
+  }
+  return {
+    groups: WORK_GROUPS.filter(([kind]) => groups.has(kind)).map(([kind]) => ({ kind, entries: groups.get(kind) })),
+    last: current
+  };
+}
+function groupTitle(group, live, made) {
+  const words = WORK_GROUPS.find(([kind]) => kind === group.kind) ?? WORK_GROUPS[WORK_GROUPS.length - 1];
+  return live ? words[1] : group.kind === "art" && !made && words[3] ? words[3] : words[2];
+}
+function rootOf(game, items) {
+  if (game?.projectRoot) {
+    return game.projectRoot;
+  }
+  for (const item of items) {
+    for (const tool of item.kind === "tools" ? item.tools : []) {
+      if (tool.info?.projectRoot) {
+        return tool.info.projectRoot;
+      }
+    }
+  }
+  return null;
 }
 
 // page/pages/build/transcript/build-card.js
@@ -9402,7 +9402,6 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const shownStored = fresh ? null : stored;
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
-  const shownRoot = useMemo(() => rootOf(game, shownItems ?? []), [game?.projectRoot, shownItems]);
   const [focusTurn, setFocusTurn] = useState(null);
   const settledItems = useRef(null);
   if (!shownChat?.busy) {

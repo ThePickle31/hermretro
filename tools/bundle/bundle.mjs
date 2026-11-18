@@ -12,15 +12,14 @@
  *
  * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
  * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
- * esbuild version and two hashes (sources, body), so a stale or hand-edited output is detected without
- * esbuild (here, and in tests/repo/test_desktop_bundle.py).
+ * esbuild version and two hashes (sources: only the folders that output bundles, and body), so a stale or
+ * hand-edited output is detected without esbuild (here, and in tests/repo/test_desktop_bundle.py).
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
  * tools/npm/node_modules, or a Hermes Desktop checkout).
  *
  * Before building, it regenerates page/app/rpc-names.js from the backend's @rpc declarations with
  * tools/bundle/rpc_names.py (Python from PATH); --check fails when that file is stale.
  */
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -30,6 +29,7 @@ import { fileURLToPath } from 'node:url'
 
 import { lineCount, lintSources, sourceFiles } from './lint.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
+import { rpcNames } from './rpc-names.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SOURCE = 'page'
@@ -63,11 +63,14 @@ const sha256 = data => createHash('sha256').update(data).digest('hex')
 const abs = relative => path.join(ROOT, relative)
 const importsOf = text => [...text.matchAll(/^import\s(?:[^;]*?\sfrom\s+)?"([^"]+)";$/gm)].map(match => match[1]).sort()
 
-/** The outputs: where each comes from, what its banner says, and what must hold for it whatever built it. */
+/** The outputs: where each comes from, what its banner says, and what must hold for it whatever built it.
+ *  `sources` are the folders its banner hashes: everything it bundles must lie in them (checked on each build),
+ *  so a page edit restamps only desktop/plugin.js. tests/repo/test_desktop_bundle.py holds the same lists. */
 const TARGETS = [
   {
     output: 'desktop/plugin.js',
     entry: `${SOURCE}/index.js`,
+    sources: [SOURCE],
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
@@ -92,6 +95,7 @@ const TARGETS = [
   {
     output: 'player/frame-shim.js',
     entry: `${SOURCE}/frame/index.js`,
+    sources: [`${SOURCE}/frame`, `${SOURCE}/shared`],
     about: [
       'hermretro \u2014 the player frame shim. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/frame/. Rebuild: node tools/bundle/bundle.mjs`,
@@ -155,11 +159,12 @@ const options = target => ({
 
 const buildAll = tools => Promise.all(TARGETS.map(target => tools.esbuild.build(options(target))))
 
-/** SHA-256 over every source file and this tool: path, a zero byte, then the bytes, in path order. */
-function sourcesHash() {
+/** SHA-256 over a target's source folders and this tool: path, a zero byte, then the bytes, in path order. */
+function sourcesHash(target) {
   const hash = createHash('sha256')
+  const files = target.sources.flatMap(folder => sourceFiles(abs(folder)).map(name => `${folder}/${name}`))
 
-  for (const file of [...sourceFiles(abs(SOURCE)).map(name => `${SOURCE}/${name}`), 'tools/bundle/bundle.mjs'].sort()) {
+  for (const file of [...files, 'tools/bundle/bundle.mjs'].sort()) {
     hash.update(file).update('\0').update(readFileSync(abs(file)))
   }
 
@@ -176,6 +181,12 @@ function readStamp(text) {
 }
 
 const readOutput = target => (existsSync(abs(target.output)) ? readFileSync(abs(target.output), 'utf8') : '')
+
+/** Bundled files outside the folders a target's banner hashes (an edit there would not mark it stale). */
+const unhashed = (target, result) =>
+  Object.keys(result.metafile.inputs)
+    .filter(file => !target.sources.some(folder => file.startsWith(`${folder}/`)))
+    .map(file => `${target.output} bundles ${file}, outside the folders its banner hashes (${target.sources.join(', ')})\nFIX: add the folder to that target's sources in tools/bundle/bundle.mjs and to SOURCES in tests/repo/test_desktop_bundle.py`)
 
 /** What must hold for an output, whatever built it. */
 function outputProblems(target, text) {
@@ -197,18 +208,17 @@ function outputProblems(target, text) {
 
 /** The finished outputs for one esbuild result per target, and everything wrong with them or the sources. */
 function finish(results, tools) {
-  const sources = sourcesHash()
   const texts = TARGETS.map((target, index) => {
     const body = results[index].outputFiles[0].text
 
-    return banner(target, { esbuild: tools.esbuild.version, sources, body: sha256(body) }) + body
+    return banner(target, { esbuild: tools.esbuild.version, sources: sourcesHash(target), body: sha256(body) }) + body
   })
   // Every source file belongs to one output or the other: lint them as one tree.
   const inputs = Object.assign({}, ...results.map(result => result.metafile.inputs))
 
   return {
     texts,
-    problems: [...lintSources({ root: ROOT, source: SOURCE, aliases: ALIASES, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => outputProblems(target, texts[index]))]
+    problems: [...lintSources({ root: ROOT, source: SOURCE, aliases: ALIASES, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => [...unhashed(target, results[index]), ...outputProblems(target, texts[index])])]
   }
 }
 
@@ -230,8 +240,6 @@ function write(relative, text) {
 
 /** Why the committed outputs cannot be trusted, from their banners alone (no esbuild needed). */
 export function staleReasons() {
-  const sources = sourcesHash()
-
   return TARGETS.flatMap(target => {
     const text = readOutput(target)
     const stamp = readStamp(text)
@@ -242,7 +250,7 @@ export function staleReasons() {
 
     return [
       sha256(text.slice(stamp.length)) === stamp.body ? null : `${target.output} was edited by hand (its body hash differs)`,
-      sources === stamp.sources ? null : `${target.output} is stale (${SOURCE}/ or the build tool changed since it was built)`
+      sourcesHash(target) === stamp.sources ? null : `${target.output} is stale (${target.sources.join('/, ')}/ or the build tool changed since it was built)`
     ].filter(Boolean)
   })
 }
@@ -338,34 +346,9 @@ async function watch(tools) {
   return new Promise(() => {})
 }
 
-/** Regenerate (or with `check`, verify) page/app/rpc-names.js from the backend's @rpc declarations. */
-function rpcNames(check) {
-  for (const python of ['python3', 'python']) {
-    const result = spawnSync(python, ['tools/bundle/rpc_names.py', ...(check ? ['--check'] : [])], { cwd: ROOT, encoding: 'utf8' })
-
-    if (result.error?.code === 'ENOENT') {
-      continue
-    }
-
-    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
-
-    if (result.status !== 0) {
-      return [output || `${python} tools/bundle/rpc_names.py failed`]
-    }
-
-    if (output) {
-      console.log(output)
-    }
-
-    return []
-  }
-
-  return ['Python was not found, so page/app/rpc-names.js (generated from backend/) could not be made\nFIX: install Python 3.11 or newer (python3 on PATH), then run node tools/bundle/bundle.mjs again']
-}
-
 async function main(flags) {
   const tools = toolchain()
-  const names = rpcNames(flags.has('--check'))
+  const names = rpcNames(ROOT, flags.has('--check'))
 
   if (names.length) {
     return fail(names)
