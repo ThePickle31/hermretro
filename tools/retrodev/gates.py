@@ -184,18 +184,24 @@ def names_agent(line: str) -> bool:
     return bool(AGENT.search(line) and MADE.search(line))
 
 
-def body_problems(text: str, sections: list[str]) -> list[str]:
-    """What a pull request body lacks: an empty or missing template section, or the line naming the agent."""
-    text = COMMENT.sub("", text)
+def section_lines(text: str) -> dict[str, list[str]]:
+    """{'## heading': its lines of content}: template comments, blank lines and unticked boxes are no content."""
     found: dict[str, list[str]] = {}
     current = None
-    for line in text.splitlines():
+    for line in COMMENT.sub("", text).splitlines():
         heading = re.match(r"^##\s+(.+?)\s*$", line)
         if heading:
             current = heading.group(1)
             found.setdefault(current, [])
         elif current is not None and line.strip() and not UNCHECKED.match(line):
             found[current].append(line)
+    return found
+
+
+def body_problems(text: str, sections: list[str]) -> list[str]:
+    """What a pull request body lacks: an empty or missing template section, or the line naming the agent."""
+    text = COMMENT.sub("", text)
+    found = section_lines(text)
     problems = [f"section '## {name}' is missing" for name in sections if name not in found]
     problems += [f"section '## {name}' is empty" for name in sections if name in found and not found[name]]
     if not any(names_agent(line) for line in text.splitlines()):

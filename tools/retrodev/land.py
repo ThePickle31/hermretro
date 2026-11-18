@@ -29,7 +29,7 @@ from pathlib import Path
 from . import ci, gates, github, land_carry, land_gates, land_merge, reviews
 from .gates import Gate
 from .land_merge import progress
-from .output import FAILED, OWNER, Failure
+from .output import FAILED, OWNER, Failure, cmd
 from .review import audit, records
 from .review import round as review_round
 
@@ -100,9 +100,11 @@ def findings_failure(ctx, number: int, round_no: int, result: dict) -> Failure:
     steps = [
         "fix each finding (or, when one is wrong, prove it: a test or command output)",
         "python tools/retrodev check",
-        "git add -A && git commit -m '<what the fixes change>'",
-        "python tools/retrodev ship --title '<the title>' --body <file>",
-        f"python tools/retrodev answer {number} {round_no} <index> '<fixed in <sha>: how>' for each of 0..{len(items) - 1}",
+        cmd("git", "add", "-A") + " && " + cmd("git", "commit", "-m", "<what the fixes change>"),
+        cmd("python", "tools/retrodev", "ship", "--title", "<the title>")
+        + " (the body file of the first ship is kept)",
+        cmd("python", "tools/retrodev", "answer", number, round_no, "<index>", "<fixed in <sha>: how>")
+        + f" for each of 0..{len(items) - 1}",
         f"python tools/retrodev land {number}"
         + (
             " (round 3 was the last: it merges on green CI, no 4th round)"

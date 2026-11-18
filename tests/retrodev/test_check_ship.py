@@ -147,11 +147,14 @@ class Check(RepoCase):
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        rows = [{"name": "lint", "seconds": 4.5, "cached": False}, {"name": "unit", "seconds": 7.0, "cached": False}]
-        warnings = checks.budget_warnings(ctx, rows, 31.0, True)
+        rows = [{"name": "lint", "seconds": 3.0, "cached": False}, {"name": "unit", "seconds": 9.0, "cached": False}]
+        self.assertEqual(checks.budget_warnings(ctx, rows, 31.0, True), [], "unit's usual 9 s and a 31 s run pass")
+        rows[1]["seconds"] = 25.0
+        warnings = checks.budget_warnings(ctx, rows, 41.0, True)
         self.assertEqual(len(warnings), 2)
-        self.assertIn("lint took 4.5 s, over twice its 2 s budget", warnings[0])
-        self.assertIn("fast checks took 31.0 s", warnings[1])
+        self.assertIn("unit took 25.0 s, over twice its 12 s budget: slower than usual", warnings[0])
+        self.assertIn("machines and load differ", warnings[0])
+        self.assertIn("fast checks took 41.0 s together, over twice their 20 s budget: slower than usual", warnings[1])
 
     def test_watch_sees_a_change(self):
         tree = self.worktree()
@@ -325,7 +328,7 @@ class Ship(RepoCase):
         code, gate = plan_gate()
         self.assertEqual((code, gate["ok"]), (3, False))
         self.assertIn("there is no plan 'by-hand'", gate["message"])
-        self.run_cli("plan", "new", "bigplan")
+        self.new_plan("bigplan")
         self.run_cli("plan", "link", "bigplan", cwd=path)
         code, gate = plan_gate()
         self.assertEqual((code, gate["ok"]), (3, False))

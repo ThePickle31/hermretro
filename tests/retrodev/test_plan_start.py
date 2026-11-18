@@ -54,7 +54,7 @@ class Start(RepoCase):
         self.assertFalse((self.base / "hermretro-wt").exists())
 
     def test_start_makes_the_worktree_at_the_computed_path_from_origin_dev(self):
-        self.run_cli("plan", "new", "speedy")
+        self.new_plan("speedy")
         self.run_cli("plan", "approve", "speedy", "--words", "start")
         self.on_dev("docs/news.md", "# News\n")  # origin/dev moved since the last fetch
         code, data = self.run_cli("start", "feat/speedy", as_json=True)
@@ -72,7 +72,7 @@ class Start(RepoCase):
         self.assertIn("already exists", out)
 
     def test_one_plan_covers_several_branches(self):
-        self.run_cli("plan", "new", "bigplan")
+        self.new_plan("bigplan")
         code, out = self.run_cli("start", "feat/part-one", "--plan", "bigplan", "--no-setup")
         self.assertEqual(code, 3, out)
         self.assertIn("'bigplan' is not approved", out)
@@ -86,7 +86,7 @@ class Start(RepoCase):
         self.assertEqual((code, data.get("topic")), (0, "bigplan"), data)
 
     def test_a_branch_made_by_hand_links_to_its_plan(self):
-        self.run_cli("plan", "new", "bigplan")
+        self.new_plan("bigplan")
         self.run_cli("plan", "approve", "bigplan", "--words", "start")
         path = self.base / "by-hand"
         git(self.main, "worktree", "add", "-q", "-b", "feat/by-hand", str(path), "dev")

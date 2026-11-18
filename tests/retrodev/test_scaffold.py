@@ -6,13 +6,14 @@ Run alone: python -m unittest tests.retrodev.test_scaffold
 
 import ast
 import codecs
+import json
 import re
 import shutil
 import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import repo, scaffold
+from retrodev import repo, scaffold, scaffold_backend
 
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
@@ -36,7 +37,9 @@ REAL = [
 ]
 
 
-class New(RepoCase):
+class ScaffoldCase(RepoCase):
+    """A work branch holding the real files `new` edits (test_new_kinds.py uses it too)."""
+
     def setUp(self):
         super().setUp()
         self.tree = self.worktree("feat/grow")
@@ -59,6 +62,8 @@ class New(RepoCase):
     def read(self, name):
         return (self.tree / name).read_text()
 
+
+class New(ScaffoldCase):
     def test_a_feature_gets_its_folder_tests_and_every_registry_line(self):
         out = self.new("feature", "rdprobe", "--purpose", "Demonstrates new.")
         self.assertEqual(
@@ -126,13 +131,14 @@ class New(RepoCase):
         found = re.search(r"(\d+) in total", contract)
         assert found
         total = int(found.group(1))
+        last, extra = owned_tools(self.read("plugin.yaml"), contract)  # read from the real files: tools get added
         out = self.new("tool", "history", "chromatic_snap", "--step", "Taking a snapshot", "Took a snapshot")
         self.assertEqual(out["created"], ["backend/history/tools.py", "tests/backend/history/test_tool_snap.py"])
-        self.assertIn("  - chromatic_build_report\n  - chromatic_snap\n", self.read("plugin.yaml"))
+        self.assertIn(f"  - {last}\n  - chromatic_snap\n", self.read("plugin.yaml"))
         self.assertIn("  snap: ['Taking a snapshot', 'Took a snapshot'],", self.read(scaffold_words()))
         contract = self.read("docs/dev/CONTRACT.md")
         self.assertIn(f"{total + 1} in total", contract)
-        self.assertIn("81 tools, plus five", contract)
+        self.assertIn(f"tools, plus {scaffold_backend.NUMBER_WORDS.get(extra + 1, extra + 1)}", contract)
         self.assertIn("`chromatic_snap`", contract)
         tools = self.read("backend/history/tools.py")
         self.assertIn(
@@ -239,7 +245,8 @@ class New(RepoCase):
         self.new("tab", "rdprobe-notes", "more")
         index = self.read("page/pages/rdprobe-notes/index.js")
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_EXTRA_TAB,\n    RDPROBE_NOTES_MORE_TAB\n  ]", index)
-        self.assertIn("**Tabs:** `extra` (`extra/index.js`).", self.read("page/pages/rdprobe-notes/README.md"))
+        readme = self.read("page/pages/rdprobe-notes/README.md")
+        self.assertIn("**Tabs:** `extra` (`extra/index.js`), `more` (`more/index.js`).", readme)  # every tab, not one
         self.new("slot", "home", "side-panel", "--doc", "Beside the hero. Props: { ctx }")
         self.assertIn(
             "  slots: {\n    'home.sidePanel': 'Beside the hero. Props: { ctx }'\n  }",
@@ -312,6 +319,17 @@ class New(RepoCase):
         self.assertIn("create  tests/backend/history/test_rpc_rdprobe_ping.py", out)
         self.assertIn("change  backend/history/rpcs.py", out)
         self.assertIn("next: write the handler in backend/history/rpcs.py", out)
+
+
+def owned_tools(manifest: str, contract: str) -> tuple[str, int]:
+    """(the last plugin-owned tool in plugin.yaml, how many CONTRACT.md counts beside the engine's), from the files."""
+    engine = set()
+    for path in ROOT.glob("engine/pins/*/tools.json"):
+        engine |= {"chromatic_" + tool["name"] for tool in json.loads(path.read_text()).get("tools", [])}
+    listed = re.findall(r"^  - (\w+)$", manifest.split("provides_tools:")[-1], re.M)
+    word = re.search(r"\d+ tools, plus\s+(\w+)", contract).group(1)
+    words = {text: number for number, text in scaffold_backend.NUMBER_WORDS.items()}
+    return [name for name in listed if name not in engine][-1], words.get(word) or int(word)
 
 
 def scaffold_words():

@@ -1,9 +1,10 @@
-"""`new`: add a feature, page, tab, tool, RPC, event or slot in the repository's shape, in one command.
+"""`new`: add a feature, page, tab, tool, RPC, event, listener or slot in the repository's shape, in one command.
 
     new feature <name> [--purpose TEXT]        backend/<name>/ (front door, README), its tests, the registry lines
-    new rpc <feature> <name>                   an @rpc stub, its test, its CONTRACT section, the generated names
+    new rpc <feature> <name> | <feature>.<name>  an @rpc stub, its test, its CONTRACT section, the generated names
     new tool <feature> <name> [--step R D]     a Tool stub, its test, plugin.yaml, the page's step words, CONTRACT
     new event <feature> <name> [--payload P]   the front door's EVENTS entry and its CONTRACT row
+    new listener <feature> <event>             an @on stub in the feature's listeners.py, its test, the docs
     new page <id> [--label L]                  page/pages/<id>/ (descriptor, component, README), the registry line
     new tab <page> <id> [--label L]            page/pages/<page>/<id>/index.js, listed in the page's tabs
     new slot <page> <name> [--doc TEXT]        a slot the page declares for others to fill
@@ -286,7 +287,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
 
 
 def run(ctx, args) -> int:
-    from . import scaffold_backend, scaffold_page  # the kinds; they import this module
+    from . import scaffold_backend, scaffold_listener, scaffold_page  # the kinds; they import this module
 
     guard(ctx)
     plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
@@ -294,7 +295,17 @@ def run(ctx, args) -> int:
     if kind == "feature":
         what = scaffold_backend.feature(plan, args.name, args.purpose)
     elif kind == "rpc":
-        what = scaffold_backend.rpc_(plan, args.target, args.name)
+        target, name = args.target, args.name
+        if name is None:
+            target, dot, name = target.partition(".")
+            if not dot or not name:
+                raise Failure(
+                    f"new rpc needs a feature and a name, as two words or <feature>.<name>; got '{args.target}'",
+                    "python tools/retrodev new rpc library recent (or: new rpc library.recent)",
+                )
+        what = scaffold_backend.rpc_(plan, target, name)
+    elif kind == "listener":
+        what = scaffold_listener.listener(plan, args.target, args.name)
     elif kind == "tool":
         what = scaffold_backend.tool(plan, args.target, args.name, args.step)
     elif kind == "event":

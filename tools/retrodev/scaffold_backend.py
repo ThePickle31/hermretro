@@ -34,7 +34,13 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
-NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+# CONTRACT.md writes the plugin-owned tools' count as a word; past twenty, digits.
+COUNT_WORDS = (
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+    "seventeen eighteen nineteen twenty"
+)
+NUMBER_WORDS = dict(enumerate(COUNT_WORDS.split(" "), start=1))
+BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
 def features(plan: Plan) -> list[str]:
@@ -138,7 +144,9 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
     plan.regenerate = True
     plan.next_steps += [
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
-        f"call it from the page as RPC_{const(name)} (import it from '#app/rpc.js')",
+        f"call it from the page: import {{ RPC_{const(name)} }} from '#app/rpc.js' (re-exports the generated "
+        "rpc-names.js)",
+        f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
     ]
     return f"RPC {name}"
 
@@ -192,6 +200,12 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
         raise Failure(
             f"{source} binds {' and '.join(taken)} already, which tool {full} would define; nothing was written",
             f"pick another tool name, e.g. python tools/retrodev new tool {feature_name} {short}_more",
+        )
+    size = len(plan.read(source).splitlines())
+    if size > BIG_MODULE:
+        plan.notes.append(
+            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600): move tools into "
+            f"a sibling module (backend/{feature_name}/<topic>_tools.py with its own TOOLS, which tools.py's TOOLS takes in)"
         )
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
     plan.edit(source, lambda text: add_tool(text, source, render("tool", "tool.py.tmpl", **values), entry))
