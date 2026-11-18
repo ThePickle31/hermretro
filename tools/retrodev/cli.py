@@ -4,6 +4,7 @@
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
+  build: new feature|rpc|tool|event|page|tab|slot (code, tests, docs, registry line); stats; engine update <v>
   releases, only when the owner says 'make a release': release prepare, release publish, release verify
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
@@ -22,6 +23,7 @@ from . import (
     checks,
     config,
     doctor,
+    engine_update,
     gc,
     land,
     mac,
@@ -31,8 +33,10 @@ from . import (
     release_publish,
     release_verify,
     report,
+    scaffold,
     ship,
     start,
+    stats,
     status,
     summary,
     sync,
@@ -116,7 +120,18 @@ def parser() -> argparse.ArgumentParser:
         "--all", action="store_true", help="also the optional items"
     )
     add("status", "where this change stands, and the next step")
+    add("stats", "landed pull requests, review rounds and findings, ship to merge, check times, friction")
     releases(sub, common)
+    scaffolds(sub, common)
+    p = add("engine", "the vendored engine (owner-gated): update <version> walks docs/dev/ENGINE-UPDATE.md")
+    engine = p.add_subparsers(dest="action", required=True, metavar="<action>")
+    update = engine.add_parser("update", help="the engine update checklist", parents=[common])
+    update.add_argument("version")
+    update.add_argument("--owner-words", help="the owner's exact words asking for the engine update")
+    update.add_argument("--dry-run", action="store_true", help="print the gates and the checklist; change nothing")
+    update.add_argument(
+        "--done", type=int, action="append", default=[], metavar="N", help="record manual step N as done"
+    )
     p = add("try", "a pull request's full checks in a throwaway checkout outside the repository")
     p.add_argument("pr", type=int)
     p.add_argument("--keep", action="store_true", help="keep the throwaway checkout (its path is printed)")
@@ -151,8 +166,55 @@ def releases(sub, common) -> None:
     verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")
 
 
+def scaffolds(sub, common) -> None:
+    help_text = "add a feature, rpc, tool, event, page, tab or slot: code, its test, docs and the registry line"
+    p = sub.add_parser("new", help=help_text, description=help_text, parents=[common])
+    kinds = p.add_subparsers(dest="kind", required=True, metavar="<kind>")
+    shared = argparse.ArgumentParser(add_help=False, parents=[common])
+    shared.add_argument("--dry-run", action="store_true", help="list the files; write nothing")
+    shared.add_argument("--no-check", action="store_true", help="skip the checks afterwards")
+    shared.add_argument(
+        "--no-build", action="store_true", help="skip rebuilding the generated files (when several new run in a row)"
+    )
+
+    def kind(name: str, help_line: str, target: str | None, item: str) -> argparse.ArgumentParser:
+        parser = kinds.add_parser(name, help=help_line, description=help_line, parents=[shared])
+        if target:
+            parser.add_argument("target", metavar=target)
+        parser.add_argument("name", metavar=item)
+        return parser
+
+    kind("feature", "backend/<name>/: front door, README, tests, the registry lines", None, "name").add_argument(
+        "--purpose", help="one line: what the feature does (the map and README say it)"
+    )
+    kind("rpc", "an @rpc stub, its test, its CONTRACT section, the generated names", "feature", "name")
+    kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name").add_argument(
+        "--step", nargs=2, metavar=("RUNNING", "DONE"), help="the Build page's words while it runs and once done"
+    )
+    kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name").add_argument(
+        "--payload", help="one line: the keyword arguments it carries"
+    )
+    kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
+        "--label", help="its nav label (default: from the id)"
+    )
+    kind("tab", "page/pages/<page>/<id>/index.js, listed in the page's tabs", "page", "id").add_argument(
+        "--label", help="its tab label (default: from the id)"
+    )
+    kind("slot", "a slot the page declares for other pages to fill", "page", "name").add_argument(
+        "--doc", help="one line: where it is, and the props it passes"
+    )
+
+
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
+    if command == "new":
+        for missing in ("target", "purpose", "step", "payload", "label", "doc"):
+            setattr(args, missing, getattr(args, missing, None))
+        return scaffold.run(ctx, args)
+    if command == "engine":
+        return engine_update.run(ctx, args.version, args.owner_words, dry_run=args.dry_run, done=args.done)
+    if command == "stats":
+        return stats.run(ctx)
     if command == "release":
         if args.action == "prepare":
             return release.prepare(ctx, args.owner_words, rc=args.rc, named=args.version)
@@ -205,7 +267,8 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None, cwd: Path | str | None = None, gh_runner=None, stream=None, fakes=None) -> int:
     args = parser().parse_args(argv)
     out = Out(as_json=args.json, stream=stream)
-    name = args.command + (f" {args.action}" if args.command in ("plan", "config", "release") else "")
+    name = args.command + (f" {args.action}" if args.command in ("plan", "config", "release", "engine") else "")
+    name += f" {args.kind}" if args.command == "new" else ""
     try:
         ctx = config.Context.make(cwd or os.getcwd(), out, gh_runner=gh_runner, fakes=fakes)
         code = dispatch(ctx, args)

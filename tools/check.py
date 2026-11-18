@@ -1,14 +1,15 @@
 """Run hermretro's checks, the same way here and in CI.
 
     python tools/check.py                fast checks: unit, bundle, lint, page, scan (about 25 s)
-    python tools/check.py full           fast checks plus the real-engine acceptance run
+    python tools/check.py full           fast checks plus scaffold and the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
 
 Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
 boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
 for everyone, from .dev/py, made by python tools/py/setup.py), page (page tests in jsdom),
-scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real
+scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), scaffold (`retrodev new`
+of every kind on a copy of this tree, judged by the real checks; needs the npm tools and ruff), acceptance (real
 engine, compiler and emulator; needs the toolchain from setup).
 
 Every failure ends with a line starting "FIX:". In GitHub Actions the results also go to the run summary.
@@ -32,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FAST = ["unit", "bundle", "lint", "page", "scan"]
-ALL = FAST + ["acceptance"]
+ALL = FAST + ["scaffold", "acceptance"]
 
 
 class Skip(Exception):
@@ -275,6 +276,20 @@ def check_scan(args) -> str:
             "\"Install scanner\"); medium findings are fine"
         )
     return f"safe ({report['findings']} minor notes)"
+
+
+def check_scaffold(_args) -> str:
+    # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
+    if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
+        raise Skip(f"{missing} (npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py)")
+    need("node")
+    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": "1"})
+    if result.returncode or " skipped " in result.stderr:
+        raise AssertionError(
+            tail(result.stderr, 40) + "\nFIX: RD_SCAFFOLD_KEEP=1 RD_SCAFFOLD_FULL=1 " + " ".join(test[1:])
+        )
+    return "retrodev new of every kind passes the real checks"
 
 
 def check_acceptance(args) -> str:

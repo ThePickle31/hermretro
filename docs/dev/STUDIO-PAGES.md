@@ -442,12 +442,15 @@ shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `steps`, `game
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
 `README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_layout.py` fails without one).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
-`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes.
+`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. Or:
+`python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
+nav list (it goes last; move it in both).
 
 **A tab.** Make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; the page's own `Page`, if it keeps one,
-renders between the tab bar and the tab. Mention the tab in the page's `README.md`.
+renders between the tab bar and the tab. Mention the tab in the page's `README.md`. Or:
+`python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line).
 
 **An event.** The page it happens in owns it: add `events: { '<page>.<name>': 'what happened; the payload' }`
 to `page/pages/<page>/index.js`, and call `emit('<page>.<name>', payload)` from `#app/events.js` where it
@@ -459,7 +462,8 @@ emitter. An undeclared name throws. List it in both READMEs.
 **A slot.** The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
 `page/pages/<page>/index.js`, and renders `jsx(Slot, { name: '<page>.<name>', props: { ... } })` (from
 `#app/slots.js`) where the contributions go. Empty, it renders nothing, so declaring one changes nothing on
-screen.
+screen. Or: `python tools/retrodev new slot <page> <name> --doc '...'` declares it (and lists it in the registry
+test); rendering the `Slot` stays yours.
 
 **A contribution to a slot.** In the contributing page's `index.js`: `contributes: { '<page>.<name>':
 [Component] }`. `Component` gets the host's props. It lives in the contributing page's folder.

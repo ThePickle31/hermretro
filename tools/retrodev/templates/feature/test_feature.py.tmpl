@@ -1,0 +1,24 @@
+"""backend/{name}: its front door says what other features may use and which events it emits.
+
+Run alone: python -m unittest tests.backend.{name}.test_{name}
+"""
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+import backend.{name} as feature  # noqa: E402
+
+
+class FrontDoor(unittest.TestCase):
+    def test_it_lists_its_exports_and_its_own_events(self):
+        self.assertIsInstance(feature.__all__, list)
+        self.assertIsInstance(feature.EVENTS, dict)
+        for event in feature.EVENTS:
+            self.assertTrue(event.startswith("{name}."), event)
+
+
+if __name__ == "__main__":
+    unittest.main()

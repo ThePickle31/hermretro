@@ -1,0 +1,9 @@
+"""{purpose}
+
+Front door: nothing is exported yet. List a name in __all__ only when another feature needs it; events this
+feature emits are declared in EVENTS ("{name}.<what happened>": "the payload"), see backend/system/events.py.
+"""
+
+__all__: list[str] = []
+
+EVENTS: dict[str, str] = {}
