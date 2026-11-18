@@ -96,6 +96,16 @@ def run(ctx, number: int, keep: bool = False, setup: bool = True) -> int:
                 f"read the failures above; python tools/retrodev try {number} --keep keeps the checkout to look into",
                 failure.code,
             )
+        # check's shipping policy may let a check skip (acceptance without the toolchain) and still exit 0; try
+        # promises the full checks, so a skipped row means they were not all run: unverified, never a pass.
+        skipped = [row["name"] for row in ctx.out.data.get("checks", []) if row.get("state") == "skipped"]
+        ctx.out.set(skipped=skipped)
+        if skipped:
+            raise Failure(
+                f"#{number} at {sha[:9]} is unverified: {', '.join(skipped)} skipped, so the full checks did not pass",
+                "set up what each skipped row names (python tools/retrodev doctor lists it; the real-engine run needs "
+                f"python tools/ci/prepare_toolchain.py), then python tools/retrodev try {number}",
+            )
     finally:
         if keep:
             ctx.out.say(f"kept {path}; remove it with: rm -r {path.parent} && git -C {ctx.main()} worktree prune")

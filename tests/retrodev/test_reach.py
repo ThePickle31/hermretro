@@ -57,6 +57,19 @@ class Try(RepoCase):
         self.assertIn("failed its full checks", data["error"]["message"])
         self.assertEqual(len(list(self.base.glob("rd-try7-*"))), 1, "only the kept one")
 
+    def test_a_skipped_check_is_unverified_not_a_full_pass(self):
+        """Without the toolchain acceptance prints a skipped row and exits 0 (check's policy may skip it): try
+        must not call that a pass of the full checks."""
+        self.skip_checks("acceptance")
+        code, data = self.run_cli("try", "7", "--no-setup", as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("unverified", data["error"]["message"])
+        self.assertIn("acceptance skipped", data["error"]["message"])
+        self.assertEqual(data["skipped"], ["acceptance"])
+        self.assertEqual(list(self.base.glob("rd-try7-*")), [], "the checkout is still removed")
+        code, out = self.run_cli("try", "7", "--no-setup")
+        self.assertNotIn("passed the full checks", out)
+
     def test_an_unknown_pull_request_says_how_to_check(self):
         code, data = self.run_cli("try", "99", as_json=True)
         self.assertEqual(code, 1, data)

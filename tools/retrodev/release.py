@@ -17,6 +17,7 @@ request exists already (even merged), records it (gh pr list --head chore/releas
 
 from __future__ import annotations
 
+import platform
 import re
 import shlex
 from pathlib import Path
@@ -113,6 +114,14 @@ def target(ctx, rc: bool, named: str | None) -> tuple[str, str, bool]:
     return version, current, needs_pr
 
 
+def systems() -> str:
+    """The How verified boxes: the system release prepare (and so its checks) ran on is ticked, the other is not."""
+    mac = platform.system() == "Darwin"
+    linux = f"- [{' ' if mac else 'x'}] Linux" + ("" if mac else f": {platform.machine()}")
+    darwin = f"- [{'x' if mac else ' '}] macOS (Apple Silicon / Intel)" + (f": {platform.machine()}" if mac else "")
+    return f"{linux}\n{darwin}"
+
+
 def body(version: str, current: str, words: str, rc: bool) -> str:
     kind = "release candidate" if rc else "release"
     return f"""## Why
@@ -122,8 +131,8 @@ The owner asked for a {kind}: "{words}".
 The `version:` line of plugin.yaml, {current} to {stable(version)}; nothing else.
 
 ## How verified
-python tools/retrodev check passed on this exact tree (release prepare ran it).
-- [x] Linux
+python tools/retrodev check passed on this exact tree (release prepare ran it), on:
+{systems()}
 
 ## Risk and rollback
 The version line only. Rollback: revert this pull request before publishing.
