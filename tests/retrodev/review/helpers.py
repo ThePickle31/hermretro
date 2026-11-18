@@ -77,6 +77,9 @@ def make_db(path: Path, sessions: dict) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
     conn = sqlite3.connect(path)
+    # A throwaway file: no fsync and no journal file (a synced commit cost ~30 ms, a land test's whole setup).
+    conn.execute("PRAGMA synchronous = OFF")
+    conn.execute("PRAGMA journal_mode = MEMORY")
     conn.execute(
         "CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL,"
         " content TEXT, tool_calls TEXT, tool_name TEXT, timestamp REAL NOT NULL DEFAULT 0)"

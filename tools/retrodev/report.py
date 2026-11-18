@@ -49,6 +49,20 @@ RESTART_TEXT = {
 }
 
 
+def cached_from(row: dict, record: dict) -> dict:
+    """A cached row with the pass it reused: when it ran and how long it took (the branch record's check entry)."""
+    if not row.get("cached"):
+        return row
+    passed = (record.get("checks") or {}).get(row["name"]) or {}
+    return row | {"passed_at": passed.get("at"), "seconds": passed.get("seconds", row.get("seconds"))}
+
+
+def cached_text(row: dict) -> str:
+    when = f"passed {row['passed_at']}" if row.get("passed_at") else "an earlier pass"
+    took = f", took {row['seconds']:.1f} s" if row.get("seconds") else ""
+    return f"cached ({when}{took})"
+
+
 def collect(ctx) -> dict:
     branch = repo.branch(ctx.top)
     record = state.load_branch(ctx.top, branch) if branch else {}
@@ -68,7 +82,7 @@ def collect(ctx) -> dict:
         "pushed": record.get("pushed"),
         "commits": log,
         "files": grouped(files, layout),
-        "checks": (record.get("last_run") or {}).get("rows", []),
+        "checks": [cached_from(row, record) for row in (record.get("last_run") or {}).get("rows", [])],
         "checks_on_this_tree": record.get("passed_tree") == tree,
         "ci": {"summary": github.ci_summary(jobs) if pr else "no pull request", "jobs": jobs or []},
         "restart": restarts(ctx, files),
@@ -96,7 +110,10 @@ def run(ctx) -> int:
         say(f"  {area}: " + ", ".join(names))
     say("\nChecks" + (" (passed on this tree)" if data["checks_on_this_tree"] else " (NOT passed on this tree)") + ":")
     for row in data["checks"]:
-        say(f"  {row['state']:>7}  {row['name']:<13} " + ("cached" if row["cached"] else f"{row['seconds']:.1f} s"))
+        say(
+            f"  {row['state']:>7}  {row['name']:<13} "
+            + (cached_text(row) if row["cached"] else f"{row['seconds']:.1f} s")
+        )
     say(f"\nCI: {data['ci']['summary']}")
     for job in data["ci"]["jobs"]:
         say(f"  {job.get('bucket', '?'):>8}  {job.get('name')}")

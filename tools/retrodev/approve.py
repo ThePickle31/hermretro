@@ -13,9 +13,9 @@ branch needs its own (ship moves the old one to the branch record's history).
 
 from __future__ import annotations
 
-from . import reviews, state
+from . import land_gates, repo, reviews, state
 from .github import gh
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
 from .review import records
 
 
@@ -53,7 +53,10 @@ def approve(ctx, number: int, words: str | None) -> int:
         gh(ctx, ["pr", "ready", str(number)])
         readied = True
         ctx.out.say(f"marked #{number} ready for review (it was a draft)")
-    ctx.out.say(f"next: python tools/retrodev land {number}  (in the background: reviews and CI take many minutes)")
+    ctx.out.say(
+        f"next: {cmd('cd', ctx.main())} && python tools/retrodev land {number}  (from the main checkout: the merge removes "
+        "the worktree; in the background: reviews and CI take many minutes)"
+    )
     ctx.out.set(pr=number, branch=branch, approval=approval, readied=readied)
     return 0
 
@@ -91,9 +94,32 @@ def answer(ctx, number: int, round_no: int, index: int | None, text: str | None,
             raise Failure(f"round {round_no} has {count} finding(s), numbered 0 to {count - 1}; no {n}", usage)
     left = reviews.unanswered(record)
     ctx.out.say(f"answered finding(s) {', '.join(map(str, indexes))} of round {round_no} on #{number}")
-    if left:
+    where = pr_stage(ctx, number, entry.get("sha"))
+    if where == "merged":
+        ctx.out.say(f"#{number} is already merged. next: python tools/retrodev summary {number}")
+    elif left:
         ctx.out.say("still unanswered: " + ", ".join(f"round {r} finding {i}" for r, i, _f in left))
+    elif where == "shipped":
+        ctx.out.say(
+            f"the fixes are shipped (the head moved past the reviewed one). next: python tools/retrodev land {number}"
+        )
     else:
         ctx.out.say(f"next: commit, check and ship the fixes, then python tools/retrodev land {number}")
-    ctx.out.set(pr=number, round=round_no, answered=indexes, unanswered=[[r, i] for r, i, _f in left])
+    ctx.out.set(pr=number, round=round_no, answered=indexes, unanswered=[[r, i] for r, i, _f in left], stage=where)
     return 0
+
+
+def pr_stage(ctx, number: int, reviewed: str | None) -> str:
+    """'merged'; 'shipped' (the local head is pushed as the pull request's head, and it is not the reviewed head);
+    else 'fixing'. Unknown (gh unreachable) counts as 'fixing': the answer is recorded either way."""
+    try:
+        info = reviews.pr_view(ctx, number, "state,headRefName,headRefOid")
+    except Failure:
+        return "fixing"
+    if info.get("state") == "MERGED":
+        return "merged"
+    tree = land_gates.find_worktree(ctx, info.get("headRefName") or "")
+    pushed = info.get("headRefOid")
+    if tree and pushed and repo.head(tree) == pushed and pushed != reviewed and not repo.dirty(tree):
+        return "shipped"
+    return "fixing"

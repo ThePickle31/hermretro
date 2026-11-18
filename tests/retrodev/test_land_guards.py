@@ -180,15 +180,18 @@ class Resume(LandCase):
 
 class Summary(LandCase):
     def test_a_file_moved_out_of_a_restart_area_still_needs_the_restart(self):
-        from unittest import mock
+        self.on_dev("skills/demo/SKILL.md", "# Demo\nA skill the gateway loads.\n")
+        git(self.main, "fetch", "-q", "origin")
 
-        from retrodev import summary
+        def move(tree):  # the pull request's only change: a skill moved into docs/
+            git(tree, "mv", "skills/demo/SKILL.md", "docs/demo.md")
+            git(tree, "commit", "-q", "-m", "Move the demo skill")
 
-        self.open_pr()
-        moved = {"added": [], "changed": [], "removed": [], "moved": ["skills/demo/SKILL.md -> docs/demo.md"]}
-        with mock.patch.object(summary, "file_changes", return_value=moved):
-            code, data = self.run_cli("summary", PR, as_json=True)
+        self.open_pr(change=move)
+        code, data = self.run_cli("summary", PR, as_json=True)
         self.assertEqual(code, 0, data)
+        self.assertEqual((data["added"], data["changed"], data["removed"]), ({}, {}, {}), data)
+        self.assertEqual(data["moved"], ["skills/demo/SKILL.md -> docs/demo.md"])
         self.assertIn("gateway", data["owner"])
 
 

@@ -8,10 +8,17 @@ Every failure ends with a line starting "FIX:" naming the exact command or chang
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 
 OK, FAILED, WAITING, OWNER = 0, 1, 2, 3
 CODE_NAMES = {OK: "ok", FAILED: "failed", WAITING: "waiting", OWNER: "needs the owner"}
+
+
+def cmd(*parts) -> str:
+    """A command printed for people to run: each part shell-quoted, so a path with a space (or a quote) survives a
+    paste into sh, bash or zsh. Placeholders such as <index> stay out of it: they are text around the command."""
+    return " ".join(shlex.quote(str(part)) for part in parts)
 
 
 class Failure(Exception):

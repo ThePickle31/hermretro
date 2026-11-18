@@ -13,7 +13,7 @@ import hashlib
 from pathlib import Path
 
 from . import repo, state
-from .output import OWNER, Failure
+from .output import OWNER, Failure, cmd
 
 TEMPLATE = """# Plan: {topic}
 
@@ -133,9 +133,45 @@ def approve(ctx, topic: str, words: str | None) -> int:
     record.update(path=str(path), approved={"at": state.now(), "words": words.strip(), "sha256": fingerprint(path)})
     state.save_plan(ctx.top, record)
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
-    ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
-    ctx.out.set(topic=topic, approved=record["approved"])
+    linked = linked_branches(ctx, topic)
+    if linked:
+        stale = {str(tree.branch): tree for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
+        for row in linked:
+            branch, where = row["branch"], row["worktree"]
+            if where:
+                ctx.out.say(
+                    f"next: {branch} already works under it: {cmd('cd', where)} && python tools/retrodev status"
+                )
+                continue
+            gone = restore_command(ctx, branch, stale.get(branch))
+            ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")
+        ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
+    else:
+        ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
+    ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+def restore_command(ctx, branch: str, registered=None) -> str:
+    """The command (run in the main checkout) that brings back a branch's worktree: at the folder git still has
+    registered, after a prune (a folder deleted by hand stays registered, and git worktree add refuses it until
+    then), or where start puts it."""
+    folder = registered.path if registered else ctx.worktree_root() / branch.partition("/")[2]
+    prune = "git worktree prune && " if registered else ""
+    add = cmd("git", "worktree", "add", folder, branch)
+    return f"{prune}{add} && {cmd('cd', folder)} && python tools/retrodev status"
+
+
+def linked_branches(ctx, topic: str) -> list[dict]:
+    """The recorded branches working under this plan (named by --plan or plan link, or by their own topic), with
+    their worktree (None when it is gone)."""
+    trees = {str(tree.branch): str(tree.path) for tree in repo.worktrees(ctx.main()) if tree.path.is_dir()}
+    found = []
+    for record in state.branches(ctx.top):
+        branch = record.get("branch")
+        if branch and (record.get("plan") or record.get("topic")) == topic:
+            found.append({"branch": branch, "worktree": trees.get(branch) or None})
+    return sorted(found, key=lambda row: row["branch"])
 
 
 def link(ctx, topic: str) -> int:

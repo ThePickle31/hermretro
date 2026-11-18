@@ -85,9 +85,13 @@ class LandCase(RepoCase):
     def ci(self, jobs, code: int = 0) -> None:
         self.gh.answers[("pr", "checks", PR)] = (code, json.dumps(jobs), "")
 
-    def open_pr(self, draft: bool = False, approve: bool = True):
+    def open_pr(self, draft: bool = False, approve: bool = True, change=None):
+        """#12 open on BRANCH; ``change(tree)`` makes its commit (default: core.py's VALUE becomes 2)."""
         tree = self.worktree(BRANCH)
-        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", TITLE)
+        if change is None:
+            self.commit(tree, "backend/library/core.py", "VALUE = 2\n", TITLE)
+        else:
+            change(tree)
         self.info = {
             "number": int(PR),
             "title": TITLE,

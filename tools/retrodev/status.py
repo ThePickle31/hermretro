@@ -8,7 +8,10 @@ CI) and the next step as one line. In the main checkout: every open record and w
 
 from __future__ import annotations
 
+import os
+
 from . import gates, github, plan, repo, reviews, state
+from .output import cmd
 
 
 def next_step(facts: dict) -> str:
@@ -30,14 +33,16 @@ def next_step(facts: dict) -> str:
     if facts.get("head") != facts.get("pushed"):
         return "next: python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
     pr = facts["pr"]
+    # land runs from the main checkout: the merge removes this worktree
+    land = (cmd("cd", facts["main"]) + " && " if facts.get("main") else "") + f"python tools/retrodev land {pr}"
     if facts.get("unanswered"):
         first = facts["unanswered"][0]
         return (
             f"next: fix the review findings, check and ship, then python tools/retrodev answer {pr} {first[0]} <index> "
-            f"'<fixed in <sha>: how>' for each ({len(facts['unanswered'])} open), then python tools/retrodev land {pr}"
+            f"'<fixed in <sha>: how>' for each ({len(facts['unanswered'])} open), then {land}"
         )
     if facts.get("approved"):
-        return f"next: python tools/retrodev land {pr} (in the background: reviews, CI and the merge take minutes)"
+        return f"next: {land} (in the background: reviews, CI and the merge take minutes)"
     ci = facts.get("ci")
     if ci == "pending":
         return f"next: wait for CI (gh pr checks {facts['pr']} --watch), then python tools/retrodev report"
@@ -63,6 +68,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     return {
         "branch": branch,
         "path": str(path),
+        "main": str(ctx.main()),
         "topic": topic,
         "plan": plan_topic,
         "protected": branch in ctx.policy["branches"]["protected"],
@@ -108,6 +114,10 @@ def show_branch(ctx, facts: dict) -> None:
 def run(ctx) -> int:
     branch = repo.branch(ctx.top)
     main = ctx.main()
+    warning = state.override_warning()
+    if warning:
+        ctx.out.say(warning)
+        ctx.out.set(state_override=os.environ["RETRODEV_STATE_DIR"])
     if branch and branch not in ctx.policy["branches"]["protected"]:
         record = state.load_branch(ctx.top, branch) if state.branch_path(ctx.top, branch).is_file() else {}
         facts = branch_facts(ctx, branch, ctx.top, record)
@@ -128,8 +138,8 @@ def run(ctx) -> int:
             facts = {
                 "branch": name,
                 "path": None,
-                "next": "no worktree; its branch is kept (git worktree add <folder> <branch> to go on; gc removes "
-                "it once merged)",
+                "next": f"no worktree; its branch is kept: to go on, {plan.restore_command(ctx, name, tree)} "
+                "(gc removes it once merged)",
             }
         rows.append(facts)
         ctx.out.say(f"  {name:<34} {facts['path'] or '-'}\n    {facts['next']}")

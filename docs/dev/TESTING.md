@@ -62,7 +62,8 @@ Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feat
 (names in lock step, the version, the folder map and file sizes, only listed documents, no personal paths, the
 bundle, the install scan) and
 `tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
-bare origin and a fake `gh`; its modules run their tests on threads to stay under a second). Each folder is a package, so discovery runs from the root:
+bare origin and a fake `gh`; under discovery the whole package runs in one thread pool, about 1.3 s; a test there
+never patches a module's global, since other threads use it: `tests/retrodev/pool.py`). Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`.
 Shared helpers are `tests/support.py`; a test reaches another test's helpers as `from tests.backend.<feature>.<module>
 import ...`.
