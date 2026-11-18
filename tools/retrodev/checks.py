@@ -10,13 +10,15 @@ Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept p
 and prints "ok (cached)" while nothing it reads changed. When every check the branch needs has passed on the
 current tree, that tree's digest is recorded with the names of those checks: ship pushes only a tree that passed
 everything the policy requires of it now. Times are printed against the
-budgets in policy.toml; over twice a budget is a warning naming the check, never a failure (machines differ).
+budgets in policy.toml; over twice a budget is a warning that the check was slower than usual, never a failure
+(machines and load differ).
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -133,7 +135,7 @@ def run_check_py(ctx, names: list[str], env: dict) -> dict[str, dict]:
 
 def run_script(ctx, name: str, env: dict) -> dict:
     command = [sys.executable, *SCRIPTS[name]]
-    ctx.out.say(f"running {' '.join(SCRIPTS[name])} ...")
+    ctx.out.say(f"running {shlex.join(SCRIPTS[name])} ...")
     started = time.monotonic()
     code, lines = _stream(ctx, command, env)
     seconds = time.monotonic() - started
@@ -291,10 +293,13 @@ def budget_warnings(ctx, rows: list[dict], wall: float | None, whole_fast: bool)
         limit = budget(ctx, row["name"])
         if not row["cached"] and row["seconds"] > 2 * limit:
             found.append(
-                f"{row['name']} took {row['seconds']:.1f} s, over twice its {limit:g} s budget (not a "
-                "failure, machines differ; if it repeats here, find what got slow)"
+                f"{row['name']} took {row['seconds']:.1f} s, over twice its {limit:g} s budget: slower than usual "
+                "(machines and load differ; not a failure; if it repeats on an idle machine, find what got slow)"
             )
     total = float(ctx.policy["checks"]["budgets"]["fast_total"])
     if wall is not None and whole_fast and wall > 2 * total:
-        found.append(f"the fast checks took {wall:.1f} s together, over twice their {total:g} s budget")
+        found.append(
+            f"the fast checks took {wall:.1f} s together, over twice their {total:g} s budget: slower than usual "
+            "(machines and load differ)"
+        )
     return found

@@ -13,6 +13,7 @@ too, and nothing is checked out in any worktree an agent works in.
 from __future__ import annotations
 
 import contextlib
+import shlex
 import shutil
 import sys
 import tempfile
@@ -59,10 +60,10 @@ def install_check(ctx, sha: str, update_from: str | None) -> dict:
     if update_from:
         command.append(update_from)
     with throwaway(ctx, sha, "install") as path:
-        ctx.out.say(f"running {' '.join(command[1:])} at {sha[:9]} in {path} ...")
+        ctx.out.say(f"running {shlex.join(command[1:])} at {sha[:9]} in {path} ...")
         code, lines = checks._stream(ctx.at(path), command, checks.env_for("update"))
     tail = [line for line in lines if line.strip()][-1:] or [""]
-    return {"ok": code == 0, "command": " ".join(command[1:]), "sha": sha, "detail": tail[0]}
+    return {"ok": code == 0, "command": shlex.join(command[1:]), "sha": sha, "detail": tail[0]}
 
 
 def fetch_pr(ctx, number: int) -> str:

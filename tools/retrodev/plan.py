@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from . import repo, state
+from . import gates, repo, state
 from .output import OWNER, Failure, cmd
 
 TEMPLATE = """# Plan: {topic}
@@ -61,8 +61,8 @@ def new(ctx, topic: str) -> int:
         created = True
     state.save_plan(ctx.top, record)
     ctx.out.say(
-        f"next: fill it in, show it to the owner; when they say start: python tools/retrodev plan approve "
-        f'{topic} --words "<their exact words>"'
+        f"next: fill in every section (edit it in place: {path}), show it to the owner; when they say start: "
+        f'python tools/retrodev plan approve {topic} --words "<their exact words>"'
     )
     ctx.out.set(topic=topic, path=str(path), created=created)
     return 0
@@ -123,6 +123,14 @@ def approve(ctx, topic: str, words: str | None) -> int:
     path = plan_file(ctx, topic)
     if not path.is_file():
         raise Failure(f"there is no plan file {path} to approve", f"python tools/retrodev plan new {topic}")
+    empty = unfilled(path.read_text(encoding="utf-8"))
+    if empty:
+        raise Failure(
+            f"the plan {path} is still the template: "
+            + ", ".join(f"'## {name}'" for name in empty)
+            + " hold only its comments (the owner approves what the plan says, as ship needs a filled-in body)",
+            f"fill in notes/plans/{topic}.md first ({path}), show it to the owner, then plan approve again",
+        )
     if not words or not words.strip():
         raise Failure(
             "an approval records the owner's exact words, so anyone can see who said go and what they said",
@@ -139,9 +147,7 @@ def approve(ctx, topic: str, words: str | None) -> int:
         for row in linked:
             branch, where = row["branch"], row["worktree"]
             if where:
-                ctx.out.say(
-                    f"next: {branch} already works under it: {cmd('cd', where)} && python tools/retrodev status"
-                )
+                ctx.out.say(f"next: {branch} already works under it: {cmd('cd', where)} && python tools/retrodev check")
                 continue
             gone = restore_command(ctx, branch, stale.get(branch))
             ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")
@@ -150,6 +156,16 @@ def approve(ctx, topic: str, words: str | None) -> int:
         ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+def unfilled(text: str) -> list[str]:
+    """The plan's sections with nothing but the template's comments (a plan in another shape keeps its own
+    headings: only an empty one counts), or ['the whole plan'] when it says nothing at all."""
+    sections = gates.section_lines(text)
+    if not sections:
+        bare = [line for line in gates.COMMENT.sub("", text).splitlines() if line.strip() and not line.startswith("#")]
+        return [] if bare else ["the whole plan"]
+    return [name for name, lines in sections.items() if not lines]
 
 
 def restore_command(ctx, branch: str, registered=None) -> str:
@@ -163,15 +179,18 @@ def restore_command(ctx, branch: str, registered=None) -> str:
 
 
 def linked_branches(ctx, topic: str) -> list[dict]:
-    """The recorded branches working under this plan (named by --plan or plan link, or by their own topic), with
-    their worktree (None when it is gone)."""
+    """The branches working under this plan: recorded ones (named by --plan or plan link, or by their own topic)
+    and any local <kind>/<topic> branch (one made by hand has no record), with their worktree (None when gone)."""
     trees = {str(tree.branch): str(tree.path) for tree in repo.worktrees(ctx.main()) if tree.path.is_dir()}
-    found = []
+    names = set()
     for record in state.branches(ctx.top):
         branch = record.get("branch")
         if branch and (record.get("plan") or record.get("topic")) == topic:
-            found.append({"branch": branch, "worktree": trees.get(branch) or None})
-    return sorted(found, key=lambda row: row["branch"])
+            names.add(branch)
+    kinds = ctx.policy["branches"]["kinds"]
+    local = repo.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], ctx.top, check=False).split()
+    names |= {name for name in local if name.partition("/")[0] in kinds and name.partition("/")[2] == topic}
+    return [{"branch": branch, "worktree": trees.get(branch) or None} for branch in sorted(names)]
 
 
 def link(ctx, topic: str) -> int:

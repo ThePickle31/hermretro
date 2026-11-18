@@ -13,6 +13,7 @@ from __future__ import annotations
 import functools
 import http.server
 import posixpath
+import shlex
 import urllib.parse
 from pathlib import Path
 
@@ -68,7 +69,7 @@ def build(ctx, out: Path, desktop: Path) -> Path:
         fix = (
             "node tools/bundle/bundle.mjs (the preview draws the built bundle), then preview again"
             if "bundle.mjs" in text
-            else f"run it yourself to see the whole error: {' '.join(command)}"
+            else f"run it yourself to see the whole error: {shlex.join(command)}"
         )
         raise Failure(f"the preview build failed: {text[-600:] or f'exit {code}, no index.html'}", fix)
     return index

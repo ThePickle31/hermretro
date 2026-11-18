@@ -7,6 +7,8 @@ on the base branch and clean; gc that branch only) and never merges again.
 
 from __future__ import annotations
 
+import shlex
+
 from . import gc, github, land_gates, repo, reviews, state
 from .output import Failure, cmd
 
@@ -25,7 +27,7 @@ def merge(ctx, info: dict, sha: str, record: dict, jobs: list[dict]) -> int:
     land_gates.recheck(ctx, number, sha, reviews.pr_view(ctx, number, RECHECK))
     subject = f"{info['title']} (#{number})"
     args = ["pr", "merge", str(number), "--squash", "--delete-branch", "--match-head-commit", sha, "--subject", subject]
-    ctx.out.say(f"merging #{number} at {sha[:9]}: gh {' '.join(args[:7])} ...")
+    ctx.out.say(f"merging #{number} at {sha[:9]}: gh {shlex.join(args[:7])} ...")
     code, out, err = github.gh(main, args, check=False)
     if code and github.pr_state(main, number) != "MERGED":
         if land_gates.conflicted(err or out) or land_gates.mergeable(main, number) == "CONFLICTING":

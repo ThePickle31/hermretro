@@ -177,6 +177,8 @@ COMMENT = re.compile(r"<!--.*?-->", re.S)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[ \]")
 AGENT = re.compile(r"\bagents?\b", re.I)
 MADE = re.compile(r"\b(made|built|wrote|written|created|opened|by)\b", re.I)
+ATTRIBUTION = re.compile(r"^\s*made by an agent\b", re.I)  # the line ship writes; it fills no section
+SEPARATOR = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")  # ends the last section: what follows is in none
 
 
 def names_agent(line: str) -> bool:
@@ -184,18 +186,27 @@ def names_agent(line: str) -> bool:
     return bool(AGENT.search(line) and MADE.search(line))
 
 
-def body_problems(text: str, sections: list[str]) -> list[str]:
-    """What a pull request body lacks: an empty or missing template section, or the line naming the agent."""
-    text = COMMENT.sub("", text)
+def section_lines(text: str) -> dict[str, list[str]]:
+    """{'## heading': its lines of content}: template comments, blank lines, unticked boxes and the attribution
+    ('Made by an agent ...') are no content; a separator line ends the section (the attribution goes after one)."""
     found: dict[str, list[str]] = {}
     current = None
-    for line in text.splitlines():
+    for line in COMMENT.sub("", text).splitlines():
         heading = re.match(r"^##\s+(.+?)\s*$", line)
         if heading:
             current = heading.group(1)
             found.setdefault(current, [])
-        elif current is not None and line.strip() and not UNCHECKED.match(line):
+        elif SEPARATOR.match(line):
+            current = None
+        elif current is not None and line.strip() and not UNCHECKED.match(line) and not ATTRIBUTION.match(line):
             found[current].append(line)
+    return found
+
+
+def body_problems(text: str, sections: list[str]) -> list[str]:
+    """What a pull request body lacks: an empty or missing template section, or the line naming the agent."""
+    text = COMMENT.sub("", text)
+    found = section_lines(text)
     problems = [f"section '## {name}' is missing" for name in sections if name not in found]
     problems += [f"section '## {name}' is empty" for name in sections if name in found and not found[name]]
     if not any(names_agent(line) for line in text.splitlines()):

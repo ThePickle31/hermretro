@@ -124,6 +124,27 @@ Nothing.
 Made by an agent (Hermes) for the owner.
 """
 
+FILLED_PLAN = """# Plan: {topic}
+
+## Goal
+Make {topic} work.
+
+## What changes
+The code of {topic}.
+
+## Where files go
+tools/.
+
+## How it is tested
+python tools/retrodev check.
+
+## How the owner and users use it
+They run it.
+
+## Not in scope
+Nothing else.
+"""
+
 
 def git(cwd: Path, *args: str, check: bool = True) -> str:
     done = subprocess.run(["git", *args], cwd=str(cwd), text=True, capture_output=True)
@@ -271,6 +292,13 @@ class RepoCase(unittest.TestCase):
         code = cli.main(args, cwd=cwd or self.main, gh_runner=self.gh, stream=stream, fakes=self.fakes)
         text = stream.getvalue()
         return code, (json.loads(text) if as_json else text)
+
+    def new_plan(self, topic: str) -> Path:
+        """plan new, then a plan written into it (plan approve refuses one that is still the template)."""
+        self.run_cli("plan", "new", topic)
+        path = self.main / "notes" / "plans" / f"{topic}.md"
+        path.write_text(FILLED_PLAN.format(topic=topic))
+        return path
 
     def check_log(self) -> list[dict]:
         path = self.base / "checks.log"

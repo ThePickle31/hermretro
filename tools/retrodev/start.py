@@ -9,6 +9,8 @@ stays on dev, and its changes are the owner's). The worktree goes to the configu
 
 from __future__ import annotations
 
+import shlex
+
 from pathlib import Path
 
 from . import gates, repo, state
@@ -50,8 +52,8 @@ def run_setup(ctx, path: Path) -> list[dict]:
         command = ctx.command(words)
         code, out, err = repo.run(command, path, timeout=600)
         tail = (out + err).strip().splitlines()[-1:]
-        results.append({"command": " ".join(words), "ok": code == 0, "detail": tail[0] if tail else ""})
-        ctx.out.say(f"  {'ok' if code == 0 else 'FAILED'}  {' '.join(words)}" + (f"  {tail[0]}" if tail else ""))
+        results.append({"command": shlex.join(words), "ok": code == 0, "detail": tail[0] if tail else ""})
+        ctx.out.say(f"  {'ok' if code == 0 else 'FAILED'}  {shlex.join(words)}" + (f"  {tail[0]}" if tail else ""))
         if code:
             ctx.out.say(f"      FIX: {cmd('cd', path)} && {cmd(*command)}  (then python tools/retrodev doctor)")
     return results

@@ -140,8 +140,10 @@ def run(ctx: Context, action: str, key: str | None, value: str | None) -> int:
     keys = sorted(ctx.policy["config"])
     if action == "list":
         rows = {name: {"value": ctx.get(name), "from": ctx.source(name)} for name in keys}
+        rows["worktree_root"]["resolved"] = str(ctx.worktree_root())
         for name, row in rows.items():
-            ctx.out.say(f"{name} = {row['value']!r}  ({row['from']})")
+            resolved = f"; resolves to {row['resolved']}" if "resolved" in row else ""
+            ctx.out.say(f"{name} = {row['value']!r}  ({row['from']}{resolved})")
         ctx.out.set(settings=rows, file=str(local_path(ctx.top)))
         return 0
     if not key:

@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 
 from . import repo
-from .output import Failure
+from .output import Failure, cmd
 
 
 def real_runner(args: list[str], cwd: Path | str) -> tuple[int, str, str]:
@@ -25,11 +25,36 @@ def gh(ctx, args: list[str], check: bool = True) -> tuple[int, str, str]:
     runner = ctx.gh_runner or real_runner
     code, out, err = runner(list(args), ctx.top or ctx.cwd)
     if check and code:
-        raise Failure(
-            f"gh {' '.join(args[:3])} failed: {(err or out).strip()[:400]}",
-            "python tools/retrodev doctor (checks gh is installed and logged in), then run the command again",
-        )
+        raise failed(args, err or out)
     return code, out, err
+
+
+def failed(args: list[str], text: str) -> Failure:
+    return Failure(
+        f"{cmd('gh', *args[:3])} failed: {text.strip()[:400]}",
+        "python tools/retrodev doctor (checks gh is installed and logged in), then run the command again",
+    )
+
+
+# What gh says when the repository's remotes name no GitHub repository (a sandbox, a local or another host).
+NO_GITHUB = re.compile(
+    r"none of the git remotes|no git remotes found|known GitHub host|could not determine base repo", re.I
+)
+NO_GITHUB_NOTE = "note: no GitHub remote; the open pull request lookup was skipped"
+
+
+def no_github(ctx, err: str) -> bool:
+    """True when gh failed because no remote is on GitHub; says the note once per command instead of gh's error."""
+    if not NO_GITHUB.search(err or ""):
+        return False
+    if not ctx.out.data.get("no_github_remote"):
+        ctx.out.say(NO_GITHUB_NOTE)
+        ctx.out.set(no_github_remote=True)
+    return True
+
+
+class NoGitHub(Failure):
+    """gh cannot answer: no remote of this repository is on GitHub."""
 
 
 def login(ctx) -> str | None:
@@ -40,9 +65,18 @@ def login(ctx) -> str | None:
 
 def open_pr(ctx, branch: str) -> dict | None:
     """The open pull request from ``branch``, or None."""
-    _code, out, _err = gh(
-        ctx, ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,headRefOid,isDraft,baseRefName"]
+    code, out, err = gh(
+        ctx,
+        ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,headRefOid,isDraft,baseRefName"],
+        check=False,
     )
+    if code and no_github(ctx, err or out):
+        raise NoGitHub(
+            f"no remote of this repository is on GitHub ({repo.git(['remote'], ctx.top, check=False).strip() or 'none'})",
+            f"git remote set-url {ctx.remote} <the GitHub repository's address> (a pull request lives on GitHub)",
+        )
+    if code:
+        raise failed(["pr", "list", "--head"], err or out)
     found = json.loads(out or "[]")
     return found[0] if found else None
 
@@ -93,8 +127,10 @@ def edit_args(number: int, title: str, body_file: str) -> list[str]:
 
 def checks(ctx, number: int) -> list[dict] | None:
     """CI jobs of a pull request: [{name, state, bucket, link}] (bucket: pass, fail, pending, skipping, cancel)."""
-    code, out, _err = gh(ctx, ["pr", "checks", str(number), "--json", "name,state,bucket,link"], check=False)
+    code, out, err = gh(ctx, ["pr", "checks", str(number), "--json", "name,state,bucket,link"], check=False)
     # gh prints the JSON and exits 1 when a check failed, 8 while some are pending; anything else is an error.
+    if code and not out.strip() and no_github(ctx, err):
+        return None
     if code not in (0, 1, 8) or not out.strip():
         return None
     try:
