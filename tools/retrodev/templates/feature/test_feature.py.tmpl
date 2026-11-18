@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-import backend.{name} as feature  # noqa: E402
+import backend.{name} as feature  # noqa: E402 - the repository root goes on sys.path first
 
 
 class FrontDoor(unittest.TestCase):

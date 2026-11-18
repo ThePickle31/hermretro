@@ -5,7 +5,7 @@ The reason follows the codes after ' - ' or an em dash, on the same line:
     lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits
 
 A bare ``# noqa``, or codes with nothing after them (or a reason in brackets), fails. The vendored engine and the
-pinned npm tools are not ours and are skipped.
+pinned npm tools are not ours and are skipped; retrodev's Python templates are checked too.
 
 Run alone: python -m unittest tests.repo.test_noqa
 """
@@ -53,7 +53,7 @@ class Noqa(unittest.TestCase):
     def test_every_noqa_has_a_reason(self):
         problems = []
         for name in files():
-            if name.endswith(".py") and not name.startswith(SKIPPED):
+            if name.endswith((".py", ".py.tmpl")) and not name.startswith(SKIPPED):
                 problems += unreasoned((ROOT / name).read_text(encoding="utf-8", errors="replace"), name)
         self.assertEqual(
             problems,
