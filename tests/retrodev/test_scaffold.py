@@ -13,8 +13,9 @@ import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import repo, scaffold, scaffold_backend
+from retrodev import count_words, repo, scaffold
 
+from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
 load_tests = parallel
@@ -138,7 +139,7 @@ class New(ScaffoldCase):
         self.assertIn("  snap: ['Taking a snapshot', 'Took a snapshot'],", self.read(scaffold_words()))
         contract = self.read("docs/dev/CONTRACT.md")
         self.assertIn(f"{total + 1} in total", contract)
-        self.assertIn(f"tools, plus {scaffold_backend.NUMBER_WORDS.get(extra + 1, extra + 1)}", contract)
+        self.assertIn(f"tools, plus {count_words.count_text(extra + 1)}", contract)
         self.assertIn("`chromatic_snap`", contract)
         tools = self.read("backend/history/tools.py")
         self.assertIn(
@@ -320,6 +321,19 @@ class New(ScaffoldCase):
         self.assertIn("change  backend/history/rpcs.py", out)
         self.assertIn("next: write the handler in backend/history/rpcs.py", out)
 
+    def test_the_seventh_tool_s_count_is_the_one_the_lockstep_check_expects(self):
+        # The scaffold and tests/repo/test_lockstep.py share tools/retrodev/count_words.py: 'plus seven', not 'plus 7'.
+        _last, extra = owned_tools(self.read("plugin.yaml"), self.read("docs/dev/CONTRACT.md"))
+        self.assertLess(extra, 7, "the real CONTRACT.md already counts seven plugin-owned tools; move the boundary")
+        for n in range(7 - extra):
+            self.new("tool", "history", f"rdprobe{n}")
+        contract = self.read("docs/dev/CONTRACT.md")
+        engine = int(re.search(r"(\d+) tools, plus", contract).group(1))
+        self.assertIn(test_lockstep.contract_count(engine, 7), test_lockstep.flat(contract))
+        self.assertIn(f"{engine} tools, plus seven", contract)
+        self.assertEqual((count_words.count_text(20), count_words.count_text(21)), ("twenty", "21"))
+        self.assertEqual((count_words.count_value("seven"), count_words.count_value("21")), (7, 21))
+
 
 def owned_tools(manifest: str, contract: str) -> tuple[str, int]:
     """(the last plugin-owned tool in plugin.yaml, how many CONTRACT.md counts beside the engine's), from the files."""
@@ -328,8 +342,7 @@ def owned_tools(manifest: str, contract: str) -> tuple[str, int]:
         engine |= {"chromatic_" + tool["name"] for tool in json.loads(path.read_text()).get("tools", [])}
     listed = re.findall(r"^  - (\w+)$", manifest.split("provides_tools:")[-1], re.M)
     word = re.search(r"\d+ tools, plus\s+(\w+)", contract).group(1)
-    words = {text: number for number, text in scaffold_backend.NUMBER_WORDS.items()}
-    return [name for name in listed if name not in engine][-1], words.get(word) or int(word)
+    return [name for name in listed if name not in engine][-1], count_words.count_value(word)
 
 
 def scaffold_words():

@@ -56,12 +56,12 @@ def ahead_gate(ctx) -> Gate:
     count = int(repo.git(["rev-list", "--count", f"{base}..HEAD"], ctx.top).strip() or 0)
     if not count:
         return Gate("has commits", False, f"the branch has no commits beyond {base}", "commit your change first")
-    same = repo.git(["rev-parse", "HEAD^{tree}", f"{base}^{{tree}}"], ctx.top).split()
-    if len(same) == 2 and same[0] == same[1]:
+    fork = repo.git(["merge-base", base, "HEAD"], ctx.top, check=False).strip()
+    if fork and not repo.git(["diff", "--name-only", fork, "HEAD"], ctx.top).strip():
         return Gate(
             "has commits",
             False,
-            f"nothing to ship: the branch changes no file ({count} commit(s), but its tree is {base}'s)",
+            f"nothing to ship: the branch changes no file ({count} commit(s), but no change since it left {base})",
             "commit the change itself (commits that undo each other, or empty ones, ship nothing)",
         )
     return gates.passed("has commits", f"{count} beyond {base}")

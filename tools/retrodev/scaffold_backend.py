@@ -11,6 +11,7 @@ import ast
 import json
 import re
 
+from .count_words import count_text, count_value
 from .output import Failure
 from .scaffold import (
     SNAKE,
@@ -34,12 +35,6 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
-# CONTRACT.md writes the plugin-owned tools' count as a word; past twenty, digits.
-COUNT_WORDS = (
-    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
-    "seventeen eighteen nineteen twenty"
-)
-NUMBER_WORDS = dict(enumerate(COUNT_WORDS.split(" "), start=1))
 BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
@@ -232,13 +227,12 @@ def _contract_tool(text: str, full: str, feature_name: str) -> str:
 
     text, total = re.subn(r"(the )(\d+)( tools,)", bump, text, count=1)
     text, sum_ = re.subn(r"()(\d+)( in total)", bump, text, count=1)
-    words = {word: number for number, word in NUMBER_WORDS.items()}
 
     def plus(match: re.Match) -> str:
-        current = words.get(match.group(2), int(match.group(2)) if match.group(2).isdigit() else None)
+        current = count_value(match.group(2))
         if current is None:
             raise Failure(f"{CONTRACT}: cannot read '{match.group(0)}'", "update the tool counts there by hand")
-        return match.group(1) + NUMBER_WORDS.get(current + 1, str(current + 1))
+        return match.group(1) + count_text(current + 1)
 
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):

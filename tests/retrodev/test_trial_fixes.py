@@ -116,6 +116,19 @@ class Flow(RepoCase):
         gate = next(gate for gate in data["gates"] if gate["name"] == "has commits")
         self.assertIn("nothing to ship: the branch changes no file", gate["message"])
 
+    def test_a_branch_that_undoes_itself_is_refused_while_dev_moves_on(self):
+        # Its tree differs from origin/dev's tip only by dev's newer commit; from the merge base it changes nothing.
+        tree, body = self.ready()
+        git(tree, "revert", "--no-edit", "HEAD")
+        self.on_dev("docs/other.md", "# Other\n")
+        git(tree, "fetch", "-q", "origin")
+        self.passed(tree, "docs/tidy")
+        code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, "--dry-run", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)
+        gate = next(gate for gate in data["gates"] if gate["name"] == "has commits")
+        self.assertFalse(gate["ok"], gate)
+        self.assertIn("nothing to ship: the branch changes no file", gate["message"])
+
     def test_a_missing_plan_says_none_written_and_plan_new(self):
         tree = self.worktree("feat/ghost")
         code, out = self.run_cli("status", cwd=tree)
