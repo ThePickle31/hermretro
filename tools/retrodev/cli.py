@@ -4,7 +4,7 @@
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
-  build: new feature|rpc|tool|event|page|tab|slot (code, tests, docs, registry line); stats; engine update <v>
+  build: new feature|rpc|tool|event|listener|page|tab|slot (code, tests, docs, registry line); stats; engine update <v>
   releases, only when the owner says 'make a release': release prepare, release publish, release verify
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
@@ -90,7 +90,12 @@ def parser() -> argparse.ArgumentParser:
 
     p = add("ship", "push the branch and open (or update) its draft pull request")
     p.add_argument("--title", required=True, help="one plain sentence, no trailing period")
-    p.add_argument("--body", required=True, help="a file with every pull request template section filled in")
+    p.add_argument(
+        "--body",
+        help="a file with every pull request template section filled in (default: notes/pr/<topic>.md in the main "
+        "checkout; when it is missing, ship writes it from .github/pull_request_template.md and stops)",
+    )
+    p.add_argument("--new-body", action="store_true", help="write notes/pr/<topic>.md from the template, then stop")
     p.add_argument("--dry-run", action="store_true", help="run the gates and print what it would do")
 
     add("report", "the factual half of the step-5 report")
@@ -170,7 +175,9 @@ def releases(sub, common) -> None:
 
 
 def scaffolds(sub, common) -> None:
-    help_text = "add a feature, rpc, tool, event, page, tab or slot: code, its test, docs and the registry line"
+    help_text = (
+        "add a feature, rpc, tool, event, listener, page, tab or slot: code, its test, docs and the registry line"
+    )
     p = sub.add_parser("new", help=help_text, description=help_text, parents=[common])
     kinds = p.add_subparsers(dest="kind", required=True, metavar="<kind>")
     shared = argparse.ArgumentParser(add_help=False, parents=[common])
@@ -180,23 +187,31 @@ def scaffolds(sub, common) -> None:
         "--no-build", action="store_true", help="skip rebuilding the generated files (when several new run in a row)"
     )
 
-    def kind(name: str, help_line: str, target: str | None, item: str) -> argparse.ArgumentParser:
+    def kind(name: str, help_line: str, target: str | None, item: str, optional: bool = False):
         parser = kinds.add_parser(name, help=help_line, description=help_line, parents=[shared])
         if target:
             parser.add_argument("target", metavar=target)
-        parser.add_argument("name", metavar=item)
+        parser.add_argument("name", metavar=item, nargs="?" if optional else None)
         return parser
 
     kind("feature", "backend/<name>/: front door, README, tests, the registry lines", None, "name").add_argument(
         "--purpose", help="one line: what the feature does (the map and README say it)"
     )
-    kind("rpc", "an @rpc stub, its test, its CONTRACT section, the generated names", "feature", "name")
+    kind(
+        "rpc",
+        "an @rpc stub, its test, its CONTRACT section, the generated names: new rpc <feature> <name> or "
+        "<feature>.<name> (RPC names are global and flat: the page calls plugin.hermretro.<name>)",
+        "feature",
+        "name",
+        optional=True,
+    )
     kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name").add_argument(
         "--step", nargs=2, metavar=("RUNNING", "DONE"), help="the Build page's words while it runs and once done"
     )
     kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name").add_argument(
         "--payload", help="one line: the keyword arguments it carries"
     )
+    kind("listener", "an @on stub in backend/<feature>/listeners.py, its test, the README and docs", "feature", "event")
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"
     )
@@ -245,7 +260,7 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
             return watch.watch(ctx, args.names, full=args.full, again=args.again)
         return checks.run(ctx, args.names, again=args.again, full=args.full)
     if command == "ship":
-        return ship.run(ctx, args.title, args.body, dry_run=args.dry_run)
+        return ship.run(ctx, args.title, args.body, dry_run=args.dry_run, new_body=args.new_body)
     if command == "report":
         return report.run(ctx)
     if command == "approve":

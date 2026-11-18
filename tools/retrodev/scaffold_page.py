@@ -156,10 +156,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None) -> str:
         return add_to_descriptor(text, "tabs", "[", "]", name)
 
     plan.edit(door, wire)
-    _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)")
+    _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
     plan.regenerate = True
     plan.next_steps += [
         f"build the tab in page/pages/{page_id}/{tab_id}/index.js (Page gets the page's {{ shell }})",
+        f"with tabs, the page's own {page_id}-page.js component still renders, between the tab bar and the chosen "
+        "tab, with a { tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
+        "descriptor",
     ]
     return f"tab {page_id}/{tab_id}"
 
@@ -185,14 +188,14 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
     return f"slot {full}"
 
 
-def _readme(plan: Plan, page_id: str, what: str, item: str, replaces: str = "none") -> None:
+def _readme(plan: Plan, page_id: str, what: str, item: str, replaces: str = "none", append: bool = False) -> None:
     rel = f"page/pages/{page_id}/README.md"
     if not plan.exists(rel):
         plan.notes.append(f"{rel} is missing: every page has one (python tools/retrodev new page makes it)")
         return
     before = plan.read(rel)
     if replaces == "none":
-        plan.edit(rel, lambda text: readme_item(text, what, item, only_none=True))
+        plan.edit(rel, lambda text: readme_item(text, what, item, only_none=not append))
     else:
         plan.edit(rel, lambda text: text.replace(f"**{what}** {replaces}", f"**{what}** {item}", 1))
     if plan.read(rel) == before:

@@ -6,14 +6,16 @@ Run alone: python -m unittest tests.retrodev.test_scaffold
 
 import ast
 import codecs
+import json
 import re
 import shutil
 import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import repo, scaffold
+from retrodev import count_words, repo, scaffold
 
+from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
 load_tests = parallel
@@ -36,7 +38,9 @@ REAL = [
 ]
 
 
-class New(RepoCase):
+class ScaffoldCase(RepoCase):
+    """A work branch holding the real files `new` edits (test_new_kinds.py uses it too)."""
+
     def setUp(self):
         super().setUp()
         self.tree = self.worktree("feat/grow")
@@ -59,6 +63,31 @@ class New(RepoCase):
     def read(self, name):
         return (self.tree / name).read_text()
 
+    def own_exactly(self, owned: int):
+        """Set the test repository's plugin.yaml and CONTRACT.md to exactly this many plugin-owned tools."""
+        manifest, contract = self.read("plugin.yaml"), self.read("docs/dev/CONTRACT.md")
+        names = owned_list(manifest)
+        keep = names[:owned] + [f"chromatic_rdfake{n}" for n in range(owned - len(names))]
+        head, _, tail = manifest.partition("provides_tools:")
+        lines = [line for line in tail.split("\n") if line.removeprefix("  - ") not in names]
+        at = 1  # after the list's last item (lines[0] is the rest of the 'provides_tools:' line)
+        while at < len(lines) and lines[at].startswith("  - "):
+            at += 1
+        manifest = head + "provides_tools:" + "\n".join(lines[:at] + [f"  - {n}" for n in keep] + lines[at:])
+        _total, engine = contract_counts(contract)
+        contract = re.sub(
+            r"(\d+ tools, plus\s+)\w+", lambda m: m.group(1) + count_words.count_text(owned), contract, count=1
+        )
+        contract = re.sub(r"\d+( in total)", lambda m: f"{engine + owned}{m.group(1)}", contract, count=1)
+        write(self.tree, "plugin.yaml", manifest)
+        write(self.tree, "docs/dev/CONTRACT.md", contract)
+        self.assertEqual(owned_tools(manifest, contract)[1], owned)
+        self.assertEqual(len(owned_list(manifest)), owned)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", f"{owned} plugin-owned tools")
+
+
+class New(ScaffoldCase):
     def test_a_feature_gets_its_folder_tests_and_every_registry_line(self):
         out = self.new("feature", "rdprobe", "--purpose", "Demonstrates new.")
         self.assertEqual(
@@ -123,16 +152,15 @@ class New(RepoCase):
 
     def test_a_tool_moves_the_manifest_the_step_words_and_the_counts_together(self):
         contract = self.read("docs/dev/CONTRACT.md")
-        found = re.search(r"(\d+) in total", contract)
-        assert found
-        total = int(found.group(1))
+        total, engine = contract_counts(contract)
+        last, extra = owned_tools(self.read("plugin.yaml"), contract)  # read from the real files: tools get added
         out = self.new("tool", "history", "chromatic_snap", "--step", "Taking a snapshot", "Took a snapshot")
         self.assertEqual(out["created"], ["backend/history/tools.py", "tests/backend/history/test_tool_snap.py"])
-        self.assertIn("  - chromatic_build_report\n  - chromatic_snap\n", self.read("plugin.yaml"))
+        self.assertIn(f"  - {last}\n  - chromatic_snap\n", self.read("plugin.yaml"))
         self.assertIn("  snap: ['Taking a snapshot', 'Took a snapshot'],", self.read(scaffold_words()))
         contract = self.read("docs/dev/CONTRACT.md")
         self.assertIn(f"{total + 1} in total", contract)
-        self.assertIn("81 tools, plus five", contract)
+        self.assertIn(f"tools, plus {count_words.count_text(extra + 1)}", contract)
         self.assertIn("`chromatic_snap`", contract)
         tools = self.read("backend/history/tools.py")
         self.assertIn(
@@ -141,7 +169,9 @@ class New(RepoCase):
         self.new("tool", "history", "second")
         self.assertIn("TOOLS = (\n    Tool(SNAP_TOOL", self.read("backend/history/tools.py"))
         self.assertIn("    Tool(SECOND_TOOL, second_handler", self.read("backend/history/tools.py"))
-        self.assertIn("81 tools, plus six", self.read("docs/dev/CONTRACT.md"))
+        contract = self.read("docs/dev/CONTRACT.md")
+        self.assertIn(f"{engine} tools, plus {count_words.count_text(extra + 2)}", contract)
+        self.assertIn(f"{total + 2} in total", contract)
 
     def test_a_tool_on_a_feature_whose_tools_are_not_a_plain_tuple_is_refused_and_nothing_changes(self):
         for name in ("backend/hermes/__init__.py", "backend/hermes/tools.py"):  # TOOLS is a function there
@@ -239,7 +269,8 @@ class New(RepoCase):
         self.new("tab", "rdprobe-notes", "more")
         index = self.read("page/pages/rdprobe-notes/index.js")
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_EXTRA_TAB,\n    RDPROBE_NOTES_MORE_TAB\n  ]", index)
-        self.assertIn("**Tabs:** `extra` (`extra/index.js`).", self.read("page/pages/rdprobe-notes/README.md"))
+        readme = self.read("page/pages/rdprobe-notes/README.md")
+        self.assertIn("**Tabs:** `extra` (`extra/index.js`), `more` (`more/index.js`).", readme)  # every tab, not one
         self.new("slot", "home", "side-panel", "--doc", "Beside the hero. Props: { ctx }")
         self.assertIn(
             "  slots: {\n    'home.sidePanel': 'Beside the hero. Props: { ctx }'\n  }",
@@ -312,6 +343,44 @@ class New(RepoCase):
         self.assertIn("create  tests/backend/history/test_rpc_rdprobe_ping.py", out)
         self.assertIn("change  backend/history/rpcs.py", out)
         self.assertIn("next: write the handler in backend/history/rpcs.py", out)
+
+    def test_the_seventh_tool_s_count_is_the_one_the_lockstep_check_expects(self):
+        # The scaffold and tests/repo/test_lockstep.py share tools/retrodev/count_words.py: 'plus seven', not 'plus 7'.
+        # The test repository is set to exactly six plugin-owned tools, whatever the real count is.
+        self.own_exactly(6)
+        _total, engine = contract_counts(self.read("docs/dev/CONTRACT.md"))
+        self.new("tool", "history", "rdprobe")
+        contract = self.read("docs/dev/CONTRACT.md")
+        self.assertEqual(owned_tools(self.read("plugin.yaml"), contract)[1], 7)
+        self.assertEqual(len(owned_list(self.read("plugin.yaml"))), 7)
+        self.assertIn(test_lockstep.contract_count(engine, 7), test_lockstep.flat(contract))
+        self.assertIn(f"{engine} tools, plus seven", contract)
+        self.assertIn(f"{engine + 7} in total", contract)
+        self.assertEqual((count_words.count_text(20), count_words.count_text(21)), ("twenty", "21"))
+        self.assertEqual((count_words.count_value("seven"), count_words.count_value("21")), (7, 21))
+
+
+def owned_list(manifest: str) -> list[str]:
+    """The plugin-owned tools plugin.yaml lists (every listed tool the engine's pinned tools.json does not name)."""
+    engine = set()
+    for path in ROOT.glob("engine/pins/*/tools.json"):
+        engine |= {"chromatic_" + tool["name"] for tool in json.loads(path.read_text()).get("tools", [])}
+    listed = re.findall(r"^  - (\w+)$", manifest.split("provides_tools:")[-1], re.M)
+    return [name for name in listed if name not in engine]
+
+
+def owned_tools(manifest: str, contract: str) -> tuple[str, int]:
+    """(the last plugin-owned tool in plugin.yaml, how many CONTRACT.md counts beside the engine's), from the files."""
+    word = re.search(r"\d+ tools, plus\s+(\w+)", contract).group(1)
+    return owned_list(manifest)[-1], count_words.count_value(word)
+
+
+def contract_counts(contract: str) -> tuple[int, int]:
+    """(CONTRACT.md's 'N in total', its engine count 'E tools, plus ...'), read from the file."""
+    total = re.search(r"(\d+) in total", contract)
+    engine = re.search(r"(\d+) tools, plus", contract)
+    assert total and engine, "CONTRACT.md lost its tool counts"
+    return int(total.group(1)), int(engine.group(1))
 
 
 def scaffold_words():

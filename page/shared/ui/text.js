@@ -1,5 +1,9 @@
-// Text blocks: lede, small print and fact lists.
+// Text blocks: heading, lede, small print and fact lists.
 import { jsx } from '#sdk'
+
+export function Heading({ children }) {
+  return jsx('h2', { className: 'cs-word cs-title', children })
+}
 
 export function Lede({ children }) {
   return jsx('p', { className: 'cs-lede', children })

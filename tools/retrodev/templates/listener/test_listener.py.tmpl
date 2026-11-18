@@ -1,0 +1,35 @@
+"""backend/{name} listens to {event}. Run alone: python -m unittest tests.backend.{name}.test_listener_{func}
+
+HERMRETRO_HOME points at a temp folder (tests/support.py's rule): a listener never touches the real library.
+"""
+
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.{name} import listeners  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
+
+
+class Listener{Func}(unittest.TestCase):
+    def setUp(self):
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        patch = mock.patch.dict(os.environ, {{"HERMRETRO_HOME": home.name}})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_it_listens_to_the_event(self):
+        self.assertIn(listeners.{func}, events._listeners.get("{event}", []))
+
+    def test_it_takes_a_payload_without_raising(self):
+        self.assertIsNone(listeners.{func}(example=1))
+
+
+if __name__ == "__main__":
+    unittest.main()

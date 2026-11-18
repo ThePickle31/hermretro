@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 
 from . import gates, github, release, repo, state, trial
 from .gates import Gate
-from .output import OWNER, WAITING, Failure
+from .output import OWNER, WAITING, Failure, cmd
 
 MAIN = "main"
 REPICK = (
@@ -160,9 +161,8 @@ def steps(ctx, version: str, sha: str, rc: bool, tag_now: str) -> list[dict]:
 
 
 def shown(step: dict) -> str:
-    words = [f"'{w}'" if (" " in w or not w) else w for w in step["run"]]
-    env = " ".join(f"{k}={v}" for k, v in step.get("env", {}).items())
-    return (env + " " if env else "") + " ".join(words)
+    env = " ".join(f"{k}={shlex.quote(str(v))}" for k, v in step.get("env", {}).items())
+    return (env + " " if env else "") + cmd(*step["run"])
 
 
 def install_gate(ctx, rec: dict, sha: str, dry_run: bool) -> Gate:

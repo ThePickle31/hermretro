@@ -59,8 +59,10 @@ scaffold = ["tools/retrodev/scaffold*", "tools/retrodev/templates/*", "tests/ret
 clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]
 
 [checks.budgets]
-# Seconds. Over twice its budget a check is named in a warning (never a failure: machines differ).
-fast_total = 15
+# Seconds, from measured runs (unit alone takes about 9 s on a fast machine, more under load). Over twice its
+# budget a check is named in a warning that it was slower than usual (never a failure: machines and load differ).
+fast_total = 20
+unit = 12
 lint = 2
 scan = 15
 default = 6

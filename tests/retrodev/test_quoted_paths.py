@@ -45,7 +45,7 @@ class Spaced(RepoCase):
 
     def under_plan(self, branch: str) -> Path:
         self.assertIn(" ", str(self.base))
-        self.run_cli("plan", "new", "big")
+        self.new_plan("big")
         tree = self.worktree(branch)
         record = state.load_branch(self.main, branch)
         record["plan"] = "big"
@@ -121,7 +121,7 @@ class SpacedLand(LandCase):
     prefix = SPACED
 
     def test_approve_and_status_cd_into_the_main_checkout(self):
-        self.run_cli("plan", "new", "thing")  # feat/ needs an approved plan before status names land
+        self.new_plan("thing")  # feat/ needs an approved plan before status names land
         self.run_cli("plan", "approve", "thing", "--words", "start")
         tree = self.open_pr(approve=False)
         self.assertIn(" ", str(self.main))

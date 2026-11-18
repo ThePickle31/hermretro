@@ -77,6 +77,19 @@ def set_literal(source: str, name: str) -> set[str]:
     return set(re.findall(r"'(\w+)'", match.group(1)))
 
 
+def count_words():
+    """tools/retrodev/count_words.py, the count policy the `new tool` scaffold writes with (loaded by path)."""
+    spec = importlib.util.spec_from_file_location("count_words", ROOT / "tools" / "retrodev" / "count_words.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def contract_count(engine: int, owned: int) -> str:
+    """The phrase CONTRACT.md must hold for these counts: '81 tools, plus seven'."""
+    return f"{engine} tools, plus {count_words().count_text(owned)}"
+
+
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
@@ -133,8 +146,7 @@ class LockStep(unittest.TestCase):
         engine = len(json.loads(paths.PINNED_TOOLS.read_text())["tools"])
         contract = flat(read("docs/dev/CONTRACT.md"))
         owned = plugin_owned_tools(self.tools)
-        words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
-        self.assertIn(f"{engine} tools, plus {words.get(len(owned), len(owned))}", contract)
+        self.assertIn(contract_count(engine, len(owned)), contract)
         self.assertEqual(
             {name for name in owned if f"`{name}`" not in contract}, set(), "plugin-owned tools CONTRACT omits"
         )

@@ -11,6 +11,7 @@ import ast
 import json
 import re
 
+from .count_words import count_text, count_value
 from .output import Failure
 from .scaffold import (
     SNAKE,
@@ -34,7 +35,7 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
-NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
 def features(plan: Plan) -> list[str]:
@@ -138,7 +139,9 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
     plan.regenerate = True
     plan.next_steps += [
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
-        f"call it from the page as RPC_{const(name)} (import it from '#app/rpc.js')",
+        f"call it from the page: import {{ RPC_{const(name)} }} from '#app/rpc.js' (re-exports the generated "
+        "rpc-names.js)",
+        f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
     ]
     return f"RPC {name}"
 
@@ -193,6 +196,12 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
             f"{source} binds {' and '.join(taken)} already, which tool {full} would define; nothing was written",
             f"pick another tool name, e.g. python tools/retrodev new tool {feature_name} {short}_more",
         )
+    size = len(plan.read(source).splitlines())
+    if size > BIG_MODULE:
+        plan.notes.append(
+            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600): move tools into "
+            f"a sibling module (backend/{feature_name}/<topic>_tools.py with its own TOOLS, which tools.py's TOOLS takes in)"
+        )
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
     plan.edit(source, lambda text: add_tool(text, source, render("tool", "tool.py.tmpl", **values), entry))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
@@ -218,13 +227,12 @@ def _contract_tool(text: str, full: str, feature_name: str) -> str:
 
     text, total = re.subn(r"(the )(\d+)( tools,)", bump, text, count=1)
     text, sum_ = re.subn(r"()(\d+)( in total)", bump, text, count=1)
-    words = {word: number for number, word in NUMBER_WORDS.items()}
 
     def plus(match: re.Match) -> str:
-        current = words.get(match.group(2), int(match.group(2)) if match.group(2).isdigit() else None)
+        current = count_value(match.group(2))
         if current is None:
             raise Failure(f"{CONTRACT}: cannot read '{match.group(0)}'", "update the tool counts there by hand")
-        return match.group(1) + NUMBER_WORDS.get(current + 1, str(current + 1))
+        return match.group(1) + count_text(current + 1)
 
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):
