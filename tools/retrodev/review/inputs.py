@@ -213,8 +213,11 @@ def prepare(
     repo = Path(repo)
     sha = resolve(repo, sha)
     root = reviews_root(repo, root)
+    # A round folder in a worktree's files would show up in its git status (and void the audit); git's own folder
+    # (the default, <git-common-dir>/retrodev/reviews) never does.
+    git_dir = common_dir(repo)
     for tree in worktrees(repo):
-        if _inside(root, tree):
+        if _inside(root, tree) and not _inside(root, git_dir):
             raise InputsError(f"the reviews folder {root} is inside the worktree {tree}; pick one outside")
     merge_base = git(repo, "merge-base", resolve(repo, base), sha).strip()
     rdir = root / str(pr) / f"round{round_no}"

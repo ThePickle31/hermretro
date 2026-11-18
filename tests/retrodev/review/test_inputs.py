@@ -105,6 +105,9 @@ class Prepare(unittest.TestCase):
     def test_default_root_is_in_the_git_folder(self):
         self.assertEqual(inputs.reviews_root(self.repo), (self.repo / ".git").resolve() / "retrodev" / "reviews")
         self.assertEqual(inputs.main_checkout(self.repo), self.repo.resolve())
+        # The default is inside the main checkout's folder but in .git, which git status never shows: allowed.
+        prepared = inputs.prepare(self.repo, 9, "HEAD")
+        self.assertTrue(prepared.dir.is_relative_to((self.repo / ".git").resolve()))
 
 
 if __name__ == "__main__":
