@@ -108,6 +108,9 @@ ci_poll = 20            # seconds between CI polls
 ci_timeout = 1500       # default --ci-timeout: then land stops with 2 (still waiting; run land again)
 # Commits the reviewer is told to skip (subject patterns, fnmatch): a formatter pass, generated output.
 mechanical = ["Format*", "*(no code changes)*"]
+# A head that only merged dev after its review (sync) keeps the review when its merge resolution changed at most
+# this many lines beyond git's own merge (generated files aside); recorded and shown by summary. More: reviewed.
+max_sync_resolution_lines = 20
 
 [restart]
 # What the owner must do after the change lands in a checkout Hermes loads.

@@ -130,6 +130,14 @@ def describe(record: dict) -> str:
         + (f" ({row['findings']} finding(s), {row['answered']} answered)" if row["findings"] else "")
         for row in rows
     ]
+    carried = [entry for entry in record.get("carried") or [] if entry.get("head") == record.get("head")]
+    for entry in carried[-1:]:
+        lines = entry.get("resolution_lines") or 0
+        parts.append(
+            f"merge resolution, not reviewed: {lines} lines"
+            if lines
+            else "dev merged in after the review (no resolution)"
+        )
     return "; ".join(parts) + (f"; {void} void attempt(s)" if void else "")
 
 

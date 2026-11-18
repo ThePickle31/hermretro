@@ -149,6 +149,15 @@ def accept_head(root: Path, pr: int, sha: str, notes: Path | None = None) -> dic
     return record
 
 
+def reviewed_as(record: dict, head: str) -> str:
+    """The reviewed head that ``head`` stands for: a head that only merged the base branch after it keeps its review
+    (record['carried'], written by land_carry), else ``head`` itself."""
+    for entry in record.get("carried") or []:
+        if entry.get("head") == head:
+            return entry["reviewed"]
+    return head
+
+
 def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     """What landing does next.
 
@@ -159,7 +168,8 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     clean on the current head and CI is green; 'wait-ci' clean, CI not green; 'reviews-exhausted' 3 rounds ran and
     the head moved past the reviewed (or accepted) head: the owner decides.
 
-    A clean verdict counts only for the head it reviewed, whatever the round count."""
+    A clean verdict counts only for the head it reviewed, whatever the round count (or a head carried over from it:
+    one that only merged the base branch after it, ``reviewed_as``)."""
     if record.get("skipped"):
         return "merge-on-green"
     if record["rounds"] and record["rounds"][-1].get("stopped"):
@@ -168,7 +178,7 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     if not rounds:
         return "review"
     last = rounds[-1]
-    head = head or record.get("head") or last["sha"]
+    head = reviewed_as(record, head or record.get("head") or last["sha"])
     exhausted = len(rounds) >= MAX_ROUNDS
     if last["result"]["verdict"] == "clean":
         if head == last["sha"]:
@@ -215,4 +225,10 @@ def markdown(record: dict) -> str:
             ]
         if result.get("checked"):
             out += ["", "Checked:"] + [f"- {c}" for c in result["checked"]]
+    for entry in record.get("carried") or []:
+        out += [
+            "",
+            f"Head {entry['head']} only merged the base branch after the review of {entry['reviewed']}: the review "
+            f"carries over (merge resolution, not reviewed: {entry['resolution_lines']} lines; {entry.get('at')})",
+        ]
     return "\n".join(out) + "\n"
