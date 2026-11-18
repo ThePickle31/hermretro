@@ -224,3 +224,25 @@ class Stats(RepoCase):
         self.assertEqual(code, 0, text)
         self.assertIn("#9: 0 rounds, findings per round: none, answered 0; reviews skipped: land --no-review", text)
         self.assertNotIn("owner", text)
+
+    def test_a_legacy_skip_reason_is_shown_neutrally_and_others_as_written(self):
+        reviews = state.root(self.main) / "reviews"
+        reviews.mkdir(parents=True)
+        for pr, reason in ((10, "land --no-review (the owner's call)"), (11, "reviewer down (the owner's call)")):
+            landed = {
+                "pr": pr,
+                "rounds": [],
+                "skipped": {"reason": reason},
+                "merged": {"at": "2026-11-17T12:30:00-0800", "subject": f"Thing (#{pr})"},
+            }
+            (reviews / f"{pr}.json").write_text(json.dumps(landed))
+        code, text = self.run_cli("stats")
+        self.assertEqual(code, 0, text)
+        lines = [line.strip() for line in text.splitlines()]
+        self.assertIn("#10: 0 rounds, findings per round: none, answered 0; reviews skipped: land --no-review", lines)
+        self.assertIn(
+            "#11: 0 rounds, findings per round: none, answered 0; reviews skipped: reviewer down (the owner's call)",
+            text,
+        )
+        stored = json.loads((reviews / "10.json").read_text())
+        self.assertEqual(stored["skipped"]["reason"], "land --no-review (the owner's call)")

@@ -40,19 +40,39 @@ def ready() -> bool:
         return False
 
 
+# What a failed ensurepip/venv subprocess says, mapped to its cause; anything else gets the generic advice.
+MISSING_VENV = ("no module named ensurepip", "ensurepip is not available", "no module named venv")
+DISK_FULL = ("no space left on device", "enospc", "disk quota exceeded")
+NO_PERMISSION = ("permission denied", "operation not permitted", "read-only file system")
+
+
+def said(error: BaseException) -> str:
+    """What the failed subprocess printed (stdout and stderr; venv captures ensurepip's into ``output``)."""
+    if not isinstance(error, subprocess.CalledProcessError):
+        return ""
+    parts = []
+    for stream in (error.output, error.stderr):
+        if isinstance(stream, bytes):
+            stream = stream.decode(errors="replace")
+        if stream and stream not in parts:
+            parts.append(stream)
+    return "\n".join(part.strip() for part in parts)
+
+
 def venv_fix(error: BaseException) -> str:
     """The FIX for a failed venv creation, from the error itself: only a missing venv/ensurepip is the package."""
     again = "then run python tools/py/setup.py again"
     code = getattr(error, "errno", None)
-    if code in (errno.ENOSPC, errno.EDQUOT):
+    text = said(error).lower()
+    if code in (errno.ENOSPC, errno.EDQUOT) or any(words in text for words in DISK_FULL):
         return (
-            f"the disk holding {VENV.parent} is full: free space on that filesystem (or put the checkout on "
-            f"another one), {again}"
+            f"the disk holding {VENV.parent} (or the temporary folder) is full: free space on that filesystem "
+            f"(or put the checkout on another one), {again}"
         )
-    if code in (errno.EACCES, errno.EPERM, errno.EROFS):
+    if code in (errno.EACCES, errno.EPERM, errno.EROFS) or any(words in text for words in NO_PERMISSION):
         where = getattr(error, "filename", None) or VENV.parent
         return f"this user cannot write {where}: check the permissions on that path (ls -ld {where}), {again}"
-    if isinstance(error, subprocess.CalledProcessError) or "ensurepip" in str(error):
+    if any(words in text or words in str(error).lower() for words in MISSING_VENV):
         return f"install your Python's venv module (on Debian and Ubuntu: the python3-venv package), {again}"
     return f"read the error above (it names the path and the cause), fix that, {again}"
 
@@ -73,7 +93,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         venv.EnvBuilder(with_pip=True, clear=True).create(VENV)
     except (OSError, subprocess.CalledProcessError) as error:
-        print(f"could not create the venv: {error}\nFIX: {venv_fix(error)}")
+        output = said(error)
+        shown = f"\n{output}" if output else ""
+        print(f"could not create the venv: {error}{shown}\nFIX: {venv_fix(error)}")
         return 1
     python = VENV / "bin" / "python"
     result = subprocess.run(

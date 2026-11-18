@@ -4,6 +4,10 @@ The reason follows the codes after ' - ' or an em dash, on the same line:
 
     lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits
 
+The file-wide ``# ruff: noqa`` and ``# flake8: noqa`` (with or without codes) need one too:
+
+    # ruff: noqa: F401 - this module only re-exports
+
 A bare ``# noqa``, or codes with nothing after them (or a reason in brackets), fails. The vendored engine and the
 pinned npm tools are not ours and are skipped; retrodev's Python templates are checked too.
 
@@ -23,8 +27,13 @@ sys.path.insert(0, str(ROOT))
 from tests.repo.test_layout import files  # noqa: E402 - the repository root goes on sys.path first
 
 SKIPPED = ("engine/", "tools/npm/")
-NOQA = re.compile(r"#\s*noqa\b")
-REASONED = re.compile(r"#\s*noqa:\s*[A-Z]+[0-9]+(?:\s*,\s*[A-Z]+[0-9]+)*\s+(?:-|\u2014)\s+\S")
+CODES = r"[A-Z]+[0-9]+(?:\s*,\s*[A-Z]+[0-9]+)*"
+REASON = r"\s+(?:-|\u2014)\s+\S"
+# Matches the inline exception and the file-wide ruff and flake8 forms (with or without codes).
+NOQA = re.compile(r"#\s*(?:(?:ruff|flake8)\s*:\s*)?noqa\b", re.IGNORECASE)
+REASONED = re.compile(
+    rf"#\s*noqa:\s*{CODES}{REASON}|#\s*(?:ruff|flake8)\s*:\s*noqa(?:\s*:\s*{CODES})?{REASON}", re.IGNORECASE
+)
 
 
 def unreasoned(text: str, file: str) -> list[str]:
@@ -50,6 +59,28 @@ class Noqa(unittest.TestCase):
         ):
             self.assertEqual(len(unreasoned(bare + "\n", "a.py")), 1, bare)
 
+    def test_file_wide_exceptions_need_a_reason_too(self):
+        for reasoned in (
+            "# ruff: noqa: F401 - this module only re-exports\n",
+            "# ruff: noqa: E402, F401 \u2014 generated code\n",
+            "# ruff: noqa - a vendored file kept byte for byte\n",
+            "# flake8: noqa - a vendored file kept byte for byte\n",
+            "#ruff:noqa:F401 - re-exports\n",
+        ):
+            self.assertEqual(unreasoned(reasoned, "a.py"), [], reasoned)
+        for bare in (
+            "# ruff: noqa",
+            "# ruff: noqa: F401",
+            "# ruff: noqa: F401, E402",
+            "# ruff: noqa: F401 re-exported",
+            "# flake8: noqa",
+            "# flake8: noqa: F401",
+            "#ruff:noqa",
+            "# Ruff: NOQA",
+            "# ruff: noqa -",
+        ):
+            self.assertEqual(len(unreasoned(bare + "\n", "a.py")), 1, bare)
+
     def test_every_noqa_has_a_reason(self):
         problems = []
         for name in files():
@@ -61,7 +92,7 @@ class Noqa(unittest.TestCase):
             "\nA lint exception without its reason cannot be judged later (does it still hold?):\n  "
             + "\n  ".join(problems)
             + "\nFIX: change the code so the rule passes, or write the reason after the codes: "
-            "'# noqa: <CODE> - <reason>' (or an em dash), as docs/dev/TESTING.md shows",
+            "'# noqa: <CODE> - <reason>' or '# ruff: noqa: <CODE> - <reason>' (or an em dash), as docs/dev/TESTING.md shows",
         )
 
 

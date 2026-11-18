@@ -53,6 +53,16 @@ def review_records(root: Path) -> list[dict]:
     return found
 
 
+# The default reason before it was made neutral; old records still carry it, so it is shown as today's default.
+LEGACY_SKIP_REASON = "land --no-review (the owner's call)"
+SKIP_REASON = "land --no-review"
+
+
+def skip_reason(record: dict) -> str | None:
+    reason = (record.get("skipped") or {}).get("reason")
+    return SKIP_REASON if reason == LEGACY_SKIP_REASON else reason
+
+
 def pull_request(record: dict) -> dict:
     rounds = [entry for entry in record.get("rounds", []) if not entry.get("void")]
     findings = [len((entry.get("result") or {}).get("findings") or []) for entry in rounds]
@@ -67,7 +77,7 @@ def pull_request(record: dict) -> dict:
         "rounds": len(rounds),
         "findings": findings,
         "answered": answered,
-        "reviews_skipped": (record.get("skipped") or {}).get("reason"),
+        "reviews_skipped": skip_reason(record),
         "ship_to_merge_hours": _hours(shipped, merged),
         "approval_to_merge_hours": _hours(approved, merged),
     }

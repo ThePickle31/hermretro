@@ -39,7 +39,8 @@ and `.dev/` are not linted.
 - A deliberate exception is ruff's own `# noqa: <CODE>` on the line, followed by its reason after ` - ` or ` — `:
   `lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits`; an import after the
   `sys.path` line says `# noqa: E402 - the repository root goes on sys.path first`. Prefer changing the code;
-  `tests/repo/test_noqa.py` fails on any `noqa` comment without its reason (outside `engine/` and `tools/npm/`). (The page's escape is `// retrodev: allow <rule> — <reason>`.)
+  `tests/repo/test_noqa.py` fails on any `noqa` comment without its reason (the file-wide `# ruff: noqa` and
+  `# flake8: noqa` too: `# ruff: noqa: F401 - this module only re-exports`) (outside `engine/` and `tools/npm/`). (The page's escape is `// retrodev: allow <rule> — <reason>`.)
 - Updating ruff: change the version in `requirements.txt`, replace the hash lines with the digests listed at
   `https://pypi.org/pypi/ruff/<version>/json`, run the setup and `python tools/check.py fix`, and commit any
   reformatting as its own commit.
