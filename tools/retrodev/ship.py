@@ -4,8 +4,9 @@
 
 The body defaults to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
 that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
-plan's Goal as the Why and a line saying an agent made it (RETRODEV_AGENT names the agent, default Hermes), and
-stops: fill it in, then ship again.
+plan's Goal as the Why and a line saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under
+the template's '## Made by' when it has one, else after a closing '---', so it fills no section), and stops: fill it
+in, then ship again.
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
 a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
@@ -105,7 +106,11 @@ def skeleton(ctx, branch: str, record: dict) -> str:
     if goal:
         text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + "\n".join(goal) + "\n", text, count=1, flags=re.M)
     agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
-    return text.rstrip("\n") + f"\n\nMade by an agent ({agent}) for {owner(ctx)}.\n"
+    line = f"Made by an agent ({agent}) for {owner(ctx)}."
+    made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
+    if made:  # the template's own section for it (after its comments)
+        return text[: made.end()] + line + "\n" + text[made.end() :]
+    return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
 
 
 def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> Path:

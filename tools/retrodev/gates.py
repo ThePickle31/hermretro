@@ -177,6 +177,8 @@ COMMENT = re.compile(r"<!--.*?-->", re.S)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[ \]")
 AGENT = re.compile(r"\bagents?\b", re.I)
 MADE = re.compile(r"\b(made|built|wrote|written|created|opened|by)\b", re.I)
+ATTRIBUTION = re.compile(r"^\s*made by an agent\b", re.I)  # the line ship writes; it fills no section
+SEPARATOR = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")  # ends the last section: what follows is in none
 
 
 def names_agent(line: str) -> bool:
@@ -185,7 +187,8 @@ def names_agent(line: str) -> bool:
 
 
 def section_lines(text: str) -> dict[str, list[str]]:
-    """{'## heading': its lines of content}: template comments, blank lines and unticked boxes are no content."""
+    """{'## heading': its lines of content}: template comments, blank lines, unticked boxes and the attribution
+    ('Made by an agent ...') are no content; a separator line ends the section (the attribution goes after one)."""
     found: dict[str, list[str]] = {}
     current = None
     for line in COMMENT.sub("", text).splitlines():
@@ -193,7 +196,9 @@ def section_lines(text: str) -> dict[str, list[str]]:
         if heading:
             current = heading.group(1)
             found.setdefault(current, [])
-        elif current is not None and line.strip() and not UNCHECKED.match(line):
+        elif SEPARATOR.match(line):
+            current = None
+        elif current is not None and line.strip() and not UNCHECKED.match(line) and not ATTRIBUTION.match(line):
             found[current].append(line)
     return found
 

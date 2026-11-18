@@ -6,19 +6,21 @@ Run alone: python -m unittest tests.retrodev.test_trial_fixes
 
 import importlib.util
 import io
+import re
 import shlex
 import types
 import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import checks, config, output, release_publish, repo, state
+from retrodev import checks, config, gates, output, release_publish, repo, state
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
 load_tests = parallel
 ROOT = Path(retrodev.__file__).resolve().parents[2]
 APOSTROPHE = "Fix the game's title"
+SECTIONS = ["Why", "What changed", "How verified", "Risk and rollback", "Not done"]
 NOT_GITHUB = "none of the git remotes configured for this repository point to a known GitHub host"
 
 
@@ -90,6 +92,46 @@ class Flow(RepoCase):
         code, data = self.run_cli("ship", "--title", "Tidy", "--dry-run", cwd=tree, as_json=True)
         self.assertEqual(code, 0, data)
         self.assertIn(str(path), data["gh"])
+
+    def test_the_skeleton_s_attribution_fills_no_section(self):
+        # Under the template's last heading the attribution once counted as that section's content.
+        self.new_plan("credit")
+        self.run_cli("plan", "approve", "credit", "--words", "start")
+        tree = self.worktree("feat/credit")
+        self.commit(tree, "docs/guide.md", "# Credit\n")
+        path = self.main / "notes" / "pr" / "credit.md"
+        real = (ROOT / ".github/pull_request_template.md").read_text()
+        made_by = real.rstrip("\n") + "\n\n## Made by\n<!-- Which agent, for whom. -->\n"
+        for template in (None, real, made_by):  # none (the policy's sections), the real one, one with '## Made by'
+            if template is not None:
+                self.commit(tree, ".github/pull_request_template.md", template, "Template")
+            self.passed(tree, "feat/credit")
+            path.unlink(missing_ok=True)
+            self.assertEqual(self.run_cli("ship", "--title", "Credit", cwd=tree)[0], 1)
+            text = path.read_text()
+            self.assertEqual(text.count("Made by an agent (Hermes) for the owner."), 1, text)
+            if template == made_by:
+                self.assertIn("## Made by\n<!-- Which agent, for whom. -->\nMade by an agent", text)
+            else:
+                self.assertTrue(text.endswith("\n---\n\nMade by an agent (Hermes) for the owner.\n"), text)
+            filled = re.sub(
+                r"^## (Why|What changed|How verified|Risk and rollback)\n", r"\g<0>Filled.\n", text, flags=re.M
+            )
+            path.write_text(filled)
+            code, data = self.run_cli("ship", "--title", "Credit", "--dry-run", cwd=tree, as_json=True)
+            self.assertEqual(code, 1, (template, data))
+            gate = next(gate for gate in data["gates"] if gate["name"] == "body")
+            self.assertEqual(
+                gate["message"].split(" (")[0], "section '## Not done' is empty", (template, gate["message"])
+            )
+            path.write_text(re.sub(r"^## Not done\n", "## Not done\nNothing.\n", filled, flags=re.M))
+            code, data = self.run_cli("ship", "--title", "Credit", "--dry-run", cwd=tree, as_json=True)
+            self.assertEqual(code, 0, (template, data))
+        self.assertIn(
+            "section '## Not done' is empty",
+            "; ".join(gates.body_problems(GOOD_BODY.replace("Nothing.\n", ""), SECTIONS)),
+        )
+        self.assertEqual(gates.body_problems(GOOD_BODY, SECTIONS), [])
 
     def test_no_github_remote_is_a_note_not_gh_s_error(self):
         tree, body = self.ready()
