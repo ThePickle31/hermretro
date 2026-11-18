@@ -74,15 +74,16 @@ def one_line(text: str, what: str) -> str:
     return text.strip()
 
 
-def js_label(text: str | None, fallback: str) -> str:
-    """A page or tab label, once it is safe inside a quoted JavaScript string and a // comment: no quote, backslash,
-    line terminator (U+2028 and U+2029 included) or other unprintable character (the templates interpolate it)."""
-    text = one_line(text or fallback, "label")
+def js_label(text: str | None, fallback: str, what: str = "label") -> str:
+    """A page or tab label or a slot's doc, once it is safe inside a quoted JavaScript string and a // comment: no
+    quote, backslash, line terminator (U+2028 and U+2029 included) or other unprintable character (the templates
+    and descriptor edits interpolate it)."""
+    text = one_line(text or fallback, what)
     if any(char in "'\\" or not char.isprintable() for char in text):
         raise Failure(
-            f"the label {text!r} goes into a quoted JavaScript string: no quotes, backslashes or line breaks; "
+            f"the {what} {text!r} goes into a quoted JavaScript string: no quotes, backslashes or line breaks; "
             "nothing was written",
-            "pass --label 'plain words' (letters, digits, spaces and punctuation other than ' and \\)",
+            f"pass --{what} 'plain words' (letters, digits, spaces and punctuation other than ' and \\)",
         )
     return text
 

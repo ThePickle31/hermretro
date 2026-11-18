@@ -19,7 +19,6 @@ from .scaffold import (
     insert_after,
     js_label,
     label,
-    one_line,
     pascal,
     readme_item,
     render,
@@ -170,9 +169,7 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
     name = name if CAMEL.match(name) else to_camel(name)
     check_name(name, CAMEL, "slot", "cardMenu")
     full = f"{page_id}.{name}"
-    doc = one_line(doc or "Where it is on the page. Props: { ... }", "doc")
-    if "'" in doc or "\\" in doc:
-        raise Failure("the slot's description goes into a quoted JavaScript string", "pass --doc without quotes")
+    doc = js_label(doc, "Where it is on the page. Props: { ... }", "doc")
     for index in plan.top.glob("page/pages/**/index.js"):
         if f"'{full}'" in plan.read(str(index.relative_to(plan.top))):
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")

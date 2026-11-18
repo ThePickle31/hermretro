@@ -4,6 +4,7 @@ Both run in the test repository: its engine/ is a stand-in made here, never the 
 Run alone: python -m unittest tests.retrodev.test_engine_stats
 """
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -17,6 +18,18 @@ load_tests = parallel
 
 ROOT = Path(retrodev.__file__).resolve().parents[2]
 WORDS = "please update the engine to 9.9.9"
+TOOLS = '{"tools": []}\n'
+
+
+def report(passed=True, sha=None, engine="9.9.9", pinned_engine="9.9.9") -> dict:
+    """A reconciliation report in the shape tools/engine/reconcile_schemas.py writes (engine/pins/<v>/)."""
+    return {
+        "pinned_file": "engine/pins/9.9.9/tools.json",
+        "pinned_file_sha256": sha or hashlib.sha256(TOOLS.encode()).hexdigest(),
+        "live_server_info": {"name": "modretro-chromatic", "version": engine},
+        "pinned_server_info": {"name": "modretro-chromatic", "version": pinned_engine},
+        "passed": passed,
+    }
 
 
 class EngineUpdate(RepoCase):
@@ -84,8 +97,8 @@ class EngineUpdate(RepoCase):
         for name in ("dist/server.js", "dist/device-capture/linux-helper.js"):
             write(tree, f"engine/modretro-chromatic/{name}", "spawn(ffmpeg, ['-i', '/dev/fd/6'])\n")
         write(tree, "engine/pins/9.9.9/manifest.json", '{"local_patches": []}\n')
-        for name in ("tools.json", "schema-reconcile.json"):
-            write(tree, f"engine/pins/9.9.9/{name}", "{}\n")
+        write(tree, "engine/pins/9.9.9/tools.json", TOOLS)
+        write(tree, "engine/pins/9.9.9/schema-reconcile.json", json.dumps(report()))
         write(tree, "tools/engine/manifest.py", "")  # stand-ins of the read-only helpers: they pass
         for name in ("tests/__init__.py", "tests/repo/__init__.py"):
             write(tree, name, "")
@@ -113,6 +126,39 @@ class EngineUpdate(RepoCase):
         self.assertEqual(sorted(record["done"]), ["6", "8"])
         self.assertEqual(record["done"]["6"]["by"], "the agent")
         self.assertTrue(record["done"]["6"]["at"])
+
+    def test_the_contract_step_needs_a_passing_current_reconciliation(self):
+        tree = self.tree("feat/other")
+        reconcile = "python tools/engine/reconcile_schemas.py engine/pins/9.9.9/tools.json engine/pins/9.9.9/schema-reconcile.json"
+        cases = {
+            "missing": None,
+            "malformed": "{not json",
+            "not an object": "[]",
+            "failed": json.dumps(report(passed=False)),
+            "no verdict": json.dumps({key: value for key, value in report().items() if key != "passed"}),
+            "stale": json.dumps(report(sha=hashlib.sha256(b"an older tools.json").hexdigest())),
+            "other engine": json.dumps(report(engine="9.9.8")),
+            "other pinned engine": json.dumps(report(pinned_engine="9.9.8")),
+            "current": json.dumps(report()),
+        }
+        write(tree, "engine/pins/9.9.9/tools.json", TOOLS)
+        path = tree / "engine/pins/9.9.9/schema-reconcile.json"
+        for case, text in cases.items():
+            with self.subTest(case):
+                path.unlink(missing_ok=True)
+                if text is not None:
+                    path.write_text(text)
+                code, data = self.run_cli(
+                    "engine", "update", "9.9.9", "--owner-words", WORDS, "--dry-run", cwd=tree, as_json=True
+                )
+                self.assertEqual(code, 0, data)
+                step = next(step for step in data["steps"] if "tool contracts" in step["title"].lower())
+                self.assertEqual(step["state"], "done" if case == "current" else "todo", step)
+                self.assertEqual(step["commands"], [reconcile])
+        path.write_text(json.dumps(report(passed=False)))
+        code, out = self.run_cli("engine", "update", "9.9.9", "--owner-words", WORDS, "--dry-run", cwd=tree)
+        self.assertIn("did not pass", out)
+        self.assertIn(reconcile, out)
 
     def test_a_version_must_look_like_one(self):
         code, out = self.run_cli("engine", "update", "latest", "--owner-words", WORDS, cwd=self.tree())

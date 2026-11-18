@@ -16,6 +16,7 @@ not recorded included (the next one is named), 0 when every step is done. It nev
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -35,6 +36,7 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 STEP = re.compile(r"^(\d+)\. (?:\*\*(.+?)\*\*(.*)|(.*))$")
 ENGINE = "engine/modretro-chromatic"
 PATCHED = ("dist/server.js", "dist/device-capture/linux-helper.js")
+INFO = ("live_server_info", "pinned_server_info")  # the reconciliation report's engine versions
 
 
 def steps(text: str) -> list[dict]:
@@ -105,11 +107,12 @@ def judge(ctx, step: dict, version: str, run_helpers: bool) -> dict:
             else:
                 result["why"] = "would run the read-only verify"
     elif "pin the tool contracts" in title:
-        have = [name for name in ("tools.json", "schema-reconcile.json") if (pins / name).is_file()]
-        result["state"] = "done" if len(have) == 2 else "todo"
-        result["why"] = (
-            f"engine/pins/{version}/ has {', '.join(have) or 'neither'} of tools.json, schema-reconcile.json"
+        ok, why = reconciled(pins, version)
+        pinned = f"engine/pins/{version}"
+        reconcile = cmd(
+            "python", "tools/engine/reconcile_schemas.py", f"{pinned}/tools.json", f"{pinned}/schema-reconcile.json"
         )
+        result |= {"state": "done" if ok else "todo", "why": why, "commands": [reconcile]}
     elif "bump the version" in title:
         now = current_version(top)
         result |= {"state": "done" if now == version else "todo", "why": f"backend/system/paths.py says {now}"}
@@ -118,6 +121,31 @@ def judge(ctx, step: dict, version: str, run_helpers: bool) -> dict:
     elif "check.py full" in step["text"]:
         result["commands"] = ["python tools/retrodev check --full", "python tools/ci/clean_install_check.py"]
     return result
+
+
+def reconciled(pins, version: str) -> tuple[bool, str]:
+    """(done, why) for the pinned contracts: a passing reconciliation report of this tools.json and version."""
+    where = f"engine/pins/{version}"
+    tools, report = pins / "tools.json", pins / "schema-reconcile.json"
+    if not tools.is_file():
+        return False, f"{where}/tools.json is missing"
+    if not report.is_file():
+        return False, f"{where}/schema-reconcile.json is missing: the reconciliation has not been run"
+    try:
+        found = json.loads(report.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        found = None
+    if not isinstance(found, dict):
+        return False, f"{where}/schema-reconcile.json is not a reconciliation report (not a JSON object)"
+    if found.get("passed") is not True:
+        return False, f"{where}/schema-reconcile.json says the reconciliation did not pass"
+    if found.get("pinned_file_sha256") != hashlib.sha256(tools.read_bytes()).hexdigest():
+        return False, f"{where}/schema-reconcile.json is stale: it reconciled another tools.json"
+    live, pinned = (found.get(key) if isinstance(found.get(key), dict) else {} for key in INFO)
+    if live.get("version") != version or pinned.get("version", version) != version:
+        engine = live.get("version") or pinned.get("version")
+        return False, f"{where}/schema-reconcile.json is for engine {engine}, not {version}"
+    return True, f"{where}/schema-reconcile.json passed for this tools.json and engine {version}"
 
 
 def _lockstep(ctx, version: str, run_helpers: bool) -> dict:

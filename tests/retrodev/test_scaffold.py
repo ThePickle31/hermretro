@@ -274,6 +274,13 @@ class New(RepoCase):
             self.new("tab", "home", "odd", "--label", label, code=1)
             self.assertEqual(git(self.tree, "status", "--porcelain"), "", repr(label))
 
+    def test_slot_docs_that_would_break_the_javascript_string_are_refused_and_nothing_changes(self):
+        for doc in ("Car\rriage", "Ends in \\", "Line\u2028sep", "Tab\there", "It's"):
+            out = self.new("slot", "home", "oddSlot", "--doc", doc, code=1)
+            self.assertIn("quoted JavaScript string", out["error"]["message"], repr(doc))
+            self.assertIn("--doc", out["error"]["fix"], repr(doc))
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", repr(doc))
+
     def test_a_label_with_double_quotes_and_accents_makes_javascript_that_parses(self):
         node = shutil.which("node")
         if not node:
