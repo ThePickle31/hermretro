@@ -32,14 +32,16 @@ def next_step(facts: dict) -> str:
     if facts.get("head") != facts.get("pushed"):
         return "next: python tools/retrodev ship --title '<title>' --body <file> (pushes the new commits)"
     pr = facts["pr"]
+    # land runs from the main checkout: the merge removes this worktree
+    land = (f"cd {facts['main']} && " if facts.get("main") else "") + f"python tools/retrodev land {pr}"
     if facts.get("unanswered"):
         first = facts["unanswered"][0]
         return (
             f"next: fix the review findings, check and ship, then python tools/retrodev answer {pr} {first[0]} <index> "
-            f"'<fixed in <sha>: how>' for each ({len(facts['unanswered'])} open), then python tools/retrodev land {pr}"
+            f"'<fixed in <sha>: how>' for each ({len(facts['unanswered'])} open), then {land}"
         )
     if facts.get("approved"):
-        return f"next: python tools/retrodev land {pr} (in the background: reviews, CI and the merge take minutes)"
+        return f"next: {land} (in the background: reviews, CI and the merge take minutes)"
     ci = facts.get("ci")
     if ci == "pending":
         return f"next: wait for CI (gh pr checks {facts['pr']} --watch), then python tools/retrodev report"
@@ -65,6 +67,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     return {
         "branch": branch,
         "path": str(path),
+        "main": str(ctx.main()),
         "topic": topic,
         "plan": plan_topic,
         "protected": branch in ctx.policy["branches"]["protected"],

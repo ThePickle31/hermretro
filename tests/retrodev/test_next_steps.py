@@ -34,6 +34,25 @@ class PlanApprove(RepoCase):
         self.assertIn("python tools/retrodev start <kind>/<topic> --plan big", out)
         self.assertNotIn("start feat/big", out)
 
+    def test_a_linked_branch_whose_worktree_was_removed_gets_a_valid_command(self):
+        self.run_cli("plan", "new", "big")
+        tree = self.worktree("fix/part")
+        record = state.load_branch(self.main, "fix/part")
+        record["plan"] = "big"
+        state.save_branch(self.main, record)
+        git(self.main, "worktree", "remove", str(tree))  # the branch stays, its folder is gone
+        code, data = self.run_cli("plan", "approve", "big", "--words", "start", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(data["linked"], [{"branch": "fix/part", "worktree": None}])
+        code, out = self.run_cli("plan", "approve", "big", "--words", "start")
+        line = next(line for line in out.splitlines() if line.startswith("next: fix/part"))
+        command = f"git worktree add {tree} fix/part && cd {tree} && python tools/retrodev status"
+        self.assertTrue(line.endswith(command), line)
+        self.assertNotIn("cd no worktree", out)
+        add = line[line.index("git worktree add") :].split(" && ")[0].split()
+        git(self.main, *add[1:])  # the printed command works
+        self.assertTrue(tree.is_dir())
+
     def test_a_plan_without_branches_still_says_start(self):
         self.run_cli("plan", "new", "alone")
         code, out = self.run_cli("plan", "approve", "alone", "--words", "start")

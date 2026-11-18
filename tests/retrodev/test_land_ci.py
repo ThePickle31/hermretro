@@ -131,6 +131,8 @@ class NextStep(unittest.TestCase):
     def test_approve_land_and_answer(self):
         self.assertIn("approve 12 --words", status.next_step(dict(self.BASE)))
         self.assertIn("land 12", status.next_step(dict(self.BASE, approved={"words": "go"})))
+        line = status.next_step(dict(self.BASE, approved={"words": "go"}, main="/the/main"))
+        self.assertTrue(line.startswith("next: cd /the/main && python tools/retrodev land 12"), line)
         line = status.next_step(dict(self.BASE, approved={"words": "go"}, unanswered=[[1, 0], [1, 1]]))
         self.assertIn("answer 12 1 <index>", line)
         self.assertIn("2 open", line)

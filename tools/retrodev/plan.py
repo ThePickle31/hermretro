@@ -136,8 +136,15 @@ def approve(ctx, topic: str, words: str | None) -> int:
     linked = linked_branches(ctx, topic)
     if linked:
         for row in linked:
-            where = row["worktree"] or "no worktree (git worktree add <folder> <branch> to go on)"
-            ctx.out.say(f"next: {row['branch']} already works under it: cd {where} && python tools/retrodev status")
+            branch, where = row["branch"], row["worktree"]
+            if where:
+                ctx.out.say(f"next: {branch} already works under it: cd {where} && python tools/retrodev status")
+                continue
+            folder = ctx.worktree_root() / branch.partition("/")[2]  # where start puts it
+            ctx.out.say(
+                f"next: {branch} already works under it, but its worktree is gone: "
+                f"git worktree add {folder} {branch} && cd {folder} && python tools/retrodev status"
+            )
         ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
     else:
         ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
