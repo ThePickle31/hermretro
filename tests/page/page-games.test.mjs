@@ -26,13 +26,15 @@ await runScenario(async ({ act, dom, emit, host, plugin, scenario, ctx, page, te
       rom: { path: '/home/u/ChromaticGames/CometDrift/build/web/rom/game.gbc', sha256: 'sha-one', size: 262144, builtAt: now2 - 120 },
       webExport: true, thumb: 'data:image/png;base64,AAAA', chat: { sessionId: 'stored-comet', title: 'Comet Drift — first level' }, error: null },
     { id: 'bbb222bbb222', title: 'Robo Run', projectRoot: '/home/u/ChromaticGames/RoboRun', kind: 'gbdk', state: 'failed', rom: null,
-      webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' }
+      webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' },
+    { id: 'ccc333ccc333', title: 'Old Orbit', projectRoot: '/home/u/ChromaticGames/OldOrbit', kind: 'gbstudio', state: 'ready', // built first:
+      rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null } // Home skips it
   ]
   scenario.games = answered({ games, gamesDir: '/home/u/.hermes/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
   scenario.player = { isPending: true }
   const studio = await mount(page)
   await click('Refresh') // forget the profile route left over from the cases above
-  check('Home continues with the last game from the games RPC', () => {
+  check('Home continues with the most recently built game from the games RPC', () => {
     assert.equal(heading(), HOME)
     assert.equal(dom.window.document.querySelector('.cs-cont .name').textContent, 'Comet Drift')
     assert.match(text(), /Chat: Comet Drift — first level/)
@@ -40,7 +42,7 @@ await runScenario(async ({ act, dom, emit, host, plugin, scenario, ctx, page, te
   await tab('Games')
   check('Games shows each game as the real cartridge with its title screen, state and meta, plus a blank cartridge', () => {
     const cards = [...dom.window.document.querySelectorAll('.cs-gcard')]
-    assert.equal(cards.length, 3)
+    assert.equal(cards.length, 4)
     assert.equal(cards[0].querySelector('.cs-cart .slot img').getAttribute('src'), 'data:image/png;base64,AAAA')
     assert.match(cards[0].textContent, /Ready/); assert.doesNotMatch(cards[0].textContent, /GB Studio/)
     assert.match(cards[0].querySelector('.cs-gline').getAttribute('title'), /256 KB/)
@@ -49,7 +51,8 @@ await runScenario(async ({ act, dom, emit, host, plugin, scenario, ctx, page, te
     assert.match(cards[1].textContent, /212 tiles/)
     assert.equal(cards[0].querySelectorAll('.cs-split > button, .cs-split > span > button').length, 2, 'one split control per card')
     assert.ok(!dom.window.document.querySelector('.cs-dev'), 'no hardware strip above a full shelf')
-    assert.match(cards[2].textContent, /Blank cartridge/)
+    assert.match(cards[2].textContent, /Old Orbit/)
+    assert.match(cards[3].textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
   })
   scenario.revealed = null

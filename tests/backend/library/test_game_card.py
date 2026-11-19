@@ -10,12 +10,11 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from support import throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.library.test_games import COVER, encode_png, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
