@@ -8,9 +8,9 @@ stay conservative, since a change they wrongly leave out skips a review:
   and text) without comments and blank lines, together with its nesting depth (INDENT/DEDENT). So spacing between
   tokens is ignored, while string contents and indentation that changes what a block holds count; a string over
   several lines counts on each line. A file tokenize cannot read is compared line by line, exactly.
-- JavaScript: a whole-line '//' comment is left out, and only in a file with no backtick at all (a template literal
-  can hold text that looks like a comment); every other line is compared exactly.
-- Other files: line by line, exactly.
+- Every other file, JavaScript included: line by line, exactly. Telling a JavaScript comment from code needs its
+  whole lexical context (a template literal can hold text that looks like a comment, and a line starting '// */'
+  can close a block comment), so no JavaScript change is left out.
 
 A conflicted file is compared with git's merge of its sides as code (merge_code): when the two sides differ only in
 comments there, that merge is clean, so a resolution that keeps both sides' code and either side's comments counts
@@ -29,7 +29,6 @@ from pathlib import Path
 from . import repo
 
 HASH = (".py", ".py.tmpl", ".pyi")
-SLASHES = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx")
 SKIPPED = (tokenize.COMMENT, tokenize.NL, tokenize.ENCODING, tokenize.ENDMARKER)
 BY_TYPE = (tokenize.INDENT, tokenize.DEDENT, tokenize.NEWLINE)  # their text is spacing; the depth tracks INDENT
 
@@ -59,26 +58,11 @@ def python_code(text: str) -> list[str] | None:
     return [json.dumps([depth[row], rows[row]], ensure_ascii=True) for row in sorted(rows)]
 
 
-def javascript_code(text: str) -> list[str]:
-    """JavaScript ``text``'s lines, whole-line '//' comments left out only when it has no template literal."""
-    lines = text.splitlines()
-    if "`" in text:
-        return lines
-    kept, previous = [], ""
-    for line in lines:
-        if not (line.lstrip().startswith("//") and not previous.endswith("\\")):
-            kept.append(line)
-        previous = line
-    return kept
-
-
 def code(name: str, text: str) -> list[str]:
     """What counts in ``text``: its lines as compared (see the module's rules)."""
     if name.endswith(HASH):
         lines = python_code(text)
         return text.splitlines() if lines is None else lines
-    if name.endswith(SLASHES):
-        return javascript_code(text)
     return text.splitlines()
 
 

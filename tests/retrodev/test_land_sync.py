@@ -172,6 +172,33 @@ class DevMergedAfterReview(LandCase):
         self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
         self.assertNotIn("carried", self.review_record())
 
+    def test_a_resolution_that_rewords_lines_closing_a_block_comment_needs_a_new_round(self):
+        """dev turns 24 '// */ runN(); /*' lines (each closes the block comment the line above opens, so runN() runs)
+        into '// still a comment N' while the branch changes the line beside them; the resolution keeps the branch's code
+        with dev's lines. Those lines change what runs, so they count, and a round is due."""
+        path = "tools/value.mjs"
+        old = "".join(f"// */ run{n}(); /*\n" for n in range(24)) + "*/\n"
+        new = "".join(f"// still a comment {n}\n" for n in range(24)) + "*/\n"
+        self.on_dev(path, "const VALUE = 1; /*\n" + old, "Lines closing block comments")
+        git(self.main, "fetch", "-q", "origin")
+
+        def change(tree):
+            self.commit(tree, path, "const VALUE = 2; /*\n" + old, TITLE)
+
+        def resolve(tree):
+            (tree / path).write_text("const VALUE = 2; /*\n" + new)
+            git(tree, "add", path)
+
+        _tree, _reviewed, head = self.reviewed_then_synced(
+            resolve, change, dev_core="const VALUE = 1; /*\n" + new, path=path
+        )
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.hermes.calls), 2, "24 lines that change what runs: a probe, then round 2")
+        self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
+        self.assertNotIn("carried", self.review_record())
+
     def noqa_conflict(self, extra: str = ""):
         """dev gives 24 bare noqa comments their reason while the branch changes the line beside them (a conflict
         on the whole hunk); the resolution keeps the branch's code with dev's comments, plus ``extra``."""
@@ -300,7 +327,6 @@ class CodeLines(unittest.TestCase):
         self.assertEqual(code_lines.changed("a.py", "y=a+b*(c-1)\n", "y = a + b * (c - 1)\n"), 0, "operator spacing")
         reindented = "if x:\n    a = 1\n    b = 2\n", "if x:\n  a = 1\n  b = 2\n"
         self.assertEqual(code_lines.changed("a.py", *reindented), 0, "the same nesting, other indentation")
-        self.assertEqual(code_lines.changed("a.mjs", "f();\n// old\n", "f();\n  // new\n"), 0)
 
     def test_noqa_reasons_on_24_lines_count_no_lines(self):
         bare = "".join(f"import m{n}  # noqa: E402\n" for n in range(24))
@@ -311,7 +337,8 @@ class CodeLines(unittest.TestCase):
         self.assertEqual(code_lines.changed("a.py", "s = '# a'\n", "s = '# b'\n"), 2, "a string is code")
         self.assertEqual(code_lines.changed("a.py", "s = 'a b'\n", "s = 'ab'\n"), 2, "spacing inside a string")
         self.assertEqual(code_lines.changed("a.mjs", "u = 'http://a'\n", "u = 'http://b'\n"), 2)
-        self.assertEqual(code_lines.changed("a.mjs", "f() // old\n", "f() // new\n"), 2, "only whole-line comments")
+        self.assertEqual(code_lines.changed("a.mjs", "f() // old\n", "f() // new\n"), 2, "a JavaScript comment counts")
+        self.assertEqual(code_lines.changed("a.mjs", "f();\n// old\n", "f();\n  // new\n"), 2, "even a whole line")
         self.assertEqual(code_lines.changed("a.mjs", "s = 'a b';\n", "s = 'ab';\n"), 2)
         self.assertEqual(code_lines.changed("a.md", "# Title\n", "# Other\n"), 2, "only code files have comments")
 
@@ -334,6 +361,14 @@ class CodeLines(unittest.TestCase):
         lines = "".join(f"// old {n}\n" for n in range(25))
         template = "const help = `\n" + lines + "`;\n"
         self.assertGreater(code_lines.changed("a.mjs", template, template.replace("old", "new")), 20)
+
+    def test_a_line_that_closes_a_javascript_block_comment_counts(self):
+        """'// */' ends the block comment around it: rewording it to '// still a comment' changes what runs."""
+        before = "/*\n// */ run();\n"
+        self.assertEqual(code_lines.changed("a.mjs", before, "/*\n// still a comment\n"), 2)
+        lines = "".join(f"// */ run{n}(); /*\n" for n in range(25)) + "*/\n"
+        quiet = "".join(f"// still a comment {n}\n" for n in range(25)) + "*/\n"
+        self.assertGreater(code_lines.changed("a.mjs", "/*\n" + lines, "/*\n" + quiet), 20)
 
     def test_a_file_python_cannot_read_counts_raw_lines(self):
         self.assertEqual(code_lines.changed("a.py.tmpl", "x = (\n# a\n", "x = (\n# b\n"), 2)

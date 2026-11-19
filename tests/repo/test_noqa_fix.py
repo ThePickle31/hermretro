@@ -41,6 +41,10 @@ class AddReason(unittest.TestCase):
         text = 's = """\n# noqa: E402\n"""\n'
         self.assertEqual(noqa_reasons.add_reason(text), (text, 0))
 
+    def test_a_file_that_does_not_tokenize_is_never_changed(self):
+        text = 's = """\n# noqa: E402\n"""\n' + BARE + "x = (\n"
+        self.assertIsNone(noqa_reasons.add_reason(text), "a later unfinished expression: no comment is trusted")
+
     def test_crlf_and_spacing_are_kept(self):
         self.assertEqual(noqa_reasons.add_reason("import x  #noqa:E402  \r\n"), (f"import x  {FIXED}\r\n", 1))
 
@@ -77,6 +81,20 @@ class CheckFix(unittest.TestCase):
                 self.assertEqual((root / name).read_text(), files[name], name)
             self.assertIn("gave 3 bare '# noqa: E402' the standard reason", out[0])
             self.assertIn("tests/a.py", out[0])
+
+    def test_a_file_that_does_not_tokenize_is_left_byte_for_byte_and_reported_as_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            broken = b's = """\n# noqa: E402\n"""\n' + BARE.encode() + b"x = (\n"
+            (root / "tests").mkdir()
+            (root / "tests/broken.py").write_bytes(broken)
+            (root / "tests/a.py").write_text(BARE)
+            out = noqa_reasons.report(root, ["tests/broken.py", "tests/a.py"])
+            self.assertEqual((root / "tests/broken.py").read_bytes(), broken)
+            self.assertEqual((root / "tests/a.py").read_text(), f"import x  {FIXED}\n")
+            self.assertIn("gave 1 bare '# noqa: E402' the standard reason\n  tests/a.py", out)
+            self.assertIn("skipped tests/broken.py", out)
+            self.assertIn("FIX: give each bare '# noqa: E402' comment in tests/broken.py a reason by hand", out)
 
 
 if __name__ == "__main__":
