@@ -10,6 +10,7 @@ Import these as ``from tests.support import ...``: putting tests/ itself on sys.
 the real backend package (tests/repo/test_test_imports.py refuses it)."""
 
 import os
+import shutil
 import tempfile
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
@@ -27,21 +28,27 @@ FOLDER_OVERRIDES = ("HERMRETRO_LIBRARY_DIR", "HERMRETRO_RUNTIME_DIR", "HERMRETRO
 def isolated_home(test) -> SimpleNamespace:
     """Give ``test`` (a unittest.TestCase, in setUp) its own hermretro home and plugin data folder, both in one
     new temp folder, undone by the test's cleanups. Returns ``base`` (the temp folder), ``home`` (the
-    ``HERMRETRO_HOME``) and ``data`` (what ``host._data_dir()`` returns, created; its profile home is
-    ``data.parents[1]``, so session lookups read nothing real either)."""
+    ``HERMRETRO_HOME``), ``data`` (what ``host._data_dir()`` returns, created; its profile home is
+    ``data.parents[1]``, so session lookups read nothing real either) and ``runtime`` (its own short
+    ``HERMRETRO_RUNTIME_DIR`` under /tmp, removed afterwards)."""
     tmp = tempfile.TemporaryDirectory()
     test.addCleanup(tmp.cleanup)
     base = Path(tmp.name).resolve()
     home, data = base / "hermretro", base / "profile" / "plugin-data" / "hermretro"
     data.mkdir(parents=True)
+    # Its own runtime folder, short enough for the broker socket wherever the temp base is (paths falls back
+    # to the shared /tmp/hermretro-<uid> for a deep home, and an inherited HERMRETRO_RUNTIME_DIR would win).
+    runtime = tempfile.mkdtemp(prefix="hrt-", dir="/tmp")
+    test.addCleanup(shutil.rmtree, runtime, ignore_errors=True)
     environ = {key: value for key, value in os.environ.items() if key not in FOLDER_OVERRIDES}
+    environ.update(HERMRETRO_HOME=str(home), HERMRETRO_RUNTIME_DIR=runtime)
     for patch in (
-        mock.patch.dict(os.environ, {**environ, "HERMRETRO_HOME": str(home)}, clear=True),
+        mock.patch.dict(os.environ, environ, clear=True),
         throwaway_profile(base),
     ):
         patch.start()
         test.addCleanup(patch.stop)
-    return SimpleNamespace(base=base, home=home, data=data)
+    return SimpleNamespace(base=base, home=home, data=data, runtime=Path(runtime))
 
 
 def throwaway_profile(base: Path):

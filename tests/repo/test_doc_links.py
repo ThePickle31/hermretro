@@ -30,9 +30,21 @@ QUOTE = r"(?:\"([^\"\n]{2,80})\"|'([^'\n]{2,80})'|“([^”\n]{2,80})”)"
 SECTION = re.compile(r"\b(README|[\w./-]+\.md)(?:,? " + QUOTE + r"|'s " + QUOTE + r" section)")
 
 
+CODE_SPAN = re.compile(r"(`+)(.+?)\1")
+EMPHASIS_UNDERSCORE = re.compile(r"(?<![^\W_])_+|_+(?![^\W_])")  # a run of _ not inside a word
+
+
 def heading_text(raw: str) -> str:
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", raw)  # a link's text
-    return re.sub(r"[*_`]", "", text).strip()
+    """The heading as rendered: a link's text, emphasis markers dropped, a code span's text kept literally
+    (underscores included, as in an identifier)."""
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", raw)
+    parts = []
+    for index, piece in enumerate(CODE_SPAN.split(text)):
+        if index % 3 == 2:
+            parts.append(piece)  # a code span's content
+        elif index % 3 == 0:
+            parts.append(EMPHASIS_UNDERSCORE.sub("", piece.replace("*", "")))
+    return "".join(parts).strip()
 
 
 def headings(text: str) -> list[str]:
@@ -130,6 +142,24 @@ class DocLinks(unittest.TestCase):
         self.assertEqual(len(check("[here](../README.md#develop)")), 1)
         self.assertEqual(check("[here](../README.md#install) [mine](../docs/A.md#mine-x)"), [])
         self.assertEqual(len(check("[top](#nowhere)", "docs/A.md")), 1)
+
+    def test_anchors_keep_underscores(self):
+        """GitHub keeps underscores (in code spans and identifiers) in a heading's anchor and its text."""
+        docs = {"docs/C.md": "### `asset_info` RPC\n### `studio_profile` — no params\n## *Bold* and __strong__\n"}
+        tracked = set(docs) | {"docs/B.md"}
+
+        def check(text: str) -> list[str]:
+            return broken(text, "docs/B.md", docs.__getitem__, tracked)
+
+        self.assertEqual(
+            check("[a](C.md#asset_info-rpc) [s](C.md#studio_profile--no-params) [b](C.md#bold-and-strong)"), []
+        )
+        self.assertEqual(check("See C.md \"asset_info RPC\"."), [])
+        self.assertEqual(len(check("[a](C.md#assetinfo-rpc)")), 1)
+        self.assertEqual(len(check("See C.md \"assetinfo RPC\".")), 1)
+        contract = (ROOT / "docs/dev/CONTRACT.md").read_text(encoding="utf-8")
+        self.assertIn("studio_profile--no-params", slugs(contract))
+        self.assertNotIn("studioprofile--no-params", slugs(contract))
 
 
 if __name__ == "__main__":
