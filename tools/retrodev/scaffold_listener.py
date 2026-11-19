@@ -48,25 +48,27 @@ def test_template(plan: Plan) -> str:
 LISTENS = "say what this listener does"  # the README entry's placeholder (tests/repo/test_placeholders.py)
 
 
+FILE = "(`listeners.py`)"  # the README names the file, as assets' line does: 'Listens to (`listeners.py`): ...'
+
+
 def listens_line(text: str, item: str) -> str:
-    """The README's 'Listens to' sentence (mid-line, after 'Events emitted'): 'none' becomes the item, else the item
-    goes after the last event it names; where its entries read '`event` — what it does', the item is an entry of
-    its own: '; `event` — say what this listener does'."""
+    """The README's 'Listens to' sentence (mid-line, after 'Events emitted'), naming listeners.py: each listened
+    event is an entry of its own, '`event` — what it does'; the new one says '— say what this listener does' (the
+    placeholder gate refuses it until it is written). 'none' becomes the entry, else it goes after the last one."""
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if "Listens to" not in line:
             continue
         head, sep, rest = line.partition("Listens to")
+        if rest.startswith(":"):
+            rest = f" {FILE}{rest}"
         end = re.search(r"\.(?=\s|$)", rest)
         segment, tail = (rest[: end.start()], rest[end.start() :]) if end else (rest, "")
+        entry = f"{item} — {LISTENS}"
         if re.search(r"\bnone\b", segment):
-            segment = re.sub(r"\bnone\b", lambda _match: item, segment, count=1)
-        elif re.search(r"`[a-z0-9_]+\.[a-z0-9_]+` — ", segment):
-            segment = segment.rstrip() + f"; {item} — {LISTENS}"
+            segment = re.sub(r"\bnone\b", lambda _match, entry=entry: entry, segment, count=1)
         else:
-            names = list(re.finditer(r"`[a-z0-9_]+\.[a-z0-9_]+`", segment))
-            at = names[-1].end() if names else len(segment.rstrip())
-            segment = segment[:at] + ", " + item + segment[at:]
+            segment = segment.rstrip() + f"; {entry}"
         lines[index] = head + sep + segment + tail
         return "\n".join(lines)
     return text
@@ -160,5 +162,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
         f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
         "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home",
+        f"if other code reads what the listener keeps, export the reader in backend/{feature_name}/__init__.py "
+        f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
+        "file under backend.system.paths.hermretro_home(), written atomically, not module state",
     ]
     return f"listener {feature_name} <- {event}"

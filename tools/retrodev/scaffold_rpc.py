@@ -1,0 +1,154 @@
+"""`new rpc --module <name>`: the RPC's handler factory in backend/<feature>/<name>.py, declared in rpcs.py.
+
+tools/bundle/rpc_names.py (the page's generated RPC names) and tests/repo/test_lockstep.py read the @rpc
+declarations in backend/*/rpcs.py only, and backend/hermes/declare.py collects what rpcs.py declares: so the
+@rpc stays in rpcs.py, as a short function that calls the factory in the module (``from . import <name>``), and the
+handler's code lives in the module. Without --module, an rpcs.py over BIG_RPCS lines gets a note suggesting it.
+Nothing is written here: it fills scaffold.py's Plan.
+"""
+
+from __future__ import annotations
+
+import ast
+
+from .output import Failure
+from .scaffold import SNAKE, Plan, check_name, render
+from .scaffold_source import MODULE_TAKEN, bindings, check_front_door_name, imports_sibling, module_names
+
+RPCS = "backend/{feature}/rpcs.py"
+
+BIG_RPCS = 350  # lines: past this, new rpc suggests --module (the layout test warns above 400, fails above 600)
+
+
+def alias(module: str) -> str:
+    """The private name rpcs.py imports ``module`` as: never an ``rpc_<x>`` wrapper or a public name."""
+    return f"_{module}_mod"
+
+
+def imports_aliased(text: str, module: str) -> bool:
+    """Whether rpcs.py has a top-level ``from . import <module> as _<module>_mod`` already."""
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and node.level == 1
+        and node.module is None
+        and any(name.name == module and name.asname == alias(module) for name in node.names)
+        for node in ast.parse(text).body
+    )
+
+
+def rpcs_text(plan: Plan, source: str, values: dict) -> str:
+    """rpcs.py as new finds it: the file, or the template's when it is new."""
+    return plan.read(source) if plan.exists(source) else render("rpc", "rpcs.py.tmpl", **values)
+
+
+def refuse_bound(text: str, source: str, names: list[str]) -> None:
+    """Refuse, before anything is planned, a name new would add to rpcs.py that it binds already (an import, a def,
+    an assignment): the new binding would replace it, and whatever used it would break."""
+    for name in names:
+        if bindings(text, name):
+            raise Failure(
+                f"{source} binds {name} already, so the RPC new adds would rebind it (and break what uses it); "
+                "nothing was written",
+                "pick another RPC name" + ("" if name.startswith("rpc_") else " or --module name"),
+            )
+
+
+def appended(text: str, block: str, source: str, names: list[str], imported: tuple[str, ...] = ()) -> str:
+    """``text`` with ``block`` at its end: refused when ``text`` binds one of ``names`` already, or when the result
+    (parsed) binds one of ``names`` or ``imported`` (the alias the edit before added) other than exactly once."""
+    refuse_bound(text, source, names)
+    result = text.rstrip("\n") + "\n" + block
+    for name in (*names, *imported):
+        if len(bindings(result, name)) != 1:
+            raise Failure(
+                f"{source} would bind {name} more than once after new's edit; nothing was written",
+                "pick another RPC name, or add it by hand",
+            )
+    return result
+
+
+def inline(plan: Plan, feature_name: str, values: dict) -> str:
+    """Plan the RPC's factory (with its @rpc) at the end of rpcs.py; its path."""
+    source = RPCS.format(feature=feature_name)
+    names = [f"rpc_{values['rpc']}"]
+    refuse_bound(rpcs_text(plan, source, values), source, names)
+    plan.ensure(source, render("rpc", "rpcs.py.tmpl", **values))
+    plan.edit(source, lambda text: appended(text, render("rpc", "rpc.py.tmpl", **values), source, names))
+    return source
+
+
+def rpc_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
+    """Refuse a --module name that would not end up as the RPC's own module, before anything is planned: checked
+    against rpcs.py as it will be (the template's when it is new) and the wrapper this RPC adds to it."""
+    check_name(module, SNAKE, "module", "game_rpcs")
+    if module in MODULE_TAKEN:
+        raise Failure(
+            f"--module {module} is a name every feature keeps for its own part (hermes/declare.py); nothing was written",
+            "pick another module name, e.g. --module game_rpcs",
+        )
+    door, source, home = (f"backend/{feature_name}/{name}.py" for name in ("__init__", "rpcs", module))
+    if plan.exists(door):
+        check_front_door_name(plan.read(door), door, module)
+    wrapper = f"rpc_{values['rpc']}"
+    if module == wrapper:
+        raise Failure(
+            f"--module {module} is the name of the @rpc declaration new writes in {source}, so it would call into "
+            "itself instead of the module; nothing was written",
+            f"pick another module name, e.g. --module {values['rpc']}_rpcs",
+        )
+    text = rpcs_text(plan, source, values)
+    refuse_bound(text, source, [wrapper] + ([] if imports_aliased(text, module) else [alias(module)]))
+    if bindings(text, module) and not imports_sibling(text, module):
+        raise Failure(
+            f"{source} binds {module} already (not as `from . import {module}`), so the declaration would call "
+            "into that instead of the new module; nothing was written",
+            f"pick another module name, e.g. --module {module}_rpcs",
+        )
+    if plan.exists(home) and "logger" not in module_names(plan.read(home)):
+        raise Failure(
+            f"{home} exists and is not an RPC module new wrote (it binds no logger); nothing was written",
+            f"pick another module name, e.g. --module {module}_rpcs",
+        )
+    return module
+
+
+def with_sibling(text: str, module: str) -> str:
+    """``from . import <module> as _<module>_mod`` after rpcs.py's last top-level import (unchanged when it is
+    there); refused when the alias is bound some other way."""
+    if imports_aliased(text, module):
+        return text
+    if bindings(text, alias(module)):
+        raise Failure(f"rpcs.py binds {alias(module)} already; nothing was written", "pick another --module name")
+    tree = ast.parse(text)
+    imports = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
+    lines = text.split("\n")
+    at = imports[-1].end_lineno if imports else 0
+    return "\n".join(lines[:at] + [f"from . import {module} as {alias(module)}"] + lines[at:])
+
+
+def in_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
+    """Plan the factory in backend/<feature>/<module>.py and its @rpc declaration in rpcs.py; the module's path."""
+    home = f"backend/{feature_name}/{rpc_module(plan, feature_name, module, values)}.py"
+    source = f"backend/{feature_name}/rpcs.py"
+    values = {**values, "module": module, "alias": alias(module)}
+    plan.ensure(home, render("rpc", "rpc_module.py.tmpl", **values))
+    factory = render("rpc", "rpc.py.tmpl", **values).lstrip("\n").split("\n", 1)[1]  # no @rpc: rpcs.py declares it
+    if f"def rpc_{values['rpc']}(" in plan.read(home):
+        raise Failure(f"{home} defines rpc_{values['rpc']} already; nothing was written", "pick another RPC name")
+    plan.edit(home, lambda text: text.rstrip("\n") + "\n\n\n" + factory)
+    plan.ensure(source, render("rpc", "rpcs.py.tmpl", **values))
+    plan.edit(source, lambda text: with_sibling(text, module))
+    declared = render("rpc", "rpc_declared.py.tmpl", **values)
+    plan.edit(source, lambda text: appended(text, declared, source, [f"rpc_{values['rpc']}"], (alias(module),)))
+    return home
+
+
+def big_note(plan: Plan, feature_name: str, name: str) -> None:
+    """Without --module: a note when rpcs.py is long already."""
+    source = f"backend/{feature_name}/rpcs.py"
+    size = len(plan.read(source).splitlines()) if plan.exists(source) else 0
+    if size > BIG_RPCS:
+        plan.notes.append(
+            f"{source} has {size} lines: python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs puts "
+            "the handler in its own module (rpcs.py keeps a short @rpc declaration that calls it)"
+        )

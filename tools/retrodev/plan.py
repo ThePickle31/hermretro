@@ -141,13 +141,24 @@ def approve(ctx, topic: str, words: str | None) -> int:
     record.update(path=str(path), approved={"at": state.now(), "words": words.strip(), "sha256": fingerprint(path)})
     state.save_plan(ctx.top, record)
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
+    here_body(ctx, topic)
     linked = linked_branches(ctx, topic)
     if linked:
+        from . import status  # status imports this module
+
         stale = {str(tree.branch): tree for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
         for row in linked:
             branch, where = row["branch"], row["worktree"]
             if where:
-                ctx.out.say(f"next: {branch} already works under it: {cmd('cd', where)} && python tools/retrodev check")
+                behind = status.behind(ctx, Path(where))  # status's rule: sync first while HEAD lacks base commits
+                sync = (
+                    f"python tools/retrodev sync (HEAD lacks {behind} commit(s) of {ctx.remote_base}), then "
+                    if behind
+                    else ""
+                )
+                ctx.out.say(
+                    f"next: {branch} already works under it: {cmd('cd', where)} && {sync}python tools/retrodev check"
+                )
                 continue
             gone = restore_command(ctx, branch, stale.get(branch))
             ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")
@@ -159,6 +170,22 @@ def approve(ctx, topic: str, words: str | None) -> int:
         )
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+def here_body(ctx, topic: str) -> None:
+    """plan approve run in a work branch that works under this plan: write its pull request body now (as start
+    does), from the template and the plan; an existing one is kept."""
+    branch = repo.branch(ctx.top)
+    if not branch or branch in ctx.policy["branches"]["protected"]:
+        return
+    if branch.partition("/")[0] not in ctx.policy["branches"]["kinds"]:
+        return
+    record = state.load_branch(ctx.top, branch)
+    if gates.plan_for(ctx, branch, record) != topic:
+        return
+    from . import start  # start imports ship, which imports this module
+
+    ctx.out.set(body=start.body_note(ctx, branch, record))
 
 
 def unfilled(text: str) -> list[str]:

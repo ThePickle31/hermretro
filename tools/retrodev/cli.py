@@ -1,6 +1,6 @@
 """retrodev: hermretro's working agreement as commands, each refusing to skip a step.
 
-  1 discuss   2 plan new / plan show   3 plan approve, start   4 check, ship   5 report
+  1 discuss   2 plan new / plan show   3 plan approve, start (or takeover <branch>)   4 check, ship   5 report
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
@@ -40,6 +40,7 @@ from . import (
     status,
     summary,
     sync,
+    takeover,
     trial,
     watch,
 )
@@ -79,6 +80,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("branch", help="feat/<topic>, fix/<topic>, docs/<topic> or chore/<topic>")
     p.add_argument("--no-plan", action="store_true", help="docs/ and chore/ only: a small change without a plan")
     p.add_argument("--plan", metavar="TOPIC", help="the approved plan this branch is part of (default: its topic)")
+    p.add_argument("--no-setup", action="store_true", help="skip npm ci and the ruff setup")
+
+    p = add("takeover", "a teammate's pushed branch in a worktree tracking it, set up as start sets one up")
+    p.add_argument("branch", help="the pushed branch, e.g. feat/<topic>")
     p.add_argument("--no-setup", action="store_true", help="skip npm ci and the ruff setup")
 
     p = add("check", "the checks whose inputs changed (cached passes print 'ok (cached)')")
@@ -207,6 +212,10 @@ def scaffolds(sub, common) -> None:
         "feature",
         "name",
         optional=True,
+    ).add_argument(
+        "--module",
+        help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
+        "declaration that calls it (suggested when rpcs.py is over 350 lines)",
     )
     tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
     tool.add_argument(
@@ -225,7 +234,12 @@ def scaffolds(sub, common) -> None:
         "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does)",
     )
     event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
-    event.add_argument("--payload", help="one line: the keyword arguments it carries, e.g. 'game=<id>, root'")
+    event.add_argument(
+        "--payload",
+        action="append",
+        help="the keyword arguments it carries: comma-separated ('game=<id>, root') or repeated (--payload game "
+        "--payload root), or both",
+    )
     event.add_argument(
         "--when",
         help="one line: when it is emitted, tool and RPC names in backticks, e.g. 'after `chromatic_build_report` "
@@ -252,6 +266,8 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     if command == "new":
         for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc"):
             setattr(args, missing, getattr(args, missing, None))
+        if isinstance(args.payload, list):  # --payload repeated: one comma-separated line
+            args.payload = ", ".join(part.strip() for part in args.payload if part.strip()) or None
         return scaffold.run(ctx, args)
     if command == "engine":
         return engine_update.run(ctx, args.version, args.owner_words, dry_run=args.dry_run, done=args.done)
@@ -279,6 +295,8 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
         return plan.approve(ctx, args.topic, args.words)
     if command == "start":
         return start.run(ctx, args.branch, no_plan=args.no_plan, setup=not args.no_setup, plan_topic=args.plan)
+    if command == "takeover":
+        return takeover.run(ctx, args.branch, setup=not args.no_setup)
     if command == "check":
         if args.watch:
             return watch.watch(ctx, args.names, full=args.full, again=args.again)

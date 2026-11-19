@@ -23,8 +23,8 @@ def {short}_handler(args, **kwargs) -> str:
     try:
         args = args if isinstance(args, dict) else {{}}
         root, error = tool_project("{tool}", args, kwargs)
-        if error:
-            return error
+        if error or root is None:  # narrows root to str for pyright: tool_project gives one or the other
+            return error or tool_error("{tool}: no project folder.", "NO_PROJECT")
         return json.dumps({{"ok": True, "project": root}})
     except Exception as error:  # a handler must never raise
         logger.exception("{tool} failed")

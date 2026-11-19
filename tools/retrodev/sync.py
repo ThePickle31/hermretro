@@ -13,6 +13,8 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 from __future__ import annotations
 
 
+import re
+
 from . import gates, repo
 from .output import Failure
 
@@ -45,6 +47,96 @@ RESUME = (
     "git add those files, then python tools/retrodev sync again: it rebuilds the generated files and finishes the "
     "merge, making the merge commit itself (git merge --abort undoes the merge)"
 )
+
+
+NOT_NAMES = frozenset(
+    [
+        "def",
+        "class",
+        "return",
+        "import",
+        "from",
+        "export",
+        "const",
+        "let",
+        "var",
+        "function",
+        "async",
+        "await",
+        "if",
+        "else",
+        "for",
+        "while",
+        "in",
+        "is",
+        "not",
+        "and",
+        "or",
+        "with",
+        "as",
+        "try",
+        "except",
+        "finally",
+        "pass",
+        "none",
+        "true",
+        "false",
+        "self",
+        "cls",
+        "new",
+        "this",
+        "default",
+    ]
+)
+
+
+def conflict_hunks(text: str) -> list[tuple[str, str]]:
+    """(this branch's side, the base's side) of each conflict hunk in a file git left markers in (the merge style,
+    or diff3/zdiff3 with a '|||||||' common-ancestor part, which belongs to neither side)."""
+    hunks, ours, theirs, part = [], [], [], None
+    for line in text.splitlines():
+        if line.startswith("<<<<<<<"):
+            ours, theirs, part = [], [], "ours"
+        elif part and line.startswith("|||||||"):
+            part = "base"
+        elif part and line.startswith("======="):
+            part = "theirs"
+        elif part and line.startswith(">>>>>>>"):
+            hunks.append(("\n".join(ours), "\n".join(theirs)))
+            part = None
+        elif part == "ours":
+            ours.append(line)
+        elif part == "theirs":
+            theirs.append(line)
+    return hunks
+
+
+def first_name(text: str) -> str | None:
+    """The hunk's first identifier that is not a keyword: what git log -S can follow to where the block went."""
+    return next((w for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", text) if w.lower() not in NOT_NAMES), None)
+
+
+def moved_hints(ctx, files: list[str]) -> list[str]:
+    """For each conflict hunk whose base side is empty (dev removed or moved that block): where to look for it."""
+    hints = []
+    for name in files:
+        path = ctx.top / name
+        text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+        for ours, theirs in conflict_hunks(text):
+            if theirs.strip() or not ours.strip():
+                continue
+            found = first_name(ours)
+            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "") + " -- page backend"
+            hints.append(
+                f"{name}: {ctx.base} removed this block; if it moved, `{log}` finds where; apply your change there "
+                "and drop this side"
+            )
+    return list(dict.fromkeys(hints))
+
+
+def with_hints(ctx, files: list[str]) -> str:
+    hints = moved_hints(ctx, files)
+    return RESUME + ("; " + "; ".join(hints) if hints else "")
 
 
 def merging(ctx) -> bool:
@@ -81,7 +173,7 @@ def resume(ctx) -> int:
     other = [name for name in left if name not in generated]
     ctx.out.set(conflicts=left, other=other)
     if other:
-        raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", RESUME)
+        raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", with_hints(ctx, other))
     ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
     return finish(ctx, left, resumed=True)
 
@@ -114,7 +206,7 @@ def run(ctx) -> int:
                     if len(other) < len(conflicts)
                     else ""
                 ),
-                RESUME,
+                with_hints(ctx, other),
             )
         ctx.out.say(f"conflicts only in generated files ({', '.join(conflicts)}): taking {base}'s side, rebuilding")
         return finish(ctx, conflicts)

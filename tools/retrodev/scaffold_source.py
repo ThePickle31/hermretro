@@ -21,6 +21,9 @@ from .output import Failure
 HANDLER_NEEDS = ("json", "logger", "Tool")  # what templates/tool/tool.py.tmpl uses
 
 
+MODULE_TAKEN = ("tools", "rpcs", "hooks", "prompt", "listeners", "emits")  # names a feature's own parts use
+
+
 def py_str(text: str) -> str:
     """A Python string literal of ``text`` (double quotes unless the text has them, as ruff format writes it)."""
     return repr(text) if '"' in text and "'" not in text else json.dumps(text, ensure_ascii=False)

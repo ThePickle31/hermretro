@@ -4,8 +4,9 @@
 
 The title defaults to the one recorded for the branch (its pull request's, else the last ship's); with none
 recorded ship refuses and its FIX names the plan's title. The body defaults to the one recorded (when that file
-still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
-that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
+still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it), which
+start (or plan approve inside the linked branch) writes early under a plan. Only when that file does not exist (or
+with --new-body) does ship write it from .github/pull_request_template.md, with the
 plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan: say why -->' instead) and a line
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and its body gate stops: fill it in, then ship
@@ -118,12 +119,22 @@ def owner(ctx) -> str:
     return f"@{account}" if account else "the owner"
 
 
-def plan_goal(ctx, branch: str, record: dict) -> list[str]:
-    """The Goal lines of the plan the branch works under ([] with --no-plan, no plan file or an empty Goal)."""
+def plan_sections(ctx, branch: str, record: dict) -> dict[str, list[str]]:
+    """The sections of the plan the branch works under ({} with --no-plan or no plan file); template comments are
+    no content, so a section the plan left as the template is empty here."""
     named = gates.plan_for(ctx, branch, record)
     path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
-    found = gates.section_lines(path.read_text(encoding="utf-8")) if path and path.is_file() else {}
+    return gates.section_lines(path.read_text(encoding="utf-8")) if path and path.is_file() else {}
+
+
+def plan_goal(ctx, branch: str, record: dict) -> list[str]:
+    """The Goal lines of the plan the branch works under ([] with --no-plan, no plan file or an empty Goal)."""
+    found = plan_sections(ctx, branch, record)
     return found.get("Goal") or found.get("Goals") or []  # a plan written by hand may say Goals
+
+
+# The body sections the skeleton fills in from the plan (body heading: the plan's headings, first found wins).
+PREFILL = {"What changed": ("What changes",), "Not done": ("Not in scope",)}
 
 
 def plan_title(ctx, branch: str, record: dict) -> str | None:
@@ -138,19 +149,39 @@ def plan_title(ctx, branch: str, record: dict) -> str | None:
 
 
 def skeleton(ctx, branch: str, record: dict) -> str:
-    """The pull request template with the plan's Goal as the Why and the line saying an agent made it."""
+    """The pull request template with the plan's Goal as the Why, its 'What changes' as What changed and its 'Not
+    in scope' as Not done (each only when the plan says something there), and the line saying an agent made it."""
     source = ctx.top / TEMPLATE
     sections = ctx.policy["ship"]["sections"]
     text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
     goal = plan_goal(ctx, branch, record)
     why = "\n".join(goal) if goal else NO_GOAL  # a visible placeholder: the body gate still finds the Why empty
     text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + why + "\n", text, count=1, flags=re.M)
+    found = plan_sections(ctx, branch, record)
+    for heading, sources in PREFILL.items():
+        lines = next((found[name] for name in sources if found.get(name)), [])
+        if lines:  # after the heading and its template comments
+            at = re.search(rf"^## {re.escape(heading)}[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
+            if at:
+                text = text[: at.end()] + "\n".join(lines) + "\n" + text[at.end() :]
     agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
     line = f"Made by an agent ({agent}) for {owner(ctx)}."
     made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
     if made:  # the template's own section for it (after its comments)
         return text[: made.end()] + line + "\n" + text[made.end() :]
     return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
+
+
+def write_body(ctx, branch: str, record: dict) -> Path | None:
+    """notes/pr/<topic>.md (the path ship reads) from the template and the plan, unless it exists: an existing body
+    is never overwritten. The path when it was written now. start and plan approve write it before the first ship,
+    so the agent fills it in while building; the body gate still refuses what the plan did not fill in."""
+    path = default_body(ctx, branch, record)
+    if path.is_file():
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(skeleton(ctx, branch, record), encoding="utf-8")
+    return path
 
 
 def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> tuple[Path, bool]:
@@ -167,12 +198,10 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
         return path, False
     if not branch or branch in ctx.policy["branches"]["protected"]:
         return path, False  # the work-branch gate refuses it; nothing is written for dev or main
-    written = not path.is_file()
-    if path.is_file():
+    written = write_body(ctx, branch, record) is not None
+    if not written:
         ctx.out.say(f"kept: {path} exists (nothing was overwritten)")
     else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(skeleton(ctx, branch, record), encoding="utf-8")
         named = gates.plan_for(ctx, branch, record)
         why = (
             "the plan's Goal is its Why"
@@ -190,6 +219,21 @@ def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
     --dry-run after a dry run: its FIX never turns it into a push)."""
     shown = title.strip() if title and not gates.title_problems(title) else "<one plain sentence>"
     return f"fill in {path}, then " + command(shown, path, dry_run)
+
+
+def body_step(ctx, branch: str | None, record: dict) -> str | None:
+    """check's last line once the tree passes: before the first ship, while the branch's body (the recorded one,
+    else notes/pr/<topic>.md) exists and still fails the body gate, fill it in, then ship."""
+    if not branch or branch in ctx.policy["branches"]["protected"] or record.get("pr"):
+        return None
+    chosen = record.get("body")
+    path = Path(chosen) if chosen else default_body(ctx, branch, record)
+    if not path.is_file() or not gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"]):
+        return None
+    title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
+    custom = path if path != default_body(ctx, branch, record) else None
+    # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
+    return f"next: fill in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
 
 
 def again(record: dict, dry_run: bool = False) -> str:

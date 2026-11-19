@@ -118,6 +118,7 @@ class Flow(RepoCase):
                 self.assertNotIn("\n---\n", text)
             else:
                 self.assertTrue(text.endswith("\n---\n\nMade by an agent (Hermes) for the owner.\n"), text)
+            text = text.replace("## Not done\nNothing else.\n", "## Not done\n")  # the plan's Not in scope, out again
             filled = re.sub(
                 r"^## (Why|What changed|How verified|Risk and rollback)\n", r"\g<0>Filled.\n", text, flags=re.M
             )
