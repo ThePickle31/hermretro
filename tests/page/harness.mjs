@@ -2,7 +2,7 @@
 // (what ships) with the SDK stand-in from sdk-stub.mjs into jsdom, and hands each scenario file a fresh page,
 // scenario object and the helpers below. After editing page/ run node tools/bundle/bundle.mjs first.
 // Needs react, react-dom and jsdom (tools/bundle/node-modules.mjs says where they come from):
-//   node tests/page/page-<name>.test.mjs [path to a node_modules folder]
+//   node tests/page/page-<name>.test.mjs [path to a node_modules folder, relative or absolute]
 // The bundle keeps module-level state (the Build conversations, the profile route), so each file runs in its
 // own process with its own copy; a file sets every precondition it relies on itself.
 // What a query shows is read at render time: the stub's useQuery returns scenario[<query key>] (scenario.games,
@@ -23,6 +23,14 @@ import { findModules, MISSING_HINT } from '../../tools/bundle/node-modules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
+/** The optional node_modules folder after the file's name, absolute: the temp folder links to it, and a relative
+ *  link target would be read from inside that folder (so `node tests/page/<file> tools/npm/node_modules` works). */
+export const modulesFrom = argv => (argv[2] ? path.resolve(argv[2]) : null)
+
+/** The button labelled `label` in a page's own tab bar (`.cs-tabs`, app/page-view.js), not the studio nav. */
+export const tabButton = (document, label) =>
+  [...document.querySelectorAll('.cs-tabs button')].find(node => node.textContent === label) ?? null
+
 // The SDK stand-in, the bundle rewritten to use it, and the jsdom globals, in a temp folder that is removed
 // however the file ends.
 async function load() {
@@ -34,7 +42,7 @@ async function load() {
     process.exit(1)
   }
 
-  const modules = process.argv[2] || findModules(['react', 'react-dom', 'jsdom'])
+  const modules = modulesFrom(process.argv) || findModules(['react', 'react-dom', 'jsdom'])
 
   if (!modules) {
     console.error(`react, react-dom and jsdom were not found; ${MISSING_HINT}`)
@@ -110,6 +118,12 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     assert.ok(button, 'tab not found: ' + name)
     await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   }
+  // A page's own tab (its tab bar, `.cs-tabs`); tab(name) above is the studio nav's.
+  const pageTab = async label => {
+    const button = tabButton(dom.window.document, label)
+    assert.ok(button, 'page tab not found: ' + label + ' (tabs: ' + [...dom.window.document.querySelectorAll('.cs-tabs button')].map(node => node.textContent).join(', ') + ')')
+    await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  }
   const currentTab = () => nav()?.querySelector('[aria-current="page"]')?.firstChild?.textContent ?? null
   const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => setTimeout(resolve, ms)) }) }
   const button = label => [...dom.window.document.querySelectorAll('button')].find(node => node.textContent.includes(label))
@@ -135,7 +149,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
 
   return {
     act, createRoot, dom, emit, host, plugin, scenario,
-    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, currentTab,
+    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
     settle, button, typeInto, key, mount, checks, check,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }

@@ -4,7 +4,7 @@
 while setup is unfinished), Start something (quick starts, off until setup is done) and Studio (rows of `dl.cs-stat`: Setup, steps
 verified done of those counted, from the setup steps; Profile, the `status` RPC's `profile`; Toolchain, the
 setup toolchain state from `status` and `doctor`; Chromatic, `status`'s `hardware_enabled` and the stored
-"emulator only" choice; Games, the number the `games` RPC lists; then links to Setup and Games). Main component: `home-page.js`; descriptor: `index.js`.
+"emulator only" choice; Games, the number the `games` RPC lists; then links to Setup and Games). The page's `Page` is `Home` in `home-page.js` (it reads the shell and draws `HomePage`, in the same file); the descriptor `HOME_PAGE` is in `index.js`, which imports it.
 
 **Tabs:** none.
 

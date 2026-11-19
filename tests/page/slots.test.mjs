@@ -4,7 +4,7 @@
 // but never documented, fails here. A probe stands in for the real contributions while each host renders.
 // A slot declared but not yet rendered by any page (what `retrodev new slot` leaves) has no props to check
 // and passes; once a page renders it with jsx(Slot, { name: '...' }), it needs its recipe in HOSTS below.
-//   node --test tests/page/slots.test.mjs
+// Run alone: node tests/page/slots.test.mjs
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
