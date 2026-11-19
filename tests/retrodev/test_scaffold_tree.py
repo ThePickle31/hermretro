@@ -10,8 +10,8 @@ docs, boundaries, lock step, the registration snapshot, and the generated tests)
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
 the stubs are unfilled). Skipped when node, the npm tools or the pinned ruff are not set up
-here (check.py scaffold then says so). A second test runs `new rpc history trial_ping` with its own checks: it
-completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
+here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
+checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -165,16 +165,27 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
 
-    def test_new_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
+    def new_then_gate(self, step: list[str], placeholders: list[str]) -> None:
+        """`new <step>` with its own checks completes (the gate is skipped there and keeps no unit pass), then an
+        ordinary run of the placeholder gate fails on the unfilled stubs, naming each placeholder."""
         base, tree, env = self.make_tree()
-        done = run([*RETRODEV, "new", "rpc", "history", "trial_ping"], tree, env)  # with its checks, unit among them
-        self.assertEqual(done.returncode, 0, f"new rpc history trial_ping:\n{done.stdout}{done.stderr}")
+        done = run([*RETRODEV, "new", *step], tree, env)  # with its checks, unit among them
+        self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
         self.assertIn("next: ", done.stdout)
         kept = [path.read_text() for path in (base / "state").rglob("*.json")]
         self.assertFalse(any('"unit"' in text for text in kept), "new's own run must not keep a unit pass")
         gate = run([sys.executable, "-m", "unittest", "tests.repo.test_placeholders"], tree, env)
         self.assertNotEqual(gate.returncode, 0, f"the unfilled stub must fail an ordinary run:\n{gate.stderr}")
-        self.assertIn("Describe what it does, its params and its result here.", gate.stderr)
+        for text in placeholders:
+            self.assertIn(text, gate.stderr)
+
+    def test_new_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
+        self.new_then_gate(["rpc", "history", "trial_ping"], ["Describe what it does, its params and its result here."])
+
+    def test_new_listener_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
+        self.new_then_gate(
+            ["listener", "setup", "library.game_presented"], ["say what this listener does", "(say what it does)"]
+        )
 
 
 if __name__ == "__main__":

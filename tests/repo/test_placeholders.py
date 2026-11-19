@@ -10,6 +10,7 @@ its throwaway copy).
 """
 
 import os
+import sys
 import unittest
 from pathlib import Path
 
@@ -26,6 +27,8 @@ PLACEHOLDERS = {
     "describe what the page shows.": "the page README's **Shows:** line",
     "describe what this page shows.": "the page component's first content",
     "describe what this tab shows.": "the tab component's first content",
+    "(say what it does)": "the CONTRACT event row's 'Heard by' entry: what the listening feature does then",
+    "say what this listener does": "the listener's docstring: what the feature does when the event happens",
 }
 # Where they end up: the docs, every README, the folder map, the feature list and the page.
 SCANNED_SUFFIXES = {".md", ".toml", ".py", ".js"}
@@ -67,6 +70,18 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
             + "\n  ".join(found)
             + "\nFIX: replace each with the real text it asks for",
         )
+
+    def test_a_planned_listener_leaves_both_listener_placeholders(self):
+        """`new listener` (planned in memory, nothing written) leaves the two texts the gate looks for: the listener
+        docstring and the CONTRACT row's 'Heard by' entry, in files the gate scans."""
+        sys.path.insert(0, str(SCAFFOLD.parent))
+        from retrodev import scaffold, scaffold_listener
+
+        plan = scaffold.Plan(ROOT)
+        scaffold_listener.listener(plan, "history", "library.build_reported")
+        planned = {rel: text for rel, text in {**plan.created, **plan.changed}.items() if not rel.startswith(SKIPPED)}
+        for text in ("say what this listener does", "(say what it does)"):
+            self.assertTrue(any(text in body for body in planned.values()), f"{text!r} not in {sorted(planned)}")
 
     def test_every_placeholder_is_still_one_the_scaffolds_write(self):
         sources = "\n".join(
