@@ -1,6 +1,6 @@
 """Next-step lines that fit the state: plan approve with a branch already under the plan, answer on a merged or an
-already-shipped pull request, the hint after land or gc removed the worktree a command started in, and report's
-cached checks.
+already-shipped pull request, ship again after the owner approved, the hint after land or gc removed the worktree
+a command started in, and report's cached checks.
 
 Run alone: python -m unittest tests.retrodev.test_next_steps
 """
@@ -9,12 +9,13 @@ import json
 import re
 import shutil
 import subprocess
+import io
 import unittest
 
-from retrodev import state
+from retrodev import checks, config, output, repo, state
 from retrodev.review import records
 
-from tests.retrodev.fixture import RepoCase, git, parallel
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 from tests.retrodev.landing import PR, LandCase, reply
 
 load_tests = parallel
@@ -110,6 +111,40 @@ class Answer(LandCase):
         code, out = self.run_cli("answer", PR, "1", "0", "Fixed: docs/value.md")
         self.assertIn("next: python tools/retrodev land 12", out)
         self.assertNotIn("commit, check and ship", out)
+
+
+class ShipAgain(RepoCase):
+    def passed(self, tree, name):
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        record = state.load_branch(self.main, name)
+        record.update(passed_tree=repo.tree_digest(tree), passed_checks=sorted(checks.required(ctx)))
+        state.save_branch(self.main, record)
+
+    def ready(self, name):
+        tree = self.worktree(name)
+        self.commit(tree, "docs/guide.md", "# Guide, better\n", "Improve the guide")
+        self.passed(tree, name)
+        return tree, str(write(self.base, "body.md", GOOD_BODY))
+
+    def test_after_the_owner_approved_a_re_ship_points_at_land_not_the_report(self):
+        tree, body = self.ready("chore/again")
+        self.gh.answers[("pr", "create")] = (0, "https://github.com/o/r/pull/12\n", "")
+        code, out = self.run_cli("ship", "--title", "Tidy", "--body", body, cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.assertIn("next: python tools/retrodev report", out, "not approved yet: the report comes next")
+        info = {"number": 12, "title": "Tidy", "state": "OPEN", "isDraft": False, "headRefName": "chore/again"}
+        info.update(headRefOid=git(tree, "rev-parse", "HEAD").strip(), url="https://github.com/o/r/pull/12")
+        self.gh.answers[("pr", "view", "12")] = (0, json.dumps(info), "")
+        self.assertEqual(self.run_cli("approve", "12", "--words", "go", cwd=tree)[0], 0)
+        self.commit(tree, "docs/guide.md", "# Guide, fixed after review\n", "Fix a finding")
+        self.passed(tree, "chore/again")
+        self.gh.answers[("pr", "list")] = (0, json.dumps([{"number": 12, "url": "u", "baseRefName": "dev"}]), "")
+        self.gh.answers[("pr", "edit")] = (0, "", "")
+        code, out = self.run_cli("ship", "--title", "Tidy", "--body", body, cwd=tree)
+        self.assertEqual(code, 0, out)
+        last = out.rstrip().splitlines()[-1]
+        self.assertTrue(last.startswith(f"next: cd {self.main} && python tools/retrodev land 12"), out)
+        self.assertNotIn("report", last)
 
 
 class RemovedShell(LandCase):

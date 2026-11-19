@@ -71,7 +71,7 @@ areas.ci = "Clean install, toolchain preparation and Hermes API checks used by C
 areas.engine = "Engine update helpers: manifest, schema reconciliation"
 areas.debug = "Debugging helpers for a running gateway"
 areas.npm = "Pinned npm tools for development only"
-areas.py = "Pinned Python tools for development only (ruff) and their settings"
+areas.py = "Pinned Python tools for development only (ruff), their settings, and check.py's helpers"
 areas.retrodev = "The development CLI: gates and commands for the working agreement (python tools/retrodev)"
 
 [folders.docs]

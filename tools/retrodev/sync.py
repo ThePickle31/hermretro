@@ -12,7 +12,6 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 
 from __future__ import annotations
 
-import shlex
 
 from . import gates, repo
 from .output import Failure
@@ -28,9 +27,9 @@ def regenerate(ctx) -> list[str]:
         code, out, err = repo.run(command, ctx.top, timeout=300)
         if code:
             tail = (out + err).strip().splitlines()[-3:]
-            problems.append(f"{shlex.join(words)} exited {code}: " + " / ".join(tail))
+            problems.append(f"{ctx.shown(words)} exited {code}: " + " / ".join(tail))
         else:
-            ctx.out.say(f"  rebuilt: {shlex.join(words)}")
+            ctx.out.say(f"  rebuilt: {ctx.shown(words)}")
     return problems
 
 
