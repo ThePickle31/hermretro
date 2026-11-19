@@ -2,7 +2,7 @@
 // (app/slots.js), tabs (app/page-view.js) and the stylesheet order (app/style.js), from the sources.
 //   node --test tests/page/registry.test.mjs
 import assert from 'node:assert/strict'
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerAliases } from './aliases.mjs'
 import path from 'node:path'
 import test from 'node:test'
@@ -74,6 +74,36 @@ test('a page needs a Page, or tabs that each have one', () => {
   assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One', Page: Text('one') }] }), [])
   assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One' }] }), ['tabbed/one has no Page'])
   assert.deepEqual(missingComponents({ id: 'bare', label: 'Bare' }), ['bare has no Page'])
+})
+
+/** Pages whose descriptor's own Page is defined in index.js rather than imported from one of its files. */
+// Known exceptions, each with its reason. home: tests/retrodev/test_trial_round_two.py and test_trial_round_four.py
+// use Home defined in index.js as their fixture for --from-page's refusal; Home moves into home-page.js once they
+// use a probe page of their own instead.
+const PAGE_IN_INDEX = new Set(['home'])
+
+function pagesDefiningPage(sources, allowed = new Set()) {
+  return sources.flatMap(([id, text]) => {
+    if (allowed.has(id)) return []
+    const name = text.match(/^ {2}Page: (\w+),?$/m)?.[1]
+
+    return name && new RegExp(`^(?:export\\s+)?(?:async\\s+)?(?:function|const|let|class)\\s+${name}\\b`, 'm').test(text)
+      ? [`page/pages/${id}/index.js defines ${name}. FIX: move it into page/pages/${id}/${id}-page.js, export it and import { ${name} } from './${id}-page.js' in index.js`]
+      : []
+  })
+}
+
+// A page's Page lives in its own file, so \`retrodev new tab <page> <id> --from-page\` can make it the first tab
+// (a tab importing the page's index.js would be a cycle).
+test("each page's own Page is imported into index.js from its own file, not defined there", () => {
+  assert.equal(pagesDefiningPage([['probe', "function Probe() {}\nexport const PROBE_PAGE = {\n  id: 'probe',\n  Page: Probe,\n}"]]).length, 1)
+  assert.deepEqual(pagesDefiningPage([['probe', "import { Probe } from './probe-page.js'\nexport const PROBE_PAGE = {\n  Page: Probe\n}"]]), [])
+  const pagesDir = fileURLToPath(new URL('../../page/pages/', import.meta.url))
+  const sources = readdirSync(pagesDir)
+    .filter(id => statSync(path.join(pagesDir, id)).isDirectory())
+    .map(id => [id, readFileSync(path.join(pagesDir, id, 'index.js'), 'utf8')])
+
+  assert.deepEqual(pagesDefiningPage(sources, PAGE_IN_INDEX), [])
 })
 
 test('events are declared once, by the page their name starts with', () => {

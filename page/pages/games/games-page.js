@@ -1,13 +1,14 @@
 // The Games page (Shelf).
 import { Button, Codicon, jsx, jsxs, Tip } from '#sdk'
 import { studioError } from '#app/backend.js'
+import { emit } from '#app/events.js'
 import { sendToGameChat } from '#app/chat-insert.js'
 import { Art } from '#shared/ui/art.js'
 import { AsyncButton, PageHead } from '#shared/ui/page.js'
 import { GamesFolder } from './games-folder.js'
 import { Lede, Small } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
-import { GameCard } from './game-card.js'
+import { COVER_PROMPT, GameCard } from './game-card.js'
 import { installPrompt } from './model.js'
 
 function DeviceStrip({ hardwareOn, onSetUpDevice }) {
@@ -159,4 +160,21 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetU
     ),
     folder
   ]
+}
+
+/** The page's own Page: the shelf, fed from the shell. */
+export function Games({ shell }) {
+  return jsx(GamesPage, {
+    ctx: shell.ctx,
+    games: shell.games,
+    hardwareOn: shell.hardwareOn,
+    // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
+    onMakeCover: game => {
+      emit('games.coverRequested', { game, prompt: COVER_PROMPT })
+      shell.go('build')
+    },
+    onOpenPrompt: shell.openPrompt,
+    onPlay: shell.play,
+    onSetUpDevice: shell.setUpDevice
+  })
 }

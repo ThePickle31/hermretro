@@ -29,6 +29,7 @@ const { PAGE_SLOTS } = await import('../../page/app/slots.js')
 // Importing the registry wires every page's slots into PAGE_SLOTS.
 await import('../../page/app/registry.js')
 const { scenario } = await import('./sdk-stub.mjs')
+const { answered, homeShell, ownPage, shapeOf } = await import('./shells.mjs')
 
 const ctx = { storage: { get: (key, fallback) => fallback, set() {} }, os: {} }
 const game = { id: 'abc123abc123', title: 'Probe', state: 'ready', rom: { path: '/x.gb' }, web: null, webExport: true, chat: null, projectRoot: '/games/probe' }
@@ -46,7 +47,10 @@ async function render(element) {
 const pageOf = id => PAGES.find(page => page.id === id)
 
 // How to draw each slot's host, once per place it renders the slot. `where` matches the doc string's
-// "on the <where> only". A new slot gets its recipe here (the first test says so).
+// "on the <where> only". A new slot gets its recipe here (the first test says so). Draw a page with ownPage(page)
+// (its Page, or its first tab's once it has tabs), never page.Page. A slot on Home: draw it with
+// { shell: homeShell({ ... }) } from tests/page/shells.mjs (every shell field Home reads, with its shape; the last
+// tests here check that list against the real shell).
 const HOSTS = {
   'emulator.barActions': [
     {
@@ -54,7 +58,7 @@ const HOSTS = {
       draw: async () => {
         const player = { game, query: playerQuery, focused: false, capturesOpen: false, rebuilt: false, ask() {}, fullScreen() {}, later() {}, reload() {}, refresh() {}, toggleCaptures() {} }
 
-        return render(jsx(pageOf('emulator').Page, { shell: { ctx, go() {}, hardwareOn: true, player } }))
+        return render(jsx(ownPage(pageOf('emulator')), { shell: { ctx, go() {}, hardwareOn: true, player } }))
       }
     },
     {
@@ -75,7 +79,7 @@ const HOSTS = {
       where: 'Games shelf',
       draw: async () => {
         const games = { data: { games: [game], device: { hardwareEnabled: true } }, isFetching: false }
-        const shown = await render(jsx(pageOf('games').Page, { shell: { ctx, games, gameList: [game], hardwareOn: true, go() {}, openPrompt() {}, play() {}, setUpDevice() {} } }))
+        const shown = await render(jsx(ownPage(pageOf('games')), { shell: { ctx, games, gameList: [game], hardwareOn: true, go() {}, openPrompt() {}, play() {}, setUpDevice() {} } }))
         const caret = shown.node.querySelector('.cs-split .caret')
 
         assert.ok(caret, 'the card has its arrow menu')
@@ -257,5 +261,58 @@ test('each host passes a contribution exactly the props its slot documents', asy
     }
   } finally {
     PAGE_SLOTS.contributions = original
+  }
+})
+
+test("a page's own Page is its first tab's once it has tabs", () => {
+  const First = () => null
+  const Own = () => null
+
+  assert.equal(ownPage({ id: 'p', Page: Own }), Own)
+  assert.equal(ownPage({ id: 'p', tabs: [{ id: 'a', Page: First }, { id: 'b', Page: Own }] }), First)
+})
+
+test('Home draws from homeShell(), the fixture a Home host recipe uses', async () => {
+  const games = answered({ games: [{ ...game, rom: { path: '/x.gb', builtAt: 1 } }], device: { hardwareEnabled: false } })
+  const shown = await render(jsx(ownPage(pageOf('home')), { shell: homeShell({ games }) }))
+
+  assert.ok(shown.node.textContent.includes('Make a game.'), 'the hero rendered')
+  assert.equal(shown.node.querySelector('.cs-cont .name')?.textContent, 'Probe', 'Continue shows the game from shell.games')
+  await shown.close()
+})
+
+// The real shell (page/app/studio-page.js) with a probe in Home's place: homeShell() lists only fields it has,
+// with the same kind of value, and every field Home's Page passes on is in the list.
+test("homeShell() matches the shell Home really gets", async () => {
+  const { StudioPage } = await import('../../page/app/studio-page.js')
+  const home = pageOf('home')
+  const original = home.Page
+  const seen = []
+  const storage = { page: 'home', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
+  const real = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
+
+  scenario.status = answered({ ok: true, via_profile: 'hermretro', hardware_enabled: false, project: null, plugin: { version: '9' }, node: { ok: true }, engine: { present: true, verified: true },
+    profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } }, deps: { device_cli: { state: 'installed', version: '1.2.1' } } })
+  scenario.doctor = answered({ ok: true, missing_required: [], components: [] })
+  scenario.games = answered({ games: [game], device: { hardwareEnabled: false } })
+  home.Page = ({ shell }) => { seen.push(shell); return null }
+  try {
+    const shown = await render(jsx(StudioPage, { ctx: real }))
+
+    assert.ok(seen.length, 'Home rendered')
+    const shell = seen.at(-1)
+    const fixture = homeShell()
+    const scalar = new Set(['auto', 'autoId', 'choosing'])  // null / an id / a boolean, by setup state
+    const missing = Object.keys(fixture).filter(key => !(key in shell))
+    const differ = Object.keys(fixture).filter(key => key in shell && !scalar.has(key) && shapeOf(shell[key]) !== shapeOf(fixture[key]))
+
+    assert.deepEqual(missing, [], 'FIX: homeShell() in tests/page/shells.mjs lists a field the real shell lacks')
+    assert.deepEqual(differ.map(key => `${key}: real ${shapeOf(shell[key])}, fixture ${shapeOf(fixture[key])}`), [], 'FIX: give the field its real shape in homeShell()')
+    const homeReads = [...['pages/home/index.js', 'pages/home/home-page.js'].map(file => readFileSync(join(PAGE_DIR, file), 'utf8')).join('\n').matchAll(/\bshell\.(\w+)/g)].map(match => match[1])
+
+    assert.deepEqual([...new Set(homeReads)].filter(key => !(key in fixture)), [], 'FIX: add the shell field Home now reads to homeShell() in tests/page/shells.mjs')
+    await shown.close()
+  } finally {
+    home.Page = original
   }
 })

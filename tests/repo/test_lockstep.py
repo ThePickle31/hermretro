@@ -250,6 +250,28 @@ class LockStep(unittest.TestCase):
         }
         self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
 
+    def test_the_pending_limit_agrees_with_its_docs(self):
+        """The newest pending New Game conversations kept (games.MAX_PENDING) is the number both docs state."""
+        from backend.library import games
+
+        def stated(rel: str, line_has: str) -> list[str]:
+            lines = [line for line in read(rel).splitlines() if line_has in line]
+            return [number for line in lines for number in re.findall(r"newest (\d+)", line)]
+
+        readme = stated("backend/library/README.md", "- `pending`:")
+        pages = stated("docs/dev/STUDIO-PAGES.md", "New Game conversations whose project does not exist yet")
+        for rel, found in (("backend/library/README.md", readme), ("docs/dev/STUDIO-PAGES.md", pages)):
+            self.assertEqual(
+                found,
+                [str(games.MAX_PENDING)],
+                f"{rel}: the pending line's 'newest N'\nFIX: write newest {games.MAX_PENDING} there "
+                "(backend/library/games.py MAX_PENDING), or change MAX_PENDING and both docs together",
+            )
+        self.assertIn(
+            "STUDIO-PAGES",
+            next(line for line in read("backend/library/README.md").splitlines() if "- `pending`:" in line),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
