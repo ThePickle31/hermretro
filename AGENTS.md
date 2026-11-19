@@ -121,8 +121,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - Work in a worktree on its own branch from `dev`, named `feat/…` (a new ability), `fix/…` (a bug), `docs/…`
   (documentation only) or `chore/…` (refactors of tests, tools and CI that change no behaviour). A checkout that a
   Hermes profile loads as its live plugin stays on `dev`.
-- One concern per pull request. Run `python tools/check.py` before pushing, then
-  `gh pr create --base dev`. The title is a plain sentence; it becomes the commit and the release-note line.
+- One concern per pull request, opened with `python tools/retrodev ship` (into `dev`, after `check`). The title is a
+  plain sentence; it becomes the commit and the release-note line.
 - Fill in every section of the pull request template. Say which systems you tested on, and say so when an
   agent made the change.
 - The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
