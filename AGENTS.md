@@ -35,9 +35,10 @@ One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-i
 current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 20 to 60 s)
+python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 18 s on an idle machine)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
+python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest; pytest is not used)
 python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
@@ -49,8 +50,10 @@ since their last pass on the branch (a cached pass prints `ok (cached)`; `--agai
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
 `engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
 check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
-new` run on a throwaway copy of the tree) when it changed the scaffolds or the files they edit. A branch that adds a
-tool or an RPC therefore takes about 3 minutes to check. Budgets are in `tools/retrodev/policy.toml`
+new` run on a throwaway copy of the tree, about 20 s) when it changed the scaffolds or the files whose structure they
+parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count). A
+branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
+on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`
 `[checks.budgets]`; a check over its budget twice in a row gets a warning, never a failure. Run `python tools/check.py
 fix` and commit before `retrodev check`: the clean install installs the committed tree, so `check` refuses an
 uncommitted one when it is due.
@@ -118,8 +121,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - Work in a worktree on its own branch from `dev`, named `feat/…` (a new ability), `fix/…` (a bug), `docs/…`
   (documentation only) or `chore/…` (refactors of tests, tools and CI that change no behaviour). A checkout that a
   Hermes profile loads as its live plugin stays on `dev`.
-- One concern per pull request. Run `python tools/check.py` before pushing, then
-  `gh pr create --base dev`. The title is a plain sentence; it becomes the commit and the release-note line.
+- One concern per pull request, opened with `python tools/retrodev ship` (into `dev`, after `check`). The title is a
+  plain sentence; it becomes the commit and the release-note line.
 - Fill in every section of the pull request template. Say which systems you tested on, and say so when an
   agent made the change.
 - The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
