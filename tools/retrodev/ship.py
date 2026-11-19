@@ -104,7 +104,8 @@ def plan_goal(ctx, branch: str, record: dict) -> list[str]:
     """The Goal lines of the plan the branch works under ([] with --no-plan, no plan file or an empty Goal)."""
     named = gates.plan_for(ctx, branch, record)
     path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
-    return gates.section_lines(path.read_text(encoding="utf-8")).get("Goal", []) if path and path.is_file() else []
+    found = gates.section_lines(path.read_text(encoding="utf-8")) if path and path.is_file() else {}
+    return found.get("Goal") or found.get("Goals") or []  # a plan written by hand may say Goals
 
 
 def plan_title(ctx, branch: str, record: dict) -> str | None:
@@ -154,7 +155,14 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(skeleton(ctx, branch, record), encoding="utf-8")
-        why = "the plan's Goal is its Why" if plan_goal(ctx, branch, record) else "no plan Goal: write the Why"
+        named = gates.plan_for(ctx, branch, record)
+        why = (
+            "the plan's Goal is its Why"
+            if plan_goal(ctx, branch, record)
+            else f"the plan {named} has no Goal to copy: write the Why"
+            if named
+            else "no plan Goal: write the Why"
+        )
         ctx.out.say(f"wrote {path} from {TEMPLATE} ({why})")
     if dry_run:
         return path, written
@@ -179,6 +187,9 @@ def again(record: dict) -> str:
 def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
+    if branch and not gates.title_problems(title) and branch not in ctx.policy["branches"]["protected"]:
+        record["title"] = title.strip()  # status names it in its next ship command, also after a stop below
+        state.save_branch(ctx.top, record)
     body_path, written = body_file(ctx, title, body, new_body, dry_run, branch, record)
     text = body_path.read_text(encoding="utf-8") if body_path.is_file() else None
     body_gate = gates.body_gate(text, ctx.policy["ship"]["sections"])
@@ -186,9 +197,6 @@ def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool
         if written:  # the dry run wrote the skeleton just now: every section is still to write
             body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
         body_gate.fix = fill_in(body_path, title)
-    if branch and not gates.title_problems(title) and branch not in ctx.policy["branches"]["protected"]:
-        record["title"] = title.strip()  # status names it in its next ship command
-        state.save_branch(ctx.top, record)
     found = [
         gates.on_work_branch(ctx, branch),
         gates.title_gate(title),

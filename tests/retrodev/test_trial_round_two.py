@@ -87,6 +87,16 @@ class Flow(RepoCase):
         _code, out = self.run_cli("status", cwd=tree)
         self.assertIn("behind origin/dev: 2 commits (python tools/retrodev sync)", out)
 
+    def test_the_first_real_ship_records_the_title_before_it_stops_and_reads_a_goals_heading(self):
+        tree = self.feat("keeper")
+        plan = self.main / "notes" / "plans" / "keeper.md"
+        plan.write_text(plan.read_text().replace("## Goal\n", "## Goals\n"))
+        code, out = self.run_cli("ship", "--title", TITLE, cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("## Why\nMake keeper work.\n", (self.main / "notes" / "pr" / "keeper.md").read_text())
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertIn(f"--title '{TITLE}' --body", line_with(out, "next:"), "the title given, not the plan's")
+
     def test_status_falls_back_to_the_plan_s_title(self):
         tree = self.feat("keeper")
         plan = self.main / "notes" / "plans" / "keeper.md"
