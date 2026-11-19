@@ -62,21 +62,17 @@ def need(tool: str) -> str:
 
 
 def check_unit(_args) -> str:
-    # Empty home (a write meant for the real one shows up); empty PYTHONPYCACHEPREFIX (-B alone still reads stale .pyc)
+    # Empty home (a write meant for the real one shows up), with HERMES_HOME in it (Hermes's plugin data folder,
+    # host._data_dir(), lands there too); empty PYTHONPYCACHEPREFIX (-B alone still reads stale .pyc).
     with (
         tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
         tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
     ):
-        env = {
-            key: value
-            for key, value in os.environ.items()
-            if not key.startswith("HERMRETRO_") and key not in ("HERMES_HOME", "GB_STUDIO_SETUP_ROOT")
-        }
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_") and k != "GB_STUDIO_SETUP_ROOT"}
+        env.update(HOME=home, HERMES_HOME=str(Path(home) / ".hermes"))
+        env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=bytecode)
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        result = run(
-            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env={**env, "HOME": home, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": bytecode},
-        )
+        result = run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest], env=env)
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(
@@ -86,8 +82,8 @@ def check_unit(_args) -> str:
     if leaked:
         raise AssertionError(
             "the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
-            "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
-            "variables)"
+            "those tests a temp folder: isolated_home(self) from tests/support.py in setUp (moves HERMRETRO_HOME "
+            "and the plugin data folder), or throwaway_deps for downloads"
         )
     lines = result.stderr.splitlines()
     ran = [line for line in lines if line.startswith("Ran ")]

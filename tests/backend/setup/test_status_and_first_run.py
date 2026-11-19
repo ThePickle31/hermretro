@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
 from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker import engine  # noqa: E402 - the repository root goes on sys.path first
@@ -20,7 +19,7 @@ from backend.setup import provision  # noqa: E402 - the repository root goes on 
 from backend.setup import studio_profile  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from support import throwaway_deps, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import throwaway_deps, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
 
 CTX = mock.Mock(get_config=lambda key, default=None: default)
 PROXY = {

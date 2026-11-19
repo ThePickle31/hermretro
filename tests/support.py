@@ -1,14 +1,47 @@
-"""Shared test helpers. Tests must never touch the developer's real Hermes home or hermretro's folder in it:
-patch Hermes storage with ``throwaway_profile``, downloads with ``throwaway_deps``, and point
-``HERMRETRO_HOME`` (or ``HERMRETRO_LIBRARY_DIR`` / ``HERMRETRO_RUNTIME_DIR`` / ``HERMRETRO_GAMES_DIR``) at a temp
-folder. ``python tools/check.py unit`` fails when the suite writes anything into the home folder."""
+"""Shared test helpers. Tests must never touch the developer's real Hermes home or hermretro's folder in it.
 
+``isolated_home(self)`` in a test's setUp moves both at once: ``HERMRETRO_HOME`` (games, library, broker) and
+Hermes's plugin data folder (``backend.hermes.host._data_dir()``: history snapshots, asset versions, frames),
+which ``HERMRETRO_HOME`` alone does not move. ``throwaway_profile`` patches only the plugin data folder,
+``throwaway_deps`` the downloads (fixed at import, so ``HERMRETRO_HOME`` does not move them either).
+``python tools/check.py unit`` fails when the suite writes anything into the home folder.
+
+Import these as ``from tests.support import ...``: putting tests/ itself on sys.path makes tests/backend shadow
+the real backend package (tests/repo/test_test_imports.py refuses it)."""
+
+import os
+import tempfile
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from backend.hermes import host as hermes_host
 from backend.system import paths
+
+
+# Per-folder overrides that would win over HERMRETRO_HOME when the developer's shell sets them.
+FOLDER_OVERRIDES = ("HERMRETRO_LIBRARY_DIR", "HERMRETRO_RUNTIME_DIR", "HERMRETRO_GAMES_DIR")
+
+
+def isolated_home(test) -> SimpleNamespace:
+    """Give ``test`` (a unittest.TestCase, in setUp) its own hermretro home and plugin data folder, both in one
+    new temp folder, undone by the test's cleanups. Returns ``base`` (the temp folder), ``home`` (the
+    ``HERMRETRO_HOME``) and ``data`` (what ``host._data_dir()`` returns, created; its profile home is
+    ``data.parents[1]``, so session lookups read nothing real either)."""
+    tmp = tempfile.TemporaryDirectory()
+    test.addCleanup(tmp.cleanup)
+    base = Path(tmp.name).resolve()
+    home, data = base / "hermretro", base / "profile" / "plugin-data" / "hermretro"
+    data.mkdir(parents=True)
+    environ = {key: value for key, value in os.environ.items() if key not in FOLDER_OVERRIDES}
+    for patch in (
+        mock.patch.dict(os.environ, {**environ, "HERMRETRO_HOME": str(home)}, clear=True),
+        throwaway_profile(base),
+    ):
+        patch.start()
+        test.addCleanup(patch.stop)
+    return SimpleNamespace(base=base, home=home, data=data)
 
 
 def throwaway_profile(base: Path):

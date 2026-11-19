@@ -79,8 +79,19 @@ never patches a module's global, since other threads use it: `tests/retrodev/poo
 one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
 folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
 run that before committing.
-Shared helpers are `tests/support.py`; a test reaches another test's helpers as `from tests.backend.<feature>.<module>
-import ...`.
+Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
+helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the
+repository root): `tests/backend` would then shadow the real `backend` package, and two test modules run together
+(`python -B -m unittest tests.backend.setup.test_remove_tools tests.backend.library.test_games`) fail with an
+ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses it).
+
+`python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
+page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
+`hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
+whole page. A unit test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
+the module with `import()` after `registerAliases()` from `./aliases.mjs` (the page's `#app/`… aliases, React and
+the SDK stand-in; it uses `module.registerHooks`, or `register('./aliases.mjs', import.meta.url)` on a Node without
+it), like `tests/page/build-player.test.mjs`.
 
 ## Adding a test
 
@@ -97,8 +108,12 @@ that (it only stops writing `.pyc` files), the fresh, empty `PYTHONPYCACHEPREFIX
 
 ## Rules for tests
 
-- Never the real Hermes home: `tests/support.py` (`throwaway_profile`, `throwaway_deps`) and `HERMRETRO_HOME` /
-  `HERMRETRO_*_DIR` pointed at a temp folder. A clean-install or Hermes-CLI test must use a folder outside
+- Never the real Hermes home. In `setUp`, `isolated_home(self)` from `tests/support.py` points both
+  `HERMRETRO_HOME` (games, library, broker) and Hermes's plugin data folder (`backend.hermes.host._data_dir()`:
+  history snapshots, asset versions, frames; `HERMRETRO_HOME` does not move it) at one new temp folder, undone
+  by the test's cleanups; use it rather than patching `_data_dir` by hand. `throwaway_profile` moves only the
+  plugin data folder, `throwaway_deps` the downloads; `HERMRETRO_*_DIR` move single folders. `check.py unit` gives
+  the run an empty `HOME` with `HERMES_HOME` inside it, so a write to either lands there and fails the check. A clean-install or Hermes-CLI test must use a folder outside
   `~/.hermes` (Hermes treats a home inside its real root as the real root).
 - Never the hardware tools (`flash`, `play`, `setup`, capture); `device` with `command: "status"` is the only
   hardware call allowed, and only in acceptance.

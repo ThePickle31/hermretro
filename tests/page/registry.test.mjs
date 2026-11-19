@@ -3,13 +3,13 @@
 //   node --test tests/page/registry.test.mjs
 import assert from 'node:assert/strict'
 import { readdirSync, statSync } from 'node:fs'
-import { register } from 'node:module'
+import { registerAliases } from './aliases.mjs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 // The modules import each other through the page's aliases, and React and the SDK stand-in: resolve those first.
-register('./aliases.mjs', import.meta.url)
+registerAliases()
 
 const { JSDOM } = await import('jsdom')
 const dom = new JSDOM('<!doctype html><div id="root"></div>')

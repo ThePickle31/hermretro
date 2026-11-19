@@ -1,11 +1,11 @@
 // The inline player's pure logic: whole-number scaling and the play-test checklist.
 //   node --test tests/page/build-player.test.mjs
 import assert from 'node:assert/strict'
-import { register } from 'node:module'
+import { registerAliases } from './aliases.mjs'
 import test from 'node:test'
 
 // The modules import each other through the page's aliases: resolve those first (aliases.mjs).
-register('./aliases.mjs', import.meta.url)
+registerAliases()
 
 const { checklist, progress, withReport, withTick } = await import('../../page/pages/build/player/checks.js')
 const { playerSize } = await import('../../page/pages/build/player/scale.js')

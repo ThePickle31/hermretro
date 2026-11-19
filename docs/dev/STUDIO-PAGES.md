@@ -446,9 +446,14 @@ Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`,
 `python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
 nav list (it goes last; move it in both).
 
+**Reference content** (how something works, rather than something to do) goes on the page it is about, not on a
+page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
+setup explanations to Setup; prompts to Prompts.
+
 **A tab.** Make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
-`app/page-view.js` draws the tab bar and remembers the choice per page. With tabs, the page's own `Page` is not
+`app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
+tab bar (of one). With tabs, the page's own `Page` is not
 the page's body any more: if the descriptor keeps one it renders only as a strip between the tab bar and the
 chosen tab (given `{ shell, tab }`), so move its content into a tab, or drop `Page` when the tabs are the whole
 page. Mention the tab in the page's `README.md`. Or:

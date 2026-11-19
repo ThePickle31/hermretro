@@ -13,8 +13,18 @@ request into `dev` and CI.
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
    `python tools/ci/prepare_toolchain.py` once, then `python tools/check.py full`.
 
-To try your checkout in Hermes, link it into a test profile (see the README, "Develop"). The plugin's tools exist
-only in a profile named `hermretro`; set `HERMRETRO_EVERY_PROFILE=1` for the gateway to try them elsewhere.
+
+## Trying a change in Hermes Desktop
+
+1. Link your checkout as the plugin instead of installing it (the README, "Install": "For development, link a
+   checkout instead"), and enable it.
+2. Page changes (`page/`): rebuild with `node tools/bundle/bundle.mjs` (or keep `node tools/bundle/bundle.mjs
+   --watch` running) and reload the app's window; the gateway keeps running.
+3. Changes to `backend/`, `__init__.py`, `plugin.yaml`, `skills/` or `profile/` load only when the gateway
+   starts: restart it yourself (`hermes gateway restart`), then reload the app.
+4. The plugin's tools, skills and prompt exist only in the profile named `hermretro` (the page's first setup step
+   makes it). To try them from another profile, start the gateway with `HERMRETRO_EVERY_PROFILE=1` in its
+   environment.
 
 ## The rules that protect users
 

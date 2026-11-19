@@ -36,6 +36,14 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
 
 Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
+## Project files
+
+What the plugin reads from a GB Studio project (the engine writes them; `backend/assets/sprites.py` `_project_index` reads them for the Build page's assets):
+
+- `<root>/project/scenes/<folder>/scene.gbsres`: one scene, a JSON object with its `name` and `id` (and `_index`, its order); its actors are `<root>/project/scenes/<folder>/actors/*.gbsres`.
+- `<root>/project/settings.gbsres`: the project's settings (JSON).
+- `<root>/project/palettes/*.gbsres` (`id`, `colors`) and the sidecars `<root>/assets/sprites/*.gbsres` and `<root>/assets/backgrounds/*.gbsres` (`id`; the image is the same name without `.gbsres`).
+
 ## Adding here
 
 Use `python tools/retrodev new <kind> library <name>`: it writes the stub, its test, the docs and the registry lines, rebuilds the generated files and runs the checks; there are no hand steps.

@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for support
 
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
@@ -19,7 +18,7 @@ from backend.history import snapshots  # noqa: E402 - the repository root goes o
 from backend.history import hooks as history_hooks  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:
@@ -156,27 +155,16 @@ class BuildHistoryHost(unittest.TestCase):
     """The hook and the RPCs, with a real library in a temporary folder."""
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
-        data = self.base / "hermes" / "profiles" / "studio" / "plugin-data" / "hermretro"
-        data.mkdir(parents=True)
-        self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib")}),
-            mock.patch.object(hermes_host, "_data_dir", lambda: data),
-            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-        ]
-        for patch in self.patches:
-            patch.start()
-        self.store = data / "snapshots"
+        isolated = isolated_home(self)
+        self.base = isolated.base
+        connect = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
+        connect.start()
+        self.addCleanup(connect.stop)
+        self.store = isolated.data / "snapshots"
         self.root = make_project(self.base)
         self.outsider = make_project(self.base, name="Not Listed")
         hermes_host._registry().upsert(str(self.root))
         self.game = games.game_id(self.root)
-
-    def tearDown(self):
-        for patch in self.patches:
-            patch.stop()
-        self.tmp.cleanup()
 
     def hook(self, **kwargs):
         registered_hook("post_tool_call")(
