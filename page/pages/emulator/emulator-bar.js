@@ -48,8 +48,9 @@ function Captures({ game, open }) {
 }
 
 /** The rebuilt banner and the bar above the player: only the player's controls. Below a narrow width
- *  the bar's buttons drop their labels (`.cs-lbl`) and keep their icons and tooltips. */
-export function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, capturesOpen, onAsk, onToggleCaptures, onFull, onReload, onLater }) {
+ *  the bar's buttons drop their labels (`.cs-lbl`) and keep their icons and tooltips. Drawn by the Emulator
+ *  page (which passes the shell's `go`) and by the emulator tab beside the chat (no shell, so no `go`). */
+export function EmulatorBar({ ctx, game, go, player, focused, hardwareOn, rebuilt, capturesOpen, onAsk, onToggleCaptures, onFull, onReload, onLater }) {
   const onDemo = game?.id === DEMO_ID
 
   return [
@@ -80,7 +81,7 @@ export function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, c
             label: 'Lit while the player has keyboard focus. Keys typed on this page also reach the game.',
             children: jsxs('span', { className: focused ? 'cs-rp-focus on' : 'cs-rp-focus', children: [jsx('i', {}), jsx('span', { className: 'cs-lbl', children: 'Keyboard' })] })
           }),
-          game && !onDemo ? jsx(Slot, { name: 'emulator.barActions', props: { ctx, game, hardwareOn } }) : null,
+          game && !onDemo ? jsx(Slot, { name: 'emulator.barActions', props: go ? { ctx, game, go, hardwareOn } : { ctx, game, hardwareOn } }) : null,
           jsx(AsyncButton, { disabled: !player?.data?.url, icon: 'comment-discussion', run: onAsk, title: "Puts this frame and a note into the game's chat, not sent", variant: 'ghost', children: 'Ask Hermes' }),
           jsx(Tip, {
             label: 'Screenshots and videos of this game',

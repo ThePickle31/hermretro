@@ -103,6 +103,11 @@ its own feature, the shared layers, and another feature only through its front d
 by it, and listened to from `listeners.py`. A deliberate exception is a line comment
 `retrodev: allow <rule> — <reason>`, listed as a warning on every run.
 
+So a value (a constant, a function, a class) that another feature reads is imported into the owner's front door
+`backend/<owner>/__init__.py` and listed in its `__all__`, and the reader writes `from ..<owner> import NAME` (inside
+the owner, `from .module import NAME`). Importing it from the module that defines it
+(`from ..<owner>.module import NAME`) fails the boundary test, even when the module is public-looking.
+
 ### Adding things
 
 | To add | Touch |
@@ -111,6 +116,7 @@ by it, and listened to from `listeners.py`. A deliberate exception is a line com
 | a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`, the snapshot. Or: `python tools/retrodev new tool <feature> <name> --step '<running>' '<done>'` |
 | a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`; the snapshot |
 | an event | the owner's front door `EVENTS` + `emit(...)` where it happens: something the broker does is announced from the gateway side (the broker stays standard library only and emits nothing), in the RPC or hook that first learns of it, once per occurrence; listeners in `backend/<other>/listeners.py` with `@on(...)`. Or: `python tools/retrodev new event <feature> <name>` (the entry, an `emits.py` function, a test, the CONTRACT row), and `python tools/retrodev new listener <feature> <event>` for each feature that reacts (not `broker` or `system`, which stay standard library only) |
+| a value other features read | import it in the owner's `backend/<owner>/__init__.py` and add it to `__all__` (and the owner README's "Front door" line); readers import `from ..<owner> import NAME` |
 | a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its area in `tools/layout.toml` and the Map above; tests in `tests/backend/<name>/`. Or: `python tools/retrodev new feature <name> --purpose '...'` (all of it) |
 
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),

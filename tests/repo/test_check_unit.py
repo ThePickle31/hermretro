@@ -101,6 +101,23 @@ class UnitCheckHomeTests(unittest.TestCase):
             "FIX: point HERMES_HOME inside the empty HOME that check_unit watches",
         )
 
+    def test_a_leak_names_the_test_module_that_wrote_there(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):  # the whole suite leaks; rerun alone, only one module does
+            calls.append(cmd)
+            if "discover" in cmd or cmd[-1] == "tests.backend.library.test_build_report":
+                (Path(kwargs["env"]["HOME"]) / ".hermes" / "hermretro").mkdir(parents=True, exist_ok=True)
+            return subprocess.CompletedProcess(cmd, 0, "", OK)
+
+        with mock.patch.object(check, "run", fake_run), self.assertRaises(AssertionError) as caught:
+            check.check_unit(None)
+        message = str(caught.exception)
+        self.assertIn("written by: tests.backend.library.test_build_report (.hermes", message)
+        self.assertNotIn("test_check_unit", message, "only the module that wrote there is named")
+        self.assertIn("calls a real emitter", message)
+        self.assertGreater(len(calls), 2, "each module was rerun on its own")
+
 
 if __name__ == "__main__":
     unittest.main()

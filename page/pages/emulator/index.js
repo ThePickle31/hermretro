@@ -9,7 +9,7 @@ import { EmulatorBar } from './emulator-bar.js'
 import { EMULATOR_CSS } from './emulator.css.js'
 
 function Emulator({ shell }) {
-  const { ctx, hardwareOn, player } = shell
+  const { ctx, go, hardwareOn, player } = shell
 
   // Always the player: the user's game, or the demo cartridge when there is nothing of theirs to play.
   return [
@@ -20,6 +20,7 @@ function Emulator({ shell }) {
         ctx,
         focused: player.focused,
         game: player.game,
+        go,
         hardwareOn,
         onAsk: player.ask,
         onFull: player.fullScreen,
@@ -58,6 +59,7 @@ export const EMULATOR_PAGE = {
       'The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation.'
   },
   slots: {
-    'emulator.barActions': "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Props: { ctx, game, hardwareOn }."
+    'emulator.barActions':
+      "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."
   }
 }

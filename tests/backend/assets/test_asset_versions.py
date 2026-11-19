@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 PNG_A = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"A" * 20
 PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"B" * 20
@@ -21,6 +22,7 @@ PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") 
 
 class AssetVersions(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
         self.data = base / "data"

@@ -7,10 +7,10 @@
 | unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` |
 | lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
-| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, 226 checks over five files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
+| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | scaffold | `python tools/check.py scaffold` | ~4 s | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
-| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker (27 checks) |
+| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker |
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | ~55 s | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
@@ -109,6 +109,24 @@ tests/<area>/<feature>/test_<name>.py`, restore, run again. An edit of the same 
 that (it only stops writing `.pyc` files), the fresh, empty `PYTHONPYCACHEPREFIX` does (or delete the
 `__pycache__` folders first). `python tools/check.py unit` already gives its run a fresh, empty one.
 
+## Splitting a page scenario
+
+A `page-<name>.test.mjs` near the size limit splits by section, without losing a check:
+
+1. Move the shared starting state (the scenario values, the registered page, the first render, helpers more than one
+   file uses) into `tests/page/<topic>-fixture.mjs`, exporting a function that returns it. Do not put `test` in its
+   name: `check.py page` runs every `tests/page/**/*test*.mjs`, and the fixture is not a test.
+2. Each new `page-<topic>-<section>.test.mjs` starts from that fixture, then does the navigation that reaches its
+   section itself (each file runs in its own process, so nothing carries over from the file it came from).
+3. Prove no check was lost: a passing scenario prints only `{ passed, checks, names }` (JSON). Before the split, save
+   the names: `node tests/page/page-<name>.test.mjs > notes/before.json`; after it, run each new file the same way
+   and compare the sorted `names` of `notes/before.json` with the sorted union of the new files' `names`: the two
+   lists must be equal (a check renamed on purpose is listed in the pull request).
+
+Docs and READMEs name test files by path (`tests/...`); `tests/repo/test_doc_pointers.py` fails on one that does not
+exist (and on a doc saying `retrodev new` lacks a kind it has), so a moved or split test updates the docs that name
+it.
+
 ## Rules for tests
 
 - Never the real Hermes home. In `setUp`, `isolated_home(self)` from `tests/support.py` points both
@@ -116,7 +134,11 @@ that (it only stops writing `.pyc` files), the fresh, empty `PYTHONPYCACHEPREFIX
   history snapshots, asset versions, frames; `HERMRETRO_HOME` does not move it) at one new temp folder, undone
   by the test's cleanups; use it rather than patching `_data_dir` by hand. `throwaway_profile` moves only the
   plugin data folder, `throwaway_deps` the downloads; `HERMRETRO_*_DIR` move single folders. `check.py unit` gives
-  the run an empty `HOME` with `HERMES_HOME` inside it, so a write to either lands there and fails the check. A clean-install or Hermes-CLI test must use a folder outside
+  the run an empty `HOME` with `HERMES_HOME` inside it, so a write to either lands there and fails the check; it
+  then reruns each test module alone in a fresh empty home and names the ones that write there. A test that calls a
+  real emitter (a tool or RPC that calls `emit(...)`, such as `chromatic_build_report` or `chromatic_present_game`)
+  reaches every feature's `listeners.py`, including ones added later: give it `isolated_home(self)` even when
+  today's listeners write nothing. A clean-install or Hermes-CLI test must use a folder outside
   `~/.hermes` (Hermes treats a home inside its real root as the real root).
 - Never the hardware tools (`flash`, `play`, `setup`, capture); `device` with `command: "status"` is the only
   hardware call allowed, and only in acceptance.

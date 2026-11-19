@@ -16,7 +16,7 @@ from backend.library import tools as host_tools  # noqa: E402 - the repository r
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games, tool_args  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
     "title": "  Robin in the sky ",
@@ -34,6 +34,7 @@ GOOD = {
 
 class BuildReport(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.root = self.base / "robin"

@@ -12,7 +12,9 @@ Padding `flush`, no footer.
 (`beside-chat/present.js`). Listens to none.
 
 **Slots:** declares `emulator.barActions`: buttons in the bar after the keyboard light, for the user's own game
-(not the demo), props `{ ctx, game, hardwareOn }`. Games fills it with Install.
+(not the demo), rendered both on the Emulator page and in the emulator tab beside the chat
+(`beside-chat/tab.js`). Props `{ ctx, game, hardwareOn }`, plus `go(pageId)` on the Emulator page only (the tab
+beside the chat has no shell): a contribution checks `go` before using it. Games fills it with Install.
 
 **Starts with the plugin** (`register`): `watchBuilds(ctx)`, which opens the tab beside the chat on a
 presentation and refreshes open players after builds.
@@ -21,7 +23,8 @@ presentation and refreshes open players after builds.
 tool results).
 
 **Tests:** `tests/page/page-games.test.mjs` (the Emulator page and the tab beside the chat),
-`tests/page/registry.test.mjs`.
+`tests/page/registry.test.mjs` (also: a `emulator.barActions` contribution gets `go` on the page, not beside the
+chat).
 
 ## Adding a tab here
 
