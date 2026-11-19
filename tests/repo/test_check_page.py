@@ -5,6 +5,7 @@ Run alone: python -m unittest tests.repo.test_check_page
 """
 
 import io
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,52 @@ page-b.test.mjs: 34 passed, 0 failed
 ℹ fail 0
 """
 
+# Real `node --test --test-reporter=<spec|tap> tests/page/harness-text.test.mjs tests/page/page-setup.test.mjs` output
+# (Node 26), only the scenario's JSON dump left out: 5 node:test tests plus one scenario file of 51 checks.
+SPEC_CAPTURED = """\
+✔ the closest match is the longest leading part of a string or a RegExp the page has (1.255284ms)
+✔ a failure shows about 300 characters around the closest match, not the whole page (0.908616ms)
+✔ a passing assertion says nothing (0.115461ms)
+✔ a relative node_modules argument is made absolute (the temp folder links to it); none means look it up (0.093666ms)
+✔ pageTab looks only in a page's own tab bar (.cs-tabs), by its exact label (0.136933ms)
+page-setup.test.mjs: 51 passed, 0 failed
+✔ tests/page/page-setup.test.mjs (1243.582308ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1255.293394
+"""
+TAP_CAPTURED = """\
+TAP version 13
+# Subtest: the closest match is the longest leading part of a string or a RegExp the page has
+ok 1 - the closest match is the longest leading part of a string or a RegExp the page has
+# Subtest: a failure shows about 300 characters around the closest match, not the whole page
+ok 2 - a failure shows about 300 characters around the closest match, not the whole page
+# Subtest: a passing assertion says nothing
+ok 3 - a passing assertion says nothing
+# Subtest: a relative node_modules argument is made absolute (the temp folder links to it); none means look it up
+ok 4 - a relative node_modules argument is made absolute (the temp folder links to it); none means look it up
+# Subtest: pageTab looks only in a page's own tab bar (.cs-tabs), by its exact label
+ok 5 - pageTab looks only in a page's own tab bar (.cs-tabs), by its exact label
+# page-setup.test.mjs: 51 passed, 0 failed
+# Subtest: tests/page/page-setup.test.mjs
+ok 2 - tests/page/page-setup.test.mjs
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1301.693963
+"""
+CAPTURED_CHECKS = "2 files, 56 checks passed, 0 failed"
+
 
 class PageSummary(unittest.TestCase):
     def test_the_summary_adds_up_each_scenario_files_checks_and_each_node_test(self):
@@ -53,6 +100,47 @@ class PageSummary(unittest.TestCase):
             "ℹ pass 5\nℹ fail 0", "ℹ pass 4\nℹ fail 1"
         )
         self.assertEqual(check.page_summary.summary(failed, 3), "3 files, 75 checks passed, 1 failed")
+
+    def test_real_spec_reporter_output_is_counted(self):
+        self.assertEqual(check.page_summary.summary(SPEC_CAPTURED, 2), CAPTURED_CHECKS)
+
+    def test_real_tap_reporter_output_is_counted(self):
+        # node's default reporter when its output is captured (CI) is TAP, not spec.
+        self.assertEqual(check.page_summary.summary(TAP_CAPTURED, 2), CAPTURED_CHECKS)
+
+    def test_output_it_cannot_read_never_reads_as_zero_checks_passed(self):
+        said = check.page_summary.summary("some reporter nobody parses\n", 7)
+        self.assertEqual(said, "7 files passed (check count unavailable)")
+        self.assertNotIn("0 checks passed", said)
+
+    def test_the_page_command_names_the_spec_reporter(self):
+        seen = []
+        done = subprocess.CompletedProcess([], 0, SPEC_CAPTURED, "")
+        with (
+            mock.patch.object(check, "run", lambda cmd, *_a, **_k: seen.append(cmd) or done),
+            mock.patch.object(check, "need", lambda tool: tool),
+        ):
+            check.check_page(mock.Mock(strict=False))
+        self.assertEqual(seen[0][:3], ["node", "--test", "--test-reporter=spec"])
+
+    @unittest.skipUnless(
+        shutil.which("node") and (ROOT / "tools/npm/node_modules/jsdom").is_dir(),
+        "node or the page tools (npm ci --prefix tools/npm --ignore-scripts) are missing",
+    )
+    def test_a_live_run_reads_the_same_with_either_reporter(self):
+        files = ["tests/page/harness-text.test.mjs", "tests/page/page-setup.test.mjs"]
+        for reporter in ("spec", "tap"):
+            with self.subTest(reporter=reporter):
+                result = subprocess.run(
+                    [shutil.which("node"), "--test", f"--test-reporter={reporter}", *files],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    timeout=120,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
+                said = check.page_summary.summary(result.stdout + result.stderr, 2)
+                self.assertRegex(said, r"^2 files, (5[6-9]|[6-9]\d|\d{3,}) checks passed, 0 failed$")
 
     def test_the_page_tests_glob_finds_the_files_node_runs(self):
         found = sorted(path.name for path in ROOT.glob(check.PAGE_TESTS))

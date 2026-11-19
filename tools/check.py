@@ -207,11 +207,14 @@ def fix(args) -> int:
 
 
 PAGE_TESTS = "tests/page/**/*test*.mjs"  # node's glob and Python's agree: ** also matches tests/page/ itself
+# The reporter is named: without it node picks TAP whenever its output is captured (CI, this script), spec only on a
+# terminal. page_summary reads both.
+PAGE_COMMAND = ["--test", "--test-reporter=spec", PAGE_TESTS]
 
 
 def check_page(args) -> str:
     node = need("node")
-    result = run([node, "--test", PAGE_TESTS])
+    result = run([node, *PAGE_COMMAND])
     output = result.stdout + result.stderr
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
