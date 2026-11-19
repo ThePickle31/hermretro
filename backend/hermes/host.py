@@ -1,7 +1,7 @@
 """The helpers every feature's Hermes side shares, and the engine tool handler.
 
 Shared helpers (the data folder, the profile, the library registry, the chat's project, the broker client,
-subagent tracking) live here; feature modules call them as ``host.<name>`` at call time, so one
+subagent tracking, and for a post_tool_call hook an engine tool's result payload and its library game) live here; feature modules call them as ``host.<name>`` at call time, so one
 ``mock.patch.object(host, ...)`` reaches every module. The approval hook is declared in hooks.py, the engine
 tools in tools.py, the prompt section and skills in prompt.py. Each feature declares its own RPCs, tools and
 hooks in its folder (backend/hermes/declare.py).
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -201,6 +202,45 @@ def _chat_project(conversation_id: str, session_id: str) -> str | None:
     ]
     linked.sort(key=lambda entry: -(entry.get("updatedAt") or 0))
     return linked[0]["projectRoot"] if linked and isinstance(linked[0].get("projectRoot"), str) else None
+
+
+# -- what a post_tool_call hook reads: an engine tool's result and the library game it touched ---------
+
+
+def tool_result_payload(result) -> dict | None:
+    """A tool result as the model saw it, as a dict: the JSON text parsed, or the multimodal envelope's text
+    summary parsed; None when it is neither (a hook gets ``result`` exactly as Hermes delivered it)."""
+    if isinstance(result, dict) and result.get("_multimodal"):
+        result = result.get("text_summary")
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except ValueError:
+            return None
+    return result if isinstance(result, dict) else None
+
+
+def library_game_for(candidates) -> tuple[str, Path] | None:
+    """``(game id, real project root)`` of the first library game whose project is, or contains, one of
+    ``candidates`` (paths from the result, the arguments, the chat; non-strings are skipped), or None."""
+    roots = []
+    for entry in _registry().load()["games"].values():
+        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
+            try:
+                roots.append(Path(os.path.realpath(entry["projectRoot"])))
+            except (OSError, ValueError):
+                continue
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        try:
+            real = Path(os.path.realpath(candidate))
+        except (OSError, ValueError):
+            continue
+        for root in roots:
+            if (real == root or root in real.parents) and root.is_dir():
+                return library.game_id(root), root
+    return None
 
 
 # The build card's guidance, for the Build conversation's context and the prompt section.
