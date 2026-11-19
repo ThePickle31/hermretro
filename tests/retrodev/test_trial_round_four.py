@@ -113,6 +113,32 @@ class Ship(two.Flow):  # its helpers (two.Flow's own tests run in test_trial_rou
         _code, out = self.run_cli("status", cwd=tree)
         self.assertNotIn("--dry-run", line_with(out, "next:"))
 
+    def test_a_first_dry_run_without_a_title_keeps_dry_run_in_its_fix_and_in_status(self):  # review round 2, 0
+        tree = self.feat()
+        plan = self.main / "notes" / "plans" / "goalie.md"
+        plan.write_text(plan.read_text().replace("# Plan: goalie", "# Plan: Keep the goalie in goal"))
+        write(self.main, "notes/pr/goalie.md", GOOD_BODY)  # the default body, filled in already
+        code, out = self.run_cli("ship", "--dry-run", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("FIX: python tools/retrodev ship --title 'Keep the goalie in goal' --dry-run", out)
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertTrue(line_with(out, "next:").split(" (")[0].endswith(" --dry-run"), line_with(out, "next:"))
+        self.assertEqual(self.gh.calls, [])
+        self.assertIsNone(git(self.origin, "rev-parse", "-q", "--verify", "feat/goalie", check=False).strip() or None)
+
+    def test_every_ship_command_is_built_by_one_helper(self):  # review round 2, finding 0: the general rule
+        from retrodev import ship
+
+        self.assertEqual(ship.command(dry_run=True), "python tools/retrodev ship --dry-run")
+        self.assertEqual(
+            ship.again({"title": "T", "body": "b.md"}, True),
+            "python tools/retrodev ship --title T --body b.md --dry-run",
+        )
+        for path in sorted((ROOT / "tools" / "retrodev").glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            built = [line for line in text.splitlines() if '"tools/retrodev", "ship"' in line]
+            self.assertLessEqual(len(built), 1 if path.name == "ship.py" else 0, (path.name, built))
+
     def test_status_with_nothing_in_progress_names_both_ways_to_start(self):
         _code, out = self.run_cli("status")
         self.assertIn("next: python tools/retrodev plan new <topic> (docs/chore: start <kind>/<topic> --no-plan)", out)
@@ -188,6 +214,42 @@ class New(ScaffoldCase):
         door = self.read("page/pages/rdprobe-notes/index.js")
         self.assertNotIn("rdprobe-notes-page.js", door)
         self.assertNotIn("NotesPanel", door)
+
+    def test_tab_from_page_reads_a_multiline_import_whole(self):  # review round 2, finding 1
+        self.new("page", "rdprobe-notes")
+        self.alias("{\n  RdprobeNotesPage\n}", "Page: RdprobeNotesPage")
+        self.new("tab", "rdprobe-notes", "first", "--from-page")
+        tab = self.read("page/pages/rdprobe-notes/first/index.js")
+        self.assertIn("import { RdprobeNotesPage } from '#pages/rdprobe-notes/rdprobe-notes-page.js'", tab)
+        door = self.read("page/pages/rdprobe-notes/index.js")
+        self.assertNotIn("rdprobe-notes-page.js", door)
+        self.assertNotIn("RdprobeNotesPage", door)
+        self.assertNotIn("import {\n", door)
+        self.assertIn("import { RDPROBE_NOTES_FIRST_TAB } from './first/index.js'\n", door)
+
+    def test_a_new_tab_goes_after_a_multiline_import_never_inside_it(self):  # review round 2, finding 1
+        self.new("page", "rdprobe-notes")
+        self.alias("{\n  RdprobeNotesPage\n}", "Page: RdprobeNotesPage")
+        self.new("tab", "rdprobe-notes", "first")
+        door = self.read("page/pages/rdprobe-notes/index.js")
+        self.assertIn(
+            "import {\n  RdprobeNotesPage\n} from './rdprobe-notes-page.js'\n"
+            "import { RDPROBE_NOTES_FIRST_TAB } from './first/index.js'\n",
+            door,
+        )
+
+    def test_an_import_new_cannot_read_whole_is_refused_before_anything_is_written(self):  # round 2, finding 1
+        self.new("page", "rdprobe-notes")
+        self.alias("{\n  RdprobeNotesPage", "Page: RdprobeNotesPage")  # never closed: no '} from' after it
+
+        def files():
+            return {p: p.read_bytes() for p in sorted(self.tree.rglob("*")) if p.is_file() and ".git" not in p.parts}
+
+        before = files()
+        for extra in ([], ["--from-page"]):
+            out = self.new("tab", "rdprobe-notes", "first", *extra, code=1)
+            self.assertIn("cannot read the import statement starting 'import {'", out["error"]["message"])
+            self.assertEqual(files(), before)
 
     def test_tab_from_page_refuses_a_default_namespace_or_unresolvable_page_and_writes_nothing(self):
         def snapshot():

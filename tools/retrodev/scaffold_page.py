@@ -148,6 +148,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     unique_exports(plan, [name])
     values = {"page": page_id, "tab": tab_id, "Label": tab_label, "Component": pascal(tab_id) + "Tab"}
     values["CONST"] = f"{const(page_id)}_{const(tab_id)}"
+    statements(plan.read(door), door)  # an import it cannot read whole is refused before anything is written
     tabless, component = own_page(plan.read(door))
     if from_page:
         values |= moved_page(plan, door, page_id, tabless, component)
@@ -158,11 +159,12 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
         if from_page:
             text = drop_page(text, component)
         line = f"import {{ {name} }} from './{tab_id}/index.js'"
-        text = (
-            insert_after(text, re.compile(r"^import "), line, door)
-            if re.search(r"^import ", text, re.M)
-            else (line + "\n" + text)
-        )
+        found = statements(text, door)
+        if not found:
+            text = line + "\n" + text
+        else:  # after the last whole import statement (its closing line), never inside one
+            at = text.find("\n", found[-1].end())
+            text = text + "\n" + line if at < 0 else text[: at + 1] + line + "\n" + text[at + 1 :]
         return add_to_descriptor(text, "tabs", "[", "]", name)
 
     plan.edit(door, wire)
@@ -239,14 +241,35 @@ def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: st
     return {"Component": component, "Imported": imported, "source": "#pages/" + source.removeprefix("page/pages/")}
 
 
-IMPORT = re.compile(r"^import (.+?) from '([^']*)'", re.M | re.S)
+IMPORT_START = re.compile(r"^import(?=[\s{*'\"])", re.M)  # not import(...) or import.meta
+STATEMENT = re.compile(
+    r"""import\s*(?:(?P<clause>[\w$*\s{},]+?)\s*from\s*)?(?P<q>['"])(?P<module>[^'"\n]*)(?P=q)[ \t]*;?"""
+)
+
+
+def statements(text: str, where: str = "the page's index.js") -> list[re.Match]:
+    """Every whole import statement at the start of a line, one or many lines long (``import {`` ... ``} from
+    './x.js'``), in order; one that does not parse is refused (a tab must never be wired into the middle of one)."""
+    found = []
+    for start in IMPORT_START.finditer(text):
+        whole = STATEMENT.match(text, start.start())
+        clause = (whole.group("clause") or "") if whole else ""
+        if not whole or clause.count("{") != clause.count("}") or clause.count("{") > 1:
+            line = text[start.start() :].split("\n", 1)[0]
+            raise Failure(
+                f"{where}: cannot read the import statement starting '{line}' (new reads only plain static imports, "
+                "on one or more lines); nothing was written",
+                "write it as import { Name } from './file.js' (one or more lines), then run new again",
+            )
+        found.append(whole)
+    return found
 
 
 def binding(text: str, local: str) -> tuple[str | None, str | None, str | None]:
     """(kind, exported name, module) of the import that binds ``local``: kind is "named" (exported name its own, as
     in ``{ SetupPage as SetupPanel }``), "default" or "namespace"; (None, None, None) when no import binds it."""
-    for found in IMPORT.finditer(text):
-        clause, module = found.group(1), found.group(2)
+    for found in statements(text):
+        clause, module = found.group("clause") or "", found.group("module")
         braces = re.search(r"\{([^}]*)\}", clause)
         for part in braces.group(1).split(",") if braces else []:
             exported, _, alias = part.strip().partition(" as ")
@@ -271,16 +294,27 @@ def drop_page(text: str, component: str) -> str:
         lines[end - 1] = body[-1][:-1]
     text = "\n".join(lines)
     uses = re.compile(rf"\b{re.escape(component)}\b")
-    rest = [line for line in text.split("\n") if uses.search(line) and not line.startswith("import ")]
-    if rest:
+    found = statements(text)
+    outside, at = [], 0  # the text without its import statements (each whole, on however many lines)
+    for match in found:
+        outside.append(text[at : match.start()])
+        at = match.end()
+    if uses.search("".join(outside) + text[at:]):
         return text
-    for match in re.finditer(r"^import \{([^}]*)\} from '[^']*'\n", text, re.M):
-        names = [part.strip() for part in match.group(1).split(",") if part.strip()]
+    for match in found:
+        braces = re.fullmatch(r"\{([^}]*)\}", (match.group("clause") or "").strip())
+        if not braces:
+            continue
+        names = [" ".join(part.split()) for part in braces.group(1).split(",") if part.strip()]
         local = [part.partition(" as ")[2].strip() or part for part in names]  # { SetupPage as SetupPanel }
         if component in local:
             kept = [part for part, name in zip(names, local, strict=True) if name != component]
-            line = match.group(0).replace(match.group(1), " " + ", ".join(kept) + " ") if kept else ""
-            return text[: match.start()] + line + text[match.end() :]
+            quote, end = match.group("q"), match.end()
+            semi = ";" if match.group(0).rstrip().endswith(";") else ""
+            line = f"import {{ {', '.join(kept)} }} from {quote}{match.group('module')}{quote}{semi}" if kept else ""
+            if not kept and text[end : end + 1] == "\n":
+                end += 1  # the whole statement goes, with its line
+            return text[: match.start()] + line + text[end:]
     return text
 
 

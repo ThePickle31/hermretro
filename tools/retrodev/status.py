@@ -66,22 +66,24 @@ def next_step(facts: dict) -> str:
             why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
         else:
             why = " (the body passes ship's body gate)"
-        words = ["python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]]
-        if facts.get("last_ship_dry_run"):  # a dry run's next step stays one: status never turns it into a push
-            words.append("--dry-run")
+        dry = bool(facts.get("last_ship_dry_run"))  # a dry run's next step stays one: status never makes it a push
+        if dry:
             why += "; the last ship was a dry run: without --dry-run the same command pushes and opens the pull request"
-        return "next: " + cmd(*words) + why
+        return "next: " + ship.command(title, facts["body"], dry) + why
     if not facts.get("pr"):
+        dry = bool(facts.get("last_ship_dry_run"))
         return (
             "next: "
-            + cmd("python", "tools/retrodev", "ship", "--title", facts.get("title") or "<one plain sentence>")
-            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md)"
+            + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
+            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md"
+            + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
+            + ")"
         )
     if facts.get("head") != facts.get("pushed"):
-        again = facts.get("ship_again") or "python tools/retrodev ship"
+        again = facts.get("ship_again") or ship.command(dry_run=bool(facts.get("last_ship_dry_run")))
         if facts.get("last_ship_dry_run"):  # with a pull request too: status never turns a dry run into a push
             return (
-                f"next: {again} --dry-run (the last ship was a dry run: without --dry-run the same command pushes the "
+                f"next: {again} (the last ship was a dry run: without --dry-run the same command pushes the "
                 "new commits)"
             )
         return f"next: {again} (pushes the new commits)"
@@ -183,7 +185,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "pr_url": (record.get("pr") or {}).get("url"),
         "head": repo.head(path),
         "pushed": record.get("pushed"),
-        "ship_again": ship.again(record),
+        "ship_again": ship.again(record, bool(record.get("last_ship_dry_run"))),
         "ci": github.ci_summary(jobs) if pr and with_ci else None,
         "ci_jobs": jobs or [],
         "approved": record.get("approval"),
