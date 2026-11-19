@@ -39,8 +39,9 @@ def generated_changes(ctx) -> list[str]:
     return [line[3:] for line in out.splitlines() if line.strip()]
 
 
+HUNKS = "edit the hunks; never git checkout --ours/--theirs a whole file: its other hunks were merged and would be lost"
 RESUME = (
-    "resolve each listed source file (keep both changes; leave the generated ones, retrodev rebuilds them), "
+    f"resolve each listed source file ({HUNKS}; keep both changes; leave the generated ones, retrodev rebuilds them), "
     "git add those files, then python tools/retrodev sync again: it rebuilds the generated files and finishes the "
     "merge, making the merge commit itself (git merge --abort undoes the merge)"
 )

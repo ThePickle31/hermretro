@@ -80,6 +80,41 @@ class Sync(RepoCase):
         self.assertEqual(git(tree, "show", f"HEAD:{BUILT}"), "// built\nexport const a = 'both'\n")
         self.assertTrue(repo.is_ancestor(tree, git(tree, "rev-parse", "origin/dev").strip(), "HEAD"))
 
+    def test_status_during_an_open_sync_merge_points_back_to_sync_never_to_a_commit(self):
+        tree = self.worktree()
+        write(tree, "page/a.js", "export const a = 'mine'\n")
+        self.build(tree)
+        self.commit(tree, "page/a.js", "export const a = 'mine'\n", "Mine")
+        other = self.base / "other"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(other))
+        write(other, "page/a.js", "export const a = 'theirs'\n")
+        self.build(other)
+        self.commit(other, "page/a.js", "export const a = 'theirs'\n", "Theirs")
+        git(other, "push", "-q", "origin", "dev")
+        code, out = self.run_cli("sync", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("edit the hunks", out.rstrip().splitlines()[-1], "sync's own FIX says how to resolve")
+        # before resolving: the worktree's own status and the main checkout's row both name the hunks, then sync
+        _code, data = self.run_cli("status", cwd=tree, as_json=True)
+        _code, rows = self.run_cli("status", cwd=self.main, as_json=True)
+        for step in (data["next"], rows["branches"][0]["next"]):
+            self.assertIn("resolve the conflict hunks in page/a.js", step)
+            self.assertIn("--ours/--theirs", step)
+            self.assertIn("then python tools/retrodev sync", step)
+            self.assertNotIn("git commit", step, "a manual commit would keep conflict markers and skip the rebuild")
+        self.assertEqual(data["merge_unresolved"], ["page/a.js"], "the generated file is sync's to rebuild")
+        # after resolving and adding the source: sync finishes it
+        write(tree, "page/a.js", "export const a = 'both'\n")
+        git(tree, "add", "page/a.js")
+        _code, data = self.run_cli("status", cwd=tree, as_json=True)
+        self.assertTrue(data["next"].startswith("next: python tools/retrodev sync ("), data["next"])
+        self.assertNotIn("git commit", data["next"])
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
+        self.assertEqual(git(tree, "show", f"HEAD:{BUILT}"), "// built\nexport const a = 'both'\n")
+        _code, data = self.run_cli("status", cwd=tree, as_json=True)
+        self.assertFalse(data["merging"])
+        self.assertEqual(data["next"], "next: python tools/retrodev check")
+
     def test_sync_again_with_a_source_still_unresolved_stops(self):
         tree = self.worktree()
         self.commit(tree, "page/a.js", "export const a = 'mine'\n")

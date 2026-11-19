@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from . import gates, github, plan, repo, reviews, ship, state
+from . import gates, github, plan, repo, reviews, ship, state, sync
 from .output import cmd
 
 
@@ -26,6 +26,14 @@ def next_step(facts: dict) -> str:
             f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
             f'approve {topic} --words "<their exact words>"'
         )
+    if facts.get("merging"):  # an open sync merge: only sync finishes it (rebuilds generated files, commits)
+        if facts.get("merge_unresolved"):
+            return (
+                f"next: resolve the conflict hunks in {', '.join(facts['merge_unresolved'])} ({sync.HUNKS}), "
+                + cmd("git", "add", *facts["merge_unresolved"])
+                + ", then python tools/retrodev sync (it rebuilds the generated files and makes the merge commit)"
+            )
+        return "next: python tools/retrodev sync (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
     if facts.get("behind"):
         lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
         if facts.get("dirty"):
@@ -97,6 +105,16 @@ def behind(ctx, path) -> int:
     return int(counted) if counted.isdigit() else 0
 
 
+def open_merge(ctx, path) -> tuple[bool, list[str]]:
+    """Whether a merge is open in this checkout (git resolves MERGE_HEAD in a worktree's own git folder), and its
+    still-unresolved source files (the generated ones are sync's to rebuild)."""
+    if repo.run(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], path)[0]:
+        return False, []
+    generated = set(ctx.policy["generated"]["files"])
+    left = repo.git(["diff", "--name-only", "--diff-filter=U"], path, check=False).split()
+    return True, [name for name in left if name not in generated]
+
+
 def body_ok(ctx, body: str | None) -> bool:
     """The recorded body passes ship's own body gate (gates.body_problems)."""
     if not body or not os.path.isfile(body):
@@ -125,7 +143,10 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     body = record.get("body") or str(ship.default_body(ctx, branch, record))
     shown = body if not pr and os.path.isfile(body) else None
     tree = repo.tree_digest(path)
+    merging, merge_unresolved = open_merge(ctx, path)
     return {
+        "merging": merging,
+        "merge_unresolved": merge_unresolved,
         "body": shown,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
@@ -170,6 +191,8 @@ def show_branch(ctx, facts: dict) -> None:
         say(f"  plan:   {facts['plan']} ({approval}" + ("; changed since" if facts["plan_changed"] else "") + ")")
     say(f"  checks: {'passed on this tree' if facts['checks_passed'] else 'not passed on this tree'}")
     say(f"  tree:   {'uncommitted changes' if facts['dirty'] else 'committed'}; head {(facts['head'] or '')[:9]}")
+    if facts.get("merging"):
+        say("  merge:  open (a sync stopped on conflicts)")
     if facts.get("behind"):
         say(f"  behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
     if facts["pr"]:
