@@ -8,6 +8,11 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_six_new
 
 import ast
 import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -64,9 +69,8 @@ class Tab(ScaffoldCase):
     def test_a_page_moved_out_of_index_js_names_its_page_in_index_entry(self):
         inline_page(self)
         registry = self.read("tests/page/registry.test.mjs")
-        registry = registry.replace(
-            "const PAGE_IN_INDEX = new Set(['home'])", "const PAGE_IN_INDEX = new Set(['home', 'rdprobe-own'])"
-        )
+        # dev's registry test dropped PAGE_IN_INDEX (#49): a branch's registry that still has one gets the step
+        registry += "\nconst PAGE_IN_INDEX = new Set(['home', 'rdprobe-own'])\n"
         write(self.tree, "tests/page/registry.test.mjs", registry)
         git(self.tree, "commit", "-qam", "Allowed in index.js")
         steps = " ".join(self.new("tab", "rdprobe-own", "first", "--from-page")["next"])
@@ -83,9 +87,9 @@ class Rpc(ScaffoldCase):
         self.assertNotIn("@rpc", home)
         self.assertIn("logger = host.logger", home)
         source = self.read("backend/history/rpcs.py")
-        self.assertIn("from . import rdprobe_pong_rpcs", source)
+        self.assertIn("from . import rdprobe_pong_rpcs as _rdprobe_pong_rpcs_mod", source)
         self.assertIn('@rpc("rdprobe_pong")\ndef rpc_rdprobe_pong(ctx):', source)
-        self.assertIn("    return rdprobe_pong_rpcs.rpc_rdprobe_pong(ctx)", source)
+        self.assertIn("    return _rdprobe_pong_rpcs_mod.rpc_rdprobe_pong(ctx)", source)
         for text in (home, source):
             ast.parse(text)
         declared = rpc_names().declared(self.tree)  # what the generated names and the lock-step test read
@@ -119,6 +123,55 @@ class Rpc(ScaffoldCase):
             out = self.new("rpc", "rdprobe_fresh", "rdprobe_ping", "--module", module, code=1)
             self.assertIn(f"binds {module} already", out["error"]["message"])
             self.assertEqual(git(self.tree, "status", "--porcelain"), "", f"--module {module} wrote something")
+
+    def test_a_new_rpc_never_rebinds_an_earlier_rpcs_module_and_both_factories_run(self):
+        # Review round 2: the second wrapper (rpc_rdprobe_two) once replaced the first one's module import, so
+        # rdprobe_one's factory raised AttributeError when the plugin registered it.
+        self.new("rpc", "history", "rdprobe_one", "--module", "rpc_rdprobe_two")
+        self.new("rpc", "history", "rdprobe_two", "--module", "rdprobe_two_rpcs")
+        source = self.read("backend/history/rpcs.py")
+        self.assertIn("from . import rpc_rdprobe_two as _rpc_rdprobe_two_mod", source)
+        self.assertIn("from . import rdprobe_two_rpcs as _rdprobe_two_rpcs_mod", source)
+        probe = (
+            "from backend.history import rpcs\n"
+            "for name in ('rdprobe_one', 'rdprobe_two'):\n"
+            "    answer = getattr(rpcs, 'rpc_' + name)(None)({'echo': name})\n"
+            "    assert answer == {'ok': True, 'echo': name}, answer\n"
+            "print('both ran')\n"
+        )
+        self.assertIn("both ran", run_in_copy(self, probe))
+
+    def test_a_generated_name_rpcs_py_binds_already_is_refused_before_writing(self):
+        source = self.read("backend/history/rpcs.py")
+        write(self.tree, "backend/history/rpcs.py", source + "\n\nrpc_rdprobe_taken = None\n_rdprobe_mine_mod = 1\n")
+        git(self.tree, "commit", "-qam", "Names taken")
+        taken = (
+            ("rdprobe_taken",),
+            ("rdprobe_taken", "--module", "rdprobe_taken_rpcs"),
+            ("x", "--module", "rdprobe_mine"),
+        )
+        for args in taken:
+            out = self.new("rpc", "history", *args, code=1)
+            self.assertIn("binds", out["error"]["message"])
+            self.assertIn("nothing was written", out["error"]["message"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", f"{args} wrote something")
+
+
+def run_in_copy(case, code: str) -> str:
+    """``code`` run by Python in the scaffolded copy (the rest of the real backend copied in, never over what new
+    wrote), with a throwaway home."""
+    for path in (ROOT / "backend").rglob("*.py"):
+        mine = case.tree / path.relative_to(ROOT)
+        if not mine.exists():
+            mine.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, mine)
+    home = tempfile.mkdtemp(dir=case.tree.parent)
+    env = {**os.environ, "HOME": home, "HERMRETRO_HOME": home, "PYTHONDONTWRITEBYTECODE": "1"}
+    done = subprocess.run(
+        [sys.executable, "-c", code], cwd=case.tree, env=env, capture_output=True, text=True, check=False
+    )
+    case.assertEqual(done.returncode, 0, done.stderr)
+    return done.stdout
 
 
 class Listener(ScaffoldCase):

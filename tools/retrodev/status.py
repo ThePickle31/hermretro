@@ -89,7 +89,8 @@ def next_step(facts: dict) -> str:
         return (
             "next: "
             + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
-            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md"
+            + f" (no body yet: ship writes notes/pr/{facts.get('topic') or '<topic>'}.md from the template when it is "
+            + "missing, then stops for it to be filled in"
             + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
             + ")"
         )

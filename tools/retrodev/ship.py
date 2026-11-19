@@ -4,8 +4,9 @@
 
 The title defaults to the one recorded for the branch (its pull request's, else the last ship's); with none
 recorded ship refuses and its FIX names the plan's title. The body defaults to the one recorded (when that file
-still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
-that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
+still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it), which
+start (or plan approve inside the linked branch) writes early under a plan. Only when that file does not exist (or
+with --new-body) does ship write it from .github/pull_request_template.md, with the
 plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan: say why -->' instead) and a line
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and its body gate stops: fill it in, then ship

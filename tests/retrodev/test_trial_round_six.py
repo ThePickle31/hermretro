@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 import retrodev
+from retrodev import status
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
@@ -90,6 +91,20 @@ class Body(RepoCase):
         self.new_plan("unrelated")
         self.run_cli("plan", "approve", "unrelated", "--words", "start", cwd=self.base / "hermretro-wt" / "other")
         self.assertFalse((self.main / "notes/pr/other.md").exists(), "a plan the branch does not work under")
+
+    def test_the_docs_and_status_say_start_writes_the_body_and_ship_only_when_it_is_missing(self):
+        # Review round 2: the quick flow still said the first ship writes the body and stops.
+        readme = (ROOT / "tools/retrodev/README.md").read_text()
+        build = line_with(readme, "| 4 build |")
+        self.assertIn("`start`, or `plan approve` inside the linked branch, writes it", build)
+        self.assertIn("`ship` writes it only when it is missing", build)
+        for text in (readme, (ROOT / "tools/retrodev/ship.py").read_text()):
+            self.assertNotIn("the first one writes the body", text)
+            self.assertNotIn("first ship writes the body", text)
+
+        step = status.next_step({"needs_plan": False, "checks_passed": True, "dirty": False, "topic": "t"})
+        self.assertNotIn("first ship writes", step)
+        self.assertIn("no body yet: ship writes notes/pr/t.md from the template when it is missing", step)
 
 
 class PlanApprove(RepoCase):
