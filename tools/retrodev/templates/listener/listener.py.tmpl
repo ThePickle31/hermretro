@@ -2,5 +2,7 @@
 def {func}(**_payload) -> None:
     """When {event} happens ({payload}): say what this listener does (backend/{name}). A listener that raises is logged.
 
-    log with host.logger (from ..hermes import host); listeners run only in the gateway.
+    log with host.logger (from ..hermes import host). A listener runs synchronously in the process and thread that
+    emits the event, on the Hermes side (the gateway, the plugin host or a turn process), never in the broker; state
+    kept at module level is that process's own.
     """

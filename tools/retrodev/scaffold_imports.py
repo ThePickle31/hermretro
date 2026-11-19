@@ -15,6 +15,7 @@ STATEMENT = re.compile(
     r"""import\s*(?:(?P<clause>[\w$*\s{},]+?)\s*from\s*)?(?P<q>['"])(?P<module>[^'"\n]*)(?P=q)[ \t]*;?"""
 )
 COMMENTS = re.compile(r"/\*.*?\*/|^[ \t]*//[^\n]*", re.S | re.M)
+REEXPORT = re.compile(r"""^export\s*(?:\{[^}]*\}|\*(?:\s+as\s+[\w$]+)?)\s*from\s*['"][^'"\n]*['"][ \t]*;?""", re.M)
 STRINGS = re.compile(r"'(?:[^'\\\n]|\\.)*'" + "|" + r'"(?:[^"\\\n]|\\.)*"')  # a name in a label is no use of it
 
 
@@ -72,7 +73,8 @@ def outside_imports(text: str) -> str:
     for match in statements(text):
         kept.append(text[at : match.start()])
         at = match.end()
-    return STRINGS.sub("''", COMMENTS.sub("", "".join(kept) + text[at:]))
+    code = REEXPORT.sub("", "".join(kept) + text[at:])  # export { X } from './x.js' uses no local binding
+    return STRINGS.sub("''", COMMENTS.sub("", code))
 
 
 def drop_import(text: str, local: str) -> str:
@@ -141,6 +143,7 @@ def move_out(plan: Plan, door: str, page_id: str, component: str) -> dict:
             "then run new tab again",
         )
     lines = text.split("\n")
+    public = any(re.match(rf"^export\s+function\s+{component}\b", line) for line in lines[found[0] : found[1] + 1])
     block = "\n".join(lines[found[0] : found[1] + 1])
     block = re.sub(rf"^(?:export\s+)?function\s+{component}\b", f"export function {component}", block, flags=re.M)
     rest = "\n".join(lines[: found[0]] + lines[found[1] + 1 :])
@@ -180,8 +183,11 @@ def move_out(plan: Plan, door: str, page_id: str, component: str) -> dict:
     after = add_imports(rest, [("named", component, component, f"./{file}")], door)
     for name in bound:
         after = drop_import(after, name)
+    if public:  # its front door export stays: other modules may import it through #pages/<page>/index.js
+        after = add_reexport(after, component, f"./{file}", door)
     plan.edit(door, lambda _t: after)
-    plan.notes.append(f"moved {component} from {door} into {target} (exported; the tab imports it from there)")
+    kept = f"; index.js still exports it (export {{ {component} }} from './{file}')" if public else ""
+    plan.notes.append(f"moved {component} from {door} into {target} (exported; the tab imports it from there{kept})")
     return {"Component": component, "Imported": component, "source": f"#pages/{page_id}/{file}", "moved": target}
 
 
@@ -190,8 +196,19 @@ def add_imports(text: str, needed: list[tuple[str, str, str | None, str]], where
     one-line ``import { ... }`` of the same module, the rest go after the last import statement."""
     for kind, name, exported, module in needed:
         found = statements(text, where)
-        if any(name == bound for statement in found for _k, bound, _e in bindings(statement)):
-            continue
+        have = [(k, e, s.group("module")) for s in found for k, bound, e in bindings(s) if bound == name]
+        if have and have[0] == (kind, exported, module):
+            continue  # the same value, imported already
+        declared = re.search(
+            rf"^(?:export\s+)?(?:async\s+)?(?:const|let|var|function\*?|class)\s+{re.escape(name)}\b", text, re.M
+        )
+        if have or declared:
+            what = f"{describe(*have[0])}" if have else "its own declaration"
+            raise Failure(
+                f"{where} binds {name} to {what}, and the moved Page uses {name} as {describe(kind, exported, module)}; "
+                "nothing was written",
+                f"rename one of the two {name} bindings (in {where} or the Page in index.js), then run new tab again",
+            )
         spec = exported if exported == name else f"{exported} as {name}"
         same = next((s for s in found if s.group("module") == module and "\n" not in s.group(0)), None)
         braces = re.search(r"\{([^}]*)\}", same.group("clause") or "") if same and kind == "named" else None
@@ -209,3 +226,28 @@ def add_imports(text: str, needed: list[tuple[str, str, str | None, str]], where
         else:
             text = text + "\n" + line if at < 0 else text[: at + 1] + line + "\n" + text[at + 1 :]
     return text
+
+
+def describe(kind: str, exported: str | None, module: str) -> str:
+    """One import binding as words: "{ Small } from '#shared/ui/text.js'"."""
+    return {"named": f"{{ {exported} }}", "default": "the default export", "namespace": "the namespace"}[kind] + (
+        f" from '{module}'"
+    )
+
+
+def add_reexport(text: str, name: str, module: str, where: str) -> str:
+    """``text`` with ``export { name } from 'module'`` after its import statements (beside the re-exports that
+    follow them, when there are any)."""
+    line = f"export {{ {name} }} from '{module}'"
+    found = statements(text, where)
+    rows = text.split("\n")
+    at = text[: found[-1].end()].count("\n") + 1 if found else 0
+    blank = at < len(rows) and rows[at] == ""
+    probe = at + 1 if blank else at
+    if probe < len(rows) and REEXPORT.match(rows[probe]):
+        while probe < len(rows) and REEXPORT.match(rows[probe]):
+            probe += 1
+        rows.insert(probe, line)
+    else:
+        rows[at:at] = ["", line] if found else [line, ""]
+    return "\n".join(rows)

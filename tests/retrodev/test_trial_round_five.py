@@ -9,6 +9,7 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_five
 import importlib.util
 import io
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -25,14 +26,15 @@ ROOT = Path(retrodev.__file__).resolve().parents[2]
 OWN = "page/pages/rdprobe-own"
 
 
-def inline_page(case, page_id: str = "rdprobe-own") -> None:
+def inline_page(case, page_id: str = "rdprobe-own", exported: bool = False) -> None:
     """A probe page whose index.js defines its own Page (as home and prompts do), committed."""
     name = "".join(part.title() for part in page_id.split("-"))
+    export = "export " if exported else ""
     write(
         case.tree,
         f"page/pages/{page_id}/index.js",
         f"// {name}: a probe page.\nimport {{ jsx }} from '#sdk'\nimport {{ Lede }} from '#shared/ui/text.js'\n"
-        f"import {{ PROBE_CSS }} from './probe.css.js'\n\n/** Its own Page. */\nfunction {name}({{ shell }}) {{\n"
+        f"import {{ PROBE_CSS }} from './probe.css.js'\n\n/** Its own Page. */\n{export}function {name}({{ shell }}) {{\n"
         f"  return jsx(Lede, {{ children: shell.label }})\n}}\n\nexport const {page_id.upper().replace('-', '_')}_PAGE = {{\n"
         f"  id: '{page_id}',\n  label: '{name}',\n  Page: {name},\n  css: [PROBE_CSS]\n}}\n",
     )
@@ -58,7 +60,35 @@ class Guard(unittest.TestCase):
             where = "page/pages" if step[0] in ("tab", "slot") else "backend"
             self.assertTrue((ROOT / where / step[1]).is_dir(), step)
         self.assertIn(["slot", "home"], [step[:2] for step in tree_test.REAL_STEPS])
-        self.assertIn("--from-page", [word for step in tree_test.REAL_STEPS for word in step])
+
+    def test_the_real_steps_follow_a_tree_whose_pages_have_tabs_and_whose_listeners_are_taken(self):  # review 1, 0
+        with tempfile.TemporaryDirectory() as temp:
+            tree = Path(temp)
+            for name in [*ROOT.glob("backend/*/__init__.py"), *ROOT.glob("backend/*/listeners.py")]:
+                write(tree, str(name.relative_to(ROOT)), name.read_text())
+            door = "// {0}: a probe front door.\nimport {{ {1} }} from './{2}'\n\nexport const {3}_PAGE = {{\n  id: '{3}',\n{4}}}\n"
+            for page in tree_test.REAL_PAGES:  # each tabless, its Page imported from a file of its own
+                write(
+                    tree,
+                    f"page/pages/{page}/index.js",
+                    door.format(page, "OwnPage", "own-page.js", page, "  Page: OwnPage\n"),
+                )
+            self.assertIn(["tab", "setup", "rdreal-setup-first", "--from-page"], tree_test.real_steps(tree))
+            tabbed = door.format("setup", "SETUP_MAIN_TAB", "main/index.js", "setup", "  tabs: [SETUP_MAIN_TAB]\n")
+            write(tree, "page/pages/setup/index.js", tabbed)  # setup's Page is a tab already, history listens already
+            heard = "".join(
+                f'@on("{event}")\ndef on_{event.replace(".", "_")}(**_payload):\n    pass\n'
+                for event in tree_test.declared_events(tree)
+            )  # history hears every declared event already
+            write(tree, "backend/history/listeners.py", "from ..system.events import on\n\n\n" + heard)
+            steps = tree_test.real_steps(tree)
+            listener = next(step for step in steps if step[0] == "listener")
+            self.assertFalse(tree_test.listens(tree, listener[1], listener[2]), listener)
+        self.assertEqual(steps[3:5], [["tab", "setup", "rdreal-setup-first"], ["tab", "setup", "rdreal-setup-second"]])
+        self.assertNotEqual(listener[1], "history", listener)
+        names = [step[2] for step in steps if step[0] in ("event", "tab")]
+        self.assertEqual(len(set(names)), len(names), "unique probe names")
+        self.assertTrue(all(name.startswith("rdreal") for name in names), names)
 
     def test_ci_runs_the_scaffold_check_nested(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -154,6 +184,44 @@ class New(ScaffoldCase):
         self.assertTrue(moved.rstrip().endswith("return jsx(Lede, { children: shell.label })\n}"), moved)
         self.assertIn("export const OTHER = 1", moved)
 
+    def test_from_page_refuses_a_page_file_that_binds_a_used_name_to_another_value(self):  # review 1, 1
+        inline_page(self)
+        for clash in (
+            "import { Small as Lede } from '#shared/ui/text.js'\n\nexport const OTHER = Lede\n",
+            "import { Lede } from '#shared/ui/other.js'\n\nexport const OTHER = Lede\n",
+            "import { jsx } from '#sdk'\n\nconst Lede = () => null\nexport const OTHER = Lede\n",
+        ):
+            write(self.tree, f"{OWN}/rdprobe-own-page.js", clash)
+            git(self.tree, "add", "-A")
+            git(self.tree, "commit", "-q", "-m", "Page file")
+            out = self.new("tab", "rdprobe-own", "first", "--from-page", code=1)
+            self.assertIn("binds Lede to", out["error"]["message"])
+            self.assertIn("nothing was written", out["error"]["message"])
+            self.assertIn("rename one of the two Lede bindings", out["error"]["fix"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", "the tree is unchanged")
+        write(
+            self.tree,
+            f"{OWN}/rdprobe-own-page.js",
+            "import { Lede } from '#shared/ui/text.js'\n\nexport const OTHER = Lede\n",
+        )
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "The same import")
+        self.new("tab", "rdprobe-own", "first", "--from-page")
+        moved = self.read(f"{OWN}/rdprobe-own-page.js")
+        self.assertEqual(moved.count("Lede }"), 1, "the identical import is reused")
+        self.assertIn("export function RdprobeOwn", moved)
+
+    def test_from_page_keeps_an_exported_page_exported_from_index_js(self):  # review 1, 2
+        inline_page(self, exported=True)
+        self.new("tab", "rdprobe-own", "first", "--from-page")
+        door = self.read(f"{OWN}/index.js")
+        self.assertIn("export { RdprobeOwn } from './rdprobe-own-page.js'", door)
+        self.assertNotIn("import { RdprobeOwn }", door, "the descriptor no longer uses it: only the re-export stays")
+        self.assertIn("export function RdprobeOwn", self.read(f"{OWN}/rdprobe-own-page.js"))
+        inline_page(self, "rdprobe-mine")  # not exported before: index.js does not start exporting it
+        self.new("tab", "rdprobe-mine", "first", "--from-page")
+        self.assertNotIn("export { RdprobeMine }", self.read("page/pages/rdprobe-mine/index.js"))
+
     def test_tab_next_steps_follow_the_descriptor(self):
         inline_page(self)
         write(self.tree, "tests/page/own.test.mjs", "render(jsx(pageOf('rdprobe-own').Page, {}))\n")
@@ -185,7 +253,14 @@ class New(ScaffoldCase):
         steps = " ".join(out["next"])
         self.assertIn("'say what this listener does' in backend/rdprobe_ears/README.md's 'Listens to' entry", steps)
         source = self.read("backend/rdprobe_ears/listeners.py")
-        self.assertIn("log with host.logger (from ..hermes import host); listeners run only in the gateway", source)
+        self.assertIn("log with host.logger (from ..hermes import host). A listener runs synchronously", source)
+        said = " ".join(source.split())
+        self.assertIn(
+            "in the process and thread that emits the event, on the Hermes side (the gateway, the plugin host", said
+        )
+        self.assertIn("never in the broker; state kept at module level is that process's own", said)
+        self.assertNotIn("only in the gateway", said)
+        self.assertNotIn("only in the gateway", (ROOT / "tools/retrodev/README.md").read_text())
 
     def test_an_event_s_payload_reads_as_the_existing_entries(self):
         self.new("event", "history", "rdprobe_pruned", "--payload", "game, root=<project>", "--when", "it pruned")
@@ -204,7 +279,7 @@ class New(ScaffoldCase):
         out = self.new("rpc", "history", "rdprobe_ping")
         test = self.read("tests/backend/history/test_rpc_rdprobe_ping.py")
         self.assertIn("from tests.support import isolated_home", test)
-        self.assertNotIn("HERMRETRO_HOME\": home.name", test)
+        self.assertNotIn('HERMRETRO_HOME": home.name', test)
         self.assertIn(
             "if a page shows it, describe it in that page's README **Shows:** line and its row in "
             "docs/dev/STUDIO-PAGES.md",
