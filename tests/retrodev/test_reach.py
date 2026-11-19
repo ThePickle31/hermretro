@@ -41,7 +41,8 @@ class Try(RepoCase):
         self.assertEqual(data["head"], self.head)
         self.assertTrue(data["path"].startswith(str(self.base / "rd-try7-")), "outside the repository, short")
         names = [entry.get("names") or entry.get("script") for entry in self.check_log()]
-        self.assertIn(["unit", "bundle", "lint", "page", "scan", "scaffold"], names)  # --full: scaffold beside them
+        self.assertIn(["lint"], names)  # --full: lint first, then scaffold beside the others
+        self.assertIn(["unit", "bundle", "page", "scan", "scaffold"], names)
         self.assertIn(["acceptance"], names)  # --full
         self.assertEqual([e["head"] for e in self.check_log() if "script" in e], [self.head])
         self.assertEqual(list(self.base.glob("rd-try7-*")), [])

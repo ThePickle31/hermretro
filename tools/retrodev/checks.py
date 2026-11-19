@@ -16,174 +16,29 @@ is slower than usual, never a failure: one slow run is load or a cold cache, not
 
 from __future__ import annotations
 
-import os
-import re
-import shlex
-import subprocess
-import sys
 import time
-from pathlib import Path
 
 from . import repo, state
+from .checks_run import (  # noqa: F401 - the other modules and the tests use them from here
+    CHECK_PY,
+    LINT_FIRST,
+    ROW,
+    SCRIPTS,
+    _row_text,
+    _stream,
+    env_for,
+    fails_lint,
+    run_check_py,
+    run_script,
+    short_tmp,
+)
+from .checks_triggers import known, required, select, triggered  # noqa: F401 - as above
 from .output import Failure
-
-ROW = re.compile(r"^\s*(ok|skipped|FAILED)  (\S+)\s+([\d.]+) s(?:  (.*))?$")
-CHECK_PY = ("unit", "bundle", "lint", "page", "scan", "scaffold", "acceptance")
-SCRIPTS = {
-    "clean_install": ["tools/ci/clean_install_check.py"],
-    "update": ["tools/ci/clean_install_check.py", "--update-from"],
-}
-
-
-def short_tmp() -> str:
-    """A temp folder short enough for Unix sockets (macOS allows 104 characters, Linux 108); as tools/check.py."""
-    runtime = os.environ.get("XDG_RUNTIME_DIR")
-    return runtime if runtime and Path(runtime).is_dir() and len(runtime) < 40 else "/tmp"
-
-
-def known(ctx) -> list[str]:
-    return list(ctx.policy["checks"]["inputs"])
-
-
-def triggered(ctx) -> dict[str, str]:
-    """{check: why} for the checks the branch's changes call for beyond the fast ones."""
-    changed = repo.changed_files(ctx.top, ctx.remote_base)
-    if changed is None:
-        return {}
-    found = {}
-    for name, patterns in ctx.policy["checks"]["triggers"].items():
-        hits = [path for path in changed if repo.matches(path, patterns)]
-        if hits:
-            found[name] = f"changed {hits[0]}" + (f" and {len(hits) - 1} more" if len(hits) > 1 else "")
-    if "clean_install" in found:
-        moved = repo.moved_or_deleted(ctx.top, ctx.remote_base)
-        if moved:
-            found["update"] = f"moved or deleted {moved[0]}" + (f" and {len(moved) - 1} more" if len(moved) > 1 else "")
-    return found
-
-
-def required(ctx) -> dict[str, str]:
-    """What must pass on a tree before it may be shipped: the fast checks plus the triggered ones."""
-    return {name: "fast" for name in ctx.policy["checks"]["fast"]} | triggered(ctx)
-
-
-def select(ctx, names: list[str], full: bool, need: dict[str, str] | None = None) -> dict[str, str]:
-    if names:
-        unknown = [name for name in names if name not in known(ctx)]
-        if unknown:
-            raise Failure(f"unknown check: {', '.join(unknown)}", "use one of: " + ", ".join(known(ctx)))
-        return {name: "asked" for name in names}
-    wanted = dict(need if need is not None else required(ctx))
-    if full:
-        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"}
-    return wanted
 
 
 def budget(ctx, name: str) -> float:
     budgets = ctx.policy["checks"]["budgets"]
     return float(budgets.get(name, budgets["default"]))
-
-
-def _stream(ctx, command: list[str], env: dict, hold: frozenset = frozenset(), held: list | None = None):
-    """Run a command, showing its lines as they come (check.py's result rows in retrodev's columns): (exit code,
-    lines). The rows of the checks in ``hold``, and the lines under them, go into ``held`` instead, for the caller
-    to judge."""
-    lines, holding = [], False
-    held = held if held is not None else []
-    with subprocess.Popen(
-        command,
-        cwd=str(ctx.top),
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        stdin=subprocess.DEVNULL,
-    ) as process:
-        assert process.stdout is not None
-        for line in process.stdout:
-            lines.append(line.rstrip("\n"))
-            if ROW.match(line):
-                holding = _row(line)[1] in hold
-            shown = _row_text(*_row(line)) if ROW.match(line) else line.rstrip("\n")
-            (held.append if holding else ctx.out.say)(shown)
-    return process.returncode, lines
-
-
-def _row(line: str) -> tuple[str, str, float, str]:
-    match = ROW.match(line)
-    assert match
-    return match.group(1), match.group(2), float(match.group(3)), match.group(4) or ""
-
-
-def _row_text(status: str, name: str, seconds: float, detail: str) -> str:
-    return f"{status:>7}  {name:<13} {seconds:5.1f} s  {detail}"
-
-
-def run_check_py(ctx, names: list[str], env: dict, record: dict | None = None, ids: dict | None = None) -> dict:
-    """check.py's result per check. With ``record`` and ``ids``: a scaffold failure on a tree that fails lint
-    (in this run, or as recorded for these very lint inputs) is reported as skipped, not as its rerun FIX: new's
-    generated code is linted, so a lint failure anywhere fails the scaffold check too."""
-    hold = frozenset({"scaffold"} & set(names)) if record is not None else frozenset()
-    held: list[str] = []
-    code, lines = _stream(ctx, [sys.executable, "tools/check.py", *names], env, hold, held)
-    results, current = {}, None
-    for line in lines:
-        if ROW.match(line):
-            status, name, seconds, detail = _row(line)
-            current = results[name] = {"state": status, "seconds": seconds, "detail": detail, "more": []}
-        elif current is not None and line.strip():
-            current["more"].append(line.strip())
-    for name in names:
-        if name not in results:
-            results[name] = {
-                "state": "FAILED",
-                "seconds": 0.0,
-                "detail": f"tools/check.py exited {code} without a result for {name}",
-                "more": lines[-10:],
-            }
-    if hold:
-        if results["scaffold"]["state"] == "FAILED" and fails_lint(ctx, results, record, ids):
-            results["scaffold"] = {"state": "skipped", "seconds": 0.0, "detail": LINT_FIRST, "more": []}
-            ctx.out.say(_row_text("skipped", "scaffold", 0.0, LINT_FIRST))
-        else:
-            for line in held:
-                ctx.out.say(line)
-    return results
-
-
-LINT_FIRST = "skipped: the tree fails lint (fix lint first)"
-
-
-def fails_lint(ctx, results: dict, record: dict, ids: dict) -> bool:
-    if "lint" in results:
-        return results["lint"]["state"] == "FAILED"
-    last = record.get("checks", {}).get("lint", {})
-    return last.get("state") == "FAILED" and last.get("digest") == repo.digest(
-        ids, ctx.policy["checks"]["inputs"]["lint"]
-    )
-
-
-def run_script(ctx, name: str, env: dict) -> dict:
-    command = [sys.executable, *SCRIPTS[name]]
-    ctx.out.say(f"running {shlex.join(SCRIPTS[name])} ...")
-    started = time.monotonic()
-    code, lines = _stream(ctx, command, env)
-    seconds = time.monotonic() - started
-    tail = [line for line in lines if line.strip()][-1:] or [""]
-    result = {"state": "ok" if code == 0 else "FAILED", "seconds": round(seconds, 1), "detail": tail[0], "more": []}
-    if code:
-        result["more"] = [line for line in lines if line.strip()][-15:]
-    ctx.out.say(_row_text(result["state"], name, seconds, result["detail"]))
-    return result
-
-
-def env_for(name: str) -> dict:
-    env = dict(os.environ)
-    if name == "acceptance":
-        # The broker's socket path must stay short, and the run uses the toolchain setup put in place.
-        env["TMPDIR"] = short_tmp()
-        env.pop("HERMRETRO_DEPS_ROOT", None)
-    return env
 
 
 def refuse_uncommitted_installs(ctx, todo: list[str], wanted: dict[str, str]) -> None:

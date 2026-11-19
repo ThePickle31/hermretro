@@ -66,7 +66,8 @@ class Flow(RepoCase):
         state.save_branch(self.main, record)
         code, out = self.run_cli("status", cwd=tree)
         words = shlex.split(line_with(out, "next:").removeprefix("next: ").split(" (")[0])
-        self.assertEqual(words[3:], ["--title", APOSTROPHE, "--body", str(self.base / "a b.md")], out)
+        body_words = ["--title", APOSTROPHE, "--body", str(self.base / "a b.md")]
+        self.assertEqual(words[3:], [*body_words, "--dry-run"], out)  # the last ship was a dry run: it stays one
         step = {"run": ["gh", "release", "create", "v1", "--title", "it's"], "env": {"X": "a b"}}
         self.assertEqual(shlex.split(release_publish.shown(step)), ["X=a b", *step["run"]])
 

@@ -72,7 +72,8 @@ class Check(RepoCase):
         git(tree, "commit", "-q", "-m", "Change a template")
         code, data = self.run_cli("check", cwd=tree, as_json=True)
         self.assertEqual(code, 0, data)
-        self.assertEqual(self.check_log()[0]["names"], FAST + ["scaffold"])
+        rest = [name for name in FAST if name != "lint"] + ["scaffold"]  # lint first: scaffold waits for it
+        self.assertEqual([entry["names"] for entry in self.check_log()], [["lint"], rest])
 
     def test_backend_changes_add_acceptance_and_the_clean_install(self):
         tree = self.worktree("chore/move")
@@ -378,10 +379,12 @@ class Ship(RepoCase):
         code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertIn("into main", out)
-        self.assertTrue(out.rstrip().endswith("FIX: gh pr edit 12 --base dev, then ship again"), out)
+        self.assertTrue(out.rstrip().endswith("FIX: gh pr edit 12 --base dev, then python tools/retrodev ship"), out)
         self.assertEqual(self.gh.called("pr", "edit"), [], "ship never retargets or edits it itself")
         self.assertEqual(git(self.origin, "branch", "--list", "docs/tidy"), "", "nothing was pushed")
         self.assertIn("baseRefName", self.gh.called("pr", "list")[0][-1])
+        _code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, "--dry-run", cwd=tree)
+        self.assertTrue(out.rstrip().endswith("then python tools/retrodev ship --dry-run"), out)  # still a dry run
         answer[0]["baseRefName"] = "dev"  # what following the FIX does
         self.gh.answers[("pr", "list")] = (0, json.dumps(answer), "")
         code, out = self.run_cli("ship", "--title", "Improve the guide", "--body", body, cwd=tree)

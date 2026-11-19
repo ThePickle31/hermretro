@@ -231,8 +231,12 @@ def scaffolds(sub, common) -> None:
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"
     )
-    kind("tab", "page/pages/<page>/<id>/index.js, listed in the page's tabs", "page", "id").add_argument(
-        "--label", help="its tab label (default: from the id)"
+    tab = kind("tab", "page/pages/<page>/<id>/index.js, listed in the page's tabs", "page", "id")
+    tab.add_argument("--label", help="its tab label (default: from the id)")
+    tab.add_argument(
+        "--from-page",
+        action="store_true",
+        help="on a page without tabs: its own Page becomes this first tab (dropped from the descriptor)",
     )
     kind("slot", "a slot the page declares for other pages to fill", "page", "name").add_argument(
         "--doc", help="one line: where it is, and the props it passes"

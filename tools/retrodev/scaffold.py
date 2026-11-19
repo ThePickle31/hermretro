@@ -8,7 +8,8 @@
     new event <feature> <name> [--payload P] [--when W]   the front door's EVENTS entry and its CONTRACT row
     new listener <feature> <event>             an @on stub in the feature's listeners.py, its test, the docs
     new page <id> [--label L]                  page/pages/<id>/ (descriptor, component, README), the registry line
-    new tab <page> <id> [--label L]            page/pages/<page>/<id>/index.js, listed in the page's tabs
+    new tab <page> <id> [--label L] [--from-page]   page/pages/<page>/<id>/index.js, listed in the page's tabs
+                                               (--from-page: a tabless page's own Page becomes this tab)
     new slot <page> <name> [--doc TEXT]        a slot the page declares for others to fill
 
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
@@ -125,6 +126,7 @@ class Plan:
     stdlib_only: tuple[str, ...] = ()  # policy.toml [new]: features new adds no rpc, tool or event to
     notes: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
+    skip_checks: list[str] = field(default_factory=list)  # affected checks not to run now (a note says why)
 
     def exists(self, rel: str) -> bool:
         return rel in self.created or (self.top / rel).exists()
@@ -318,7 +320,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
                 f"{shown(command)} failed after the files were written: {(stderr or stdout).strip()[-400:]}",
                 f"fix what it names, then run {shown(command)} again (the new files stay; git status lists them)",
             )
-    names = affected(ctx, plan.paths()) if run_checks else []
+    names = [name for name in affected(ctx, plan.paths()) if name not in plan.skip_checks] if run_checks else []
     if names:
         out.say("checks: " + " ".join(names))
         validate(ctx, names)
@@ -373,7 +375,7 @@ def run(ctx, args) -> int:
     elif kind == "page":
         what = scaffold_page.page(plan, args.name, args.label)
     elif kind == "tab":
-        what = scaffold_page.tab(plan, args.target, args.name, args.label)
+        what = scaffold_page.tab(plan, args.target, args.name, args.label, getattr(args, "from_page", False))
     else:
         what = scaffold_page.slot(plan, args.target, args.name, args.doc)
     return apply(ctx, plan, what, args.dry_run, not args.no_check, not getattr(args, "no_build", False))

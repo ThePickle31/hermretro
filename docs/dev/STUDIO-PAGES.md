@@ -450,7 +450,11 @@ nav list (it goes last; move it in both).
 page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
 setup explanations to Setup; prompts to Prompts.
 
-**A tab.** Make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
+### A tab
+
+On a page without tabs, first make a tab whose `Page` is the page's old `Page` component:
+`python tools/retrodev new tab <page> <id> --from-page` (the page then looks the same, with a tab bar of one).
+Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
 tab bar (of one). With tabs, the page's own `Page` is not
