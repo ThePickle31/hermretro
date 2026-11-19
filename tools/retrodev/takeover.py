@@ -30,6 +30,14 @@ def run(ctx, branch: str, setup: bool = True) -> int:
             "python tools/retrodev takeover <kind>/<topic> (the teammate's pushed branch)",
         )
     topic = topic_of(branch)
+    if not all(state.NAME.match(part) for part in branch.split("/")) or not state.NAME.match(topic):
+        # state.branch_path's rule, before the fetch, the local branch, the worktree or setup: nothing to undo
+        raise Failure(
+            f"'{branch}' cannot name a retrodev record (each part lowercase letters, digits, dots, dashes or "
+            "underscores); nothing was fetched or made",
+            f"ask the teammate to push it under a name like feat/{topic.lower() or '<topic>'}, then python "
+            "tools/retrodev takeover <that branch>",
+        )
     path = ctx.worktree_root() / topic
     repo.git(["fetch", "--quiet", ctx.remote], main)
     remote = f"{ctx.remote}/{branch}"

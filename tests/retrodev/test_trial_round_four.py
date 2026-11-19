@@ -192,7 +192,7 @@ class New(ScaffoldCase):
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_FIRST_TAB\n  ]", door)
         out = self.new("tab", "rdprobe-notes", "again", "--from-page", code=1)  # it has tabs now
         self.assertIn("has tabs already", out["error"]["message"])
-        # Home is defined in index.js: round five moves it into home-page.js (test_trial_round_five) instead of refusing
+        # Home's Page lives in home-page.js (round six)
 
     def alias(self, clause: str, page_field: str) -> None:
         """The rdprobe-notes page's index.js importing its Page through ``clause``, committed."""

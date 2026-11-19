@@ -106,6 +106,20 @@ class Rpc(ScaffoldCase):
         out = self.new("rpc", "history", "rdprobe_pong", "--module", "tools", code=1)
         self.assertIn("nothing was written", out["error"]["message"])
 
+    def test_module_never_shadows_the_wrapper_or_what_a_new_rpcs_py_binds(self):
+        out = self.new("rpc", "history", "rdprobe_ping", "--module", "rpc_rdprobe_ping", code=1)
+        self.assertIn("nothing was written", out["error"]["message"])
+        self.assertIn("--module rdprobe_ping_rpcs", out["error"]["fix"])
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+        self.new("feature", "rdprobe_fresh")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-qm", "Probe feature")
+        self.assertFalse((self.tree / "backend/rdprobe_fresh/rpcs.py").exists())
+        for module in ("rpc", "host", "logger"):  # the template's bindings when rpcs.py is new
+            out = self.new("rpc", "rdprobe_fresh", "rdprobe_ping", "--module", module, code=1)
+            self.assertIn(f"binds {module} already", out["error"]["message"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", f"--module {module} wrote something")
+
 
 class Listener(ScaffoldCase):
     def setUp(self):

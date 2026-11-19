@@ -18,8 +18,9 @@ from .scaffold_source import MODULE_TAKEN, bindings, check_front_door_name, impo
 BIG_RPCS = 350  # lines: past this, new rpc suggests --module (the layout test warns above 400, fails above 600)
 
 
-def rpc_module(plan: Plan, feature_name: str, module: str) -> str:
-    """Refuse a --module name that would not end up as the RPC's own module, before anything is planned."""
+def rpc_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
+    """Refuse a --module name that would not end up as the RPC's own module, before anything is planned: checked
+    against rpcs.py as it will be (the template's when it is new) and the wrapper this RPC adds to it."""
     check_name(module, SNAKE, "module", "game_rpcs")
     if module in MODULE_TAKEN:
         raise Failure(
@@ -29,14 +30,20 @@ def rpc_module(plan: Plan, feature_name: str, module: str) -> str:
     door, source, home = (f"backend/{feature_name}/{name}.py" for name in ("__init__", "rpcs", module))
     if plan.exists(door):
         check_front_door_name(plan.read(door), door, module)
-    if plan.exists(source):
-        text = plan.read(source)
-        if bindings(text, module) and not imports_sibling(text, module):
-            raise Failure(
-                f"{source} binds {module} already (not as `from . import {module}`), so the declaration would call "
-                "into that instead of the new module; nothing was written",
-                f"pick another module name, e.g. --module {module}_rpcs",
-            )
+    wrapper = f"rpc_{values['rpc']}"
+    if module == wrapper:
+        raise Failure(
+            f"--module {module} is the name of the @rpc declaration new writes in {source}, so it would call into "
+            "itself instead of the module; nothing was written",
+            f"pick another module name, e.g. --module {values['rpc']}_rpcs",
+        )
+    text = plan.read(source) if plan.exists(source) else render("rpc", "rpcs.py.tmpl", **values)
+    if bindings(text, module) and not imports_sibling(text, module):
+        raise Failure(
+            f"{source} binds {module} already (not as `from . import {module}`), so the declaration would call "
+            "into that instead of the new module; nothing was written",
+            f"pick another module name, e.g. --module {module}_rpcs",
+        )
     if plan.exists(home) and "logger" not in module_names(plan.read(home)):
         raise Failure(
             f"{home} exists and is not an RPC module new wrote (it binds no logger); nothing was written",
@@ -58,7 +65,7 @@ def with_sibling(text: str, module: str) -> str:
 
 def in_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
     """Plan the factory in backend/<feature>/<module>.py and its @rpc declaration in rpcs.py; the module's path."""
-    home = f"backend/{feature_name}/{rpc_module(plan, feature_name, module)}.py"
+    home = f"backend/{feature_name}/{rpc_module(plan, feature_name, module, values)}.py"
     source = f"backend/{feature_name}/rpcs.py"
     values = {**values, "module": module}
     plan.ensure(home, render("rpc", "rpc_module.py.tmpl", **values))

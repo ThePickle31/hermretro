@@ -231,7 +231,8 @@ def body_step(ctx, branch: str | None, record: dict) -> str | None:
         return None
     title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
     custom = path if path != default_body(ctx, branch, record) else None
-    return f"next: fill in {path}, then {command(title, custom)}"
+    # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
+    return f"next: fill in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
 
 
 def again(record: dict, dry_run: bool = False) -> str:

@@ -67,6 +67,19 @@ class Body(RepoCase):
         _code, out = self.run_cli("check", cwd=tree)
         self.assertNotIn("next: fill in", out)
 
+    def test_check_after_a_refused_dry_run_keeps_the_dry_run_in_its_ship(self):
+        tree = self.started()
+        self.commit(tree, "docs/guide.md", "# goalie\n")
+        code, out = self.run_cli("ship", "--title", "Keep the goalie in goal", "--dry-run", cwd=tree)
+        self.assertEqual(code, 1, out)
+        code, out = self.run_cli("check", cwd=tree)
+        self.assertEqual(code, 0, out)
+        path = self.main / "notes" / "pr" / "goalie.md"
+        self.assertEqual(
+            out.strip().splitlines()[-1],
+            f"next: fill in {path}, then python tools/retrodev ship --title 'Keep the goalie in goal' --dry-run",
+        )
+
     def test_plan_approve_inside_its_branch_writes_the_body_too(self):
         tree = self.worktree("feat/keeper")
         self.new_plan("keeper")
@@ -120,6 +133,16 @@ class Takeover(RepoCase):
         code, out = self.run_cli("takeover", "feat/mate")
         self.assertEqual(code, 1, out)
         self.assertIn("a local feat/mate exists already", out)
+
+    def test_a_pushed_name_no_record_can_take_is_refused_before_anything_is_made(self):
+        self.pushed("feat/Trial")
+        code, out = self.run_cli("takeover", "feat/Trial")
+        self.assertEqual(code, 1, out)
+        self.assertIn("'feat/Trial' cannot name a retrodev record", out)
+        self.assertIn("feat/trial", out)
+        self.assertFalse(git(self.main, "branch", "--list", "feat/Trial").strip(), "a local branch was made")
+        self.assertFalse((self.base / "hermretro-wt" / "Trial").exists(), "a worktree was made")
+        self.assertNotIn("Trial", git(self.main, "worktree", "list"))
 
     def test_a_branch_that_was_never_pushed_is_refused(self):
         code, out = self.run_cli("takeover", "feat/nobody")
