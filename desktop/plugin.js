@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 ac5f5438288bdb49f095c964c47e7d115c871bdcf1aa14a72b0cd47aa29c9e6d
- * body: sha256 102d8d7b60b3dffc4a1739bdb9bf6ea7061d068455d5d33d372e27832e83724b
+ * sources: sha256 dfe5a7d6cf7503a3941192e66866a29bf20d06eed4999f99750b0e13ce1cce16
+ * body: sha256 32c177b45af9bfe895055952e3fe89720e099de01e59463472509bc770b591ff
  */
 // page/sdk.js
 import {
@@ -12590,6 +12590,8 @@ function StudioPage({ ctx }) {
     doctor,
     gateway,
     status,
+    // the profile the page's own queries go to when it is not the app's (null when it is the app's)
+    viaProfile,
     // setup: the steps, where the user is in them, and first-run memory
     steps,
     memory,

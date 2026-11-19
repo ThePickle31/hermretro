@@ -194,14 +194,16 @@ const installAnswer = install => answered({ ok: true, manifest, root: '/h/hermre
 const completeStatus = () => status({ hardware_enabled: true, deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('installed') } })
 
 // Runs one scenario file: a fresh page, then `body(env)`. Prints the checks that ran as JSON and exits 0, or
-// prints the failure and exits 1. Exits either way: turns never end in these scenarios, so the page's request
-// polling would keep the process alive.
+// prints the failure and exits 1; either way the last line is '<file>: N passed, M failed'. Exits either way:
+// turns never end in these scenarios, so the page's request polling would keep the process alive.
 export async function runScenario(body) {
   const { work, loaded } = await load()
+  const file = path.basename(process.argv[1] ?? 'page test')
   let code = 0
+  let env = null
 
   try {
-    const env = environment(loaded)
+    env = environment(loaded)
     await body(env)
     if (globalThis.__pageErrors) throw new Error(`${globalThis.__pageErrors} error(s) were thrown inside the page (see above)`)
     console.log(JSON.stringify({ passed: true, checks: env.checks.length, names: env.checks }, null, 1))
@@ -211,5 +213,7 @@ export async function runScenario(body) {
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
+  // Last, so the tail of a long run shows the result (a failure stops the scenario: the rest did not run).
+  console.log(`${file}: ${env?.checks.length ?? 0} passed, ${code} failed`)
   process.exit(code)
 }

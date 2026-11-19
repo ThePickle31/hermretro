@@ -32,7 +32,7 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
   - `session`: the game's Build conversation, `{storedId, profile, createdAt, aliases}` (`aliases`: up to 16 later session ids of it, since compression rotates them). Absent when the game has none.
 - `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
-- `pending`: New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest 50 are kept).
+- `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest 50 are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
 Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
@@ -51,5 +51,5 @@ Use `python tools/retrodev new <kind> library <name>`: it writes the stub, its t
 - an RPC: `python tools/retrodev new rpc library <name>`.
 - a tool: `python tools/retrodev new tool library <name> --step "<running>" "<done>"`. A tool that acts on the current game takes the project from `tool_args.tool_project(tool, args, kwargs)` (the `project` argument, else this chat's), answers failures with `tool_args.tool_error(message, code)` and reads the library with `host._registry()` (`from ..hermes import host`, looked up at call time so tests can patch it). Import them from `tool_args.py`, never from `tools.py`.
 - an event: `python tools/retrodev new event library <what happened> --payload "<keyword arguments>"`, then call `emit("library.<what happened>", ...)` where it happens.
-- a listener: `python tools/retrodev new listener library <feature>.<event>`: an `@on("<feature>.<event>")` stub taking `**_payload` (so a new payload field never breaks it) in this folder's `listeners.py`, its test, "Listens to" above and the CONTRACT events row's "Heard by".
+- a listener: `python tools/retrodev new listener library <feature>.<event>`: an `@on("<feature>.<event>")` stub taking `**_payload` (so a new payload field never breaks it) in this folder's `listeners.py`, its test, "Listens to" above and the CONTRACT events row's "Heard by". A listener reaches the library with `Registry(paths.library_dir())` (`from ..system import paths`), never through `..hermes`: the library stays standard library only (the broker and the player import it), and `host._registry()` is for tools.
 - a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`.

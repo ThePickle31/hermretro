@@ -7,7 +7,8 @@
 // module.register (deprecated since Node 26, DEP0205) on older Node.
 // It also gives those modules what the bundle leaves to the app: '@hermes/plugin-sdk' is the stand-in in
 // sdk-stub.mjs, and react, react-dom and jsdom come from tools/bundle/node-modules.mjs's folder (one copy
-// each, shared by the test and the page).
+// each, shared by the test and the page). A PNG import becomes its data URL, as the bundle makes it.
+import { readFileSync } from 'node:fs'
 import module, { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -52,10 +53,21 @@ export function resolve(specifier, context, next) {
   return next(specifier, context)
 }
 
-// Puts resolve() in place for this process: before any import() of a page module.
+// `import art from './art.png'` (page/shared/art/index.js): the bundle inlines it as a data URL; so does this.
+export function load(url, context, next) {
+  if (url.startsWith('file:') && url.endsWith('.png')) {
+    const data = readFileSync(fileURLToPath(url)).toString('base64')
+
+    return { format: 'module', source: `export default 'data:image/png;base64,${data}'`, shortCircuit: true }
+  }
+
+  return next(url, context)
+}
+
+// Puts resolve() and load() in place for this process: before any import() of a page module.
 export function registerAliases() {
   if (typeof module.registerHooks === 'function') {
-    module.registerHooks({ resolve })
+    module.registerHooks({ resolve, load })
   } else {
     module.register(import.meta.url)
   }

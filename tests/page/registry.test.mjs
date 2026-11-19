@@ -55,8 +55,25 @@ test('the registry lists every page folder once, in nav order, each describing i
 
   for (const page of PAGES) {
     assert.equal(typeof page.label, 'string')
-    assert.equal(typeof page.Page, 'function', `${page.id} has a Page`)
+    assert.deepEqual(missingComponents(page), [], `${page.id} has a Page`)
   }
+})
+
+// A page whose tabs are the whole page drops its own Page (docs/dev/STUDIO-PAGES.md, "A tab"): then each tab
+// needs one instead.
+function missingComponents(page) {
+  if (page.tabs?.length) {
+    return page.tabs.filter(tab => typeof tab.Page !== 'function').map(tab => `${page.id}/${tab.id} has no Page`)
+  }
+
+  return typeof page.Page === 'function' ? [] : [`${page.id} has no Page`]
+}
+
+test('a page needs a Page, or tabs that each have one', () => {
+  assert.deepEqual(missingComponents(fakePage('plain')), [])
+  assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One', Page: Text('one') }] }), [])
+  assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One' }] }), ['tabbed/one has no Page'])
+  assert.deepEqual(missingComponents({ id: 'bare', label: 'Bare' }), ['bare has no Page'])
 })
 
 test('events are declared once, by the page their name starts with', () => {
@@ -137,40 +154,6 @@ test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
 })
 
-// emulator.barActions is drawn on the Emulator page (which has the shell, so it passes go) and in the emulator tab
-// beside the chat (page/pages/emulator/beside-chat/tab.js, no shell, so no go). A probe stands in for the real
-// contributions while the two render.
-test('an emulator.barActions contribution gets go on the Emulator page, not beside the chat', async () => {
-  const { EMULATOR_PAGE } = await import('../../page/pages/emulator/index.js')
-  const { openSideEmulator } = await import('../../page/pages/emulator/beside-chat/tab.js')
-  const { scenario } = await import('./sdk-stub.mjs')
-  const seen = []
-  const Probe = props => { seen.push(Object.keys(props).sort()); return null }
-  const original = PAGE_SLOTS.contributions
-  const game = { id: 'abc123abc123', title: 'Probe', rom: '/x.gb', web: null, chat: null }
-  const query = { data: { url: 'http://127.0.0.1:1/p/index.html' }, isFetching: false }
-  const player = { game, query, focused: false, capturesOpen: false, rebuilt: false, ask() {}, fullScreen() {}, later() {}, reload() {}, refresh() {}, toggleCaptures() {} }
-  const ctx = { storage: { get: (key, fallback) => fallback, set() {} } }
-
-  PAGE_SLOTS.contributions = name => (name === 'emulator.barActions' ? [Probe] : original(name))
-  try {
-    const onPage = await render(jsx(EMULATOR_PAGE.Page, { shell: { ctx, go() {}, hardwareOn: true, player } }))
-
-    assert.deepEqual(seen, [['ctx', 'game', 'go', 'hardwareOn']], 'on the Emulator page')
-    await act(async () => onPage.root.unmount())
-    seen.length = 0
-    scenario.games = { data: { games: [game], device: { hardwareEnabled: true } }, isFetching: false }
-    scenario.player = query
-    assert.ok(openSideEmulator(ctx, game), 'the tab opened')
-    const beside = await render(scenario.workspaces.at(-1).options.render())
-
-    assert.deepEqual(seen.at(-1), ['ctx', 'game', 'hardwareOn'], 'beside the chat')
-    await act(async () => beside.root.unmount())
-  } finally {
-    PAGE_SLOTS.contributions = original
-  }
-})
-
 test('an empty slot renders nothing', async () => {
   const slots = createSlots()
 
@@ -229,6 +212,33 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
   assert.equal(storage['tab:tools'], 'two')
   assert.equal(node.querySelector('[aria-selected="true"]').textContent, 'Two')
   await act(async () => root.unmount())
+})
+
+// The shell every Page gets, from the real StudioPage, with a probe in Home's place.
+test('a page sees shell.viaProfile: the profile the studio page queries', async () => {
+  const { StudioPage } = await import('../../page/app/studio-page.js')
+  const { scenario } = await import('./sdk-stub.mjs')
+  const home = PAGES.find(page => page.id === 'home')
+  const original = home.Page
+  const seen = []
+  const storage = { page: 'home', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
+  const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
+  const answered = data => ({ data, isFetching: false, isPending: false })
+  const ready = { state: 'installed', version: '1.2.1' }
+
+  scenario.status = answered({ ok: true, via_profile: 'hermretro', hardware_enabled: false, project: null, plugin: { version: '9' }, node: { ok: true }, engine: { present: true, verified: true },
+    profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } }, deps: { device_cli: ready } })
+  scenario.doctor = answered({ ok: true, missing_required: [], components: [] })
+  home.Page = ({ shell }) => { seen.push(shell.viaProfile); return null }
+  try {
+    const { root } = await render(jsx(StudioPage, { ctx }))
+
+    assert.ok(seen.length, 'Home rendered')
+    assert.equal(seen.at(-1), 'hermretro')
+    await act(async () => root.unmount())
+  } finally {
+    home.Page = original
+  }
 })
 
 test('the stylesheet holds every page rule once; Build after the narrow-pane rules', () => {

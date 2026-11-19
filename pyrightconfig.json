@@ -1,0 +1,4 @@
+{
+  "extraPaths": ["tools"],
+  "exclude": ["engine", "player/web", "tools/npm", ".dev", "**/node_modules", "**/__pycache__"]
+}
