@@ -142,19 +142,25 @@ class Check(RepoCase):
         os.symlink("guide.md", tree / "docs" / "link.md")  # the same bytes as the file it replaced
         self.assertNotEqual(repo.tree_digest(tree), before, "a symlink is not the file it replaced")
 
-    def test_budgets_warn_but_never_fail(self):
+    def test_budgets_warn_only_when_a_check_is_over_twice_in_a_row(self):
+        # Flipped: one slow run once warned (on every cold run of every trial); now only the second in a row does.
         tree = self.worktree()
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        rows = [{"name": "lint", "seconds": 3.0, "cached": False}, {"name": "unit", "seconds": 9.0, "cached": False}]
-        self.assertEqual(checks.budget_warnings(ctx, rows, 31.0, True), [], "unit's usual 9 s and a 31 s run pass")
-        rows[1]["seconds"] = 25.0
-        warnings = checks.budget_warnings(ctx, rows, 41.0, True)
-        self.assertEqual(len(warnings), 2)
-        self.assertIn("unit took 25.0 s, over twice its 12 s budget: slower than usual", warnings[0])
+        rows = [{"name": "lint", "seconds": 3.0, "cached": False}, {"name": "unit", "seconds": 40.0, "cached": False}]
+        self.assertEqual(checks.budget_warnings(ctx, rows, 55.0, True, {}), [], "a cold unit run of 40 s is in budget")
+        rows[1]["seconds"] = 50.0
+        self.assertEqual(checks.budget_warnings(ctx, rows, 70.0, True, {}), [], "one slow run says nothing")
+        last = checks.durations(rows, 70.0, {})
+        self.assertEqual((last["unit"], last["fast_total"]), (50.0, 70.0))
+        warnings = checks.budget_warnings(ctx, rows, 70.0, True, last)
+        self.assertEqual(len(warnings), 2, warnings)
+        self.assertIn("unit took 50.0 s, over its 45 s budget twice in a row: slower than usual", warnings[0])
         self.assertIn("machines and load differ", warnings[0])
-        self.assertIn("fast checks took 41.0 s together, over twice their 20 s budget: slower than usual", warnings[1])
+        self.assertIn("fast checks took 70.0 s together, over their 60 s budget twice in a row", warnings[1])
+        cached = [{"name": "unit", "seconds": 0.0, "cached": True}]
+        self.assertEqual(checks.durations(cached, None, last), last, "a cached row keeps the last run's time")
 
     def test_watch_sees_a_change(self):
         tree = self.worktree()
@@ -283,7 +289,8 @@ class Ship(RepoCase):
         self.assertEqual(git(self.origin, "rev-parse", "chore/both").strip(), head)
         create = self.gh.called("pr", "create")[0]
         self.assertEqual(create[2:6], ["--draft", "--base", "dev", "--head"])
-        self.assertEqual([create[i + 1] for i, word in enumerate(create) if word == "--label"], ["backend"])
+        labelled = [create[i + 1] for i, word in enumerate(create) if word == "--label"]
+        self.assertEqual(labelled, ["backend", "documentation"], "docs/ is documentation now (it had no label)")
         record = state.load_branch(self.main, "chore/both")
         self.assertEqual((record["pr"]["number"], record["pushed"]), (12, head))
 

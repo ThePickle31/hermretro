@@ -251,11 +251,11 @@ class New(ScaffoldCase):
     def test_an_event_is_declared_emitted_once_and_documented(self):
         self.new("event", "history", "pruned", "--payload", "game")
         door = self.read("backend/history/__init__.py")
-        self.assertRegex(
-            door, r'"history.build_kept": [^\n]*,\n    # emits\.pruned[^\n]*\n    "history.pruned": "game",\n}'
+        self.assertRegex(  # the hint goes in the next steps, never as a comment inside EVENTS
+            door, r'"history.build_kept": [^\n]*,\n    "history.pruned": "say when it is emitted; payload: game",\n}'
         )
         self.assertIn('emit("history.pruned", **payload)', self.read("backend/history/emits.py"))
-        self.assertIn("| `history.pruned` | game |", self.read("docs/dev/CONTRACT.md"))
+        self.assertIn("| `history.pruned` | `game` | say when |", self.read("docs/dev/CONTRACT.md"))
         self.assertIn("Events emitted: `history.build_kept`, `history.pruned`.", self.read("backend/history/README.md"))
         self.new("event", "history", "pruned", code=1)
 

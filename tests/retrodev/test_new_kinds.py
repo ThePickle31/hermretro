@@ -1,4 +1,4 @@
-"""`new` friction from the first round of fresh-agent trials: rpc <feature>.<name>, the listener kind, the tool
+"""`new` friction from the first round of fresh-agent trials (the listener test scaffolds into a throwaway feature): rpc <feature>.<name>, the listener kind, the tool
 counts past six and the big tools.py warning, every tab on the README line and the tab template's Heading. Each
 test failed before its fix.
 
@@ -34,29 +34,33 @@ class NewKinds(ScaffoldCase):
         self.assertIn("<feature>.<name>", out["error"]["message"])
 
     def test_a_listener_with_its_test_readme_and_doc_cells(self):
+        # In a throwaway feature made in the copy: a real feature (history) may get a listener of its own any day.
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
+        self.new("feature", "rdprobe_ears", "--purpose", "A probe feature that listens")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Probe feature")
         before = self.read("docs/dev/CONTRACT.md")
         heard = next(line for line in before.splitlines() if line.startswith(f"| `{EVENT}` |")).split(" | ")[-1]
-        out = self.new("listener", "history", EVENT)
+        out = self.new("listener", "rdprobe_ears", EVENT)
         func = "on_library_build_reported"
-        test = f"tests/backend/history/test_listener_{func}.py"
-        self.assertEqual(out["created"], ["backend/history/listeners.py", test])
+        test = f"tests/backend/rdprobe_ears/test_listener_{func}.py"
+        self.assertEqual(out["created"], ["backend/rdprobe_ears/listeners.py", test])
         self.assertEqual(
-            out["changed"], ["backend/history/README.md", "docs/dev/ARCHITECTURE.md", "docs/dev/CONTRACT.md"]
+            out["changed"], ["backend/rdprobe_ears/README.md", "docs/dev/ARCHITECTURE.md", "docs/dev/CONTRACT.md"]
         )
-        source = self.read("backend/history/listeners.py")
+        source = self.read("backend/rdprobe_ears/listeners.py")
         self.assertIn("from ..system.events import on", source)
         self.assertIn(f'@on("{EVENT}")\ndef {func}(**payload) -> None:', source)
         self.assertIn('"HERMRETRO_HOME": home.name', self.read(test))
-        self.assertIn(f"Listens to: `{EVENT}`.", self.read("backend/history/README.md"))
+        self.assertIn(f"Listens to: `{EVENT}`.", self.read("backend/rdprobe_ears/README.md"))
         row = next(line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith(f"| `{EVENT}`"))
-        self.assertTrue(row.endswith(f"{heard.removesuffix(' |')}, history (say what it does) |"), row)
+        self.assertTrue(row.endswith(f"{heard.removesuffix(' |')}, rdprobe_ears (say what it does) |"), row)
         arch = self.read("docs/dev/ARCHITECTURE.md").split("## The agent half")[1]
-        row = next(line for line in arch.splitlines() if line.startswith("| `backend/history/` |"))
+        row = next(line for line in arch.splitlines() if line.startswith("| `backend/rdprobe_ears/` |"))
         self.assertTrue(row.endswith(f"; listens to `{EVENT}` |"), row)
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Listener")
-        self.new("listener", "history", EVENT, code=1)  # twice: refused
+        self.new("listener", "rdprobe_ears", EVENT, code=1)  # twice: refused
         self.assertEqual(self.changed(), "")
 
     def test_an_undeclared_event_or_a_stdlib_only_feature_is_refused_and_nothing_changes(self):
@@ -83,7 +87,12 @@ class NewKinds(ScaffoldCase):
         git(self.tree, "commit", "-q", "-m", "Big tools")
         out = self.new("tool", "history", "rdprobe_big", as_json=False)
         self.assertRegex(out, r"note: backend/history/tools\.py has \d+ lines, over 400")
-        self.assertIn("sibling module", out)
+        # Flipped: it once only suggested a sibling module; now it writes the tool into one and says so.
+        self.assertIn("the tool goes in its own module backend/history/rdprobe_big_tools.py", out)
+        self.assertIn("*rdprobe_big_tools.TOOLS", self.read("backend/history/tools.py"))
+        self.assertIn(
+            "CHROMATIC_RDPROBE_BIG_TOOL".removeprefix("CHROMATIC_"), self.read("backend/history/rdprobe_big_tools.py")
+        )
 
     def test_the_tab_template_uses_heading_and_says_the_page_still_renders(self):
         self.new("page", "rdprobe-tabs")
@@ -91,7 +100,9 @@ class NewKinds(ScaffoldCase):
         tab = self.read("page/pages/rdprobe-tabs/first/index.js")
         self.assertIn("import { Heading, Lede } from '#shared/ui/text.js'", tab)
         self.assertIn("jsx(Heading, { children: 'First' })", tab)
-        self.assertIn("rdprobe-tabs-page.js component still renders", " ".join(out["next"]))
+        steps = " ".join(out["next"])
+        self.assertIn("Page component (page/pages/rdprobe-tabs/rdprobe-tabs-page.js) still renders", steps)
+        self.assertIn("a single tab still shows a tab bar", steps)
         text = (ROOT / "page/shared/ui/text.js").read_text()
         self.assertIn(
             "export function Heading({ children }) {\n  return jsx('h2', { className: 'cs-word cs-title'", text

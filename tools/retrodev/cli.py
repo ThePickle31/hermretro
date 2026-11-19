@@ -205,12 +205,18 @@ def scaffolds(sub, common) -> None:
         "name",
         optional=True,
     )
-    kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name").add_argument(
+    tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
+    tool.add_argument(
         "--step", nargs=2, metavar=("RUNNING", "DONE"), help="the Build page's words while it runs and once done"
     )
-    kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name").add_argument(
-        "--payload", help="one line: the keyword arguments it carries"
+    tool.add_argument(
+        "--module",
+        help="write it in backend/<feature>/<module>.py with its own TOOLS, which tools.py's TOOLS takes in "
+        "(automatic, as <tool>_tools, when tools.py is over 400 lines)",
     )
+    event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
+    event.add_argument("--payload", help="one line: the keyword arguments it carries, e.g. 'game=<id>, root'")
+    event.add_argument("--when", help="one line: when it is emitted (the EVENTS entry and the CONTRACT row say it)")
     kind("listener", "an @on stub in backend/<feature>/listeners.py, its test, the README and docs", "feature", "event")
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"
@@ -226,7 +232,7 @@ def scaffolds(sub, common) -> None:
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "label", "doc"):
+        for missing in ("target", "purpose", "step", "payload", "when", "module", "label", "doc"):
             setattr(args, missing, getattr(args, missing, None))
         return scaffold.run(ctx, args)
     if command == "engine":

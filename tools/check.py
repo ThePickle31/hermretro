@@ -280,6 +280,14 @@ def check_scan(args) -> str:
     return f"safe ({report['findings']} minor notes)"
 
 
+def scaffold_fix(test: list[str]) -> str:
+    """The command that reruns the scaffold test and keeps its copy: python -B, so no bytecode lands in the tree."""
+    return (
+        "python -B " + " ".join(test[1:]) + " with RD_SCAFFOLD_FULL=1 in its environment (it skips without it; "
+        "RD_SCAFFOLD_KEEP=1 as well keeps the copy it made to look into)"
+    )
+
+
 def check_scaffold(_args) -> str:
     # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
     if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
@@ -288,9 +296,7 @@ def check_scaffold(_args) -> str:
     test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
     result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": "1"})
     if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(
-            tail(result.stderr, 40) + "\nFIX: RD_SCAFFOLD_KEEP=1 RD_SCAFFOLD_FULL=1 " + " ".join(test[1:])
-        )
+        raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"
 
 

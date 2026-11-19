@@ -27,7 +27,7 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import add_event, add_tool, js_str, module_names, py_str
+from .scaffold_source import add_event, add_tool, js_str, module_names, py_str, take_in_module
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -35,6 +35,7 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
+STUDIO_PAGE = "page/app/studio-page.js"  # where the shell asks for its RPCs (the games query is the model)
 BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
@@ -141,6 +142,11 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
         f"call it from the page: import {{ RPC_{const(name)} }} from '#app/rpc.js' (re-exports the generated "
         "rpc-names.js)",
+        f"ask for it as {STUDIO_PAGE} asks for games: useQuery({{ queryKey: [ID, '{name}', viaProfile], queryFn: () "
+        f"=> callStudio(RPC_{const(name)}), enabled }}) (useQuery from '#sdk', ID from '#app/ids.js', callStudio "
+        "from '#app/backend.js'; viaProfile and enabled: running, as there)",
+        f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
+        "(tests/page/harness.mjs)",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
     ]
     return f"RPC {name}"
@@ -170,7 +176,20 @@ def engine_tools(plan: Plan) -> set[str]:
     return found
 
 
-def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> str:
+MODULE_TAKEN = ("tools", "rpcs", "hooks", "prompt", "listeners", "emits")  # names a feature's own parts use
+
+
+def tool_module(module: str) -> str:
+    check_name(module, SNAKE, "module", "game_tools")
+    if module in MODULE_TAKEN:
+        raise Failure(
+            f"--module {module} is a name every feature keeps for its own part (hermes/declare.py); nothing was written",
+            "pick another module name, e.g. --module game_tools",
+        )
+    return module
+
+
+def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None, module: str | None = None) -> str:
     known_feature(plan, feature_name, "tool")
     short = check_name(name.removeprefix(TOOL_PREFIX), SNAKE, "tool", "game_info")
     full = TOOL_PREFIX + short
@@ -189,21 +208,28 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
     values = {"name": feature_name, "Name": label(feature_name), "tool": full, "short": short, "Short": pascal(short)}
     values |= {"TOOL": const(short), "words": words}
     source = f"backend/{feature_name}/tools.py"
-    plan.ensure(source, render("tool", "tools.py.tmpl", **values))
-    taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(source)))
-    if taken:  # a second binding would replace the first: the tool that uses it would lose its schema or handler
-        raise Failure(
-            f"{source} binds {' and '.join(taken)} already, which tool {full} would define; nothing was written",
-            f"pick another tool name, e.g. python tools/retrodev new tool {feature_name} {short}_more",
-        )
-    size = len(plan.read(source).splitlines())
-    if size > BIG_MODULE:
+    size = len(plan.read(source).splitlines()) if plan.exists(source) else 0
+    if module is None and size > BIG_MODULE:
+        module = f"{short}_tools"
         plan.notes.append(
-            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600): move tools into "
-            f"a sibling module (backend/{feature_name}/<topic>_tools.py with its own TOOLS, which tools.py's TOOLS takes in)"
+            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600): the tool goes in "
+            f"its own module backend/{feature_name}/{module}.py, with its own TOOLS, which tools.py's TOOLS takes in "
+            f"(*{module}.TOOLS); --module <name> picks another name"
         )
+    home = source if module is None else f"backend/{feature_name}/{tool_module(module)}.py"
+    plan.ensure(home, render("tool", "tools.py.tmpl", **values))
+    for where in dict.fromkeys(rel for rel in (source, home) if plan.exists(rel)):  # one name per tool, feature-wide
+        taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(where)))
+        if taken:  # a second binding would replace the first: the tool that uses it would lose its schema or handler
+            raise Failure(
+                f"{where} binds {' and '.join(taken)} already, which tool {full} would define; nothing was written",
+                f"pick another tool name, e.g. python tools/retrodev new tool {feature_name} {short}_more",
+            )
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
-    plan.edit(source, lambda text: add_tool(text, source, render("tool", "tool.py.tmpl", **values), entry))
+    plan.edit(home, lambda text: add_tool(text, home, render("tool", "tool.py.tmpl", **values), entry))
+    if module is not None:
+        plan.ensure(source, render("tool", "tools_index.py.tmpl", **values))
+        plan.edit(source, lambda text: take_in_module(text, source, module))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     plan.create(f"tests/backend/{feature_name}/test_tool_{short}.py", render("tool", "test_tool.py.tmpl", **values))
     owned = [tool_name for tool_name in listed if tool_name not in engine_tools(plan)]
@@ -211,17 +237,17 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None) -> st
     plan.edit(MANIFEST, lambda text: insert_after(text, anchor, f"  - {full}", MANIFEST, last=False))
     words_line = f"  {short}: [{js_str(running)}, {js_str(done)}],"
     plan.edit(STEP_WORDS, lambda text: insert_before(text, re.compile(r"^  skill_view: "), words_line, STEP_WORDS))
-    plan.edit(CONTRACT, lambda text: _contract_tool(text, full, feature_name))
+    plan.edit(CONTRACT, lambda text: _contract_tool(text, full, feature_name, home))
     readme(plan, feature_name, "Tools", f"`{full}`")
     plan.regenerate = True
     plan.next_steps += [
-        f"write the schema and handler in {source}; describe {full} in {CONTRACT} (its line says what it does)",
+        f"write the schema and handler in {home}; describe {full} in {CONTRACT} (its line says what it does)",
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
     ]
     return f"tool {full}"
 
 
-def _contract_tool(text: str, full: str, feature_name: str) -> str:
+def _contract_tool(text: str, full: str, feature_name: str, home: str | None = None) -> str:
     def bump(match: re.Match) -> str:
         return match.group(1) + str(int(match.group(2)) + 1) + match.group(3)
 
@@ -237,30 +263,54 @@ def _contract_tool(text: str, full: str, feature_name: str) -> str:
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):
         raise Failure(f"{CONTRACT}: the tool counts are not where they were", "update them by hand, then run check")
-    line = f"- `{full}` (`backend/{feature_name}/tools.py`): say what it does and when the agent calls it."
+    line = f"- `{full}` (`{home or f'backend/{feature_name}/tools.py'}`): say what it does and when the agent calls it."
     return insert_after(text, re.compile(r"in total\.$"), line, CONTRACT, last=False)
 
 
-def event(plan: Plan, feature_name: str, name: str, payload: str | None) -> str:
+def payload_keys(payload: str) -> list[str]:
+    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
+    the leading name of each comma-separated part outside brackets."""
+    parts, depth, current = [], 0, ""
+    for char in payload:
+        depth += char in "([{<"
+        depth -= char in ")]}>"
+        if char == "," and depth <= 0:
+            parts.append(current)
+            current = ""
+        else:
+            current += char
+    keys = [found.group(1) for part in [*parts, current] if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
+    return list(dict.fromkeys(keys))
+
+
+def event_row(body: str, feature_name: str, row: str) -> str:
+    """The CONTRACT events row after the owner feature's last row (after the table's last row when it has none)."""
+    owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
+    anchor = owned if any(owned.search(line) for line in body.split("\n")) else re.compile(r"^\| `")
+    return insert_after(body, anchor, row, CONTRACT)
+
+
+def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: str | None = None) -> str:
     known_feature(plan, feature_name, "event")
     check_name(name, SNAKE, "event", "build_kept")
     if name in ("emit", "annotations"):
         raise Failure(f"'{name}' would shadow a name emits.py uses", "pick another event name, e.g. build_kept")
     full = f"{feature_name}.{name}"
-    payload = one_line(payload or "what happened; key=<value> for each keyword argument", "payload")
+    payload = one_line(payload or "key=<value> for each keyword argument", "payload")
+    when = one_line(when, "when").rstrip(".") if when else None
     for door in plan.top.glob("backend/*/__init__.py"):
         if f'"{full}"' in plan.read(str(door.relative_to(plan.top))):
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
-    comment = f'    # emits.{name}(...) where it happens (emit("{full}", ...)); others: @on("{full}") in listeners.py'
-    plan.edit(door, lambda text: add_event(text, comment, f"    {json.dumps(full)}: {json.dumps(payload)},"))
-    row = f"| `{full}` | {payload} | say when | — |"
+    doc = f"{when or 'say when it is emitted'}; payload: {payload}"
+    plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
+    keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
+    cell = ", ".join(f"`{key}`" for key in keys) or payload
+    row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
     plan.edit(
         CONTRACT,
         lambda text: in_section(
-            text,
-            "## Events between backend features",
-            lambda body: insert_after(body, re.compile(r"^\| `"), row, CONTRACT),
+            text, "## Events between backend features", lambda body: event_row(body, feature_name, row)
         ),
     )
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
@@ -275,8 +325,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None) -> str:
     plan.create(f"tests/backend/{feature_name}/test_event_{name}.py", render("event", "test_event.py.tmpl", **values))
     readme(plan, feature_name, "Events emitted", f"`{full}`")
     plan.next_steps += [
-        f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}); "
-        f"fill its CONTRACT row",
+        f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}; it runs "
+        f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
     ]
     return f"event {full}"

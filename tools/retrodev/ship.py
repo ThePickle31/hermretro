@@ -4,9 +4,11 @@
 
 The body defaults to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
 that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
-plan's Goal as the Why and a line saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under
-the template's '## Made by' when it has one, else after a closing '---', so it fills no section), and stops: fill it
-in, then ship again.
+plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan: say why -->' instead) and a line
+saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
+has one, else after a closing '---', so it fills no section), and stops: fill it in, then ship again. A --dry-run
+writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
+its FIX the real ship command with this title.
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
 a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
@@ -27,12 +29,15 @@ from . import gates, github, plan, repo, reviews, state
 from .gates import Gate
 from .output import Failure, cmd
 
-TEMPLATE = ".github/pull_request_template.md"
 from .review import records
+
+TEMPLATE = ".github/pull_request_template.md"
+NO_GOAL = "<!-- no plan: say why -->"
 
 
 def labels(ctx, files: list[str]) -> list[str]:
-    """Labels from the areas changed (policy.toml [labels]); docs get none, hardware is never automatic."""
+    """Labels from the areas changed (policy.toml [labels]: .github/*.md and docs/ are documentation, not ci);
+    hardware is never automatic."""
     return [label for label, patterns in ctx.policy["labels"].items() if any(repo.matches(f, patterns) for f in files)]
 
 
@@ -95,16 +100,32 @@ def owner(ctx) -> str:
     return f"@{account}" if account else "the owner"
 
 
+def plan_goal(ctx, branch: str, record: dict) -> list[str]:
+    """The Goal lines of the plan the branch works under ([] with --no-plan, no plan file or an empty Goal)."""
+    named = gates.plan_for(ctx, branch, record)
+    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
+    return gates.section_lines(path.read_text(encoding="utf-8")).get("Goal", []) if path and path.is_file() else []
+
+
+def plan_title(ctx, branch: str, record: dict) -> str | None:
+    """The plan's own title line ('# Plan: <words>'), when it says more than the topic."""
+    named = gates.plan_for(ctx, branch, record)
+    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
+    if not path or not path.is_file():
+        return None
+    first = next((line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("# ")), "")
+    words = first[2:].strip().removeprefix("Plan:").strip()
+    return words if words and words != named and not gates.title_problems(words) else None
+
+
 def skeleton(ctx, branch: str, record: dict) -> str:
     """The pull request template with the plan's Goal as the Why and the line saying an agent made it."""
     source = ctx.top / TEMPLATE
     sections = ctx.policy["ship"]["sections"]
     text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
-    named = gates.plan_for(ctx, branch, record)
-    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
-    goal = gates.section_lines(path.read_text(encoding="utf-8")).get("Goal", []) if path and path.is_file() else []
-    if goal:
-        text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + "\n".join(goal) + "\n", text, count=1, flags=re.M)
+    goal = plan_goal(ctx, branch, record)
+    why = "\n".join(goal) if goal else NO_GOAL  # a visible placeholder: the body gate still finds the Why empty
+    text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + why + "\n", text, count=1, flags=re.M)
     agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
     line = f"Made by an agent ({agent}) for {owner(ctx)}."
     made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
@@ -113,32 +134,43 @@ def skeleton(ctx, branch: str, record: dict) -> str:
     return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
 
 
-def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> Path:
-    """The body to ship: --body, else notes/pr/<topic>.md. Writes that skeleton and stops when it is missing (or
-    with --new-body; an existing file is kept), so the agent fills in a file instead of writing one from scratch."""
+def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> tuple[Path, bool]:
+    """The body to ship: --body, else notes/pr/<topic>.md. Writes that skeleton when it is missing (or with
+    --new-body; an existing file is kept), so the agent fills in a file instead of writing one from scratch: a real
+    ship stops there, a dry run goes on and its body gate says which file to fill in (writing a git-ignored note
+    pushes nothing)."""
     if body and not new_body:
         path = Path(body).expanduser()
-        return path if path.is_absolute() else ctx.cwd / path
+        return (path if path.is_absolute() else ctx.cwd / path), False
     path = default_body(ctx, branch, record)
     if path.is_file() and not new_body:
         ctx.out.say(f"body: {path}")
-        return path
-    if dry_run or not branch or branch in ctx.policy["branches"]["protected"]:
-        return path  # the body gate reports it missing; a dry run writes nothing
+        return path, False
+    if not branch or branch in ctx.policy["branches"]["protected"]:
+        return path, False  # the work-branch gate refuses it; nothing is written for dev or main
+    written = not path.is_file()
     if path.is_file():
         ctx.out.say(f"kept: {path} exists (nothing was overwritten)")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(skeleton(ctx, branch, record), encoding="utf-8")
-        ctx.out.say(f"wrote {path} from {TEMPLATE} (the plan's Goal is its Why)")
-    again = cmd("python", "tools/retrodev", "ship", "--title", title, "--body", path)
-    raise Failure(f"the pull request body {path} is not filled in yet", f"fill in {path}, then {again}")
+        why = "the plan's Goal is its Why" if plan_goal(ctx, branch, record) else "no plan Goal: write the Why"
+        ctx.out.say(f"wrote {path} from {TEMPLATE} ({why})")
+    if dry_run:
+        return path, written
+    raise Failure(f"the pull request body {path} is not filled in yet", fill_in(path, title))
+
+
+def fill_in(path: Path, title: str) -> str:
+    """The FIX for an unfilled body: fill in the file, then the real ship command with this title and body."""
+    shown = title.strip() if title and not gates.title_problems(title) else "<one plain sentence>"
+    return f"fill in {path}, then " + cmd("python", "tools/retrodev", "ship", "--title", shown, "--body", path)
 
 
 def again(record: dict) -> str:
     """The ship command that pushes this branch's next commits, with its recorded title and body."""
     pr = record.get("pr") or {}
-    words = ["python", "tools/retrodev", "ship", "--title", pr.get("title") or "<title>"]
+    words = ["python", "tools/retrodev", "ship", "--title", pr.get("title") or record.get("title") or "<title>"]
     if record.get("body"):
         words += ["--body", record["body"]]
     return cmd(*words)
@@ -147,11 +179,16 @@ def again(record: dict) -> str:
 def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
-    body_path = body_file(ctx, title, body, new_body, dry_run, branch, record)
+    body_path, written = body_file(ctx, title, body, new_body, dry_run, branch, record)
     text = body_path.read_text(encoding="utf-8") if body_path.is_file() else None
     body_gate = gates.body_gate(text, ctx.policy["ship"]["sections"])
-    if text is None and not body:
-        body_gate.fix = f"python tools/retrodev ship --title ... without --dry-run writes {body_path} to fill in"
+    if not body_gate.ok and text is not None:
+        if written:  # the dry run wrote the skeleton just now: every section is still to write
+            body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
+        body_gate.fix = fill_in(body_path, title)
+    if branch and not gates.title_problems(title) and branch not in ctx.policy["branches"]["protected"]:
+        record["title"] = title.strip()  # status names it in its next ship command
+        state.save_branch(ctx.top, record)
     found = [
         gates.on_work_branch(ctx, branch),
         gates.title_gate(title),

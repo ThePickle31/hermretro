@@ -35,6 +35,16 @@ def declared_events(plan: Plan) -> dict[str, str]:
     return found
 
 
+SUPPORT = "tests/support.py"
+
+
+def test_template(plan: Plan) -> str:
+    """The listener test calls tests/support.py's isolated_home(self) where that helper exists; otherwise it makes
+    the same temp HERMRETRO_HOME and plugin data folder itself."""
+    has = plan.exists(SUPPORT) and re.search(r"^def isolated_home\(", plan.read(SUPPORT), re.M)
+    return "test_listener_isolated.py.tmpl" if has else "test_listener.py.tmpl"
+
+
 def listens_line(text: str, item: str) -> str:
     """The README's 'Listens to' sentence (mid-line, after 'Events emitted'): 'none' becomes the item, else the item
     goes after the last event it names."""
@@ -116,7 +126,7 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     plan.edit(source, lambda body: body.rstrip("\n") + "\n" + render("listener", "listener.py.tmpl", **values))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     test = f"tests/backend/{feature_name}/test_listener_{func}.py"
-    plan.create(test, render("listener", "test_listener.py.tmpl", **values))
+    plan.create(test, render("listener", test_template(plan), **values))
     readme = f"backend/{feature_name}/README.md"
     if plan.exists(readme):
         before = plan.read(readme)

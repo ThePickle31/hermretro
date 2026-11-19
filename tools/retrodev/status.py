@@ -36,10 +36,17 @@ def next_step(facts: dict) -> str:
             + cmd("git", "commit", "-m", "<what changed>")
             + (" (the checks passed on these changes)")
         )
+    if not facts.get("pr") and facts.get("body"):
+        title = facts.get("title") or "<one plain sentence>"
+        return (
+            "next: "
+            + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"])
+            + " (fill in every section of the body first)"
+        )
     if not facts.get("pr"):
         return (
             "next: "
-            + cmd("python", "tools/retrodev", "ship", "--title", "<one plain sentence>")
+            + cmd("python", "tools/retrodev", "ship", "--title", facts.get("title") or "<one plain sentence>")
             + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md)"
         )
     if facts.get("head") != facts.get("pushed"):
@@ -69,6 +76,14 @@ def next_step(facts: dict) -> str:
     )
 
 
+def behind(ctx, path) -> int:
+    """Commits of the base branch this branch lacks, from the cached remote ref (no fetch: status stays offline)."""
+    if not repo.head(path, ctx.remote_base):
+        return 0
+    counted = repo.git(["rev-list", "--count", f"HEAD..{ctx.remote_base}"], path, check=False).strip()
+    return int(counted) if counted.isdigit() else 0
+
+
 def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> dict:
     named = branch.partition("/")[2]
     topic = record.get("topic") or (named if state.NAME.match(named) else None)
@@ -77,7 +92,11 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     pr = (record.get("pr") or {}).get("number")
     jobs = github.checks(ctx, pr) if pr and with_ci else None
     review = reviews.load(ctx, pr) if pr else None
+    body = record.get("body") or str(ship.default_body(ctx, branch, record))
     return {
+        "body": body if not pr and os.path.isfile(body) else None,
+        "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
+        "behind": behind(ctx, path),
         "branch": branch,
         "path": str(path),
         "main": str(ctx.main()),
@@ -114,6 +133,8 @@ def show_branch(ctx, facts: dict) -> None:
         say(f"  plan:   {facts['plan']} ({approval}" + ("; changed since" if facts["plan_changed"] else "") + ")")
     say(f"  checks: {'passed on this tree' if facts['checks_passed'] else 'not passed on this tree'}")
     say(f"  tree:   {'uncommitted changes' if facts['dirty'] else 'committed'}; head {(facts['head'] or '')[:9]}")
+    if facts.get("behind"):
+        say(f"  behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
     if facts["pr"]:
         pushed = "pushed" if facts["pushed"] == facts["head"] else "NOT pushed"
         say(f"  pr:     #{facts['pr']} {facts['pr_url'] or ''} (head {pushed}); CI {facts['ci']}")
