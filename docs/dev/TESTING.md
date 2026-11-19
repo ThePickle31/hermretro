@@ -55,6 +55,9 @@ and `.dev/` are not linted.
 - Updating ruff: change the version in `requirements.txt`, replace the hash lines with the digests listed at
   `https://pypi.org/pypi/ruff/<version>/json`, run the setup and `python tools/check.py fix`, and commit any
   reformatting as its own commit.
+- Editors: the root `pyrightconfig.json` puts `tools/` on pyright's (and Pylance's) import path, so
+  `from retrodev import ...` in `tests/retrodev/` resolves as it does at run time, and leaves out the vendored and
+  installed folders.
 
 ## CI tiers
 
@@ -109,6 +112,22 @@ tests/<area>/<feature>/test_<name>.py`, restore, run again. An edit of the same 
 that (it only stops writing `.pyc` files), the fresh, empty `PYTHONPYCACHEPREFIX` does (or delete the
 `__pycache__` folders first). `python tools/check.py unit` already gives its run a fresh, empty one.
 
+## Moving or splitting tests
+
+A move or split must not lose a test. From the repository root, list every Python test id before and after, then
+compare the two lists (their counts too: `s.countTestCases()` on the same `discover(...)`):
+
+```sh
+python -c "import unittest; ids=lambda s: [i for t in s for i in (ids(t) if isinstance(t, unittest.BaseTestSuite) else [t.id()])]; print(*sorted(ids(unittest.defaultTestLoader.discover('tests', top_level_dir='.'))), sep='\n')" > notes/ids-before.txt
+# move or split, then the same command > notes/ids-after.txt
+diff notes/ids-before.txt notes/ids-after.txt   # only the moved module paths may differ
+```
+
+The listing walks nested suites, so it also lists `tests/retrodev`'s tests, which run on threads inside one
+`ParallelSuite` (`tests/retrodev/pool.py`). The total alone:
+`python -c "import unittest; s=unittest.defaultTestLoader.discover('tests', top_level_dir='.'); print(s.countTestCases())"`.
+For a page scenario, compare its check names instead ("Splitting a page scenario", below).
+
 ## Splitting a page scenario
 
 A `page-<name>.test.mjs` near the size limit splits by section, without losing a check:
@@ -118,9 +137,10 @@ A `page-<name>.test.mjs` near the size limit splits by section, without losing a
    name: `check.py page` runs every `tests/page/**/*test*.mjs`, and the fixture is not a test.
 2. Each new `page-<topic>-<section>.test.mjs` starts from that fixture, then does the navigation that reaches its
    section itself (each file runs in its own process, so nothing carries over from the file it came from).
-3. Prove no check was lost: a passing scenario prints only `{ passed, checks, names }` (JSON). Before the split, save
-   the names: `node tests/page/page-<name>.test.mjs > notes/before.json`; after it, run each new file the same way
-   and compare the sorted `names` of `notes/before.json` with the sorted union of the new files' `names`: the two
+3. Prove no check was lost: a passing scenario prints `{ passed, checks, names }` (JSON), then one summary line
+   (`<file>: N passed, M failed`, last so the tail of a long run shows it). Before the split, save the names:
+   `node tests/page/page-<name>.test.mjs | sed '$d' > notes/before.json` (`sed '$d'` drops the summary line); after
+   it, run each new file the same way and compare the sorted `names` of `notes/before.json` with the sorted union of the new files' `names`: the two
    lists must be equal (a check renamed on purpose is listed in the pull request).
 
 Docs and READMEs name test files by path (`tests/...`); `tests/repo/test_doc_pointers.py` fails on one that does not

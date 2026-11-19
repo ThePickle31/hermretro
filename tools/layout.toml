@@ -11,6 +11,7 @@
 "THIRD_PARTY_NOTICES.md" = "Notices for the vendored engine and player"
 ".gitignore" = "Files git leaves alone (notes/, caches)"
 ".gitattributes" = "Line endings and generated-file markers"
+"pyrightconfig.json" = "Editor settings for pyright/Pylance: tools/ on the import path, so tests/retrodev's `from retrodev import ...` resolves"
 
 [folders.backend]
 purpose = "Python backend, one folder per feature"

@@ -119,6 +119,10 @@ the owner, `from .module import NAME`). Importing it from the module that define
 | a value other features read | import it in the owner's `backend/<owner>/__init__.py` and add it to `__all__` (and the owner README's "Front door" line); readers import `from ..<owner> import NAME` |
 | a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its area in `tools/layout.toml` and the Map above; tests in `tests/backend/<name>/`. Or: `python tools/retrodev new feature <name> --purpose '...'` (all of it) |
 
+Each feature's row in the table above lists what it registers: `python tools/retrodev new rpc|tool <feature> ...`
+adds the new name to its Declares cell, and `new event` adds the event to its Front door / events cell; by hand, add
+it there along with the feature's README.
+
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
 (ModRetro's CLI, pinned SHA-256; removing downloads), `backend/broker/broker.py` (the single authority: identity,

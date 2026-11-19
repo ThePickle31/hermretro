@@ -436,9 +436,13 @@ Each of these touches one folder plus at most one registry line. `tests/page/reg
 registry, and every descriptor is checked when the bundle loads (`app/registry.js`): a mistake fails the page
 tests with the exact problem.
 
-**A page.** Make `page/pages/<page>/` with `index.js` exporting `export const <PAGE>_PAGE = { id: '<page>',
+### A page
+
+Make `page/pages/<page>/` with `index.js` exporting `export const <PAGE>_PAGE = { id: '<page>',
 label: '<Label>', Page }`, where `Page({ shell })` renders it from `shell` (the data and actions every page
-shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `steps`, `games`, `play(id)`, `player`…).
+shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `viaProfile`, `steps`, `games`, `play(id)`,
+`player`…; `viaProfile` is the profile the shell's own queries go to when it is not the app's, else `null`: key
+a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
 `README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
@@ -446,7 +450,9 @@ Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`,
 `python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
 nav list (it goes last; move it in both).
 
-**Reference content** (how something works, rather than something to do) goes on the page it is about, not on a
+### Reference content
+
+Reference content (how something works, rather than something to do) goes on the page it is about, not on a
 page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
 setup explanations to Setup; prompts to Prompts.
 
@@ -457,26 +463,34 @@ On a page without tabs, first make a tab whose `Page` is the page's old `Page` c
 Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
-tab bar (of one). With tabs, the page's own `Page` is not
-the page's body any more: if the descriptor keeps one it renders only as a strip between the tab bar and the
-chosen tab (given `{ shell, tab }`), so move its content into a tab, or drop `Page` when the tabs are the whole
-page. Mention the tab in the page's `README.md`. Or:
-`python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line).
+tab bar (of one). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
+one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
+content into a tab, or drop `Page` when the tabs are the whole page. Mention the tab in the page's `README.md`. Or:
+`python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
+its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 
-**An event.** The page it happens in owns it: add `events: { '<page>.<name>': 'what happened; the payload' }`
+### An event
+
+The page it happens in owns it: add `events: { '<page>.<name>': 'what happened; the payload' }`
 to `page/pages/<page>/index.js`, and call `emit('<page>.<name>', payload)` from `#app/events.js` where it
 happens. To react to it in another page: from a component, `on(name, fn)` in an effect (it returns the
 unsubscribe); for the plugin's whole life (even while the page is not shown), `listens: { '<page>.<name>':
 (payload, ctx) => ... }` in that page's `index.js`. A listener that throws is logged and never breaks the
 emitter. An undeclared name throws. List it in both READMEs.
 
-**A slot.** The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
+### A slot
+
+The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
 `page/pages/<page>/index.js`, and renders `jsx(Slot, { name: '<page>.<name>', props: { ... } })` (from
 `#app/slots.js`) where the contributions go. Empty, it renders nothing, so declaring one changes nothing on
 screen. Or: `python tools/retrodev new slot <page> <name> --doc '...'` declares it (and lists it in the registry
-test); rendering the `Slot` stays yours.
+test); rendering the `Slot` stays yours. Write the props in the doc string as `Props: { a, b, ... }` (a prop
+passed only in one place: `plus x(...) on the <where> only`): `tests/page/slots.test.mjs` renders each host with a
+probe contribution and fails when the props passed differ from those, so give its `HOSTS` the new slot's host.
 
-**A contribution to a slot.** In the contributing page's `index.js`: `contributes: { '<page>.<name>':
+### A contribution to a slot
+
+In the contributing page's `index.js`: `contributes: { '<page>.<name>':
 [Component] }`. It lives in the contributing page's folder. `Component` gets the host's props: read the slot's
 doc string in the host page's `index.js` (`slots: { ... }`) for what they are and what to return. For example
 `games.cardMenu` passes `{ ctx, game, hardwareOn, item }`, where `item(icon, label, run, { disabled, why })` makes a
@@ -486,10 +500,14 @@ the chat, which has no shell) and its contribution renders a button. A contribut
 `shell`: when it needs `go(id)` or another shell action, the host adds it to the slot's props and says so in the
 slot's doc string (and the host's README Slots line).
 
-**Calling the backend from a page.** `page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the
+### Calling the backend from a page
+
+`page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the
 hermretro profile only) resolves to the RPC's answer itself; `callBackend(method, params)` resolves to
 `{ data, profile }`, so read `(await callBackend(...)).data`. The method names are the generated `RPC_*` constants
 in `page/app/rpc.js`.
+
+### Events and slots today
 
 Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
 `games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

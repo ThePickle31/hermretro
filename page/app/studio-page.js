@@ -308,6 +308,8 @@ export function StudioPage({ ctx }) {
     doctor,
     gateway,
     status,
+    // the profile the page's own queries go to when it is not the app's (null when it is the app's)
+    viaProfile,
     // setup: the steps, where the user is in them, and first-run memory
     steps,
     memory,
