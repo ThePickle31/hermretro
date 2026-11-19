@@ -20,8 +20,13 @@ request into `dev` and CI.
    checkout instead"), and enable it.
 2. Page changes (`page/`): rebuild with `node tools/bundle/bundle.mjs` (or keep `node tools/bundle/bundle.mjs
    --watch` running) and reload the app's window; the gateway keeps running.
-3. Changes to `backend/`, `__init__.py`, `plugin.yaml`, `skills/` or `profile/` load only when the gateway
-   starts: restart it yourself (`hermes gateway restart`), then reload the app.
+3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/` load only when the gateway starts: restart it
+   yourself (`hermes gateway restart`), then reload the app.
+   `profile/` is different: it holds templates that the page's setup copies into the `hermretro` profile when it
+   makes it. A restart does not change a profile that already exists, and finishing setup again keeps its
+   `SOUL.md` unless that file is an unedited older template (its hash is in `OLDER_SOULS` in
+   `backend/setup/studio_profile.py`). Try a template change with a fresh studio profile in a throwaway Hermes
+   home (`HERMES_HOME=<temp folder>`).
 4. The plugin's tools, skills and prompt exist only in the profile named `hermretro` (the page's first setup step
    makes it). To try them from another profile, start the gateway with `HERMRETRO_EVERY_PROFILE=1` in its
    environment.
