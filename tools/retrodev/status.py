@@ -14,6 +14,9 @@ from . import gates, github, plan, repo, reviews, ship, state, sync
 from .output import cmd
 
 
+NOTHING_NEXT = "next: python tools/retrodev plan new <topic> (docs/chore: start <kind>/<topic> --no-plan)"
+
+
 def next_step(facts: dict) -> str:
     """The one next command for a branch, from its facts (pure: the tests drive it directly)."""
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
@@ -63,15 +66,27 @@ def next_step(facts: dict) -> str:
             why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
         else:
             why = " (the body passes ship's body gate)"
-        return "next: " + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]) + why
+        dry = bool(facts.get("last_ship_dry_run"))  # a dry run's next step stays one: status never makes it a push
+        if dry:
+            why += "; the last ship was a dry run: without --dry-run the same command pushes and opens the pull request"
+        return "next: " + ship.command(title, facts["body"], dry) + why
     if not facts.get("pr"):
+        dry = bool(facts.get("last_ship_dry_run"))
         return (
             "next: "
-            + cmd("python", "tools/retrodev", "ship", "--title", facts.get("title") or "<one plain sentence>")
-            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md)"
+            + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
+            + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md"
+            + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
+            + ")"
         )
     if facts.get("head") != facts.get("pushed"):
-        return f"next: {facts.get('ship_again') or 'python tools/retrodev ship'} (pushes the new commits)"
+        again = facts.get("ship_again") or ship.command(dry_run=bool(facts.get("last_ship_dry_run")))
+        if facts.get("last_ship_dry_run"):  # with a pull request too: status never turns a dry run into a push
+            return (
+                f"next: {again} (the last ship was a dry run: without --dry-run the same command pushes the "
+                "new commits)"
+            )
+        return f"next: {again} (pushes the new commits)"
     pr = facts["pr"]
     # land runs from the main checkout: the merge removes this worktree
     land = (cmd("cd", facts["main"]) + " && " if facts.get("main") else "") + f"python tools/retrodev land {pr}"
@@ -150,6 +165,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "body": shown,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
+        "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
         "base": ctx.remote_base,
@@ -169,7 +185,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "pr_url": (record.get("pr") or {}).get("url"),
         "head": repo.head(path),
         "pushed": record.get("pushed"),
-        "ship_again": ship.again(record),
+        "ship_again": ship.again(record, bool(record.get("last_ship_dry_run"))),
         "ci": github.ci_summary(jobs) if pr and with_ci else None,
         "ci_jobs": jobs or [],
         "approved": record.get("approval"),
@@ -244,6 +260,7 @@ def run(ctx) -> int:
             ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
         ctx.out.say(f"    {facts['next']}")
     if not rows:
-        ctx.out.say("  no work in progress: python tools/retrodev plan new <topic>")
-    ctx.out.set(main=str(main), branch=branch, branches=rows)
+        ctx.out.say("  no work in progress")
+        ctx.out.say(NOTHING_NEXT)
+    ctx.out.set(main=str(main), branch=branch, branches=rows, **({} if rows else {"next": NOTHING_NEXT}))
     return 0

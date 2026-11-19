@@ -10,7 +10,9 @@ plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and stops: fill it in, then ship again. A --dry-run
 writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
-its FIX the real ship command with this title.
+its FIX the same ship --dry-run with this title and body. Every ship command printed during or after a dry run
+(a FIX here, status's next step) is a dry run too: they are all built by command(), and the dry run is recorded
+before anything (the title included) can stop it.
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
 a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
@@ -44,7 +46,18 @@ def labels(ctx, files: list[str]) -> list[str]:
     return [label for label, patterns in ctx.policy["labels"].items() if any(repo.matches(f, patterns) for f in files)]
 
 
-def remote_gate(ctx, branch: str) -> Gate:
+def command(title: str | None = None, body=None, dry_run: bool = False) -> str:
+    """The one place a ship command is written: with --dry-run whenever it follows (or is printed by) a dry run,
+    so a FIX or next step never turns one into a push."""
+    words = ["python", "tools/retrodev", "ship"]
+    if title is not None:
+        words += ["--title", title]
+    if body is not None:
+        words += ["--body", body]
+    return cmd(*words, *(["--dry-run"] if dry_run else []))
+
+
+def remote_gate(ctx, branch: str, dry_run: bool = False) -> Gate:
     ref = repo.remote_ref(ctx.remote, branch)
     remote_sha = repo.head(ctx.top, ref)
     if remote_sha and not repo.is_ancestor(ctx.top, remote_sha, "HEAD"):
@@ -52,8 +65,9 @@ def remote_gate(ctx, branch: str) -> Gate:
             "remote branch not moved",
             False,
             f"{ctx.remote}/{branch} has commits this branch does not (someone pushed); a push must never drop them",
-            f"git fetch {ctx.remote} && git merge {ctx.remote}/{branch}, then python tools/retrodev check and ship "
-            "again (a merge keeps their commits; never a rebase or a forced push)",
+            f"git fetch {ctx.remote} && git merge {ctx.remote}/{branch}, then python tools/retrodev check, then "
+            + command(dry_run=dry_run)
+            + " (a merge keeps their commits; never a rebase or a forced push)",
         )
     return gates.passed("remote branch not moved", "new branch" if not remote_sha else remote_sha[:9])
 
@@ -76,7 +90,7 @@ def ahead_gate(ctx) -> Gate:
     return gates.passed("has commits", f"{count} beyond {base}")
 
 
-def base_gate(ctx, existing: dict) -> Gate:
+def base_gate(ctx, existing: dict, dry_run: bool = False) -> Gate:
     """The open pull request goes into the base branch (one opened by hand may point elsewhere, e.g. main)."""
     base, number = existing.get("baseRefName"), existing["number"]
     if base != ctx.base:
@@ -85,7 +99,7 @@ def base_gate(ctx, existing: dict) -> Gate:
             False,
             f"the open pull request #{number} goes into {base or 'an unknown branch'}; changes reach "
             f"{ctx.base} only through pull requests into it (ship never retargets one itself)",
-            f"gh pr edit {number} --base {ctx.base}, then ship again",
+            f"gh pr edit {number} --base {ctx.base}, then " + command(dry_run=dry_run),
         )
     return gates.passed("pull request into " + ctx.base, f"#{number}")
 
@@ -172,22 +186,21 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
     raise Failure(f"the pull request body {path} is not filled in yet", fill_in(path, title))
 
 
-def fill_in(path: Path, title: str) -> str:
-    """The FIX for an unfilled body: fill in the file, then the real ship command with this title and body."""
+def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
+    """The FIX for an unfilled body: fill in the file, then the ship command with this title and body (still a
+    --dry-run after a dry run: its FIX never turns it into a push)."""
     shown = title.strip() if title and not gates.title_problems(title) else "<one plain sentence>"
-    return f"fill in {path}, then " + cmd("python", "tools/retrodev", "ship", "--title", shown, "--body", path)
+    return f"fill in {path}, then " + command(shown, path, dry_run)
 
 
-def again(record: dict) -> str:
-    """The ship command that pushes this branch's next commits, with its recorded title and body."""
+def again(record: dict, dry_run: bool = False) -> str:
+    """The ship command that pushes this branch's next commits, with its recorded title and body (a dry run of it
+    after a dry run)."""
     pr = record.get("pr") or {}
-    words = ["python", "tools/retrodev", "ship", "--title", pr.get("title") or record.get("title") or "<title>"]
-    if record.get("body"):
-        words += ["--body", record["body"]]
-    return cmd(*words)
+    return command(pr.get("title") or record.get("title") or "<title>", record.get("body") or None, dry_run)
 
 
-def recorded_title(ctx, branch, record: dict) -> str:
+def recorded_title(ctx, branch, record: dict, dry_run: bool = False) -> str:
     """The title of a ship without --title: the pull request's, else the last ship's; else a FIX with the plan's."""
     title = (record.get("pr") or {}).get("title") or record.get("title")
     if title:
@@ -195,7 +208,7 @@ def recorded_title(ctx, branch, record: dict) -> str:
     shown = (plan_title(ctx, branch, record) if branch else None) or "<one plain sentence>"
     raise Failure(
         "no title: this branch has none recorded yet (the first ship names it)",
-        cmd("python", "tools/retrodev", "ship", "--title", shown),
+        command(shown, dry_run=dry_run),
     )
 
 
@@ -231,10 +244,14 @@ def note_dry_run(ctx, record: dict, body_path: Path, ok: bool) -> None:
 def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record: dict = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
+    work = bool(branch) and branch not in ctx.policy["branches"]["protected"]
+    if work:  # before anything can stop this ship (the title first): status keeps --dry-run in the ship it names
+        record["last_ship_dry_run"] = dry_run
+        state.save_branch(ctx.top, record)
     if title is None:
-        title = recorded_title(ctx, branch, record)
+        title = recorded_title(ctx, branch, record, dry_run)
     body = chosen_body(ctx, body, new_body, branch, record)
-    if branch and branch not in ctx.policy["branches"]["protected"]:
+    if work:
         # status names them in its next ship command, also after a gate stops this one or a dry run returns
         if not gates.title_problems(title):
             record["title"] = title.strip()
@@ -246,7 +263,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
     if not body_gate.ok and text is not None:
         if written:  # the dry run wrote the skeleton just now: every section is still to write
             body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
-        body_gate.fix = fill_in(body_path, title)
+        body_gate.fix = fill_in(body_path, title, dry_run)
     found = [
         gates.on_work_branch(ctx, branch),
         gates.title_gate(title),
@@ -258,7 +275,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         found.insert(1, gates.plan_gate(ctx, branch, record))
         if not dry_run:
             repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
-        found += [ahead_gate(ctx), remote_gate(ctx, branch)]
+        found += [ahead_gate(ctx), remote_gate(ctx, branch, dry_run)]
     noted = dry_run and bool(branch) and found[0].ok  # status says when the last dry run passed on this tree and body
     if noted and not all(gate.ok for gate in found):
         note_dry_run(ctx, record, body_path, False)
@@ -278,7 +295,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if not isinstance(failure, github.NoGitHub):  # that one printed its note already
             ctx.out.say(f"(could not ask GitHub for an open pull request: {failure.message})")
     if existing:
-        into = base_gate(ctx, existing)
+        into = base_gate(ctx, existing, dry_run)
         if noted and not into.ok:
             note_dry_run(ctx, record, body_path, False)
         gates.enforce(ctx, [into], "ship")

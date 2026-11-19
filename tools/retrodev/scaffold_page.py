@@ -138,7 +138,7 @@ def known_page(plan: Plan, page_id: str) -> str:
     return f"page/pages/{page_id}/index.js"
 
 
-def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None) -> str:
+def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page: bool = False) -> str:
     door = known_page(plan, page_id)
     check_name(tab_id, KEBAB, "tab", "history")
     tab_label = js_label(tab_label, label(tab_id))
@@ -148,24 +148,174 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None) -> str:
     unique_exports(plan, [name])
     values = {"page": page_id, "tab": tab_id, "Label": tab_label, "Component": pascal(tab_id) + "Tab"}
     values["CONST"] = f"{const(page_id)}_{const(tab_id)}"
-    plan.create(f"page/pages/{page_id}/{tab_id}/index.js", render("tab", "index.js.tmpl", **values))
+    statements(plan.read(door), door)  # an import it cannot read whole is refused before anything is written
+    tabless, component = own_page(plan.read(door))
+    if from_page:
+        values |= moved_page(plan, door, page_id, tabless, component)
+    template = "from_page.js.tmpl" if from_page else "index.js.tmpl"
+    plan.create(f"page/pages/{page_id}/{tab_id}/index.js", render("tab", template, **values))
 
     def wire(text: str) -> str:
+        if from_page:
+            text = drop_page(text, component)
         line = f"import {{ {name} }} from './{tab_id}/index.js'"
-        text = insert_after(text, re.compile(r"^import "), line, door)
+        found = statements(text, door)
+        if not found:
+            text = line + "\n" + text
+        else:  # after the last whole import statement (its closing line), never inside one
+            at = text.find("\n", found[-1].end())
+            text = text + "\n" + line if at < 0 else text[: at + 1] + line + "\n" + text[at + 1 :]
         return add_to_descriptor(text, "tabs", "[", "]", name)
 
     plan.edit(door, wire)
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
     plan.regenerate = True
+    if from_page:
+        plan.next_steps += [
+            f"the page's own Page ({values['source']}) is now the {tab_id} tab, and the descriptor has no Page: "
+            f"add the second tab (python tools/retrodev new tab {page_id} <tab>); a single tab still shows a tab bar",
+        ]
+        return f"tab {page_id}/{tab_id} (from the page's Page)"
+    if tabless and component:
+        plan.skip_checks.append("page")
+        plan.notes.append(
+            f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), which "
+            "still renders above the tab bar and the tab, so its page tests may no longer hold; turn the Page into "
+            f"this tab instead with --from-page, or run python tools/retrodev check once the page is as it should be"
+        )
     plan.next_steps += [
         f"build the tab in page/pages/{page_id}/{tab_id}/index.js (Page gets the page's {{ shell }})",
         f"with tabs, the page's own Page component ({page_file(plan, door)}) still renders, between the tab bar and "
         "the chosen tab, with a { tab } prop (app/page-view.js): keep only what every tab shares there, or drop "
-        "Page from the descriptor",
+        f"Page from the descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)",
         "a single tab still shows a tab bar (one button): add a second tab, or keep a page without tabs",
     ]
     return f"tab {page_id}/{tab_id}"
+
+
+PAGE_FIELD = re.compile(r"^  Page: (\w+),?$")
+
+
+def own_page(text: str) -> tuple[bool, str | None]:
+    """(the descriptor has no tabs yet, the name of its own Page component or None)."""
+    _name, first, end = descriptor(text)
+    body = text.split("\n")[first + 1 : end]
+    found = next((m.group(1) for line in body if (m := PAGE_FIELD.match(line))), None)
+    return not any(line.startswith("  tabs:") for line in body), found
+
+
+def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: str | None) -> dict:
+    """--from-page: the tab template's values (the Page's file as #pages/<page>/<file>.js), once it may move."""
+    if not tabless or not component:
+        raise Failure(
+            f"--from-page turns the page's own Page into its first tab, and {door} "
+            + ("has tabs already" if not tabless else "has no Page field")
+            + "; nothing was written",
+            f"leave out --from-page: python tools/retrodev new tab {page_id} <id>",
+        )
+    kind, exported, module = binding(plan.read(door), component)
+    if kind is None:
+        defined = re.search(rf"^(?:export\s+)?(?:const|let|function|class)\s+{component}\b", plan.read(door), re.M)
+        if defined:
+            raise Failure(
+                f"{door} defines {component} itself, and a tab may import it only from its own file (importing the "
+                "page's index.js from its tab would be a cycle); nothing was written",
+                f"move {component} into page/pages/{page_id}/{page_id}-page.js (export it, import it in index.js), "
+                "then run new tab again",
+            )
+        raise Failure(
+            f"{door} neither imports nor defines {component}, so the tab cannot import it; nothing was written",
+            f"import {component} by name in {door} (import {{ {component} }} from './<file>.js'), then run new tab again",
+        )
+    module = module or ""
+    if kind != "named" or not module.startswith("./"):
+        what = {"default": "a default import", "namespace": "a namespace import"}.get(kind, f"an import from {module}")
+        raise Failure(
+            f"{door} gets {component} through {what}, and --from-page moves only a named import of one of the "
+            "page's own files; nothing was written",
+            f"export {component} by name from its file and import it as {{ {component} }} from './<file>.js', "
+            "then run new tab again",
+        )
+    source = f"{door.rsplit('/', 1)[0]}/{module.removeprefix('./')}"
+    imported = component if exported == component else f"{exported} as {component}"
+    return {"Component": component, "Imported": imported, "source": "#pages/" + source.removeprefix("page/pages/")}
+
+
+IMPORT_START = re.compile(r"^import(?=[\s{*'\"])", re.M)  # not import(...) or import.meta
+STATEMENT = re.compile(
+    r"""import\s*(?:(?P<clause>[\w$*\s{},]+?)\s*from\s*)?(?P<q>['"])(?P<module>[^'"\n]*)(?P=q)[ \t]*;?"""
+)
+
+
+def statements(text: str, where: str = "the page's index.js") -> list[re.Match]:
+    """Every whole import statement at the start of a line, one or many lines long (``import {`` ... ``} from
+    './x.js'``), in order; one that does not parse is refused (a tab must never be wired into the middle of one)."""
+    found = []
+    for start in IMPORT_START.finditer(text):
+        whole = STATEMENT.match(text, start.start())
+        clause = (whole.group("clause") or "") if whole else ""
+        if not whole or clause.count("{") != clause.count("}") or clause.count("{") > 1:
+            line = text[start.start() :].split("\n", 1)[0]
+            raise Failure(
+                f"{where}: cannot read the import statement starting '{line}' (new reads only plain static imports, "
+                "on one or more lines); nothing was written",
+                "write it as import { Name } from './file.js' (one or more lines), then run new again",
+            )
+        found.append(whole)
+    return found
+
+
+def binding(text: str, local: str) -> tuple[str | None, str | None, str | None]:
+    """(kind, exported name, module) of the import that binds ``local``: kind is "named" (exported name its own, as
+    in ``{ SetupPage as SetupPanel }``), "default" or "namespace"; (None, None, None) when no import binds it."""
+    for found in statements(text):
+        clause, module = found.group("clause") or "", found.group("module")
+        braces = re.search(r"\{([^}]*)\}", clause)
+        for part in braces.group(1).split(",") if braces else []:
+            exported, _, alias = part.strip().partition(" as ")
+            if (alias.strip() or exported.strip()) == local:
+                return "named", exported.strip(), module
+        rest = clause[: braces.start()] + clause[braces.end() :] if braces else clause
+        for part in rest.split(","):
+            part = part.strip()
+            if part == local:
+                return "default", None, module
+            if re.fullmatch(rf"\*\s+as\s+{re.escape(local)}", part):
+                return "namespace", None, module
+    return None, None, None
+
+
+def drop_page(text: str, component: str) -> str:
+    """The descriptor without its Page field, and without the component's import once nothing else uses it."""
+    lines = [line for line in text.split("\n") if not PAGE_FIELD.match(line)]
+    _name, first, end = descriptor("\n".join(lines))
+    body = lines[first + 1 : end]
+    if body and body[-1].endswith(","):
+        lines[end - 1] = body[-1][:-1]
+    text = "\n".join(lines)
+    uses = re.compile(rf"\b{re.escape(component)}\b")
+    found = statements(text)
+    outside, at = [], 0  # the text without its import statements (each whole, on however many lines)
+    for match in found:
+        outside.append(text[at : match.start()])
+        at = match.end()
+    if uses.search("".join(outside) + text[at:]):
+        return text
+    for match in found:
+        braces = re.fullmatch(r"\{([^}]*)\}", (match.group("clause") or "").strip())
+        if not braces:
+            continue
+        names = [" ".join(part.split()) for part in braces.group(1).split(",") if part.strip()]
+        local = [part.partition(" as ")[2].strip() or part for part in names]  # { SetupPage as SetupPanel }
+        if component in local:
+            kept = [part for part, name in zip(names, local, strict=True) if name != component]
+            quote, end = match.group("q"), match.end()
+            semi = ";" if match.group(0).rstrip().endswith(";") else ""
+            line = f"import {{ {', '.join(kept)} }} from {quote}{match.group('module')}{quote}{semi}" if kept else ""
+            if not kept and text[end : end + 1] == "\n":
+                end += 1  # the whole statement goes, with its line
+            return text[: match.start()] + line + text[end:]
+    return text
 
 
 def page_file(plan: Plan, door: str) -> str:
@@ -175,8 +325,8 @@ def page_file(plan: Plan, door: str) -> str:
     found = re.search(r"^\s*Page:\s*(\w+)", text, re.M)
     if not found:
         return door
-    source = re.search(rf"^import \{{[^}}]*\b{found.group(1)}\b[^}}]*\}} from '\./([\w./-]+)'", text, re.M)
-    return f"{door.rsplit('/', 1)[0]}/{source.group(1)}" if source else door
+    _kind, _exported, module = binding(text, found.group(1))
+    return f"{door.rsplit('/', 1)[0]}/{module.removeprefix('./')}" if module and module.startswith("./") else door
 
 
 def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
