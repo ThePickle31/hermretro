@@ -15,7 +15,7 @@
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
 replaced; {{ and }} are literal braces), prints every file it created or changed, rebuilds the generated files
 when the change needs it (policy.toml [generated] regenerate), runs the checks those files feed (not the install
-scan: `check` runs it before ship) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
+scan: `check` runs it before ship; the page kinds run only lint, bundle and page, `check` runs unit) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
 --no-check skips the checks, --no-build the rebuild (for several `new` in a row: the last one rebuilds). It
 refuses a name that exists or breaks the naming rules, and works only on a work branch (never dev or main).
 """
@@ -127,6 +127,7 @@ class Plan:
     notes: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
     skip_checks: list[str] = field(default_factory=list)  # affected checks not to run now (a note says why)
+    only_checks: tuple[str, ...] = ()  # when set, the affected checks new may run (the page kinds: PAGE_CHECKS)
 
     def exists(self, rel: str) -> bool:
         return rel in self.created or (self.top / rel).exists()
@@ -262,6 +263,9 @@ def shown(command: list[str]) -> str:
     return cmd(*["python" if word == sys.executable else word for word in command])
 
 
+# The page kinds touch no Python the unit tests import (page/, tests/page/registry.test.mjs, the generated bundle):
+# their own checks are these, and `check` runs unit before ship. The backend kinds keep unit.
+PAGE_CHECKS = ("lint", "bundle", "page")
 SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py skips its gate while it is set
 
 
@@ -321,6 +325,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
                 f"fix what it names, then run {shown(command)} again (the new files stay; git status lists them)",
             )
     names = [name for name in affected(ctx, plan.paths()) if name not in plan.skip_checks] if run_checks else []
+    names = [name for name in names if name in plan.only_checks] if plan.only_checks else names
     if names:
         out.say("checks: " + " ".join(names))
         validate(ctx, names)
@@ -378,4 +383,6 @@ def run(ctx, args) -> int:
         what = scaffold_page.tab(plan, args.target, args.name, args.label, getattr(args, "from_page", False))
     else:
         what = scaffold_page.slot(plan, args.target, args.name, args.doc)
+    if kind in ("page", "tab", "slot"):
+        plan.only_checks = PAGE_CHECKS
     return apply(ctx, plan, what, args.dry_run, not args.no_check, not getattr(args, "no_build", False))

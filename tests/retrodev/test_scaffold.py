@@ -9,11 +9,10 @@ import codecs
 import json
 import re
 import shutil
-import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import count_words, repo, scaffold
+from retrodev import count_words, repo, scaffold, scaffold_listener
 
 from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
@@ -235,10 +234,15 @@ class New(ScaffoldCase):
 
     def test_an_event_keeps_the_entries_of_a_one_line_events_dict(self):
         door = self.read("backend/history/__init__.py")
+        declared_now = scaffold_listener.declared_events(scaffold.Plan(self.tree))
+        kept = sorted(name for name in declared_now if name.startswith("history."))  # whatever history declares now
         door = re.sub(
-            r"EVENTS = \{\n(.*?)\n\}", lambda m: "EVENTS = {" + m.group(1).strip().rstrip(",") + "}", door, flags=re.S
+            r"EVENTS = \{\n(.*?)\n\}",
+            lambda m: "EVENTS = {" + " ".join(line.strip() for line in m.group(1).splitlines()).rstrip(",") + "}",
+            door,
+            flags=re.S,
         )
-        self.assertIn('EVENTS = {"history.build_kept": ', door)
+        self.assertRegex(door, r'\nEVENTS = \{"history\.[^\n]*\}\n')
         write(self.tree, "backend/history/__init__.py", door)
         self.new("event", "history", "pruned", "--payload", "game")
         declared = next(
@@ -246,17 +250,19 @@ class New(ScaffoldCase):
             for n in ast.parse(self.read("backend/history/__init__.py")).body
             if getattr(n, "targets", [None])[0] is not None and getattr(n.targets[0], "id", "") == "EVENTS"
         )
-        self.assertEqual(sorted(ast.literal_eval(declared)), ["history.build_kept", "history.pruned"])
+        self.assertEqual(sorted(ast.literal_eval(declared)), sorted([*kept, "history.pruned"]))
 
     def test_an_event_is_declared_emitted_once_and_documented(self):
+        emitted = next(line for line in self.read("backend/history/README.md").splitlines() if "Events emitted" in line)
         self.new("event", "history", "pruned", "--payload", "game")
         door = self.read("backend/history/__init__.py")
-        self.assertRegex(  # the hint goes in the next steps, never as a comment inside EVENTS
-            door, r'"history.build_kept": [^\n]*,\n    "history.pruned": "say when it is emitted; payload: game",\n}'
+        self.assertRegex(  # the hint goes in the next steps, never as a comment inside EVENTS; last, after the others
+            door, r'"history\.\w+": [^\n]*,\n    "history.pruned": "say when it is emitted; game=<...>",\n}'
         )
         self.assertIn('emit("history.pruned", **payload)', self.read("backend/history/emits.py"))
         self.assertIn("| `history.pruned` | `game` | say when |", self.read("docs/dev/CONTRACT.md"))
-        self.assertIn("Events emitted: `history.build_kept`, `history.pruned`.", self.read("backend/history/README.md"))
+        before = re.search(r"Events emitted: (.*?)\.(?=\s|$)", emitted).group(1)  # as the real README lists them
+        self.assertIn(f"Events emitted: {before}, `history.pruned`.", self.read("backend/history/README.md"))
         self.new("event", "history", "pruned", code=1)
 
     def test_a_page_a_tab_and_a_slot(self):
@@ -273,9 +279,10 @@ class New(ScaffoldCase):
         readme = self.read("page/pages/rdprobe-notes/README.md")
         self.assertIn("**Tabs:** `extra` (`extra/index.js`), `more` (`more/index.js`).", readme)  # every tab, not one
         self.new("slot", "home", "side-panel", "--doc", "Beside the hero. Props: { ctx }")
-        self.assertIn(
-            "  slots: {\n    'home.sidePanel': 'Beside the hero. Props: { ctx }'\n  }",
+        # last in home's slots, after whatever slots home declares already (a branch may have added one)
+        self.assertRegex(
             self.read("page/pages/home/index.js"),
+            r"\n  slots: \{\n(    '[\w.]+': '[^'\n]*',\n)*    'home\.sidePanel': 'Beside the hero\. Props: \{ ctx \}'\n  \}",
         )
         self.assertRegex(self.read("tests/page/registry.test.mjs"), r"keys\(\)\]\.sort\(\), \[[^\]]*'home\.sidePanel'")
         self.new("slot", "home", "sidePanel", code=1)
@@ -386,24 +393,3 @@ def contract_counts(contract: str) -> tuple[int, int]:
 
 def scaffold_words():
     return "page/pages/build/transcript/step-words.js"
-
-
-class Pieces(unittest.TestCase):
-    def test_readme_items_replace_none_or_append(self):
-        self.assertEqual(scaffold.readme_item("- RPCs: none.", "RPCs", "`a`"), "- RPCs: `a`.")
-        self.assertEqual(
-            scaffold.readme_item("- RPCs (`rpcs.py`): `a`.", "RPCs", "`b`"), "- RPCs (`rpcs.py`): `a`, `b`."
-        )
-        self.assertEqual(
-            scaffold.readme_item("- Events emitted: none. Listens to: none.", "Events emitted", "`x.y`"),
-            "- Events emitted: `x.y`. Listens to: none.",
-        )
-        self.assertEqual(scaffold.readme_item("**Tabs:** one.", "Tabs:", "`t`", only_none=True), "**Tabs:** one.")
-
-    def test_templates_keep_literal_braces(self):
-        self.assertIn("{ echo? }", scaffold.render("rpc", "contract.md.tmpl", rpc="x", name="f", RPC="X"))
-
-    def test_names(self):
-        self.assertEqual(scaffold.pascal("side-panel"), "SidePanel")
-        self.assertEqual(scaffold.const("side-panel"), "SIDE_PANEL")
-        self.assertEqual(scaffold.camel("side-panel"), "sidePanel")

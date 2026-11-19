@@ -287,13 +287,19 @@ def scaffold_fix(test: list[str]) -> str:
     )
 
 
+UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
+
+
 def check_scaffold(_args) -> str:
     # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
     if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
         raise Skip(f"{missing} (npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py)")
     need("node")
     test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": "1"})
+    # RD_SCAFFOLD_FULL=nested (CI's page job) adds every kind on the real features and the full suites there
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": os.environ.get("RD_SCAFFOLD_FULL") or "1"})
+    if not result.returncode and "skipped 'the tree fails unit (fix unit first)" in result.stderr:
+        raise Skip(UNIT_FIRST)
     if result.returncode or " skipped " in result.stderr:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"

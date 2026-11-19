@@ -24,6 +24,7 @@ from .scaffold import (
     render,
 )
 from .scaffold import camel as to_camel
+from .scaffold_imports import PAGE_FIELD, binding, drop_page, move_out, statements
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"
@@ -150,6 +151,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     values["CONST"] = f"{const(page_id)}_{const(tab_id)}"
     statements(plan.read(door), door)  # an import it cannot read whole is refused before anything is written
     tabless, component = own_page(plan.read(door))
+    page_shown = page_file(plan, door)  # before --from-page moves it
     if from_page:
         values |= moved_page(plan, door, page_id, tabless, component)
     template = "from_page.js.tmpl" if from_page else "index.js.tmpl"
@@ -157,7 +159,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
 
     def wire(text: str) -> str:
         if from_page:
-            text = drop_page(text, component)
+            text = drop_page(text, component, descriptor)
         line = f"import {{ {name} }} from './{tab_id}/index.js'"
         found = statements(text, door)
         if not found:
@@ -170,30 +172,64 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     plan.edit(door, wire)
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
     plan.regenerate = True
+    still_page, tabs = own_page(plan.read(door))[1], tab_count(plan.read(door))
     if from_page:
-        plan.next_steps += [
-            f"the page's own Page ({values['source']}) is now the {tab_id} tab, and the descriptor has no Page: "
-            f"add the second tab (python tools/retrodev new tab {page_id} <tab>); a single tab still shows a tab bar",
-        ]
-        return f"tab {page_id}/{tab_id} (from the page's Page)"
-    if tabless and component:
-        plan.skip_checks.append("page")
-        plan.notes.append(
-            f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), which "
-            "still renders above the tab bar and the tab, so its page tests may no longer hold; turn the Page into "
-            f"this tab instead with --from-page, or run python tools/retrodev check once the page is as it should be"
+        moved = f", moved from index.js into {values['moved']}" if values.get("moved") else ""
+        plan.next_steps.append(
+            f"the page's own Page ({values['source']}{moved}) is now the {tab_id} tab, and the descriptor has no Page"
         )
-    plan.next_steps += [
-        f"build the tab in page/pages/{page_id}/{tab_id}/index.js (Page gets the page's {{ shell }})",
-        f"with tabs, the page's own Page component ({page_file(plan, door)}) still renders, between the tab bar and "
-        "the chosen tab, with a { tab } prop (app/page-view.js): keep only what every tab shares there, or drop "
-        f"Page from the descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)",
-        "a single tab still shows a tab bar (one button): add a second tab, or keep a page without tabs",
-    ]
-    return f"tab {page_id}/{tab_id}"
+    else:
+        if tabless and component:
+            plan.skip_checks.append("page")
+            plan.notes.append(
+                f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), "
+                "which still renders above the tab bar and the tab, so its page tests may no longer hold; turn the "
+                "Page into this tab instead with --from-page, or run python tools/retrodev check once the page is as "
+                "it should be"
+            )
+        plan.next_steps.append(
+            f"build the tab in page/pages/{page_id}/{tab_id}/index.js (Page gets the page's {{ shell }})"
+        )
+    if still_page:
+        plan.next_steps.append(
+            f"the page's own Page still renders between the tab bar and the tab: {still_page} ({page_shown}) gets a "
+            "{ tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
+            f"descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)"
+        )
+    if tabs == 1:
+        plan.next_steps.append(
+            f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
+            "or keep a page without tabs"
+        )
+    for test in rendering_tests(plan, page_id):
+        plan.next_steps.append(
+            f"{test} renders pageOf('{page_id}').Page"
+            + (
+                ", which is gone now: render the tab's Page there, or the shell (new leaves tests/page to you)"
+                if not still_page
+                else ": it renders that Page alone, without the tab bar or the tab; check it still tests what it means to"
+            )
+        )
+    return f"tab {page_id}/{tab_id}" + (" (from the page's Page)" if from_page else "")
 
 
-PAGE_FIELD = re.compile(r"^  Page: (\w+),?$")
+def tab_count(text: str) -> int:
+    """How many entries the descriptor's tabs list holds (0 without one)."""
+    _name, first, end = descriptor(text)
+    body = "\n".join(text.split("\n")[first + 1 : end])
+    found = re.search(r"^  tabs: \[(.*?)\]", body, re.M | re.S)
+    return len([part for part in found.group(1).split(",") if part.strip()]) if found else 0
+
+
+def rendering_tests(plan: Plan, page_id: str) -> list[str]:
+    """The page tests that render the page's own Page directly (pageOf('<page>').Page)."""
+    pattern = re.compile(rf"pageOf\(\s*['\"]{re.escape(page_id)}['\"]\s*\)\.Page\b")
+    found = []
+    for path in sorted(plan.top.glob("tests/page/*.mjs")):
+        rel = str(path.relative_to(plan.top))
+        if pattern.search(plan.read(rel)):
+            found.append(rel)
+    return found
 
 
 def own_page(text: str) -> tuple[bool, str | None]:
@@ -205,7 +241,8 @@ def own_page(text: str) -> tuple[bool, str | None]:
 
 
 def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: str | None) -> dict:
-    """--from-page: the tab template's values (the Page's file as #pages/<page>/<file>.js), once it may move."""
+    """--from-page: the tab template's values (the Page's file as #pages/<page>/<file>.js), once it may move. A Page
+    index.js defines itself moves into <page>-page.js first (scaffold_imports.move_out)."""
     if not tabless or not component:
         raise Failure(
             f"--from-page turns the page's own Page into its first tab, and {door} "
@@ -217,12 +254,7 @@ def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: st
     if kind is None:
         defined = re.search(rf"^(?:export\s+)?(?:const|let|function|class)\s+{component}\b", plan.read(door), re.M)
         if defined:
-            raise Failure(
-                f"{door} defines {component} itself, and a tab may import it only from its own file (importing the "
-                "page's index.js from its tab would be a cycle); nothing was written",
-                f"move {component} into page/pages/{page_id}/{page_id}-page.js (export it, import it in index.js), "
-                "then run new tab again",
-            )
+            return move_out(plan, door, page_id, component)
         raise Failure(
             f"{door} neither imports nor defines {component}, so the tab cannot import it; nothing was written",
             f"import {component} by name in {door} (import {{ {component} }} from './<file>.js'), then run new tab again",
@@ -239,83 +271,6 @@ def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: st
     source = f"{door.rsplit('/', 1)[0]}/{module.removeprefix('./')}"
     imported = component if exported == component else f"{exported} as {component}"
     return {"Component": component, "Imported": imported, "source": "#pages/" + source.removeprefix("page/pages/")}
-
-
-IMPORT_START = re.compile(r"^import(?=[\s{*'\"])", re.M)  # not import(...) or import.meta
-STATEMENT = re.compile(
-    r"""import\s*(?:(?P<clause>[\w$*\s{},]+?)\s*from\s*)?(?P<q>['"])(?P<module>[^'"\n]*)(?P=q)[ \t]*;?"""
-)
-
-
-def statements(text: str, where: str = "the page's index.js") -> list[re.Match]:
-    """Every whole import statement at the start of a line, one or many lines long (``import {`` ... ``} from
-    './x.js'``), in order; one that does not parse is refused (a tab must never be wired into the middle of one)."""
-    found = []
-    for start in IMPORT_START.finditer(text):
-        whole = STATEMENT.match(text, start.start())
-        clause = (whole.group("clause") or "") if whole else ""
-        if not whole or clause.count("{") != clause.count("}") or clause.count("{") > 1:
-            line = text[start.start() :].split("\n", 1)[0]
-            raise Failure(
-                f"{where}: cannot read the import statement starting '{line}' (new reads only plain static imports, "
-                "on one or more lines); nothing was written",
-                "write it as import { Name } from './file.js' (one or more lines), then run new again",
-            )
-        found.append(whole)
-    return found
-
-
-def binding(text: str, local: str) -> tuple[str | None, str | None, str | None]:
-    """(kind, exported name, module) of the import that binds ``local``: kind is "named" (exported name its own, as
-    in ``{ SetupPage as SetupPanel }``), "default" or "namespace"; (None, None, None) when no import binds it."""
-    for found in statements(text):
-        clause, module = found.group("clause") or "", found.group("module")
-        braces = re.search(r"\{([^}]*)\}", clause)
-        for part in braces.group(1).split(",") if braces else []:
-            exported, _, alias = part.strip().partition(" as ")
-            if (alias.strip() or exported.strip()) == local:
-                return "named", exported.strip(), module
-        rest = clause[: braces.start()] + clause[braces.end() :] if braces else clause
-        for part in rest.split(","):
-            part = part.strip()
-            if part == local:
-                return "default", None, module
-            if re.fullmatch(rf"\*\s+as\s+{re.escape(local)}", part):
-                return "namespace", None, module
-    return None, None, None
-
-
-def drop_page(text: str, component: str) -> str:
-    """The descriptor without its Page field, and without the component's import once nothing else uses it."""
-    lines = [line for line in text.split("\n") if not PAGE_FIELD.match(line)]
-    _name, first, end = descriptor("\n".join(lines))
-    body = lines[first + 1 : end]
-    if body and body[-1].endswith(","):
-        lines[end - 1] = body[-1][:-1]
-    text = "\n".join(lines)
-    uses = re.compile(rf"\b{re.escape(component)}\b")
-    found = statements(text)
-    outside, at = [], 0  # the text without its import statements (each whole, on however many lines)
-    for match in found:
-        outside.append(text[at : match.start()])
-        at = match.end()
-    if uses.search("".join(outside) + text[at:]):
-        return text
-    for match in found:
-        braces = re.fullmatch(r"\{([^}]*)\}", (match.group("clause") or "").strip())
-        if not braces:
-            continue
-        names = [" ".join(part.split()) for part in braces.group(1).split(",") if part.strip()]
-        local = [part.partition(" as ")[2].strip() or part for part in names]  # { SetupPage as SetupPanel }
-        if component in local:
-            kept = [part for part, name in zip(names, local, strict=True) if name != component]
-            quote, end = match.group("q"), match.end()
-            semi = ";" if match.group(0).rstrip().endswith(";") else ""
-            line = f"import {{ {', '.join(kept)} }} from {quote}{match.group('module')}{quote}{semi}" if kept else ""
-            if not kept and text[end : end + 1] == "\n":
-                end += 1  # the whole statement goes, with its line
-            return text[: match.start()] + line + text[end:]
-    return text
 
 
 def page_file(plan: Plan, door: str) -> str:
@@ -340,7 +295,7 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
-    _readme(plan, page_id, "Slots:", f"declares `{full}` ({doc.rstrip('.')})", "declares none")
+    _readme(plan, page_id, "Slots:", f"declares `{full}`: {doc[:1].lower() + doc[1:].rstrip('.')}", "declares none")
     plan.regenerate = True
     plan.next_steps += [
         f"render it where the contributions go: import {{ Slot }} from '#app/slots.js'; "

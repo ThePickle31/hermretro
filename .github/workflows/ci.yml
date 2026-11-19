@@ -73,7 +73,7 @@ jobs:
   page:
     name: Lint, page bundle and page tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -93,6 +93,9 @@ jobs:
           npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
           python tools/py/setup.py
       - name: python tools/check.py bundle lint page scaffold
+        # nested: every retrodev new kind also on the real features and pages, then the full unit and page suites
+        env:
+          RD_SCAFFOLD_FULL: nested
         run: python tools/check.py bundle lint page scaffold --strict
 
   scan:

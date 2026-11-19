@@ -226,7 +226,11 @@ def scaffolds(sub, common) -> None:
     )
     event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
     event.add_argument("--payload", help="one line: the keyword arguments it carries, e.g. 'game=<id>, root'")
-    event.add_argument("--when", help="one line: when it is emitted (the EVENTS entry and the CONTRACT row say it)")
+    event.add_argument(
+        "--when",
+        help="one line: when it is emitted, tool and RPC names in backticks, e.g. 'after `chromatic_build_report` "
+        "accepted a card' (the EVENTS entry and the CONTRACT row say it)",
+    )
     kind("listener", "an @on stub in backend/<feature>/listeners.py, its test, the README and docs", "feature", "event")
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"

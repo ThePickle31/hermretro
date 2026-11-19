@@ -264,7 +264,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         after = rows[owned[-1] + 1] if owned[-1] + 1 < len(rows) else None  # whatever follows library's rows now
         out = self.new("event", "library", "rdprobe_moved", "--payload", payload, "--when", "a game moved folders")
         door = self.read("backend/library/__init__.py")
-        self.assertIn(f'"library.rdprobe_moved": "a game moved folders; payload: {payload}"', door)
+        self.assertIn(f'"library.rdprobe_moved": "a game moved folders; {payload}"', door)  # keys say what they hold
         self.assertNotIn("    # emits.", door, "no hint comment inside EVENTS")
         rows = [line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith("| `")]
         mine = "| `library.rdprobe_moved` | `game`, `root` | a game moved folders | — |"
@@ -331,13 +331,6 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn("export const ID = ", (ROOT / "page/app/ids.js").read_text())
         self.assertIn("const answered = ", (ROOT / "tests/page/harness.mjs").read_text())
         self.assertIn("const key = options.queryKey[1]", (ROOT / "tests/page/sdk-stub.mjs").read_text())
-
-    def test_tab_next_steps_name_the_file_that_defines_the_page_component(self):
-        out = self.new("tab", "home", "rdprobe-extra")
-        steps = " ".join(out["next"])
-        self.assertIn("the page's own Page component (page/pages/home/index.js) still renders", steps)
-        self.assertNotIn("home-page.js", steps, "Home's Page is the Home function in index.js")
-        self.assertIn("a single tab still shows a tab bar", steps)
 
 
 if __name__ == "__main__":

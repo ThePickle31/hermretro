@@ -10,7 +10,10 @@ which goes in its own module too; once in library, a --project tool),
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
-the stubs are unfilled). Skipped when node, the npm tools or the pinned ruff are not set up
+the stubs are unfilled), and it is the guard against tests that pin the real tree's content: it first runs the copy's
+unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
+reports as such), then runs REAL_STEPS after STEPS, each kind once more on a real feature or page as a
+contributor's branch would, before the full suites. CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 Two more run `new page rdtabs` (its Page imported under another name; then imported on several lines), then `new tab rdtabs first --from-page` and `new
@@ -57,6 +60,20 @@ STEPS = [
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
+# The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
+# contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
+# listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
+# library tool are in STEPS already.
+REAL_STEPS = [
+    ["rpc", "library", "rdreal_ping"],
+    ["event", "history", "rdreal_pruned", "--payload", "game", "--when", "the probe pruned a snapshot"],
+    ["listener", "history", "library.game_presented"],
+    ["tab", "setup", "rdreal-first", "--from-page"],  # setup's Page is in its own file (setup-page.js)
+    ["tab", "setup", "rdreal-second"],
+    ["tab", "prompts", "rdreal-own", "--from-page"],  # Prompts is defined in its index.js: new moves it out
+    ["slot", "home", "rdrealSlot", "--doc", "After the hero. Props: { ctx }"],
+]
+UNIT_FIRST = "the tree fails unit (fix unit first)"  # tools/check.py scaffold reports this skip as such
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs", "tests/page/slots.test.mjs"]
 STRUCTURE = [
     "tests.repo.test_layout",
@@ -172,11 +189,17 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
 
     def test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests(self):
         _, tree, env = self.make_tree()
-        for step in STEPS:  # several in a row: the generated files are rebuilt once, after the last
-            last = step is STEPS[-1]
+        mode = os.environ.get("RD_SCAFFOLD_FULL", "")
+        steps = STEPS + (REAL_STEPS if mode == "nested" else [])
+        if mode == "nested":  # the full suites judge the copy: a tree that fails them already says nothing of new
+            base = run([sys.executable, "tools/check.py", "unit"], tree, env)
+            if base.returncode:
+                self.skipTest(f"{UNIT_FIRST}:\n{base.stdout[-2000:]}")
+        for step in steps:  # several in a row: the generated files are rebuilt once, after the last
+            last = step is steps[-1]
             done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
             self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
-        commands = judges(os.environ.get("RD_SCAFFOLD_FULL", ""), env)
+        commands = judges(mode, env)
         running = [
             subprocess.Popen(c, cwd=tree, env=e, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             for c, e in commands

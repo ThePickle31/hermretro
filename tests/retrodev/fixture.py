@@ -48,10 +48,11 @@ with open(base / "checks.log", "a") as handle:
                              "deps": os.environ.get("HERMRETRO_DEPS_ROOT")}) + "\\n")
 failing = (base / "fail-checks").read_text().split() if (base / "fail-checks").is_file() else []
 skipping = (base / "skip-checks").read_text().split() if (base / "skip-checks").is_file() else []
+detail = (base / "skip-detail").read_text() if (base / "skip-detail").is_file() else "the toolchain is not installed"
 code = 0
 for name in names:
     if name in skipping:  # as check.py does without a tool: a skipped row, and no failure
-        print(f"{'skipped':>7}  {name:<10} {0.0:5.1f} s  the toolchain is not installed")
+        print(f"{'skipped':>7}  {name:<10} {0.0:5.1f} s  {detail}")
     elif name in failing:
         print(f"{'FAILED':>7}  {name:<10} {0.2:5.1f} s  it broke")
         print("         FIX: fix " + name)
