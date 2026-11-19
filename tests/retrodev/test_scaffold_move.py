@@ -107,6 +107,32 @@ class Move(ScaffoldCase):
         self.assertIn("// stays in index.js (a blank line parts it from the Page)\n", index)
         self.assertNotIn("Its own Page", index)
 
+    @needs_acorn
+    def test_a_destination_binding_of_the_page_name_is_refused(self):  # review 3, 0
+        own = "import { Small as RdprobeOwn } from '#shared/ui/text.js'\n\nexport const OTHER = RdprobeOwn\n"
+        self.probe(own=own)
+        self.refused("binds RdprobeOwn", "rename")
+        for own in (
+            "const B = 1\nexport { B as RdprobeOwn }\n",
+            "export { Small as RdprobeOwn } from '#shared/ui/text.js'\n",
+        ):
+            write(self.tree, FILE, own)  # exported under the Page's name
+            git(self.tree, "commit", "-qam", "Exported as the Page's name")
+            self.refused("binds RdprobeOwn")
+
+    @needs_acorn
+    def test_the_move_edits_only_the_page_range_and_its_boundary(self):  # review 3, 1
+        note = "export const NOTE = `one\n\n\n\ntwo`\n"
+        self.probe(imports=note)
+        before = self.read(f"{OWN}/index.js")
+        later = "\nexport const LATER = `three\n\n\n\nfour`\n"
+        write(self.tree, f"{OWN}/index.js", before + later)
+        git(self.tree, "commit", "-qam", "Another template literal")
+        _page, index = self.moved()
+        self.assertIn(note, index, "a template literal before the Page is byte for byte the same")
+        self.assertTrue(index.endswith("\n  ]\n}\n" + later), "and the text after it too")
+        self.assertIn(note + "\nexport const RDPROBE_OWN_PAGE", index, "one blank line where the Page was")
+
     def test_without_acorn_an_inline_page_is_refused_with_the_npm_fix(self):
         self.probe(BLOCK)
         (self.tree / "tools/npm/node_modules").mkdir(parents=True)  # the tree's npm tools, without acorn

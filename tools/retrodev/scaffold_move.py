@@ -170,9 +170,17 @@ def move_out(plan: Plan, door: str, page_id: str, component: str) -> dict:
             "then run new tab again",
         )
     existing = plan.read(target) if plan.exists(target) else None
-    dest = parse(top, existing, target) if existing is not None else {"declarations": {}, "exports": {}}
+    dest = parse(top, existing, target) if existing is not None else {"imports": [], "declarations": {}, "exports": {}}
     if component in dest["declarations"]:
         raise Failure(f"{target} defines {component} already; nothing was written", f"move {component} by hand")
+    imported = {s["local"] for found in dest["imports"] for s in found["specifiers"]}
+    if component in imported or component in dest["exports"]:  # the appended Page would bind it twice
+        how = "imports a binding" if component in imported else "exports a name"
+        raise Failure(
+            f"{target} binds {component} already (it {how} {component}), and the moved Page is {component}; "
+            "nothing was written",
+            f"rename that {component} in {target} (or the Page in {door}), then run new tab again",
+        )
     needed, bound = [], []  # (kind, local, exported, module) of each import the moved Page uses from elsewhere
     for found in info["imports"]:
         for s in found["specifiers"]:
@@ -190,11 +198,19 @@ def move_out(plan: Plan, door: str, page_id: str, component: str) -> dict:
     head = f"// The {page_id} page's own Page, moved here from index.js by retrodev new tab --from-page.\n"
     merged = add_imports(top, existing if existing is not None else head, needed, target)
     merged = merged.rstrip("\n") + "\n\n" + block + "\n"
-    rest = re.sub(r"\n{3,}", "\n\n", text[:first] + text[last + 1 :])
-    after = add_imports(top, rest, [("named", component, component, f"./{file}")], door)
+    after = add_imports(top, without(text, first, last + 1), [("named", component, component, f"./{file}")], door)
     after = drop_unused(top, after, bound, door)
     if page["exported"]:  # its front door export stays: other modules may import it through #pages/<page>/index.js
         after = add_reexport(after, component, f"./{file}", door)
+    for where, done in ((target, merged), (door, after)):  # a backstop: nothing is written that does not parse
+        try:
+            parse(top, done, where)
+        except Failure as failure:
+            raise Failure(
+                f"moving {component} would leave {where} unparsable ({failure.message.split('; nothing')[0]}); "
+                "nothing was written",
+                f"move {component} into {target} by hand (export it, import it in {door}), then run new tab again",
+            ) from failure
     if existing is None:
         plan.create(target, merged)
     else:
@@ -203,6 +219,16 @@ def move_out(plan: Plan, door: str, page_id: str, component: str) -> dict:
     kept = f"; index.js still exports it (export {{ {component} }} from './{file}')" if page["exported"] else ""
     plan.notes.append(f"moved {component} from {door} into {target} (exported; the tab imports it from there{kept})")
     return {"Component": component, "Imported": component, "source": f"#pages/{page_id}/{file}", "moved": target}
+
+
+def without(text: str, start: int, end: int) -> str:
+    """``text`` without ``text[start:end]`` (whole lines of the Page and its comments). Only the whitespace at the
+    splice, between tokens, is tidied (three or more newlines there become one blank line); the rest stays byte for
+    byte, template literals included."""
+    head, tail = text[:start], text[end:]
+    edge = len(head) - len(head.rstrip(" \t\n"))
+    run = head[len(head) - edge :] + tail[: len(tail) - len(tail.lstrip(" \t\n"))]
+    return head[: len(head) - edge] + re.sub(r"\n{3,}", "\n\n", run) + tail[len(tail) - len(tail.lstrip(" \t\n")) :]
 
 
 def own_binding(s: dict, dest: dict, door: str, target: str, component: str) -> None:
