@@ -27,7 +27,16 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import add_event, add_tool, js_str, module_names, py_str, take_in_module
+from .scaffold_source import (
+    add_event,
+    add_tool,
+    check_sibling_name,
+    is_aggregator,
+    js_str,
+    module_names,
+    py_str,
+    take_in_module,
+)
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -208,15 +217,22 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None, modul
     values = {"name": feature_name, "Name": label(feature_name), "tool": full, "short": short, "Short": pascal(short)}
     values |= {"TOOL": const(short), "words": words}
     source = f"backend/{feature_name}/tools.py"
-    size = len(plan.read(source).splitlines()) if plan.exists(source) else 0
-    if module is None and size > BIG_MODULE:
+    index = plan.read(source) if plan.exists(source) else ""
+    size = len(index.splitlines())
+    if module is None and (size > BIG_MODULE or is_aggregator(index)):
         module = f"{short}_tools"
+        why = (
+            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600)"
+            if size > BIG_MODULE
+            else f"{source} only takes in sibling modules' TOOLS (no Tool of its own)"
+        )
         plan.notes.append(
-            f"{source} has {size} lines, over {BIG_MODULE} (the layout test warns, and fails at 600): the tool goes in "
-            f"its own module backend/{feature_name}/{module}.py, with its own TOOLS, which tools.py's TOOLS takes in "
-            f"(*{module}.TOOLS); --module <name> picks another name"
+            f"{why}: the tool goes in its own module backend/{feature_name}/{module}.py, with its own TOOLS, which "
+            f"tools.py's TOOLS takes in (*{module}.TOOLS); --module <name> picks another name"
         )
     home = source if module is None else f"backend/{feature_name}/{tool_module(module)}.py"
+    if module is not None and index:  # before anything is planned: the name must be free in tools.py
+        check_sibling_name(index, source, module)
     plan.ensure(home, render("tool", "tools.py.tmpl", **values))
     for where in dict.fromkeys(rel for rel in (source, home) if plan.exists(rel)):  # one name per tool, feature-wide
         taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(where)))

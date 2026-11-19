@@ -164,6 +164,33 @@ class NewKindsRoundTwo(ScaffoldCase):
         out = self.new("tool", "history", "rdprobe_bad", "--module", "rpcs", code=1)
         self.assertIn("--module rpcs", out["error"]["message"])
 
+    def test_module_refuses_a_name_tools_py_already_binds_and_nothing_changes(self):
+        for name in ("__init__.py", "tools.py", "README.md"):
+            shutil.copyfile(ROOT / "backend/library" / name, self.tree / "backend/library" / name)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Library tools")
+        for module in ("json", "logger", "library"):  # a stdlib import, an assignment, `games as library`
+            out = self.new("tool", "library", "rdprobe_ping", "--module", module, code=1)
+            self.assertIn(f"backend/library/tools.py binds {module} already", out["error"]["message"])
+            self.assertIn("--module", out["error"]["fix"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", f"--module {module} wrote something")
+        self.new("tool", "library", "rdprobe_ping", "--module", "rdprobe_extra")  # a free name still works
+        self.assertIn("from . import rdprobe_extra", self.read("backend/library/tools.py"))
+
+    def test_a_plain_tool_after_an_aggregator_tools_py_goes_to_its_own_module(self):
+        self.new("tool", "history", "rdprobe_first", "--module", "rdprobe_extra")
+        out = self.new("tool", "history", "rdprobe_second", as_json=False)
+        self.assertIn("the tool goes in its own module backend/history/rdprobe_second_tools.py", out)
+        index = self.read("backend/history/tools.py")
+        tools = next(n for n in ast.parse(index).body if isinstance(n, ast.Assign) and n.targets[0].id == "TOOLS")
+        self.assertEqual(
+            [ast.unparse(elt) for elt in tools.value.elts], ["*rdprobe_extra.TOOLS", "*rdprobe_second_tools.TOOLS"]
+        )
+        self.assertNotIn("def rdprobe_second_handler", index)
+        self.assertIn(
+            "Tool(RDPROBE_SECOND_TOOL, rdprobe_second_handler", self.read("backend/history/rdprobe_second_tools.py")
+        )
+
     def test_an_event_says_when_lists_its_keys_and_sits_after_its_owner_s_rows(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         payload = "game=<id> (None without a project, or a list), root=<project>"

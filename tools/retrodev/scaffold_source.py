@@ -3,6 +3,8 @@ only when its shape is known, and every other shape is refused before anything i
 
     add_tool(text, rel, block, entry)   the schema and handler before TOOLS, the Tool(...) entry inside it
     take_in_module(text, rel, module)   tools.py's TOOLS takes in a sibling module's (*module.TOOLS)
+    check_sibling_name(text, rel, m)    refuses a --module name tools.py binds to anything but `from . import m`
+    is_aggregator(text)                 tools.py only takes in sibling modules (no Tool of its own)
     add_event(text, entry)              a "feature.event": "doc" entry at the end of EVENTS
     module_names(text)                  every top-level name a module binds
     py_str(text), js_str(text)          string literals for Python and for the page's JavaScript
@@ -125,11 +127,48 @@ def add_tool(text: str, rel: str, block: str, entry: str) -> str:
     return head + "\n" + block + "\n\n" + append_entry("\n".join(lines[node.lineno - 1 :]), rel, entry)
 
 
+def imports_sibling(text: str, module: str) -> bool:
+    """Whether the module has a top-level ``from . import <module>`` (no alias): the one binding of that name
+    take_in_module can build on."""
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and node.level == 1
+        and node.module is None
+        and any(alias.name == module and alias.asname in (None, module) for alias in node.names)
+        for node in ast.parse(text).body
+    )
+
+
+def check_sibling_name(text: str, rel: str, module: str) -> None:
+    """Refuse ``module`` when ``rel`` binds that name to anything but ``from . import <module>`` (an import of
+    another module, an assignment, a function or a class): ``*<module>.TOOLS`` would read the wrong object."""
+    if module in module_names(text) and not imports_sibling(text, module):
+        raise Failure(
+            f"{rel} binds {module} already (not as `from . import {module}`), so *{module}.TOOLS would read that "
+            "instead of the new module; nothing was written",
+            f"pick another module name, e.g. --module {module}_tools",
+        )
+
+
+def is_aggregator(text: str) -> bool:
+    """A tools.py that only takes in sibling modules (``TOOLS = (*a.TOOLS, ...)``, no Tool of its own): a new
+    inline tool there has no json, logger or Tool to use."""
+    names = module_names(text)
+    if "Tool" in names:
+        return False
+    tools = [node for node in ast.parse(text).body if isinstance(node, ast.Assign) and "TOOLS" in bound(node)]
+    value = tools[0].value if len(tools) == 1 else None
+    if not isinstance(value, (ast.Tuple, ast.List)) or not value.elts:
+        return False
+    return all(isinstance(elt, ast.Starred) for elt in value.elts)
+
+
 def take_in_module(text: str, rel: str, module: str) -> str:
     """tools.py's TOOLS takes in a sibling module's: ``from . import <module>`` after its last top-level import
     and ``*<module>.TOOLS,`` last in TOOLS (unchanged when it does both already)."""
     entry = f"    *{module}.TOOLS,"
-    if module not in module_names(text):
+    check_sibling_name(text, rel, module)
+    if not imports_sibling(text, module):
         tree = ast.parse(text)
         imports = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
         lines = text.split("\n")
