@@ -169,11 +169,6 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
     plan.regenerate = True
     if from_page:
-        plan.skip_checks.append("page")
-        plan.notes.append(
-            f"the page check is skipped now: tests/page/registry.test.mjs still expects every page to have a Page "
-            f"(app/registry.js takes tabs instead), and {page_id} has none now; make that test accept a page with tabs"
-        )
         plan.next_steps += [
             f"the page's own Page ({values['source']}) is now the {tab_id} tab, and the descriptor has no Page: "
             f"add the second tab (python tools/retrodev new tab {page_id} <tab>); a single tab still shows a tab bar",
@@ -216,15 +211,55 @@ def moved_page(plan: Plan, door: str, page_id: str, tabless: bool, component: st
             + "; nothing was written",
             f"leave out --from-page: python tools/retrodev new tab {page_id} <id>",
         )
-    source = page_file(plan, door)
-    if source == door:
+    kind, exported, module = binding(plan.read(door), component)
+    if kind is None:
+        defined = re.search(rf"^(?:export\s+)?(?:const|let|function|class)\s+{component}\b", plan.read(door), re.M)
+        if defined:
+            raise Failure(
+                f"{door} defines {component} itself, and a tab may import it only from its own file (importing the "
+                "page's index.js from its tab would be a cycle); nothing was written",
+                f"move {component} into page/pages/{page_id}/{page_id}-page.js (export it, import it in index.js), "
+                "then run new tab again",
+            )
         raise Failure(
-            f"{door} defines {component} itself, and a tab may import it only from its own file (importing the page's "
-            "index.js from its tab would be a cycle); nothing was written",
-            f"move {component} into page/pages/{page_id}/{page_id}-page.js (export it, import it in index.js), "
+            f"{door} neither imports nor defines {component}, so the tab cannot import it; nothing was written",
+            f"import {component} by name in {door} (import {{ {component} }} from './<file>.js'), then run new tab again",
+        )
+    module = module or ""
+    if kind != "named" or not module.startswith("./"):
+        what = {"default": "a default import", "namespace": "a namespace import"}.get(kind, f"an import from {module}")
+        raise Failure(
+            f"{door} gets {component} through {what}, and --from-page moves only a named import of one of the "
+            "page's own files; nothing was written",
+            f"export {component} by name from its file and import it as {{ {component} }} from './<file>.js', "
             "then run new tab again",
         )
-    return {"Component": component, "source": "#pages/" + source.removeprefix("page/pages/")}
+    source = f"{door.rsplit('/', 1)[0]}/{module.removeprefix('./')}"
+    imported = component if exported == component else f"{exported} as {component}"
+    return {"Component": component, "Imported": imported, "source": "#pages/" + source.removeprefix("page/pages/")}
+
+
+IMPORT = re.compile(r"^import (.+?) from '([^']*)'", re.M | re.S)
+
+
+def binding(text: str, local: str) -> tuple[str | None, str | None, str | None]:
+    """(kind, exported name, module) of the import that binds ``local``: kind is "named" (exported name its own, as
+    in ``{ SetupPage as SetupPanel }``), "default" or "namespace"; (None, None, None) when no import binds it."""
+    for found in IMPORT.finditer(text):
+        clause, module = found.group(1), found.group(2)
+        braces = re.search(r"\{([^}]*)\}", clause)
+        for part in braces.group(1).split(",") if braces else []:
+            exported, _, alias = part.strip().partition(" as ")
+            if (alias.strip() or exported.strip()) == local:
+                return "named", exported.strip(), module
+        rest = clause[: braces.start()] + clause[braces.end() :] if braces else clause
+        for part in rest.split(","):
+            part = part.strip()
+            if part == local:
+                return "default", None, module
+            if re.fullmatch(rf"\*\s+as\s+{re.escape(local)}", part):
+                return "namespace", None, module
+    return None, None, None
 
 
 def drop_page(text: str, component: str) -> str:
@@ -241,8 +276,9 @@ def drop_page(text: str, component: str) -> str:
         return text
     for match in re.finditer(r"^import \{([^}]*)\} from '[^']*'\n", text, re.M):
         names = [part.strip() for part in match.group(1).split(",") if part.strip()]
-        if component in names:
-            kept = [part for part in names if part != component]
+        local = [part.partition(" as ")[2].strip() or part for part in names]  # { SetupPage as SetupPanel }
+        if component in local:
+            kept = [part for part, name in zip(names, local, strict=True) if name != component]
             line = match.group(0).replace(match.group(1), " " + ", ".join(kept) + " ") if kept else ""
             return text[: match.start()] + line + text[match.end() :]
     return text
@@ -255,8 +291,8 @@ def page_file(plan: Plan, door: str) -> str:
     found = re.search(r"^\s*Page:\s*(\w+)", text, re.M)
     if not found:
         return door
-    source = re.search(rf"^import \{{[^}}]*\b{found.group(1)}\b[^}}]*\}} from '\./([\w./-]+)'", text, re.M)
-    return f"{door.rsplit('/', 1)[0]}/{source.group(1)}" if source else door
+    _kind, _exported, module = binding(text, found.group(1))
+    return f"{door.rsplit('/', 1)[0]}/{module.removeprefix('./')}" if module and module.startswith("./") else door
 
 
 def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:

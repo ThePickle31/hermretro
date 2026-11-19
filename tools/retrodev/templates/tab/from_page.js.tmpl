@@ -1,6 +1,7 @@
 // The {Label} tab of the {page} page: the page's own Page, moved into its first tab (its descriptor: {{ id, label,
-// Page }}, as a page has; app/registry.js). A tab imports its page's files as #pages/{page}/<file>.js (../ is refused).
-import { {Component} } from '{source}'
+// Page }}, as a page has; app/registry.js). A tab imports its page's files as #pages/{page}/<file>.js (an import
+// that climbs a folder is refused).
+import { {Imported} } from '{source}'
 
 export const {CONST}_TAB = {
   id: '{tab}',

@@ -55,8 +55,25 @@ test('the registry lists every page folder once, in nav order, each describing i
 
   for (const page of PAGES) {
     assert.equal(typeof page.label, 'string')
-    assert.equal(typeof page.Page, 'function', `${page.id} has a Page`)
+    assert.deepEqual(missingComponents(page), [], `${page.id} has a Page`)
   }
+})
+
+// A page whose tabs are the whole page drops its own Page (docs/dev/STUDIO-PAGES.md, "A tab"): then each tab
+// needs one instead.
+function missingComponents(page) {
+  if (page.tabs?.length) {
+    return page.tabs.filter(tab => typeof tab.Page !== 'function').map(tab => `${page.id}/${tab.id} has no Page`)
+  }
+
+  return typeof page.Page === 'function' ? [] : [`${page.id} has no Page`]
+}
+
+test('a page needs a Page, or tabs that each have one', () => {
+  assert.deepEqual(missingComponents(fakePage('plain')), [])
+  assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One', Page: Text('one') }] }), [])
+  assert.deepEqual(missingComponents({ id: 'tabbed', label: 'Tabbed', tabs: [{ id: 'one', label: 'One' }] }), ['tabbed/one has no Page'])
+  assert.deepEqual(missingComponents({ id: 'bare', label: 'Bare' }), ['bare has no Page'])
 })
 
 test('events are declared once, by the page their name starts with', () => {

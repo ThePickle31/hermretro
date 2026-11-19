@@ -92,6 +92,27 @@ class Ship(two.Flow):  # its helpers (two.Flow's own tests run in test_trial_rou
         _code, out = self.run_cli("status", cwd=tree)
         self.assertNotIn("--dry-run", line_with(out, "next:"))
 
+    def test_a_dry_run_after_the_pull_request_stays_a_dry_run_in_status(self):  # review round 1, finding 0
+        tree = self.feat()
+        body = write(self.base, "custom.md", GOOD_BODY)
+        self.gh.answers[("pr", "create")] = (0, "https://github.com/o/r/pull/7\n", "")
+        code, out = self.run_cli("ship", "--title", TITLE, "--body", str(body), cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.commit(tree, "docs/guide.md", "# goalie, again\n")
+        self.passed(tree, "feat/goalie")
+        self.gh.answers[("pr", "list")] = (0, '[{"number": 7, "url": "u", "baseRefName": "dev"}]', "")
+        self.gh.answers[("pr", "edit")] = (0, "", "")
+        code, out = self.run_cli("ship", "--dry-run", cwd=tree)
+        self.assertEqual(code, 0, out)
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertIn(" --dry-run", line_with(out, "next:"))
+        self.assertIn("the last ship was a dry run", line_with(out, "next:"))
+        self.run_cli("ship", cwd=tree)  # a real ship: status names a real one again
+        self.commit(tree, "docs/guide.md", "# goalie, once more\n")
+        self.passed(tree, "feat/goalie")
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertNotIn("--dry-run", line_with(out, "next:"))
+
     def test_status_with_nothing_in_progress_names_both_ways_to_start(self):
         _code, out = self.run_cli("status")
         self.assertIn("next: python tools/retrodev plan new <topic> (docs/chore: start <kind>/<topic> --no-plan)", out)
@@ -132,12 +153,12 @@ class New(ScaffoldCase):
     def test_tab_from_page_turns_the_page_s_page_into_its_first_tab(self):
         self.new("page", "rdprobe-notes")
         out = self.new("tab", "rdprobe-notes", "first", "--from-page", as_json=False)
-        self.assertIn("note: the page check is skipped now: tests/page/registry.test.mjs", out)
+        self.assertNotIn("the page check is skipped", out)  # review round 1, finding 1: the page check runs
         tab = self.read("page/pages/rdprobe-notes/first/index.js")
         self.assertIn("import { RdprobeNotesPage } from '#pages/rdprobe-notes/rdprobe-notes-page.js'", tab)
         self.assertIn("  Page: RdprobeNotesPage\n", tab)
         self.assertNotIn("from '../", tab)
-        self.assertIn("as #pages/rdprobe-notes/<file>.js (../ is refused)", tab)
+        self.assertIn("as #pages/rdprobe-notes/<file>.js (an import\n// that climbs a folder is refused)", tab)
         door = self.read("page/pages/rdprobe-notes/index.js")
         self.assertNotIn("Page: ", door)
         self.assertNotIn("rdprobe-notes-page.js", door)
@@ -147,10 +168,55 @@ class New(ScaffoldCase):
         out = self.new("tab", "home", "rdprobe-moved", "--from-page", code=1)  # Home is defined in index.js
         self.assertIn("defines Home itself", out["error"]["message"])
 
+    def alias(self, clause: str, page_field: str) -> None:
+        """The rdprobe-notes page's index.js importing its Page through ``clause``, committed."""
+        door = "page/pages/rdprobe-notes/index.js"
+        text = self.read(door).replace("{ RdprobeNotesPage }", clause).replace("Page: RdprobeNotesPage", page_field)
+        write(self.tree, door, text)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Alias")
+
+    def test_tab_from_page_keeps_an_aliased_import_s_exported_name(self):  # review round 1, finding 2
+        self.new("page", "rdprobe-notes")
+        self.alias("{ RdprobeNotesPage as NotesPanel }", "Page: NotesPanel")
+        self.new("tab", "rdprobe-notes", "first", "--from-page")
+        tab = self.read("page/pages/rdprobe-notes/first/index.js")
+        self.assertIn(
+            "import { RdprobeNotesPage as NotesPanel } from '#pages/rdprobe-notes/rdprobe-notes-page.js'", tab
+        )
+        self.assertIn("  Page: NotesPanel\n", tab)
+        door = self.read("page/pages/rdprobe-notes/index.js")
+        self.assertNotIn("rdprobe-notes-page.js", door)
+        self.assertNotIn("NotesPanel", door)
+
+    def test_tab_from_page_refuses_a_default_namespace_or_unresolvable_page_and_writes_nothing(self):
+        def snapshot():
+            files = (p for p in sorted(self.tree.rglob("*")) if p.is_file() and ".git" not in p.parts)
+            return {str(p.relative_to(self.tree)): p.read_bytes() for p in files}
+
+        self.new("page", "rdprobe-notes")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Page")
+        for clause, says in (
+            ("RdprobeNotesPage", "a default import"),
+            ("* as RdprobeNotesPage", "a namespace import"),
+            ("{ Other }", "neither imports nor defines RdprobeNotesPage"),
+        ):
+            self.alias(clause, "Page: RdprobeNotesPage")
+            before = snapshot()
+            out = self.new("tab", "rdprobe-notes", "first", "--from-page", code=1)
+            self.assertIn(says, out["error"]["message"])
+            self.assertEqual(snapshot(), before, f"{clause} changed the tree")
+            git(self.tree, "checkout", "-q", "HEAD~1", "--", ".")
+            git(self.tree, "commit", "-q", "-m", "Back")
+
     def test_a_tab_template_says_how_a_tab_imports_its_page_s_files(self):
         self.new("tab", "home", "rdprobe-extra")
         tab = self.read("page/pages/home/rdprobe-extra/index.js")
-        self.assertIn("// A tab imports its page's files as #pages/home/<file>.js (../ is refused).", tab)
+        self.assertIn(
+            "// A tab imports its page's files as #pages/home/<file>.js (an import that climbs a folder is refused).",
+            tab,
+        )
 
     def test_a_first_tab_beside_the_page_s_own_page_skips_the_page_check_with_a_note(self):
         code, out = self.run_cli("new", "tab", "home", "rdprobe-extra", cwd=self.tree)

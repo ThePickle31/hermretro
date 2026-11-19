@@ -13,8 +13,9 @@ there instead (it nests the whole unit suite, with tests/repo/test_placeholders.
 the stubs are unfilled). Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
-One more runs `new page rdtabs`, `new tab rdtabs first --from-page` and `new tab rdtabs second`, then `tools/check.py
-lint bundle` (the tab imports the Page as #pages/..., never ../; the page tests still expect every page to keep a Page).
+One more runs `new page rdtabs` (its Page imported under another name), then `new tab rdtabs first --from-page` and `new
+tab rdtabs second` with their own checks (the page suite among them), then `tools/check.py lint bundle` (the tab
+imports the Page's exported name as #pages/..., never ../).
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -75,6 +76,10 @@ STRUCTURE = [
     "tests.backend.rdtree.test_event_pinged",
     "tests.backend.rdtree.test_listener_on_library_build_reported",
 ]
+
+
+def line(text: str, start: str) -> str:
+    return next((row[len(start) :] for row in text.splitlines() if row.startswith(start)), "")
 
 
 def run(command: list[str], cwd: Path, env: dict) -> subprocess.CompletedProcess:
@@ -181,14 +186,17 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
 
-    def test_tab_from_page_passes_lint_and_bundle(self):
+    def test_tab_from_page_passes_its_own_checks_lint_and_bundle(self):
         _, tree, env = self.make_tree()
-        steps = [["page", "rdtabs"], ["tab", "rdtabs", "first", "--from-page"], ["tab", "rdtabs", "second"]]
-        for step in steps:
-            done = run(
-                [*RETRODEV, "new", *step, "--no-check", *([] if step is steps[-1] else ["--no-build"])], tree, env
-            )
+        done = run([*RETRODEV, "new", "page", "rdtabs", "--no-check", "--no-build"], tree, env)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        door = tree / "page/pages/rdtabs/index.js"  # an aliased import: the tab imports the exported name
+        text = door.read_text().replace("{ RdtabsPage }", "{ RdtabsPage as TabsPanel }")
+        door.write_text(text.replace("Page: RdtabsPage", "Page: TabsPanel"))
+        for step in (["tab", "rdtabs", "first", "--from-page"], ["tab", "rdtabs", "second"]):  # with their checks
+            done = run([*RETRODEV, "new", *step], tree, env)
             self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
+            self.assertIn("page", line(done.stdout, "checks: ").split(), done.stdout)
         judged = run([sys.executable, "tools/check.py", "lint", "bundle"], tree, env)
         self.assertEqual(judged.returncode, 0, judged.stdout + judged.stderr)
 

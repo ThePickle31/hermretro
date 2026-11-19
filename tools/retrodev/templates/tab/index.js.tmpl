@@ -1,5 +1,5 @@
 // The {Label} tab of the {page} page: its descriptor ({{ id, label, Page }}, as a page has; app/registry.js).
-// A tab imports its page's files as #pages/{page}/<file>.js (../ is refused).
+// A tab imports its page's files as #pages/{page}/<file>.js (an import that climbs a folder is refused).
 import { jsx, jsxs } from '#sdk'
 import { Heading, Lede } from '#shared/ui/text.js'
 

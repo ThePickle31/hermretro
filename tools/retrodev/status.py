@@ -78,7 +78,13 @@ def next_step(facts: dict) -> str:
             + f" (the first ship writes the body to fill in: notes/pr/{facts.get('topic') or '<topic>'}.md)"
         )
     if facts.get("head") != facts.get("pushed"):
-        return f"next: {facts.get('ship_again') or 'python tools/retrodev ship'} (pushes the new commits)"
+        again = facts.get("ship_again") or "python tools/retrodev ship"
+        if facts.get("last_ship_dry_run"):  # with a pull request too: status never turns a dry run into a push
+            return (
+                f"next: {again} --dry-run (the last ship was a dry run: without --dry-run the same command pushes the "
+                "new commits)"
+            )
+        return f"next: {again} (pushes the new commits)"
     pr = facts["pr"]
     # land runs from the main checkout: the merge removes this worktree
     land = (cmd("cd", facts["main"]) + " && " if facts.get("main") else "") + f"python tools/retrodev land {pr}"
@@ -157,7 +163,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "body": shown,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
-        "last_ship_dry_run": bool(record.get("last_ship_dry_run")) and not pr,
+        "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
         "base": ctx.remote_base,
