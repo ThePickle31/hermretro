@@ -1,0 +1,30 @@
+"""backend/{name} listens to {event}. Run alone: python -m unittest tests.backend.{name}.test_listener_{func}
+
+isolated_home (tests/support.py) points HERMRETRO_HOME and the plugin's data folder at a temp folder: a listener
+never touches the real library or Hermes home.
+"""
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.{name} import listeners  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+
+
+class Listener{Func}(unittest.TestCase):
+    def setUp(self):
+        isolated_home(self)
+
+    def test_it_listens_to_the_event(self):
+        self.assertIn(listeners.{func}, events._listeners.get("{event}", []))
+
+    def test_it_takes_a_payload_without_raising(self):
+        self.assertIsNone(listeners.{func}(example=1))
+
+
+if __name__ == "__main__":
+    unittest.main()

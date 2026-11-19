@@ -160,11 +160,23 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None) -> str:
     plan.regenerate = True
     plan.next_steps += [
         f"build the tab in page/pages/{page_id}/{tab_id}/index.js (Page gets the page's {{ shell }})",
-        f"with tabs, the page's own {page_id}-page.js component still renders, between the tab bar and the chosen "
-        "tab, with a { tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
-        "descriptor",
+        f"with tabs, the page's own Page component ({page_file(plan, door)}) still renders, between the tab bar and "
+        "the chosen tab, with a { tab } prop (app/page-view.js): keep only what every tab shares there, or drop "
+        "Page from the descriptor",
+        "a single tab still shows a tab bar (one button): add a second tab, or keep a page without tabs",
     ]
     return f"tab {page_id}/{tab_id}"
+
+
+def page_file(plan: Plan, door: str) -> str:
+    """The file that defines the descriptor's Page component: the module its import names, else the descriptor
+    itself (a page may define Page in its index.js)."""
+    text = plan.read(door)
+    found = re.search(r"^\s*Page:\s*(\w+)", text, re.M)
+    if not found:
+        return door
+    source = re.search(rf"^import \{{[^}}]*\b{found.group(1)}\b[^}}]*\}} from '\./([\w./-]+)'", text, re.M)
+    return f"{door.rsplit('/', 1)[0]}/{source.group(1)}" if source else door
 
 
 def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:

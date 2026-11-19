@@ -89,11 +89,14 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--watch", action="store_true", help="run again on every file change")
 
     p = add("ship", "push the branch and open (or update) its draft pull request")
-    p.add_argument("--title", required=True, help="one plain sentence, no trailing period")
+    p.add_argument(
+        "--title", help="one plain sentence, no trailing period (default: the title this branch last shipped with)"
+    )
     p.add_argument(
         "--body",
-        help="a file with every pull request template section filled in (default: notes/pr/<topic>.md in the main "
-        "checkout; when it is missing, ship writes it from .github/pull_request_template.md and stops)",
+        help="a file with every pull request template section filled in (default: the body this branch last shipped "
+        "with, else notes/pr/<topic>.md in the main checkout; when that is missing, ship writes it from "
+        ".github/pull_request_template.md and stops)",
     )
     p.add_argument("--new-body", action="store_true", help="write notes/pr/<topic>.md from the template, then stop")
     p.add_argument("--dry-run", action="store_true", help="run the gates and print what it would do")
@@ -205,12 +208,18 @@ def scaffolds(sub, common) -> None:
         "name",
         optional=True,
     )
-    kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name").add_argument(
+    tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
+    tool.add_argument(
         "--step", nargs=2, metavar=("RUNNING", "DONE"), help="the Build page's words while it runs and once done"
     )
-    kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name").add_argument(
-        "--payload", help="one line: the keyword arguments it carries"
+    tool.add_argument(
+        "--module",
+        help="write it in backend/<feature>/<module>.py with its own TOOLS, which tools.py's TOOLS takes in "
+        "(automatic, as <tool>_tools, when tools.py is over 400 lines)",
     )
+    event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
+    event.add_argument("--payload", help="one line: the keyword arguments it carries, e.g. 'game=<id>, root'")
+    event.add_argument("--when", help="one line: when it is emitted (the EVENTS entry and the CONTRACT row say it)")
     kind("listener", "an @on stub in backend/<feature>/listeners.py, its test, the README and docs", "feature", "event")
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"
@@ -226,7 +235,7 @@ def scaffolds(sub, common) -> None:
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "label", "doc"):
+        for missing in ("target", "purpose", "step", "payload", "when", "module", "label", "doc"):
             setattr(args, missing, getattr(args, missing, None))
         return scaffold.run(ctx, args)
     if command == "engine":

@@ -1,6 +1,7 @@
 """backend/{name} listens to {event}. Run alone: python -m unittest tests.backend.{name}.test_listener_{func}
 
-HERMRETRO_HOME points at a temp folder (tests/support.py's rule): a listener never touches the real library.
+HERMRETRO_HOME and the plugin's data folder point at a temp folder (tests/support.py's rule): a listener never
+touches the real library or Hermes home.
 """
 
 import os
@@ -13,16 +14,22 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.{name} import listeners  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
 
 
 class Listener{Func}(unittest.TestCase):
     def setUp(self):
+        # The same isolation as tests/support.py's helpers: a temp HERMRETRO_HOME and plugin data folder.
         home = tempfile.TemporaryDirectory()
         self.addCleanup(home.cleanup)
-        patch = mock.patch.dict(os.environ, {{"HERMRETRO_HOME": home.name}})
-        patch.start()
-        self.addCleanup(patch.stop)
+        data = Path(home.name) / "profile" / "plugin-data" / "hermretro"
+        for patch in (
+            mock.patch.dict(os.environ, {{"HERMRETRO_HOME": home.name}}),
+            mock.patch.object(host, "_data_dir", lambda: data),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def test_it_listens_to_the_event(self):
         self.assertIn(listeners.{func}, events._listeners.get("{event}", []))

@@ -16,8 +16,9 @@
 
 While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
 pass there (`ok (cached)` for the rest; inputs per check in `tools/retrodev/policy.toml`), adds acceptance and the
-clean install when the branch touched what they cover, and prints each time against its budget (fast checks 15 s
-together, lint 2 s, the scan 15 s, others 6 s; over twice a budget is a warning, not a failure).
+clean install when the branch touched what they cover, and prints each time against its budget (`[checks.budgets]` in
+`tools/retrodev/policy.toml`, measured on a loaded machine: fast checks 60 s together, unit 45 s, scaffold 30 s; a
+check over its budget twice in a row on the branch gets a warning, never a failure).
 `python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
 on the current tree is what `python tools/retrodev ship` requires.
 

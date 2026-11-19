@@ -9,9 +9,9 @@
 Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept per branch against that digest
 and prints "ok (cached)" while nothing it reads changed. When every check the branch needs has passed on the
 current tree, that tree's digest is recorded with the names of those checks: ship pushes only a tree that passed
-everything the policy requires of it now. Times are printed against the
-budgets in policy.toml; over twice a budget is a warning that the check was slower than usual, never a failure
-(machines and load differ).
+everything the policy requires of it now. Times are printed against the budgets in policy.toml (measured cold
+runs); a check over its budget twice in a row on the branch (each run's time is recorded) gets a warning that it
+is slower than usual, never a failure: one slow run is load or a cold cache, not news.
 """
 
 from __future__ import annotations
@@ -225,7 +225,10 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
                 "more": result["more"],
             }
         )
-    warnings = budget_warnings(ctx, rows, wall if fast else None, set(fast) >= set(ctx.policy["checks"]["fast"]))
+    whole_fast = set(fast) >= set(ctx.policy["checks"]["fast"])
+    last = record.get("durations") or {}
+    warnings = budget_warnings(ctx, rows, wall if fast else None, whole_fast, last)
+    record["durations"] = durations(rows, wall if fast and whole_fast else None, last)
     for line in warnings:
         ctx.out.say("warning: " + line)
     record["last_run"] = {
@@ -287,19 +290,49 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
     return 0
 
 
-def budget_warnings(ctx, rows: list[dict], wall: float | None, whole_fast: bool) -> list[str]:
+FAST_TOTAL = "fast_total"
+
+
+def over(ctx, name: str, seconds: float) -> bool:
+    limit = float(ctx.policy["checks"]["budgets"][name]) if name == FAST_TOTAL else budget(ctx, name)
+    return seconds > limit
+
+
+def durations(rows: list[dict], wall: float | None, before: dict) -> dict:
+    """{check: seconds} of each check's latest run on the branch (fast_total: the fast checks together, when all
+    of them ran). A cached row or a check that did not run keeps its last run's time."""
+    found = dict(before)
+    for row in rows:
+        if not row["cached"]:
+            found[row["name"]] = round(float(row["seconds"]), 1)
+    if wall is not None:
+        found[FAST_TOTAL] = round(wall, 1)
+    return found
+
+
+def budget_warnings(
+    ctx, rows: list[dict], wall: float | None, whole_fast: bool, before: dict | None = None
+) -> list[str]:
+    """A warning for each check over its budget in this run and in its last run on the branch (``before``: the
+    recorded durations): a single slow run says nothing (load, a cold cache), two in a row say something got slower."""
+    before = before or {}
     found = []
     for row in rows:
         limit = budget(ctx, row["name"])
-        if not row["cached"] and row["seconds"] > 2 * limit:
+        if (
+            not row["cached"]
+            and over(ctx, row["name"], row["seconds"])
+            and over(ctx, row["name"], before.get(row["name"], 0.0))
+        ):
             found.append(
-                f"{row['name']} took {row['seconds']:.1f} s, over twice its {limit:g} s budget: slower than usual "
+                f"{row['name']} took {row['seconds']:.1f} s, over its {limit:g} s budget twice in a row: slower than "
+                "usual "
                 "(machines and load differ; not a failure; if it repeats on an idle machine, find what got slow)"
             )
-    total = float(ctx.policy["checks"]["budgets"]["fast_total"])
-    if wall is not None and whole_fast and wall > 2 * total:
+    total = float(ctx.policy["checks"]["budgets"][FAST_TOTAL])
+    if wall is not None and whole_fast and wall > total and before.get(FAST_TOTAL, 0.0) > total:
         found.append(
-            f"the fast checks took {wall:.1f} s together, over twice their {total:g} s budget: slower than usual "
-            "(machines and load differ)"
+            f"the fast checks took {wall:.1f} s together, over their {total:g} s budget twice in a row: slower than "
+            "usual (machines and load differ)"
         )
     return found

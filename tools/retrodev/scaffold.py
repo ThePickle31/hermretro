@@ -2,8 +2,10 @@
 
     new feature <name> [--purpose TEXT]        backend/<name>/ (front door, README), its tests, the registry lines
     new rpc <feature> <name> | <feature>.<name>  an @rpc stub, its test, its CONTRACT section, the generated names
-    new tool <feature> <name> [--step R D]     a Tool stub, its test, plugin.yaml, the page's step words, CONTRACT
-    new event <feature> <name> [--payload P]   the front door's EVENTS entry and its CONTRACT row
+    new tool <feature> <name> [--step R D] [--module M]   a Tool stub (in backend/<feature>/<M>.py with its own
+                                               TOOLS with --module, or when tools.py is over 400 lines), its test,
+                                               plugin.yaml, the page's step words, CONTRACT
+    new event <feature> <name> [--payload P] [--when W]   the front door's EVENTS entry and its CONTRACT row
     new listener <feature> <event>             an @on stub in the feature's listeners.py, its test, the docs
     new page <id> [--label L]                  page/pages/<id>/ (descriptor, component, README), the registry line
     new tab <page> <id> [--label L]            page/pages/<page>/<id>/index.js, listed in the page's tabs
@@ -328,9 +330,9 @@ def run(ctx, args) -> int:
     elif kind == "listener":
         what = scaffold_listener.listener(plan, args.target, args.name)
     elif kind == "tool":
-        what = scaffold_backend.tool(plan, args.target, args.name, args.step)
+        what = scaffold_backend.tool(plan, args.target, args.name, args.step, args.module)
     elif kind == "event":
-        what = scaffold_backend.event(plan, args.target, args.name, args.payload)
+        what = scaffold_backend.event(plan, args.target, args.name, args.payload, args.when)
     elif kind == "page":
         what = scaffold_page.page(plan, args.name, args.label)
     elif kind == "tab":
