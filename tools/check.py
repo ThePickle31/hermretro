@@ -272,7 +272,7 @@ def check_scan(args) -> str:
         raise AssertionError(
             f"verdict {report['verdict']}; installs would {would}:\n"
             + "\n".join(lines)
-            + '\nFIX: reword or remove those lines (see AGENTS.md, "Install scanner"); medium findings are fine'
+            + '\nFIX: reword or remove those lines (see rule 3 in AGENTS.md, "Rules that protect users"); medium findings are fine'
         )
     return f"safe ({report['findings']} minor notes)"
 
