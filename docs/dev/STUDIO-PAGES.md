@@ -60,7 +60,7 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 `games[id].session = {storedId, profile, createdAt, aliases}` (aliases: live session ids after
 compression rotates them, noted on each tool call) and `pending[storedId] = {storedId, profile, name,
-plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50).
+plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50: `games.MAX_PENDING`, checked by `tests/repo/test_lockstep.py`).
 The first project a pending conversation creates is bound to it (`observe` → `claim_pending`);
 selecting an existing game does not claim it. Unknown top-level keys in `games.json` are kept, since
 every hermretro copy shares the file.
@@ -465,7 +465,7 @@ Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, 
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
 tab bar (of one). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
 one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
-content into a tab, or drop `Page` when the tabs are the whole page. Mention the tab in the page's `README.md`. Or:
+content into a tab, or drop `Page` when the tabs are the whole page. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file, Home excepted for now). Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 

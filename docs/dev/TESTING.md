@@ -2,6 +2,8 @@
 
 `python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
 
+One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/page-<name>.test.mjs`, or `node --test tests/page/<name>.test.mjs` for the source-level ones.
+
 | Check | Command | Time | What it proves |
 |---|---|---|---|
 | unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |

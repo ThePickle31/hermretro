@@ -3,8 +3,8 @@
 **Shows:** one game, one conversation with the agent (`build-page.js`): the game switcher in the header, the
 transcript (`transcript/`), the message box (`composer/`), the game playing inside the reply (`player/`), the
 picture viewer (`viewer/`) and the image cache (`assets/`). `chat/` holds the conversations, the gateway events
-and the actions. While the hermretro profile is missing it shows `studio-needed.js` instead. Descriptor:
-`index.js` (padding `build`, no footer, its stylesheet last).
+and the actions. While the hermretro profile is missing it shows `studio-needed.js` instead (the choice is the page's
+`Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last).
 
 **Tabs:** none (its areas are subfolders, not tabs).
 

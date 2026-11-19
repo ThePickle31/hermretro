@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 dfe5a7d6cf7503a3941192e66866a29bf20d06eed4999f99750b0e13ce1cce16
- * body: sha256 32c177b45af9bfe895055952e3fe89720e099de01e59463472509bc770b591ff
+ * sources: sha256 51326620144cf90f342f0cbceb4047013d31585ba863f8dca009f7db98e0016d
+ * body: sha256 23e1984964722873145ffeb80e2276497af9c462203660369106141bb07028c1
  */
 // page/sdk.js
 import {
@@ -432,6 +432,68 @@ async function sendToGameChat(ctx, game, text2) {
   await sendPromptToChat(ctx, text2);
 }
 
+// page/pages/games/games.css.js
+var GAMES_CSS = `
+/* games: Shelf of real cartridges */
+.cs-dev { align-items: center; background: var(--ui-bg-quaternary); display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 11px 14px; }
+.cs-dev .dot { background: var(--ui-text-quaternary); flex: none; height: 8px; width: 8px; }
+.cs-dev.on .dot { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
+.cs-dev .nm { color: var(--ui-text-primary); font-weight: 600; }
+.cs-shelf { display: grid; gap: clamp(18px, 2.2cqi, 36px) clamp(16px, 2cqi, 30px); grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(200px, 15cqi, 300px)), 1fr)); }
+.cs-gcard { display: grid; gap: 10px; grid-template-rows: auto 1fr auto; min-width: 0; }
+.cs-cart { all: unset; aspect-ratio: 299 / 340; container-type: inline-size; cursor: pointer; display: block; position: relative; transition: transform .16s ease; width: 100%; }
+.cs-cart::before { background: var(--cs-cart) center / 100% 100% no-repeat; content: ''; inset: 0; position: absolute; }
+.cs-gcard:hover .cs-cart, .cs-cart:focus-visible { transform: translateY(-5px) rotate(-1deg); }
+.cs-cart:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
+.cs-cart .slot { border-radius: 1.5cqw; display: grid; height: 56.76%; left: 13.38%; overflow: hidden; place-items: center; position: absolute; top: 28.82%; width: 73.24%; }
+.cs-cart .slot img { display: block; height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.cs-cart .ph { align-content: center; background: var(--ui-bg-elevated); color: var(--ui-text-tertiary); display: grid; font: 700 5cqw/1.3 ${MONO}; gap: 3cqw; height: 100%; letter-spacing: .06em; padding: 6cqw; text-align: center; text-transform: uppercase; width: 100%; }
+.cs-cart .ph small { color: var(--ui-text-quaternary); font-size: 3.6cqw; }
+.cs-cart .hov { display: grid; inset: 0; opacity: 0; place-items: center; position: absolute; transition: opacity .15s; }
+.cs-gcard:hover .cs-cart .hov, .cs-cart:focus-visible .hov { opacity: 1; }
+.cs-cart .hov span { background: var(--ui-accent); border-radius: 50%; color: var(--ui-bg-editor); display: grid; height: 18cqw; place-items: center; width: 18cqw; }
+.cs-cart.ghost::before { filter: grayscale(1); opacity: .28; }
+.cs-cart.ghost .slot { color: var(--ui-text-secondary); }
+.cs-gcard .info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cs-gcard h3 { font: 700 20px/1 ${DISPLAY}; letter-spacing: .03em; margin: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.cs-gtag { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-meta { color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; }
+.cs-gtag.none { color: var(--ui-text-quaternary); font-style: italic; }
+.cs-gtag.bad { color: var(--ui-red); }
+.cs-gline { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; min-height: 18px; }
+.cs-gst { align-items: center; display: inline-flex; font: 700 10px/1 ${MONO}; gap: 6px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.cs-gst i { background: currentColor; border-radius: 50%; height: 7px; width: 7px; }
+.cs-gst.good { color: var(--ui-green); } .cs-gst.warn { color: var(--ui-yellow); } .cs-gst.bad { color: var(--ui-red); } .cs-gst.quiet { color: var(--ui-text-tertiary); }
+.cs-cart .nocover { align-items: center; background: color-mix(in srgb, black 72%, transparent); border-radius: 1cqw; bottom: 17.5%; color: white; display: inline-flex; font: 700 3.4cqw/1 ${MONO}; gap: 1.4cqw; letter-spacing: .08em; padding: 1.4cqw 2.2cqw; position: absolute; right: 16%; text-transform: uppercase; }
+.cs-split { display: inline-flex; position: relative; }
+.cs-split > button, .cs-split > span > button { align-items: center; appearance: none; border: 1px solid transparent; cursor: pointer; display: inline-flex; font: 500 12.5px/1 inherit; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap; }
+.cs-split .main { border-radius: 6px 0 0 6px; }
+.cs-split .caret { border-radius: 0 6px 6px 0; padding: 0 8px; }
+.cs-split .solid { background: var(--ui-accent); color: var(--ui-bg-editor); }
+.cs-split .caret.solid { border-left-color: color-mix(in srgb, var(--ui-bg-editor) 35%, transparent); }
+.cs-split .solid:hover:not(:disabled) { filter: brightness(1.08); }
+.cs-split .outline { background: transparent; border-color: var(--ui-stroke-secondary); color: var(--ui-text-primary); }
+.cs-split .caret.outline { border-left-width: 0; }
+.cs-split .outline:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
+.cs-split button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-split button:disabled { cursor: default; opacity: .6; }
+.cs-gmenu { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; left: 0; min-width: 230px; padding: 4px; position: absolute; top: calc(100% + 6px); z-index: 40; }
+.cs-gmenu button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 9px; outline: none; padding: 7px 9px; text-align: left; white-space: nowrap; }
+.cs-gmenu button:hover:not(:disabled), .cs-gmenu button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-gmenu button:disabled { color: var(--ui-text-quaternary); cursor: default; }
+.cs-gmenu em { color: var(--ui-text-quaternary); font-size: 11px; font-style: normal; margin-left: auto; padding-left: 12px; }
+.cs-hwchip { align-items: center; appearance: none; background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-radius: 999px; color: var(--ui-text-secondary); display: inline-flex; font: 700 10.5px/1 ${MONO}; gap: 8px; letter-spacing: .08em; padding: 7px 11px; text-transform: uppercase; white-space: nowrap; }
+button.cs-hwchip { cursor: pointer; }
+button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-hwchip i { background: var(--ui-text-quaternary); border-radius: 50%; height: 7px; width: 7px; }
+.cs-hwchip.on i { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
+.cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
+.cs-empty > .cs-col { gap: 16px; }
+.cs-empty > .cs-art { max-width: 340px; }
+.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
+.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
 // page/app/events.js
 function createEvents() {
   const declared = /* @__PURE__ */ new Map();
@@ -470,122 +532,6 @@ function createEvents() {
 }
 var PAGE_EVENTS = createEvents();
 var emit = (name, payload) => PAGE_EVENTS.emit(name, payload);
-
-// page/app/game-prompts.js
-var gameLabel = (game) => `"${game.title}"${game.projectRoot ? ` (${game.projectRoot})` : ""}`;
-function buildPrompt(game) {
-  return `Build ${gameLabel(game)} and its playable web player, so I can play it on the Emulator page of hermretro.`;
-}
-
-// page/app/slots.js
-function createSlots() {
-  const declared = /* @__PURE__ */ new Map();
-  const filled = /* @__PURE__ */ new Map();
-  const known = (name) => {
-    if (!declared.has(name)) {
-      throw new Error(`unknown UI slot "${name}": declare it in the host page's index.js (slots: { '${name}': '...' })`);
-    }
-  };
-  return {
-    declare(name, owner, doc) {
-      if (declared.has(name)) {
-        throw new Error(`UI slot "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page hosts each slot`);
-      }
-      declared.set(name, { owner, doc });
-      filled.set(name, []);
-    },
-    declared: () => new Map(declared),
-    fill(name, Component, from) {
-      known(name);
-      if (typeof Component !== "function") {
-        throw new Error(`${from} contributes something that is not a component to the UI slot "${name}"`);
-      }
-      filled.get(name).push(Component);
-    },
-    contributions(name) {
-      known(name);
-      return filled.get(name);
-    }
-  };
-}
-var PAGE_SLOTS = createSlots();
-function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
-  const list = slots.contributions(name);
-  return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
-}
-
-// page/shared/ui/time.js
-function ago(seconds, now) {
-  const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
-  if (elapsed < 5) {
-    return "just now";
-  }
-  if (elapsed < 60) {
-    return `${elapsed}s ago`;
-  }
-  if (elapsed < 3600) {
-    return `${Math.round(elapsed / 60)} min ago`;
-  }
-  return `${Math.round(elapsed / 3600)} h ago`;
-}
-function useNow(active, every = 1e3) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) {
-      return void 0;
-    }
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), every);
-    return () => clearInterval(id);
-  }, [active, every]);
-  return now;
-}
-function spanWords(ms) {
-  const seconds = Math.max(0, Math.round(ms / 1e3));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return minutes < 60 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-function clock(ms) {
-  const seconds = Math.max(0, Math.floor(ms / 1e3));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-function timeOfDay(at) {
-  if (!at) {
-    return "";
-  }
-  try {
-    return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
-
-// page/pages/prompts/prompts.css.js
-var PROMPTS_CSS = `
-/* prompts: Reader */
-.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
-.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
-.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
-.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
-.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
-.cs-rgrp.first { padding-top: 0; }
-.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
-.cs-ritem:hover { color: var(--ui-text-primary); }
-.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
-.cs-ritem.off { color: var(--ui-text-quaternary); }
-.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
-.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
-.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
-.cs-params input:focus { border-bottom-color: var(--ui-accent); }
-.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
-`;
 
 // page/shared/ui/art.js
 function Art() {
@@ -709,6 +655,170 @@ function AsyncButton({ run, disabled, icon, title, variant = "outline", children
     })
   });
 }
+
+// page/pages/games/games-folder.js
+async function openFolder(ctx, path) {
+  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+  if (!shown) {
+    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+    host.notify({ kind: "info", message: copied ? "The games folder is on the computer running Hermes. Its path is copied." : path });
+  }
+}
+function GamesFolder({ ctx, path }) {
+  if (typeof path !== "string" || !path) {
+    return null;
+  }
+  return jsxs("div", {
+    className: "cs-gfolder",
+    children: [
+      jsx("span", { className: "cs-faint", children: "Games folder" }),
+      jsx("span", { className: "cs-mono", title: path, children: path }),
+      jsxs(Button, {
+        onClick: () => void openFolder(ctx, path),
+        size: "sm",
+        variant: "ghost",
+        children: [jsx(Codicon, { name: "folder-opened", size: 14 }), "Open games folder"]
+      })
+    ]
+  });
+}
+
+// page/shared/ui/working.js
+var LEMNISCATE = "M0 0C.35-.6 1.15-.6 1.15 0S.35.6 0 0-1.15-.6-1.15 0-.35.6 0 0Z";
+function Working({ children, quiet = false }) {
+  return jsxs("div", {
+    className: quiet ? "cs-watch quiet" : "cs-watch",
+    role: "status",
+    children: [
+      jsxs("svg", {
+        "aria-hidden": true,
+        className: "cs-lem",
+        viewBox: "-1.25 -0.62 2.5 1.24",
+        children: [
+          jsx("path", { className: "track", d: LEMNISCATE, pathLength: 100 }),
+          jsx("path", { className: "run", d: LEMNISCATE, pathLength: 100 })
+        ]
+      }),
+      jsx("span", { children })
+    ]
+  });
+}
+
+// page/app/game-prompts.js
+var gameLabel = (game) => `"${game.title}"${game.projectRoot ? ` (${game.projectRoot})` : ""}`;
+function buildPrompt(game) {
+  return `Build ${gameLabel(game)} and its playable web player, so I can play it on the Emulator page of hermretro.`;
+}
+
+// page/app/slots.js
+function createSlots() {
+  const declared = /* @__PURE__ */ new Map();
+  const filled = /* @__PURE__ */ new Map();
+  const known = (name) => {
+    if (!declared.has(name)) {
+      throw new Error(`unknown UI slot "${name}": declare it in the host page's index.js (slots: { '${name}': '...' })`);
+    }
+  };
+  return {
+    declare(name, owner, doc) {
+      if (declared.has(name)) {
+        throw new Error(`UI slot "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page hosts each slot`);
+      }
+      declared.set(name, { owner, doc });
+      filled.set(name, []);
+    },
+    declared: () => new Map(declared),
+    fill(name, Component, from) {
+      known(name);
+      if (typeof Component !== "function") {
+        throw new Error(`${from} contributes something that is not a component to the UI slot "${name}"`);
+      }
+      filled.get(name).push(Component);
+    },
+    contributions(name) {
+      known(name);
+      return filled.get(name);
+    }
+  };
+}
+var PAGE_SLOTS = createSlots();
+function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
+  const list = slots.contributions(name);
+  return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
+}
+
+// page/shared/ui/time.js
+function ago(seconds, now) {
+  const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
+  if (elapsed < 5) {
+    return "just now";
+  }
+  if (elapsed < 60) {
+    return `${elapsed}s ago`;
+  }
+  if (elapsed < 3600) {
+    return `${Math.round(elapsed / 60)} min ago`;
+  }
+  return `${Math.round(elapsed / 3600)} h ago`;
+}
+function useNow(active, every = 1e3) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) {
+      return void 0;
+    }
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), every);
+    return () => clearInterval(id);
+  }, [active, every]);
+  return now;
+}
+function spanWords(ms) {
+  const seconds = Math.max(0, Math.round(ms / 1e3));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+function clock(ms) {
+  const seconds = Math.max(0, Math.floor(ms / 1e3));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function timeOfDay(at) {
+  if (!at) {
+    return "";
+  }
+  try {
+    return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+// page/pages/prompts/prompts.css.js
+var PROMPTS_CSS = `
+/* prompts: Reader */
+.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
+.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
+.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
+.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
+.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
+.cs-rgrp.first { padding-top: 0; }
+.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
+.cs-ritem:hover { color: var(--ui-text-primary); }
+.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
+.cs-ritem.off { color: var(--ui-text-quaternary); }
+.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
+.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
+.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
+.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
+.cs-params input:focus { border-bottom-color: var(--ui-accent); }
+.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
+`;
 
 // page/app/prompt-button.js
 function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
@@ -1036,8 +1146,6 @@ function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardwareOn, 
     )
   ];
 }
-
-// page/pages/prompts/index.js
 function Prompts({ shell }) {
   return jsx(PromptsPage, {
     ctx: shell.ctx,
@@ -1052,6 +1160,8 @@ function Prompts({ shell }) {
     storage: shell.ctx.storage
   });
 }
+
+// page/pages/prompts/index.js
 var PROMPTS_PAGE = {
   id: "prompts",
   label: "Prompts",
@@ -1254,116 +1364,6 @@ function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   });
 }
 
-// page/pages/games/games.css.js
-var GAMES_CSS = `
-/* games: Shelf of real cartridges */
-.cs-dev { align-items: center; background: var(--ui-bg-quaternary); display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 11px 14px; }
-.cs-dev .dot { background: var(--ui-text-quaternary); flex: none; height: 8px; width: 8px; }
-.cs-dev.on .dot { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
-.cs-dev .nm { color: var(--ui-text-primary); font-weight: 600; }
-.cs-shelf { display: grid; gap: clamp(18px, 2.2cqi, 36px) clamp(16px, 2cqi, 30px); grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(200px, 15cqi, 300px)), 1fr)); }
-.cs-gcard { display: grid; gap: 10px; grid-template-rows: auto 1fr auto; min-width: 0; }
-.cs-cart { all: unset; aspect-ratio: 299 / 340; container-type: inline-size; cursor: pointer; display: block; position: relative; transition: transform .16s ease; width: 100%; }
-.cs-cart::before { background: var(--cs-cart) center / 100% 100% no-repeat; content: ''; inset: 0; position: absolute; }
-.cs-gcard:hover .cs-cart, .cs-cart:focus-visible { transform: translateY(-5px) rotate(-1deg); }
-.cs-cart:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
-.cs-cart .slot { border-radius: 1.5cqw; display: grid; height: 56.76%; left: 13.38%; overflow: hidden; place-items: center; position: absolute; top: 28.82%; width: 73.24%; }
-.cs-cart .slot img { display: block; height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
-.cs-cart .ph { align-content: center; background: var(--ui-bg-elevated); color: var(--ui-text-tertiary); display: grid; font: 700 5cqw/1.3 ${MONO}; gap: 3cqw; height: 100%; letter-spacing: .06em; padding: 6cqw; text-align: center; text-transform: uppercase; width: 100%; }
-.cs-cart .ph small { color: var(--ui-text-quaternary); font-size: 3.6cqw; }
-.cs-cart .hov { display: grid; inset: 0; opacity: 0; place-items: center; position: absolute; transition: opacity .15s; }
-.cs-gcard:hover .cs-cart .hov, .cs-cart:focus-visible .hov { opacity: 1; }
-.cs-cart .hov span { background: var(--ui-accent); border-radius: 50%; color: var(--ui-bg-editor); display: grid; height: 18cqw; place-items: center; width: 18cqw; }
-.cs-cart.ghost::before { filter: grayscale(1); opacity: .28; }
-.cs-cart.ghost .slot { color: var(--ui-text-secondary); }
-.cs-gcard .info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.cs-gcard h3 { font: 700 20px/1 ${DISPLAY}; letter-spacing: .03em; margin: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-.cs-gtag { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-meta { color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; }
-.cs-gtag.none { color: var(--ui-text-quaternary); font-style: italic; }
-.cs-gtag.bad { color: var(--ui-red); }
-.cs-gline { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; min-height: 18px; }
-.cs-gst { align-items: center; display: inline-flex; font: 700 10px/1 ${MONO}; gap: 6px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
-.cs-gst i { background: currentColor; border-radius: 50%; height: 7px; width: 7px; }
-.cs-gst.good { color: var(--ui-green); } .cs-gst.warn { color: var(--ui-yellow); } .cs-gst.bad { color: var(--ui-red); } .cs-gst.quiet { color: var(--ui-text-tertiary); }
-.cs-cart .nocover { align-items: center; background: color-mix(in srgb, black 72%, transparent); border-radius: 1cqw; bottom: 17.5%; color: white; display: inline-flex; font: 700 3.4cqw/1 ${MONO}; gap: 1.4cqw; letter-spacing: .08em; padding: 1.4cqw 2.2cqw; position: absolute; right: 16%; text-transform: uppercase; }
-.cs-split { display: inline-flex; position: relative; }
-.cs-split > button, .cs-split > span > button { align-items: center; appearance: none; border: 1px solid transparent; cursor: pointer; display: inline-flex; font: 500 12.5px/1 inherit; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap; }
-.cs-split .main { border-radius: 6px 0 0 6px; }
-.cs-split .caret { border-radius: 0 6px 6px 0; padding: 0 8px; }
-.cs-split .solid { background: var(--ui-accent); color: var(--ui-bg-editor); }
-.cs-split .caret.solid { border-left-color: color-mix(in srgb, var(--ui-bg-editor) 35%, transparent); }
-.cs-split .solid:hover:not(:disabled) { filter: brightness(1.08); }
-.cs-split .outline { background: transparent; border-color: var(--ui-stroke-secondary); color: var(--ui-text-primary); }
-.cs-split .caret.outline { border-left-width: 0; }
-.cs-split .outline:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
-.cs-split button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.cs-split button:disabled { cursor: default; opacity: .6; }
-.cs-gmenu { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; left: 0; min-width: 230px; padding: 4px; position: absolute; top: calc(100% + 6px); z-index: 40; }
-.cs-gmenu button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 9px; outline: none; padding: 7px 9px; text-align: left; white-space: nowrap; }
-.cs-gmenu button:hover:not(:disabled), .cs-gmenu button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-gmenu button:disabled { color: var(--ui-text-quaternary); cursor: default; }
-.cs-gmenu em { color: var(--ui-text-quaternary); font-size: 11px; font-style: normal; margin-left: auto; padding-left: 12px; }
-.cs-hwchip { align-items: center; appearance: none; background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-radius: 999px; color: var(--ui-text-secondary); display: inline-flex; font: 700 10.5px/1 ${MONO}; gap: 8px; letter-spacing: .08em; padding: 7px 11px; text-transform: uppercase; white-space: nowrap; }
-button.cs-hwchip { cursor: pointer; }
-button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-hwchip i { background: var(--ui-text-quaternary); border-radius: 50%; height: 7px; width: 7px; }
-.cs-hwchip.on i { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
-.cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
-.cs-empty > .cs-col { gap: 16px; }
-.cs-empty > .cs-art { max-width: 340px; }
-.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
-.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-`;
-
-// page/pages/games/games-folder.js
-async function openFolder(ctx, path) {
-  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
-  if (!shown) {
-    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-    host.notify({ kind: "info", message: copied ? "The games folder is on the computer running Hermes. Its path is copied." : path });
-  }
-}
-function GamesFolder({ ctx, path }) {
-  if (typeof path !== "string" || !path) {
-    return null;
-  }
-  return jsxs("div", {
-    className: "cs-gfolder",
-    children: [
-      jsx("span", { className: "cs-faint", children: "Games folder" }),
-      jsx("span", { className: "cs-mono", title: path, children: path }),
-      jsxs(Button, {
-        onClick: () => void openFolder(ctx, path),
-        size: "sm",
-        variant: "ghost",
-        children: [jsx(Codicon, { name: "folder-opened", size: 14 }), "Open games folder"]
-      })
-    ]
-  });
-}
-
-// page/shared/ui/working.js
-var LEMNISCATE = "M0 0C.35-.6 1.15-.6 1.15 0S.35.6 0 0-1.15-.6-1.15 0-.35.6 0 0Z";
-function Working({ children, quiet = false }) {
-  return jsxs("div", {
-    className: quiet ? "cs-watch quiet" : "cs-watch",
-    role: "status",
-    children: [
-      jsxs("svg", {
-        "aria-hidden": true,
-        className: "cs-lem",
-        viewBox: "-1.25 -0.62 2.5 1.24",
-        children: [
-          jsx("path", { className: "track", d: LEMNISCATE, pathLength: 100 }),
-          jsx("path", { className: "run", d: LEMNISCATE, pathLength: 100 })
-        ]
-      }),
-      jsx("span", { children })
-    ]
-  });
-}
-
 // page/pages/games/games-page.js
 function DeviceStrip({ hardwareOn, onSetUpDevice }) {
   return hardwareOn ? jsxs("div", {
@@ -1502,14 +1502,6 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
     folder
   ];
 }
-
-// page/pages/games/state-tag.js
-function StateTag({ game }) {
-  const [tone, label] = GAME_STATES[game.state] ?? GAME_STATES.unbuilt;
-  return jsx("span", { className: `cs-tag ${tone}`, children: label });
-}
-
-// page/pages/games/index.js
 function Games({ shell }) {
   return jsx(GamesPage, {
     ctx: shell.ctx,
@@ -1525,6 +1517,14 @@ function Games({ shell }) {
     onSetUpDevice: shell.setUpDevice
   });
 }
+
+// page/pages/games/state-tag.js
+function StateTag({ game }) {
+  const [tone, label] = GAME_STATES[game.state] ?? GAME_STATES.unbuilt;
+  return jsx("span", { className: `cs-tag ${tone}`, children: label });
+}
+
+// page/pages/games/index.js
 var GAMES_PAGE = {
   id: "games",
   label: "Games",
@@ -9633,6 +9633,65 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   return jsx("div", { className: "cs-b", children: main });
 }
 
+// page/pages/build/studio-needed.js
+function StudioNeeded({ status }) {
+  const profile = status.data?.profile;
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const exists = Boolean(profile?.studio?.exists);
+  const starting = Boolean(profile?.studio?.installed) && !working;
+  const repair = async () => {
+    if (working || !profile) {
+      return;
+    }
+    setWorking(true);
+    setFailure(null);
+    try {
+      await createStudioProfileOnce(profile);
+      host.notify({ kind: "success", message: "hermretro profile ready" });
+      status.refetch?.();
+    } catch (error) {
+      setFailure(String(error?.message ?? error));
+    } finally {
+      setWorking(false);
+    }
+  };
+  return jsxs("section", {
+    className: "cs-studio-needed cs-content",
+    role: "status",
+    children: [
+      jsx("h2", { children: exists ? "The hermretro profile needs repair" : "The hermretro profile is not set up" }),
+      jsx(Lede, {
+        children: "Build chats run only in the hermretro profile, where the game-making tools and skills live. " + (exists ? "It exists but is not answering as it should." : "It has not been created yet.")
+      }),
+      working ? jsx(Working, { children: exists ? "Repairing the profile…" : "Creating the profile…" }) : jsxs("div", {
+        className: "cs-col",
+        children: [
+          // Finished but not answering yet: usually Hermes is still starting it; Repair stays offered,
+          // because a profile whose plugin was turned off never answers.
+          starting ? jsx(Working, { children: "The profile is set up. Waiting for Hermes to start it…" }) : null,
+          jsx("div", {
+            className: "cs-actions",
+            children: jsx(Button, {
+              disabled: !profile,
+              onClick: repair,
+              size: "sm",
+              variant: starting ? "ghost" : "default",
+              children: exists ? "Repair" : "Set up the profile"
+            })
+          })
+        ]
+      }),
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
+}
+
+// page/pages/build/build-entry.js
+function Build({ shell }) {
+  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+}
+
 // page/pages/build/chat/events.js
 var queuedEvents = /* @__PURE__ */ new Map();
 var queuedFlush = null;
@@ -9930,60 +9989,6 @@ var INLINE_PLAYER_CSS = `
 @container (max-width: 640px) { .cs-ip-lbl, .cs-ip-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .cs-ip, .cs-b-pc, .cs-b-live.on { animation: none; } }
 `;
-
-// page/pages/build/studio-needed.js
-function StudioNeeded({ status }) {
-  const profile = status.data?.profile;
-  const [working, setWorking] = useState(false);
-  const [failure, setFailure] = useState(null);
-  const exists = Boolean(profile?.studio?.exists);
-  const starting = Boolean(profile?.studio?.installed) && !working;
-  const repair = async () => {
-    if (working || !profile) {
-      return;
-    }
-    setWorking(true);
-    setFailure(null);
-    try {
-      await createStudioProfileOnce(profile);
-      host.notify({ kind: "success", message: "hermretro profile ready" });
-      status.refetch?.();
-    } catch (error) {
-      setFailure(String(error?.message ?? error));
-    } finally {
-      setWorking(false);
-    }
-  };
-  return jsxs("section", {
-    className: "cs-studio-needed cs-content",
-    role: "status",
-    children: [
-      jsx("h2", { children: exists ? "The hermretro profile needs repair" : "The hermretro profile is not set up" }),
-      jsx(Lede, {
-        children: "Build chats run only in the hermretro profile, where the game-making tools and skills live. " + (exists ? "It exists but is not answering as it should." : "It has not been created yet.")
-      }),
-      working ? jsx(Working, { children: exists ? "Repairing the profile…" : "Creating the profile…" }) : jsxs("div", {
-        className: "cs-col",
-        children: [
-          // Finished but not answering yet: usually Hermes is still starting it; Repair stays offered,
-          // because a profile whose plugin was turned off never answers.
-          starting ? jsx(Working, { children: "The profile is set up. Waiting for Hermes to start it…" }) : null,
-          jsx("div", {
-            className: "cs-actions",
-            children: jsx(Button, {
-              disabled: !profile,
-              onClick: repair,
-              size: "sm",
-              variant: starting ? "ghost" : "default",
-              children: exists ? "Repair" : "Set up the profile"
-            })
-          })
-        ]
-      }),
-      failure ? jsx("p", { className: "cs-error", children: failure }) : null
-    ]
-  });
-}
 
 // page/pages/build/transcript/build-card.css.js
 var BUILD_CARD_CSS = `
@@ -10327,9 +10332,6 @@ var VIEWER_CSS = `
 `;
 
 // page/pages/build/index.js
-function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
-}
 function coverRequested({ game, prompt }, ctx) {
   try {
     ctx.storage.set("buildSelected", game.id);
@@ -10892,6 +10894,33 @@ function watchBuilds(ctx) {
   });
 }
 
+// page/pages/emulator/emulator-page.js
+function Emulator({ shell }) {
+  const { ctx, go, hardwareOn, player } = shell;
+  return [
+    jsx(
+      EmulatorBar,
+      {
+        capturesOpen: player.capturesOpen,
+        ctx,
+        focused: player.focused,
+        game: player.game,
+        go,
+        hardwareOn,
+        onAsk: player.ask,
+        onFull: player.fullScreen,
+        onLater: player.later,
+        onReload: player.reload,
+        onToggleCaptures: player.toggleCaptures,
+        player: player.query,
+        rebuilt: player.rebuilt
+      },
+      "bar"
+    ),
+    jsx(PlayerNotice, { game: player.game, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, "notice")
+  ];
+}
+
 // page/pages/emulator/emulator.css.js
 var EMULATOR_CSS = `
 /* emulator: bar above ModRetro's real player */
@@ -10934,31 +10963,6 @@ var EMULATOR_CSS = `
 `;
 
 // page/pages/emulator/index.js
-function Emulator({ shell }) {
-  const { ctx, go, hardwareOn, player } = shell;
-  return [
-    jsx(
-      EmulatorBar,
-      {
-        capturesOpen: player.capturesOpen,
-        ctx,
-        focused: player.focused,
-        game: player.game,
-        go,
-        hardwareOn,
-        onAsk: player.ask,
-        onFull: player.fullScreen,
-        onLater: player.later,
-        onReload: player.reload,
-        onToggleCaptures: player.toggleCaptures,
-        player: player.query,
-        rebuilt: player.rebuilt
-      },
-      "bar"
-    ),
-    jsx(PlayerNotice, { game: player.game, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, "notice")
-  ];
-}
 function BelowPlayer({ shell }) {
   return jsx(SideEmulatorRow, { ctx: shell.ctx, game: shell.player.game });
 }
