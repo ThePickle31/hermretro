@@ -58,7 +58,7 @@ class Flow(RepoCase):
         self.assertNotIn("--title ...", out)
         self.assertEqual(
             shlex.split(fix.split(", then ")[1]),
-            [*["python", "tools/retrodev", "ship"], "--title", TITLE, "--body", str(path)],
+            [*["python", "tools/retrodev", "ship"], "--title", TITLE, "--body", str(path), "--dry-run"],  # still one
         )
         self.assertIsNone(git(self.origin, "rev-parse", "-q", "--verify", "feat/goalie", check=False).strip() or None)
 
@@ -79,7 +79,10 @@ class Flow(RepoCase):
         path = self.main / "notes" / "pr" / "goalie.md"
         _code, out = self.run_cli("status", cwd=tree)
         words = shlex.split(line_with(out, "next:").removeprefix("next: ").split(" (")[0])
-        self.assertEqual(words, [*["python", "tools/retrodev", "ship"], "--title", TITLE, "--body", str(path)], out)
+        # after a dry run, still a dry run (it once named the real ship: test_trial_round_four)
+        self.assertEqual(
+            words, ["python", "tools/retrodev", "ship", "--title", TITLE, "--body", str(path), "--dry-run"]
+        )
         self.assertNotIn("behind", out)
         self.on_dev("docs/other.md", "# Other\n")
         self.on_dev("docs/more.md", "# More\n")
@@ -112,7 +115,9 @@ class Flow(RepoCase):
         self.run_cli("ship", "--title", TITLE, "--body", str(body), "--dry-run", cwd=tree)
         _code, out = self.run_cli("status", cwd=tree)
         words = shlex.split(line_with(out, "next:").removeprefix("next: ").split(" (")[0])
-        self.assertEqual(words, [*["python", "tools/retrodev", "ship"], "--title", TITLE, "--body", str(body)], out)
+        self.assertEqual(
+            words, ["python", "tools/retrodev", "ship", "--title", TITLE, "--body", str(body), "--dry-run"]
+        )
 
     def test_a_bare_ship_uses_the_recorded_title_and_body_and_refuses_with_neither(self):
         tree = self.feat()
@@ -254,6 +259,9 @@ class NewKindsRoundTwo(ScaffoldCase):
     def test_an_event_says_when_lists_its_keys_and_sits_after_its_owner_s_rows(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         payload = "game=<id> (None without a project, or a list), root=<project>"
+        rows = [line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith("| `")]
+        owned = [i for i, line in enumerate(rows) if line.startswith("| `library.")]
+        after = rows[owned[-1] + 1] if owned[-1] + 1 < len(rows) else None  # whatever follows library's rows now
         out = self.new("event", "library", "rdprobe_moved", "--payload", payload, "--when", "a game moved folders")
         door = self.read("backend/library/__init__.py")
         self.assertIn(f'"library.rdprobe_moved": "a game moved folders; payload: {payload}"', door)
@@ -263,7 +271,8 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn(mine, rows)
         before = rows[rows.index(mine) - 1]
         self.assertTrue(before.startswith("| `library."), before)
-        self.assertTrue(rows[rows.index(mine) + 1].startswith("| `setup."), "after the owner's last row only")
+        following = rows[rows.index(mine) + 1] if rows.index(mine) + 1 < len(rows) else None
+        self.assertEqual(following, after, "after the owner's last row only")
         self.assertIn('emit("library.rdprobe_moved", ...)', " ".join(out["next"]))
 
     def test_the_listener_test_uses_isolated_home_when_tests_support_has_it(self):

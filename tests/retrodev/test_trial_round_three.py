@@ -148,10 +148,11 @@ class New(ScaffoldCase):
         at = text.index("`__init__.register()` collects")
         path.write_text(text[:at] + other.lstrip("\n") + "\n" + text[at:])
         git(self.tree, "commit", "-qam", "Another table")
+        last = last_feature_row(path.read_text())  # whatever row ends the table now (a branch may have added one)
         self.new("feature", "rdprobe")
         lines = path.read_text().splitlines()
         mine = lines.index("| `backend/rdprobe/` | nothing yet | nothing; no events |")
-        self.assertTrue(lines[mine - 1].startswith("| `backend/system/` |"), lines[mine - 1])
+        self.assertEqual(lines[mine - 1], last)
         self.assertEqual(lines[mine + 1], "")
         self.assertEqual(lines.count("| `backend/rdprobe/` | nothing yet | nothing; no events |"), 1)
 
@@ -207,6 +208,14 @@ class New(ScaffoldCase):
         self.assertIn("return { data: await host.requestProfile(", backend)
         studio = backend[backend.index("export async function callStudio(") :].split("\n}")[0]
         self.assertNotIn("data:", studio)
+
+
+def last_feature_row(text: str) -> str:
+    """The last `backend/` row of "The agent half"'s feature table (the one starting '| Feature | Declares |')."""
+    lines = text.split("## The agent half", 1)[1].split("\n")
+    start = next(i for i, line in enumerate(lines) if line.startswith("| Feature | Declares |"))
+    end = next(i for i in range(start, len(lines)) if not lines[i].strip())
+    return [line for line in lines[start:end] if line.startswith("| `backend/")][-1]
 
 
 class ToolProject(ScaffoldCase):

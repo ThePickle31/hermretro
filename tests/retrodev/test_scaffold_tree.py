@@ -6,7 +6,7 @@ scaffolds or the files they edit; CI's page job runs it). It copies what a commi
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc`, `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
 which goes in its own module too; once in library, a --project tool),
-`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
+`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra --from-page`, `new tab rdtree more` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
@@ -51,7 +51,8 @@ STEPS = [
     ["event", "rdtree", "pinged", "--payload", "count", "--when", "the probe was pinged"],
     ["listener", "rdtree", "library.build_reported"],
     ["page", "rdtree"],
-    ["tab", "rdtree", "extra"],
+    ["tab", "rdtree", "extra", "--from-page"],  # the page's own Page becomes its first tab
+    ["tab", "rdtree", "more"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs"]

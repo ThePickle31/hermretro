@@ -72,7 +72,8 @@ class Check(RepoCase):
         git(tree, "commit", "-q", "-m", "Change a template")
         code, data = self.run_cli("check", cwd=tree, as_json=True)
         self.assertEqual(code, 0, data)
-        self.assertEqual(self.check_log()[0]["names"], FAST + ["scaffold"])
+        rest = [name for name in FAST if name != "lint"] + ["scaffold"]  # lint first: scaffold waits for it
+        self.assertEqual([entry["names"] for entry in self.check_log()], [["lint"], rest])
 
     def test_backend_changes_add_acceptance_and_the_clean_install(self):
         tree = self.worktree("chore/move")

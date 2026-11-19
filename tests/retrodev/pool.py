@@ -47,9 +47,10 @@ REPLAYED = {
 SHARED = {"on": False}
 
 
-class ParallelSuite(unittest.BaseTestSuite):
+class ParallelSuite(unittest.TestSuite):
     """Runs its items on threads: tests, or whole class suites (a class with shared fixtures runs its own tests in
-    order on one thread, its setUpClass and tearDownClass around them)."""
+    order on one thread, its setUpClass and tearDownClass around them). A TestSuite, so whatever walks a discovered
+    suite (isinstance(item, unittest.TestSuite), then iterate) reaches its tests and their ids."""
 
     def run(self, result, debug=False):
         tests = list(self)
@@ -80,7 +81,7 @@ class ParallelSuite(unittest.BaseTestSuite):
 
 def _flatten(suite):
     for item in suite:
-        if isinstance(item, unittest.TestSuite | unittest.BaseTestSuite):
+        if isinstance(item, unittest.BaseTestSuite):
             yield from _flatten(item)
         else:
             yield item

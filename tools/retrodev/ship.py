@@ -10,7 +10,7 @@ plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and stops: fill it in, then ship again. A --dry-run
 writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
-its FIX the real ship command with this title.
+its FIX the same ship --dry-run with this title and body (a dry run's next step stays a dry run).
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
 a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
@@ -172,10 +172,12 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
     raise Failure(f"the pull request body {path} is not filled in yet", fill_in(path, title))
 
 
-def fill_in(path: Path, title: str) -> str:
-    """The FIX for an unfilled body: fill in the file, then the real ship command with this title and body."""
+def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
+    """The FIX for an unfilled body: fill in the file, then the ship command with this title and body (still a
+    --dry-run after a dry run: its FIX never turns it into a push)."""
     shown = title.strip() if title and not gates.title_problems(title) else "<one plain sentence>"
-    return f"fill in {path}, then " + cmd("python", "tools/retrodev", "ship", "--title", shown, "--body", path)
+    words = ["python", "tools/retrodev", "ship", "--title", shown, "--body", path] + (["--dry-run"] if dry_run else [])
+    return f"fill in {path}, then " + cmd(*words)
 
 
 def again(record: dict) -> str:
@@ -239,6 +241,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if not gates.title_problems(title):
             record["title"] = title.strip()
         record["body"] = body or str(default_body(ctx, branch, record))
+        record["last_ship_dry_run"] = dry_run  # status keeps --dry-run in the next ship it names
         state.save_branch(ctx.top, record)
     body_path, written = body_file(ctx, title, body, new_body, dry_run, branch, record)
     text = body_path.read_text(encoding="utf-8") if body_path.is_file() else None
@@ -246,7 +249,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
     if not body_gate.ok and text is not None:
         if written:  # the dry run wrote the skeleton just now: every section is still to write
             body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
-        body_gate.fix = fill_in(body_path, title)
+        body_gate.fix = fill_in(body_path, title, dry_run)
     found = [
         gates.on_work_branch(ctx, branch),
         gates.title_gate(title),

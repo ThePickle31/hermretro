@@ -12,7 +12,17 @@ import re
 from .count_words import count_text, count_value
 from .output import Failure
 from .scaffold import SNAKE, Plan, check_name, const, insert_after, insert_before, label, pascal, render
-from .scaffold_backend import CONTRACT, MANIFEST, STEP_WORDS, TOOL_PREFIX, BIG_MODULE, known_feature, readme
+from .scaffold_backend import (
+    BIG_MODULE,
+    CONTRACT,
+    MANIFEST,
+    STEP_WORDS,
+    TOOL_PREFIX,
+    agent_half,
+    declares,
+    known_feature,
+    readme,
+)
 from .scaffold_source import (
     add_tool,
     check_front_door_name,
@@ -165,6 +175,7 @@ def tool(
     plan.edit(STEP_WORDS, lambda text: insert_before(text, re.compile(r"^  skill_view: "), words_line, STEP_WORDS))
     plan.edit(CONTRACT, lambda text: _contract_tool(text, full, feature_name, home))
     readme(plan, feature_name, "Tools", f"`{full}`")
+    agent_half(plan, feature_name, lambda row: declares(row, "tool", full))
     if module is not None and plan.exists(f"backend/{feature_name}/README.md"):
         plan.edit(f"backend/{feature_name}/README.md", lambda text: tools_line(text, module))
     plan.regenerate = True
@@ -177,6 +188,10 @@ def tool(
         ),
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
     ]
+    if project and feature_name == "library":
+        plan.next_steps.append(
+            'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
+        )
     return f"tool {full}"
 
 

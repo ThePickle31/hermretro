@@ -125,6 +125,70 @@ def _add_feature_line(text: str, name: str, purpose: str) -> str:
     return "\n".join(lines[:end] + [f'    "{name}",  # {comment}'[:120]] + lines[end:])
 
 
+def agent_half(plan: Plan, feature_name: str, change) -> None:
+    """Change the feature's row in ARCHITECTURE.md "The agent half" (a note when it has none)."""
+    if not plan.exists(ARCHITECTURE):
+        return
+    start = f"| `backend/{feature_name}/` |"
+
+    def edit(body: str) -> str:
+        return "\n".join(change(line) if line.startswith(start) else line for line in body.split("\n"))
+
+    before = plan.read(ARCHITECTURE)
+    try:
+        plan.edit(ARCHITECTURE, lambda text: in_section(text, "## The agent half", edit))
+    except Failure:  # no such section: the note below says what to write
+        pass
+    if plan.read(ARCHITECTURE) == before:
+        plan.notes.append(f"{ARCHITECTURE} \"The agent half\" has no row for backend/{feature_name}/ to change: add it")
+
+
+def cells(row: str) -> list[str]:
+    return [cell.strip() for cell in row.strip().strip("|").split(" | ")]
+
+
+def joined(parts: list[str]) -> str:
+    return "| " + " | ".join(parts) + " |"
+
+
+DECLARED = {"RPC": "RPCs", "tool": "tools"}  # the Declares cell's groups, in its order
+
+
+def declares(row: str, what: str, name: str) -> str:
+    """The Declares cell names the RPC or tool: 'nothing yet' becomes 'RPC `x`'; else it goes after the group's last
+    item ('RPCs `a`, `x`'), or a new group comes first (RPCs before tools, as the other rows have them)."""
+    parts = cells(row)
+    if len(parts) < 3:
+        return row
+    item, groups = f"`{name}`", [] if parts[1].startswith("nothing") else parts[1].split("; ")
+    plural = DECLARED[what]
+    at = next((i for i, group in enumerate(groups) if group.startswith((what + " ", plural + " "))), None)
+    if at is not None:
+        groups[at] = plural + groups[at].removeprefix(plural).removeprefix(what) + ", " + item
+    else:
+        rpcs = [i for i, group in enumerate(groups) if group.startswith(("RPC ", "RPCs "))]
+        groups.insert(rpcs[-1] + 1 if what == "tool" and rpcs else 0, f"{what} {item}")
+    parts[1] = "; ".join(groups)
+    return joined(parts)
+
+
+def emits_cell(row: str, full: str) -> str:
+    """The 'Front door / events' cell names the event: 'no events' becomes it, else it follows the last one (before
+    a '; listens to ...' part)."""
+    parts = cells(row)
+    if len(parts) < 3:
+        return row
+    groups = parts[2].split("; ")
+    if len(groups) < 2 or groups[1].startswith("listens to"):
+        groups.insert(1, f"`{full}`")
+    elif groups[1] == "no events":
+        groups[1] = f"`{full}`"
+    else:
+        groups[1] += f", `{full}`"
+    parts[2] = "; ".join(groups)
+    return joined(parts)
+
+
 def rpc_names(plan: Plan) -> set[str]:
     found = set()
     for path in sorted(plan.top.glob("backend/*/rpcs.py")):
@@ -149,6 +213,7 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
     block = render("rpc", "contract.md.tmpl", **values)
     plan.edit(CONTRACT, lambda text: _before_heading(text, "## Studio pages", block))
     readme(plan, feature_name, "RPCs", f"`{name}`")
+    agent_half(plan, feature_name, lambda row: declares(row, "RPC", name))
     plan.regenerate = True
     plan.next_steps += [
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
@@ -157,8 +222,8 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
         f"ask for it as {STUDIO_PAGE} asks for games: useQuery({{ queryKey: [ID, '{name}', viaProfile], queryFn: () "
         f"=> callStudio(RPC_{const(name)}), enabled }}) (useQuery from '#sdk', ID from '#app/ids.js', callStudio "
         "from '#app/backend.js'; viaProfile and enabled: running, as there). Inside a page leave out enabled (a "
-        f"page renders only while the backend runs) and keep that queryKey: its second word '{name}' is what the "
-        "page tests answer",
+        f"page renders only while the backend runs), use shell.viaProfile for the queryKey's third part, and keep "
+        f"that queryKey: its second word '{name}' is what the page tests answer",
         "callStudio resolves to the RPC's answer itself (data.ok, ...); callBackend resolves to { data } (read "
         ".data): page/app/backend.js",
         f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
@@ -242,6 +307,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     plan.create(f"tests/backend/{feature_name}/test_event_{name}.py", render("event", "test_event.py.tmpl", **values))
     readme(plan, feature_name, "Events emitted", f"`{full}`")
+    agent_half(plan, feature_name, lambda row: emits_cell(row, full))
     plan.next_steps += [
         f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}; it runs "
         f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),

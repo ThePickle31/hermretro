@@ -14,6 +14,9 @@ from . import gates, github, plan, repo, reviews, ship, state, sync
 from .output import cmd
 
 
+NOTHING_NEXT = "next: python tools/retrodev plan new <topic> (docs/chore: start <kind>/<topic> --no-plan)"
+
+
 def next_step(facts: dict) -> str:
     """The one next command for a branch, from its facts (pure: the tests drive it directly)."""
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
@@ -63,7 +66,11 @@ def next_step(facts: dict) -> str:
             why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
         else:
             why = " (the body passes ship's body gate)"
-        return "next: " + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]) + why
+        words = ["python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]]
+        if facts.get("last_ship_dry_run"):  # a dry run's next step stays one: status never turns it into a push
+            words.append("--dry-run")
+            why += "; the last ship was a dry run: without --dry-run the same command pushes and opens the pull request"
+        return "next: " + cmd(*words) + why
     if not facts.get("pr"):
         return (
             "next: "
@@ -150,6 +157,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "body": shown,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
+        "last_ship_dry_run": bool(record.get("last_ship_dry_run")) and not pr,
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
         "base": ctx.remote_base,
@@ -244,6 +252,7 @@ def run(ctx) -> int:
             ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
         ctx.out.say(f"    {facts['next']}")
     if not rows:
-        ctx.out.say("  no work in progress: python tools/retrodev plan new <topic>")
-    ctx.out.set(main=str(main), branch=branch, branches=rows)
+        ctx.out.say("  no work in progress")
+        ctx.out.say(NOTHING_NEXT)
+    ctx.out.set(main=str(main), branch=branch, branches=rows, **({} if rows else {"next": NOTHING_NEXT}))
     return 0

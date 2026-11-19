@@ -50,7 +50,7 @@ class NewKinds(ScaffoldCase):
         )
         source = self.read("backend/rdprobe_ears/listeners.py")
         self.assertIn("from ..system.events import on", source)
-        self.assertIn(f'@on("{EVENT}")\ndef {func}(**payload) -> None:', source)
+        self.assertIn(f'@on("{EVENT}")\ndef {func}(**_payload) -> None:', source)
         self.assertIn('"HERMRETRO_HOME": home.name', self.read(test))
         self.assertIn(f"Listens to: `{EVENT}`.", self.read("backend/rdprobe_ears/README.md"))
         row = next(line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith(f"| `{EVENT}`"))
