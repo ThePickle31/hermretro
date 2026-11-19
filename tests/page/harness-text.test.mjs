@@ -1,9 +1,11 @@
 // The page tests' text assertions (harness.mjs): a failure shows the part of the page near the closest match.
-//   node --test tests/page/harness-text.test.mjs
+// Run alone: node tests/page/harness-text.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { assertHides, assertShows, nearest } from './harness.mjs'
+import path from 'node:path'
+
+import { assertHides, assertShows, modulesFrom, nearest, tabButton } from './harness.mjs'
 
 const page = 'x'.repeat(50_000) + ' Node.js 26.13.0 (from Hermes) ' + 'y'.repeat(50_000)
 
@@ -30,4 +32,17 @@ test('a passing assertion says nothing', () => {
   assertShows(page, 'Node.js 26.13.0')
   assertHides(page, 'from Python')
   assertHides(page, /Step \d of/)
+})
+
+test('a relative node_modules argument is made absolute (the temp folder links to it); none means look it up', () => {
+  assert.equal(modulesFrom(['node', 'page-a.test.mjs', 'tools/npm/node_modules']), path.resolve('tools/npm/node_modules'))
+  assert.equal(modulesFrom(['node', 'page-a.test.mjs', '/abs/node_modules']), '/abs/node_modules')
+  assert.equal(modulesFrom(['node', 'page-a.test.mjs']), null)
+})
+
+test('pageTab looks only in a page\'s own tab bar (.cs-tabs), by its exact label', () => {
+  const button = label => ({ textContent: label })
+  const document = { querySelectorAll: selector => (selector === '.cs-tabs button' ? [button('One'), button('Two')] : [button('Two')]) }
+  assert.equal(tabButton(document, 'Two').textContent, 'Two')
+  assert.equal(tabButton(document, 'Tw'), null)
 })

@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 51326620144cf90f342f0cbceb4047013d31585ba863f8dca009f7db98e0016d
- * body: sha256 23e1984964722873145ffeb80e2276497af9c462203660369106141bb07028c1
+ * sources: sha256 93b21a0c3c5482b9d331b604acbd03759da8a080fe89dddb34feff0c2e0c6afb
+ * body: sha256 bf6eeb8bc143f9d7a01f299da0970cde9c5faecdd4b7727dd5ed3ceffbfb4c34
  */
 // page/sdk.js
 import {
@@ -3277,8 +3277,6 @@ function HomePage({ ctx, steps, auto, autoId, choosing, status, doctor, memory, 
     ]
   });
 }
-
-// page/pages/home/index.js
 function Home({ shell }) {
   return jsx(HomePage, {
     auto: shell.auto,
@@ -3296,6 +3294,8 @@ function Home({ shell }) {
     steps: shell.steps
   });
 }
+
+// page/pages/home/index.js
 var HOME_PAGE = {
   id: "home",
   label: "Home",

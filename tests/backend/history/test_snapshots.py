@@ -207,10 +207,16 @@ class BuildHistoryHost(unittest.TestCase):
         registered_hook("post_tool_call")()
 
     def test_assets_keep_inspected_images_before_the_snapshot(self):
-        # post_tool_call is registered once: assets' callback, then build history's (backend/features.py order).
-        self.assertEqual(
-            registered_hook("post_tool_call").callbacks,
-            (host_assets.keep_inspected_images, history_hooks.snapshot_after_build),
+        # post_tool_call is registered once and chains every feature's callback in backend/features.py order: only
+        # assets' callback coming before build history's matters here, so a callback added later does not break it.
+        chain = list(registered_hook("post_tool_call").callbacks)
+        self.assertIn(host_assets.keep_inspected_images, chain)
+        self.assertIn(history_hooks.snapshot_after_build, chain)
+        self.assertLess(
+            chain.index(host_assets.keep_inspected_images),
+            chain.index(history_hooks.snapshot_after_build),
+            "assets must keep the images a build looked at before history snapshots the game\n"
+            "FIX: keep assets before history in backend/features.py",
         )
 
     def test_builds_and_restore_rpcs(self):

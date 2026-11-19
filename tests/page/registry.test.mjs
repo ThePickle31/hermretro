@@ -1,9 +1,10 @@
 // The page registry (page/pages/index.js, app/registry.js), page events (app/events.js), UI slots
 // (app/slots.js), tabs (app/page-view.js) and the stylesheet order (app/style.js), from the sources.
-//   node --test tests/page/registry.test.mjs
+// Run alone: node tests/page/registry.test.mjs
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerAliases } from './aliases.mjs'
+import { tabButton } from './harness.mjs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -77,14 +78,8 @@ test('a page needs a Page, or tabs that each have one', () => {
 })
 
 /** Pages whose descriptor's own Page is defined in index.js rather than imported from one of its files. */
-// Known exceptions, each with its reason. home: tests/retrodev/test_trial_round_two.py and test_trial_round_four.py
-// use Home defined in index.js as their fixture for --from-page's refusal; Home moves into home-page.js once they
-// use a probe page of their own instead.
-const PAGE_IN_INDEX = new Set(['home'])
-
-function pagesDefiningPage(sources, allowed = new Set()) {
+function pagesDefiningPage(sources) {
   return sources.flatMap(([id, text]) => {
-    if (allowed.has(id)) return []
     const name = text.match(/^ {2}Page: (\w+),?$/m)?.[1]
 
     return name && new RegExp(`^(?:export\\s+)?(?:async\\s+)?(?:function|const|let|class)\\s+${name}\\b`, 'm').test(text)
@@ -103,7 +98,7 @@ test("each page's own Page is imported into index.js from its own file, not defi
     .filter(id => statSync(path.join(pagesDir, id)).isDirectory())
     .map(id => [id, readFileSync(path.join(pagesDir, id, 'index.js'), 'utf8')])
 
-  assert.deepEqual(pagesDefiningPage(sources, PAGE_IN_INDEX), [])
+  assert.deepEqual(pagesDefiningPage(sources), [])
 })
 
 test('events are declared once, by the page their name starts with', () => {
@@ -237,7 +232,7 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
 
   assert.deepEqual(tabs.map(tab => tab.textContent), ['One', 'Two'])
   assert.ok(node.textContent.includes('first tab'))
-  await act(async () => tabs[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })))
+  await act(async () => tabButton(node, 'Two').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })))
   assert.ok(node.textContent.includes('second tab') && !node.textContent.includes('first tab'))
   assert.equal(storage['tab:tools'], 'two')
   assert.equal(node.querySelector('[aria-selected="true"]').textContent, 'Two')

@@ -236,3 +236,22 @@ export function HomePage({ ctx, steps, auto, autoId, choosing, status, doctor, m
     ]
   })
 }
+
+/** Home's Page (the descriptor's, in index.js): the home page given what it reads from the shell. */
+export function Home({ shell }) {
+  return jsx(HomePage, {
+    auto: shell.auto,
+    autoId: shell.autoId,
+    choosing: shell.choosing,
+    ctx: shell.ctx,
+    doctor: shell.doctor,
+    games: shell.games,
+    memory: shell.memory,
+    onGo: shell.go,
+    onOpenPrompt: shell.openPrompt,
+    onPlay: shell.play,
+    onSetUpDevice: shell.setUpDevice,
+    status: shell.status,
+    steps: shell.steps
+  })
+}

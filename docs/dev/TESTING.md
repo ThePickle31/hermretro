@@ -2,14 +2,14 @@
 
 `python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
 
-One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/page-<name>.test.mjs`, or `node --test tests/page/<name>.test.mjs` for the source-level ones.
+One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says).
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
 | unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
-| bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` |
+| bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
 | lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
-| page | `python tools/check.py page` | ~6 s | The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
+| page | `python tools/check.py page` | ~6 s | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
 | scaffold | `python tools/check.py scaffold` | ~4 s | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker |
@@ -96,10 +96,14 @@ ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
 page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
-whole page. A unit test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
+whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
+`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A unit
+test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
 the module with `import()` after `registerAliases()` from `./aliases.mjs` (the page's `#app/`… aliases, React and
 the SDK stand-in; it uses `module.registerHooks`, or `register('./aliases.mjs', import.meta.url)` on a Node without
-it), like `tests/page/build-player.test.mjs`.
+it), like `tests/page/build-player.test.mjs`. A pure helper in `page/shared/`: add `tests/page/<name>.test.mjs`
+(`node:test`), call `registerAliases()` from `./aliases.mjs`, then `await import('#shared/...')`; `check.py page`
+runs every `tests/page/**/*test*.mjs`, so the name must contain `test`.
 
 ## Adding a test
 

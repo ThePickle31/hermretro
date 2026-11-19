@@ -33,8 +33,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))  # check.py's helpers
+import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
+from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
+    LINT_SETUP,
+    RUFF_CHECK,
+    RUFF_FORMAT,
+    RUFF_SETUP,
+    lint_tools_missing,
+    ruff_missing,
+)
 
 FAST = ["unit", "bundle", "lint", "page", "scan"]
 ALL = FAST + ["scaffold", "acceptance"]
@@ -111,25 +120,6 @@ def check_bundle(args) -> str:
             "player/frame-shim.js and page/app/rpc-names.js with your sources (never edit them by hand)"
         )
     return output.splitlines()[-1] if output else "ok"
-
-
-# ruff, pinned with hashes in tools/py/requirements.txt and installed by tools/py/setup.py into .dev/py (never by
-# the checks). Its settings: tools/py/ruff.toml, whose paths are taken from the root (the checks run there).
-RUFF = ROOT / ".dev" / "py" / "bin" / "ruff"
-RUFF_CHECK = [str(RUFF), "check", "--config", "tools/py/ruff.toml", "--output-format", "concise", "."]
-RUFF_FORMAT = [str(RUFF), "format", "--config", "tools/py/ruff.toml", "."]
-RUFF_SETUP = "python tools/py/setup.py (once; about 5 s, then a no-op until tools/py/requirements.txt changes)"
-
-
-def ruff_missing() -> str | None:
-    """Why the pinned ruff cannot run, or None."""
-    stamp = ROOT / ".dev" / "py" / "requirements.sha256"
-    if not RUFF.is_file():
-        return "ruff is not installed in .dev/py"
-    pinned = hashlib.sha256((ROOT / "tools" / "py" / "requirements.txt").read_bytes()).hexdigest()
-    if not stamp.is_file() or stamp.read_text().strip() != pinned:
-        return "the ruff in .dev/py is not the one tools/py/requirements.txt pins"
-    return None
 
 
 def start(cmd: list[str]) -> subprocess.Popen:
@@ -216,9 +206,15 @@ def fix(args) -> int:
     return main(["lint", *(["--strict"] if args.strict else [])])
 
 
+PAGE_TESTS = "tests/page/**/*test*.mjs"  # node's glob and Python's agree: ** also matches tests/page/ itself
+# The reporter is named: without it node picks TAP whenever its output is captured (CI, this script), spec only on a
+# terminal. page_summary reads both.
+PAGE_COMMAND = ["--test", "--test-reporter=spec", PAGE_TESTS]
+
+
 def check_page(args) -> str:
     node = need("node")
-    result = run([node, "--test", "tests/page/**/*test*.mjs"])
+    result = run([node, *PAGE_COMMAND])
     output = result.stdout + result.stderr
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
@@ -228,8 +224,7 @@ def check_page(args) -> str:
             "tests/page/page-<name>.test.mjs, named in the failure above); after editing "
             "page/ run node tools/bundle/bundle.mjs first"
         )
-    counts = [line for line in output.splitlines() if line.startswith(("ℹ pass", "ℹ fail"))]
-    return ", ".join(line[2:] for line in counts) or "ok"
+    return page_summary.summary(output, len(list(ROOT.glob(PAGE_TESTS))))
 
 
 def shipped_files() -> list[str]:
@@ -355,6 +350,13 @@ def main(argv: list[str] | None = None) -> int:
     unknown = [name for name in wanted if name not in CHECKS]
     if unknown:
         parser.error("unknown check: " + ", ".join(unknown))
+
+    # Missing lint tools fail at once, before the slow checks start: a fresh checkout learns it in a second.
+    if "lint" in wanted and (missing := lint_tools_missing()):
+        row = ("lint", "FAILED", 0.0, "; ".join(missing) + f"\nnothing else ran\nFIX: {LINT_SETUP}")
+        print(f"{row[1]:>7}  {row[0]:<10} {row[2]:5.1f} s  " + row[3].replace("\n", "\n         "), flush=True)
+        step_summary.write([row])
+        return 1
 
     def one(name: str) -> tuple[str, str, float, str]:
         start = time.monotonic()

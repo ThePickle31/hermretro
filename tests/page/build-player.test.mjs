@@ -1,5 +1,5 @@
 // The inline player's pure logic: whole-number scaling and the play-test checklist.
-//   node --test tests/page/build-player.test.mjs
+// Run alone: node tests/page/build-player.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'
