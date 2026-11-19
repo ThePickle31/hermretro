@@ -1,8 +1,10 @@
 # Home
 
 **Shows:** the hero with the Hermes bust, then three columns: Continue (the last game, or the next setup step
-while setup is unfinished), Start something (quick starts, off until setup is done) and Studio (setup progress,
-links). Main component: `home-page.js`; descriptor: `index.js`.
+while setup is unfinished), Start something (quick starts, off until setup is done) and Studio (rows of `dl.cs-stat`: Setup, steps
+verified done of those counted, from the setup steps; Profile, the `status` RPC's `profile`; Toolchain, the
+setup toolchain state from `status` and `doctor`; Chromatic, `status`'s `hardware_enabled` and the stored
+"emulator only" choice; Games, the number the `games` RPC lists; then links to Setup and Games). Main component: `home-page.js`; descriptor: `index.js`.
 
 **Tabs:** none.
 

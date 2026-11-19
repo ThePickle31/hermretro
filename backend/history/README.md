@@ -9,6 +9,8 @@ Build history: after each successful build of a library game, a snapshot of its 
 - Hooks (`hooks.py`): `post_tool_call` — after a successful `chromatic_rom_build` of a library game, keeps a snapshot (chained after assets' `post_tool_call`).
 - Events emitted: `history.build_kept`. Listens to: none.
 
+- Data: `<plugin data dir>/snapshots/<game>/<ms>/` (`host._data_dir()`, the profile's Hermes plugin data folder, not the hermretro home; `<ms>` is the build's time in Unix milliseconds). Only folders whose names are all digits are listed and pruned (the newest 30 are kept); other per-game files may sit beside them. In tests, `isolated_home(self)` from `tests/support.py` moves this folder.
+
 ## Front door
 
 `backend.history` exports nothing.

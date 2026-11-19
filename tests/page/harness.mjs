@@ -5,7 +5,9 @@
 //   node tests/page/page-<name>.test.mjs [path to a node_modules folder]
 // The bundle keeps module-level state (the Build conversations, the profile route), so each file runs in its
 // own process with its own copy; a file sets every precondition it relies on itself.
-// Assert DOM presence and identity as booleans so failures do not inspect React's object graph.
+// Assert DOM presence and identity as booleans so failures do not inspect React's object graph, and the page's text
+// with shows(expected) / hides(expected) (a string or a RegExp), whose failures print only the part of the page
+// around the closest match instead of all of it.
 import assert from 'node:assert/strict'
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
@@ -122,15 +124,46 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     await act(async () => { paneRoot.render(entry.render()) })
     return { node, rerender: async () => { await act(async () => { paneRoot.render(entry.render()) }) }, close: async () => { await act(async () => { paneRoot.unmount() }); node.remove() } }
   }
+  const shows = (expected, message) => assertShows(text(), expected, message)
+  const hides = (expected, message) => assertHides(text(), expected, message)
   const checks = []
   const check = (name, fn) => { fn(); checks.push(name) }
 
   return {
     act, createRoot, dom, emit, host, plugin, scenario,
-    registrations, intervals, ctx, page, root, render, text, heading, HOME, headings, click, nav, tab, currentTab,
+    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, currentTab,
     settle, button, typeInto, key, mount, checks, check,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }
+}
+
+// Text assertions that fail with ~300 characters of the page around the closest match, not the whole page.
+// `expected` is a string or a RegExp; the closest match is the longest leading part of it that the page has.
+const AROUND = 150
+const literal = expected => expected instanceof RegExp
+  ? expected.source.split(/\\[dDsSwWbB]|(?<!\\)[[\](){}|?*+^$.]/).map(part => part.replace(/\\(.)/g, '$1'))
+    .reduce((a, b) => (b.length > a.length ? b : a), '')
+  : expected
+export function nearest(page, expected) {
+  const needle = literal(expected)
+  for (let length = needle.length; length >= 3; length--) {
+    const at = page.indexOf(needle.slice(0, length))
+    if (at >= 0) return { at, matched: needle.slice(0, length) }
+  }
+  return { at: 0, matched: '' }
+}
+const excerpt = (page, at) => (at > AROUND ? '…' : '') + page.slice(Math.max(0, at - AROUND), at + AROUND) + (at + AROUND < page.length ? '…' : '')
+const found = (page, expected) => (expected instanceof RegExp ? page.search(expected) : page.indexOf(expected))
+export function assertShows(page, expected, message) {
+  if (found(page, expected) >= 0) return
+  const { at, matched } = nearest(page, expected)
+  const where = matched ? `closest: "${matched}" at ${at}` : 'nothing close; the start of the page'
+  assert.fail(`${message ? message + ': ' : ''}the page does not show ${expected} (${page.length} chars; ${where}):\n  ${excerpt(page, at)}`)
+}
+export function assertHides(page, expected, message) {
+  const at = found(page, expected)
+  if (at < 0) return
+  assert.fail(`${message ? message + ': ' : ''}the page shows ${expected} at ${at}:\n  ${excerpt(page, at)}`)
 }
 
 // Query answers and backend replies.

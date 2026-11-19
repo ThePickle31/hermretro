@@ -85,5 +85,22 @@ class UnitCheckBytecodeTests(unittest.TestCase):
         )
 
 
+class UnitCheckHomeTests(unittest.TestCase):
+    def test_a_write_to_hermes_plugin_data_folder_fails_the_run(self):
+        def fake_run(cmd, **kwargs):  # what Hermes's plugin_data_dir would do, from the env the run gets
+            data = Path(kwargs["env"]["HERMES_HOME"]) / "plugin-data" / "hermretro" / "snapshots"
+            data.mkdir(parents=True)
+            return subprocess.CompletedProcess(cmd, 0, "", OK)
+
+        with mock.patch.object(check, "run", fake_run), self.assertRaises(AssertionError) as caught:
+            check.check_unit(None)
+        self.assertIn(
+            "plugin-data",
+            str(caught.exception),
+            "a write to Hermes's plugin data folder must fail the unit run\n"
+            "FIX: point HERMES_HOME inside the empty HOME that check_unit watches",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
