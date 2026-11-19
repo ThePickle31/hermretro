@@ -2,8 +2,13 @@
 // contract a contributing page reads ("Props: { a, b, ... }" in the host page's index.js `slots`, plus
 // conditional ones written "plus x(...) on the <where> only"), so a prop documented but never passed, or passed
 // but never documented, fails here. A probe stands in for the real contributions while each host renders.
+// A slot declared but not yet rendered by any page (what `retrodev new slot` leaves) has no props to check
+// and passes; once a page renders it with jsx(Slot, { name: '...' }), it needs its recipe in HOSTS below.
 //   node --test tests/page/slots.test.mjs
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'
 
@@ -127,21 +132,101 @@ function documentedProps(doc) {
   return { always, extra: plus ? names(plus[1].replace(/\band\b/g, ',')) : [], where: plus ? plus[2] : null }
 }
 
+const PAGE_DIR = fileURLToPath(new URL('../../page/', import.meta.url))
+
+/** Each page source file under `dir`, as [path relative to page/, text]. */
+function pageSources(dir = PAGE_DIR) {
+  return readdirSync(dir, { recursive: true })
+    .filter(name => /\.(m?js|jsx)$/.test(name))
+    .map(name => [`page/${name}`, readFileSync(join(dir, name), 'utf8')])
+}
+
+/** The slot names `sources` render (`jsx(Slot, { name: '...' })`, comments skipped), and where each is. */
+function renderedSlots(sources) {
+  const rendered = new Map()
+  const unnamed = []
+
+  for (const [file, text] of sources) {
+    const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+    for (const call of code.matchAll(/\bjsx\(\s*Slot\s*,\s*\{([^}]*)/g)) {
+      const name = call[1].match(/^\s*name:\s*(['"])([^'"]+)\1/)?.[2]
+
+      if (name) {
+        rendered.set(name, [...(rendered.get(name) ?? []), file])
+      } else {
+        unnamed.push(file)
+      }
+    }
+  }
+
+  return { rendered, unnamed }
+}
+
+/** Which declared slots lack a host recipe (`problems`), and which no page renders yet (`notYet`). */
+function hostCheck(declared, rendered, hosts) {
+  const problems = []
+  const notYet = []
+
+  for (const [name, { doc }] of declared) {
+    if (!rendered.has(name)) {
+      notYet.push(name)
+      continue
+    }
+
+    if (!hosts[name]) {
+      problems.push(`"${name}" is rendered in ${rendered.get(name).join(', ')}. FIX: add how to draw its host to HOSTS in tests/page/slots.test.mjs`)
+      continue
+    }
+
+    const { where } = documentedProps(doc)
+
+    if (where && !hosts[name].some(host => host.where === where)) {
+      problems.push(`"${name}" passes props on the ${where} only. FIX: give its HOSTS entry in tests/page/slots.test.mjs a recipe with where: '${where}'`)
+    }
+  }
+
+  return { problems, notYet }
+}
+
 test('a slot doc string is read as its props', () => {
   assert.deepEqual(documentedProps('Props: { ctx, game, item(icon, label, { disabled, why }) }; return item(...)'), { always: ['ctx', 'game', 'item'], extra: [], where: null })
   assert.deepEqual(documentedProps('Props: { ctx, game }, plus go(pageId) and later on the Emulator page only (more)'), { always: ['ctx', 'game'], extra: ['go', 'later'], where: 'Emulator page' })
 })
 
-test('every declared slot has a host recipe here, and a place for its conditional props', () => {
-  assert.ok(PAGE_SLOTS.declared().size >= 2, 'the page\'s slots are wired')
-  for (const [name, { doc }] of PAGE_SLOTS.declared()) {
-    assert.ok(HOSTS[name], `add how to draw the host of "${name}" to HOSTS in tests/page/slots.test.mjs`)
-    const { where } = documentedProps(doc)
+test('the slots a page renders are found in its source', () => {
+  const sources = [
+    ['page/a.js', "jsx(Slot, { name: 'a.one', props: { ctx } })\n  // jsx(Slot, { name: 'a.commented' })"],
+    ['page/b.js', "/* jsx(Slot, { name: 'b.block' }) */ jsx( Slot, {name: \"a.one\"}, 'k') jsx(Slot, { name: slotName })"]
+  ]
+  const { rendered, unnamed } = renderedSlots(sources)
 
-    if (where) {
-      assert.ok(HOSTS[name].some(host => host.where === where), `"${name}" passes props on the ${where} only: give HOSTS a recipe with where: '${where}'`)
-    }
+  assert.deepEqual([...rendered], [['a.one', ['page/a.js', 'page/b.js']]])
+  assert.deepEqual(unnamed, ['page/b.js'])
+})
+
+test('a declared slot no page renders yet needs no host recipe; once rendered, it does', () => {
+  const declared = new Map([['probe.notYet', { owner: 'probe', doc: 'Props: { ctx }' }]])
+
+  assert.deepEqual(hostCheck(declared, new Map(), {}), { problems: [], notYet: ['probe.notYet'] })
+  const { problems } = hostCheck(declared, new Map([['probe.notYet', ['page/pages/probe/probe-page.js']]]), {})
+
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /rendered in page\/pages\/probe\/probe-page\.js\. FIX: add how to draw its host to HOSTS in tests\/page\/slots\.test\.mjs/)
+})
+
+test('every rendered slot has a host recipe here, and a place for its conditional props', t => {
+  assert.ok(PAGE_SLOTS.declared().size >= 2, 'the page\'s slots are wired')
+  const { rendered, unnamed } = renderedSlots(pageSources())
+
+  assert.deepEqual(unnamed, [], 'FIX: name the slot as a string literal (jsx(Slot, { name: \'page.slot\', ... })) so this test can find its host')
+  const { problems, notYet } = hostCheck(PAGE_SLOTS.declared(), rendered, HOSTS)
+
+  for (const name of notYet) {
+    t.diagnostic(`${name}: declared, not rendered yet: no props to check`)
   }
+
+  assert.deepEqual(problems, [])
 })
 
 test('each host passes a contribution exactly the props its slot documents', async () => {
@@ -151,6 +236,7 @@ test('each host passes a contribution exactly the props its slot documents', asy
     for (const [name, { doc }] of PAGE_SLOTS.declared()) {
       const { always, extra, where } = documentedProps(doc)
 
+      // A slot no page renders yet has no host (the test above).
       for (const host of HOSTS[name] ?? []) {
         const seen = []
         const Probe = props => {
