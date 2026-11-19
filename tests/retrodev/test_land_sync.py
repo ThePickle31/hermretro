@@ -199,22 +199,24 @@ class DevMergedAfterReview(LandCase):
         self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
         self.assertNotIn("carried", self.review_record())
 
-    def noqa_conflict(self, extra: str = ""):
+    def noqa_conflict(self, extra: str = "", debug: str = "", resolved_debug: str = ""):
         """dev gives 24 bare noqa comments their reason while the branch changes the line beside them (a conflict
-        on the whole hunk); the resolution keeps the branch's code with dev's comments, plus ``extra``."""
+        on the whole hunk); the resolution keeps the branch's code with dev's comments, plus ``extra``. ``debug``
+        is code on both sides that the resolution turns into ``resolved_debug``."""
         bare = "".join(f"import m{n}  # noqa: E402\n" for n in range(24))
         reasoned = bare.replace("E402\n", "E402 - the repository root goes on sys.path first\n")
-        self.on_dev("backend/library/core.py", "VALUE = 1\n" + bare, "Bare noqa comments")
+        self.on_dev("backend/library/core.py", "VALUE = 1\n" + bare + debug, "Bare noqa comments")
         git(self.main, "fetch", "-q", "origin")  # the branch starts from this dev
 
         def change(tree):
-            self.commit(tree, "backend/library/core.py", "VALUE = 2\n" + bare, TITLE)
+            self.commit(tree, "backend/library/core.py", "VALUE = 2\n" + bare + debug, TITLE)
 
         def resolve(tree):
-            (tree / "backend" / "library" / "core.py").write_text("VALUE = 2\n" + reasoned + extra)
+            text = "VALUE = 2\n" + reasoned + extra + (resolved_debug or debug)
+            (tree / "backend" / "library" / "core.py").write_text(text)
             git(tree, "add", "backend/library/core.py")
 
-        return self.reviewed_then_synced(resolve, change, dev_core="VALUE = 1\n" + reasoned)
+        return self.reviewed_then_synced(resolve, change, dev_core="VALUE = 1\n" + reasoned + debug)
 
     def test_a_resolution_that_changes_only_comments_counts_no_lines(self):
         _tree, reviewed, head = self.noqa_conflict()
@@ -231,6 +233,16 @@ class DevMergedAfterReview(LandCase):
         code, data = self.land()
         self.assertEqual(code, 0, data)
         self.assertEqual(len(self.hermes.calls), 2, "25 lines of code: a probe, then round 2 on the merged head")
+        self.assertNotIn("carried", self.review_record())
+
+    def test_a_resolution_that_changes_25_debug_f_strings_needs_a_new_round(self):
+        """f"{v = }" and f"{v=}" print different text, though their tokens match on Python 3.12 and newer."""
+        debug = "".join(f'S{n} = f"{{V{n} = }}"\n' for n in range(25))
+        self.noqa_conflict(debug=debug, resolved_debug=debug.replace(" = }", "=}"))
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.hermes.calls), 2, "25 changed f-string lines: a probe, then round 2")
         self.assertNotIn("carried", self.review_record())
 
     def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
@@ -347,6 +359,14 @@ class CodeLines(unittest.TestCase):
         self.assertGreater(code_lines.changed("a.py", before, before.replace("a b", "ab")), 20)
         doc = 'TEXT = """\n' + "".join(f"line {n} a b\n" for n in range(25)) + '"""\n'
         self.assertGreater(code_lines.changed("a.py", doc, doc.replace("a b", "ab")), 20, "a multi-line string")
+
+    def test_a_line_in_an_f_string_compares_by_its_source_text(self):
+        self.assertEqual(code_lines.changed("a.py", 's = f"{value = }"\n', 's = f"{value=}"\n'), 2)
+        self.assertEqual(code_lines.changed("a.py", 's = f"{v!r:>{w} }"\n', 's = f"{v!r:>{w}}"\n'), 2, "a format spec")
+        long = 's = f"""\n{value = }\n"""\n'
+        self.assertEqual(code_lines.changed("a.py", long, long.replace("value = ", "value=")), 2, "a line inside one")
+        debug = "".join(f's{n} = f"{{v{n} = }}"\n' for n in range(25))
+        self.assertGreater(code_lines.changed("a.py", debug, debug.replace(" = }", "=}")), 20)
 
     def test_a_dedent_counts_every_line_it_moves(self):
         body = "".join(f"    x{n} = {n}\n" for n in range(25))

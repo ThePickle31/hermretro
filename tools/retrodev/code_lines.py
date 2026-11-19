@@ -7,7 +7,10 @@ stay conservative, since a change they wrongly leave out skips a review:
 - Python (and its templates): the whole file goes through tokenize, and each line is compared as its tokens (type
   and text) without comments and blank lines, together with its nesting depth (INDENT/DEDENT). So spacing between
   tokens is ignored, while string contents and indentation that changes what a block holds count; a string over
-  several lines counts on each line. A file tokenize cannot read is compared line by line, exactly.
+  several lines counts on each line. A line holding any part of an f-string (or t-string) is compared by its
+  source text instead: spacing inside one can be output (f"{value = }" is not f"{value=}"), and Python 3.12 and
+  newer tokenize its fields, so the tokens alone would miss it. A file tokenize cannot read is compared line by
+  line, exactly.
 - Every other file, JavaScript included: line by line, exactly. Telling a JavaScript comment from code needs its
   whole lexical context (a template literal can hold text that looks like a comment, and a line starting '// */'
   can close a block comment), so no JavaScript change is left out.
@@ -31,6 +34,14 @@ from . import repo
 HASH = (".py", ".py.tmpl", ".pyi")
 SKIPPED = (tokenize.COMMENT, tokenize.NL, tokenize.ENCODING, tokenize.ENDMARKER)
 BY_TYPE = (tokenize.INDENT, tokenize.DEDENT, tokenize.NEWLINE)  # their text is spacing; the depth tracks INDENT
+OPENS = {getattr(tokenize, n) for n in ("FSTRING_START", "TSTRING_START") if hasattr(tokenize, n)}  # 3.12, 3.14
+CLOSES = {getattr(tokenize, n) for n in ("FSTRING_END", "TSTRING_END") if hasattr(tokenize, n)}
+
+
+def interpolated(token: tokenize.TokenInfo) -> bool:
+    """A whole f-string or t-string as one STRING token (Python 3.11 and older)."""
+    prefix = token.string[: len(token.string) - len(token.string.lstrip("rRbBuUfFtT"))]
+    return token.type == tokenize.STRING and any(c in prefix for c in "fFtT")
 
 
 def python_code(text: str) -> list[str] | None:
@@ -42,7 +53,15 @@ def python_code(text: str) -> list[str] | None:
     rows: dict[int, list] = {}
     depth = {}
     level = 0
+    raw: set[int] = set()  # rows holding part of an f-string: compared by their source text
+    opened: list[int] = []
     for token in tokens:
+        if token.type in OPENS:
+            opened.append(token.start[0])
+        elif token.type in CLOSES and opened:
+            raw.update(range(opened.pop(), token.end[0] + 1))
+        elif interpolated(token):
+            raw.update(range(token.start[0], token.end[0] + 1))
         if token.type == tokenize.INDENT:
             level += 1
         elif token.type == tokenize.DEDENT:
@@ -55,6 +74,10 @@ def python_code(text: str) -> list[str] | None:
             row = token.start[0] + offset
             rows.setdefault(row, []).append([name, part])
             depth.setdefault(row, level)
+    source = io.StringIO(text).readlines()  # split as tokenize reads it, so row numbers match
+    for row in raw:
+        rows[row] = ["SOURCE", source[row - 1].rstrip("\r\n") if row <= len(source) else ""]
+        depth.setdefault(row, level)
     return [json.dumps([depth[row], rows[row]], ensure_ascii=True) for row in sorted(rows)]
 
 
