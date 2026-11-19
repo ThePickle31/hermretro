@@ -35,7 +35,7 @@ One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-i
 current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 11 s)
+python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 20 to 60 s)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
@@ -47,8 +47,13 @@ node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (bound
 `python tools/retrodev check` runs the same checks through `check.py`, but only those whose input files changed
 since their last pass on the branch (a cached pass prints `ok (cached)`; `--again` reruns, `--full` adds the
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
-`engine/`, `player/`, the toolchain or `plugin.yaml`, and the clean install (with the update check when files moved
-or were deleted) when it changed the registration side; it prints each check's time against its budget.
+`engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
+check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
+new` run on a throwaway copy of the tree) when it changed the scaffolds or the files they edit. A branch that adds a
+tool or an RPC therefore takes about 3 minutes to check. Budgets are in `tools/retrodev/policy.toml`
+`[checks.budgets]`; a check over its budget twice in a row gets a warning, never a failure. Run `python tools/check.py
+fix` and commit before `retrodev check`: the clean install installs the committed tree, so `check` refuses an
+uncommitted one when it is due.
 `python tools/retrodev check --watch` reruns the affected checks on every save. `python tools/retrodev doctor` says
 what this machine is missing, each with its fix.
 
@@ -80,9 +85,13 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 6. **Hardware.** Tests and CI never run the hardware tools (`flash`, `play`, `setup`, capture). They stay
    behind the user's setting and Hermes's approval prompt.
 7. **Never the real Hermes home in tests.** User state lives in `~/.hermes/hermretro/` (games, library,
-   downloads, broker); in tests use `tests/support.py` and point `HERMRETRO_HOME` (or the other
-   `HERMRETRO_*` folders) at a temp directory. `python tools/check.py unit` runs the suite with an empty
-   home folder and fails if anything is written there. The unit tests must pass on a machine without Hermes.
+   downloads, broker), and Hermes's plugin data folder (`host._data_dir()`: history snapshots, asset versions)
+   lives in the profile; `HERMRETRO_HOME` does not move that folder. In a test's `setUp`, call
+   `isolated_home(self)` from `tests/support.py`: it moves both, plus its own short broker folder (`throwaway_deps`
+   for downloads). A test that calls a real event emitter reaches every feature's listeners, so it needs this too.
+   Import helpers as `from tests.support import ...`, never with `tests/` on `sys.path`. `python tools/check.py unit`
+   runs the suite with an empty home folder and fails if anything is written there, naming the test module that
+   wrote it. The unit tests must pass on a machine without Hermes.
 8. **Notes stay local.** Plans, reports, logs, summaries and evidence written while working go in `notes/`, which
    git ignores. Committed documents are only those listed in `tools/layout.toml` `[docs]`; `tests/repo/test_docs.py`
    fails on any other.
@@ -90,10 +99,14 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 ## How work lands
 
 - `python tools/retrodev` walks each change through these steps and refuses to skip one (`tools/retrodev/README.md`):
-  `plan new <topic>` writes the plan in `notes/plans/`; `plan approve <topic> --words "..."` records the owner's
-  go in their words; `start feat/<topic>` makes the worktree from a fresh `dev` and sets it up; `check`; `ship
-  --title ... --body <file>` pushes and opens the draft pull request only for a committed tree that passed `check`,
-  with every template section filled in; `report` gives the facts for the report to the owner; `approve <n> --words
+  `plan new <topic>` writes the plan in `notes/plans/` (fill it in: `plan approve` refuses the untouched template);
+  `plan approve <topic> --words "..."` records the owner's go in their words; `start <kind>/<topic>` makes the
+  worktree from a fresh `dev` and sets it up (docs and chore branches may skip the plan with `--no-plan`); `new
+  feature|rpc|tool|event|listener|page|tab|slot ...` writes a piece with every registry line it needs (`--dry-run`
+  shows the diff first); `check`; `ship --title ...` writes the pull request body from the template to
+  `notes/pr/<topic>.md` the first time and stops until it is filled in (a dry run writes it too), then pushes and
+  opens the draft pull request only for a committed tree that passed `check`; after that a bare `ship` reuses the
+  recorded title and body; `report` gives the facts for the report to the owner; `approve <n> --words
   "..."` records the owner's approval of the pull request in their words; `land <n>` takes it through up to three
   read-only review rounds, CI on its exact head and the squash merge (`answer <n> <round> <index> "..."` records
   how each finding was fixed, between rounds); `summary <n>` gives the facts for the note after it lands; `status`
@@ -102,8 +115,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   Exit codes: 0 ok, 1 failed, 2 waiting, 3 needs the owner; `--json` for agents.
 - `dev` takes changes only through pull requests, squash-merged. `main` moves only when the owner
   releases: a fast-forward to a green `dev` commit, a tag and generated release notes.
-- Work in a worktree on its own branch from `dev`, named `feat/…`, `fix/…`, `docs/…` or `chore/…`. A
-  checkout that a Hermes profile loads as its live plugin stays on `dev`.
+- Work in a worktree on its own branch from `dev`, named `feat/…` (a new ability), `fix/…` (a bug), `docs/…`
+  (documentation only) or `chore/…` (refactors of tests, tools and CI that change no behaviour). A checkout that a
+  Hermes profile loads as its live plugin stays on `dev`.
 - One concern per pull request. Run `python tools/check.py` before pushing, then
   `gh pr create --base dev`. The title is a plain sentence; it becomes the commit and the release-note line.
 - Fill in every section of the pull request template. Say which systems you tested on, and say so when an
@@ -112,8 +126,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   CI green on the exact head and the review loop done on that head (a clean round of it, or the one head that
   fixes round 3's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
   request needs its own approval. GitHub auto-merge stays off.
-- When two pull requests both change the page, the generated files conflict. Fix it with
-  `git merge origin/dev`, then `node tools/bundle/bundle.mjs`, then commit the generated files.
+- When `dev` moved on, `python tools/retrodev sync` merges it in. On a conflict in a source file, edit the
+  conflicting hunks (never take one side of a whole file with `git checkout --ours/--theirs`: its other hunks were
+  merged), `git add` them and run `sync` again; it rebuilds the generated files and makes the merge commit.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through
   front doors and events (`docs/dev/ARCHITECTURE.md`, "The agent half"; checked by `tests/repo/test_boundaries.py`,
   registrations pinned by `tests/repo/test_registration_snapshot.py`). Names that must still change together
@@ -123,6 +138,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - This guide changes in the same pull request as any command or rule it describes.
 
 ## Releases (only when the owner asks)
+
+`python tools/retrodev release prepare|publish|verify` runs these steps with their gates (`tools/retrodev/README.md`,
+"Releases"); it refuses without the owner's words asking for a release. By hand:
 
 The version lives only in `plugin.yaml` (`tests/repo/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
