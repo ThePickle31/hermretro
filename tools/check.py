@@ -62,9 +62,11 @@ def need(tool: str) -> str:
 
 
 def check_unit(_args) -> str:
-    # The suite runs with an empty home folder and no Hermes or hermretro locations set, so a test that
-    # would write to the real Hermes home (games, library, toolchain, broker) shows up as a file here.
-    with tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home:
+    # Empty home (a write meant for the real one shows up); empty PYTHONPYCACHEPREFIX (-B alone still reads stale .pyc)
+    with (
+        tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
+        tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
+    ):
         env = {
             key: value
             for key, value in os.environ.items()
@@ -72,14 +74,14 @@ def check_unit(_args) -> str:
         }
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
         result = run(
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env={**env, "HOME": home},
+            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
+            env={**env, "HOME": home, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": bytecode},
         )
         leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-            "python -m unittest tests/<area>/<feature>/test_<name>.py"
+            "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
         )
     if leaked:
         raise AssertionError(

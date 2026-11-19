@@ -13,7 +13,6 @@ import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
 import { PlayCard } from './player/play-card.js'
-import { rootOf } from './transcript/groups.js'
 import { BuildStatus } from './transcript/status.js'
 import { Transcript } from './transcript/transcript.js'
 import { buildHistory, deriveTurns } from './transcript/turns.js'
@@ -205,7 +204,6 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const shownStored = fresh ? null : stored
   const shownChat = shownStored ? chat : null
   const shownItems = shownChat?.items ?? null
-  const shownRoot = useMemo(() => rootOf(game, shownItems ?? []), [game?.projectRoot, shownItems])
   // A turn to scroll to (the Builds menu's Show).
   const [focusTurn, setFocusTurn] = useState(null)
 

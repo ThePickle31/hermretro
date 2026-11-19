@@ -13,4 +13,5 @@
 
 ## Not done
 
-<!-- If an agent made this change, say which one and for whom. -->
+## Made by
+<!-- A person: your name or handle. An agent: which one and for whom, e.g. "Made by an agent (Hermes, <model>) for @<who asked>." -->

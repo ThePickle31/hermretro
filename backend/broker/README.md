@@ -17,9 +17,11 @@ The per-user broker process (`python -m backend.broker`): the single authority o
 
 ## Adding here
 
-- an RPC: a factory `@rpc("name") def rpc_name(ctx)` in `rpcs.py` (returns the handler `(params, **kwargs)` answering `{ok, ...}`, never raising); then name it in `page/app/rpc.js` and describe it in `docs/dev/CONTRACT.md`, and refresh `tests/repo/registration.json` (`python tests/repo/test_registration_snapshot.py --write`).
-- a tool: a schema dict and a handler in `tools.py`, added to `TOOLS` as `Tool(SCHEMA, handler, step_words=(running, done))` (`None` hides the step); then list it under `provides_tools` in `plugin.yaml`, give it the same words in `page/pages/build/transcript/step-words.js`, describe it in `docs/dev/CONTRACT.md` and refresh `tests/repo/registration.json`.
-- a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`.
-- an event: declare it in this front door's `EVENTS` (`"<feature>.<what happened>": "payload"`), call `emit("<feature>.<what happened>", **payload)` where it happens; other features react in their own `listeners.py` with `@on(...)`.
+The broker declares no RPCs, tools, hooks, events or listeners (it stays standard library only, outside Hermes);
+the gateway's features reach it only through this front door. `retrodev new` refuses an rpc, tool or event here.
 
-The broker declares no RPCs, tools or hooks itself; expose a client function in the front door instead.
+- an RPC, a tool or an event that needs the broker: declare it in a gateway-side feature (`backend/setup/`,
+  `backend/library/`, or the one it belongs to) with `python tools/retrodev new rpc|tool|event <that feature> ...`,
+  and have its handler call the broker through `backend.broker` (`ensure_broker`, `try_connect`).
+- a new broker operation: add it on the broker side and a client function in `client.py`, export that from this
+  front door, and cover it in `tests/backend/broker/` (read `test_broker_socket.py` first).

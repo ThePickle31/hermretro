@@ -127,12 +127,20 @@ test('pages listen for their whole life: a cover request and a presentation reac
   assert.deepEqual(BUILD_PRESENTED.get().frog, { seq: 3, note: 'try it', t: 5 })
 })
 
-test('slots: the real ones are declared, the Install button fills the Emulator bar, an empty slot renders nothing', async () => {
+// Filling a real slot changes only the `filled` assertion below (a new, empty slot only the declared list); the
+// empty case renders on a table of its own.
+test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual([...PAGE_SLOTS.declared().keys()].sort(), ['emulator.barActions', 'games.cardMenu'])
-  assert.deepEqual(PAGE_SLOTS.contributions('emulator.barActions'), [InstallButton])
-  assert.deepEqual(PAGE_SLOTS.contributions('games.cardMenu'), [])
+  const filled = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]).filter(([, list]) => list.length))
 
-  const { node, root } = await render(jsxs('div', { children: ['before', jsx(Slot, { name: 'games.cardMenu', props: {} })] }))
+  assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
+})
+
+test('an empty slot renders nothing', async () => {
+  const slots = createSlots()
+
+  slots.declare('host.panel', 'host', 'a panel')
+  const { node, root } = await render(jsxs('div', { children: ['before', jsx(Slot, { name: 'host.panel', props: {}, slots })] }))
 
   assert.equal(node.innerHTML, '<div>before</div>')
   await act(async () => root.unmount())
