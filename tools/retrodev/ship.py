@@ -8,7 +8,8 @@ still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so
 that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
 plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan: say why -->' instead) and a line
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
-has one, else after a closing '---', so it fills no section), and stops: fill it in, then ship again. A --dry-run
+has one, else after a closing '---', so it fills no section), and its body gate stops: fill it in, then ship
+again. Every gate runs in every ship, a missing title included, so one run reports every refusal. A --dry-run
 writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
 its FIX the same ship --dry-run with this title and body. Every ship command printed during or after a dry run
 (a FIX here, status's next step) is a dry run too: they are all built by command(), and the dry run is recorded
@@ -154,9 +155,9 @@ def skeleton(ctx, branch: str, record: dict) -> str:
 
 def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, branch, record) -> tuple[Path, bool]:
     """The body to ship: --body, else notes/pr/<topic>.md. Writes that skeleton when it is missing (or with
-    --new-body; an existing file is kept), so the agent fills in a file instead of writing one from scratch: a real
-    ship stops there, a dry run goes on and its body gate says which file to fill in (writing a git-ignored note
-    pushes nothing)."""
+    --new-body; an existing file is kept), so the agent fills in a file instead of writing one from scratch: the body
+    gate then refuses it, beside every other gate, and names the file to fill in (writing a git-ignored note pushes
+    nothing)."""
     if body and not new_body:
         path = Path(body).expanduser()
         return (path if path.is_absolute() else ctx.cwd / path), False
@@ -181,9 +182,7 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
             else "no plan Goal: write the Why"
         )
         ctx.out.say(f"wrote {path} from {TEMPLATE} ({why})")
-    if dry_run:
-        return path, written
-    raise Failure(f"the pull request body {path} is not filled in yet", fill_in(path, title))
+    return path, written  # the body gate refuses the unfilled skeleton, beside every other gate
 
 
 def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
@@ -248,8 +247,12 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
     if work:  # before anything can stop this ship (the title first): status keeps --dry-run in the ship it names
         record["last_ship_dry_run"] = dry_run
         state.save_branch(ctx.top, record)
+    no_title = None  # every other gate still runs without one: all refusals in one run
     if title is None:
-        title = recorded_title(ctx, branch, record, dry_run)
+        try:
+            title = recorded_title(ctx, branch, record, dry_run)
+        except Failure as missing:
+            title, no_title = "", Gate("title", False, missing.message, missing.fix)
     body = chosen_body(ctx, body, new_body, branch, record)
     if work:
         # status names them in its next ship command, also after a gate stops this one or a dry run returns
@@ -266,7 +269,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         body_gate.fix = fill_in(body_path, title, dry_run)
     found = [
         gates.on_work_branch(ctx, branch),
-        gates.title_gate(title),
+        no_title or gates.title_gate(title),
         body_gate,
         gates.committed(ctx),
         gates.checks_on_tree(ctx, record, repo.tree_digest(ctx.top)),

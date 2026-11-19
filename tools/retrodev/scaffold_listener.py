@@ -45,9 +45,13 @@ def test_template(plan: Plan) -> str:
     return "test_listener_isolated.py.tmpl" if has else "test_listener.py.tmpl"
 
 
+LISTENS = "say what this listener does"  # the README entry's placeholder (tests/repo/test_placeholders.py)
+
+
 def listens_line(text: str, item: str) -> str:
     """The README's 'Listens to' sentence (mid-line, after 'Events emitted'): 'none' becomes the item, else the item
-    goes after the last event it names."""
+    goes after the last event it names; where its entries read '`event` — what it does', the item is an entry of
+    its own: '; `event` — say what this listener does'."""
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if "Listens to" not in line:
@@ -57,6 +61,8 @@ def listens_line(text: str, item: str) -> str:
         segment, tail = (rest[: end.start()], rest[end.start() :]) if end else (rest, "")
         if re.search(r"\bnone\b", segment):
             segment = re.sub(r"\bnone\b", lambda _match: item, segment, count=1)
+        elif re.search(r"`[a-z0-9_]+\.[a-z0-9_]+` — ", segment):
+            segment = segment.rstrip() + f"; {item} — {LISTENS}"
         else:
             names = list(re.finditer(r"`[a-z0-9_]+\.[a-z0-9_]+`", segment))
             at = names[-1].end() if names else len(segment.rstrip())
@@ -128,11 +134,13 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     test = f"tests/backend/{feature_name}/test_listener_{func}.py"
     plan.create(test, render("listener", test_template(plan), **values))
     readme = f"backend/{feature_name}/README.md"
+    on_readme = False
     if plan.exists(readme):
         before = plan.read(readme)
         plan.edit(readme, lambda body: listens_line(body, f"`{event}`"))
         if plan.read(readme) == before:
             plan.notes.append(f"name `{event}` under 'Listens to' in {readme} (its line did not have the usual shape)")
+        on_readme = LISTENS in plan.read(readme) and LISTENS not in before
     for rel, change in ((CONTRACT, heard_by), (ARCHITECTURE, agent_half)):
         before = plan.read(rel)
         try:
@@ -141,11 +149,15 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
             pass
         if plan.read(rel) == before:
             plan.notes.append(f"{rel} has no row to name it in: say there that {feature_name} listens to {event}")
+    readme_step = (
+        f", and '{LISTENS}' in {readme}'s 'Listens to' entry for `{event}`"
+        if on_readme
+        else "; say it on the README's 'Listens to' line too"
+    )
     plan.next_steps += [
         f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']})",
-        f"replace the two placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
-        f"{event} in {CONTRACT}, and 'say what this listener does' in {func}'s docstring; say it on the README's "
-        "'Listens to' line too",
+        f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
+        f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
         f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
         "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home",
     ]

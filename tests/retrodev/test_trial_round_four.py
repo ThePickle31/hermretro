@@ -172,9 +172,10 @@ class New(ScaffoldCase):
         self.new("event", "history", "rdprobe_pruned", "--payload", "game")
         after = self.row("history")
         declares, events = after.strip("| ").split(" | ")[1:3]
-        self.assertIn("; tool `chromatic_rdprobe_hist`", declares)
+        self.assertRegex(declares, r"; tools? (`chromatic_\w+`, )*`chromatic_rdprobe_hist`")  # after any it has
         self.assertTrue(declares.startswith(before.split(" | ")[1].split("; ")[0]), after)  # its RPCs stay first
-        self.assertTrue(events.endswith(", `history.rdprobe_pruned`"), events)
+        emitted = events.split("; listens to ")[0]  # whatever history listens to (a branch may add a listener) follows
+        self.assertTrue(emitted.endswith(", `history.rdprobe_pruned`"), events)
 
     def test_tab_from_page_turns_the_page_s_page_into_its_first_tab(self):
         self.new("page", "rdprobe-notes")
@@ -191,8 +192,7 @@ class New(ScaffoldCase):
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_FIRST_TAB\n  ]", door)
         out = self.new("tab", "rdprobe-notes", "again", "--from-page", code=1)  # it has tabs now
         self.assertIn("has tabs already", out["error"]["message"])
-        out = self.new("tab", "home", "rdprobe-moved", "--from-page", code=1)  # Home is defined in index.js
-        self.assertIn("defines Home itself", out["error"]["message"])
+        # Home is defined in index.js: round five moves it into home-page.js (test_trial_round_five) instead of refusing
 
     def alias(self, clause: str, page_field: str) -> None:
         """The rdprobe-notes page's index.js importing its Page through ``clause``, committed."""
@@ -281,14 +281,17 @@ class New(ScaffoldCase):
         )
 
     def test_a_first_tab_beside_the_page_s_own_page_skips_the_page_check_with_a_note(self):
-        code, out = self.run_cli("new", "tab", "home", "rdprobe-extra", cwd=self.tree)
+        self.new("page", "rdprobe-notes")  # a probe page: whether home has tabs is the real tree's business
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Probe page")
+        code, out = self.run_cli("new", "tab", "rdprobe-notes", "extra", cwd=self.tree)
         self.assertEqual(code, 0, out)
         self.assertIn("note: the page check is skipped now", out)
         ran = [name for entry in self.check_log() for name in entry["names"]]
         self.assertIn("bundle", ran)
         self.assertNotIn("page", ran)
         self.clear_log()
-        self.run_cli("new", "tab", "home", "rdprobe-more", cwd=self.tree)  # it has a tab: its page check runs
+        self.run_cli("new", "tab", "rdprobe-notes", "more", cwd=self.tree)  # it has a tab: its page check runs
         self.assertIn("page", [name for entry in self.check_log() for name in entry["names"]])
 
     def test_the_listener_takes_underscored_payload(self):

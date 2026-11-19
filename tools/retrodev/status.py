@@ -17,18 +17,23 @@ from .output import cmd
 NOTHING_NEXT = "next: python tools/retrodev plan new <topic> (docs/chore: start <kind>/<topic> --no-plan)"
 
 
+def plan_steps(facts: dict) -> str | None:
+    """The exact plan commands a branch that needs a plan still lacks (None once it is approved, or for docs/chore)."""
+    if not facts.get("needs_plan") or facts.get("plan_approved"):
+        return None
+    topic = facts.get("plan") or facts.get("topic") or "<topic>"
+    approve = f'python tools/retrodev plan approve {topic} --words "<the owner\'s exact words>"'
+    if facts.get("plan_exists") is False:
+        return f"python tools/retrodev plan new {topic}, fill it in, show the owner, then {approve}"
+    return f"show the owner notes/plans/{topic}.md; when they say start: {approve}"
+
+
 def next_step(facts: dict) -> str:
-    """The one next command for a branch, from its facts (pure: the tests drive it directly)."""
+    """The one next command for a branch, from its facts (pure: the tests drive it directly). A branch behind the
+    base syncs first, before any plan step (the plan step follows it in the same line)."""
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
     if facts.get("protected"):
         return "next: python tools/retrodev start <kind>/<topic> (work happens in a worktree on its own branch)"
-    if facts.get("needs_plan") and not facts.get("plan_approved") and facts.get("plan_exists") is False:
-        return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
-    if facts.get("needs_plan") and not facts.get("plan_approved"):
-        return (
-            f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
-            f'approve {topic} --words "<their exact words>"'
-        )
     if facts.get("merging"):  # an open sync merge: only sync finishes it (rebuilds generated files, commits)
         if facts.get("merge_unresolved"):
             return (
@@ -37,17 +42,26 @@ def next_step(facts: dict) -> str:
                 + ", then python tools/retrodev sync (it rebuilds the generated files and makes the merge commit)"
             )
         return "next: python tools/retrodev sync (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
+    planned = plan_steps(facts)
     if facts.get("behind"):
         lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
+        after = planned or "python tools/retrodev check"
         if facts.get("dirty"):
             return (
                 "next: "
                 + cmd("git", "add", "-A")
                 + " && "
                 + cmd("git", "commit", "-m", "<what changed>")
-                + f", then python tools/retrodev sync ({lacks}; sync merges only a committed tree), then check"
+                + f", then python tools/retrodev sync ({lacks}; sync merges only a committed tree), then {after}"
             )
-        return f"next: python tools/retrodev sync ({lacks}), then python tools/retrodev check"
+        return f"next: python tools/retrodev sync ({lacks}), then {after}"
+    if planned and facts.get("plan_exists") is False:
+        return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
+    if planned:
+        return (
+            f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
+            f'approve {topic} --words "<their exact words>"'
+        )
     if not facts.get("checks_passed"):
         return "next: python tools/retrodev check"
     if facts.get("dirty"):
@@ -198,7 +212,13 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
 def show_branch(ctx, facts: dict) -> None:
     say = ctx.out.say
     say(f"branch {facts['branch']}  ({facts['path']})")
-    if not facts.get("needs_plan") and not facts.get("plan_exists"):
+    if plan_steps(facts):  # up front: nothing ships without it
+        missing = "none written" if facts.get("plan_exists") is False else "NOT approved"
+        kind = facts["branch"].split("/")[0]
+        say(
+            f"  plan:   {facts['plan']} ({missing}): a {kind} branch ships only under an approved plan: {plan_steps(facts)}"
+        )
+    elif not facts.get("needs_plan") and not facts.get("plan_exists"):
         say("  plan:   none needed (docs/chore)")
     elif facts["plan"] and facts.get("plan_exists") is False:
         say(f"  plan:   {facts['plan']} (none written)")
@@ -234,7 +254,7 @@ def run(ctx) -> int:
     if branch and branch not in ctx.policy["branches"]["protected"]:
         record = state.load_branch(ctx.top, branch) if state.branch_path(ctx.top, branch).is_file() else {}
         facts = branch_facts(ctx, branch, ctx.top, record)
-        facts["next"] = next_step(facts)
+        facts["next"], facts["plan_steps"] = next_step(facts), plan_steps(facts)
         show_branch(ctx, facts)
         ctx.out.set(**facts)
         return 0

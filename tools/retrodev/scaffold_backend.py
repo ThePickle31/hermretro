@@ -229,6 +229,7 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
         f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
         "(tests/page/harness.mjs), set before the page renders: the stub's useQuery reads it at render time",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
+        "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
     ]
     return f"RPC {name}"
 
@@ -250,9 +251,21 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
 
 
-def payload_keys(payload: str) -> list[str]:
-    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
-    the leading name of each comma-separated part outside brackets."""
+def events_payload(payload: str) -> str:
+    """The payload as the EVENTS entries write it, ``key=<...>`` for each keyword ('game=<id>, root' -> 'game=<id>,
+    root=<...>'): a part that says what its key holds keeps it."""
+    parts = []
+    for part in split_parts(payload):
+        part = part.strip()
+        found = re.match(r"([A-Za-z_]\w*)\b(.*)$", part)
+        if found and not found.group(2).strip():
+            part = f"{found.group(1)}=<...>"
+        parts.append(part)
+    return ", ".join(part for part in parts if part)
+
+
+def split_parts(payload: str) -> list[str]:
+    """The comma-separated parts of a --payload line, a comma inside brackets kept in its part."""
     parts, depth, current = [], 0, ""
     for char in payload:
         depth += char in "([{<"
@@ -262,7 +275,13 @@ def payload_keys(payload: str) -> list[str]:
             current = ""
         else:
             current += char
-    keys = [found.group(1) for part in [*parts, current] if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
+    return [*parts, current]
+
+
+def payload_keys(payload: str) -> list[str]:
+    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
+    the leading name of each comma-separated part outside brackets."""
+    keys = [found.group(1) for part in split_parts(payload) if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
     return list(dict.fromkeys(keys))
 
 
@@ -285,9 +304,9 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
         if f'"{full}"' in plan.read(str(door.relative_to(plan.top))):
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
-    doc = f"{when or 'say when it is emitted'}; payload: {payload}"
-    plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
     keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
+    doc = f"{when or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
+    plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
     cell = ", ".join(f"`{key}`" for key in keys) or payload
     row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
     plan.edit(
