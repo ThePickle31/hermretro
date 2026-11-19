@@ -1,8 +1,10 @@
 """Step 4 ends: push the branch and open its draft pull request (or update the open one).
 
-    ship --title "<one plain sentence>" [--body <file>] [--new-body] [--dry-run]
+    ship [--title "<one plain sentence>"] [--body <file>] [--new-body] [--dry-run]
 
-The body defaults to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
+The title defaults to the one recorded for the branch (its pull request's, else the last ship's); with none
+recorded ship refuses and its FIX names the plan's title. The body defaults to the one recorded (when that file
+still exists), else to notes/pr/<topic>.md in the main checkout (git-ignored, so gc is never blocked by it). When
 that file does not exist yet (or with --new-body), ship writes it from .github/pull_request_template.md, with the
 plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan: say why -->' instead) and a line
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
@@ -184,11 +186,40 @@ def again(record: dict) -> str:
     return cmd(*words)
 
 
-def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
+def recorded_title(ctx, branch, record: dict) -> str:
+    """The title of a ship without --title: the pull request's, else the last ship's; else a FIX with the plan's."""
+    title = (record.get("pr") or {}).get("title") or record.get("title")
+    if title:
+        return title
+    shown = (plan_title(ctx, branch, record) if branch else None) or "<one plain sentence>"
+    raise Failure(
+        "no title: this branch has none recorded yet (the first ship names it)",
+        cmd("python", "tools/retrodev", "ship", "--title", shown),
+    )
+
+
+def chosen_body(ctx, body: str | None, new_body: bool, branch, record: dict) -> str | None:
+    """--body, else the recorded body while its file exists (None: the default notes/pr/<topic>.md)."""
+    if new_body:
+        return None
+    if body:
+        path = Path(body).expanduser()
+        return str(path if path.is_absolute() else ctx.cwd / path)
+    recorded = record.get("body")
+    return recorded if recorded and Path(recorded).is_file() else None
+
+
+def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
-    record = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
-    if branch and not gates.title_problems(title) and branch not in ctx.policy["branches"]["protected"]:
-        record["title"] = title.strip()  # status names it in its next ship command, also after a stop below
+    record: dict = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
+    if title is None:
+        title = recorded_title(ctx, branch, record)
+    body = chosen_body(ctx, body, new_body, branch, record)
+    if branch and branch not in ctx.policy["branches"]["protected"]:
+        # status names them in its next ship command, also after a gate stops this one or a dry run returns
+        if not gates.title_problems(title):
+            record["title"] = title.strip()
+        record["body"] = body or str(default_body(ctx, branch, record))
         state.save_branch(ctx.top, record)
     body_path, written = body_file(ctx, title, body, new_body, dry_run, branch, record)
     text = body_path.read_text(encoding="utf-8") if body_path.is_file() else None

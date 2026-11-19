@@ -89,11 +89,14 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--watch", action="store_true", help="run again on every file change")
 
     p = add("ship", "push the branch and open (or update) its draft pull request")
-    p.add_argument("--title", required=True, help="one plain sentence, no trailing period")
+    p.add_argument(
+        "--title", help="one plain sentence, no trailing period (default: the title this branch last shipped with)"
+    )
     p.add_argument(
         "--body",
-        help="a file with every pull request template section filled in (default: notes/pr/<topic>.md in the main "
-        "checkout; when it is missing, ship writes it from .github/pull_request_template.md and stops)",
+        help="a file with every pull request template section filled in (default: the body this branch last shipped "
+        "with, else notes/pr/<topic>.md in the main checkout; when that is missing, ship writes it from "
+        ".github/pull_request_template.md and stops)",
     )
     p.add_argument("--new-body", action="store_true", help="write notes/pr/<topic>.md from the template, then stop")
     p.add_argument("--dry-run", action="store_true", help="run the gates and print what it would do")

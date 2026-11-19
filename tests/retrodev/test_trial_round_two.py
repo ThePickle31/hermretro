@@ -17,7 +17,7 @@ from pathlib import Path
 import retrodev
 from retrodev import checks, config, output, repo, ship, state
 
-from tests.retrodev.fixture import RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 
 load_tests = parallel
@@ -104,6 +104,39 @@ class Flow(RepoCase):
         write(self.main, "notes/pr/keeper.md", "## Why\n")
         _code, out = self.run_cli("status", cwd=tree)
         self.assertIn("--title 'Keep the keeper in goal' --body", line_with(out, "next:"))
+
+    def test_status_keeps_a_custom_body_after_a_dry_run_before_any_pull_request(self):
+        tree = self.feat()
+        write(self.main, "notes/pr/goalie.md", "## Why\n")  # an unrelated default body must not win
+        body = write(self.base, "custom.md", "## Why\nBecause.\n")
+        self.run_cli("ship", "--title", TITLE, "--body", str(body), "--dry-run", cwd=tree)
+        _code, out = self.run_cli("status", cwd=tree)
+        words = shlex.split(line_with(out, "next:").removeprefix("next: ").split(" (")[0])
+        self.assertEqual(words, [*["python", "tools/retrodev", "ship"], "--title", TITLE, "--body", str(body)], out)
+
+    def test_a_bare_ship_uses_the_recorded_title_and_body_and_refuses_with_neither(self):
+        tree = self.feat()
+        code, out = self.run_cli("ship", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("FIX: python tools/retrodev ship --title", out)
+        self.assertEqual(self.gh.calls, [])
+        plan = self.main / "notes" / "plans" / "goalie.md"
+        plan.write_text(plan.read_text().replace("# Plan: goalie", "# Plan: Keep the goalie in goal"))
+        _code, out = self.run_cli("ship", cwd=tree)
+        self.assertIn("FIX: python tools/retrodev ship --title 'Keep the goalie in goal'", out, "the plan's title")
+        body = write(self.base, "custom.md", GOOD_BODY)
+        self.gh.answers[("pr", "create")] = (0, "https://github.com/o/r/pull/7\n", "")
+        code, out = self.run_cli("ship", "--title", TITLE, "--body", str(body), cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.commit(tree, "docs/guide.md", "# goalie, again\n")
+        self.passed(tree, "feat/goalie")
+        self.gh.answers[("pr", "list")] = (0, '[{"number": 7, "url": "u", "baseRefName": "dev"}]', "")
+        self.gh.answers[("pr", "edit")] = (0, "", "")
+        code, out = self.run_cli("ship", cwd=tree)
+        self.assertEqual(code, 0, out)
+        edit = self.gh.called("pr", "edit")[0]
+        self.assertEqual(edit[edit.index("--title") + 1], TITLE)
+        self.assertEqual(edit[edit.index("--body-file") + 1], str(body))
 
     def test_a_check_warns_only_on_the_second_run_over_budget(self):
         tree = self.worktree()
