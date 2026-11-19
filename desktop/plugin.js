@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 2340bedbcfcfc7722ca72092f2d4be63abb08b2627e39bf0f1c8e3850f5e0133
- * body: sha256 f26e49db01f8ea1164b03ee2acaf5c74516cfd04358bd266b971f0464f5ad23b
+ * sources: sha256 ac5f5438288bdb49f095c964c47e7d115c871bdcf1aa14a72b0cd47aa29c9e6d
+ * body: sha256 102d8d7b60b3dffc4a1739bdb9bf6ea7061d068455d5d33d372e27832e83724b
  */
 // page/sdk.js
 import {
@@ -10400,7 +10400,7 @@ function Captures({ game, open }) {
     })
   });
 }
-function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, capturesOpen, onAsk, onToggleCaptures, onFull, onReload, onLater }) {
+function EmulatorBar({ ctx, game, go, player, focused, hardwareOn, rebuilt, capturesOpen, onAsk, onToggleCaptures, onFull, onReload, onLater }) {
   const onDemo = game?.id === DEMO_ID;
   return [
     rebuilt ? jsxs(
@@ -10428,7 +10428,7 @@ function EmulatorBar({ ctx, game, player, focused, hardwareOn, rebuilt, captures
             label: "Lit while the player has keyboard focus. Keys typed on this page also reach the game.",
             children: jsxs("span", { className: focused ? "cs-rp-focus on" : "cs-rp-focus", children: [jsx("i", {}), jsx("span", { className: "cs-lbl", children: "Keyboard" })] })
           }),
-          game && !onDemo ? jsx(Slot, { name: "emulator.barActions", props: { ctx, game, hardwareOn } }) : null,
+          game && !onDemo ? jsx(Slot, { name: "emulator.barActions", props: go ? { ctx, game, go, hardwareOn } : { ctx, game, hardwareOn } }) : null,
           jsx(AsyncButton, { disabled: !player?.data?.url, icon: "comment-discussion", run: onAsk, title: "Puts this frame and a note into the game's chat, not sent", variant: "ghost", children: "Ask Hermes" }),
           jsx(Tip, {
             label: "Screenshots and videos of this game",
@@ -10935,7 +10935,7 @@ var EMULATOR_CSS = `
 
 // page/pages/emulator/index.js
 function Emulator({ shell }) {
-  const { ctx, hardwareOn, player } = shell;
+  const { ctx, go, hardwareOn, player } = shell;
   return [
     jsx(
       EmulatorBar,
@@ -10944,6 +10944,7 @@ function Emulator({ shell }) {
         ctx,
         focused: player.focused,
         game: player.game,
+        go,
         hardwareOn,
         onAsk: player.ask,
         onFull: player.fullScreen,
@@ -10977,7 +10978,7 @@ var EMULATOR_PAGE = {
     "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation."
   },
   slots: {
-    "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Props: { ctx, game, hardwareOn }."
+    "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."
   }
 };
 

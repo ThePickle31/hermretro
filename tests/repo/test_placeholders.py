@@ -73,12 +73,15 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
 
     def test_a_planned_listener_leaves_both_listener_placeholders(self):
         """`new listener` (planned in memory, nothing written) leaves the two texts the gate looks for: the listener
-        docstring and the CONTRACT row's 'Heard by' entry, in files the gate scans."""
+        docstring and the CONTRACT row's 'Heard by' entry, in files the gate scans. It listens from a throwaway
+        feature planned first (as tests/retrodev/test_scaffold_tree.py does with rdtree), so a real feature that
+        already listens to the event never makes it refuse."""
         sys.path.insert(0, str(SCAFFOLD.parent))
-        from retrodev import scaffold, scaffold_listener
+        from retrodev import scaffold, scaffold_backend, scaffold_listener
 
         plan = scaffold.Plan(ROOT)
-        scaffold_listener.listener(plan, "history", "library.build_reported")
+        scaffold_backend.feature(plan, "rdplaceholder", "A throwaway feature this test plans and never writes")
+        scaffold_listener.listener(plan, "rdplaceholder", "library.build_reported")
         planned = {rel: text for rel, text in {**plan.created, **plan.changed}.items() if not rel.startswith(SKIPPED)}
         for text in ("say what this listener does", "(say what it does)"):
             self.assertTrue(any(text in body for body in planned.values()), f"{text!r} not in {sorted(planned)}")

@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.library.test_games import COVER, encode_png, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
@@ -151,6 +151,7 @@ class CardFile(unittest.TestCase):
 
 class ToolsAndPresent(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.patches = [

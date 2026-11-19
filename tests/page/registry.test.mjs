@@ -128,12 +128,47 @@ test('pages listen for their whole life: a cover request and a presentation reac
 })
 
 // Filling a real slot changes only the `filled` assertion below (a new, empty slot only the declared list); the
-// empty case renders on a table of its own.
+// empty case renders on a table of its own. A slot's contributions are listed in PAGES order
+// (page/pages/index.js), whatever order the contributing pages were written in.
 test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual([...PAGE_SLOTS.declared().keys()].sort(), ['emulator.barActions', 'games.cardMenu'])
   const filled = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]).filter(([, list]) => list.length))
 
   assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
+})
+
+// emulator.barActions is drawn on the Emulator page (which has the shell, so it passes go) and in the emulator tab
+// beside the chat (page/pages/emulator/beside-chat/tab.js, no shell, so no go). A probe stands in for the real
+// contributions while the two render.
+test('an emulator.barActions contribution gets go on the Emulator page, not beside the chat', async () => {
+  const { EMULATOR_PAGE } = await import('../../page/pages/emulator/index.js')
+  const { openSideEmulator } = await import('../../page/pages/emulator/beside-chat/tab.js')
+  const { scenario } = await import('./sdk-stub.mjs')
+  const seen = []
+  const Probe = props => { seen.push(Object.keys(props).sort()); return null }
+  const original = PAGE_SLOTS.contributions
+  const game = { id: 'abc123abc123', title: 'Probe', rom: '/x.gb', web: null, chat: null }
+  const query = { data: { url: 'http://127.0.0.1:1/p/index.html' }, isFetching: false }
+  const player = { game, query, focused: false, capturesOpen: false, rebuilt: false, ask() {}, fullScreen() {}, later() {}, reload() {}, refresh() {}, toggleCaptures() {} }
+  const ctx = { storage: { get: (key, fallback) => fallback, set() {} } }
+
+  PAGE_SLOTS.contributions = name => (name === 'emulator.barActions' ? [Probe] : original(name))
+  try {
+    const onPage = await render(jsx(EMULATOR_PAGE.Page, { shell: { ctx, go() {}, hardwareOn: true, player } }))
+
+    assert.deepEqual(seen, [['ctx', 'game', 'go', 'hardwareOn']], 'on the Emulator page')
+    await act(async () => onPage.root.unmount())
+    seen.length = 0
+    scenario.games = { data: { games: [game], device: { hardwareEnabled: true } }, isFetching: false }
+    scenario.player = query
+    assert.ok(openSideEmulator(ctx, game), 'the tab opened')
+    const beside = await render(scenario.workspaces.at(-1).options.render())
+
+    assert.deepEqual(seen.at(-1), ['ctx', 'game', 'hardwareOn'], 'beside the chat')
+    await act(async () => beside.root.unmount())
+  } finally {
+    PAGE_SLOTS.contributions = original
+  }
 })
 
 test('an empty slot renders nothing', async () => {

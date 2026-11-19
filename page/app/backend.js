@@ -13,7 +13,9 @@ export function describeRequestError(error) {
 }
 
 /** Call the plugin's backend: in the hermretro profile when there is one, else in the
- *  profile the app is on, else in any profile that has it. */
+ *  profile the app is on, else in any profile that has it. Resolves to `{ data, profile }`: the RPC's
+ *  answer is `data` (`(await callBackend(RPC_GAMES)).data`), `profile` the profile that answered or null.
+ *  callStudio and callStudioOnly (below) resolve to the answer itself. */
 export async function callBackend(method, params = {}, timeoutMs) {
   if (routing.studio && routing.route) {
     try {
@@ -154,13 +156,15 @@ export function nodeState(node) {
 }
 
 /** The newer studio RPCs go to the backend that answered `status`, without a profile scan: a
- *  backend that predates them answers -32601, which the pages report as "needs an update". */
+ *  backend that predates them answers -32601, which the pages report as "needs an update".
+ *  Resolves to the RPC's answer itself (`await callStudio(RPC_GAMES)` is the games list), not `{ data }`. */
 export async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs)
 }
 
 /** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*): the hermretro
- *  profile only, like the Build chats themselves, never whichever profile answered `status`. */
+ *  profile only, like the Build chats themselves, never whichever profile answered `status`. Resolves to the
+ *  RPC's answer itself, like callStudio. */
 export async function callStudioOnly(method, params = {}, timeoutMs) {
   const target = studioTarget()
 

@@ -477,7 +477,15 @@ test); rendering the `Slot` stays yours.
 doc string in the host page's `index.js` (`slots: { ... }`) for what they are and what to return. For example
 `games.cardMenu` passes `{ ctx, game, hardwareOn, item }`, where `item(icon, label, run, { disabled, why })` makes a
 menu button, so a contribution returns `item(...)` (or `null` for no button); `emulator.barActions` passes
-`{ ctx, game, hardwareOn }` and its contribution renders a button.
+`{ ctx, game, hardwareOn }` (plus `go` on the Emulator page only: the slot is also drawn in the emulator tab beside
+the chat, which has no shell) and its contribution renders a button. A contribution cannot reach the host's
+`shell`: when it needs `go(id)` or another shell action, the host adds it to the slot's props and says so in the
+slot's doc string (and the host's README Slots line).
+
+**Calling the backend from a page.** `page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the
+hermretro profile only) resolves to the RPC's answer itself; `callBackend(method, params)` resolves to
+`{ data, profile }`, so read `(await callBackend(...)).data`. The method names are the generated `RPC_*` constants
+in `page/app/rpc.js`.
 
 Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
 `games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

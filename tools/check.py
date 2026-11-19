@@ -32,6 +32,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))  # check.py's helpers
+import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
+import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
+
 FAST = ["unit", "bundle", "lint", "page", "scan"]
 ALL = FAST + ["scaffold", "acceptance"]
 
@@ -62,18 +66,17 @@ def need(tool: str) -> str:
 
 
 def check_unit(_args) -> str:
-    # Empty home (a write meant for the real one shows up), with HERMES_HOME in it (Hermes's plugin data folder,
-    # host._data_dir(), lands there too); empty PYTHONPYCACHEPREFIX (-B alone still reads stale .pyc).
+    # In an empty home (tools/py/unit_home.py): a write meant for the real one shows up, and names its test module.
     with (
         tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
         tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
     ):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_") and k != "GB_STUDIO_SETUP_ROOT"}
-        env.update(HOME=home, HERMES_HOME=str(Path(home) / ".hermes"))
-        env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=bytecode)
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        result = run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest], env=env)
-        leaked = sorted(str(path.relative_to(home)) for path in Path(home).rglob("*"))
+        result = run(
+            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
+            env=unit_home.unit_env(home, bytecode),
+        )
+        leaked = unit_home.written(home)
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
@@ -81,9 +84,9 @@ def check_unit(_args) -> str:
         )
     if leaked:
         raise AssertionError(
-            "the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
-            "those tests a temp folder: isolated_home(self) from tests/support.py in setUp (moves HERMRETRO_HOME "
-            "and the plugin data folder), or throwaway_deps for downloads"
+            unit_home.leak_message(
+                leaked, unit_home.leaking_modules(ROOT, short_tmp(), lambda cmd, env: run(cmd, env=env))
+            )
         )
     lines = result.stderr.splitlines()
     ran = [line for line in lines if line.startswith("Ran ")]
@@ -193,8 +196,7 @@ def tree_digest() -> dict[str, str]:
 
 def fix(args) -> int:
     """Apply every automatic fix (noqa reasons, ruff's safe fixes and format, the page lint's), say what changed, lint."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))
-    import noqa_reasons  # noqa: E402 - tools/py/ goes on sys.path first
+    import noqa_reasons  # noqa: E402 - tools/py/ is on sys.path (above)
 
     print(noqa_reasons.report(ROOT, shipped_files()))  # needs no ruff: bare E402 exceptions get their reason
     if missing := ruff_missing():
@@ -334,22 +336,6 @@ def check_acceptance(args) -> str:
 CHECKS = {name: globals()[f"check_{name}"] for name in ALL}
 
 
-def summary(rows: list[tuple[str, str, float, str]]) -> None:
-    path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not path:
-        return
-    lines = ["| Check | Result | Time | Detail |", "|---|---|---|---|"]
-    lines += [
-        f"| {name} | {state} | {seconds:.1f} s | {detail.splitlines()[0][:150] if detail else ''} |"
-        for name, state, seconds, detail in rows
-    ]
-    failures = [(name, detail) for name, state, _s, detail in rows if state == "FAILED"]
-    for name, detail in failures:
-        lines += ["", f"### {name}", "```", detail[-3000:], "```"]
-    with open(path, "a", encoding="utf-8") as handle:
-        handle.write("\n".join(lines) + "\n")
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").strip().splitlines()[0])
     parser.add_argument("checks", nargs="*", help="fast (default), full, fix, or check names: " + ", ".join(ALL))
@@ -395,7 +381,7 @@ def main(argv: list[str] | None = None) -> int:
         rows.append(one("acceptance"))
         show(rows[-1])
     rows.sort(key=lambda row: ordered.index(row[0]))
-    summary(rows)
+    step_summary.write(rows)  # GitHub Actions' run summary, when there is one
     return 1 if any(row[1] == "FAILED" for row in rows) else 0
 
 

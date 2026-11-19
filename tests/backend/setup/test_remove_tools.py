@@ -14,12 +14,14 @@ from backend.setup import rpcs as host_setup  # noqa: E402 - the repository root
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 
 
 class RemoveDownloads(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.home = Path(tmp.name).resolve() / "hr"
