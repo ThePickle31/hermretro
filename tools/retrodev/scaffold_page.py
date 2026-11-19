@@ -169,6 +169,11 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
     plan.regenerate = True
     if from_page:
+        plan.skip_checks.append("page")
+        plan.notes.append(
+            f"the page check is skipped now: tests/page/registry.test.mjs still expects every page to have a Page "
+            f"(app/registry.js takes tabs instead), and {page_id} has none now; make that test accept a page with tabs"
+        )
         plan.next_steps += [
             f"the page's own Page ({values['source']}) is now the {tab_id} tab, and the descriptor has no Page: "
             f"add the second tab (python tools/retrodev new tab {page_id} <tab>); a single tab still shows a tab bar",

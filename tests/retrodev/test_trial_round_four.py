@@ -131,7 +131,8 @@ class New(ScaffoldCase):
 
     def test_tab_from_page_turns_the_page_s_page_into_its_first_tab(self):
         self.new("page", "rdprobe-notes")
-        self.new("tab", "rdprobe-notes", "first", "--from-page")
+        out = self.new("tab", "rdprobe-notes", "first", "--from-page", as_json=False)
+        self.assertIn("note: the page check is skipped now: tests/page/registry.test.mjs", out)
         tab = self.read("page/pages/rdprobe-notes/first/index.js")
         self.assertIn("import { RdprobeNotesPage } from '#pages/rdprobe-notes/rdprobe-notes-page.js'", tab)
         self.assertIn("  Page: RdprobeNotesPage\n", tab)

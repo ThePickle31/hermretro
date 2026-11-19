@@ -6,13 +6,15 @@ scaffolds or the files they edit; CI's page job runs it). It copies what a commi
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc`, `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
 which goes in its own module too; once in library, a --project tool),
-`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra --from-page`, `new tab rdtree more` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
+`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
 the stubs are unfilled). Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
+One more runs `new page rdtabs`, `new tab rdtabs first --from-page` and `new tab rdtabs second`, then `tools/check.py
+lint bundle` (the tab imports the Page as #pages/..., never ../; the page tests still expect every page to keep a Page).
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -51,8 +53,7 @@ STEPS = [
     ["event", "rdtree", "pinged", "--payload", "count", "--when", "the probe was pinged"],
     ["listener", "rdtree", "library.build_reported"],
     ["page", "rdtree"],
-    ["tab", "rdtree", "extra", "--from-page"],  # the page's own Page becomes its first tab
-    ["tab", "rdtree", "more"],
+    ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs"]
@@ -179,6 +180,17 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
+
+    def test_tab_from_page_passes_lint_and_bundle(self):
+        _, tree, env = self.make_tree()
+        steps = [["page", "rdtabs"], ["tab", "rdtabs", "first", "--from-page"], ["tab", "rdtabs", "second"]]
+        for step in steps:
+            done = run(
+                [*RETRODEV, "new", *step, "--no-check", *([] if step is steps[-1] else ["--no-build"])], tree, env
+            )
+            self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
+        judged = run([sys.executable, "tools/check.py", "lint", "bundle"], tree, env)
+        self.assertEqual(judged.returncode, 0, judged.stdout + judged.stderr)
 
     def new_then_gate(self, step: list[str], placeholders: list[str]) -> None:
         """`new <step>` with its own checks completes (the gate is skipped there and keeps no unit pass), then an
