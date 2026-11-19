@@ -28,7 +28,7 @@ need the main checkout on `dev`.
 At any time `status` names the one next step (once `notes/pr/<topic>.md` exists, the `ship --title ... --body
 <path>` to run, with the title and body given before (also to a dry run), else the plan's title and `notes/pr/<topic>.md`,
 saying `(fill in every section of the body first)` only while that body fails ship's body gate and `(ship --dry-run
-passed at <time>)` when the last dry run passed on this tree; and `behind origin/dev: N commits (python tools/retrodev
+passed at <time>)` when the last dry run passed every gate (the base gate last) on this tree and this very body; and `behind origin/dev: N commits (python tools/retrodev
 sync)` with `sync` as the next step whenever HEAD lacks commits of `origin/dev`, counted from the last fetch, offline,
 in a worktree, on a branch in the main checkout and in the main checkout's list alike), `doctor` checks the machine, `sync` brings in `dev`, `gc` tidies up.
 While building, `new <kind> ...` adds a feature, RPC, tool, event, listener, page, tab or slot in the repository's shape, and

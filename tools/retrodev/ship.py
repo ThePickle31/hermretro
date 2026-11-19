@@ -23,6 +23,7 @@ when that one goes into another branch than the base: the FIX retargets it, ship
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -209,6 +210,24 @@ def chosen_body(ctx, body: str | None, new_body: bool, branch, record: dict) -> 
     return recorded if recorded and Path(recorded).is_file() else None
 
 
+def body_digest(path: Path | str) -> str | None:
+    """The sha256 of a body file's bytes (None when it is gone): a dry run speaks only for the body it read."""
+    path = Path(path)
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def note_dry_run(ctx, record: dict, body_path: Path, ok: bool) -> None:
+    """Record a dry run's outcome for status: ok only once every gate has passed, the base gate included."""
+    record["dry_run"] = {
+        "at": state.now(),
+        "tree": repo.tree_digest(ctx.top),
+        "body": str(body_path),
+        "body_sha256": body_digest(body_path),
+        "ok": ok,
+    }
+    state.save_branch(ctx.top, record)
+
+
 def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_body: bool = False) -> int:
     branch = repo.branch(ctx.top)
     record: dict = state.load_branch(ctx.top, branch) if branch else {"checks": {}}
@@ -240,10 +259,9 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if not dry_run:
             repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
         found += [ahead_gate(ctx), remote_gate(ctx, branch)]
-    if dry_run and branch and found[0].ok:  # status says when the last dry run passed on this very tree
-        ok = all(gate.ok for gate in found)
-        record["dry_run"] = {"at": state.now(), "tree": repo.tree_digest(ctx.top), "ok": ok}
-        state.save_branch(ctx.top, record)
+    noted = dry_run and bool(branch) and found[0].ok  # status says when the last dry run passed on this tree and body
+    if noted and not all(gate.ok for gate in found):
+        note_dry_run(ctx, record, body_path, False)
     gates.enforce(ctx, found, "ship")
     assert branch
     title = title.strip()
@@ -260,13 +278,18 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if not isinstance(failure, github.NoGitHub):  # that one printed its note already
             ctx.out.say(f"(could not ask GitHub for an open pull request: {failure.message})")
     if existing:
-        gates.enforce(ctx, [base_gate(ctx, existing)], "ship")
+        into = base_gate(ctx, existing)
+        if noted and not into.ok:
+            note_dry_run(ctx, record, body_path, False)
+        gates.enforce(ctx, [into], "ship")
         gh_args = github.edit_args(existing["number"], title, str(body_path))
     else:
         gh_args = github.create_args(ctx.base, branch, title, str(body_path), chosen)
     plan = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
     ctx.out.set(**plan, dry_run=dry_run)
     if dry_run:
+        if noted:  # the last gate passed: only now does this dry run count
+            note_dry_run(ctx, record, body_path, True)
         ctx.out.say("would run:\n  " + cmd(*push) + "\n  " + cmd("gh", *gh_args))
         ctx.out.say("dry run: nothing was pushed or opened")
         return 0

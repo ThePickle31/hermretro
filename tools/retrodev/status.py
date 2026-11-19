@@ -49,12 +49,12 @@ def next_step(facts: dict) -> str:
         )
     if not facts.get("pr") and facts.get("body"):
         title = facts.get("title") or "<one plain sentence>"
-        if facts.get("dry_run_passed"):
-            why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
-        elif facts.get("body_ok"):
-            why = " (the body passes ship's body gate)"
-        else:
+        if not facts.get("body_ok"):  # the body as it is now wins over any earlier dry run
             why = " (fill in every section of the body first)"
+        elif facts.get("dry_run_passed"):
+            why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
+        else:
+            why = " (the body passes ship's body gate)"
         return "next: " + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]) + why
     if not facts.get("pr"):
         return (
@@ -105,10 +105,13 @@ def body_ok(ctx, body: str | None) -> bool:
         return not gates.body_problems(handle.read(), ctx.policy["ship"]["sections"])
 
 
-def dry_run_passed(record: dict, tree: str) -> str | None:
-    """When the last ship --dry-run passed every gate on exactly this tree, its time."""
+def dry_run_passed(record: dict, tree: str, body: str | None) -> str | None:
+    """When the last ship --dry-run passed every gate on exactly this tree and this body (path and content), its
+    time."""
     last = record.get("dry_run") or {}
-    return last.get("at") if last.get("ok") and last.get("tree") == tree else None
+    if not (last.get("ok") and last.get("tree") == tree and body and last.get("body") == body):
+        return None
+    return last.get("at") if last.get("body_sha256") == ship.body_digest(body) else None
 
 
 def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> dict:
@@ -125,7 +128,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     return {
         "body": shown,
         "body_ok": body_ok(ctx, shown),
-        "dry_run_passed": dry_run_passed(record, tree) if shown else None,
+        "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
         "base": ctx.remote_base,

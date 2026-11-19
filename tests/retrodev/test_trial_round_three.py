@@ -6,11 +6,13 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_three
 """
 
 import ast
+import json
 import shutil
 import unittest
 from pathlib import Path
 
 import retrodev
+from retrodev import state
 
 from tests.retrodev import test_trial_round_two as two
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
@@ -33,6 +35,31 @@ class Status(two.Flow):  # its helpers (two.Flow's own tests run in test_trial_r
         git(tree, "commit", "-qam", "More")
         self.passed(tree, "feat/goalie")
         _code, out = self.run_cli("status", cwd=tree)
+        self.assertIn("(the body passes ship's body gate)", line_with(out, "next:"), out)
+
+    def test_a_body_emptied_after_a_passing_dry_run_says_fill_it_in(self):
+        tree = self.feat()
+        body = write(self.main, "notes/pr/goalie.md", GOOD_BODY)
+        self.run_cli("ship", "--title", TITLE, "--body", str(body), "--dry-run", cwd=tree)
+        body.write_text(GOOD_BODY.replace("Because.", ""))  # the tree is the same; only the body changed
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertIn("(fill in every section of the body first)", line_with(out, "next:"), out)
+        self.assertNotIn("dry-run passed", out)
+        body.write_text(GOOD_BODY.replace("Things.", "Other things."))  # filled in, but not the body that passed
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertIn("(the body passes ship's body gate)", line_with(out, "next:"), out)
+
+    def test_a_dry_run_stopped_by_the_base_gate_is_recorded_as_failed(self):
+        tree = self.feat()
+        body = write(self.main, "notes/pr/goalie.md", GOOD_BODY)
+        answer = [{"number": 12, "url": "u", "baseRefName": "main"}]  # opened by hand into main
+        self.gh.answers[("pr", "list")] = (0, json.dumps(answer), "")
+        code, out = self.run_cli("ship", "--title", TITLE, "--body", str(body), "--dry-run", cwd=tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("into main", out)
+        self.assertFalse(state.load_branch(self.main, "feat/goalie")["dry_run"]["ok"])
+        _code, out = self.run_cli("status", cwd=tree)
+        self.assertNotIn("dry-run passed", out)
         self.assertIn("(the body passes ship's body gate)", line_with(out, "next:"), out)
 
     def test_an_unfilled_body_still_says_fill_it_in(self):
@@ -144,7 +171,19 @@ class New(ScaffoldCase):
         then = line_with(out, "then:")
         self.assertLess(then.index("commit"), then.index("retrodev check"))
         self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
-        out = self.new("tab", "home", "rdprobe-extra", as_json=False)  # nothing the install covers
+        out = self.new("tab", "home", "rdprobe-extra", as_json=False)  # not itself, but the branch's feature is
+        then = line_with(out, "then:")
+        self.assertLess(then.index("commit"), then.index("retrodev check"), "the branch, not just this scaffold")
+        self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-qm", "Feature and tab")  # committed, the branch still changes what it covers
+        out = self.new("rpc", "rdprobe", "rdprobe_recent", as_json=False)
+        then = line_with(out, "then:")
+        self.assertLess(then.index("commit"), then.index("retrodev check"))
+
+    def test_a_branch_the_clean_install_does_not_cover_says_check_then_commit(self):
+        git(self.tree, "update-ref", "refs/remotes/origin/dev", "HEAD")  # the real files are dev's own here
+        out = self.new("tab", "home", "rdprobe-extra", as_json=False)
         self.assertEqual(
             line_with(out, "then:"), "then: python tools/retrodev check, commit, python tools/retrodev ship"
         )
