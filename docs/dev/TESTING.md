@@ -42,7 +42,9 @@ at once unless `requirements.txt` changed (then `lint` says so and names the com
 the few ignores it lists and why), quotes kept as written. The vendored engine and player, `skills/`, `tools/npm/`
 and `.dev/` are not linted.
 
-- `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format` and the
+- `python tools/check.py lint` checks; `python tools/check.py fix` gives each bare `# noqa: E402` (in `.py` and
+  `.py.tmpl` files outside `engine/` and `tools/npm/`) the standard reason below (`tools/py/noqa_reasons.py`; it
+  says how many), applies ruff's safe fixes, `ruff format` and the
   page lint's fixes, lists the files it changed, then lints again. `.dev/py/bin/ruff rule <CODE>` explains a rule.
 - A deliberate exception is ruff's own `# noqa: <CODE>` on the line, followed by its reason after ` - ` or ` — `:
   `lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits`; an import after the

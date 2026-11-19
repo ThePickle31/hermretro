@@ -157,10 +157,13 @@ def conflict_failure(ctx, info: dict, tree: Path | None) -> Failure:
     """The pull request conflicts with the base branch: merge it in with sync in the worktree, then land again."""
     number = info["number"]
     where = cmd("cd", tree) if tree else "cd <the worktree of " + str(info.get("headRefName")) + ">"
-    ship = cmd("python", "tools/retrodev", "ship", "--title", info.get("title") or "<title>", "--body") + " <file>"
+    record = reviews.branch_record(ctx, str(info.get("headRefName")))
+    pr = {**(record.get("pr") or {})}
+    pr["title"] = pr.get("title") or info.get("title")
+    again = ship.again({**record, "pr": pr})  # the recorded title and body (no body recorded: ship's default)
     return Failure(
         f"#{number} has merge conflicts with {ctx.base}: GitHub cannot merge it (nothing was merged)",
         f"{where} && python tools/retrodev sync (it lists the files to resolve; git add them and sync again), then "
-        f"python tools/retrodev check, {ship}, then {cmd('cd', ctx.main())} && python tools/retrodev land {number}",
+        f"python tools/retrodev check, {again}, then {cmd('cd', ctx.main())} && python tools/retrodev land {number}",
         data={"action": "sync", "worktree": str(tree) if tree else None},
     )

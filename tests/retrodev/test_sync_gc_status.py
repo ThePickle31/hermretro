@@ -100,6 +100,16 @@ class Sync(RepoCase):
         self.assertEqual(git(tree, "log", "-1", "--format=%s").strip(), sync.REGENERATED)
         self.assertEqual(self.run_cli("sync", cwd=tree, as_json=True)[1]["merged"], False)
 
+    def test_the_rebuilt_line_names_the_command_as_a_person_types_it(self):
+        tree = self.worktree()
+        self.commit(tree, "docs/guide.md", "# Mine\n")
+        self.on_dev("page/a.js", "export const a = 6\n")
+        code, out = self.run_cli("sync", cwd=tree)
+        self.assertEqual(code, 0, out)
+        rebuilt = [line for line in out.splitlines() if "rebuilt:" in line]
+        self.assertEqual([line.strip() for line in rebuilt], ["rebuilt: python tools/gen.py"], out)
+        self.assertNotIn("{", rebuilt[0])
+
 
 class GC(RepoCase):
     def committed(self, name):

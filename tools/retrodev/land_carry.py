@@ -4,7 +4,8 @@ The reviewed head is the last round's clean head, or the head accepted with roun
 reviewed when it descends from it, every commit since (beyond the base branch's own) is a merge or touches only
 generated files, and the merges changed nothing of their own: the head's tree is what git merges the reviewed head
 and the base branch into by itself (git merge-tree), generated files aside. What a conflict resolution changed
-beyond that is counted in lines: up to policy.toml [land] max_sync_resolution_lines it is accepted and recorded
+beyond that is counted in lines of code (a change only to a comment counts 0, by conservative rules: code_lines.py):
+up to policy.toml [land] max_sync_resolution_lines it is accepted and recorded
 (record['carried'], shown by summary as "merge resolution, not reviewed: N lines"); more, and the review round is
 due as before. Anything this cannot judge (a git error, git output it cannot read, a binary file, a conflict on a
 binary file even when the resolution kept one side whole) keeps today's rule: a new head is reviewed. Paths are read
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import repo, reviews, state
+from . import code_lines, repo, reviews, state
 from .review import records
 
 
@@ -60,7 +61,23 @@ def resolution_lines(ctx, tree: Path, reviewed: str, head: str, generated: list[
     stat = numstat(tree, [merged, head, "--", ".", *excluded])
     if stat is None or any(added is None for added, _removed, _name in stat):
         return None  # a binary file: no line count, so it is reviewed
-    return sum(added + removed for added, removed, _name in stat)
+    # Only code counts: a line whose change is only in a comment is no resolution to review (code_lines.py).
+    base = repo.git(["merge-base", reviewed, point], tree).strip()
+    total = 0
+    for name in (name for added, removed, name in stat if added or removed):
+        before = None
+        if name in conflicted:  # both sides' code, merged without their comments
+            before = code_lines.merge_code(tree, name, *(blob(tree, rev, name) for rev in (reviewed, base, point)))
+        if before is None:
+            before = code_lines.code(name, blob(tree, merged, name))
+        total += code_lines.count(before, code_lines.code(name, blob(tree, head, name)))
+    return total
+
+
+def blob(tree: Path, rev: str, name: str) -> str:
+    """The file ``name`` at ``rev`` ("" when it is not there: added or deleted on one side)."""
+    code, out, _err = repo.run(["git", "cat-file", "blob", f"{rev}:{name}"], tree)
+    return out if code == 0 else ""
 
 
 def merge_tree_output(code: int, out: str) -> tuple[str, list[str]] | None:
