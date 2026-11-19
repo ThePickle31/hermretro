@@ -217,6 +217,13 @@ def scaffolds(sub, common) -> None:
         help="write it in backend/<feature>/<module>.py with its own TOOLS, which tools.py's TOOLS takes in "
         "(automatic, as <tool>_tools, when tools.py is over 400 lines)",
     )
+    tool.add_argument(
+        "--project",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="a tool that acts on the game's project: a `project` schema property, tool_args.tool_project and "
+        "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does)",
+    )
     event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
     event.add_argument("--payload", help="one line: the keyword arguments it carries, e.g. 'game=<id>, root'")
     event.add_argument("--when", help="one line: when it is emitted (the EVENTS entry and the CONTRACT row say it)")
@@ -235,7 +242,7 @@ def scaffolds(sub, common) -> None:
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "when", "module", "label", "doc"):
+        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc"):
             setattr(args, missing, getattr(args, missing, None))
         return scaffold.run(ctx, args)
     if command == "engine":

@@ -143,6 +143,10 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
             plan.notes.append(f"{rel} has no row to name it in: say there that {feature_name} listens to {event}")
     plan.next_steps += [
         f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']})",
-        f"say why in the 'Heard by' cell of {event} in {CONTRACT} and on the README's 'Listens to' line",
+        f"replace the two placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
+        f"{event} in {CONTRACT}, and 'say what this listener does' in {func}'s docstring; say it on the README's "
+        "'Listens to' line too",
+        f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
+        "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home",
     ]
     return f"listener {feature_name} <- {event}"

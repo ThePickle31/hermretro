@@ -2,7 +2,7 @@
 
     new feature <name> [--purpose TEXT]        backend/<name>/ (front door, README), its tests, the registry lines
     new rpc <feature> <name> | <feature>.<name>  an @rpc stub, its test, its CONTRACT section, the generated names
-    new tool <feature> <name> [--step R D] [--module M]   a Tool stub (in backend/<feature>/<M>.py with its own
+    new tool <feature> <name> [--step R D] [--module M] [--[no-]project]   a Tool stub (in backend/<feature>/<M>.py with its own
                                                TOOLS with --module, or when tools.py is over 400 lines), its test,
                                                plugin.yaml, the page's step words, CONTRACT
     new event <feature> <name> [--payload P] [--when W]   the front door's EVENTS entry and its CONTRACT row
@@ -14,7 +14,7 @@
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
 replaced; {{ and }} are literal braces), prints every file it created or changed, rebuilds the generated files
 when the change needs it (policy.toml [generated] regenerate), runs the checks those files feed (not the install
-scan: `check` runs it before ship) and prints the next step. --dry-run lists the files and writes nothing;
+scan: `check` runs it before ship) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
 --no-check skips the checks, --no-build the rebuild (for several `new` in a row: the last one rebuilds). It
 refuses a name that exists or breaks the naming rules, and works only on a work branch (never dev or main).
 """
@@ -22,6 +22,7 @@ refuses a name that exists or breaks the naming rules, and works only on a work 
 from __future__ import annotations
 
 import ast
+import difflib
 import keyword
 import os
 import re
@@ -160,6 +161,21 @@ class Plan:
     def paths(self) -> list[str]:
         return sorted({*self.created, *self.changed})
 
+    def diff(self) -> str:
+        """The unified diff of every file the plan creates or changes, from its in-memory edits."""
+        parts = []
+        for rel in self.paths():
+            before = "" if rel in self.created else (self.top / rel).read_text(encoding="utf-8")
+            after = self.created.get(rel, self.changed.get(rel, ""))
+            old = "/dev/null" if rel in self.created else f"a/{rel}"
+            lines = difflib.unified_diff(
+                before.splitlines(keepends=True), after.splitlines(keepends=True), old, f"b/{rel}"
+            )
+            parts.append(
+                "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines)
+            )
+        return "".join(parts)
+
 
 def insert_after(text: str, anchor: re.Pattern, line: str, where: str, last: bool = True) -> str:
     """``line`` after the last (or first) line matching ``anchor``."""
@@ -282,6 +298,9 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     out.set(what=what, created=sorted(plan.created), changed=sorted(plan.changed), dry_run=dry_run)
     out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps)
     if dry_run:
+        diff = plan.diff()
+        out.set(diff=diff)
+        out.say(diff.rstrip("\n"))
         out.say("dry run: nothing was written")
         return 0
     for rel, text in {**plan.created, **plan.changed}.items():
@@ -305,12 +324,30 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         validate(ctx, names)
     for step in plan.next_steps:
         out.say("next: " + step)
-    out.say("then: python tools/retrodev check, commit, python tools/retrodev ship")
+    out.say("then: " + then(ctx, plan.paths()))
     return 0
 
 
+def then(ctx, paths: list[str]) -> str:
+    """The steps after new's own: a branch the clean install covers commits first (it installs the committed tree,
+    so check refuses uncommitted changes then). Decided over the whole branch, as check decides it (its changes
+    since it left the base, plus this scaffold's files), not over the latest scaffold alone."""
+    branch = set(repo.changed_files(ctx.top, ctx.remote_base) or []) | set(paths)
+    if any(repo.matches(path, ctx.policy["checks"]["triggers"].get("clean_install", [])) for path in branch):
+        return (
+            "commit (git add -A && git commit; the clean install that check adds installs the committed tree), "
+            "then python tools/retrodev check, then python tools/retrodev ship"
+        )
+    return "python tools/retrodev check, commit, python tools/retrodev ship"
+
+
 def run(ctx, args) -> int:
-    from . import scaffold_backend, scaffold_listener, scaffold_page  # the kinds; they import this module
+    from . import (
+        scaffold_backend,
+        scaffold_listener,
+        scaffold_page,
+        scaffold_tool,
+    )  # the kinds; they import this module
 
     guard(ctx)
     plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
@@ -330,7 +367,7 @@ def run(ctx, args) -> int:
     elif kind == "listener":
         what = scaffold_listener.listener(plan, args.target, args.name)
     elif kind == "tool":
-        what = scaffold_backend.tool(plan, args.target, args.name, args.step, args.module)
+        what = scaffold_tool.tool(plan, args.target, args.name, args.step, args.module, args.project)
     elif kind == "event":
         what = scaffold_backend.event(plan, args.target, args.name, args.payload, args.when)
     elif kind == "page":

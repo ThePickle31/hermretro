@@ -1,0 +1,31 @@
+
+
+{TOOL}_TOOL = {{
+    "name": "{tool}",
+    "description": "Describe what {tool} does to the game's project and when the agent should call it.",
+    "parameters": {{
+        "type": "object",
+        "properties": {{
+            "project": {{
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional absolute project folder. Default: this chat's current project.",
+            }},
+        }},
+        "additionalProperties": False,
+    }},
+}}
+
+
+def {short}_handler(args, **kwargs) -> str:
+    """{tool}: acts on the project (tool_args.tool_project: `project`, else this chat's); answers a JSON string,
+    never raises."""
+    try:
+        args = args if isinstance(args, dict) else {{}}
+        root, error = tool_project("{tool}", args, kwargs)
+        if error:
+            return error
+        return json.dumps({{"ok": True, "project": root}})
+    except Exception as error:  # a handler must never raise
+        logger.exception("{tool} failed")
+        return tool_error(f"{{type(error).__name__}}: {{error}}", "ADAPTER_ERROR")

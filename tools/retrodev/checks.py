@@ -84,9 +84,12 @@ def budget(ctx, name: str) -> float:
     return float(budgets.get(name, budgets["default"]))
 
 
-def _stream(ctx, command: list[str], env: dict) -> tuple[int, list[str]]:
-    """Run a command, showing its lines as they come (check.py's result rows in retrodev's columns)."""
-    lines = []
+def _stream(ctx, command: list[str], env: dict, hold: frozenset = frozenset(), held: list | None = None):
+    """Run a command, showing its lines as they come (check.py's result rows in retrodev's columns): (exit code,
+    lines). The rows of the checks in ``hold``, and the lines under them, go into ``held`` instead, for the caller
+    to judge."""
+    lines, holding = [], False
+    held = held if held is not None else []
     with subprocess.Popen(
         command,
         cwd=str(ctx.top),
@@ -99,7 +102,10 @@ def _stream(ctx, command: list[str], env: dict) -> tuple[int, list[str]]:
         assert process.stdout is not None
         for line in process.stdout:
             lines.append(line.rstrip("\n"))
-            ctx.out.say(_row_text(*_row(line)) if ROW.match(line) else line.rstrip("\n"))
+            if ROW.match(line):
+                holding = _row(line)[1] in hold
+            shown = _row_text(*_row(line)) if ROW.match(line) else line.rstrip("\n")
+            (held.append if holding else ctx.out.say)(shown)
     return process.returncode, lines
 
 
@@ -113,8 +119,13 @@ def _row_text(status: str, name: str, seconds: float, detail: str) -> str:
     return f"{status:>7}  {name:<13} {seconds:5.1f} s  {detail}"
 
 
-def run_check_py(ctx, names: list[str], env: dict) -> dict[str, dict]:
-    code, lines = _stream(ctx, [sys.executable, "tools/check.py", *names], env)
+def run_check_py(ctx, names: list[str], env: dict, record: dict | None = None, ids: dict | None = None) -> dict:
+    """check.py's result per check. With ``record`` and ``ids``: a scaffold failure on a tree that fails lint
+    (in this run, or as recorded for these very lint inputs) is reported as skipped, not as its rerun FIX: new's
+    generated code is linted, so a lint failure anywhere fails the scaffold check too."""
+    hold = frozenset({"scaffold"} & set(names)) if record is not None else frozenset()
+    held: list[str] = []
+    code, lines = _stream(ctx, [sys.executable, "tools/check.py", *names], env, hold, held)
     results, current = {}, None
     for line in lines:
         if ROW.match(line):
@@ -130,7 +141,26 @@ def run_check_py(ctx, names: list[str], env: dict) -> dict[str, dict]:
                 "detail": f"tools/check.py exited {code} without a result for {name}",
                 "more": lines[-10:],
             }
+    if hold:
+        if results["scaffold"]["state"] == "FAILED" and fails_lint(ctx, results, record, ids):
+            results["scaffold"] = {"state": "skipped", "seconds": 0.0, "detail": LINT_FIRST, "more": []}
+            ctx.out.say(_row_text("skipped", "scaffold", 0.0, LINT_FIRST))
+        else:
+            for line in held:
+                ctx.out.say(line)
     return results
+
+
+LINT_FIRST = "skipped: the tree fails lint (fix lint first)"
+
+
+def fails_lint(ctx, results: dict, record: dict, ids: dict) -> bool:
+    if "lint" in results:
+        return results["lint"]["state"] == "FAILED"
+    last = record.get("checks", {}).get("lint", {})
+    return last.get("state") == "FAILED" and last.get("digest") == repo.digest(
+        ids, ctx.policy["checks"]["inputs"]["lint"]
+    )
 
 
 def run_script(ctx, name: str, env: dict) -> dict:
@@ -156,7 +186,24 @@ def env_for(name: str) -> dict:
     return env
 
 
-def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
+def refuse_uncommitted_installs(ctx, todo: list[str], wanted: dict[str, str]) -> None:
+    """Before anything runs: an install check is due and the tree has uncommitted changes. It installs the
+    committed tree, so it could not pass this one; better said now than after a minute of other checks."""
+    installs = [name for name in todo if name in SCRIPTS]
+    changes = repo.dirty(ctx.top) if installs else []
+    if changes:
+        listed = ", ".join(line[3:] for line in changes[:3]) + (" ..." if len(changes) > 3 else "")
+        raise Failure(
+            f"{', '.join(installs)} must run ({wanted[installs[0]]}) and this tree has {len(changes)} uncommitted "
+            f"change(s) ({listed}); nothing was run",
+            "commit first: the clean install installs the committed tree (git add -A && git commit -m "
+            "'<what changed>'), then python tools/retrodev check",
+        )
+
+
+def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for_commit: bool = False) -> int:
+    """``wait_for_commit`` (check --watch): run the other checks on uncommitted changes and skip the install
+    checks until a commit, instead of refusing up front."""
     branch = repo.branch(ctx.top) or "detached"
     record = state.load_branch(ctx.top, branch) if branch != "detached" else {"branch": branch, "checks": {}}
     record.setdefault("checks", {})
@@ -184,9 +231,11 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
             ctx.out.say(_row_text("ok", name, 0.0, "ok (cached)"))
         else:
             todo.append(name)
+    if not wait_for_commit:
+        refuse_uncommitted_installs(ctx, todo, wanted)
     started = time.monotonic()
     fast = [name for name in todo if name in CHECK_PY and name != "acceptance"]
-    results = run_check_py(ctx, fast, env_for("fast")) if fast else {}
+    results = run_check_py(ctx, fast, env_for("fast"), record, ids) if fast else {}
     wall = time.monotonic() - started
     if "acceptance" in todo:
         results |= run_check_py(ctx, ["acceptance"], env_for("acceptance"))
@@ -265,12 +314,16 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False) -> int:
         for row in rows
         if row["state"] == "skipped" and row["name"] not in may_skip and row["name"] not in uncommitted
     ]
+    blocked = [row["name"] for row in rows if row["state"] == "skipped" and row.get("detail") == LINT_FIRST]
+    skipped = [name for name in skipped if name not in blocked]
     if failed:
         raise Failure(
-            f"failed: {', '.join(failed)}",
+            f"failed: {', '.join(failed)}" + (f"; {blocked[0]}: {LINT_FIRST}" if blocked else ""),
             "read each failure's FIX line above, fix it, run "
             "python tools/retrodev check again (passing checks stay cached)",
         )
+    if blocked:
+        raise Failure(f"{blocked[0]}: {LINT_FIRST}", "python tools/check.py fix, then python tools/retrodev check")
     if uncommitted:
         raise Failure(
             f"not run on uncommitted changes: {', '.join(uncommitted)} (an install gets only what is committed)",

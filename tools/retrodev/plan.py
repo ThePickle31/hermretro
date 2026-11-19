@@ -153,7 +153,10 @@ def approve(ctx, topic: str, words: str | None) -> int:
             ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")
         ctx.out.say(f"another branch under this plan: python tools/retrodev start <kind>/<topic> --plan {topic}")
     else:
-        ctx.out.say(f"next: python tools/retrodev start feat/{topic}  (or fix/, docs/, chore/)")
+        ctx.out.say(
+            f"next: python tools/retrodev start <kind>/{topic}, kind one of: feat (a new ability), fix (a bug), docs "
+            "(documentation only), chore (refactors of tests, tools and CI that change no behaviour)"
+        )
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
 
