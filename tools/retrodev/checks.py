@@ -22,6 +22,7 @@ from . import repo, state
 from .checks_run import (  # noqa: F401 - the other modules and the tests use them from here
     CHECK_PY,
     LINT_FIRST,
+    UNIT_FIRST,
     ROW,
     SCRIPTS,
     _row_text,
@@ -169,16 +170,26 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         for row in rows
         if row["state"] == "skipped" and row["name"] not in may_skip and row["name"] not in uncommitted
     ]
-    blocked = [row["name"] for row in rows if row["state"] == "skipped" and row.get("detail") == LINT_FIRST]
+    first = {
+        row["name"]: row["detail"]
+        for row in rows
+        if row["state"] == "skipped" and row.get("detail") in (LINT_FIRST, UNIT_FIRST)
+    }
+    blocked = list(first)
     skipped = [name for name in skipped if name not in blocked]
     if failed:
         raise Failure(
-            f"failed: {', '.join(failed)}" + (f"; {blocked[0]}: {LINT_FIRST}" if blocked else ""),
+            f"failed: {', '.join(failed)}" + (f"; {blocked[0]}: {first[blocked[0]]}" if blocked else ""),
             "read each failure's FIX line above, fix it, run "
             "python tools/retrodev check again (passing checks stay cached)",
         )
     if blocked:
-        raise Failure(f"{blocked[0]}: {LINT_FIRST}", "python tools/check.py fix, then python tools/retrodev check")
+        fix = (
+            "python tools/check.py fix"
+            if first[blocked[0]] == LINT_FIRST
+            else "fix the unit failures (python tools/check.py unit)"
+        )
+        raise Failure(f"{blocked[0]}: {first[blocked[0]]}", f"{fix}, then python tools/retrodev check")
     if uncommitted:
         raise Failure(
             f"not run on uncommitted changes: {', '.join(uncommitted)} (an install gets only what is committed)",

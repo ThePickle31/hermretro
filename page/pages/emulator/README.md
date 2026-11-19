@@ -1,8 +1,9 @@
 # Emulator
 
 **Shows:** ModRetro's real player. The player itself is the shell's (it stays loaded while other pages are
-shown); this page adds the bar above it with the rebuilt banner and captures (`emulator-bar.js`), the notice,
-and the row under it (`beside-chat/row.js`). `beside-chat/` is the emulator tab beside the chat that opens when
+shown); this page's `Page` (`emulator-page.js`) adds the bar above it with the rebuilt banner and captures
+(`emulator-bar.js`) and the notice;
+the descriptor adds the row under it (`beside-chat/row.js`). `beside-chat/` is the emulator tab beside the chat that opens when
 the agent presents a game. The nav segment carries a live dot while a game is loaded elsewhere (`Badge`).
 Padding `flush`, no footer.
 

@@ -10,19 +10,28 @@ which goes in its own module too; once in library, a --project tool),
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
-the stubs are unfilled). Skipped when node, the npm tools or the pinned ruff are not set up
+the stubs are unfilled), and it is the guard against tests that pin the real tree's content: it first runs the copy's
+unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
+reports as such), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
+contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
+the same on a copy where setup has tabs and history listens to library.game_presented already (made only where the copy
+lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 Two more run `new page rdtabs` (its Page imported under another name; then imported on several lines), then `new tab rdtabs first --from-page` and `new
 tab rdtabs second` with their own checks (the page suite among them), then `tools/check.py lint bundle` (the tab
-imports the Page's exported name as #pages/..., never ../).
+imports the Page's exported name as #pages/..., never ../). One more moves an exported Page that index.js defines
+(`new tab rdinline first --from-page`) while another page imports it through #pages/rdinline/index.js: it bundles;
+so do inline Pages moved with block comments and into an import with a trailing comma (scaffold_moves.py).
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
 
 from __future__ import annotations
 
+import ast
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,7 +39,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from retrodev.scaffold_imports import binding
+from retrodev.scaffold_page import own_page
+
 from tests.retrodev.fixture import parallel
+from tests.retrodev.scaffold_moves import moved_pages_bundle
 
 load_tests = parallel
 
@@ -57,6 +70,81 @@ STEPS = [
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
+# The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
+# contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
+# listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
+# library tool are in STEPS already. The steps follow what the copy holds (real_steps), so a branch that gives
+# setup or prompts tabs, or history a listener, still passes: the tabless-page conversions have their own probe
+# fixtures (tab_from_page below, tests/retrodev/test_trial_round_five.py).
+REAL_PAGES = ("setup", "prompts")
+REAL_LISTENERS = ("history", "assets", "library", "setup", "hermes")  # the first that can take one more
+
+
+def declared_events(tree: Path) -> dict[str, str]:
+    """{event: owning feature} from every front door's EVENTS dict literal."""
+    found = {}
+    for door in sorted(tree.glob("backend/*/__init__.py")):
+        for node in ast.parse(door.read_text()).body:
+            target = node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None
+            target = node.target if isinstance(node, ast.AnnAssign) else target
+            if getattr(target, "id", "") == "EVENTS" and isinstance(getattr(node, "value", None), ast.Dict):
+                for key in node.value.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        found[key.value] = door.parent.name
+    return found
+
+
+def listens(tree: Path, feature: str, event: str) -> bool:
+    source = tree / "backend" / feature / "listeners.py"
+    text = source.read_text() if source.is_file() else ""
+    func = "on_" + event.replace(".", "_")
+    return f'@on("{event}")' in text or re.search(rf"^(?:async\s+)?def {func}\b|^{func}\s*=", text, re.M) is not None
+
+
+def page_steps(tree: Path, page: str, prefix: str) -> list[list[str]]:
+    """Two tabs on a real page: the first --from-page when the page has no tabs and imports its Page by name from a
+    file of its own (as setup does), else a plain one (a page with tabs, or one that defines its Page in index.js)."""
+    text = (tree / "page" / "pages" / page / "index.js").read_text()
+    tabless, component = own_page(text)
+    kind, _exported, module = binding(text, component) if component else (None, None, None)
+    convert = tabless and kind == "named" and (module or "").startswith("./")
+    return [["tab", page, f"{prefix}-first", *(["--from-page"] if convert else [])], ["tab", page, f"{prefix}-second"]]
+
+
+def real_steps(tree: Path) -> list[list[str]]:
+    """The guard's steps, chosen from the copy's current declarations (before STEPS run): an event name history does
+    not declare, a (feature, event) pair no listener takes yet, the tab kind each real page can take."""
+    declared = declared_events(tree)
+    pruned = next(f"rdreal_pruned{n or ''}" for n in range(100) if f"history.rdreal_pruned{n or ''}" not in declared)
+    pairs = [(f, e) for f in REAL_LISTENERS for e, owner in declared.items() if owner != f and not listens(tree, f, e)]
+    feature, event = pairs[0] if pairs else ("library", f"history.{pruned}")  # the new event: nobody hears it yet
+    steps = [
+        ["rpc", "library", "rdreal_ping"],
+        ["event", "history", pruned, "--payload", "game", "--when", "the probe pruned a snapshot"],
+        ["listener", feature, event],
+    ]
+    for page in REAL_PAGES:
+        steps += page_steps(tree, page, f"rdreal-{page}")
+    return steps + [["slot", "home", "rdrealSlot", "--doc", "After the hero. Props: { ctx }"]]
+
+
+def grown_steps(tree: Path) -> list[list[str]]:
+    """What makes the copy a grown tree (setup with tabs, history listening to library.game_presented), only where
+    it lacks that already: a branch that added either keeps it, and nothing is made twice."""
+    tabless, _component = own_page((tree / "page/pages/setup/index.js").read_text())
+    steps = page_steps(tree, "setup", "rdgrown") if tabless else []
+    event = "library.game_presented"
+    heard = listens(tree, "history", event) or event not in declared_events(tree)
+    return steps + ([] if heard else [["listener", "history", event]])
+
+
+FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_placeholders.py), filled in
+    ("describe what this tab shows.", "a probe tab."),
+    ("say what this listener does", "keeps a note"),
+    ("(say what it does)", "(keeps a note)"),
+)
+REAL_STEPS = real_steps(ROOT)  # this tree's, for the fast checks; the guard computes them again on its copy
+UNIT_FIRST = "the tree fails unit (fix unit first)"  # tools/check.py scaffold reports this skip as such
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs", "tests/page/slots.test.mjs"]
 STRUCTURE = [
     "tests.repo.test_layout",
@@ -171,12 +259,52 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         return base, tree, env
 
     def test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests(self):
+        self.guard()
+
+    def test_the_guard_passes_where_setup_has_tabs_and_history_listens_to_game_presented(self):  # review 1, 0
+        def grown(tree: Path, env: dict) -> None:  # a contributor's branch: setup's Page is a tab, history listens
+            for step in grown_steps(tree):  # only what the copy lacks (review 2, 0)
+                done = run([*RETRODEV, "new", *step, "--no-check"], tree, env)
+                self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
+            changed = run(["git", "ls-files", "-m", "-o", "--exclude-standard"], tree, env).stdout.split()
+            for path in (tree / name for name in changed):  # filled in, as the contributor would: unit then passes
+                text = path.read_text()
+                for stub, said in FILLED:
+                    text = text.replace(stub, said)
+                path.write_text(text)
+            built = run(["node", "tools/bundle/bundle.mjs"], tree, env)  # the filled-in tab is in the bundle
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            for command in (["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "Grown"]):
+                self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+            steps = real_steps(tree)
+            self.assertNotIn("--from-page", [word for step in steps if step[1] == "setup" for word in step])
+            self.assertNotIn(["listener", "history", "library.game_presented"], steps)
+
+        if (
+            os.environ.get("RD_SCAFFOLD_FULL", "") != "nested"
+        ):  # the guard's real steps run only nested: here, the choice
+            _, tree, env = self.make_tree()
+            grown(tree, env)
+            return
+        self.guard(grown)
+
+    def guard(self, prepare=None) -> None:
         _, tree, env = self.make_tree()
-        for step in STEPS:  # several in a row: the generated files are rebuilt once, after the last
-            last = step is STEPS[-1]
+        if prepare:
+            prepare(tree, env)
+        mode = os.environ.get("RD_SCAFFOLD_FULL", "")
+        steps = STEPS + (real_steps(tree) if mode == "nested" else [])
+        if mode == "nested":  # the full suites judge the copy: a tree that fails them already says nothing of new
+            base = run([sys.executable, "tools/check.py", "unit"], tree, env)
+            if base.returncode and prepare:  # the grown copy is this test's own: it must pass unit
+                self.fail(f"the grown copy fails unit:\n{base.stdout[-6000:]}")
+            if base.returncode:
+                self.skipTest(f"{UNIT_FIRST}:\n{base.stdout[-2000:]}")
+        for step in steps:  # several in a row: the generated files are rebuilt once, after the last
+            last = step is steps[-1]
             done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
             self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
-        commands = judges(os.environ.get("RD_SCAFFOLD_FULL", ""), env)
+        commands = judges(mode, env)
         running = [
             subprocess.Popen(c, cwd=tree, env=e, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             for c, e in commands
@@ -186,11 +314,39 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
 
+    def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
+        moved_pages_bundle(self, RETRODEV)
+
     def test_tab_from_page_passes_its_own_checks_lint_and_bundle(self):
         self.tab_from_page("{ RdtabsPage as TabsPanel }", "TabsPanel")  # aliased: the tab imports the exported name
 
     def test_tab_from_page_with_a_multiline_import_passes_its_own_checks_lint_and_bundle(self):  # review round 2, 1
         self.tab_from_page("{\n  RdtabsPage\n}", "RdtabsPage")
+
+    def test_an_exported_inline_page_moved_by_from_page_still_bundles_for_its_consumer(self):  # review 1, 2
+        _, tree, env = self.make_tree()
+        for page in ("rdinline", "rdconsumer"):
+            done = run([*RETRODEV, "new", "page", page, "--no-check", "--no-build"], tree, env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        folder = tree / "page/pages/rdinline"
+        door = folder / "index.js"
+        own = (folder / "rdinline-page.js").read_text().split("\n", 1)[1]  # its imports and exported function
+        (folder / "rdinline-page.js").unlink()
+        text = door.read_text().replace("import { RdinlinePage } from './rdinline-page.js'\n", own.rstrip() + "\n")
+        door.write_text(text)  # the Page defined (and exported) in index.js itself
+        consumer = tree / "page/pages/rdconsumer/rdconsumer-page.js"
+        consumer.write_text(
+            "// The Rdconsumer page: it shows Rdinline's exported Page through that page's front door.\n"
+            "import { jsx } from '#sdk'\nimport { RdinlinePage } from '#pages/rdinline/index.js'\n\n"
+            "export function RdconsumerPage() {\n  return jsx(RdinlinePage, {})\n}\n"
+        )
+        for command in (["add", "-A"], ["commit", "-q", "-m", "Inline"]):
+            self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+        done = run([*RETRODEV, "new", "tab", "rdinline", "first", "--from-page", "--no-check"], tree, env)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("export { RdinlinePage } from './rdinline-page.js'", door.read_text())
+        judged = run([sys.executable, "tools/check.py", "lint", "bundle"], tree, env)
+        self.assertEqual(judged.returncode, 0, judged.stdout + judged.stderr)
 
     def tab_from_page(self, clause: str, local: str) -> None:
         _, tree, env = self.make_tree()

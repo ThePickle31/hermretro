@@ -240,3 +240,19 @@ export function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardw
     )
   ]
 }
+
+/** The page's own Page: the prompt library, fed from the shell. */
+export function Prompts({ shell }) {
+  return jsx(PromptsPage, {
+    ctx: shell.ctx,
+    defaultFolder: shell.newGameFolder,
+    gameReady: shell.gameReady,
+    hardwareOn: shell.hardwareOn,
+    onGo: shell.go,
+    onSelect: shell.setPromptId,
+    onSetUpDevice: shell.setUpDevice,
+    profileLabel: shell.profileLabel,
+    selected: shell.promptId,
+    storage: shell.ctx.storage
+  })
+}

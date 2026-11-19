@@ -84,7 +84,7 @@ class Flow(RepoCase):
         text = path.read_text()
         self.assertIn("## Why\nMake goalie work.\n", text)
         self.assertIn("Made by an agent (Hermes) for the owner.", text)
-        fix = line_with(out, "FIX:")
+        fix = line_with(out, "FIX:").strip()  # the body gate's FIX (every gate runs and prints its own)
         self.assertTrue(fix.startswith(f"FIX: fill in {path}, then python tools/retrodev ship --title"), fix)
         self.assertEqual(shlex.split(fix.split(", then ")[1])[-2:], ["--body", str(path)])
         self.assertEqual(self.run_cli("ship", "--title", "T", "--new-body", cwd=tree)[0], 1)

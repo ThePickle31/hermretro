@@ -8,7 +8,7 @@ Run alone: python -m unittest tests.retrodev.test_new_kinds
 import shutil
 import unittest
 
-from retrodev import scaffold_backend
+from retrodev import scaffold, scaffold_backend
 
 from tests.retrodev.fixture import git, parallel, write
 from tests.retrodev.test_scaffold import ROOT, ScaffoldCase
@@ -25,8 +25,10 @@ class NewKinds(ScaffoldCase):
         out = self.new("rpc", "history.rdprobe_recent")
         self.assertIn("tests/backend/history/test_rpc_rdprobe_recent.py", out["created"])
         test = self.read("tests/backend/history/test_rpc_rdprobe_recent.py")
-        self.assertIn('"HERMRETRO_HOME": home.name', test)
-        self.assertIn("throwaway_profile", test)
+        self.assertIn(
+            "        isolated_home(self)\n", test
+        )  # round five: tests/support.py's helper, not a hand-made home
+        self.assertNotIn("throwaway_profile", test)
         steps = " ".join(out["next"])
         self.assertIn("import { RPC_RDPROBE_RECENT } from '#app/rpc.js' (re-exports the generated rpc-names.js)", steps)
         self.assertIn("plugin.hermretro.rdprobe_recent", steps)
@@ -101,12 +103,37 @@ class NewKinds(ScaffoldCase):
         self.assertIn("import { Heading, Lede } from '#shared/ui/text.js'", tab)
         self.assertIn("jsx(Heading, { children: 'First' })", tab)
         steps = " ".join(out["next"])
-        self.assertIn("Page component (page/pages/rdprobe-tabs/rdprobe-tabs-page.js) still renders", steps)
-        self.assertIn("a single tab still shows a tab bar", steps)
+        self.assertIn(
+            "the page's own Page still renders between the tab bar and the tab: RdprobeTabsPage "
+            "(page/pages/rdprobe-tabs/rdprobe-tabs-page.js)",
+            steps,
+        )
+        self.assertIn("a single tab shows a tab bar of one", steps)
         text = (ROOT / "page/shared/ui/text.js").read_text()
         self.assertIn(
             "export function Heading({ children }) {\n  return jsx('h2', { className: 'cs-word cs-title'", text
         )
+
+
+class Pieces(unittest.TestCase):
+    def test_readme_items_replace_none_or_append(self):
+        self.assertEqual(scaffold.readme_item("- RPCs: none.", "RPCs", "`a`"), "- RPCs: `a`.")
+        self.assertEqual(
+            scaffold.readme_item("- RPCs (`rpcs.py`): `a`.", "RPCs", "`b`"), "- RPCs (`rpcs.py`): `a`, `b`."
+        )
+        self.assertEqual(
+            scaffold.readme_item("- Events emitted: none. Listens to: none.", "Events emitted", "`x.y`"),
+            "- Events emitted: `x.y`. Listens to: none.",
+        )
+        self.assertEqual(scaffold.readme_item("**Tabs:** one.", "Tabs:", "`t`", only_none=True), "**Tabs:** one.")
+
+    def test_templates_keep_literal_braces(self):
+        self.assertIn("{ echo? }", scaffold.render("rpc", "contract.md.tmpl", rpc="x", name="f", RPC="X"))
+
+    def test_names(self):
+        self.assertEqual(scaffold.pascal("side-panel"), "SidePanel")
+        self.assertEqual(scaffold.const("side-panel"), "SIDE_PANEL")
+        self.assertEqual(scaffold.camel("side-panel"), "sidePanel")
 
 
 if __name__ == "__main__":

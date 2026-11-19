@@ -1,28 +1,22 @@
 """The {rpc} RPC of backend/{name}. Run alone: python -m unittest tests.backend.{name}.test_rpc_{rpc}
 
-HERMRETRO_HOME and the plugin's data folder point at a temp folder (tests/support.py): never the real library.
+isolated_home(self) (tests/support.py) points HERMRETRO_HOME and the plugin's data folder at a temp folder: never
+the real library.
 """
 
-import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.{name} import rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 
 class Rpc{Rpc}(unittest.TestCase):
     def setUp(self):
-        home = tempfile.TemporaryDirectory()
-        self.addCleanup(home.cleanup)
-        for patch in (mock.patch.dict(os.environ, {{"HERMRETRO_HOME": home.name}}), throwaway_profile(Path(home.name))):
-            patch.start()
-            self.addCleanup(patch.stop)
+        isolated_home(self)
         self.handler = rpcs.rpc_{rpc}(None)
 
     def test_it_answers_ok(self):
