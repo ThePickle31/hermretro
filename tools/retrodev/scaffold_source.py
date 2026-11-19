@@ -4,6 +4,7 @@ only when its shape is known, and every other shape is refused before anything i
     add_tool(text, rel, block, entry)   the schema and handler before TOOLS, the Tool(...) entry inside it
     take_in_module(text, rel, module)   tools.py's TOOLS takes in a sibling module's (*module.TOOLS)
     check_sibling_name(text, rel, m)    refuses a --module name tools.py binds to anything but `from . import m`
+    check_front_door_name(text, rel, m) refuses a --module name the feature's __init__.py binds at all
     is_aggregator(text)                 tools.py only takes in sibling modules (no Tool of its own)
     add_event(text, entry)              a "feature.event": "doc" entry at the end of EVENTS
     module_names(text)                  every top-level name a module binds
@@ -139,13 +140,61 @@ def imports_sibling(text: str, module: str) -> bool:
     )
 
 
+def _statements(body: list[ast.stmt]):
+    """The module-level statements, including those inside if/try/with/for/while blocks (not def or class
+    bodies): each one runs when the module is imported."""
+    for node in body:
+        yield node
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for field in ("body", "orelse", "finalbody"):
+                yield from _statements(getattr(node, field, None) or [])
+            for handler in getattr(node, "handlers", None) or []:
+                yield from _statements(handler.body)
+            for case in getattr(node, "cases", None) or []:
+                yield from _statements(case.body)
+
+
+def _exported(node: ast.stmt) -> set[str]:
+    """The strings an ``__all__ = [...]`` / ``__all__ += [...]`` statement lists."""
+    if "__all__" not in bound(node) or not isinstance(getattr(node, "value", None), (ast.List, ast.Tuple, ast.Set)):
+        return set()
+    return {elt.value for elt in node.value.elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)}
+
+
+def bindings(text: str, name: str) -> list[ast.stmt]:
+    """Every module-level statement that binds ``name`` (an import, assignment, def or class, in a block or not)
+    or lists it in ``__all__``."""
+    return [node for node in _statements(ast.parse(text).body) if name in bound(node) | _exported(node)]
+
+
+def _is_sibling_import(node: ast.stmt, module: str) -> bool:
+    return (
+        isinstance(node, ast.ImportFrom)
+        and node.level == 1
+        and node.module is None
+        and all(alias.name != module or alias.asname in (None, module) for alias in node.names)
+        and all(alias.asname != module or alias.name == module for alias in node.names)
+    )
+
+
 def check_sibling_name(text: str, rel: str, module: str) -> None:
     """Refuse ``module`` when ``rel`` binds that name to anything but ``from . import <module>`` (an import of
     another module, an assignment, a function or a class): ``*<module>.TOOLS`` would read the wrong object."""
-    if module in module_names(text) and not imports_sibling(text, module):
+    if any(not _is_sibling_import(node, module) for node in bindings(text, module)):
         raise Failure(
             f"{rel} binds {module} already (not as `from . import {module}`), so *{module}.TOOLS would read that "
             "instead of the new module; nothing was written",
+            f"pick another module name, e.g. --module {module}_tools",
+        )
+
+
+def check_front_door_name(text: str, rel: str, module: str) -> None:
+    """Refuse ``module`` when the feature's front door binds it at all: ``from . import <module>`` in tools.py
+    returns the package attribute the front door set, not the new sibling module."""
+    if bindings(text, module):
+        raise Failure(
+            f"{rel} binds {module} already (an import, assignment, function, class or __all__ entry), so "
+            f"`from . import {module}` would import that instead of the new module; nothing was written",
             f"pick another module name, e.g. --module {module}_tools",
         )
 

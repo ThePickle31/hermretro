@@ -30,6 +30,7 @@ from .scaffold import (
 from .scaffold_source import (
     add_event,
     add_tool,
+    check_front_door_name,
     check_sibling_name,
     is_aggregator,
     js_str,
@@ -188,12 +189,24 @@ def engine_tools(plan: Plan) -> set[str]:
 MODULE_TAKEN = ("tools", "rpcs", "hooks", "prompt", "listeners", "emits")  # names a feature's own parts use
 
 
-def tool_module(module: str) -> str:
+def tool_module(plan: Plan, feature_name: str, module: str) -> str:
+    """Refuse a --module (or automatic <tool>_tools) name that would not end up as the new sibling module, before
+    anything is planned: tools.py's ``from . import <module>`` must import exactly that module."""
     check_name(module, SNAKE, "module", "game_tools")
     if module in MODULE_TAKEN:
         raise Failure(
             f"--module {module} is a name every feature keeps for its own part (hermes/declare.py); nothing was written",
             "pick another module name, e.g. --module game_tools",
+        )
+    door, source, home = (f"backend/{feature_name}/{name}.py" for name in ("__init__", "tools", module))
+    if plan.exists(door):
+        check_front_door_name(plan.read(door), door, module)
+    if plan.exists(source):
+        check_sibling_name(plan.read(source), source, module)
+    if plan.exists(home) and "TOOLS" not in module_names(plan.read(home)):
+        raise Failure(
+            f"{home} exists and has no TOOLS, so it is another module, not one of tools.py's; nothing was written",
+            f"pick another module name, e.g. --module {module}_tools",
         )
     return module
 
@@ -230,9 +243,7 @@ def tool(plan: Plan, feature_name: str, name: str, step: list[str] | None, modul
             f"{why}: the tool goes in its own module backend/{feature_name}/{module}.py, with its own TOOLS, which "
             f"tools.py's TOOLS takes in (*{module}.TOOLS); --module <name> picks another name"
         )
-    home = source if module is None else f"backend/{feature_name}/{tool_module(module)}.py"
-    if module is not None and index:  # before anything is planned: the name must be free in tools.py
-        check_sibling_name(index, source, module)
+    home = source if module is None else f"backend/{feature_name}/{tool_module(plan, feature_name, module)}.py"
     plan.ensure(home, render("tool", "tools.py.tmpl", **values))
     for where in dict.fromkeys(rel for rel in (source, home) if plan.exists(rel)):  # one name per tool, feature-wide
         taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(where)))

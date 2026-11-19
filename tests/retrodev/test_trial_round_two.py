@@ -177,6 +177,33 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.new("tool", "library", "rdprobe_ping", "--module", "rdprobe_extra")  # a free name still works
         self.assertIn("from . import rdprobe_extra", self.read("backend/library/tools.py"))
 
+    def test_module_refuses_a_name_the_front_door_binds_and_the_tree_is_unchanged(self):
+        for name in ("__init__.py", "tools.py", "README.md", "game_card.py"):
+            shutil.copyfile(ROOT / "backend/library" / name, self.tree / "backend/library" / name)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Library front door")
+
+        def snapshot():
+            files = (p for p in sorted(self.tree.rglob("*")) if p.is_file() and ".git" not in p.parts)
+            return {str(p.relative_to(self.tree)): p.read_bytes() for p in files}
+
+        before = snapshot()
+        for module, says in (
+            ("read_json", "backend/library/__init__.py binds read_json"),  # `from .games import _json as read_json`
+            ("cover_path", "backend/library/__init__.py binds cover_path"),  # a plain from-import
+            ("EVENTS", "not a usable module name"),
+            ("game_card", "backend/library/game_card.py exists and has no TOOLS"),  # `from . import game_card`
+        ):
+            out = self.new("tool", "library", "rdprobe_ping", "--module", module, code=1)
+            self.assertIn(says, out["error"]["message"])
+            self.assertEqual(snapshot(), before, f"--module {module} changed the tree")
+        door = self.read("backend/library/__init__.py")  # the automatic <tool>_tools name is checked the same way
+        write(self.tree, "backend/library/__init__.py", door + "\n__all__ += [\"rdprobe_ping_tools\"]\n")
+        before = snapshot()
+        out = self.new("tool", "library", "rdprobe_ping", code=1)
+        self.assertIn("backend/library/__init__.py binds rdprobe_ping_tools", out["error"]["message"])
+        self.assertEqual(snapshot(), before, "the automatic module name changed the tree")
+
     def test_a_plain_tool_after_an_aggregator_tools_py_goes_to_its_own_module(self):
         self.new("tool", "history", "rdprobe_first", "--module", "rdprobe_extra")
         out = self.new("tool", "history", "rdprobe_second", as_json=False)
