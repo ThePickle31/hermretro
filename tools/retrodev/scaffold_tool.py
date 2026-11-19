@@ -24,6 +24,7 @@ from .scaffold_backend import (
     readme,
 )
 from .scaffold_source import (
+    MODULE_TAKEN,
     add_tool,
     check_front_door_name,
     check_sibling_name,
@@ -40,9 +41,6 @@ def engine_tools(plan: Plan) -> set[str]:
     for path in plan.top.glob("engine/pins/*/tools.json"):
         found |= {TOOL_PREFIX + tool["name"] for tool in json.loads(path.read_text(encoding="utf-8")).get("tools", [])}
     return found
-
-
-MODULE_TAKEN = ("tools", "rpcs", "hooks", "prompt", "listeners", "emits")  # names a feature's own parts use
 
 
 def tool_module(plan: Plan, feature_name: str, module: str) -> str:
@@ -188,11 +186,38 @@ def tool(
         ),
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
     ]
+    codes = error_codes(plan)
+    if codes:
+        plan.next_steps.append(
+            "the tool error codes in use (the second argument of tool_error, the \"code\" of an error answer): "
+            + ", ".join(codes)
+            + "; reuse one that fits before adding a code"
+        )
     if project and feature_name == "library":
         plan.next_steps.append(
             'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
         )
     return f"tool {full}"
+
+
+CODE = re.compile(r'(?:_error\((?:[^()]|\([^()]*\))*?,\s*|"code":\s*)"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{4,})"', re.S)
+
+
+def error_codes(plan: Plan) -> list[str]:
+    """The error codes the feature tool modules answer with (tool_error(message, CODE), a helper's
+    *_error(..., CODE) or a "code": "CODE" entry), from backend/*/tools.py, *_tools.py and tool_args.py as this
+    new leaves them."""
+    on_disk = {str(path.relative_to(plan.top)) for path in plan.top.glob("backend/*/*.py")}
+    found = set()
+    for rel in sorted(on_disk | set(plan.created) | set(plan.changed)):
+        name = rel.rsplit("/", 1)[-1]
+        if (
+            rel.startswith("backend/")
+            and rel.count("/") == 2
+            and (name.endswith("tools.py") or name == f"{TOOL_ARGS}.py")
+        ):
+            found |= set(CODE.findall(plan.read(rel)))
+    return sorted(found)
 
 
 def _contract_tool(text: str, full: str, feature_name: str, home: str | None = None) -> str:

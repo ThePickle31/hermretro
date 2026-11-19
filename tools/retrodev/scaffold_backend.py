@@ -11,6 +11,7 @@ import ast
 import json
 import re
 
+from . import scaffold_rpc
 from .output import Failure
 from .scaffold import (
     SNAKE,
@@ -198,7 +199,7 @@ def rpc_names(plan: Plan) -> set[str]:
     return found
 
 
-def rpc_(plan: Plan, feature_name: str, name: str) -> str:
+def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) -> str:
     known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
@@ -206,8 +207,12 @@ def rpc_(plan: Plan, feature_name: str, name: str) -> str:
         raise Failure(f"an RPC named {name} exists (or CONTRACT.md documents one)", "pick another RPC name")
     values = {"name": feature_name, "Name": label(feature_name), "rpc": name, "Rpc": pascal(name), "RPC": const(name)}
     source = f"backend/{feature_name}/rpcs.py"
-    plan.ensure(source, render("rpc", "rpcs.py.tmpl", **values))
-    plan.edit(source, lambda text: text.rstrip("\n") + "\n" + render("rpc", "rpc.py.tmpl", **values))
+    if module:  # the handler in its own module; rpcs.py keeps the @rpc declaration (scaffold_rpc.py)
+        source = scaffold_rpc.in_module(plan, feature_name, module, values)
+    else:
+        scaffold_rpc.big_note(plan, feature_name, name)
+        plan.ensure(source, render("rpc", "rpcs.py.tmpl", **values))
+        plan.edit(source, lambda text: text.rstrip("\n") + "\n" + render("rpc", "rpc.py.tmpl", **values))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", "test_rpc.py.tmpl", **values))
     block = render("rpc", "contract.md.tmpl", **values)

@@ -114,7 +114,22 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
         start_sha=repo.head(path),
     )
     state.save_branch(main, record)
+    body = None if no_plan else body_note(ctx, name, record)
     ctx.out.say(str(path))
     ctx.out.say(f"next: {cmd('cd', path)}, build, then python tools/retrodev check")
-    ctx.out.set(path=str(path), branch=name, topic=topic, setup=setup_results)
+    ctx.out.set(path=str(path), branch=name, topic=topic, setup=setup_results, body=body)
     return 0
+
+
+def body_note(ctx, branch: str, record: dict) -> str | None:
+    """Write the pull request body (notes/pr/<topic>.md, the file ship reads) from the template and the plan, so the
+    first ship --dry-run finds a body to check instead of writing one and stopping; an existing one is kept."""
+    from . import ship  # ship imports gates and plan; start stays importable on its own
+
+    written = ship.write_body(ctx, branch, record)
+    if written:
+        ctx.out.say(
+            f"wrote {written}: the pull request body (Why, What changed and Not done from the plan); fill in the "
+            "rest while you build, ship refuses it until every section says something"
+        )
+    return str(written or ship.default_body(ctx, branch, record))

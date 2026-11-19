@@ -197,6 +197,14 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             "{ tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
             f"descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)"
         )
+    plan.next_steps.append(
+        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and in the page's row of docs/dev/STUDIO-PAGES.md"
+    )
+    if from_page and values.get("moved") and page_in_index(plan, page_id):
+        plan.next_steps.append(
+            f"remove '{page_id}' from PAGE_IN_INDEX in {REGISTRY_TEST}: its Page is no longer defined in index.js "
+            "(new leaves tests/page to you)"
+        )
     if tabs == 1:
         plan.next_steps.append(
             f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
@@ -212,6 +220,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             )
         )
     return f"tab {page_id}/{tab_id}" + (" (from the page's Page)" if from_page else "")
+
+
+def page_in_index(plan: Plan, page_id: str) -> bool:
+    """tests/page/registry.test.mjs names the page in PAGE_IN_INDEX (pages allowed to define their Page in index.js)."""
+    text = plan.read(REGISTRY_TEST) if plan.exists(REGISTRY_TEST) else ""
+    found = re.search(r"PAGE_IN_INDEX\s*=\s*new Set\(\[([^\]]*)\]\)", text)
+    return bool(found and re.search(rf"['\"]{re.escape(page_id)}['\"]", found.group(1)))
 
 
 def tab_count(text: str) -> int:
