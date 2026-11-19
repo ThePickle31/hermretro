@@ -2,39 +2,10 @@
 // shell's (it stays loaded while other pages are shown); this page adds the bar above it, the notice, the row
 // under it, and the emulator tab beside the chat that opens when the agent presents a game.
 import { jsx } from '#sdk'
-import { PlayerNotice } from '#app/player/stage.js'
 import { SideEmulatorRow } from './beside-chat/row.js'
 import { watchBuilds } from './beside-chat/present.js'
-import { EmulatorBar } from './emulator-bar.js'
+import { Emulator } from './emulator-page.js'
 import { EMULATOR_CSS } from './emulator.css.js'
-
-function Emulator({ shell }) {
-  const { ctx, go, hardwareOn, player } = shell
-
-  // Always the player: the user's game, or the demo cartridge when there is nothing of theirs to play.
-  return [
-    jsx(
-      EmulatorBar,
-      {
-        capturesOpen: player.capturesOpen,
-        ctx,
-        focused: player.focused,
-        game: player.game,
-        go,
-        hardwareOn,
-        onAsk: player.ask,
-        onFull: player.fullScreen,
-        onLater: player.later,
-        onReload: player.reload,
-        onToggleCaptures: player.toggleCaptures,
-        player: player.query,
-        rebuilt: player.rebuilt
-      },
-      'bar'
-    ),
-    jsx(PlayerNotice, { game: player.game, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, 'notice')
-  ]
-}
 
 function BelowPlayer({ shell }) {
   return jsx(SideEmulatorRow, { ctx: shell.ctx, game: shell.player.game })

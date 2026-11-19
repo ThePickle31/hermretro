@@ -29,6 +29,8 @@ PLACEHOLDERS = {
     "describe what this tab shows.": "the tab component's first content",
     "(say what it does)": "the CONTRACT event row's 'Heard by' entry: what the listening feature does then",
     "say what this listener does": "the listener's docstring: what the feature does when the event happens",
+    # The tool's schema description (tools.py), which is what the agent reads to pick the tool.
+    '"description": "Describe what': "the tool's schema description: what it does and when the agent should call it",
 }
 # Where they end up: the docs, every README, the folder map, the feature list and the page.
 SCANNED_SUFFIXES = {".md", ".toml", ".py", ".js"}
@@ -85,6 +87,17 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
         planned = {rel: text for rel, text in {**plan.created, **plan.changed}.items() if not rel.startswith(SKIPPED)}
         for text in ("say what this listener does", "(say what it does)"):
             self.assertTrue(any(text in body for body in planned.values()), f"{text!r} not in {sorted(planned)}")
+
+    def test_a_new_tools_schema_description_is_caught(self):
+        """Each tool template's schema description, with a tool name filled in, is a placeholder the gate finds."""
+        for template in sorted(SCAFFOLD.glob("templates/tool/tool*.py.tmpl")):
+            lines = [
+                line for line in template.read_text(encoding="utf-8").splitlines() if '"description": "Describe' in line
+            ]
+            if not lines:
+                continue
+            line = lines[0].replace("{tool}", "chromatic_probe")
+            self.assertTrue(any(text in line for text in PLACEHOLDERS), f"{template.name}: {line.strip()}")
 
     def test_every_placeholder_is_still_one_the_scaffolds_write(self):
         sources = "\n".join(
