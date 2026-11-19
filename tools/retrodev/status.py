@@ -26,6 +26,17 @@ def next_step(facts: dict) -> str:
             f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
             f'approve {topic} --words "<their exact words>"'
         )
+    if facts.get("behind"):
+        lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
+        if facts.get("dirty"):
+            return (
+                "next: "
+                + cmd("git", "add", "-A")
+                + " && "
+                + cmd("git", "commit", "-m", "<what changed>")
+                + f", then python tools/retrodev sync ({lacks}; sync merges only a committed tree), then check"
+            )
+        return f"next: python tools/retrodev sync ({lacks}), then python tools/retrodev check"
     if not facts.get("checks_passed"):
         return "next: python tools/retrodev check"
     if facts.get("dirty"):
@@ -38,11 +49,13 @@ def next_step(facts: dict) -> str:
         )
     if not facts.get("pr") and facts.get("body"):
         title = facts.get("title") or "<one plain sentence>"
-        return (
-            "next: "
-            + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"])
-            + " (fill in every section of the body first)"
-        )
+        if facts.get("dry_run_passed"):
+            why = f" (ship --dry-run passed at {facts['dry_run_passed']})"
+        elif facts.get("body_ok"):
+            why = " (the body passes ship's body gate)"
+        else:
+            why = " (fill in every section of the body first)"
+        return "next: " + cmd("python", "tools/retrodev", "ship", "--title", title, "--body", facts["body"]) + why
     if not facts.get("pr"):
         return (
             "next: "
@@ -84,6 +97,20 @@ def behind(ctx, path) -> int:
     return int(counted) if counted.isdigit() else 0
 
 
+def body_ok(ctx, body: str | None) -> bool:
+    """The recorded body passes ship's own body gate (gates.body_problems)."""
+    if not body or not os.path.isfile(body):
+        return False
+    with open(body, encoding="utf-8") as handle:
+        return not gates.body_problems(handle.read(), ctx.policy["ship"]["sections"])
+
+
+def dry_run_passed(record: dict, tree: str) -> str | None:
+    """When the last ship --dry-run passed every gate on exactly this tree, its time."""
+    last = record.get("dry_run") or {}
+    return last.get("at") if last.get("ok") and last.get("tree") == tree else None
+
+
 def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> dict:
     named = branch.partition("/")[2]
     topic = record.get("topic") or (named if state.NAME.match(named) else None)
@@ -93,10 +120,15 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
     jobs = github.checks(ctx, pr) if pr and with_ci else None
     review = reviews.load(ctx, pr) if pr else None
     body = record.get("body") or str(ship.default_body(ctx, branch, record))
+    shown = body if not pr and os.path.isfile(body) else None
+    tree = repo.tree_digest(path)
     return {
-        "body": body if not pr and os.path.isfile(body) else None,
+        "body": shown,
+        "body_ok": body_ok(ctx, shown),
+        "dry_run_passed": dry_run_passed(record, tree) if shown else None,
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
+        "base": ctx.remote_base,
         "branch": branch,
         "path": str(path),
         "main": str(ctx.main()),
@@ -107,7 +139,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "plan_exists": bool(plan_row and plan_row["exists"]) if plan_row else None,
         "plan_approved": bool(plan_row and plan_row["approved"]),
         "plan_changed": bool(plan_row and plan_row["changed_since_approval"]),
-        "checks_passed": record.get("passed_tree") == repo.tree_digest(path),
+        "checks_passed": record.get("passed_tree") == tree,
         "dirty": bool(repo.dirty(path)),
         "pr": pr,
         "pr_url": (record.get("pr") or {}).get("url"),
@@ -126,7 +158,9 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
 def show_branch(ctx, facts: dict) -> None:
     say = ctx.out.say
     say(f"branch {facts['branch']}  ({facts['path']})")
-    if facts["plan"] and facts.get("plan_exists") is False:
+    if not facts.get("needs_plan") and not facts.get("plan_exists"):
+        say("  plan:   none needed (docs/chore)")
+    elif facts["plan"] and facts.get("plan_exists") is False:
         say(f"  plan:   {facts['plan']} (none written)")
     elif facts["plan"]:
         approval = "approved" if facts["plan_approved"] else "NOT approved"
@@ -179,7 +213,10 @@ def run(ctx) -> int:
                 "(gc removes it once merged)",
             }
         rows.append(facts)
-        ctx.out.say(f"  {name:<34} {facts['path'] or '-'}\n    {facts['next']}")
+        ctx.out.say(f"  {name:<34} {facts['path'] or '-'}")
+        if facts.get("behind"):
+            ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
+        ctx.out.say(f"    {facts['next']}")
     if not rows:
         ctx.out.say("  no work in progress: python tools/retrodev plan new <topic>")
     ctx.out.set(main=str(main), branch=branch, branches=rows)

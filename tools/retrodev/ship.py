@@ -240,6 +240,10 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if not dry_run:
             repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
         found += [ahead_gate(ctx), remote_gate(ctx, branch)]
+    if dry_run and branch and found[0].ok:  # status says when the last dry run passed on this very tree
+        ok = all(gate.ok for gate in found)
+        record["dry_run"] = {"at": state.now(), "tree": repo.tree_digest(ctx.top), "ok": ok}
+        state.save_branch(ctx.top, record)
     gates.enforce(ctx, found, "ship")
     assert branch
     title = title.strip()

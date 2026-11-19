@@ -1,0 +1,38 @@
+"""The {tool} tool of backend/{name}. Run alone: python -m unittest tests.backend.{name}.test_tool_{short}
+
+isolated_home (tests/support.py) points HERMRETRO_HOME and the plugin's data folder at a temp folder: the tool
+never reads the real library or a real chat's project.
+"""
+
+import json
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.{name} import tools  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+
+
+class Tool{Short}(unittest.TestCase):
+    def setUp(self):
+        self.home = isolated_home(self)
+        self.tool = next(tool for tool in tools.TOOLS if tool.name == "{tool}")
+
+    def test_it_acts_on_the_project_it_is_given(self):
+        project = self.home.base / "game"
+        project.mkdir()
+        answer = json.loads(self.tool.handler({{"project": str(project)}}))
+        self.assertEqual((answer["ok"], answer["project"]), (True, str(project)))
+
+    def test_a_project_folder_that_does_not_exist_is_an_error_answer(self):
+        answer = json.loads(self.tool.handler({{"project": str(self.home.base / "missing")}}))
+        self.assertEqual((answer["ok"], answer["code"]), (False, "PROJECT_NOT_FOUND"))
+
+    def test_it_names_its_steps_for_the_build_page(self):
+        self.assertEqual(self.tool.step_words, {words})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -54,7 +54,7 @@ def watch(
         while True:
             try:
                 ctx.policy = config.load_policy(ctx.top)  # the rules as they are now, not as they were at start
-                checks.run(ctx, names, again=again and done == 0, full=full)
+                checks.run(ctx, names, again=again and done == 0, full=full, wait_for_commit=True)
             except Failure as failure:
                 ctx.out.say(failure.message + "\nFIX: " + failure.fix)
             done += 1

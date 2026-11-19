@@ -5,7 +5,7 @@ scaffold` (part of `check.py full` and `retrodev check --full`, added by `retrod
 scaffolds or the files they edit; CI's page job runs it). It copies what a commit of this tree would hold into a short temp
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc`, `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
-which goes in its own module too),
+which goes in its own module too; once in library, a --project tool),
 `new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
@@ -43,6 +43,11 @@ STEPS = [
     # history has no tools.py: --module first makes an aggregator one, and a plain tool after it gets its own module
     ["tool", "history", "rdtree_hist_first", "--module", "rdtree_hist_tools"],
     ["tool", "history", "rdtree_hist_second"],
+    [
+        "tool",
+        "library",
+        "rdtree_lib",
+    ],  # library has tool_args.py: a --project tool, in its own module (tools.py is big)
     ["event", "rdtree", "pinged", "--payload", "count", "--when", "the probe was pinged"],
     ["listener", "rdtree", "library.build_reported"],
     ["page", "rdtree"],
@@ -64,6 +69,7 @@ STRUCTURE = [
     "tests.backend.rdtree.test_tool_rdtree_more",
     "tests.backend.history.test_tool_rdtree_hist_first",
     "tests.backend.history.test_tool_rdtree_hist_second",
+    "tests.backend.library.test_tool_rdtree_lib",
     "tests.backend.rdtree.test_event_pinged",
     "tests.backend.rdtree.test_listener_on_library_build_reported",
 ]

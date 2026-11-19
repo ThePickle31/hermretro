@@ -80,7 +80,7 @@ class PlanApprove(RepoCase):
         self.new_plan("alone")
         code, out = self.run_cli("plan", "approve", "alone", "--words", "start")
         self.assertEqual(code, 0, out)
-        self.assertIn("next: python tools/retrodev start feat/alone", out)
+        self.assertIn("next: python tools/retrodev start <kind>/alone, kind one of: feat", out)
 
 
 class Answer(LandCase):
