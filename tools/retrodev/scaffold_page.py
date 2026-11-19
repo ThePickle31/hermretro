@@ -24,7 +24,8 @@ from .scaffold import (
     render,
 )
 from .scaffold import camel as to_camel
-from .scaffold_imports import PAGE_FIELD, binding, drop_page, move_out, statements
+from .scaffold_imports import PAGE_FIELD, binding, drop_page, statements
+from .scaffold_move import move_out
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"

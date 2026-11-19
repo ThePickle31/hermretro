@@ -56,6 +56,7 @@ acceptance = ["backend/*", "engine/*", "player/*", "tools/ci/prepare_toolchain.p
 # files whose structure it parses. Not docs/dev/ARCHITECTURE.md or CONTRACT.md: `new` itself adds their rows, so
 # every branch that used it would pay for the scaffold check.
 scaffold = ["tools/retrodev/scaffold*", "tools/retrodev/templates/*", "tests/retrodev/test_scaffold_tree.py",
+            "tests/retrodev/scaffold_moves.py",
             "backend/features.py", "tools/layout.toml", "page/pages/index.js",
             "page/pages/build/transcript/step-words.js"]
 clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]

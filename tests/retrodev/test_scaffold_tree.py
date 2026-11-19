@@ -14,13 +14,15 @@ the stubs are unfilled), and it is the guard against tests that pin the real tre
 unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
 reports as such), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
 contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
-the same on a copy where setup has tabs and history listens to library.game_presented already. CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
+the same on a copy where setup has tabs and history listens to library.game_presented already (made only where the copy
+lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 Two more run `new page rdtabs` (its Page imported under another name; then imported on several lines), then `new tab rdtabs first --from-page` and `new
 tab rdtabs second` with their own checks (the page suite among them), then `tools/check.py lint bundle` (the tab
 imports the Page's exported name as #pages/..., never ../). One more moves an exported Page that index.js defines
-(`new tab rdinline first --from-page`) while another page imports it through #pages/rdinline/index.js: it bundles.
+(`new tab rdinline first --from-page`) while another page imports it through #pages/rdinline/index.js: it bundles;
+so do inline Pages moved with block comments and into an import with a trailing comma (scaffold_moves.py).
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -41,6 +43,7 @@ from retrodev.scaffold_imports import binding
 from retrodev.scaffold_page import own_page
 
 from tests.retrodev.fixture import parallel
+from tests.retrodev.scaffold_moves import moved_pages_bundle
 
 load_tests = parallel
 
@@ -123,6 +126,16 @@ def real_steps(tree: Path) -> list[list[str]]:
     for page in REAL_PAGES:
         steps += page_steps(tree, page, f"rdreal-{page}")
     return steps + [["slot", "home", "rdrealSlot", "--doc", "After the hero. Props: { ctx }"]]
+
+
+def grown_steps(tree: Path) -> list[list[str]]:
+    """What makes the copy a grown tree (setup with tabs, history listening to library.game_presented), only where
+    it lacks that already: a branch that added either keeps it, and nothing is made twice."""
+    tabless, _component = own_page((tree / "page/pages/setup/index.js").read_text())
+    steps = page_steps(tree, "setup", "rdgrown") if tabless else []
+    event = "library.game_presented"
+    heard = listens(tree, "history", event) or event not in declared_events(tree)
+    return steps + ([] if heard else [["listener", "history", event]])
 
 
 FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_placeholders.py), filled in
@@ -250,11 +263,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
 
     def test_the_guard_passes_where_setup_has_tabs_and_history_listens_to_game_presented(self):  # review 1, 0
         def grown(tree: Path, env: dict) -> None:  # a contributor's branch: setup's Page is a tab, history listens
-            for step in (
-                ["tab", "setup", "rdgrown-first", "--from-page"],
-                ["tab", "setup", "rdgrown-second"],
-                ["listener", "history", "library.game_presented"],
-            ):
+            for step in grown_steps(tree):  # only what the copy lacks (review 2, 0)
                 done = run([*RETRODEV, "new", *step, "--no-check"], tree, env)
                 self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
             changed = run(["git", "ls-files", "-m", "-o", "--exclude-standard"], tree, env).stdout.split()
@@ -265,7 +274,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
                 path.write_text(text)
             built = run(["node", "tools/bundle/bundle.mjs"], tree, env)  # the filled-in tab is in the bundle
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            for command in (["add", "-A"], ["commit", "-q", "-m", "Grown"]):
+            for command in (["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "Grown"]):
                 self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
             steps = real_steps(tree)
             self.assertNotIn("--from-page", [word for step in steps if step[1] == "setup" for word in step])
@@ -304,6 +313,9 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
+
+    def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
+        moved_pages_bundle(self, RETRODEV)
 
     def test_tab_from_page_passes_its_own_checks_lint_and_bundle(self):
         self.tab_from_page("{ RdtabsPage as TabsPanel }", "TabsPanel")  # aliased: the tab imports the exported name

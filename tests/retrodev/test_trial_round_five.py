@@ -19,6 +19,7 @@ from retrodev import cli, config, output, scaffold
 
 from tests.retrodev import test_scaffold_tree as tree_test
 from tests.retrodev.fixture import RepoCase, git, parallel, write
+from tests.retrodev.scaffold_moves import needs_acorn
 from tests.retrodev.test_scaffold import ScaffoldCase
 
 load_tests = parallel
@@ -154,6 +155,7 @@ class New(ScaffoldCase):
         self.assertIn("unit", self.ran("rpc", "history", "rdprobe_ping"))
         self.assertEqual(scaffold.PAGE_CHECKS, ("lint", "bundle", "page"))
 
+    @needs_acorn  # the move parses index.js (scaffold_move.py)
     def test_from_page_moves_a_page_defined_in_index_js_into_its_own_file(self):
         inline_page(self)
         out = self.new("tab", "rdprobe-own", "first", "--from-page")
@@ -172,6 +174,7 @@ class New(ScaffoldCase):
         self.assertIn("a single tab shows a tab bar of one", steps)
         self.assertNotIn("still renders between the tab bar and the tab", steps, "the descriptor has no Page now")
 
+    @needs_acorn  # the move parses index.js (scaffold_move.py)
     def test_from_page_appends_to_an_existing_page_file_with_the_imports_it_lacks(self):
         inline_page(self)
         write(self.tree, f"{OWN}/rdprobe-own-page.js", "import { jsx } from '#sdk'\n\nexport const OTHER = 1\n")
@@ -184,6 +187,7 @@ class New(ScaffoldCase):
         self.assertTrue(moved.rstrip().endswith("return jsx(Lede, { children: shell.label })\n}"), moved)
         self.assertIn("export const OTHER = 1", moved)
 
+    @needs_acorn  # the move parses index.js (scaffold_move.py)
     def test_from_page_refuses_a_page_file_that_binds_a_used_name_to_another_value(self):  # review 1, 1
         inline_page(self)
         for clash in (
@@ -211,6 +215,7 @@ class New(ScaffoldCase):
         self.assertEqual(moved.count("Lede }"), 1, "the identical import is reused")
         self.assertIn("export function RdprobeOwn", moved)
 
+    @needs_acorn  # the move parses index.js (scaffold_move.py)
     def test_from_page_keeps_an_exported_page_exported_from_index_js(self):  # review 1, 2
         inline_page(self, exported=True)
         self.new("tab", "rdprobe-own", "first", "--from-page")
