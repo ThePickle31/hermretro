@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import functools
+import shlex
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -134,6 +135,11 @@ class Context:
     def command(self, words: list[str]) -> list[str]:
         """A policy command with {python} replaced by the Python running retrodev."""
         return [sys.executable if word == "{python}" else word for word in words]
+
+    @staticmethod
+    def shown(words: list[str]) -> str:
+        """A policy command as a person would type it: {python} shown as python."""
+        return shlex.join(["python" if word == "{python}" else word for word in words])
 
 
 def run(ctx: Context, action: str, key: str | None, value: str | None) -> int:

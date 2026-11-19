@@ -7,11 +7,11 @@ Run alone: python -m unittest tests.retrodev.test_land_sync
 import json
 import unittest
 
-from retrodev import land_carry
+from retrodev import code_lines, land_carry, state
 from retrodev.review import records
 
 from tests.retrodev.fixture import git, parallel
-from tests.retrodev.landing import GREEN, PR, LandCase, reply
+from tests.retrodev.landing import BRANCH, GREEN, PR, TITLE, LandCase, reply
 
 load_tests = parallel
 PENDING = [{"name": "All checks pass", "state": "PENDING", "bucket": "pending", "link": ""}]
@@ -36,6 +36,22 @@ class Conflicts(LandCase):
         self.assertEqual(code, 1, data)
         self.assert_points_to_sync(data, tree)
 
+    def test_the_conflict_fix_ships_with_the_recorded_title_and_body(self):
+        tree = self.open_pr()
+        record = state.load_branch(self.main, BRANCH)
+        body = str(self.main / "notes" / "pr" / "value.md")
+        record.update(body=body, pr={**record["pr"], "title": "Change the value"})
+        state.save_branch(self.main, record)
+        self.gh.effects.clear()
+        self.gh.answers[("pr", "merge", PR)] = (1, "", CONFLICT)
+        self.reviewer("OK\n", reply("s1"))
+        code, data = self.land()
+        self.assertEqual(code, 1, data)
+        self.assert_points_to_sync(data, tree)
+        fix = data["error"]["fix"]
+        self.assertIn(f"python tools/retrodev ship --title 'Change the value' --body {body},", fix)
+        self.assertNotIn("<file>", fix)
+
     def test_a_conflicting_pull_request_is_reported_before_the_review_and_ci(self):
         tree = self.open_pr()
         self.info["mergeable"] = "CONFLICTING"
@@ -56,10 +72,11 @@ class Conflicts(LandCase):
 
 
 class DevMergedAfterReview(LandCase):
-    def reviewed_then_synced(self, resolve=None):
+    def reviewed_then_synced(self, resolve=None, change=None, dev_core="VALUE = 3\n"):
         """A clean round on #12 (CI still running), then dev moves and the branch syncs. ``resolve(tree)`` settles
-        a conflict on core.py (dev changes it too); without it dev changes another file."""
-        tree = self.open_pr()
+        a conflict on core.py (dev makes it ``dev_core``); without it dev changes another file. ``change(tree)``
+        makes the pull request's commit (default: open_pr's)."""
+        tree = self.open_pr(change=change)
         self.ci(PENDING, code=8)
         self.reviewer("OK\n", reply("s1"))
         code, data = self.land()
@@ -70,7 +87,7 @@ class DevMergedAfterReview(LandCase):
             code, out = self.run_cli("sync", cwd=tree)
             self.assertEqual(code, 0, out)
         else:
-            self.on_dev("backend/library/core.py", "VALUE = 3\n")
+            self.on_dev("backend/library/core.py", dev_core)
             code, out = self.run_cli("sync", cwd=tree)
             self.assertEqual(code, 1, out)
             resolve(tree)
@@ -125,6 +142,40 @@ class DevMergedAfterReview(LandCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(len(self.hermes.calls), 2, "a probe, then round 2 on the merged head")
         self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
+        self.assertNotIn("carried", self.review_record())
+
+    def noqa_conflict(self, extra: str = ""):
+        """dev gives 24 bare noqa comments their reason while the branch changes the line beside them (a conflict
+        on the whole hunk); the resolution keeps the branch's code with dev's comments, plus ``extra``."""
+        bare = "".join(f"import m{n}  # noqa: E402\n" for n in range(24))
+        reasoned = bare.replace("E402\n", "E402 - the repository root goes on sys.path first\n")
+        self.on_dev("backend/library/core.py", "VALUE = 1\n" + bare, "Bare noqa comments")
+        git(self.main, "fetch", "-q", "origin")  # the branch starts from this dev
+
+        def change(tree):
+            self.commit(tree, "backend/library/core.py", "VALUE = 2\n" + bare, TITLE)
+
+        def resolve(tree):
+            (tree / "backend" / "library" / "core.py").write_text("VALUE = 2\n" + reasoned + extra)
+            git(tree, "add", "backend/library/core.py")
+
+        return self.reviewed_then_synced(resolve, change, dev_core="VALUE = 1\n" + reasoned)
+
+    def test_a_resolution_that_changes_only_comments_counts_no_lines(self):
+        _tree, reviewed, head = self.noqa_conflict()
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(self.hermes.calls, [], "24 comment-only lines: the review carries over, no new round")
+        self.assertEqual(self.merged_at(), head)
+        carried = self.review_record()["carried"]
+        self.assertEqual([(c["head"], c["reviewed"], c["resolution_lines"]) for c in carried], [(head, reviewed, 0)])
+
+    def test_a_resolution_that_adds_code_beside_the_comments_still_counts_it(self):
+        _tree, _reviewed, head = self.noqa_conflict("".join(f"EXTRA_{n} = {n}  # new\n" for n in range(25)))
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.hermes.calls), 2, "25 lines of code: a probe, then round 2 on the merged head")
         self.assertNotIn("carried", self.review_record())
 
     def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
@@ -212,6 +263,16 @@ class DevMergedAfterReview(LandCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CodeLines(unittest.TestCase):
+    def test_comments_and_whitespace_never_count(self):
+        self.assertEqual(code_lines.changed("a.py", "x = 1  # noqa: E402\n", "x  =  1  # noqa: E402 - why\n"), 0)
+        self.assertEqual(code_lines.changed("a.py", "s = '#'\n", "s = '#' # a note\n\n# more\n"), 0)
+        self.assertEqual(code_lines.changed("a.py", "s = '# a'\n", "s = '# b'\n"), 2, "a string is code")
+        self.assertEqual(code_lines.changed("a.mjs", "f() // old\n", "f() // new\n"), 0)
+        self.assertEqual(code_lines.changed("a.mjs", "u = 'http://a'\n", "u = 'http://b'\n"), 2)
+        self.assertEqual(code_lines.changed("a.md", "# Title\n", "# Other\n"), 2, "only code files have comments")
 
 
 class MergeTreeOutput(unittest.TestCase):

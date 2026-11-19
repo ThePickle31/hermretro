@@ -213,6 +213,12 @@ def run(ctx, title: str, body: str | None, dry_run: bool = False, new_body: bool
     if not review.get("shipped"):
         review["shipped"] = {"at": state.now(), "head": sha}
         records.save(reviews.root(ctx), review)
-    ctx.out.set(pr=record["pr"])
-    ctx.out.say("next: python tools/retrodev report (the step-5 report for the owner)")
+    ctx.out.set(pr=record["pr"], approved=bool(review.get("approval")))
+    if review.get("approval"):  # a re-ship of fixes after the owner approved: the report was given already
+        ctx.out.say(
+            f"next: {cmd('cd', ctx.main())} && python tools/retrodev land {number}  (already approved; from the main "
+            "checkout: the merge removes the worktree)"
+        )
+    else:
+        ctx.out.say("next: python tools/retrodev report (the step-5 report for the owner)")
     return 0

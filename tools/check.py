@@ -85,9 +85,8 @@ def check_unit(_args) -> str:
         )
     if leaked:
         raise AssertionError(
-            "the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give "
-            "those tests a temp folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR "
-            "variables)"
+            "the tests wrote into the home folder: " + ", ".join(leaked[:8]) + "\nFIX: give those tests a temp "
+            "folder (tests/support.py, HERMRETRO_HOME or the HERMRETRO_*_DIR variables)"
         )
     lines = result.stderr.splitlines()
     ran = [line for line in lines if line.startswith("Ran ")]
@@ -196,15 +195,17 @@ def tree_digest() -> dict[str, str]:
 
 
 def fix(args) -> int:
-    """Apply every automatic fix (ruff's safe fixes, ruff format, the page lint's fixes), say what changed, lint."""
-    missing = ruff_missing()
-    if missing:
+    """Apply every automatic fix (noqa reasons, ruff's safe fixes and format, the page lint's), say what changed, lint."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))
+    import noqa_reasons  # noqa: E402 - tools/py/ goes on sys.path first
+
+    print(noqa_reasons.report(ROOT, shipped_files()))  # needs no ruff: bare E402 exceptions get their reason
+    if missing := ruff_missing():
         print(f"{missing}\nFIX: {RUFF_SETUP}")
         return 1
     before = tree_digest()
     steps = [RUFF_CHECK[:2] + ["--fix", "--quiet", *RUFF_CHECK[2:]], RUFF_FORMAT]
-    node = shutil.which("node")
-    if node:
+    if node := shutil.which("node"):
         steps.append([node, "tools/bundle/lint-page.mjs", "--fix"])
     else:
         print("node is not installed: the page lint's fixes were not applied")
@@ -270,13 +271,11 @@ def check_scan(args) -> str:
     report = json.loads(result.stdout.strip().splitlines()[-1])
     if report["verdict"] != "safe":
         lines = [f"  {b['severity']}: {b['id']} in {b['file']}:{b['line']}  {b['match']}" for b in report["bad"]]
+        would = "be refused" if report["verdict"] == "dangerous" else "ask for confirmation"
         raise AssertionError(
-            f"verdict {report['verdict']}; installs would "
-            + ("be refused" if report["verdict"] == "dangerous" else "ask for confirmation")
-            + ":\n"
+            f"verdict {report['verdict']}; installs would {would}:\n"
             + "\n".join(lines)
-            + "\nFIX: reword or remove those lines (see AGENTS.md, "
-            "\"Install scanner\"); medium findings are fine"
+            + '\nFIX: reword or remove those lines (see AGENTS.md, "Install scanner"); medium findings are fine'
         )
     return f"safe ({report['findings']} minor notes)"
 
