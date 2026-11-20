@@ -4,6 +4,8 @@ export const ATTRACT_CSS = `
 .cs-at canvas { bottom: 0; image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .5; position: absolute; }
 .cs-at-spot { background: radial-gradient(ellipse 560px 300px at var(--cs-at-sx, 50%) var(--cs-at-sy, 50%), color-mix(in srgb, var(--cs-at-bg) 92%, transparent) 0%, color-mix(in srgb, var(--cs-at-bg) 70%, transparent) 50%, transparent 80%); inset: 0; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
+/* the header above the form, so the game switcher's menu opens over it */
+.cs-b-attract > .cs-b-head { z-index: 2; }
 .cs-b-attract .cs-b-new .cs-title { align-self: center; -webkit-text-stroke: 7px var(--cs-at-bg, transparent); paint-order: stroke fill; }
 .cs-b-attract .cs-b-new .cs-b-comp { background: var(--ui-bg-editor); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
 .cs-b-attract .cs-b-opt { background: var(--ui-bg-editor); }

@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 dd64340536804558d947b207f4f8b29014b8d35ed188b80a1235ae4c6eafc38b
- * body: sha256 deabfa6a8494d0d6996480b4b9d9337824795406ba4f1f56f3f848412797ec1b
+ * sources: sha256 79c6ae4264c85c1ef5981a28cab72198fafe66b6c2d2a9f81d6d85821b51695a
+ * body: sha256 dfde1ed8f05954e3f87c00f604fa58d5b4713378a6b9c18a9787595beb354e34
  */
 // page/sdk.js
 import {
@@ -3334,6 +3334,8 @@ var ATTRACT_CSS = `
 .cs-at canvas { bottom: 0; image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .5; position: absolute; }
 .cs-at-spot { background: radial-gradient(ellipse 560px 300px at var(--cs-at-sx, 50%) var(--cs-at-sy, 50%), color-mix(in srgb, var(--cs-at-bg) 92%, transparent) 0%, color-mix(in srgb, var(--cs-at-bg) 70%, transparent) 50%, transparent 80%); inset: 0; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
+/* the header above the form, so the game switcher's menu opens over it */
+.cs-b-attract > .cs-b-head { z-index: 2; }
 .cs-b-attract .cs-b-new .cs-title { align-self: center; -webkit-text-stroke: 7px var(--cs-at-bg, transparent); paint-order: stroke fill; }
 .cs-b-attract .cs-b-new .cs-b-comp { background: var(--ui-bg-editor); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
 .cs-b-attract .cs-b-opt { background: var(--ui-bg-editor); }
@@ -11708,13 +11710,13 @@ var World = class {
 };
 Object.assign(World.prototype, PILOT, ACTORS, DRAW);
 
-// page/pages/build/attract/index.js
+// page/pages/build/attract/run.js
 var SCALE = 2;
 var STEP = 1e3 / 60;
-var canDraw = () => typeof CanvasRenderingContext2D === "function";
-function backgroundOf(el) {
+var LOOK_EVERY = 30;
+function backgroundOf(el, getStyle) {
   for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
-    const css = getComputedStyle(node).backgroundColor, nums = (css.match(/[\d.]+/g) || []).map(Number);
+    const css = getStyle(node).backgroundColor, nums = (css.match(/[\d.]+/g) || []).map(Number);
     const unit = css.startsWith("color(") ? 255 : 1;
     if (nums.length >= 3 && (nums.length < 4 || nums[3] > 0.5)) return { css, rgb: nums.slice(0, 3).map((v) => v * unit) };
   }
@@ -11733,93 +11735,122 @@ function platforms(root, canvasEl) {
   }
   return out;
 }
-function AttractLevel() {
-  const box = useRef(null), cv = useRef(null), spot = useRef(null);
-  useEffect(() => {
-    const layer = box.current, canvasEl = cv.current;
-    const host2 = layer?.parentElement;
-    if (!host2 || !canvasEl || !canDraw()) return void 0;
-    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    let world = null, sky = "", raf = 0, timer = 0, last = 0, acc = 0, typed = 0, alive = true;
-    const seed = 1 + Math.floor(Math.random() * 1e6);
-    const paint = () => {
-      if (!world) return;
-      world.render();
-    };
-    const look = () => {
-      const bg = backgroundOf(host2), name = skyFor(bg.rgb);
-      layer.style.setProperty("--cs-at-bg", bg.css);
-      if (world && name !== sky) world.setPalette(name);
-      sky = name;
-    };
-    const build = () => {
-      timer = 0;
-      if (!alive) return;
-      const area = host2.getBoundingClientRect();
-      if (area.width < 40 || area.height < 40) return;
-      const W = Math.ceil(area.width / SCALE), H = Math.ceil(area.height / SCALE);
-      canvasEl.style.width = `${W * SCALE}px`;
-      canvasEl.style.height = `${H * SCALE}px`;
-      const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
-      look();
-      world = new World(seed);
-      world.build(W, H, platforms(host2, canvasEl));
-      if (keep) Object.assign(world, keep);
-      world.attach(canvasEl, sky);
-      const composer = host2.querySelector('[data-plat="composer"]')?.getBoundingClientRect();
-      if (composer) {
-        layer.style.setProperty("--cs-at-sx", `${Math.round(composer.left + composer.width / 2 - area.left)}px`);
-        layer.style.setProperty("--cs-at-sy", `${Math.round(composer.top + composer.height / 2 - area.top)}px`);
-      }
-      if (still?.matches) {
-        for (let i = 0; i < 90; i++) world.step();
-      }
-      paint();
-    };
-    const later2 = () => {
-      if (!timer) timer = setTimeout(build, 150);
-    };
-    const frame = (now) => {
-      raf = requestAnimationFrame(frame);
-      if (!world || still?.matches || document.hidden) {
-        last = now;
-        return;
-      }
-      acc += Math.min(100, now - (last || now));
+function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
+  const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
+  let world = null, sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true;
+  const still = () => !!motion?.matches;
+  const look = () => {
+    const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss;
+    layer.style.setProperty("--cs-at-bg", bg.css);
+    if (world && name !== sky) world.setPalette(name);
+    sky = name;
+    bgCss = bg.css;
+    return changed;
+  };
+  const build = () => {
+    timer = 0;
+    if (!alive) return;
+    const area = host2.getBoundingClientRect();
+    if (area.width < 40 || area.height < 40) return;
+    const W = Math.ceil(area.width / SCALE), H = Math.ceil(area.height / SCALE);
+    canvasEl.style.width = `${W * SCALE}px`;
+    canvasEl.style.height = `${H * SCALE}px`;
+    const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
+    look();
+    world = makeWorld(seed);
+    world.build(W, H, platforms(host2, canvasEl));
+    if (keep) Object.assign(world, keep);
+    world.attach(canvasEl, sky);
+    const composer = host2.querySelector('[data-plat="composer"]')?.getBoundingClientRect();
+    if (composer) {
+      layer.style.setProperty("--cs-at-sx", `${Math.round(composer.left + composer.width / 2 - area.left)}px`);
+      layer.style.setProperty("--cs-at-sy", `${Math.round(composer.top + composer.height / 2 - area.top)}px`);
+    }
+    if (still()) for (let i = 0; i < 90; i++) world.step();
+    world.render();
+  };
+  const later2 = () => {
+    if (!timer) timer = setTimer(build, 150);
+  };
+  const frame = (now) => {
+    frameId = raf(frame);
+    if (!world || isHidden()) {
       last = now;
-      let n = 0;
-      while (acc >= STEP && n < 4) {
-        world.step();
-        acc -= STEP;
-        n++;
-      }
-      if (world.frame % 60 === 0) look();
-      if (n) paint();
-    };
-    const resized = new ResizeObserver(later2);
-    resized.observe(host2);
-    for (const el of host2.querySelectorAll("[data-plat]")) resized.observe(el);
-    const onInput = (event) => {
-      if (event.target?.tagName === "TEXTAREA" && world && ++typed % 4 === 0) world.typingCoin();
-    };
-    host2.addEventListener("input", onInput);
-    still?.addEventListener?.("change", later2);
-    build();
-    raf = requestAnimationFrame(frame);
-    return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
-      clearTimeout(timer);
-      resized.disconnect();
-      host2.removeEventListener("input", onInput);
-      still?.removeEventListener?.("change", later2);
-    };
+      return;
+    }
+    if (++ticks % LOOK_EVERY === 0 && look() && still()) world.render();
+    if (still()) {
+      last = now;
+      return;
+    }
+    acc += Math.min(100, now - (last || now));
+    last = now;
+    let n = 0;
+    while (acc >= STEP && n < 4) {
+      world.step();
+      acc -= STEP;
+      n++;
+    }
+    if (n) world.render();
+  };
+  const unobserve = observe([host2, ...host2.querySelectorAll("[data-plat]")], later2);
+  const onScroll = () => later2();
+  const onInput = (event) => {
+    if (event.target?.tagName === "TEXTAREA" && world && ++typed % 4 === 0) world.typingCoin();
+  };
+  host2.addEventListener("scroll", onScroll, true);
+  host2.addEventListener("input", onInput);
+  motion?.addEventListener?.("change", later2);
+  build();
+  frameId = raf(frame);
+  return () => {
+    alive = false;
+    caf(frameId);
+    clearTimer(timer);
+    unobserve();
+    host2.removeEventListener("scroll", onScroll, true);
+    host2.removeEventListener("input", onInput);
+    motion?.removeEventListener?.("change", later2);
+  };
+}
+
+// page/pages/build/attract/index.js
+var canDraw = () => typeof CanvasRenderingContext2D === "function";
+function browserEnv() {
+  return {
+    raf: requestAnimationFrame,
+    caf: cancelAnimationFrame,
+    setTimer: setTimeout,
+    clearTimer: clearTimeout,
+    getStyle: getComputedStyle,
+    isHidden: () => document.hidden,
+    motion: window.matchMedia?.("(prefers-reduced-motion: reduce)"),
+    observe: (els, onChange) => {
+      const watch = new ResizeObserver(onChange);
+      for (const el of els) watch.observe(el);
+      return () => watch.disconnect();
+    }
+  };
+}
+function AttractLevel() {
+  const box = useRef(null), cv = useRef(null);
+  useEffect(() => {
+    const layer = box.current, canvasEl = cv.current, host2 = layer?.parentElement;
+    if (!host2 || !canvasEl || !canDraw()) return void 0;
+    return runAttract({
+      host: host2,
+      layer,
+      canvasEl,
+      makeWorld: (seed) => new World(seed),
+      env: browserEnv(),
+      seed: 1 + Math.floor(Math.random() * 1e6)
+    });
   }, []);
   return jsxs("div", {
     "aria-hidden": true,
     className: "cs-at",
     ref: box,
-    children: [jsx("canvas", { ref: cv }, "level"), jsx("div", { className: "cs-at-spot", ref: spot }, "spot")]
+    children: [jsx("canvas", { ref: cv }, "level"), jsx("div", { className: "cs-at-spot" }, "spot")]
   });
 }
 
