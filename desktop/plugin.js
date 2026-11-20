@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 4c51a55ff3d61c899e1b0828907caeb1999bbdda887f039e4aebaa9d5f9ff151
- * body: sha256 7e7751d9370a618cabbb6f3c922fb6aa4bba346d8985845a140acb7dbee632a6
+ * sources: sha256 177a1466421aee4f46c33b3b61d7c00c2188122cd9342c97cf93402384f0dea4
+ * body: sha256 aafecc60dec7841bd41829cab2eb25fdb5f07863a6885a0457f59bd3a87d2761
  */
 // page/sdk.js
 import {
@@ -3329,18 +3329,18 @@ var ASSETS_CSS = `
 
 // page/pages/build/attract/attract.css.js
 var ATTRACT_CSS = `
-/* New Game attract mode: the level behind the form, dimmed, with a pool of the page colour behind the composer */
-.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); }
+/* New Game attract mode: the level behind the form, dimmed; the form floats over it as frosted glass, apart from the game */
+.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); --cs-at-glass: color-mix(in srgb, var(--cs-at-bg) 60%, transparent); }
 .cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
-.cs-at canvas { bottom: 0; image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .5; position: absolute; }
-.cs-at-spot { background: radial-gradient(ellipse 560px 300px at var(--cs-at-sx, 50%) var(--cs-at-sy, 50%), color-mix(in srgb, var(--cs-at-bg) 92%, transparent) 0%, color-mix(in srgb, var(--cs-at-bg) 70%, transparent) 50%, transparent 80%); inset: 0; position: absolute; }
+.cs-at canvas { bottom: 0; filter: saturate(.78); image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .4; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
-/* the header above the form, so the game switcher's menu opens over it */
+/* the header above the form, so the game switcher's menu opens over it; the composer above the choice cards, so its
+   model picker opens over them (the glass's backdrop-filter makes each a stacking context that would trap it) */
 .cs-b-attract > .cs-b-head { z-index: 2; }
-.cs-b-attract .cs-b-new .cs-title { align-self: center; -webkit-text-stroke: 7px var(--cs-at-bg, transparent); paint-order: stroke fill; }
-.cs-b-attract .cs-b-new .cs-b-comp { background: var(--ui-bg-editor); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
-.cs-b-attract .cs-b-opt { background: var(--ui-bg-editor); }
-.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-bg-editor)); }
+.cs-b-attract .cs-b-new .cs-title { align-self: center; text-shadow: 0 2px 0 color-mix(in srgb, var(--cs-at-bg) 70%, black), 0 0 18px var(--cs-at-bg), 0 0 6px var(--cs-at-bg); }
+.cs-b-attract .cs-b-new .cs-b-comp { position: relative; z-index: 2; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-b-attract .cs-b-opt { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); }
+.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass)); }
 `;
 
 // page/pages/build/build-responsive.css.js
@@ -8879,10 +8879,9 @@ function BuildNewGame({ onStart, picker = null }) {
   return jsxs("section", {
     className: "cs-b-new",
     children: [
-      jsxs("h1", { className: "cs-word cs-title", "data-plat": "title", children: ["What are we ", jsx("span", { className: "cs-accent", children: "making?" })] }),
+      jsxs("h1", { className: "cs-word cs-title", children: ["What are we ", jsx("span", { className: "cs-accent", children: "making?" })] }),
       jsxs("div", {
         className: "cs-b-comp",
-        "data-plat": "composer",
         children: [
           jsx("textarea", {
             "aria-label": "Your game idea",
@@ -8927,7 +8926,6 @@ function BuildNewGame({ onStart, picker = null }) {
             {
               "aria-checked": mode === item.id,
               className: mode === item.id ? "cs-b-opt on" : "cs-b-opt",
-              "data-plat": "opt",
               "data-mode": item.id,
               onClick: () => setMode(item.id),
               onKeyDown: onModeKey,
@@ -9078,20 +9076,10 @@ function buildSurfaces(L) {
       } else c++;
     }
   }
-  for (const d of L.dom) if (d.y >= GH + 4) S2.push({ x0: d.x, x1: d.x + d.w, y: d.y, dom: d.kind });
   const out = [];
   for (const s of S2) {
-    let parts = [[s.x0, s.x1]];
-    for (const d of L.dom) {
-      if (d.y < s.y && d.y + d.h > s.y - GH - 2) {
-        parts = parts.flatMap(([a, b]) => d.x + d.w <= a || d.x >= b ? [[a, b]] : [[a, d.x], [d.x + d.w, b]].filter(([p, q]) => q - p >= 12));
-      }
-    }
-    for (let [a, b] of parts) {
-      a = Math.max(0, a);
-      b = Math.min(L.W, b);
-      if (b - a >= 12) out.push({ ...s, x0: a, x1: b });
-    }
+    const a = Math.max(0, s.x0), b = Math.min(L.W, s.x1);
+    if (b - a >= 12) out.push({ ...s, x0: a, x1: b });
   }
   const kept = [];
   for (const s of out) for (const part of standRuns(L, s)) {
@@ -9204,7 +9192,7 @@ function edgesFor(L, A) {
   const txs = /* @__PURE__ */ new Set([Math.round(A.l), Math.round(A.r)]);
   const stepX = Math.max(16, (A.r - A.l) / 9);
   for (let x = A.l + stepX; x < A.r - 6; x += stepX) txs.add(Math.round(x));
-  const isOneway = !A.dom && L.oneways.some((o) => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1);
+  const isOneway = L.oneways.some((o) => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1);
   for (const tx of txs) {
     for (const d of OFFS) keep(simulate(L, tx, A.y, "jump", tx + d), tx, tx + d, "jump");
     for (const d of OFFS) keep(simulate(L, tx, A.y, "djump", tx + d), tx, tx + d, "djump");
@@ -9232,7 +9220,7 @@ function buildEdges(L) {
   });
 }
 function connect(L, free) {
-  const ground = L.surfaces.filter((s) => !s.dom && Math.abs(s.y - L.groundY) < 1);
+  const ground = L.surfaces.filter((s) => Math.abs(s.y - L.groundY) < 1);
   const reach = () => {
     const all = /* @__PURE__ */ new Set();
     for (const g of ground) if (!all.has(g.id)) for (const k of shortest(L, g.id).dist.keys()) all.add(k);
@@ -9243,7 +9231,7 @@ function connect(L, free) {
   let added = 0;
   for (let it = 0; it < 90; it++) {
     const ok = reach();
-    const lost = L.surfaces.filter((s) => !ok.has(s.id) && !skip.has(s.id) && !s.dom).sort((a, b) => b.y - a.y);
+    const lost = L.surfaces.filter((s) => !ok.has(s.id) && !skip.has(s.id)).sort((a, b) => b.y - a.y);
     if (!lost.length) break;
     const U = lost[0], rU = rowOf(U.y);
     const c0U = Math.floor(U.x0 / T), c1U = Math.ceil(U.x1 / T) - 1;
@@ -9319,15 +9307,13 @@ function firstEdge(paths, fromId, toId) {
 }
 
 // page/pages/build/attract/coins.js
-function placeCoins(L, dom, rng) {
+function placeCoins(L, rng) {
   const W = L.W, H = L.H, cols = L.cols;
   L.coinSpots = [];
   L.arcs = [];
-  const pad = 10;
   const blocked = (box) => {
     for (const r of L.solids) if (overlap({ x: box.x - 2, y: box.y - 2, w: box.w + 4, h: box.h + 4 }, r)) return true;
     for (const o of L.oneways) if (!o.mover && overlap({ x: box.x - 1, y: box.y, w: box.w + 2, h: box.h + 3 }, o)) return true;
-    for (const d of dom) if (overlap(box, { x: d.x - pad, y: d.y - pad - 14, w: d.w + 2 * pad, h: d.h + 2 * pad + 14 })) return true;
     return box.x < 2 || box.x + box.w > W - 2 || box.y < 14;
   };
   const apart = W * H > 38e4 ? 56 : 42;
@@ -9351,8 +9337,7 @@ function placeCoins(L, dom, rng) {
     for (const id of ids) {
       if (L.arcs.length >= wantArcs) break;
       const A = L.surfaces[id];
-      if (A.dom) continue;
-      const es = (L.edges.get(id) || []).filter((e) => e.mode === "jump" && !L.surfaces[e.to].dom && Math.abs(e.lx - e.tx) >= 40 && L.surfaces[e.to].y <= A.y + 4).sort(() => rng() - 0.5);
+      const es = (L.edges.get(id) || []).filter((e) => e.mode === "jump" && Math.abs(e.lx - e.tx) >= 40 && L.surfaces[e.to].y <= A.y + 4).sort(() => rng() - 0.5);
       for (const e of es) {
         const pts = trail(L, e.tx, A.y, e.lx);
         if (!pts) continue;
@@ -9377,7 +9362,7 @@ function placeCoins(L, dom, rng) {
   });
   const wantCoins = Math.max(30, Math.round(W * H / 9e3));
   const bands = [[], [], [], []];
-  for (const s of L.surfaces) if (!s.dom && s.r - s.l >= 34) bands[Math.min(3, Math.floor(s.y / (L.groundY / 4 + 0.01)))].push(s);
+  for (const s of L.surfaces) if (s.r - s.l >= 34) bands[Math.min(3, Math.floor(s.y / (L.groundY / 4 + 0.01)))].push(s);
   for (const b of bands) b.sort(() => rng() - 0.5);
   const order = [];
   for (let k = 0; bands.some((b) => b.length); k++) {
@@ -9415,7 +9400,7 @@ function placeCoins(L, dom, rng) {
 }
 
 // page/pages/build/attract/level.js
-function buildLevel(W, H, dom, seed) {
+function buildLevel(W, H, seed) {
   const rng = rngOf(seed);
   const cols = Math.ceil(W / T), rows = Math.max(4, Math.floor(H / T)), oy = H - rows * T;
   const grid = new Uint8Array(cols * rows);
@@ -9424,27 +9409,18 @@ function buildLevel(W, H, dom, seed) {
     if (c >= 0 && c < cols && r >= 0 && r < rows) grid[r * cols + c] = v;
   };
   const cellY = (r) => oy + r * T;
-  const ex = dom.length ? dom.reduce((u, d) => ({ x0: Math.min(u.x0, d.x), y0: Math.min(u.y0, d.y), x1: Math.max(u.x1, d.x + d.w), y1: Math.max(u.y1, d.y + d.h) }), { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }) : null;
-  const free = (c, r) => {
-    if (r < 1) return false;
-    if (!ex) return true;
-    const x0 = c * T, y0 = cellY(r);
-    return !(x0 + T > ex.x0 - 10 && x0 < ex.x1 + 10 && y0 + T > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6);
-  };
+  const free = (c, r) => r >= 1;
   const gTop = rows - 2;
   for (let c = 0; c < cols; c++) {
     set(c, gTop, 1);
     set(c, gTop + 1, 2);
   }
-  const exL = ex ? Math.floor((ex.x0 - 12) / T) : Math.floor(cols * 0.45), exR = ex ? Math.ceil((ex.x1 + 12) / T) : Math.ceil(cols * 0.55);
-  const roomy = ex && ex.y1 < cellY(gTop) - 96;
-  const underPage = (c) => !roomy && c >= exL - 1 && c <= exR;
   const taken = new Uint8Array(cols);
   const claim = (c0, c1) => {
     for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[c] = 1;
   };
   const open = (c0, c1) => {
-    for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c] || underPage(c)) return false;
+    for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c]) return false;
     return true;
   };
   const pipes = [];
@@ -9473,7 +9449,6 @@ function buildLevel(W, H, dom, seed) {
     for (let i = 0; i < want * 6 && pits.length < want; i++) {
       const w = 2, c0 = 3 + Math.floor(rng() * (cols - 6 - w));
       if (!open(c0 - 2, c0 + w + 1)) continue;
-      if (ex && (c0 + w + 2) * T > ex.x0 - 12 && (c0 - 3) * T < ex.x1 + 12) continue;
       for (let c = c0; c < c0 + w; c++) {
         set(c, gTop, 0);
         set(c, gTop + 1, 0);
@@ -9517,12 +9492,6 @@ function buildLevel(W, H, dom, seed) {
     for (let k = 0; k <= h; k++) if (at(c, r + k) !== 0 && k > 0) return false;
     return at(c, r) === 0;
   };
-  const freeLedge = (c, r) => {
-    if (r < 1) return false;
-    if (!ex) return true;
-    const x0 = c * T, y0 = cellY(r);
-    return !(x0 + T > ex.x0 - 12 && x0 < ex.x1 + 12 && y0 + 8 > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6);
-  };
   {
     const latRows = [];
     for (let r = gTop - 3; r >= 1; r -= 3) latRows.push(r);
@@ -9536,7 +9505,7 @@ function buildLevel(W, H, dom, seed) {
         const cells = [];
         for (let k = c; k < Math.min(cols, c + w); k++) cells.push(k);
         const head = (k) => at(k, r - 1) === 0 && (r < 2 || at(k, r - 2) === 0);
-        const okL = cells.filter((k) => freeLedge(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
+        const okL = cells.filter((k) => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
         const okS = cells.filter((k) => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
         let kind = rng();
         if (top || i === 0) kind = 0;
@@ -9570,18 +9539,6 @@ function buildLevel(W, H, dom, seed) {
       }
     });
   }
-  for (const d of dom) {
-    if (d.kind !== "composer" && d.kind !== "title" && d.kind !== "panel") continue;
-    const r = Math.round((d.y + 30 - oy) / T);
-    if (r < 2 || r >= gTop - 1) continue;
-    for (const side of [-1, 1]) {
-      const c = side < 0 ? Math.floor((d.x - 14) / T) : Math.ceil((d.x + d.w + 14) / T) - 1;
-      for (let k = 0; k < 2; k++) {
-        const cc = c + side * k;
-        if (free(cc, r) && at(cc, r) === 0 && at(cc, r - 1) === 0) set(cc, r, 5);
-      }
-    }
-  }
   const cannons = [];
   if (W >= 300 && rows >= 8) {
     for (const side of [1, -1]) {
@@ -9599,7 +9556,7 @@ function buildLevel(W, H, dom, seed) {
   }
   let flag = null;
   if (cols >= 18) {
-    for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0 && !underPage(c)) {
+    for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0) {
       flag = { x: c * T + 11, y: cellY(gTop), h: Math.min(5, gTop - 2) * T };
       break;
     }
@@ -9607,6 +9564,7 @@ function buildLevel(W, H, dom, seed) {
   for (const p of pits) {
     const r = gTop - 3, x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8 + 48;
     for (let c = Math.floor(x0 / T) - 1; c <= Math.ceil(x1 / T); c++) for (const rr of [r, r - 1]) if (at(c, rr) === 5) set(c, rr, 0);
+    for (let c = Math.floor(x0 / T) - 2; c <= Math.ceil(x1 / T) + 1; c++) for (const rr of [r - 2, r - 3]) if (at(c, rr) === 3 || at(c, rr) === 4) set(c, rr, 5);
   }
   const solids = [], oneways = [];
   for (let r = 0; r < rows; r++) {
@@ -9631,26 +9589,21 @@ function buildLevel(W, H, dom, seed) {
       } else c++;
     }
   }
-  for (const d of dom) solids.push({ x: d.x, y: d.y, w: d.w, h: d.h, kind: "dom", name: d.kind });
   const movers = [];
   for (const p of pits) {
     const y = cellY(gTop - 3);
     if (y < T * 2) continue;
     const x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8;
-    let clash = false;
-    for (const d of dom) if (y > d.y - 30 && y < d.y + d.h + GH + 60 && x1 + 48 > d.x && x0 < d.x + d.w) clash = true;
-    if (clash) continue;
     const m = { x: x0, y, w: 48, h: 8, x0, x1, vx: 0.5, dx: 0, dy: 0, mover: true, kind: "mover" };
     movers.push(m);
     oneways.push(m);
   }
-  const tunnel = ex && !roomy ? { x0: ex.x0 - 6, x1: ex.x1 + 6 } : null;
-  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: /* @__PURE__ */ new Map(), blocks, pipes, pits, movers, cannons, flag, dom, rng, groundY: cellY(gTop), tunnel };
+  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: /* @__PURE__ */ new Map(), blocks, pipes, pits, movers, cannons, flag, rng, groundY: cellY(gTop) };
   indexColliders(L);
   buildSurfaces(L);
   buildEdges(L);
   L.steps = connect(L, free);
-  placeCoins(L, dom, rng);
+  placeCoins(L, rng);
   L.decos = [];
   for (let c = 0; c < cols; c++) {
     if (at(c, gTop) !== 1 || at(c, gTop - 1) !== 0) continue;
@@ -9707,8 +9660,8 @@ var PILOT = {
     for (const t of sx) {
       const ago2 = this.frame - (g.seen.get(t.id) ?? -1e9), stale = Math.min(1, ago2 / 2400);
       if (stale < 0.25) continue;
-      const ground = !t.dom && Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY;
-      cands.push({ kind: "wander", s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height) * (t.dom ? 1.15 : 1), cost: paths.dist.get(t.id), far: true });
+      const ground = Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY;
+      cands.push({ kind: "wander", s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height), cost: paths.dist.get(t.id), far: true });
     }
     let best = null, bestScore = -1;
     for (const c of cands) {
@@ -9903,6 +9856,7 @@ var PILOT = {
       g.stun--;
       input = 0;
       g.vx *= 0.92;
+      if (g.stun === 0 && !g.ground) this.replanAir();
     } else if (g.exec) {
       const e = g.exec;
       e.t++;
@@ -10053,7 +10007,6 @@ var PILOT = {
     if (--g.blinkT <= 0 || g.blinkT === void 0 || isNaN(g.blinkT)) g.blinkT = 150 + Math.floor(this.rng() * 200);
     if (res.ground && wasAir && !g.exec) this.dust(g.x + GW / 2, g.y + GH);
     if (res.bumped && res.bumped.kind === "block") this.bumpBlock(res.bumped.ref);
-    if (res.bumped && res.bumped.kind === "dom") this.sparkle(g.x + GW / 2 - 3, g.y - 4);
     g.anim = g.ground ? input ? g.anim + 1 : 0 : g.anim;
     for (const c of this.coins) if (c.on && overlap(g, c)) {
       c.on = false;
@@ -10206,9 +10159,9 @@ var ACTORS = {
         this.enemies.push({ kind, x: p.x + 24 - sz[0] / 2, y: p.y + 6, w: sz[0], h: sz[1], vx: (kind === "spiny" ? 0.4 : 0.5) * p.dir, vy: 0, state: "emerge", t: 0, edgeTurn: kind === "blob" || rng() < 0.55, ground: null, pipeY: p.y, hopT: 40 + Math.floor(rng() * 60), dir: p.dir });
       }
     }
-    const top = L.surfaces.find((s) => s.dom === "composer" || s.dom === "panel");
-    if (this.frame % 600 === 300 && this.enemies.length < maxE && top && !this.enemies.some((e) => e.dropped)) {
-      const d = { x: top.x0, w: top.x1 - top.x0 };
+    const wide = L.surfaces.filter((s) => s.x1 - s.x0 >= 72 && s.y < L.groundY - 1);
+    if (this.frame % 600 === 300 && this.enemies.length < maxE && wide.length && !this.enemies.some((e) => e.dropped)) {
+      const top = wide[Math.floor(rng() * wide.length)], d = { x: top.x0, w: top.x1 - top.x0 };
       this.enemies.push({ kind: "bug", x: d.x + 24 + rng() * (d.w - 48), y: -18, w: 20, h: 15, vx: rng() < 0.5 ? -0.5 : 0.5, vy: 0, state: "walk", t: 0, edgeTurn: true, ground: null, dropped: true });
     }
     for (const e of this.enemies) {
@@ -10334,13 +10287,6 @@ var ACTORS = {
       if (b.x < -20 || b.x > this.W + 20) b.dead = true;
     }
     this.bullets = this.bullets.filter((b) => !b.dead);
-  },
-  typingCoin() {
-    const d = this.L.dom.find((x2) => x2.kind === "composer" || x2.kind === "panel");
-    if (!d || this.coins.filter((c) => c.loose).length > 8) return;
-    const x = d.x + 16 + this.rng() * (d.w - 32);
-    this.coins.push({ x, y: d.y - 18, w: 12, h: 16, vx: (this.rng() - 0.5) * 1.2, vy: -2.4, on: true, loose: true, rest: false, life: 1100 });
-    this.sparkle(x, d.y - 8);
   },
   addScore(n, x, y) {
     this.score += n;
@@ -11587,10 +11533,10 @@ var World = class {
     this.stats = { hits: {}, falls: 0, unsticks: 0, waves: 0, waves90: 0 };
   }
   /** Build the level for a W x H screen (native pixels) around the page's boxes ({ x, y, w, h, kind }). */
-  build(W, H, dom) {
+  build(W, H) {
     this.W = W;
     this.H = H;
-    this.L = buildLevel(W, H, dom, this.seed);
+    this.L = buildLevel(W, H, this.seed);
     const L = this.L;
     this.coins = L.coinSpots.map((s) => ({ x: s.x, y: s.y, w: 12, h: 16, on: true, t: 0, loose: false, arc: s.arc || null }));
     for (const a of L.arcs) a.live = this.coins.filter((c) => c.arc === a);
@@ -11605,7 +11551,7 @@ var World = class {
     this.clouds = [];
     const n = Math.max(3, Math.round(W / 90));
     for (let i = 0; i < n; i++) this.clouds.push(this.makeCloud(this.rng() * W, 12 + this.rng() * H * 0.45, 0.04 + this.rng() * 0.08));
-    const g0 = L.surfaces.filter((s) => !s.dom && Math.abs(s.y - L.groundY) < 1).sort((a, b) => b.x1 - b.x0 - (a.x1 - a.x0))[0] || L.surfaces[0];
+    const g0 = L.surfaces.filter((s) => Math.abs(s.y - L.groundY) < 1).sort((a, b) => b.x1 - b.x0 - (a.x1 - a.x0))[0] || L.surfaces[0];
     this.spawnSurface = g0;
     const reach = shortest(L, g0.id).dist;
     for (const c of this.coins) {
@@ -11724,21 +11670,9 @@ function backgroundOf(el, getStyle) {
   return { css: "rgb(16 18 24)", rgb: [16, 18, 24] };
 }
 var skyFor = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? "day" : "night";
-function platforms(root, canvasEl) {
-  const origin = canvasEl.getBoundingClientRect(), out = [];
-  for (const el of root.querySelectorAll("[data-plat]")) {
-    const r = el.getBoundingClientRect();
-    if (r.width < 4) continue;
-    const x = Math.floor((r.left - origin.left) / SCALE), y = Math.round((r.top - origin.top) / SCALE);
-    const w = Math.ceil((r.right - origin.left) / SCALE) - x, h = Math.ceil((r.bottom - origin.top) / SCALE) - y;
-    if (y + h < 0 || y > origin.height / SCALE) continue;
-    out.push({ x, y, w, h, kind: el.dataset.plat });
-  }
-  return out;
-}
-function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
+function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
-  let world = null, placed = "", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true;
+  let world = null, sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true;
   const still = () => !!motion?.matches;
   const look = () => {
     const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss;
@@ -11758,17 +11692,10 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`;
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
     look();
-    const boxes = platforms(host2, canvasEl);
-    placed = JSON.stringify(boxes);
     world = makeWorld(seed);
-    world.build(W, H, boxes);
+    world.build(W, H);
     if (keep) Object.assign(world, keep);
     world.attach(canvasEl, sky);
-    const composer = host2.querySelector('[data-plat="composer"]')?.getBoundingClientRect();
-    if (composer) {
-      layer.style.setProperty("--cs-at-sx", `${Math.round(composer.left + composer.width / 2 - area.left)}px`);
-      layer.style.setProperty("--cs-at-sy", `${Math.round(composer.top + composer.height / 2 - area.top)}px`);
-    }
     if (still()) for (let i = 0; i < 90; i++) world.step();
     world.render();
   };
@@ -11796,20 +11723,7 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     }
     if (n) world.render();
   };
-  const unobserve = observe([host2, ...host2.querySelectorAll("[data-plat]")], later2);
-  let moved = 0;
-  const recheck = () => {
-    moved = 0;
-    if (alive && JSON.stringify(platforms(host2, canvasEl)) !== placed) later2();
-  };
-  const onScroll = () => {
-    if (!moved) moved = setTimer(recheck, 100);
-  };
-  const onInput = (event) => {
-    if (event.target?.tagName === "TEXTAREA" && world && ++typed % 4 === 0) world.typingCoin();
-  };
-  host2.addEventListener("scroll", onScroll, true);
-  host2.addEventListener("input", onInput);
+  const unobserve = observe([host2], later2);
   motion?.addEventListener?.("change", later2);
   build();
   frameId = raf(frame);
@@ -11817,11 +11731,8 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     alive = false;
     caf(frameId);
     clearTimer(timer);
-    clearTimer(moved);
     unobserve();
     host2.style.removeProperty("--cs-at-bg");
-    host2.removeEventListener("scroll", onScroll, true);
-    host2.removeEventListener("input", onInput);
     motion?.removeEventListener?.("change", later2);
   };
 }
@@ -11847,23 +11758,17 @@ function browserEnv() {
 function AttractLevel() {
   const box = useRef(null), cv = useRef(null);
   useEffect(() => {
-    const layer = box.current, canvasEl = cv.current, host2 = layer?.parentElement;
+    const canvasEl = cv.current, host2 = box.current?.parentElement;
     if (!host2 || !canvasEl || !canDraw()) return void 0;
     return runAttract({
       host: host2,
-      layer,
       canvasEl,
       makeWorld: (seed) => new World(seed),
       env: browserEnv(),
       seed: 1 + Math.floor(Math.random() * 1e6)
     });
   }, []);
-  return jsxs("div", {
-    "aria-hidden": true,
-    className: "cs-at",
-    ref: box,
-    children: [jsx("canvas", { ref: cv }, "level"), jsx("div", { className: "cs-at-spot" }, "spot")]
-  });
+  return jsx("div", { "aria-hidden": true, className: "cs-at", ref: box, children: jsx("canvas", { ref: cv }) });
 }
 
 // page/pages/build/switcher.js

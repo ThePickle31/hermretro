@@ -18,18 +18,8 @@ export function buildSurfaces(L) {
       } else c++
     }
   }
-  for (const d of L.dom) if (d.y >= GH + 4) S.push({ x0: d.x, x1: d.x + d.w, y: d.y, dom: d.kind })
-  // drop surfaces covered by a page box sitting on them, split ground runs around boxes that touch them
   const out = []
-  for (const s of S) {
-    let parts = [[s.x0, s.x1]]
-    for (const d of L.dom) {
-      if (d.y < s.y && d.y + d.h > s.y - GH - 2) {
-        parts = parts.flatMap(([a, b]) => (d.x + d.w <= a || d.x >= b) ? [[a, b]] : [[a, d.x], [d.x + d.w, b]].filter(([p, q]) => q - p >= 12))
-      }
-    }
-    for (let [a, b] of parts) { a = Math.max(0, a); b = Math.min(L.W, b); if (b - a >= 12) out.push({ ...s, x0: a, x1: b }) }
-  }
+  for (const s of S) { const a = Math.max(0, s.x0), b = Math.min(L.W, s.x1); if (b - a >= 12) out.push({ ...s, x0: a, x1: b }) }
   // a platform with something low over part of it splits into the parts she can stand on
   const kept = []
   for (const s of out) for (const part of standRuns(L, s)) { part.id = kept.length; kept.push(part) }
@@ -129,7 +119,7 @@ export function edgesFor(L, A) {
   const txs = new Set([Math.round(A.l), Math.round(A.r)])
   const stepX = Math.max(16, (A.r - A.l) / 9)
   for (let x = A.l + stepX; x < A.r - 6; x += stepX) txs.add(Math.round(x))
-  const isOneway = !A.dom && L.oneways.some(o => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1)
+  const isOneway = L.oneways.some(o => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1)
   for (const tx of txs) {
     for (const d of OFFS) keep(simulate(L, tx, A.y, 'jump', tx + d), tx, tx + d, 'jump')
     for (const d of OFFS) keep(simulate(L, tx, A.y, 'djump', tx + d), tx, tx + d, 'djump')
@@ -152,14 +142,14 @@ export function buildEdges(L) {
 // Make every platform reachable: under the lowest one she cannot reach, add a small one-way ledge three tiles
 // down (or beside), re-test the jumps near it, and repeat until nothing is left out.
 export function connect(L, free) {
-  const ground = L.surfaces.filter(s => !s.dom && Math.abs(s.y - L.groundY) < 1)
+  const ground = L.surfaces.filter(s => Math.abs(s.y - L.groundY) < 1)
   const reach = () => { const all = new Set(); for (const g of ground) if (!all.has(g.id)) for (const k of shortest(L, g.id).dist.keys()) all.add(k); return all }
   const rowOf = y => Math.round((y - L.oy) / T)
   const skip = new Set()
   let added = 0
   for (let it = 0; it < 90; it++) {
     const ok = reach()
-    const lost = L.surfaces.filter(s => !ok.has(s.id) && !skip.has(s.id) && !s.dom).sort((a, b) => b.y - a.y)
+    const lost = L.surfaces.filter(s => !ok.has(s.id) && !skip.has(s.id)).sort((a, b) => b.y - a.y)
     if (!lost.length) break
     const U = lost[0], rU = rowOf(U.y)
     const c0U = Math.floor(U.x0 / T), c1U = Math.ceil(U.x1 / T) - 1

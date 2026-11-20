@@ -49,8 +49,8 @@ export const PILOT = {
     for (const t of sx) {
       const ago = this.frame - (g.seen.get(t.id) ?? -1e9), stale = Math.min(1, ago / 2400)
       if (stale < 0.25) continue
-      const ground = !t.dom && Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY
-      cands.push({ kind: 'wander', s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height) * (t.dom ? 1.15 : 1), cost: paths.dist.get(t.id), far: true })
+      const ground = Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY
+      cands.push({ kind: 'wander', s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height), cost: paths.dist.get(t.id), far: true })
     }
     let best = null, bestScore = -1
     for (const c of cands) {
@@ -199,7 +199,9 @@ export const PILOT = {
     if (g.ground && g.ground.mover) { g.x += g.ground.dx }
     let input = 0
     const cx = g.x + GW / 2, feet = g.y + GH
-    if (g.stun > 0) { g.stun--; input = 0; g.vx *= 0.92 } else if (g.exec) {
+    // knocked back by a hit: no control for a moment, then steer to somewhere she will land (a hit over a pit
+    // would otherwise drop her straight in)
+    if (g.stun > 0) { g.stun--; input = 0; g.vx *= 0.92; if (g.stun === 0 && !g.ground) this.replanAir() } else if (g.exec) {
       const e = g.exec
       e.t++
       // the double jump fires at the top of the first, exactly where the planner fired it
@@ -279,7 +281,6 @@ export const PILOT = {
     if (--g.blinkT <= 0 || g.blinkT === undefined || isNaN(g.blinkT)) g.blinkT = 150 + Math.floor(this.rng() * 200)
     if (res.ground && wasAir && !g.exec) this.dust(g.x + GW / 2, g.y + GH)
     if (res.bumped && res.bumped.kind === 'block') this.bumpBlock(res.bumped.ref)
-    if (res.bumped && res.bumped.kind === 'dom') this.sparkle(g.x + GW / 2 - 3, g.y - 4)
     g.anim = g.ground ? (input ? g.anim + 1 : 0) : g.anim
     // coins
     for (const c of this.coins) if (c.on && overlap(g, c)) { c.on = false; this.coinsGot++; this.score += 100; this.sparkle(c.x, c.y); this.lastCoin = this.frame }
