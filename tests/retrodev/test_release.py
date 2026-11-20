@@ -229,7 +229,9 @@ class Publish(ReleaseCase):
                 f"HERMES_RELEASE=1 git push origin {sha}:main",
                 f"git tag -a v{NEXT} {sha} -m 'Release {NEXT}'",
                 f"git push origin refs/tags/v{NEXT}",
-                f"gh release create v{NEXT} --verify-tag --generate-notes --notes-start-tag v0.0.1 --draft",
+                f"gh release create v{NEXT} --verify-tag --notes-file "
+                + str(state.root(self.main) / "releases" / f"{NEXT}-notes.md")
+                + " --draft",
             ],
         )
         self.assertEqual((self.remote("refs/heads/main"), self.remote(f"refs/tags/v{NEXT}")), (before, ""))
@@ -244,7 +246,11 @@ class Publish(ReleaseCase):
         self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), sha)
         self.assertEqual(git(self.origin, "cat-file", "-t", f"v{NEXT}").strip(), "tag", "annotated")
         create = self.gh.called("release", "create")
-        self.assertEqual(create[0][-3:], ["--notes-start-tag", "v0.0.1", "--draft"])
+        notes_file = state.root(self.main) / "releases" / f"{NEXT}-notes.md"
+        self.assertEqual(create[0][-3:], ["--notes-file", str(notes_file), "--draft"])
+        notes = notes_file.read_text()
+        self.assertIn("## Updating", notes)
+        self.assertNotIn(f"Release {NEXT}", notes, "the version pull request is left out")
         self.assertEqual(data["url"], URL)
         self.assertEqual(self.check_log()[0]["script"], ["--update-from"])  # the update check, at the release commit
         self.assertEqual(self.check_log()[0]["head"], sha)
