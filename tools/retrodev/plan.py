@@ -151,14 +151,11 @@ def approve(ctx, topic: str, words: str | None) -> int:
             branch, where = row["branch"], row["worktree"]
             if where:
                 behind = status.behind(ctx, Path(where))  # status's rule: sync first while HEAD lacks base commits
-                sync = (
-                    f"{sync.sync_command(ctx, Path(where))} (HEAD lacks {behind} commit(s) of {ctx.remote_base}), then "
-                    if behind
-                    else ""
+                run = sync.runner(ctx, Path(where))  # the newer retrodev while the branch's own copy is older
+                sync_prefix = (
+                    f"{run} sync (HEAD lacks {behind} commit(s) of {ctx.remote_base}), then " if behind else ""
                 )
-                ctx.out.say(
-                    f"next: {branch} already works under it: {cmd('cd', where)} && {sync}python tools/retrodev check"
-                )
+                ctx.out.say(f"next: {branch} already works under it: {cmd('cd', where)} && {sync_prefix}{run} check")
                 continue
             gone = restore_command(ctx, branch, stale.get(branch))
             ctx.out.say(f"next: {branch} already works under it, but its worktree is gone: {gone}")

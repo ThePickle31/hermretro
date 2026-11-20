@@ -69,9 +69,9 @@ def parser() -> argparse.ArgumentParser:
     plans.add_parser("show", help="a plan and its approval (none: all)", parents=[common]).add_argument(
         "topic", nargs="?"
     )
-    approve = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
-    approve.add_argument("topic")
-    approve.add_argument("--words", required=True, help="the owner's exact words")
+    approving = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
+    approving.add_argument("topic")
+    approving.add_argument("--words", required=True, help="the owner's exact words")
     plans.add_parser(
         "link", help="this branch works under a plan (one plan may cover several branches)", parents=[common]
     ).add_argument("topic")

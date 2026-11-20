@@ -53,13 +53,26 @@ def older(ctx, path) -> str:
     )
 
 
-def sync_command(ctx, path) -> str:
-    """The one sync command every next step prints (takeover, plan approve, status, land): the branch's own copy of
-    retrodev when it is current, else the main checkout's, run inside the worktree: an older copy lacks newer sync
-    fixes (its conflict hints)."""
+RUNNER = "python tools/retrodev"
+
+
+def runner(ctx, path) -> str:
+    """The retrodev every next step prints for this worktree (takeover, plan approve, status, land): the branch's own
+    copy when it is current, else the main checkout's, run inside the worktree until sync brings the branch's copy up
+    to date: an older copy lacks newer fixes (sync's conflict hints, plan approve's and status's newer sync step)."""
     if not older(ctx, path):
-        return "python tools/retrodev sync"
-    return cmd("python", ctx.main() / "tools" / "retrodev", "sync")
+        return RUNNER
+    return cmd("python", ctx.main() / "tools" / "retrodev")
+
+
+def newer(text: str, run: str) -> str:
+    """``text`` with each branch-local retrodev command run by ``run`` (runner's answer) instead."""
+    return text.replace(RUNNER + " ", run + " ") if run != RUNNER else text
+
+
+def sync_command(ctx, path) -> str:
+    """The one sync command every next step prints: runner's retrodev."""
+    return runner(ctx, path) + " sync"
 
 
 HUNKS = "edit the hunks; never git checkout --ours/--theirs a whole file: its other hunks were merged and would be lost"

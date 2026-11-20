@@ -7,7 +7,8 @@ local branch of that name must not exist yet), runs start's setup (npm ci, the r
 as start does. It never needs the main checkout on dev: nothing there changes but git's worktree list. The next
 steps: while HEAD lacks commits of the base, read its diff of the files both changed (before the plan: sync's merge
 empties it); the plan (plan new and plan approve, while the branch has no approved one); sync (the main checkout's
-retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes); then check.
+retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes); then check. While the
+branch's copy is older, every one of these retrodev commands is the main checkout's, run in the worktree.
 """
 
 from __future__ import annotations
@@ -88,6 +89,13 @@ def run(ctx, branch: str, setup: bool = True) -> int:
 
 
 def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
+    """Every retrodev command in them is run by sync.runner: the main checkout's while the branch's own copy is older
+    (its plan approve and status would print the older sync step), until sync brings the branch's copy up to date."""
+    run = sync.runner(ctx, path)
+    return [sync.newer(step, run) for step in _next_steps(ctx, branch, path, record)]
+
+
+def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
     steps = [cmd("cd", path)]
     behind = status.behind(ctx, path)
     both = status.overlap(ctx, path) if behind else []

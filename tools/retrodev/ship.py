@@ -356,8 +356,8 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         gh_args = github.edit_args(existing["number"], title, str(body_path))
     else:
         gh_args = github.create_args(ctx.base, branch, title, str(body_path), chosen)
-    plan = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
-    ctx.out.set(**plan, dry_run=dry_run)
+    steps = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
+    ctx.out.set(**steps, dry_run=dry_run)
     if dry_run:
         if noted:  # the last gate passed: only now does this dry run count
             note_dry_run(ctx, record, body_path, True)

@@ -8,14 +8,16 @@ saying what. The `new` kinds' fixes are in test_trial_round_seven_new.py.
 Run alone: python -m unittest tests.retrodev.test_trial_round_seven
 """
 
+import ast
+import subprocess
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
 import retrodev
-from retrodev import ship
+from retrodev import ship, state
 
-from tests.retrodev.fixture import RepoCase, git, parallel
+from tests.retrodev.fixture import FILLED_PLAN, RepoCase, git, parallel, write
 from tests.retrodev.test_trial_round_six import line_with
 
 load_tests = parallel
@@ -110,19 +112,19 @@ class Takeover(RepoCase):
         tree = self.pushed(retrodev_too=True)
         code, out = self.run_cli("takeover", "feat/mate")
         self.assertEqual(code, 0, out)
-        newer = f"python {self.main}/tools/retrodev sync"
+        runner = f"python {self.main}/tools/retrodev"
+        newer = f"{runner} sync"
         self.new_plan("mate")
         code, out = self.run_cli("plan", "approve", "mate", "--words", "start")
         self.assertEqual(code, 0, out)
         self.assertIn(f"next: feat/mate already works under it: cd {tree} && {newer} (HEAD lacks 3", out)
+        self.assertIn(f"origin/dev), then {runner} check\n", out)  # review 3, 1: every command, not only sync
         for where in (tree, self.main):  # the branch's own status, and the main checkout's list of every branch
             code, out = self.run_cli("status", cwd=where)
             self.assertEqual(code, 0, out)
             self.assertIn(f"commits ({newer})", out)
-            self.assertIn(
-                f"next: {newer} (HEAD lacks 3 commit(s) of origin/dev), then python tools/retrodev check", out
-            )
-            self.assertNotIn("python tools/retrodev sync", out.replace(newer, ""), out)
+            self.assertIn(f"next: {newer} (HEAD lacks 3 commit(s) of origin/dev), then {runner} check", out)
+            self.assertNotIn("python tools/retrodev ", out, out)  # review 3, 1: no older retrodev command at all
         code, out = self.run_cli("status", cwd=tree, as_json=True)
         self.assertEqual(out["sync"], newer, out)
         code, out = self.run_cli("sync", cwd=tree, as_json=True)  # core.py conflicts: sync's own "sync again" too
@@ -130,6 +132,139 @@ class Takeover(RepoCase):
         self.assertIn(f"then {newer} again", out["error"]["fix"])
         code, out = self.run_cli("status", cwd=tree)
         self.assertIn(f", then {newer} (it rebuilds the generated files", out)
+
+    def retrodev_copy(self, older: bool) -> None:
+        """This checkout's real tools/retrodev into the test's main checkout (its policy kept): the older copy is the
+        same code with sync.older always empty, as a retrodev from before the newer-runner steps was."""
+        source = ROOT / "tools" / "retrodev"
+        for path in source.rglob("*"):
+            name = path.relative_to(source).as_posix()
+            if path.is_file() and "__pycache__" not in name and name != "policy.toml":
+                text = path.read_text()
+                if older and name == "sync.py":
+                    text = text.replace(
+                        'def older(ctx, path) -> str:\n', 'def older(ctx, path) -> str:\n    return ""\n'
+                    )
+                write(self.main / "tools" / "retrodev", name, text)
+        git(self.main, "add", "-A")
+        git(self.main, "commit", "-q", "-m", "Older retrodev" if older else "Newer retrodev")
+        git(self.main, "push", "-q", "origin", "dev")
+
+    def test_every_step_takeover_prints_for_an_older_branch_runs_the_newer_retrodev(self):  # review 3, 1
+        def sh(command: str, cwd: Path) -> str:
+            done = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True, check=False)
+            self.assertEqual(done.returncode, 0, (command, done.stdout, done.stderr))
+            return done.stdout
+
+        self.retrodev_copy(older=True)
+        mate = self.base / "mate"
+        git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
+        git(mate, "switch", "-q", "-c", "feat/mate")
+        self.commit(mate, "backend/library/core.py", "VALUE = 2\n")
+        git(mate, "push", "-q", "origin", "feat/mate")
+        self.retrodev_copy(older=False)  # dev moves on: the main checkout's retrodev is the newer one
+        self.on_dev("docs/other.md", "# Other\n")
+        git(self.main, "pull", "-q", "origin", "dev")
+        runner = f"python {self.main}/tools/retrodev"
+        out = sh(f"{runner} takeover feat/mate", self.main)
+        steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
+        tree = self.base / "hermretro-wt" / "mate"
+        self.assertEqual(steps[0], f"cd {tree}", out)
+        self.assertEqual(len(steps), 5, steps)  # cd, plan new, plan approve, sync, check
+        self.assertNotIn("python tools/retrodev ", out)
+        self.assertIn('-> str:\n    return ""\n', (tree / "tools/retrodev/sync.py").read_text())  # its own is older
+        for step in steps[1:]:
+            command = step.partition("when they say start: ")[2] or step
+            command = command.split(" (", 1)[0].replace("<their exact words>", "start")
+            self.assertTrue(command.startswith(runner + " "), step)
+            done = sh(command, tree)  # verbatim, in the worktree the first step went to
+            if " plan new " in command:
+                (self.main / "notes/plans/mate.md").write_text(FILLED_PLAN.format(topic="mate"))
+            if " plan approve " in command:
+                approve = line_with(done, "next: feat/mate already works under it: ")
+                self.assertIn(f" && {runner} sync (HEAD lacks ", approve)
+                self.assertTrue(approve.endswith(f"), then {runner} check"), approve)
+                status = sh(f"{runner} status", tree)
+                self.assertIn(f"next: {runner} sync (HEAD lacks ", status)
+                self.assertNotIn("python tools/retrodev ", status)
+                # the branch's own (older) plan approve would have printed the older sync: the case fixed here
+                done = sh("python tools/retrodev plan approve mate --words start", tree)
+                self.assertIn("&& python tools/retrodev sync (HEAD lacks ", done)
+        self.assertEqual(git(tree, "rev-list", "--count", "HEAD..origin/dev").strip(), "0")
+        self.assertEqual(sh("python tools/retrodev status", tree).count(f"{runner} "), 0)  # synced: its own again
+
+
+class PlanApprove(RepoCase):
+    def test_two_linked_worktrees_both_behind_dev_each_get_their_next_step(self):  # review 3, 0
+        trees = [self.worktree(name) for name in ("feat/pair", "fix/pair-two")]
+        record = state.load_branch(self.main, "fix/pair-two")
+        state.save_branch(self.main, {**record, "plan": "pair"})  # as plan link records it
+        self.on_dev("docs/other.md", "# Other\n")
+        git(self.main, "fetch", "-q", "origin")
+        self.new_plan("pair")
+        code, out = self.run_cli("plan", "approve", "pair", "--words", "start")
+        self.assertEqual(code, 0, out)
+        for branch, tree in zip(("feat/pair", "fix/pair-two"), trees, strict=True):
+            self.assertIn(
+                f"next: {branch} already works under it: cd {tree} && python tools/retrodev sync (HEAD lacks 1 "
+                "commit(s) of origin/dev), then python tools/retrodev check",
+                out,
+            )
+
+    def test_no_retrodev_function_binds_the_name_of_a_module_it_imports(self):  # review 3, 0: the same flaw anywhere
+        found = []
+        for path in sorted((ROOT / "tools" / "retrodev").rglob("*.py")):
+            tree = ast.parse(path.read_text())
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported |= {(alias.asname or alias.name).split(".")[0] for alias in node.names}
+                elif isinstance(node, ast.ImportFrom):
+                    imported |= {alias.asname or alias.name for alias in node.names}
+            for function in ast.walk(tree):
+                if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                    continue
+                for node in ast.walk(function):
+                    bound = node.id if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) else None
+                    bound = node.arg if isinstance(node, ast.arg) else bound
+                    if bound in imported:
+                        found.append(f"{path.relative_to(ROOT)}:{getattr(node, 'lineno', 0)}: {bound}")
+        self.assertEqual(found, [], "a local named after an imported name hides it; FIX: rename the local")
+
+
+def process_wide(call: ast.Call) -> bool:
+    """A call that changes state every thread of the pool shares: isolated_home (the environment, the host's data
+    folder), mock.patch.dict(os.environ, ...), or the event dispatcher's own table (events.on, events.emit)."""
+    func = call.func
+    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    owner = func.value if isinstance(func, ast.Attribute) else None
+    if name == "isolated_home":
+        return True
+    if isinstance(owner, ast.Name) and owner.id == "events" and name in ("on", "emit"):
+        return True
+    return owner is not None and name == "dict" and bool(call.args) and ast.unparse(call.args[0]) == "os.environ"
+
+
+class Pool(unittest.TestCase):
+    def test_a_module_that_changes_process_wide_state_runs_alone(self):  # review 3, 2
+        found = []
+        for path in sorted((ROOT / "tests" / "retrodev").glob("test_*.py")):
+            tree = ast.parse(path.read_text())
+            alone = any(
+                isinstance(node, ast.Assign)
+                and [ast.unparse(target) for target in node.targets] == ["load_tests"]
+                and ast.unparse(node.value) == "alone"
+                for node in tree.body
+            )
+            calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and process_wide(node)]
+            if calls and not alone:
+                found += [f"{path.relative_to(ROOT)}:{node.lineno}: {ast.unparse(node.func)}" for node in calls]
+        self.assertEqual(
+            found,
+            [],
+            "these change state the pool's threads share; FIX: move the tests into a module with load_tests = alone "
+            "(as test_trial_round_seven_alone.py)",
+        )
 
 
 class Body(RepoCase):

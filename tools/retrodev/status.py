@@ -18,7 +18,13 @@ NOTHING_NEXT = "next: python tools/retrodev plan new <topic> (docs/chore: start 
 
 
 def plan_steps(facts: dict) -> str | None:
-    """The exact plan commands a branch that needs a plan still lacks (None once it is approved, or for docs/chore)."""
+    """The exact plan commands a branch that needs a plan still lacks (None once it is approved, or for docs/chore),
+    each run by the branch's runner (sync.runner: the newer retrodev while the branch's own copy is older)."""
+    steps = _plan_steps(facts)
+    return sync.newer(steps, facts.get("runner") or sync.RUNNER) if steps else steps
+
+
+def _plan_steps(facts: dict) -> str | None:
     if not facts.get("needs_plan") or facts.get("plan_approved"):
         return None
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
@@ -29,6 +35,11 @@ def plan_steps(facts: dict) -> str | None:
 
 
 def next_step(facts: dict) -> str:
+    """The one next command for a branch (_next_step), each retrodev command in it run by the branch's runner."""
+    return sync.newer(_next_step(facts), facts.get("runner") or sync.RUNNER)
+
+
+def _next_step(facts: dict) -> str:
     """The one next command for a branch, from its facts (pure: the tests drive it directly). A branch behind the
     base syncs first, before any plan step (the plan step follows it in the same line)."""
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
@@ -204,6 +215,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
         "sync": sync.sync_command(ctx, path) if behind(ctx, path) or merging else None,
+        "runner": sync.runner(ctx, path),
         "overlap": overlap(ctx, path) if record.get("taken_over") and behind(ctx, path) else [],
         "base": ctx.remote_base,
         "branch": branch,
