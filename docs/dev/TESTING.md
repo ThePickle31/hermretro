@@ -92,6 +92,8 @@ helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/
 repository root): `tests/backend` would then shadow the real `backend` package, and two test modules run together
 (`python -B -m unittest tests.backend.setup.test_remove_tools tests.backend.library.test_games`) fail with an
 ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses it).
+A test that needs a library game calls `make_library_game(home, name="Game") -> (game id, project root)` from
+`tests/support.py` (`home` is what `isolated_home(self)` returns): a real project, registered as the gateway does.
 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
 page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
