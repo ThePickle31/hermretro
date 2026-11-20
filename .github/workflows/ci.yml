@@ -1,7 +1,9 @@
 # hermretro's checks. The only required check is "All checks pass" (all-checks-pass), which sums up the
 # others, so jobs can be added, split or skipped without touching the repository rules. The integration tier
 # (real engine) runs for pull requests that touch the backend, engine, player or toolchain, and on every push to
-# dev and main, except a change of only plugin.yaml's version line (job `changes`). Every check here is
+# dev, except a change of only plugin.yaml's version line (job `changes`). main is not built: it only ever
+# fast-forwards to a dev commit whose push run is green already (release publish checks it), and the main rule
+# reads that same commit's checks. Every check here is
 # also `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
 #
 # Safety: this workflow runs code from pull requests (forks included), so it uses no secrets, its token
@@ -12,7 +14,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [dev, main]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
