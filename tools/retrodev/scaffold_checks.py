@@ -1,10 +1,10 @@
-"""The checks `new` runs right after writing (scaffold.py's apply): without the placeholder gate, and a failure only in
-files new did not write said as the tree's own instead of new's.
+"""The checks `new` runs right after writing (scaffold.py's apply): without the placeholder gate, and a lint failure
+that is not in new's own files said as the tree's own instead of new's.
 """
 
 from __future__ import annotations
 
-import re
+import sys
 
 from . import checks, repo, state
 from .output import Failure
@@ -13,34 +13,18 @@ from .output import Failure
 # their own checks are these, and `check` runs unit before ship. The backend kinds keep unit.
 PAGE_CHECKS = ("lint", "bundle", "page")
 SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py skips its gate while it is set
+# Only lint can fail on the tree's own files: a unit or page failure names tests new's code may break, so it is new's.
+MAY_PRE_EXIST = "lint"
 
 
-FILE_NAMED = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.-]+\.\w+)")  # a repository path a check's failure names
-
-
-# The checks whose failure names the files at fault (lint: each file not in ruff's format, each lint finding's file).
-# A unit or page failure names test files new's code may break, so it is always new's.
-BY_FILE = ("lint",)
-
-
-def blame(ctx, rows: list[dict], written: set[str]) -> tuple[list[str], list[str]]:
-    """(the failed checks whose failure may be new's, the files the others name, none of which new wrote). A failure
-    of a check not in BY_FILE, or one that names no file of the tree, counts as new's."""
-    mine, theirs = [], []
-    for row in rows:
-        if row.get("state") != "FAILED":
-            continue
-        if row.get("name") not in BY_FILE:
-            mine.append(row["name"])
-            continue
-        lines = [*str(row.get("detail", "")).splitlines(), *row.get("more", [])]
-        said = "\n".join(line for line in lines if "FIX:" not in line)
-        files = [f for f in dict.fromkeys(FILE_NAMED.findall(said)) if (ctx.top / f).is_file()]
-        if not files or any(f in written for f in files):
-            mine.append(row["name"])
-        else:
-            theirs += [f for f in files if f not in theirs]
-    return mine, theirs
+def relint(ctx, written: set[str]) -> tuple[bool, list[str]]:
+    """new's own files linted alone, by `python tools/check.py lint-files` (tools/py/lint_tools.py: the very
+    commands and settings of check.py's lint): (passed, what it said). Passed only when every tool those files need
+    was there, ran, and found nothing; a missing tool, a crash, or no answer at all is a failure."""
+    command = [sys.executable, "tools/check.py", "lint-files", *sorted(written)]
+    code, stdout, stderr = repo.run(command, ctx.top, timeout=600)
+    said = [line for line in (stdout + stderr).strip().splitlines() if line.strip()]
+    return code == 0, said or [f"tools/check.py lint-files exited {code} and said nothing"]
 
 
 def unproven(ctx, rows: list[dict], names: list[str]) -> list[str]:
@@ -55,19 +39,17 @@ def unproven(ctx, rows: list[dict], names: list[str]) -> list[str]:
 def validate(ctx, names: list[str], written: set[str] | None = None) -> None:
     """The checks right after writing the stubs: without the placeholder gate (the stubs are not filled in yet), so
     their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship).
-    A failure only in files new did not write is the tree's own: said as such, and new's scaffold stands, but only
-    when every other asked check passed (a skipped one proves nothing, so new's run still fails)."""
+    When lint is the only failure, new's own files are linted again, alone: a pass there makes the failure the
+    tree's own (said as such, and new's scaffold stands), but only when every other asked check passed (a skipped
+    one proves nothing, so new's run still fails)."""
     branch = repo.branch(ctx.top)
     kept = state.load_branch(ctx.top, branch)
     try:  # the gate's switch goes only to the checks' processes: os.environ is shared by every thread
         checks.run(ctx, names, env={SCAFFOLD_CHECK: "1"})
     except Failure:
         rows = ctx.out.data.get("checks") or []
-        mine, theirs = blame(ctx, rows, written or set())
-        for name in theirs:
-            ctx.out.say(f"pre-existing on this tree (not from new): {name}")
-        ctx.out.set(pre_existing=theirs)
-        if mine or not theirs:
+        failed = [row.get("name") for row in rows if row.get("state") == "FAILED"]
+        if failed != [MAY_PRE_EXIST]:
             raise
         skipped = unproven(ctx, rows, names)
         if skipped:
@@ -77,9 +59,17 @@ def validate(ctx, names: list[str], written: set[str] | None = None) -> None:
             )
             ctx.out.set(unproven=skipped)
             raise
+        passed, said = relint(ctx, written or set())
+        for line in said:
+            ctx.out.say(("" if passed else "new's own lint: ") + line)
+        if not passed:
+            ctx.out.set(own_lint=said)
+            raise
+        ctx.out.say("pre-existing on this tree (not from new): the lint failure above, in files new did not write")
+        ctx.out.set(pre_existing=["lint"])
         ctx.out.say(
-            "new's own files pass; the scaffold stays. Fix the files above in a commit of their own (python "
-            "tools/check.py fix for formatting), then python tools/retrodev check"
+            "the scaffold stays. Fix the lint failure above in a commit of its own (python tools/check.py fix for "
+            "formatting), then python tools/retrodev check"
         )
     finally:
         state.save_branch(ctx.top, kept)

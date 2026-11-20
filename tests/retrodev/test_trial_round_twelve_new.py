@@ -148,13 +148,28 @@ class Listener(ScaffoldCase):
             self.assertIn(place, reference)
 
 
-# A stand-in check.py whose lint, like ruff's, names each Python file not in its format (here: holding '  =  ').
-FORMAT_CHECK = '''import sys
+# A stand-in check.py. Its lint, like ruff's, names each Python file not in its format (here: holding '  =  '; tools/
+# is left out, this file among it), or says ruff is missing (.no-ruff) beside a page error in home/index.js. Its
+# lint-files, like tools/py/lint_tools.py's, lints only the files named: a missing ruff, or a named Python file
+# holding '  =  ' or 'rdprobe_bad', fails it.
+FORMAT_CHECK = """import sys
 from pathlib import Path
+gone = Path(".no-ruff").exists()
+if sys.argv[1] == "lint-files":
+    if gone:
+        print("ruff is missing (ruff is not installed in .dev/py), so new's 2 Python files were not linted: setup")
+        sys.exit(1)
+    bad = [f for f in sys.argv[2:] if f.endswith(".py") and any(m in Path(f).read_text() for m in ("  =  ", "rdprobe_bad"))]
+    print("\\n".join(bad) or "new's own files pass lint alone")
+    sys.exit(1 if bad else 0)
 code = 0
 for name in sys.argv[1:]:
-    bad = sorted(str(p) for p in Path("backend").rglob("*.py") if "  =  " in p.read_text())
-    if name == "lint" and bad:
+    bad = sorted(str(p) for p in Path(".").rglob("*.py") if p.parts[0] != "tools" and "  =  " in p.read_text())
+    if name == "lint" and gone:
+        print(f" FAILED  lint         0.2 s  ruff is not installed in .dev/py")
+        print("         page/pages/home/index.js:1:1  x is not defined [no-undef]")
+        code = 1
+    elif name == "lint" and bad:
         print(f" FAILED  lint         0.2 s  {len(bad)} Python files are not in ruff's format:")
         for path in bad:
             print("         " + path)
@@ -163,38 +178,64 @@ for name in sys.argv[1:]:
     else:
         print(f"{'ok':>7}  {name:<10} {0.1:5.1f} s  fine")
 sys.exit(code)
-'''
+"""
 
 
 class PreExisting(ScaffoldCase):
-    def test_a_failure_in_a_file_new_did_not_write_is_reported_as_pre_existing_and_new_keeps_its_scaffold(self):
-        write(self.tree, "tools/check.py", FORMAT_CHECK)
-        write(self.tree, "backend/history/untidy.py", "x  =  1\n")
+    def standin(self, path: str = "", text: str = "x  =  1\n", check: str = FORMAT_CHECK) -> None:
+        write(self.tree, "tools/check.py", check)
+        if path:
+            write(self.tree, path, text)
         git(self.tree, "add", "-A")
-        git(self.tree, "commit", "-q", "-m", "An unformatted file")
+        git(self.tree, "commit", "-q", "-m", "A stand-in check.py and an unrelated failure")
+
+    def test_a_failure_in_a_file_new_did_not_write_is_reported_as_pre_existing_and_new_keeps_its_scaffold(self):
+        self.standin("backend/history/untidy.py")
         code, out = self.run_cli("new", "rpc", "history", "rdprobe_pre", cwd=self.tree)
         self.assertEqual(code, 0, out)
-        self.assertIn("pre-existing on this tree (not from new): backend/history/untidy.py", out)
-        self.assertIn("new's own files pass; the scaffold stays", out)
+        self.assertIn("new's own files pass lint alone", out)
+        self.assertIn("pre-existing on this tree (not from new): the lint failure above", out)
+        self.assertIn("the scaffold stays", out)
+        self.assertIn("next: ", out)
         self.assertTrue((self.tree / "tests/backend/history/test_rpc_rdprobe_pre.py").is_file())
-
-    def test_a_failure_naming_a_file_new_wrote_is_still_new_s(self):
-        ctx = config.Context.make(self.tree, output.Out(stream=io.StringIO()))
-        write(self.tree, "backend/history/untidy.py", "x  =  1\n")
-        rows = [
-            {"name": "lint", "state": "FAILED", "detail": "2 files", "more": ["backend/history/rpcs.py"]},
-            {"name": "unit", "state": "FAILED", "detail": "FAILED (failures=1)", "more": []},
-            {"name": "page", "state": "ok", "detail": "fine", "more": []},
-        ]
-        self.assertEqual(scaffold_checks.blame(ctx, rows, {"backend/history/rpcs.py"}), (["lint", "unit"], []))
-        page = {"name": "page", "state": "FAILED", "detail": "1 failed", "more": ["tests/page/registry.test.mjs"]}
-        write(self.tree, "tests/page/registry.test.mjs", "// a test new's code may break\n")
-        self.assertEqual(scaffold_checks.blame(ctx, [page], set()), (["page"], []), "a test failure is new's")
-        rows[0]["more"] = ["backend/history/untidy.py", "FIX: python tools/check.py fix"]
-        self.assertEqual(
-            scaffold_checks.blame(ctx, rows[:1], {"backend/history/rpcs.py"}), ([], ["backend/history/untidy.py"])
-        )
         self.assertTrue(re.search(r"pre-existing on this tree", retrodev_docs("REFERENCE.md")))
+
+    def test_a_failure_in_the_root_init_is_pre_existing_too(self):  # review 2, 1
+        self.standin("__init__.py")
+        code, out = self.run_cli("new", "rpc", "history", "rdprobe_root", cwd=self.tree)
+        self.assertEqual(code, 0, out)
+        self.assertIn("pre-existing on this tree (not from new)", out)
+        self.assertIn("next: ", out)
+
+    def test_a_missing_ruff_beside_an_unrelated_page_error_keeps_new_failing(self):  # review 2, 0
+        self.standin(".no-ruff", "")
+        write(self.tree, "page/pages/home/index.js", "x\n" + (self.tree / "page/pages/home/index.js").read_text())
+        code, out = self.run_cli("new", "rpc", "history", "rdprobe_noruff", cwd=self.tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("new's own lint: ruff is missing", out)
+        self.assertNotIn("pre-existing on this tree", out)
+        self.assertNotIn("the scaffold stays", out)
+
+    def test_new_s_own_file_failing_lint_keeps_new_failing_beside_an_unrelated_one(self):
+        self.standin("backend/history/untidy.py")
+        code, out = self.run_cli("new", "rpc", "history", "rdprobe_bad", cwd=self.tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("new's own lint: backend/history/", out)
+        self.assertNotIn("pre-existing on this tree", out)
+
+    def test_a_unit_failure_beside_an_unrelated_lint_failure_is_new_s(self):
+        unit_fails = FORMAT_CHECK.replace(
+            "    else:\n",
+            "    elif name == 'unit':\n"
+            "        print(' FAILED  unit         0.1 s  FAILED (failures=1)')\n"
+            "        code = 1\n"
+            "    else:\n",
+        )
+        self.standin("backend/history/untidy.py", check=unit_fails)
+        code, out = self.run_cli("new", "rpc", "history", "rdprobe_unit", cwd=self.tree)
+        self.assertEqual(code, 1, out)
+        self.assertNotIn("new's own files pass lint alone", out, "only a lint-only failure is linted again")
+        self.assertNotIn("pre-existing on this tree", out)
 
     def test_a_check_skipped_beside_a_pre_existing_lint_failure_keeps_new_failing(self):  # review 1, 0
         # No Node: bundle and page print skipped rows, as check.py does without its tool; lint fails only on a file
@@ -205,15 +246,11 @@ class PreExisting(ScaffoldCase):
             "        print(f\"{'skipped':>7}  {name:<10} {0.0:5.1f} s  node is not installed\")\n"
             "    else:\n",
         )
-        write(self.tree, "tools/check.py", no_node)
-        write(self.tree, "backend/history/untidy.py", "x  =  1\n")
-        git(self.tree, "add", "-A")
-        git(self.tree, "commit", "-q", "-m", "An unformatted file")
+        self.standin("backend/history/untidy.py", check=no_node)
         code, out = self.run_cli("new", "page", "rdprobe", "--no-build", cwd=self.tree)
         self.assertEqual(code, 1, out)
-        self.assertIn("pre-existing on this tree (not from new): backend/history/untidy.py", out)
         self.assertIn("not run, so new's files are not proven: bundle, page", out)
-        self.assertNotIn("new's own files pass", out)
+        self.assertNotIn("pre-existing on this tree", out)
         ctx = config.Context.make(self.tree, output.Out(stream=io.StringIO()))
         ok = [{"name": "lint", "state": "FAILED"}, {"name": "bundle", "state": "ok"}, {"name": "page", "state": "ok"}]
         self.assertEqual(scaffold_checks.unproven(ctx, ok, ["lint", "bundle", "page"]), [])

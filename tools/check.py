@@ -4,6 +4,7 @@
     python tools/check.py full           fast checks plus scaffold and the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
+    python tools/check.py lint-files F.. lint only these files, as lint does (retrodev new, after lint failed)
 
 Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
 boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
@@ -45,7 +46,11 @@ from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
     RUFF_CHECK,
     RUFF_FORMAT,
     RUFF_SETUP,
+    lint_files,
     lint_tools_missing,
+    page_lint,
+    ruff_check,
+    ruff_format_check,
     ruff_missing,
 )
 
@@ -132,9 +137,9 @@ def start(cmd: list[str]) -> subprocess.Popen:
 def check_lint(args) -> str:
     # ESLint over page/ and ruff over the Python run at the same time (ruff takes a few hundredths of a second).
     node = shutil.which("node")
-    eslint = start([node, "tools/bundle/lint-page.mjs"]) if node else None
-    missing = ruff_missing()
-    ruff = None if missing else (start(RUFF_CHECK), start([*RUFF_FORMAT, "--check", "--output-format", "concise"]))
+    eslint = start(page_lint(node, [])) if node else None
+    missing = ruff_missing()  # the commands come from tools/py/lint_tools.py, as lint_files' (retrodev new's) do
+    ruff = None if missing else (start(ruff_check(["."])), start(ruff_format_check(["."])))
     problems, done = [], []
     if ruff:
         (lint_out, _), (format_out, _) = ruff[0].communicate(), ruff[1].communicate()
@@ -488,6 +493,10 @@ def main(argv: list[str] | None = None) -> int:
     names = args.checks or ["fast"]
     if names == ["fix"]:
         return fix(args)
+    if names[0] == "lint-files":  # retrodev new: only the files it wrote, with lint's own tools and settings
+        passed, said = lint_files(names[1:])
+        print("\n".join(said))
+        return 0 if passed else 1
     wanted = [c for name in names for c in (FAST if name == "fast" else ALL if name == "full" else [name])]
     unknown = [name for name in wanted if name not in CHECKS]
     if unknown:
