@@ -256,7 +256,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12, button ≤20 chars, action ≤60 chars).
   `game.json` is at most 64 KB.
 - **Cover:** a PNG of at most 512 KB, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
-  Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_card.py`
+  Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_cover.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
   project? }`: with no fields it reports the card; otherwise it checks every field and stores all or
