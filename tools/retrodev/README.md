@@ -84,8 +84,8 @@ Each in full: `tools/retrodev/REFERENCE.md`, "Commands".
 
 ## Releases
 
-Only when the owner says "make a release": `release run` (the usual way: prepare, approve, land and publish up
-to the draft), or each step: `release prepare`, `release publish`, `release verify`; the steps and their gates: `tools/retrodev/REFERENCE.md`, "Releases".
+Only when the owner says "make a release": `release run`, or step by step `release prepare`, `publish`, `verify`;
+the steps and their gates: `tools/retrodev/REFERENCE.md`, "Releases".
 
 ## Exit codes
 
