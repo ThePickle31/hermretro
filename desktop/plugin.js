@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 177a1466421aee4f46c33b3b61d7c00c2188122cd9342c97cf93402384f0dea4
- * body: sha256 aafecc60dec7841bd41829cab2eb25fdb5f07863a6885a0457f59bd3a87d2761
+ * sources: sha256 33075cdc5824adef48df70fa152744e693a624fb483cdc7d1eb96958567c032a
+ * body: sha256 cfe978b0496eb6488c90b79e2b9038c02706f17a7bb6ab44f84fe27a3aeece1a
  */
 // page/sdk.js
 import {
@@ -747,6 +747,30 @@ function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
   return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
 }
 
+// page/pages/games/cartridge.js
+function Cartridge({ game, title, note = null, label, disabled = false, play = false, onClick, className = "" }) {
+  const thumb = game?.thumb ?? null;
+  return jsxs("button", {
+    "aria-label": label ?? title,
+    className: className ? `cs-cart ${className}` : "cs-cart",
+    disabled,
+    onClick,
+    type: "button",
+    children: [
+      jsx(
+        "span",
+        {
+          className: "slot",
+          children: thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, draggable: false, src: thumb }) : jsxs("span", { className: "ph", children: [title, note ? jsx("small", { children: note }, "note") : null] })
+        },
+        "slot"
+      ),
+      thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }, "nocover") : null,
+      play ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }, "hov") : null
+    ]
+  });
+}
+
 // page/shared/ui/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
@@ -1332,20 +1356,14 @@ function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   return jsxs("article", {
     className: "cs-gcard",
     children: [
-      jsxs("button", {
-        "aria-label": playable ? `Play ${title}` : title,
-        className: "cs-cart",
+      jsx(Cartridge, {
         disabled: !playable,
+        game,
+        label: playable ? `Play ${title}` : title,
+        note: playable ? "Title screen after first play" : "No build yet",
         onClick: () => onPlay(game.id),
-        type: "button",
-        children: [
-          jsx("span", {
-            className: "slot",
-            children: game.thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, src: game.thumb }) : jsxs("span", { className: "ph", children: [title, jsx("small", { children: playable ? "Title screen after first play" : "No build yet" })] })
-          }),
-          game.thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }) : null,
-          playable ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }) : null
-        ]
+        play: playable,
+        title
       }),
       jsxs("div", {
         className: "info",
@@ -3381,6 +3399,36 @@ var BUILD_CSS = `
 .cs-b-game .dot.wait { animation: cs-b-pulse-y 1.6s infinite; background: var(--ui-yellow); height: 7px; width: 7px; }
 .cs-b-spin { animation: cs-b-spin .9s linear infinite; border: 2px solid var(--ui-accent); border-radius: 50%; border-right-color: transparent; display: inline-block; flex: none; height: 10px; width: 10px; }
 @keyframes cs-b-spin { to { transform: rotate(360deg); } }
+`;
+
+// page/pages/build/cart-shelf.css.js
+var CART_SHELF_CSS = `
+/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
+.cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
+.cs-b-shelf-probe { height: 0; width: 0; }
+.cs-b-attract { --cs-b-cap: 38px; }
+/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
+.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
+.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
+/* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
+   cartridges stay clickable the rest of the time */
+.cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
+.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
+.cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
+.cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
+.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
+.cs-b-shelf-cart b, .cs-b-shelf-cart small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
+.cs-b-shelf-cart:has(.cs-cart:hover) b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) b { color: var(--ui-accent); }
+.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
+.cs-b-shelf-cart.wait small { color: var(--ui-yellow); }
+.cs-b-shelf-cart small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
+.cs-b-shelf-cart small .dot.wait { background: var(--ui-yellow); }
+.cs-b-shelf-cart small .dot.new { background: var(--ui-accent); }
+.cs-b-shelf-cart small .cs-b-spin { height: 8px; width: 8px; }
+.cs-b-shelf-more { align-items: center; aspect-ratio: 299 / 340; background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 55%, transparent); border: 2px dashed var(--ui-text-quaternary, var(--ui-text-tertiary)); border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: grid; font: 700 18px ${MONO}; justify-content: center; width: 100px; }
+.cs-b-shelf-more:hover, .cs-b-shelf-more:focus-visible { border-color: var(--ui-accent); color: var(--ui-accent); }
+.cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
 `;
 
 // page/pages/build/chat/attachments.js
@@ -9400,7 +9448,7 @@ function placeCoins(L, rng) {
 }
 
 // page/pages/build/attract/level.js
-function buildLevel(W, H, seed) {
+function buildLevel(W, H, seed, { flat = [] } = {}) {
   const rng = rngOf(seed);
   const cols = Math.ceil(W / T), rows = Math.max(4, Math.floor(H / T)), oy = H - rows * T;
   const grid = new Uint8Array(cols * rows);
@@ -9432,11 +9480,16 @@ function buildLevel(W, H, seed) {
     pipes.push({ c, dir, h, x: c * T, y: cellY(gTop - h), timer: 60 + Math.floor(rng() * 300) });
     claim(c - 1, c + 2);
   };
+  for (const [x0, x1] of flat) claim(Math.floor(x0 / T) - 1, Math.ceil(x1 / T));
   if (cols >= 10 && rows >= 6) {
-    pipe(1, 1, 2);
-    claim(0, 4);
-    pipe(cols - 3, -1, 2);
-    claim(cols - 5, cols - 1);
+    if (!taken[1] && !taken[2]) {
+      pipe(1, 1, 2);
+      claim(0, 4);
+    }
+    if (!taken[cols - 3] && !taken[cols - 2]) {
+      pipe(cols - 3, -1, 2);
+      claim(cols - 5, cols - 1);
+    }
     const extra = Math.floor(cols / 26);
     for (let i = 0; i < extra * 3 && pipes.length < 2 + extra; i++) {
       const c = 4 + Math.floor(rng() * (cols - 8));
@@ -11532,11 +11585,11 @@ var World = class {
     this.rng = rngOf(seed * 7 + 1);
     this.stats = { hits: {}, falls: 0, unsticks: 0, waves: 0, waves90: 0 };
   }
-  /** Build the level for a W x H screen (native pixels) around the page's boxes ({ x, y, w, h, kind }). */
-  build(W, H) {
+  /** Build the level for a W x H screen (native pixels); `opts.flat` keeps ground spans flat (level.js). */
+  build(W, H, opts = {}) {
     this.W = W;
     this.H = H;
-    this.L = buildLevel(W, H, this.seed);
+    this.L = buildLevel(W, H, this.seed, opts);
     const L = this.L;
     this.coins = L.coinSpots.map((s) => ({ x: s.x, y: s.y, w: 12, h: 16, on: true, t: 0, loose: false, arc: s.arc || null }));
     for (const a of L.arcs) a.live = this.coins.filter((c) => c.arc === a);
@@ -11670,9 +11723,17 @@ function backgroundOf(el, getStyle) {
   return { css: "rgb(16 18 24)", rgb: [16, 18, 24] };
 }
 var skyFor = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? "day" : "night";
+function flatSpans(root, canvasEl) {
+  const origin = canvasEl.getBoundingClientRect(), out = [];
+  for (const el of root.querySelectorAll("[data-at-flat]")) {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 4) out.push([Math.floor((r.left - origin.left) / SCALE), Math.ceil((r.right - origin.left) / SCALE)]);
+  }
+  return out;
+}
 function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
-  let world = null, sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true;
+  let world = null, flat = "[]", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true;
   const still = () => !!motion?.matches;
   const look = () => {
     const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss;
@@ -11692,8 +11753,11 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`;
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
     look();
+    const spans = flatSpans(host2, canvasEl);
+    flat = JSON.stringify(spans);
     world = makeWorld(seed);
-    world.build(W, H);
+    world.build(W, H, { flat: spans });
+    if (world.L) host2.style.setProperty("--cs-at-ground", `${(H - world.L.groundY) * SCALE}px`);
     if (keep) Object.assign(world, keep);
     world.attach(canvasEl, sky);
     if (still()) for (let i = 0; i < 90; i++) world.step();
@@ -11708,7 +11772,10 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
       last = now;
       return;
     }
-    if (++ticks % LOOK_EVERY === 0 && look() && still()) world.render();
+    if (++ticks % LOOK_EVERY === 0) {
+      if (look() && still()) world.render();
+      if (JSON.stringify(flatSpans(host2, canvasEl)) !== flat) later2();
+    }
     if (still()) {
       last = now;
       return;
@@ -11733,6 +11800,7 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
     clearTimer(timer);
     unobserve();
     host2.style.removeProperty("--cs-at-bg");
+    host2.style.removeProperty("--cs-at-ground");
     motion?.removeEventListener?.("change", later2);
   };
 }
@@ -11793,10 +11861,19 @@ function switcherEntries(games, pending, states, selected) {
     })
   ];
 }
+var statusMark = (state) => state?.waiting ? jsx("i", { "aria-label": "Needs your answer", className: "dot wait" }) : state?.busy ? jsx("i", { "aria-label": `${AGENT} is working`, className: "cs-b-spin" }) : state?.unread ? jsx("i", { "aria-label": "New reply", className: "dot new" }) : null;
 var libraryWhen = (game) => (GAME_STATES[game.state] ?? GAME_STATES.unbuilt)[1];
-function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard }) {
+function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null, onRequestSeen = () => {
+} }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState("menu");
+  useEffect(() => {
+    if (request) {
+      setView(request.view === "library" && library.length ? "library" : "menu");
+      setOpen(true);
+      onRequestSeen();
+    }
+  }, [request?.seq]);
   const [query, setQuery] = useState("");
   const [ctxMenu, setCtxMenu] = useState(null);
   const box = useRef(null);
@@ -11875,7 +11952,6 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
     const frame = pop.current?.getBoundingClientRect?.();
     setCtxMenu({ key: entry.key, x: frame ? x - frame.left : 16, y: frame ? y - frame.top : 16 });
   };
-  const mark = (state) => state?.waiting ? jsx("i", { "aria-label": "Needs your answer", className: "dot wait" }) : state?.busy ? jsx("i", { "aria-label": `${AGENT} is working`, className: "cs-b-spin" }) : state?.unread ? jsx("i", { "aria-label": "New reply", className: "dot new" }) : null;
   const thumb = (game) => game?.thumb ? jsx("img", { alt: "", className: "cs-b-sw-thumb", draggable: false, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: "cs-b-sw-thumb ph", children: jsx(Codicon, { name: game ? "game" : "sparkle", size: 12 }) });
   const ctxEntry = ctxMenu ? entries.find((entry) => entry.key === ctxMenu.key) : null;
   const ctx = ctxEntry ? jsxs("div", {
@@ -11970,7 +12046,7 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
               children: [
                 thumb(entry.game),
                 jsxs("span", { className: "nm", children: [jsx("b", { children: entry.title }), jsx("small", { children: entry.sub })] }),
-                mark(entry.state),
+                statusMark(entry.state),
                 index < 9 ? jsxs("span", { className: "cs-b-sw-key", children: ["Ctrl ", index + 1] }) : null
               ]
             },
@@ -12072,6 +12148,84 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
         role: "menu",
         children: [...view === "library" ? libraryView : menuView, ctx]
       }) : null
+    ]
+  });
+}
+
+// page/pages/build/cart-shelf.js
+var SLOT = 126;
+var MIN_HEIGHT = 560;
+function shelfOrder(entries) {
+  const rank = (entry) => entry.state?.waiting ? 0 : entry.pending ? 1 : 2;
+  const started2 = (entry) => entry.pending ? entry.pending.createdAt ?? Infinity : 0;
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || started2(b.entry) - started2(a.entry) || a.index - b.index).map((item) => item.entry);
+}
+function shelfFit(width, count, more) {
+  const slots = Math.max(1, Math.floor((width + 26) / SLOT));
+  return count + (more ? 1 : 0) <= slots ? count : Math.max(0, slots - 1);
+}
+function CartShelf({ entries, others, onSelect, onAll }) {
+  const box = useRef(null);
+  const [room, setRoom] = useState({ width: 5 * SLOT, height: MIN_HEIGHT });
+  useEffect(() => {
+    const area = box.current?.parentElement;
+    if (!area || typeof ResizeObserver !== "function") {
+      return void 0;
+    }
+    const measure = () => setRoom({ width: Math.min(area.clientWidth - 48, 8 * SLOT), height: area.clientHeight });
+    const watch = new ResizeObserver(measure);
+    watch.observe(area);
+    measure();
+    return () => watch.disconnect();
+  }, []);
+  const order = shelfOrder(entries);
+  if (!order.length || room.height < MIN_HEIGHT) {
+    return jsx("div", { "aria-hidden": true, className: "cs-b-shelf-probe", ref: box });
+  }
+  const shown = order.slice(0, shelfFit(room.width, order.length, others.length > 0));
+  const left = order.length - shown.length + others.length;
+  return jsxs("nav", {
+    "aria-label": "Your games",
+    className: "cs-b-shelf",
+    "data-at-flat": "",
+    ref: box,
+    children: [
+      ...shown.map(
+        (entry) => jsxs(
+          "div",
+          {
+            className: `cs-b-shelf-cart${entry.state?.waiting ? " wait" : ""}`,
+            children: [
+              jsx(Cartridge, {
+                game: entry.game,
+                label: `${entry.title}, ${entry.sub}`,
+                note: entry.game ? null : "Being set up",
+                onClick: () => onSelect(entry.key),
+                title: entry.title
+              }),
+              jsxs("span", { className: "cap", children: [jsx("b", { title: entry.title, children: entry.title }), jsxs("small", { children: [statusMark(entry.state), entry.sub] })] })
+            ]
+          },
+          entry.key
+        )
+      ),
+      left ? jsxs(
+        "div",
+        {
+          className: "cs-b-shelf-cart all",
+          children: [
+            jsx("button", {
+              "aria-label": `All games: ${left} more`,
+              className: "cs-b-shelf-more",
+              onClick: () => onAll(order.length > shown.length ? "menu" : "library"),
+              type: "button",
+              children: `+${left}`
+            }),
+            jsxs("span", { className: "cap", children: [jsx("b", { children: "All games" }), jsx("small", { children: others.length ? "With your library" : "Being worked on" })] })
+          ]
+        },
+        "all"
+      ) : null
     ]
   });
 }
@@ -12179,7 +12333,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
-      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null }] }));
+      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 }] }));
       select(`pending:${id}`);
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim());
       onLibraryChanged();
@@ -12208,6 +12362,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
   const [focusTurn, setFocusTurn] = useState(null);
+  const [switcherRequest, setSwitcherRequest] = useState(null);
   const settledItems = useRef(null);
   if (!shownChat?.busy) {
     settledItems.current = shownItems;
@@ -12326,6 +12481,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const switcher = jsx(BuildSwitcher, {
     entries,
     library,
+    onRequestSeen: () => setSwitcherRequest(null),
+    request: switcherRequest,
     onDiscard: (item) => discard(item),
     onOpenChat: openInFullChat,
     onSelect: select,
@@ -12416,7 +12573,12 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   }
   const main = selected === "new" ? jsxs("div", {
     className: "cs-b-chat cs-b-attract",
-    children: [jsx(AttractLevel, {}, "level"), header, jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new")]
+    children: [
+      jsx(AttractLevel, {}, "level"),
+      header,
+      jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
+    ]
   }) : jsxs("div", {
     className: "cs-b-chat",
     children: [
@@ -12679,8 +12841,9 @@ var HEADER_CSS = `
 
 // page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
-/* New Game: the Build page's composer, centred, with the two ways to start under it */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+/* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-new .cs-title { margin: 0; text-align: center; }
 .cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }
@@ -13160,6 +13323,7 @@ var BUILD_PAGE = {
     WORKED_MODE_CSS,
     MENTIONS_CSS,
     ATTRACT_CSS,
+    CART_SHELF_CSS,
     BUILD_RESPONSIVE_CSS
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.

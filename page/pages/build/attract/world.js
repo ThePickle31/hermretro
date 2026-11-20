@@ -18,10 +18,10 @@ export class World {
     this.stats = { hits: {}, falls: 0, unsticks: 0, waves: 0, waves90: 0 }
   }
 
-  /** Build the level for a W x H screen (native pixels) around the page's boxes ({ x, y, w, h, kind }). */
-  build(W, H) {
+  /** Build the level for a W x H screen (native pixels); `opts.flat` keeps ground spans flat (level.js). */
+  build(W, H, opts = {}) {
     this.W = W; this.H = H
-    this.L = buildLevel(W, H, this.seed)
+    this.L = buildLevel(W, H, this.seed, opts)
     const L = this.L
     this.coins = L.coinSpots.map(s => ({ x: s.x, y: s.y, w: 12, h: 16, on: true, t: 0, loose: false, arc: s.arc || null }))
     for (const a of L.arcs) a.live = this.coins.filter(c => c.arc === a)

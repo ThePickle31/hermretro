@@ -33,12 +33,33 @@ export function switcherEntries(games, pending, states, selected) {
   ]
 }
 
+/** The mark beside a game's name: waiting for an answer, working, or a new reply (nothing otherwise). Shared with
+ *  the New Game shelf, so both say the same thing. */
+export const statusMark = state =>
+  state?.waiting
+    ? jsx('i', { 'aria-label': 'Needs your answer', className: 'dot wait' })
+    : state?.busy
+      ? jsx('i', { 'aria-label': `${AGENT} is working`, className: 'cs-b-spin' })
+      : state?.unread
+        ? jsx('i', { 'aria-label': 'New reply', className: 'dot new' })
+        : null
+
 const libraryWhen = game => (GAME_STATES[game.state] ?? GAME_STATES.unbuilt)[1]
 
-export function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard }) {
+export function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null, onRequestSeen = () => {} }) {
   const [open, setOpen] = useState(false)
   // 'menu' (New game, Edit a game, the games being edited) or 'library' (Edit a game's list).
   const [view, setView] = useState('menu')
+
+  // Opened from outside (the New Game shelf's All games): `request` is { view, seq }. Taken once: the page clears
+  // it, so a switcher drawn again (New Game and a conversation each draw their own) does not open again.
+  useEffect(() => {
+    if (request) {
+      setView(request.view === 'library' && library.length ? 'library' : 'menu')
+      setOpen(true)
+      onRequestSeen()
+    }
+  }, [request?.seq])
   const [query, setQuery] = useState('')
   // The right-click menu on a game being edited: { key, x, y } inside the popover.
   const [ctxMenu, setCtxMenu] = useState(null)
@@ -134,15 +155,6 @@ export function BuildSwitcher({ entries, library, selected, title, onSelect, onO
 
     setCtxMenu({ key: entry.key, x: frame ? x - frame.left : 16, y: frame ? y - frame.top : 16 })
   }
-
-  const mark = state =>
-    state?.waiting
-      ? jsx('i', { 'aria-label': 'Needs your answer', className: 'dot wait' })
-      : state?.busy
-        ? jsx('i', { 'aria-label': `${AGENT} is working`, className: 'cs-b-spin' })
-        : state?.unread
-          ? jsx('i', { 'aria-label': 'New reply', className: 'dot new' })
-          : null
 
   const thumb = game =>
     game?.thumb
@@ -255,7 +267,7 @@ export function BuildSwitcher({ entries, library, selected, title, onSelect, onO
               children: [
                 thumb(entry.game),
                 jsxs('span', { className: 'nm', children: [jsx('b', { children: entry.title }), jsx('small', { children: entry.sub })] }),
-                mark(entry.state),
+                statusMark(entry.state),
                 index < 9 ? jsxs('span', { className: 'cs-b-sw-key', children: ['Ctrl ', index + 1] }) : null
               ]
             },

@@ -25,6 +25,7 @@ import { BuildPill, BuildsMenu } from './builds-menu.js'
 import { BuildNewGame } from './new-game.js'
 import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
+import { CartShelf } from './cart-shelf.js'
 
 export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
   const chats = useValue(BUILD_CHATS)
@@ -170,7 +171,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
 
-      setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null }] }))
+      setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }] }))
       select(`pending:${id}`)
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim())
       onLibraryChanged()
@@ -207,6 +208,8 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const shownItems = shownChat?.items ?? null
   // A turn to scroll to (the Builds menu's Show).
   const [focusTurn, setFocusTurn] = useState(null)
+  // The New Game shelf's All games tile opens the switcher: { view, seq }, a new seq each time.
+  const [switcherRequest, setSwitcherRequest] = useState(null)
 
   // The conversation's builds, worked out between turns (never while a reply streams).
   const settledItems = useRef(null)
@@ -374,6 +377,8 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const switcher = jsx(BuildSwitcher, {
     entries,
     library,
+    onRequestSeen: () => setSwitcherRequest(null),
+    request: switcherRequest,
     onDiscard: item => discard(item),
     onOpenChat: openInFullChat,
     onSelect: select,
@@ -482,7 +487,12 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     selected === 'new'
       ? jsxs('div', {
           className: 'cs-b-chat cs-b-attract',
-          children: [jsx(AttractLevel, {}, 'level'), header, jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new')]
+          children: [
+            jsx(AttractLevel, {}, 'level'),
+            header,
+            jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new'),
+            jsx(CartShelf, { entries, onAll: view => setSwitcherRequest(current => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, 'shelf')
+          ]
         })
       : jsxs('div', {
           className: 'cs-b-chat',
