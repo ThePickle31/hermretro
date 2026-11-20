@@ -100,7 +100,8 @@ one) still fails ship's body gate, its last line is `next: fill in <the sections
 tools/retrodev ship --title '<title>'` (while the body does not exist yet: `next: fill in the pull request body
 (missing: <path>; ...)`). Runs `tools/check.py` for the checks whose inputs changed since their last pass on the
 branch (`ok (cached)` otherwise; a check's inputs, in `policy.toml` `[checks.inputs]`, include the tools it runs and
-their pins, `tools/check.py` and `policy.toml`); `--watch` runs again on every file change and on a commit or a
+their pins, `tools/check.py` and `policy.toml`, less the files `[checks.input_ignore]` shows it never reads: a
+`tests/retrodev/` edit keeps acceptance's pass); `--watch` runs again on every file change and on a commit or a
 clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run
 (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run,
 later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or
