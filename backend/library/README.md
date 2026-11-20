@@ -17,6 +17,18 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
 
 `tests/backend/library/`.
 
+A tool that only reads (no broker start, no engine call) is tested through the two broker seams the library really
+uses; there is no `host._broker_call`. `host.try_connect(paths.runtime_dir())` finds a running broker without
+starting one (`host._chat_project`, which `tool_project` calls for "this chat's project"; the `games` RPC's
+`_seed_library`), and `host.ensure_broker()` starts one (on the library's paths only the engine tool handler,
+`host.make_tool_handler`; the setup RPCs call it too).
+Answer the first with `FakeBrokerClient` (`tests/support.py`) and make the second fail, as
+`test_present_never_reaches_the_engine_or_a_device` (`tests/backend/library/test_games.py`) does:
+`mock.patch.object(hermes_host, "try_connect", lambda _dir: (client, None))` and
+`mock.patch.object(hermes_host, "ensure_broker", forbidden)`, then assert on `client.asked`. These patches see only
+calls made through `backend.hermes.host`; code that imports `backend.broker` or its `client` itself is not covered
+(`tests/backend/broker/test_broker_stats_tool.py` patches `backend.broker.client` for that).
+
 ## games.json
 
 `<hermretro home>/library/games.json` (`paths.library_dir()`, `HERMRETRO_LIBRARY_DIR` overrides; `Registry`), written under `games.lock` and replaced atomically. Unknown top-level keys are kept. Times are Unix seconds (floats).

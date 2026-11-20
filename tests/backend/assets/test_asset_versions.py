@@ -3,6 +3,7 @@ it delivered, and the viewer's ``asset`` call answers that version for a reply's
 
 import base64
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -246,6 +247,53 @@ class AssetVersions(unittest.TestCase):
             answer = self.asset({"path": str(self.cover)})
         self.assertEqual(answer["code"], "TOO_LARGE")
         self.assertEqual(answer["error"], "The image is larger than 16 bytes, too large to preview.")
+
+
+def documented_keep() -> int:
+    """The per-file limit docs/dev/STUDIO-PAGES.md's "Versions" paragraph states ("up to 40 per file")."""
+    text = (Path(__file__).resolve().parents[3] / "docs" / "dev" / "STUDIO-PAGES.md").read_text(encoding="utf-8")
+    found = re.search(r"^Versions: the plugin keeps a copy of a game image \(up to (\d+) per file", text, re.MULTILINE)
+    assert found, "docs/dev/STUDIO-PAGES.md has no Versions paragraph stating the per-file limit"
+    return int(found.group(1))
+
+
+class AssetRetention(unittest.TestCase):
+    """The default limit end to end: rewrite one image past it through the real hook and read what is kept."""
+
+    def setUp(self):
+        home = isolated_home(self)
+        _game, game = make_library_game(home, "Cat Field")
+        self.cover = game / "cover.png"
+
+    def rewrite(self, index):
+        """Version ``index``: a small PNG of its own and a modification time of ``1000 + index`` seconds."""
+        self.cover.write_bytes(PNG_A[:24] + index.to_bytes(2, "big"))
+        seconds = (1000 + index) * 10**9
+        os.utime(self.cover, ns=(seconds, seconds))
+        assets_versions.keep_inspected_images(tool_name="vision_analyze", args={"image_url": str(self.cover)})
+
+    def kept(self):
+        folder = assets_versions._versions_dir(self.cover.resolve())
+        files = sorted(folder.iterdir(), key=lambda item: int(item.stem))
+        return [int(item.stem) // 10**9 - 1000 for item in files], [
+            int.from_bytes(f.read_bytes()[24:], "big") for f in files
+        ]
+
+    def test_the_newest_documented_number_are_kept_and_the_oldest_dropped(self):
+        limit = documented_keep()
+        for index in range(limit):
+            self.rewrite(index)
+        self.assertEqual(self.kept(), (list(range(limit)), list(range(limit))), f"all {limit} versions up to the limit")
+        self.rewrite(limit)
+        newest = list(range(1, limit + 1))
+        self.assertEqual(
+            self.kept(),
+            (newest, newest),
+            f"one past the limit: version 0 dropped, 1 to {limit} kept (ASSET_KEEP_VERSIONS must match the docs)",
+        )
+        info = assets_rpcs.rpc_asset_info(None)({"path": str(self.cover)})
+        self.assertEqual([int(entry["id"]) // 10**9 - 1000 for entry in info["versions"]], newest)  # oldest first
+        self.assertEqual([entry["current"] for entry in info["versions"]], [False] * (limit - 1) + [True])
 
 
 if __name__ == "__main__":

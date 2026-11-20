@@ -42,7 +42,7 @@ means both.
 
 ### Games
 
-- **Shelf**: grid of the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
+- **Cartridge grid**: the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
 - Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control.
 - Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built.
 - Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder.
@@ -546,6 +546,33 @@ the tab bar and the tab's body, and the shell does not know the chosen tab, whic
 `ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
+
+Testing a tab: a scenario file `tests/page/page-<page>-<tab>.test.mjs` on the real harness (`tests/page/harness.mjs`),
+run alone with `node tests/page/page-<page>-<tab>.test.mjs` after `node tools/bundle/bundle.mjs` (`python tools/check.py
+page` runs it with every other `tests/page/**/*test*.mjs`). `tab('<Page>')` clicks the studio nav, `pageTab('<Label>')` the page's own tab bar.
+As written it opens Setup (which has no tabs yet), so it runs unchanged; for your tab, open its page and uncomment
+the `pageTab` line:
+
+```js
+import assert from 'node:assert/strict'
+
+import { runScenario } from './harness.mjs'
+
+await runScenario(async ({ scenario, render, tab, pageTab, currentTab, heading, shows, check, answered, doctor, complete }) => {
+  // A finished setup in emulator mode (the harness's buildScenario starts the same way), on Home.
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'home' }
+  scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
+  scenario.ambient = complete
+  await render()
+  await tab('Setup')            // the studio nav: the page that has your tab
+  // await pageTab('<Label>')   // then your tab, in the page's own tab bar (.cs-tabs)
+  check('Setup opens on its finished summary', () => {
+    assert.equal(currentTab(), 'Setup')
+    assert.equal(heading(), 'Setup is complete')
+    shows(/emulator only/)
+  })
+})
+```
 
 ### An event
 
