@@ -56,7 +56,7 @@ class Rpc(ScaffoldCase):
         self.assertIn("queryKey: [ID, 'rdprobe_card', game.id]", steps)  # round nine: one rule, as captures has it
         self.assertIn("callStudioOnly(RPC_RDPROBE_CARD, { game: game.id })", steps)  # history: its data folder
         self.assertIn(
-            "callStudioOnly (page/app/backend.js) for an RPC that reads a profile's Build conversations", steps
+            "callStudioOnly (page/app/backend.js) for an RPC that reads or binds a profile's Build conversations", steps
         )
         backend = (ROOT / "page/app/backend.js").read_text()  # the rule's source says the same
         self.assertIn(

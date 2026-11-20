@@ -196,8 +196,8 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
     steps = [
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
         f"call it from the page: import {{ {constant} }} from '#app/rpc.js' (re-exports the generated rpc-names.js)",
-        "callStudioOnly (page/app/backend.js) for an RPC that reads a profile's Build conversations or the plugin "
-        "data folder (host._data_dir(): history's snapshots, assets' versions): the hermretro profile only; "
+        "callStudioOnly (page/app/backend.js) for an RPC that reads or binds a profile's Build conversations or its "
+        "plugin data folder (snapshots, asset versions; host._data_dir()): the hermretro profile only; "
         "callStudio for the library (whichever profile answered status serves it)"
         + (f"; backend/{feature_name} reads that folder: use callStudioOnly" if only else ""),
         "callStudio and callStudioOnly resolve to the RPC's answer itself (data.ok, ...); callBackend resolves to "
@@ -210,8 +210,8 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
             "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
             f"run the query in the component that has the game (as page/pages/emulator/emulator-bar.js runs "
             f"captures): useQuery({{ queryKey: [ID, '{name}', game.id], queryFn: () => {call}({constant}, "
-            f"{{ game: game.id }}) }}) {imports}: the game's id in the key gives each game its own answer"
-            + ("" if only else "; with callStudio, shell.viaProfile goes after game.id (the answering profile)"),
+            f"{{ game: game.id }}) }}) {imports}: the game's id in the key gives each game its own answer (no "
+            "viaProfile there, as with captures and player; only the games list keys on it)",
         ]
     else:
         key = f"[ID, '{name}']" if only else f"[ID, '{name}', shell.viaProfile]"

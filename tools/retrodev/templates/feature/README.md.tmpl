@@ -20,4 +20,6 @@
 ## Adding here
 
 `python tools/retrodev new rpc {name} <rpc>`, `new tool {name} <tool>`, `new event {name} <event>` and
-`new listener {name} <feature>.<event>` write the code, its unit test, the docs and the registry lines. By hand: `docs/dev/ARCHITECTURE.md`, "Adding things".
+`new listener {name} <feature>.<event>` write the code, its unit test, the docs and the registry lines. For a tool
+about the selected game add `--project` (a `project` argument, the handler resolving it with `tool_project` from
+`backend/hermes/tool_args.py`, a test with a temp project and a missing one; `tools/retrodev/README.md`). By hand: `docs/dev/ARCHITECTURE.md`, "Adding things".

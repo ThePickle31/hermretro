@@ -333,7 +333,7 @@ nothing, so the registration snapshot stays
 `--game`: an RPC about one library game, `{ game }` -> `{ ok, game }` (the rule: a game's library id is `game`, as
 `builds`, `build_restore`, `build`, `assets` and the event payloads take it; the older `player`, `captures`,
 `game_thumb` and `capture_image` keep `id`), its next steps running the query in the component that has the game with
-`queryKey: [ID, '<name>', game.id]` (`shell.viaProfile` after it only with `callStudio`) and `{ game: game.id }`,
+`queryKey: [ID, '<name>', game.id]` (no `viaProfile`, with either call, as the `captures` and `player` queries) and `{ game: game.id }`,
 answering `NO_GAME` when `host._game_root(game)` finds none (as `builds` does), its test registering a game with
 `tests.support.make_library_game(home, name)`. `--module <module>` (e.g. `<name>_rpcs`) puts the handler factory in
 `backend/<feature>/<module>.py` (the README's RPCs line names it: ``RPCs (`rpcs.py`, `<module>.py`)``) and keeps in
@@ -349,8 +349,8 @@ what the handler uses), `tests/backend/<feature>/test_rpc_<name>.py` (its `setUp
 `tests/support.py`: `HERMRETRO_HOME` and the data folder in a temp folder, so it never reads the real library), a `###
 \`<name>\`` section in `docs/dev/CONTRACT.md`, the README line; then rebuilds `page/app/rpc-names.js` (`RPC_<NAME>`;
 the page imports it from `#app/rpc.js`, which re-exports it) and `tests/repo/registration.json`. Its next steps give
-one rule for the call: `callStudioOnly` (the hermretro profile only) for an RPC that reads a profile's Build
-conversations or the plugin data folder (`host._data_dir()`: history's snapshots, assets' versions; so always for an
+one rule for the call: `callStudioOnly` (the hermretro profile only) for an RPC that reads or binds a profile's Build
+conversations or its plugin data folder (snapshots, asset versions; `host._data_dir()`; so always for an
 RPC in history or assets), `callStudio` for the library, `callBackend` resolving to `{ data }`; the page's `useQuery`
 (`queryKey: [ID, '<name>', shell.viaProfile]` in the page's own Page component with `callStudio`, without viaProfile
 with `callStudioOnly`; for `--game`, in the component that has the game, as above), whose second word the page tests
