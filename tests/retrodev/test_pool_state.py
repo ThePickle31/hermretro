@@ -72,11 +72,14 @@ class PoolCheck(unittest.TestCase):
         def test_clean(self):
             pass
 
-    def run_pooled(self, name: str) -> unittest.TestResult:
+    def run_pooled(self, name: str, as_class: bool = False) -> unittest.TestResult:
+        """One Leaky test on the pool: by itself (a parallel module's item), or inside an ordinary class suite (how
+        one_pool hands it a class of a module without load_tests = parallel)."""
         result = unittest.TestResult()
         cwd, path = os.getcwd(), list(sys.path)
+        item = unittest.TestSuite([self.Leaky(name), self.Leaky("test_clean")]) if as_class else self.Leaky(name)
         try:
-            ParallelSuite([self.Leaky(name)]).run(result)
+            ParallelSuite([item]).run(result)
         finally:
             os.chdir(cwd)
             sys.path[:] = path
@@ -88,16 +91,21 @@ class PoolCheck(unittest.TestCase):
             ("test_cwd", "working folder"),
             ("test_sys_path", "sys.path"),
         ):
-            result = self.run_pooled(name)
-            self.assertEqual(len(result.errors), 1, name)
-            text = str(result.errors[0][0]) + result.errors[0][1]
-            self.assertIn(__name__, text, name)
-            self.assertIn(what, text, name)
+            for as_class in (False, True):  # review 2, 1: a class suite drops its tests as it runs them
+                with self.subTest(name=name, as_class=as_class):
+                    result = self.run_pooled(name, as_class)
+                    self.assertEqual(len(result.errors), 1, name)
+                    text = str(result.errors[0][0]) + result.errors[0][1]
+                    self.assertIn(__name__, text, name)
+                    self.assertNotIn("a pooled module", text, name)
+                    self.assertIn(what, text, name)
         self.assertNotIn("RETRODEV_POOL_STATE_PROBE", os.environ)
 
     def test_a_clean_test_passes(self):
         result = self.run_pooled("test_clean")
         self.assertEqual((result.errors, result.failures, result.testsRun), ([], [], 1))
+        result = self.run_pooled("test_clean", as_class=True)
+        self.assertEqual((result.errors, result.failures, result.testsRun), ([], [], 2))
 
 
 if __name__ == "__main__":

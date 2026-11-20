@@ -12,9 +12,12 @@ during a test (a function body, or a decorator on a test) may:
 
 - patch a module attribute: ``mock.patch("pkg.mod.name")``, ``mock.patch.object(<imported name>, ...)``,
   ``mock.patch.dict(<imported name>.x)`` (os.environ, sys.modules), ``setattr(<imported name>, ...)`` or
-  ``<imported name>.x = ...`` (sys.stdout, sys.stderr and sys.path included);
+  ``<imported name>.x = ...`` (sys.stdout, sys.stderr and sys.path included); a patch's target counts whether it
+  is the first argument or the keyword (target=, in_dict= for patch.dict), whatever name mock or patch is imported
+  under, and whether the patch is a context manager, a decorator or started with .start();
 - redirect sys.stdout or sys.stderr (contextlib.redirect_stdout/redirect_stderr);
-- write os.environ (item assignment, del, update/pop/setdefault/clear, os.putenv, os.unsetenv);
+- write os.environ (item assignment, del, update/pop/setdefault/clear, os.putenv, os.unsetenv; also through
+  ``from os import environ``, as sys.path below through ``from sys import path``);
 - change the working folder (os.chdir, contextlib.chdir);
 - change sys.path (insert/append/extend/remove/pop/clear, item assignment);
 - call isolated_home (it moves the environment and the host's data folder) or the event dispatcher's own table
@@ -51,56 +54,83 @@ def _root(node: ast.AST) -> str | None:
     return node.id if isinstance(node, ast.Name) else None
 
 
-def _imported(tree: ast.Module) -> set[str]:
-    """Every name an import binds anywhere in the module: modules, and whatever `from x import y` brings in."""
-    names = set()
+def _imported(tree: ast.Module) -> dict[str, str]:
+    """Every name an import binds anywhere in the module, with the dotted name it stands for: `import os as o` binds
+    o to os, `from unittest import mock as m` m to unittest.mock, `from os import environ` environ to os.environ."""
+    names = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names |= {alias.asname or alias.name.split(".")[0] for alias in node.names}
+            for alias in node.names:
+                names[alias.asname or alias.name.split(".")[0]] = (
+                    alias.name if alias.asname else alias.name.split(".")[0]
+                )
         elif isinstance(node, ast.ImportFrom):
-            names |= {alias.asname or alias.name for alias in node.names}
+            prefix = "." * node.level + (node.module or "")
+            for alias in node.names:
+                names[alias.asname or alias.name] = f"{prefix}.{alias.name}" if node.module else prefix + alias.name
     return names
 
 
-def _patch_kind(func: ast.AST) -> str | None:
-    text = ast.unparse(func)
+def _qualified(node: ast.AST, imported: dict[str, str]) -> str:
+    """A dotted expression with the import its first name stands for spelled out (m.patch -> unittest.mock.patch)."""
+    text, base = ast.unparse(node), node
+    while isinstance(base, ast.Attribute):
+        base = base.value
+    if isinstance(base, ast.Name) and base.id in imported:
+        return imported[base.id] + text[len(base.id) :]
+    return text
+
+
+def _patch_kind(func: ast.AST, imported: dict[str, str]) -> str | None:
+    text = _qualified(func, imported)
     for prefix in ("unittest.mock.", "mock."):
         if text.startswith(prefix):
             text = text[len(prefix) :]
     return text if text in PATCHES else None
 
 
-def _call_problem(call: ast.Call, imported: set[str]) -> str | None:
+def _patch_target(call: ast.Call, kind: str) -> ast.AST | None:
+    """What a patch call changes: its first argument, or the keyword that names it (in_dict= for patch.dict, target=
+    for the others); None for a patch given neither."""
+    if call.args:
+        return call.args[0]
+    key = "in_dict" if kind == "patch.dict" else "target"
+    return next((keyword.value for keyword in call.keywords if keyword.arg == key), None)
+
+
+def _call_problem(call: ast.Call, imported: dict[str, str]) -> str | None:
     func, text = call.func, ast.unparse(call.func)
     name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
+    full = _qualified(func, imported)
     first = call.args[0] if call.args else None
-    kind = _patch_kind(func)
-    if kind == "patch" and first is not None:
-        return f"{text}({ast.unparse(first)}) patches a module attribute"
-    if kind and first is not None and (isinstance(first, ast.Constant) or _root(first) in imported):
-        return f"{text}({ast.unparse(first)}, ...) patches state every thread shares"
+    kind = _patch_kind(func, imported)
+    target = _patch_target(call, kind) if kind else None
+    if kind == "patch" and target is not None:
+        return f"{text}({ast.unparse(target)}) patches a module attribute"
+    if kind and target is not None and (isinstance(target, ast.Constant) or _root(target) in imported):
+        return f"{text}({ast.unparse(target)}, ...) patches state every thread shares"
     if name == "setattr" and first is not None and _root(first) in imported:
         return f"setattr({ast.unparse(first)}, ...) changes a module attribute"
     if name in REDIRECTS:
         return f"{text}(...) redirects a stream every thread writes to"
-    if text in ("os.chdir", "contextlib.chdir") or (name == "chdir" and text == "chdir" and "chdir" in imported):
+    if full in ("os.chdir", "contextlib.chdir"):
         return f"{text}(...) changes the working folder of every thread"
-    if text in ("os.putenv", "os.unsetenv"):
+    if full in ("os.putenv", "os.unsetenv"):
         return f"{text}(...) writes the process environment"
+    if full.endswith(("events.on", "events.emit")) and (full.startswith("events.") or _root(func) in imported):
+        return f"{text}(...) uses the event dispatcher's process-wide table"
     if isinstance(func, ast.Attribute):
-        owner = ast.unparse(func.value)
+        owner = _qualified(func.value, imported)
         if owner == "os.environ" and name in ENVIRON_WRITES:
             return f"{text}(...) writes the process environment"
         if owner == "sys.path" and name in PATH_WRITES:
             return f"{text}(...) changes sys.path"
-        if owner == "events" and name in ("on", "emit"):
-            return f"{text}(...) uses the event dispatcher's process-wide table"
     if name == "isolated_home":
         return "isolated_home(...) moves the environment and the host's data folder"
     return None
 
 
-def _target_problem(target: ast.AST, imported: set[str], verb: str) -> str | None:
+def _target_problem(target: ast.AST, imported: dict[str, str], verb: str) -> str | None:
     if isinstance(target, (ast.Tuple, ast.List)):
         return next((p for p in (_target_problem(t, imported, verb) for t in target.elts) if p), None)
     if isinstance(target, (ast.Attribute, ast.Subscript)) and _root(target) in imported:
@@ -108,7 +138,7 @@ def _target_problem(target: ast.AST, imported: set[str], verb: str) -> str | Non
     return None
 
 
-def _node_problem(node: ast.AST, imported: set[str]) -> str | None:
+def _node_problem(node: ast.AST, imported: dict[str, str]) -> str | None:
     if isinstance(node, ast.Call):
         return _call_problem(node, imported)
     if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
@@ -215,8 +245,30 @@ PLANTED = {
     "cli.X = 1": "setting cli.X",
     "isolated_home(self)": "isolated_home(...)",
     "events.emit('x')": "events.emit(...)",
+    # review 2, 0: the target given by keyword, an aliased mock or patch, .start(), names imported from os and sys
+    "mock.patch(target='platform.system', return_value='Darwin')": "mock.patch('platform.system') patches",
+    "mock.patch.object(target=cli, attribute='run')": "mock.patch.object(cli, ...)",
+    "mock.patch.dict(in_dict=os.environ, values={'A': '1'})": "mock.patch.dict(os.environ, ...)",
+    "patch.dict(in_dict='os.environ', values={'A': '1'})": "patch.dict('os.environ', ...)",
+    "mock.patch.multiple(target=cli, run=None)": "mock.patch.multiple(cli, ...)",
+    "mock.patch(target='retrodev.cli.run').start()": "mock.patch('retrodev.cli.run') patches",
+    "um.patch('retrodev.cli.run')": "um.patch('retrodev.cli.run') patches",
+    "um.patch.object(target=cli, attribute='run')": "um.patch.object(cli, ...)",
+    "mk.patch.dict(os.environ)": "mk.patch.dict(os.environ, ...)",
+    "p(target='retrodev.cli.run')": "p('retrodev.cli.run') patches",
+    "p.object(cli, 'run')": "p.object(cli, ...)",
+    "environ['A'] = '1'": "setting environ['A']",
+    "environ.update(A='1')": "environ.update(...)",
+    "putenv('A', '1')": "putenv(...)",
+    "path.insert(0, 'x')": "path.insert(...)",
+    "events.on('x', print)": "events.on(...)",
 }
-HEADER = "import contextlib, io, os, sys\nfrom unittest import mock\nfrom unittest.mock import patch\nfrom retrodev import cli\n"
+HEADER = (
+    "import contextlib, io, os, sys\nfrom unittest import mock\nfrom unittest.mock import patch\nfrom retrodev import cli\n"
+    "import unittest.mock as um\nfrom unittest import mock as mk\nfrom unittest.mock import patch as p\n"
+    "from os import environ, putenv\nfrom sys import path\nfrom backend.system import events\n"
+)
+LINE = HEADER.count("\n") + 3  # the line of the planted code: the header, `class T:`, `def test(self):`
 
 
 class Rules(unittest.TestCase):
@@ -227,13 +279,30 @@ class Rules(unittest.TestCase):
             with self.subTest(code=code):
                 source = HEADER + f"class T:\n    def test(self):\n        {code}\n"
                 self.assertEqual(len(found := problems(source, "tests/x.py")), 1, found)
-                self.assertTrue(found[0].startswith("tests/x.py:7: "), found)
+                self.assertTrue(found[0].startswith(f"tests/x.py:{LINE}: "), found)
                 self.assertIn(words, found[0])
 
     def test_a_decorator_on_a_test_counts(self):
         source = HEADER + "class T:\n    @mock.patch.object(cli, 'run')\n    def test(self, run):\n        pass\n"
         found = problems(source, "tests/x.py")
-        self.assertEqual(found, ["tests/x.py:6: mock.patch.object(cli, ...) patches state every thread shares"])
+        self.assertEqual(
+            found, [f"tests/x.py:{LINE - 1}: mock.patch.object(cli, ...) patches state every thread shares"]
+        )
+
+    def test_a_keyword_target_in_a_decorator_counts_on_a_test_and_on_a_class(self):  # review 2, 0
+        for decorator, words in (
+            ("@mock.patch(target='platform.system', return_value='Darwin')", "mock.patch('platform.system') patches"),
+            ("@um.patch.object(target=cli, attribute='run')", "um.patch.object(cli, ...)"),
+            ("@p.dict(in_dict=os.environ, values={'A': '1'})", "p.dict(os.environ, ...)"),
+        ):
+            with self.subTest(decorator=decorator):
+                on_test = HEADER + f"class T:\n    {decorator}\n    def test(self, *mocks):\n        pass\n"
+                on_class = HEADER + f"{decorator}\nclass T:\n    def test(self, *mocks):\n        pass\n"
+                for source, line in ((on_test, LINE - 1), (on_class, LINE - 2)):
+                    found = problems(source, "tests/x.py")
+                    self.assertEqual(len(found), 1, found)
+                    self.assertTrue(found[0].startswith(f"tests/x.py:{line}: "), found)
+                    self.assertIn(words, found[0])
 
     def test_objects_the_test_owns_and_import_time_code_pass(self):
         source = HEADER + (
@@ -242,6 +311,9 @@ class Rules(unittest.TestCase):
             "        mock.patch.dict(box, {'a': 1}).start()\n        mock.patch.object(self.stub, 'x').start()\n"
             "        self.out = io.StringIO()\n        env = dict(os.environ)\n        env['A'] = '1'\n"
             "        fake = object()\n        mock.patch.object(fake, 'x')\n"
+            "        mock.patch.object(target=self.stub, attribute='x').start()\n        mock.patch.dict(in_dict=box)\n"
+            "        um.patch.object(target=fake, attribute='x')\n        self.events.emit('x')\n"
+            "        mock.patch(new=1)\n"
         )
         self.assertEqual(problems(source, "tests/x.py"), [])
 

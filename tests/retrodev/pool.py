@@ -62,11 +62,11 @@ class ParallelSuite(unittest.TestSuite):
 
         def one(test):
             recorded = _Recorded()
+            module = _module(test)  # now: a TestSuite drops each test it has run, so afterwards it holds none
             before = _process_state()
             test(recorded)
             changed = _changed(before, _process_state())
             if changed:
-                module = _module(test)
                 try:
                     raise AssertionError(
                         f"{module} (or a module on another thread meanwhile) changed process-wide state the pool's "
@@ -111,8 +111,8 @@ def _changed(before: tuple, after: tuple) -> list[str]:
 
 
 def _module(test) -> str:
-    while isinstance(test, unittest.BaseTestSuite):
-        test = next(iter(test), None)
+    """The module of a pooled item (a test, or the first test of a class suite); read it before the item runs."""
+    test = next(_flatten(test), None) if isinstance(test, unittest.BaseTestSuite) else test
     return type(test).__module__ if test is not None else "a pooled module"
 
 
