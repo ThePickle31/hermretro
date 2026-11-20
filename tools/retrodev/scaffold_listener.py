@@ -268,7 +268,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         plan.notes.append(
             f"no front door declares {event} yet: the real run refuses until it exists (python tools/retrodev new "
             f"event {event.partition('.')[0]} {event.partition('.')[2]} first); this dry run shows the files it "
-            "would write for it"
+            "would write for it in a generic form (**_payload for the payload, no CONTRACT 'Heard by' row): not the "
+            "final payload or row; once the event exists, --dry-run again shows the exact ones"
         )
         declared = {**declared, event: ""}
     if not EVENT.match(event or "") or event not in declared:
@@ -334,7 +335,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
         "assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.host."
-        'logger, "INFO"):` (listeners.py imports host: from ..hermes import host)',
+        'logger, "<LEVEL>"):`, the level the listener logs at ("INFO" for host.logger.info, "WARNING" for '
+        ".warning; listeners.py imports host: from ..hermes import host)",
         f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
     entry = declared[event] or ""

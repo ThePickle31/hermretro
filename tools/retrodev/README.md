@@ -10,8 +10,8 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 
 1. `python tools/retrodev plan new <topic>`, then fill in `notes/plans/<topic>.md` (its `Title:` line too: one plain sentence, at most 100 characters, no trailing period)
 2. `python tools/retrodev plan approve <topic> --words "<the owner's exact words>"`
-3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`, never your local `dev`; `RETRODEV_AGENT` so the body's `Made by` line names the agent from the start; it writes the pull request body `notes/pr/<topic>.md`, from the plan or, with `--no-plan`, the template), then `cd` into the worktree it prints: `<worktree_root>/<topic>`, by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it)
-4. `python tools/retrodev new <kind> ...` for each piece (`--dry-run` lists its files first, also from `dev`), then edit; an RPC in a feature whose `rpcs.py` is near the size limit (over 350 lines: `tools/layout.toml` `[size]` `warn` less 50; library's today) takes `--module <name>_rpcs`, so its handler gets its own module; an RPC about one game takes `--game` (a `game` param, its library id, answered with `NO_GAME` unless the library has it)
+3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`), then enter its printed worktree: by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it).
+4. `python tools/retrodev new <kind> ...` (`--dry-run` previews it, even on `dev`); use `--no-check` on intermediate scaffolds and run step 6 on the finished tree. An RPC in an `rpcs.py` over 350 lines takes `--module <name>_rpcs`; an RPC about one game takes `--game` (a `game` param with the library id; `NO_GAME` if unknown).
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
 6. `python tools/retrodev check`
 7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
@@ -22,8 +22,8 @@ before `start` or `takeover`, which record it for the branch: a later `plan appr
 names that agent even without the variable (`takeover`'s printed `plan approve` step carries it too); or edit the
 line; `start` says so when it is unset.
 
-`notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
-worktree, and every next step names them by their full path.
+`notes/` is in the main checkout, shared by every worktree. `start` writes the pull request body from the plan or,
+with `--no-plan`, the template. Next steps name the plan and body by full path.
 
 ### Add a plugin tool
 
@@ -54,10 +54,13 @@ Then steps 5 to 8 of the Quick path.
 
 ### Split a long module
 
-1. Move the code to `<feature>/<new>.py`. In the old module re-export each moved public name as
-   `from .<new> import X as X`: ruff accepts that as a re-export, while a plain unused import is deleted by `fix`.
+1. Move the code to `<feature>/<new>.py`. Put shared dependencies (an error class, a lock) in that module or
+   a small sibling helper: the new module must not import back from the old one. In the old module re-export
+   each moved public name as `from .<new> import X as X`: ruff keeps that, but `fix` deletes a plain unused import.
 2. Tests that use a moved private name (`_x`) import the new module and patch names there.
-3. `git grep -n <old path>` in `tests/retrodev` (trial tests read file text), `docs/` and the feature README.
+3. Search the old module name and path with `git grep -n` across `backend/`, `tests/`, `tools/retrodev/` and `docs/`.
+   Check sibling docstrings and comments, the feature README and `tests/retrodev` (trial tests read file text).
+   Keep references to the public API that still go through the old module.
 4. Aim every resulting module under the 400-line warning, then `python tools/check.py fix`, commit and `python
    tools/retrodev check`.
 

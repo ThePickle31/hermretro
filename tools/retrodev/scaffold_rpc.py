@@ -16,8 +16,10 @@ import textwrap
 import tomllib
 from pathlib import Path
 
+from . import scaffold_page_tests as page_tests
 from .output import Failure
 from .scaffold import SNAKE, Plan, check_name, render
+from .scaffold_readme import DESIGN_DOC, own_sections
 from .scaffold_source import MODULE_TAKEN, bindings, check_front_door_name, imports_sibling, module_names
 
 RPCS = "backend/{feature}/rpcs.py"
@@ -184,6 +186,7 @@ def big_note(plan: Plan, feature_name: str, name: str) -> None:
 
 
 CONTRACT = "docs/dev/CONTRACT.md"
+GAME_OBJECT = "The game object"  # CONTRACT.md's section on one entry of the games RPC's games[]
 PAGE_RPCS = "## Studio pages (desktop) and their RPCs"  # its table lists RPCs the pages call
 # Features whose RPCs usually read the hermretro profile's plugin data folder (host._data_dir()) or its Build chats:
 # the suggested page code calls them with callStudioOnly (page/app/backend.js). The rule is what the handler reads,
@@ -226,7 +229,12 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
     if game:
         steps += [
             "check what the `games` RPC already returns about a game (rom, state, web, ...) before adding a per-game "
-            "query (its row in docs/dev/CONTRACT.md; backend/library/rpcs.py): the page may have it already",
+            + (
+                f"query: {CONTRACT} '{GAME_OBJECT}' lists each field, the game card's (`card`: title, tagline, controls, "
+                "complete, ...) too (backend/library/rpcs.py): the page may have it already"
+                if f"\n## {GAME_OBJECT}\n" in page_tests.read(plan, CONTRACT)
+                else "query (its row in docs/dev/CONTRACT.md; backend/library/rpcs.py): the page may have it already"
+            ),
             "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
             "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
             f"run the query in the component that has the game (as page/pages/emulator/emulator-bar.js runs "
@@ -257,7 +265,8 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
         "a page that reads a new shell field adds it to its fixture in tests/page/shells.mjs (homeShell())",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
         "if a page shows it, describe it in that page's README **Shows:** line and as a bullet in its `### <Page>` "
-        "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
+        "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)"
+        + own_sections(page_tests.read(plan, DESIGN_DOC)),
     ]
     listed = page_rpcs(plan.read(CONTRACT) if plan.exists(CONTRACT) else "")
     if listed and not rowed:
