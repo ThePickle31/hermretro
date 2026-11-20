@@ -57,9 +57,9 @@ def refuse_uncommitted_installs(ctx, todo: list[str], wanted: dict[str, str]) ->
         )
 
 
-def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for_commit: bool = False) -> int:
+def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for_commit: bool = False, env=None) -> int:
     """``wait_for_commit`` (check --watch): run the other checks on uncommitted changes and skip the install
-    checks until a commit, instead of refusing up front."""
+    checks until a commit, instead of refusing up front. ``env``: variables added to the checks' processes only."""
     branch = repo.branch(ctx.top) or "detached"
     record = state.load_branch(ctx.top, branch) if branch != "detached" else {"branch": branch, "checks": {}}
     record.setdefault("checks", {})
@@ -91,10 +91,10 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         refuse_uncommitted_installs(ctx, todo, wanted)
     started = time.monotonic()
     fast = [name for name in todo if name in CHECK_PY and name != "acceptance"]
-    results = run_check_py(ctx, fast, env_for("fast"), record, ids) if fast else {}
+    results = run_check_py(ctx, fast, env_for("fast", env), record, ids) if fast else {}
     wall = time.monotonic() - started
     if "acceptance" in todo:
-        results |= run_check_py(ctx, ["acceptance"], env_for("acceptance"))
+        results |= run_check_py(ctx, ["acceptance"], env_for("acceptance", env))
     # The install checks install the committed HEAD: they run only when it is exactly the tree being checked, and
     # their pass is recorded against HEAD's own files (with uncommitted changes they would test other code).
     installs = [name for name in todo if name in SCRIPTS]
@@ -106,7 +106,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
             results[name] = {"state": "skipped", "seconds": 0.0, "detail": detail, "more": []}
             ctx.out.say(_row_text("skipped", name, 0.0, detail))
         elif name in SCRIPTS:
-            results[name] = run_script(ctx, name, env_for(name))
+            results[name] = run_script(ctx, name, env_for(name, env))
             digests[name] = repo.digest(committed, ctx.policy["checks"]["inputs"][name])
     for name in todo:
         result = results[name]
