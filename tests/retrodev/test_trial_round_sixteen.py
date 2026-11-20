@@ -224,8 +224,8 @@ class NewSteps(RealFiles):
         self.real("backend/features.py", "backend/library/*.py", "backend/library/README.md")
         said = " ".join(self.new("tool", "library", "rdprobe_card", "--project")["next"])
         self.assertIn(
-            "the chat's or given project: tool_project (as the stub does); use host.library_game_for only when the "
-            "tool needs the game's library id or entry",
+            "the selected game is this chat's project (or the `project` argument): tool_project, as the stub does; "
+            "call host.library_game_for([root])",
             said,
         )
         self.assertIn(

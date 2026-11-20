@@ -93,7 +93,10 @@ acceptance = ["backend/*.md"]
 # Only passing runs count. A check over its budget twice in a row on the branch is named in a warning that it was
 # slower than usual (never a failure: machines and load differ).
 fast_total = 60
-unit = 45
+# unit: 1105 tests ran 26.4-27.7 s on an idle machine (round 17, alone or with the other fast checks) but 47-58 s
+# twice in a row while several agents checked at once (about double, as AGENTS.md says): 60 is that loaded run's
+# median (about 52 s) plus ~15%, about 2.2x the idle median, so only a real slowdown warns.
+unit = 60
 lint = 15
 scan = 30
 scaffold = 58           # retrodev new on a copy of the tree: the idle measure (48.3 s) plus 20%

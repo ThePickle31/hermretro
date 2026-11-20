@@ -18,8 +18,9 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 
 `RETRODEV_AGENT=<agent, model>` names the agent in the body's `Made by` line (default Hermes); set it per command
-before `start` writes the body (step 3), or before `plan approve` writes it for a branch taken over with `takeover`
-(whose printed `plan approve` step carries it), or edit the line; `start` says so when it is unset.
+before `start` or `takeover`, which record it for the branch: a later `plan approve` or `ship` that writes the body
+names that agent even without the variable (`takeover`'s printed `plan approve` step carries it too); or edit the
+line; `start` says so when it is unset.
 
 `notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
 worktree, and every next step names them by their full path.
@@ -42,6 +43,14 @@ You edit three files, each named in its next steps:
    the agent calls it` after `chromatic_probe` with exactly that.
 
 Then steps 5 to 8 of the Quick path.
+
+### Rename or move a module
+
+1. `git grep -n <old>` (the old module name and its path) across `backend/`, `tests/` (the `tests/retrodev` trial
+   tests pin paths too), `tools/retrodev/` (the scaffolds' hint strings) and `docs/`; change every hit.
+2. First rename any local variable the new module name would shadow (`games = ...` beside `from . import games`).
+3. `git mv` the file, then `python tools/check.py fix` (import order, formatting), commit and `python tools/retrodev
+   check`.
 
 ## The flow, from plan to merge
 

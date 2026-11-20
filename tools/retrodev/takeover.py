@@ -83,6 +83,9 @@ def run(ctx, branch: str, setup: bool = True) -> int:
         start_sha=repo.head(path),
         taken_over=remote,
     )
+    agent = gates.agent_name(gates.environment(ctx))
+    if agent:  # the plan approve it prints is a new process, maybe without the variable: it reads this
+        record["agent"] = agent
     state.save_branch(main, record)
     plan.remember(ctx, branch, record)  # a plan its topic names keeps it after land or gc forgets this record
     named = gates.plan_for(ctx, branch, record)
@@ -136,7 +139,8 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
                 f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
                 "does and what is left)"
             )
-        agent = gates.agent_prefix()  # the body plan approve writes names the agent in its Made by line
+        # the body plan approve writes names the agent in its Made by line (the recorded one, printed here too)
+        agent = gates.agent_prefix(gates.environment(ctx), record)
         steps.append(
             f"show the owner {plan.plan_file(ctx, named)}; when they say start: {agent}python tools/retrodev plan "
             f'approve {named} --words "<their exact words>" (it also writes the pull request body {body})'

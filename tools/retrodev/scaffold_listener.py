@@ -324,7 +324,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
-        "assert what it changed",
+        "assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.host."
+        'logger, "INFO"):` (listeners.py imports host: from ..hermes import host)',
         f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
     entry = declared[event] or ""
