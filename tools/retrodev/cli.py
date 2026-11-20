@@ -6,8 +6,8 @@
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
   build: new feature|rpc|tool|event|listener|page|tab|slot|contribution (code, tests, docs, registry line); stats;
   engine update <v>
-  releases, only when the owner says 'make a release': release run (prepare, approve, land, publish up to the
-  draft), or each step: release prepare, release publish, release verify
+  releases, only when the owner says 'make a release': release run (prepare, approve, land, publish, then dev
+  moves to the next version), or each step: release prepare, release publish, release verify, release next
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
 --json prints one JSON object instead of text. Read tools/retrodev/README.md for the whole flow.
@@ -33,6 +33,7 @@ from . import (
     preview,
     release,
     release_publish,
+    release_next,
     release_run,
     release_verify,
     report,
@@ -141,7 +142,7 @@ def parser() -> argparse.ArgumentParser:
     )
     add("status", "where this change stands, and the next step")
     add("stats", "landed pull requests, review rounds and findings, ship to merge, check times, friction")
-    releases(sub, common)
+    release.parser(sub, common)
     scaffolds(sub, common)
     p = add("engine", "the vendored engine (owner-gated): update <version> walks docs/dev/ENGINE-UPDATE.md")
     engine = p.add_subparsers(dest="action", required=True, metavar="<action>")
@@ -168,35 +169,6 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
     return top
-
-
-def releases(sub, common) -> None:
-    help_text = (
-        "releases, only when the owner says 'make a release': run (up to the draft), or prepare, publish, verify"
-    )
-    p = sub.add_parser("release", help=help_text, description=help_text, parents=[common])
-    steps = p.add_subparsers(dest="action", required=True, metavar="<action>")
-    run = steps.add_parser(
-        "run",
-        help="prepare, approve and land the version pull request, publish the draft; never publishes it",
-        parents=[common],
-    )
-    run.add_argument(
-        "--owner-words", help="the owner's exact words asking for the release (also approve its pull request)"
-    )
-    run.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
-    run.add_argument("--version", help="the version the owner named (default: the next patch, or the one started)")
-    run.add_argument("--dry-run", action="store_true", help="print what is done and what it would run; change nothing")
-    prepare = steps.add_parser("prepare", help="the chore/release-X.Y.Z pull request", parents=[common])
-    prepare.add_argument("--owner-words", help="the owner's exact words asking for the release")
-    prepare.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
-    prepare.add_argument("--version", help="the version the owner named (default: the next patch)")
-    publish = steps.add_parser("publish", help="main, the tag and the draft release, after the gates", parents=[common])
-    publish.add_argument("version")
-    publish.add_argument("--dry-run", action="store_true", help="print the gates and every command; change nothing")
-    verify = steps.add_parser("verify", help="read the draft, check it, then (--publish) publish", parents=[common])
-    verify.add_argument("version")
-    verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")
 
 
 def scaffolds(sub, common) -> None:
@@ -322,7 +294,11 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
         return stats.run(ctx)
     if command == "release":
         if args.action == "run":
-            return release_run.run(ctx, args.owner_words, rc=args.rc, named=args.version, dry_run=args.dry_run)
+            return release_run.run(
+                ctx, args.owner_words, rc=args.rc, named=args.version, dry_run=args.dry_run, draft=args.draft
+            )
+        if args.action == "next":
+            return release_next.run(ctx, args.owner_words, dry_run=args.dry_run)
         if args.action == "prepare":
             return release.prepare(ctx, args.owner_words, rc=args.rc, named=args.version)
         if args.action == "publish":

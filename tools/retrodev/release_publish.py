@@ -5,8 +5,8 @@ request is merged (the merge commit is the release commit; only when prepare rec
 base branch's head; an interrupted prepare's pull request is found by its branch, else refused); that commit is
 on the base branch, its plugin.yaml says the version, and the required CI job ("All checks pass") is green on that
 exact commit (gh api .../commits/<sha>/check-runs); for a stable release main can fast-forward to it. Then
-`tools/ci/clean_install_check.py --update-from` runs on that commit in a throwaway checkout (its pass is kept for
-that commit). Then, each step skipped when it is done already (so a stopped publish resumes):
+`tools/ci/clean_install_check.py --update-from v<previous stable>` runs on that commit in a throwaway checkout (its
+pass is kept for that commit and starting release, so release verify does not run it again). Then, each step skipped when it is done already (so a stopped publish resumes):
 
     git push <remote> <sha>:<main>         a fast-forward only (never forced); HERMES_RELEASE=1 for this push only,
                                            which the local guard hooks require
@@ -171,16 +171,37 @@ def shown(step: dict) -> str:
     return (env + " " if env else "") + cmd(*step["run"])
 
 
-def install_gate(ctx, rec: dict, sha: str, dry_run: bool) -> Gate:
+def update_from(ctx, version: str) -> str | None:
+    """The release users update from: the newest stable tag before ``version`` (v-prefixed), or None."""
+    previous = release.previous_stable(ctx, version)
+    return f"v{previous}" if previous else None
+
+
+def kept_install(rec: dict, sha: str, start: str | None) -> dict | None:
+    """An update check that passed on this commit from this starting release (publish's, for verify)."""
+    found = (rec.get("install") or {}).get(sha)
+    return found if found and found.get("ok") and found.get("from", "") == (start or "") else None
+
+
+def install_check(ctx, rec: dict, sha: str, start: str | None) -> dict:
+    """tools/ci/clean_install_check.py --update-from <start> on ``sha``; the result kept in the record, keyed by
+    commit and starting release (a later failure replaces an earlier pass)."""
+    result = trial.install_check(ctx, sha, start)
+    entry = {"ok": result["ok"], "at": state.now(), "detail": result["detail"], "from": start or ""}
+    rec.setdefault("install", {})[sha] = entry
+    state.save_release(ctx.top, rec)
+    return result
+
+
+def install_gate(ctx, rec: dict, sha: str, dry_run: bool, version: str) -> Gate:
     name = "clean install and update check"
-    cached = (rec.get("install") or {}).get(sha)
-    if cached and cached.get("ok"):
-        return gates.passed(name, f"passed at {cached.get('at')} (on this commit)")
+    start = update_from(ctx, version)
+    cached = kept_install(rec, sha, start)
+    if cached:
+        return gates.passed(name, f"passed at {cached.get('at')} (on this commit, from {start or 'nothing'})")
     if dry_run:
         return gates.passed(name, "would run tools/ci/clean_install_check.py --update-from on this commit")
-    result = trial.install_check(ctx, sha, None)
-    rec.setdefault("install", {})[sha] = {"ok": result["ok"], "at": state.now(), "detail": result["detail"]}
-    state.save_release(ctx.top, rec)
+    result = install_check(ctx, rec, sha, start)
     if not result["ok"]:
         return Gate(name, False, result["detail"], "read the update check's FIX above; fix it on dev, then again")
     return gates.passed(name, result["detail"])
@@ -233,7 +254,7 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
         found.append(gate)
     gates.enforce(ctx, found, f"release publish {version}")
     assert sha and rec
-    gates.enforce(ctx, found + [install_gate(ctx, rec, sha, dry_run)], f"release publish {version}")
+    gates.enforce(ctx, found + [install_gate(ctx, rec, sha, dry_run, version)], f"release publish {version}")
     todo = steps(ctx, version, sha, rc, tag_now)
     ctx.out.set(version=version, sha=sha, rc=rc, dry_run=dry_run, commands=[shown(s) for s in todo])
     if not dry_run:  # release verify --publish publishes only a tag at this commit

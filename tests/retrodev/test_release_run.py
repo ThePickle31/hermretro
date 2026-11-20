@@ -20,6 +20,8 @@ BRANCH = f"chore/release-{NEXT}"
 GREEN = [{"name": "All checks pass", "state": "SUCCESS", "bucket": "pass", "link": ""}]
 RED = [{"name": "All checks pass", "state": "FAILURE", "bucket": "fail", "link": "https://x/actions/runs/7/job/1"}]
 RESUME = f"python tools/retrodev release run --version {NEXT} --owner-words 'make a release'"
+RESUME_DRAFT = RESUME + " --draft"
+NEXT_BRANCH = "chore/release-0.0.3"  # release next's pull request (test_release_next)
 
 
 class RunCase(ReleaseCase):
@@ -36,6 +38,8 @@ class RunCase(ReleaseCase):
         self.gh.answers[("pr", "merge", PR)] = (0, "", "")
         self.gh.effects[("pr", "merge", PR)] = self.squash
         self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(GREEN), "")
+        self.on_dev("docs/feature.md", "# A feature\n", "A feature for users")  # something to release
+        git(self.main, "fetch", "-q", "origin")
 
     def tick(self, seconds: float) -> None:
         self.clock[0] += seconds
@@ -97,8 +101,8 @@ class RunCase(ReleaseCase):
 
 
 class Flow(RunCase):
-    def test_one_command_takes_the_owners_words_to_the_draft_in_order_and_never_publishes(self):
-        code, data = self.release_run()
+    def test_with_draft_one_command_takes_the_owners_words_to_the_draft_in_order_and_never_publishes(self):
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 0, data)
         self.assertEqual([s["step"] for s in data["run_steps"]], ["prepare", "approve", "land", "wait", "publish"])
         merge = self.info["mergeCommit"]["oid"]
@@ -107,7 +111,8 @@ class Flow(RunCase):
         self.assertEqual(steps, sorted(steps), self.gh.calls)
         self.assertEqual(self.gh.called("release", "edit"), [], "never published")
         self.assertIn("--draft", self.gh.called("release", "create")[0])
-        self.assertEqual((data["url"], data["next"]), (URL, f"python tools/retrodev release verify {NEXT} --publish"))
+        self.assertEqual((data["url"], data["next"]), (URL, RESUME), "the same run without --draft publishes")
+        self.assertEqual(self.gh.called("pr", "create", "--draft", "--base", "dev", "--head", NEXT_BRANCH), [])
         self.assertEqual((self.remote("refs/heads/main"), self.remote(f"refs/tags/v{NEXT}^{{commit}}")), (merge, merge))
         approval = json.loads((state.root(self.main) / "reviews" / f"{PR}.json").read_text())["approval"]
         self.assertEqual((approval["words"], approval["pr"]), (WORDS, int(PR)))
@@ -116,32 +121,32 @@ class Flow(RunCase):
 
     def test_a_rerun_after_each_stop_resumes_where_it_stopped(self):
         self.gh.answers[("pr", "create")] = (1, "", "HTTP 502")  # 1: ship fails inside prepare
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 1, data)
-        self.assertIn(RESUME, data["error"]["fix"])
+        self.assertIn(RESUME_DRAFT, data["error"]["fix"])
         self.assertTrue(state.load_release(self.main, NEXT)["run"], "the release is recorded before any step")
         self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
         self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(RED), "")  # 2: land stops on red CI
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 1, data)
-        self.assertIn(RESUME, data["error"]["fix"])
+        self.assertIn(RESUME_DRAFT, data["error"]["fix"])
         self.assertEqual(self.gh.called("pr", "merge"), [])
         self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(GREEN), "")
         self.push_ci = runs(None, "in_progress")  # 3: the push run on the release commit is still running
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 2, data)
-        self.assertEqual(data["error"]["fix"], f"run it again later: {RESUME} (it resumes here)")
+        self.assertEqual(data["error"]["fix"], f"run it again later: {RESUME_DRAFT} (it resumes here)")
         merge = self.info["mergeCommit"]["oid"]
         self.ci(merge, runs("success"))
         self.gh.answers[("release", "create")] = (1, "", "HTTP 502")  # 4: publish stops after the tag
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 1, data)
-        self.assertIn(RESUME, data["error"]["fix"])
+        self.assertIn(RESUME_DRAFT, data["error"]["fix"])
         self.gh.answers[("release", "create")] = (0, URL + "\n", "")
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual((code, data.get("url")), (0, URL), data)
         self.gh.answers[("release", "view")] = (0, URL + "\n", "")  # gh's --jq .url
-        code, data = self.release_run()  # 5: everything is done: the same draft again, nothing new
+        code, data = self.release_run("--draft")  # 5: everything is done: the same draft again, nothing new
         self.assertEqual((code, data.get("url")), (0, URL), data)
         self.assertEqual(len(self.gh.called("pr", "create")), 2, "one failed, one opened; never a second release")
         self.assertEqual((len(self.gh.called("pr", "ready")), len(self.gh.called("pr", "merge"))), (1, 1))
@@ -187,7 +192,7 @@ class Flow(RunCase):
 
     def test_a_version_only_pull_request_passes_whatever_git_colours(self):
         git(self.main, "config", "color.ui", "always")  # diffs read for the version check must stay plain
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 0, data)
         ran = [entry.get("names") for entry in self.check_log()]
         self.assertNotIn(["acceptance"], ran, "still a version-only branch")
@@ -197,7 +202,7 @@ class Flow(RunCase):
         git(self.main, "fetch", "-q", "origin")
         head = git(self.main, "rev-parse", "origin/dev").strip()
         self.ci(head, runs("success"))
-        code, data = self.release_run()
+        code, data = self.release_run("--draft")
         self.assertEqual(code, 0, data)
         self.assertEqual([s["status"].split(":")[0] for s in data["run_steps"][1:3]], ["skipped", "skipped"])
         self.assertEqual((self.gh.called("pr", "view"), self.gh.called("pr", "merge")), ([], []))
@@ -248,6 +253,18 @@ class Refused(RunCase):
         self.assertIn(RESUME, data["error"]["fix"])
         self.assertEqual((self.gh.called("pr", "ready"), self.gh.called("pr", "merge")), ([], []))
         self.assertNotIn("approval", state.load_branch(self.main, BRANCH))
+
+    def test_every_recovery_command_keeps_draft(self):
+        code, data = self.run_cli("release", "run", "--draft", as_json=True)  # no words
+        self.assertIn("--draft", data["error"]["fix"])
+        tree = self.worktree("feat/elsewhere")
+        code, data = self.run_cli("release", "run", "--owner-words", WORDS, "--draft", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("--draft", data["error"]["fix"])
+        code, data = self.run_cli(
+            "release", "run", "--owner-words", WORDS, "--version", "1.0.0-rc.1", "--draft", as_json=True
+        )
+        self.assertIn("--draft", data["error"]["fix"])
 
     def test_a_dry_run_changes_nothing_and_every_command_it_prints_keeps_dry_run(self):
         before = self.snapshot()
