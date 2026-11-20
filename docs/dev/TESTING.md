@@ -143,7 +143,9 @@ A test that needs a running broker patches in a `FakeBrokerClient(answer)` from 
 page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
-`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A Build
+`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up.
+`currentTab()` names the studio nav's open page; `currentPageTab()` the selected tab of the mounted page's own tab
+bar (null when it has none; `docs/dev/STUDIO-PAGES.md`, "Testing a tab", is a runnable example). A Build
 page scenario starts with `buildScenario({ selected })` (setup finished, the Build page open, `selected` as
 `storage.buildSelected`), then sets its own `scenario.games`. A unit
 test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
@@ -230,6 +232,11 @@ it.
   104 bytes. `check.py` does this for you.
 - macOS temp folders live under `/var`, a link to `/private/var`: `.resolve()` a temp base before comparing paths.
 - Names that must change together are checked by `tests/repo/test_lockstep.py`; the version by `tests/repo/test_version.py`.
+  After adding or renaming a tool or an RPC, run just that check with `python -m unittest tests.repo.test_lockstep`
+  (its opening comment lists every place to edit). For an RPC, `python tools/bundle/rpc_names.py` rewrites only
+  the generated `page/app/rpc-names.js` from the backend's `@rpc` declarations (and only when it changes; `--check`
+  writes nothing and exits 1 when it is stale); `node tools/bundle/bundle.mjs` runs it too, before rebuilding the
+  page. Commit the generated file with the backend change.
 
 ## Looking at the page
 

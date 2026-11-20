@@ -5,7 +5,7 @@ import test from 'node:test'
 
 import path from 'node:path'
 
-import { assertHides, assertShows, modulesFrom, nearest, tabButton } from './harness.mjs'
+import { assertHides, assertShows, modulesFrom, nearest, selectedPageTab, tabButton } from './harness.mjs'
 
 const page = 'x'.repeat(50_000) + ' Node.js 26.13.0 (from Hermes) ' + 'y'.repeat(50_000)
 
@@ -45,4 +45,13 @@ test('pageTab looks only in a page\'s own tab bar (.cs-tabs), by its exact label
   const document = { querySelectorAll: selector => (selector === '.cs-tabs button' ? [button('One'), button('Two')] : [button('Two')]) }
   assert.equal(tabButton(document, 'Two').textContent, 'Two')
   assert.equal(tabButton(document, 'Tw'), null)
+})
+
+test('selectedPageTab (currentPageTab in a scenario) reads the selected tab of a page\'s own tab bar in the given scope, else null', () => {
+  const asked = []
+  const scope = label => ({ querySelector: selector => { asked.push(selector); return label === null ? null : { textContent: label } } })
+  assert.equal(selectedPageTab(scope('Two')), 'Two')
+  assert.equal(selectedPageTab(scope(null)), null)
+  assert.equal(selectedPageTab(null), null)
+  assert.deepEqual([...new Set(asked)], ['.cs-tabs [role="tab"][aria-selected="true"]'])
 })
