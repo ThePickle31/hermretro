@@ -6,7 +6,8 @@ scaffolds or the files they edit; CI's page job runs it). It copies what a commi
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc` (four times: plain,
 --module, --game, --game with --module: their generated tests register a game with make_library_game), `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
-which goes in its own module too; once in library, a --project tool),
+which goes in its own module too; once in library, a --project tool; once in rdtree, a --project tool importing
+backend/hermes/tool_args.py, when the tree has it),
 `new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
@@ -48,6 +49,7 @@ from retrodev.scaffold_page import own_page
 from tests.retrodev.fixture import parallel
 from tests.retrodev.hand_edits import note_feature_readmes
 from tests.retrodev.scaffold_moves import moved_pages_bundle
+from tests.retrodev.tree_copy import copy_base, copy_tree, git_ok, run
 
 load_tests = parallel
 
@@ -78,6 +80,8 @@ STEPS = [
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
+SHARED_ARGS = (ROOT / "backend/hermes/tool_args.py").is_file()  # a --project tool outside library imports them there
+STEPS += [["tool", "rdtree", "rdtree_proj", "--project"]] if SHARED_ARGS else []
 # The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
 # contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
 # listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
@@ -182,6 +186,7 @@ STRUCTURE = [
     "tests.backend.library.test_tool_rdtree_lib",
     "tests.backend.rdtree.test_event_pinged",
     "tests.backend.rdtree.test_listener_on_library_build_reported",
+    *(["tests.backend.rdtree.test_tool_rdtree_proj"] if SHARED_ARGS else []),
 ]
 
 
@@ -189,23 +194,7 @@ def line(text: str, start: str) -> str:
     return next((row[len(start) :] for row in text.splitlines() if row.startswith(start)), "")
 
 
-def run(command: list[str], cwd: Path, env: dict) -> subprocess.CompletedProcess:
-    return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, stdin=subprocess.DEVNULL)
-
-
 RETRODEV = [sys.executable, str(ROOT / "tools" / "retrodev")]
-
-
-def copy_tree(source: Path, target: Path, env: dict) -> None:
-    listing = run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], source, env).stdout
-    names = [name for name in listing.split("\0") if name and (source / name).is_file()]
-    file_list = target.parent / "files.txt"
-    file_list.write_text("\0".join(names))
-    subprocess.run(
-        ["tar", "--null", "-T", str(file_list), "-cf", str(target.parent / "tree.tar")], cwd=source, check=True
-    )
-    target.mkdir()
-    subprocess.run(["tar", "-xf", str(target.parent / "tree.tar")], cwd=target, check=True)
 
 
 def judges(mode: str, env: dict) -> list[tuple[list[str], dict]]:
@@ -250,7 +239,10 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         if not all((ROOT / path).exists() for path in BORROWED):
             self.skipTest("set up first: npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py")
         short = os.environ.get("XDG_RUNTIME_DIR") if len(os.environ.get("XDG_RUNTIME_DIR", "x" * 50)) < 40 else None
-        base = Path(tempfile.mkdtemp(prefix="rd-new-", dir=short if short and Path(short).is_dir() else None))
+        chosen, note = copy_base(short if short and Path(short).is_dir() else None)
+        if note:
+            print(note, file=sys.stderr)
+        base = Path(tempfile.mkdtemp(prefix="rd-new-", dir=chosen))
         if not os.environ.get("RD_SCAFFOLD_KEEP"):
             self.addCleanup(shutil.rmtree, base, ignore_errors=True)
         else:
@@ -273,7 +265,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             (tree / path).parent.mkdir(parents=True, exist_ok=True)
             (tree / path).symlink_to(ROOT / path)
         for command in (["init", "-q", "-b", "feat/demo"], ["add", "-A"], ["commit", "-q", "-m", "Start"]):
-            self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+            git_ok(self, tree, env, command)
         (tree / ".git" / "info" / "exclude").write_text("/.dev\n/tools/npm/node_modules\n")
         return base, tree, env
 
@@ -294,7 +286,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             built = run(["node", "tools/bundle/bundle.mjs"], tree, env)  # the filled-in tab is in the bundle
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             for command in (["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "Grown"]):
-                self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+                git_ok(self, tree, env, command)
             steps = real_steps(tree)
             self.assertNotIn("--from-page", [word for step in steps if step[1] == "setup" for word in step])
             self.assertNotIn(["listener", "history", "library.game_presented"], steps)
@@ -333,7 +325,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         for (command, _), process in zip(commands, running, strict=True):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
-        self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
+        git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
 
     def test_rpcs_named_after_what_their_handler_uses_pass_their_generated_tests(self):  # review 2, 2
         """RPCs named host, logger or a builtin, in every variant (host both inline and --module, so in two rounds:
@@ -358,7 +350,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             linted = run([sys.executable, "tools/check.py", "lint"], tree, env)
             self.assertEqual(linted.returncode, 0, linted.stdout + linted.stderr)
             for command in (["reset", "-q", "--hard"], ["clean", "-qfd"]):  # the next round starts from the copy
-                self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+                git_ok(self, tree, env, command)
 
     def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
         moved_pages_bundle(self, RETRODEV)
@@ -387,7 +379,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             "export function RdconsumerPage() {\n  return jsx(RdinlinePage, {})\n}\n"
         )
         for command in (["add", "-A"], ["commit", "-q", "-m", "Inline"]):
-            self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+            git_ok(self, tree, env, command)
         done = run([*RETRODEV, "new", "tab", "rdinline", "first", "--from-page", "--no-check"], tree, env)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("export { RdinlinePage } from './rdinline-page.js'", door.read_text())

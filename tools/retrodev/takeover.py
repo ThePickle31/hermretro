@@ -82,6 +82,18 @@ def run(ctx, branch: str, setup: bool = True) -> int:
     )
     state.save_branch(main, record)
     steps = next_steps(ctx, branch, path, record, topic)
+    kinds = ctx.policy["branches"]["kinds"]
+    if kind not in kinds:  # ship, land and CI read no branch kind (release notes group by labels): it keeps its name
+        ctx.out.say(
+            f"note: '{kind or branch}' is not one of this repository's kinds ({', '.join(kinds)}); {branch} keeps its "
+            "name: ship, land and CI accept any work branch (the pull request's title and labels are what the "
+            "release notes use). To rename it anyway, before plan approve: "
+            + cmd("git", "branch", "-m", branch, f"fix/{topic}")
+            + " && "
+            + cmd("git", "push", "-u", ctx.remote, f"fix/{topic}")
+            + f", then python tools/retrodev plan link {topic} there"
+        )
+        ctx.out.set(kind_note=True)
     for step in steps:
         ctx.out.say("next: " + step)
     ctx.out.set(path=str(path), branch=branch, topic=topic, tracking=remote, setup=setup_results, next=steps)

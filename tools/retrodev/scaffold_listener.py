@@ -151,6 +151,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     values["payload"] = declared[event] or "its payload"
     keys = payload_of(plan, event, declared[event])
     values["call"] = emitter_values(keys)["sample"]  # the test calls it with the declared payload's keys
+    named = emitter_values(keys)["params"]  # keyword-only, one per payload key; later keys still arrive in **_payload
+    values["params"] = "**_payload" if named == "**payload" else named + ", **_payload"
     plan.ensure(source, render("listener", "listeners.py.tmpl", **values))
     text = plan.read(source)
     if f'@on("{event}")' in text or func in module_names(text):

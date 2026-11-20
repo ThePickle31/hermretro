@@ -52,7 +52,7 @@ class NewKinds(ScaffoldCase):
         )
         source = self.read("backend/rdprobe_ears/listeners.py")
         self.assertIn("from ..system.events import on", source)
-        self.assertIn(f'@on("{EVENT}")\ndef {func}(**_payload) -> None:', source)
+        self.assertIn(f'@on("{EVENT}")\ndef {func}(*, game, assets, **_payload) -> None:', source)  # its keys
         self.assertIn('"HERMRETRO_HOME": home.name', self.read(test))
         readme = self.read(
             "backend/rdprobe_ears/README.md"

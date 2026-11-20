@@ -65,6 +65,8 @@ def page(plan: Plan, page_id: str, page_label: str | None) -> str:
         f"it shows in {folder}/README.md",
         f"it is last in the nav: move it in PAGES ({REGISTRY}) and in {REGISTRY_TEST} together",
         f"python tools/retrodev new tab {page_id} <tab> | new slot {page_id} <name>",
+        f"name {page_label} wherever the pages are listed or counted: README.md 'What works today' (the page list), "
+        "docs/dev/CONTRACT.md 'Studio pages (desktop) and their RPCs' (its first sentence) and the Pages table of docs/dev/STUDIO-PAGES.md",
     ]
     return f"page {page_id}"
 
@@ -325,14 +327,34 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
-    _readme(plan, page_id, "Slots:", f"declares `{full}`: {doc[:1].lower() + doc[1:].rstrip('.')}", "declares none")
+    said = f"declares `{full}` ({doc[:1].lower() + doc[1:].rstrip('.')})"  # a sentence of its own: never runs on
+    rel = f"page/pages/{page_id}/README.md"
+    before = plan.read(rel) if plan.exists(rel) else None
+    if before is not None:
+        plan.edit(rel, lambda text: slots_line(text, said))
+    if before is None or plan.read(rel) == before:
+        plan.notes.append(f"mention {said} under **Slots:** in {rel}")
     plan.regenerate = True
     plan.next_steps += [
         f"render it where the contributions go: import {{ Slot }} from '#app/slots.js'; "
         f"jsx(Slot, {{ name: '{full}', props: {{ ... }} }})",
-        f"another page fills it from its index.js: contributes: {{ '{full}': [Component] }}",
+        f"render it in the tests: add a HOSTS recipe for '{full}' in tests/page/slots.test.mjs (it checks the host "
+        "passes exactly the props the doc names)",
+        f"another page fills it from its index.js: contributes: {{ '{full}': [Component] }}; a contribution changes "
+        "the `filled` assertion in tests/page/registry.test.mjs, the contributing page's README **Slots:** line "
+        "(Contributes ...) and the 'Events and slots today' line of docs/dev/STUDIO-PAGES.md",
     ]
     return f"slot {full}"
+
+
+def slots_line(text: str, said: str) -> str:
+    """The README's '**Slots:** declares none, contributes X.' as '**Slots:** <said>. Contributes X.' (the doc in
+    brackets, so the line never runs on after it); unchanged when the page declares a slot already."""
+    found = re.search(r"\*\*Slots:\*\* declares none(?:[,.;]\s*([cC])ontributes)?", text)
+    if not found:
+        return text
+    rest = ". Contributes" if found.group(1) else ""
+    return text[: found.start()] + f"**Slots:** {said}{rest}" + text[found.end() :]
 
 
 def _readme(plan: Plan, page_id: str, what: str, item: str, replaces: str = "none", append: bool = False) -> None:

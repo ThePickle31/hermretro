@@ -163,7 +163,7 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
             if theirs.strip() or not ours.strip():
                 continue
             found = first_name(ours)
-            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "") + " -- page backend"
+            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "")  # the whole tree: tests move too
             hints.append(
                 f"{name}: {ctx.base} removed this block; if it moved, `{log}` finds where; apply your change there "
                 "and drop this side"
@@ -212,7 +212,37 @@ def resume(ctx) -> int:
     if other:
         raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", with_hints(ctx, other))
     ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
+    added = new_lines(ctx, generated)
+    if added:
+        limit = ctx.policy.get("land", {}).get("max_sync_resolution_lines", 20)
+        files = ", ".join(sorted(added))
+        ctx.out.say(
+            f"warning: the resolution adds {sum(added.values())} line(s) neither side had ({files}): new work belongs "
+            f"in its own commit after sync (a resolution over {limit} lines needs a full review round at land)"
+        )
+        ctx.out.set(new_lines=added)
     return finish(ctx, left, resumed=True)
+
+
+def _side(ctx, rev: str, name: str) -> list[str] | None:
+    code, out, _err = repo.run(["git", "show", f"{rev}:{name}"], ctx.top)
+    return out.splitlines() if code == 0 else None
+
+
+def new_lines(ctx, generated: set[str]) -> dict[str, int]:
+    """{file: lines} the staged merge holds that neither this branch (HEAD) nor the base (MERGE_HEAD) had: work
+    written into the merge instead of a commit of its own. Blank lines and generated files do not count."""
+    staged = repo.git(["diff", "--cached", "--name-only", "HEAD"], ctx.top, check=False).split()
+    found = {}
+    for name in staged:
+        merged = _side(ctx, "", name) if name not in generated else None
+        if merged is None:
+            continue
+        known = set(_side(ctx, "HEAD", name) or []) | set(_side(ctx, "MERGE_HEAD", name) or [])
+        count = sum(1 for line in merged if line.strip() and line not in known)
+        if count:
+            found[name] = count
+    return found
 
 
 def run(ctx) -> int:

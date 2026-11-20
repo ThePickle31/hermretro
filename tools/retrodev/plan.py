@@ -19,11 +19,14 @@ TEMPLATE = """# Plan: {topic}
 
 Status: draft for the owner's approval.
 
+Title: <!-- One plain sentence, no trailing period: the pull request's title (ship --title). -->
+
 ## Goal
 <!-- What the change is for, in one or two sentences. -->
 
 ## What changes
-<!-- The behaviour and the code that change, step by step. -->
+<!-- The behaviour and the code that change, step by step, in the present tense ('X does Y'): start copies
+this section into the pull request body's What changed. -->
 
 ## Where files go
 <!-- New and moved files, by folder (tools/layout.toml has the map). -->
@@ -170,12 +173,10 @@ def approve(ctx, topic: str, words: str | None) -> int:
 
 
 def here_body(ctx, topic: str) -> None:
-    """plan approve run in a work branch that works under this plan: write its pull request body now (as start
-    does), from the template and the plan; an existing one is kept."""
+    """plan approve run in a work branch that works under this plan (any name: a taken-over test/x too): write its
+    pull request body now (as start does), from the template and the plan; an existing one is kept."""
     branch = repo.branch(ctx.top)
     if not branch or branch in ctx.policy["branches"]["protected"]:
-        return
-    if branch.partition("/")[0] not in ctx.policy["branches"]["kinds"]:
         return
     record = state.load_branch(ctx.top, branch)
     if gates.plan_for(ctx, branch, record) != topic:

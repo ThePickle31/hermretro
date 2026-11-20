@@ -5,12 +5,13 @@ test_scaffold_move.py and the slow bundle run in test_scaffold_tree.py (moved_pa
 from __future__ import annotations
 
 import shutil
-import subprocess
 import sys
 import unittest
 from pathlib import Path
 
 from retrodev import scaffold_move
+
+from tests.retrodev.tree_copy import git_ok, run
 
 ROOT = Path(__file__).resolve().parents[2]
 needs_acorn = unittest.skipUnless(
@@ -41,10 +42,6 @@ def snapshot(tree: Path) -> dict[str, bytes]:
     }
 
 
-def run(command: list[str], cwd: Path, env: dict) -> subprocess.CompletedProcess:
-    return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, stdin=subprocess.DEVNULL)
-
-
 def moved_pages_bundle(case, retrodev: list[str]) -> None:
     """Three inline Pages on a copy of the real tree, one above a block comment, one above a JSDoc block (and a
     comment a blank line above it that stays), one moving into a file whose matching import ends in a comma: each
@@ -61,7 +58,7 @@ def moved_pages_bundle(case, retrodev: list[str]) -> None:
         else:
             (folder / f"{page_id}-page.js").write_text(own)
     for command in (["add", "-A"], ["commit", "-q", "-m", "Inline Pages"]):
-        case.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
+        git_ok(case, tree, env, command)
     for page_id in pages:  # built once, after the last (rdcomma's page file is imported only once it moved)
         last = ["--no-build"] if page_id != "rdcomma" else []
         done = run([*retrodev, "new", "tab", page_id, "first", "--from-page", "--no-check", *last], tree, env)

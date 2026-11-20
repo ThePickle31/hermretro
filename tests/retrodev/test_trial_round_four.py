@@ -299,7 +299,7 @@ class New(ScaffoldCase):
         self.new("feature", "rdprobe_ears")
         self.new("listener", "rdprobe_ears", "library.build_reported")
         listeners = self.read("backend/rdprobe_ears/listeners.py")
-        self.assertIn("def on_library_build_reported(**_payload) -> None:", listeners)
+        self.assertIn("def on_library_build_reported(*, game, assets, **_payload) -> None:", listeners)
 
     def test_rpc_next_steps_name_shell_via_profile(self):
         steps = " ".join(self.new("rpc", "history", "rdprobe_recent")["next"])

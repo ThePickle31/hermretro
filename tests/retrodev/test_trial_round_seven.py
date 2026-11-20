@@ -56,7 +56,7 @@ class Sync(RepoCase):
             self.assertEqual(code, 1, (style, out))
             self.assertIn(
                 "backend/history/hooks.py: dev removed this block; if it moved, `git log -p origin/dev "
-                "-S_result_payload -- page backend` finds where",
+                "-S_result_payload` finds where",
                 out["error"]["fix"],
                 style,
             )
@@ -308,12 +308,14 @@ class Body(RepoCase):
 
 
 class QuickPath(unittest.TestCase):
-    def test_the_readme_has_a_short_quick_path_under_the_flow_table(self):
+    def test_the_readme_opens_with_a_numbered_quick_path(self):  # round eight: first, after the title paragraph
         text = (ROOT / "tools/retrodev/README.md").read_text()
-        table_end = text.index("| 8 summary |")
-        block = text[table_end:].split("\n\n")[1]
-        self.assertTrue(block.startswith("**Quick path**"), block)
+        parts = text.split("\n\n")
+        self.assertEqual(parts[2], "## Quick path", parts[:3])
+        block = parts[3]
+        self.assertTrue(all(line[:1].isdigit() for line in block.splitlines()), block)
         self.assertLessEqual(len(block.splitlines()), 10)
+        self.assertIn("RETRODEV_AGENT", parts[4])
         for step in (
             "plan new",
             "plan approve",
