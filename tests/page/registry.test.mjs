@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerAliases } from './aliases.mjs'
-import { tabButton } from './harness.mjs'
+import { selectedPageTab, tabButton } from './harness.mjs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -262,11 +262,19 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
 
   assert.deepEqual(tabs.map(tab => tab.textContent), ['One', 'Two'])
   assert.ok(node.textContent.includes('first tab'))
+  assert.equal(selectedPageTab(node), 'One')
   await act(async () => tabButton(node, 'Two').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })))
   assert.ok(node.textContent.includes('second tab') && !node.textContent.includes('first tab'))
   assert.equal(storage['tab:tools'], 'two')
-  assert.equal(node.querySelector('[aria-selected="true"]').textContent, 'Two')
-  await act(async () => root.unmount())
+  assert.equal(selectedPageTab(node), 'Two')
+
+  // Scoped: another tabbed page beside it does not change the answer for this one, and a page without tabs has none.
+  const beside = await render(jsx(PageView, { page: { ...page, id: 'other' }, shell: { ctx } }))
+  assert.equal(selectedPageTab(beside.node), 'One')
+  assert.equal(selectedPageTab(node), 'Two')
+  const plain = await render(jsx(PageView, { page: { id: 'plain', label: 'Plain', Page: Text('no tabs') }, shell: { ctx } }))
+  assert.equal(selectedPageTab(plain.node), null)
+  await act(async () => { root.unmount(); beside.root.unmount(); plain.root.unmount() })
 })
 
 // The shell every Page gets, from the real StudioPage, with a probe in Home's place.
