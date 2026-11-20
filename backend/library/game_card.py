@@ -145,7 +145,16 @@ def _paeth(a: int, b: int, c: int) -> int:
 
 
 def decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
-    """Width, height and RGBA pixels of a non-interlaced 8-bit (or palette) PNG."""
+    """Width, height and RGBA pixels of a non-interlaced 8-bit (or palette) PNG; any damage is a PngError."""
+    try:
+        return _decode_png(data)
+    except PngError:
+        raise
+    except (struct.error, IndexError, ValueError, zlib.error) as error:
+        raise PngError(f"the PNG data is damaged ({error})") from error
+
+
+def _decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
     if data[:8] != b"\x89PNG\r\n\x1a\n":
         raise PngError("not a PNG file")
     position, header, palette, transparency, chunks = 8, None, None, None, []
@@ -458,7 +467,10 @@ def update(
                 problems.append(_copy_problem(copied))
     if problems:
         return {"ok": False, "problems": problems}
-    was_complete = status(root, load(root) or {}, strict=True)["complete"]
+    try:  # a damaged old card or cover must never block the update that repairs it
+        was_complete = status(root, load(root) or {}, strict=True)["complete"]
+    except Exception:
+        was_complete = False
     data = load(root) or {"version": VERSION, "createdAt": int(time.time())}
     data.setdefault("title", (default_title or root.name)[: LIMITS["title"][1]])
     for field in TEXT_FIELDS:

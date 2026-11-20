@@ -131,6 +131,21 @@ class CardFile(unittest.TestCase):
         self.assertEqual((stored["rating"], stored["cover"], stored["coverForBuild"]), ("E", "cover.png", "abc"))
         self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
 
+    def test_a_damaged_cover_is_a_problem_and_a_new_cover_replaces_it(self):
+        game_card.scaffold(self.root, "Space Game")
+        damaged = COVER[:16] + b"\x00\x00\x00\x0dIHDR\x00\x00"  # IHDR says 13 bytes, holds 2
+        (self.root / "cover.png").write_bytes(damaged)
+        state = game_card.status(self.root, strict=True)
+        self.assertIn("cover", state["missing"])
+        self.assertIn("damaged", state["problems"][-1])
+        cover = self.base / "drawn.png"
+        cover.write_bytes(COVER)
+        result = game_card.update(self.root, GOOD, cover_source=str(cover))
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(result["was_complete"])
+        self.assertTrue(result["status"]["complete"], result)
+        self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
+
     def test_placeholders_and_bad_lists_do_not_count(self):
         for problem in (
             game_card._text_problem("description", "Lorem ipsum " * 5),
