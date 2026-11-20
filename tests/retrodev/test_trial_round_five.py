@@ -281,7 +281,7 @@ class New(ScaffoldCase):
         self.assertIn("'say what this listener does' in backend/rdprobe_ears/README.md's 'Listens to' entry", steps)
         source = self.read("backend/rdprobe_ears/listeners.py")
         self.assertIn("A listener runs synchronously", source)  # round 15: host.logger is a next step, not prose
-        self.assertIn("log with host.logger (from ..hermes import host)", steps)
+        self.assertIn("to log, add `from ..hermes import host` to its imports first", steps)
         said = " ".join(source.split())
         self.assertIn(
             "in the process and thread that emits the event, on the Hermes side (the gateway, the plugin host", said

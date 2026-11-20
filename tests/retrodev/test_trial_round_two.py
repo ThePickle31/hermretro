@@ -16,6 +16,7 @@ from pathlib import Path
 
 import retrodev
 from retrodev import checks, config, output, repo, ship, state
+from retrodev.scaffold_backend import BIG_MODULE
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
@@ -222,6 +223,12 @@ class NewKindsRoundTwo(ScaffoldCase):
     def test_module_refuses_a_name_the_front_door_binds_and_the_tree_is_unchanged(self):
         for name in ("__init__.py", "tools.py", "README.md", "game_card.py"):
             shutil.copyfile(ROOT / "backend/library" / name, self.tree / "backend/library" / name)
+        index = self.read("backend/library/tools.py")  # the automatic <tool>_tools module needs tools.py over the
+        pad = max(
+            0, BIG_MODULE + 1 - len(index.splitlines())
+        )  # limit: arrange it here, whatever the real file's length
+        write(self.tree, "backend/library/tools.py", index + "# padding\n" * pad)
+        self.assertGreater(len(self.read("backend/library/tools.py").splitlines()), BIG_MODULE)
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Library front door")
 

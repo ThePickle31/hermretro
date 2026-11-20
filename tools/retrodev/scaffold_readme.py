@@ -148,7 +148,7 @@ def first_tab_step(page_id: str, tab_id: str, component: str, door: str, name: s
     tab names only new's own edits, never a restore of a whole file or folder: the branch may hold other uncommitted
     work there."""
     return (
-        f"this page has no tabs yet: python tools/retrodev new tab {page_id} main --from-page makes its current content "
+        f"this page has no tabs yet: `python tools/retrodev new tab {page_id} main --from-page` makes its current content "
         f"a tab, unless {component} is meant to stay above every tab; with --dry-run, run that first, then this one "
         f"again. To take this tab back first, undo only new's edits: rm -r page/pages/{page_id}/{tab_id}; in {door} "
         f"delete the line import {{ {name} }} from './{tab_id}/index.js' and the descriptor's three lines tabs: [ "

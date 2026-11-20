@@ -261,6 +261,19 @@ def catch_all(keys: list[str]) -> str:
     raise AssertionError("unreachable: more candidate names than keys")
 
 
+def host_name(text: str) -> tuple[str, str]:
+    """(the name listeners.py logs through, what to do first): the host it imports, else the import to add; under
+    `hermes_host` when `host` is bound to something else (the template imports only `on`)."""
+    for node in ast.parse(text).body:
+        if isinstance(node, ast.ImportFrom) and node.level == 2 and node.module == "hermes":
+            for alias in node.names:
+                if alias.name == "host":
+                    return alias.asname or "host", ""
+    name = "hermes_host" if "host" in module_names(text) else "host"
+    line = "from ..hermes import host" + (" as hermes_host" if name != "host" else "")
+    return name, f"add `{line}` to its imports first (it does not import host yet), then "
+
+
 def listener(plan: Plan, feature_name: str, event: str) -> str:
     known_feature(plan, feature_name, "listener")
     declared = declared_events(plan)
@@ -324,9 +337,10 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         if on_readme
         else "; say it on the README's 'Listens to' line too"
     )
+    host, first = host_name(plan.read(source))
     plan.next_steps += [
-        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); log with "
-        "host.logger (from ..hermes import host)",
+        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); to log, "
+        f"{first}use {host}.logger (e.g. {host}.logger.info(...))",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
         isolation_step(plan, event.partition(".")[0], event),
@@ -334,9 +348,9 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
-        "assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.host."
-        'logger, "<LEVEL>"):`, the level the listener logs at ("INFO" for host.logger.info, "WARNING" for '
-        ".warning; listeners.py imports host: from ..hermes import host)",
+        f"assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.{host}."
+        f'logger, "<LEVEL>"):`, the level the listener logs at ("INFO" for {host}.logger.info, "WARNING" for '
+        ".warning)" + (" once listeners.py imports host as the first step says" if first else ""),
         f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
     entry = declared[event] or ""

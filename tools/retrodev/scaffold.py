@@ -18,7 +18,8 @@
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
 replaced; {{ and }} are literal braces), prints every file it created or changed, rebuilds the generated files
 when the change needs it (policy.toml [generated] regenerate), runs the checks those files feed (not the install
-scan: `check` runs it before ship; the page kinds run only lint, bundle and page, `check` runs unit) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
+scan: `check` runs it before ship; the page kinds run only lint, bundle and page, `check` runs unit) and prints the
+next step. --dry-run lists the files, the diff of each and the next steps as a preview (scaffold_preview.py);
 --no-check skips the checks, --no-build the rebuild (for several `new` in a row: the last one rebuilds). It
 refuses a name that exists or breaks the naming rules, and writes only on a work branch (never dev or main; a
 --dry-run, which writes nothing, runs anywhere).
@@ -34,7 +35,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import repo
+from . import repo, scaffold_preview
 from .output import Failure, cmd
 from .scaffold_checks import PAGE_CHECKS, validate
 
@@ -313,6 +314,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         diff = plan.diff()
         out.set(diff=diff)
         out.say(diff.rstrip("\n"))
+        scaffold_preview.show(out, plan.next_steps)  # the real run's steps, each `new` in them with --dry-run
         out.say("dry run: nothing was written")
         return 0
     for rel, text in {**plan.created, **plan.changed}.items():

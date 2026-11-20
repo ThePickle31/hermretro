@@ -175,13 +175,19 @@ def needs_host(plan: Plan, source: str) -> None:
 
 
 def big_note(plan: Plan, feature_name: str, name: str) -> None:
-    """Without --module: a note when rpcs.py is long already."""
+    """Without --module, after the RPC is planned in: a note when rpcs.py WITH it is past the advisory size (an
+    advice, never a gate). A dry run's command keeps --dry-run; after a real run it is for the next RPC."""
     source = f"backend/{feature_name}/rpcs.py"
-    size = len(plan.read(source).splitlines()) if plan.exists(source) else 0
-    if size > big_rpcs(plan.read(LAYOUT) if plan.exists(LAYOUT) else None):
+    size, limit = len(plan.read(source).splitlines()), big_rpcs(plan.read(LAYOUT) if plan.exists(LAYOUT) else None)
+    if size > limit:
+        module = f"python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs --dry-run previews it in"
+        if not plan.dry_run:
+            module = f"give the next one its own module (python tools/retrodev new rpc {feature_name} <name> --module "
+            module += "<name>_rpcs), or move this handler to"
         plan.notes.append(
-            f"{source} has {size} lines: python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs puts "
-            "the handler in its own module (rpcs.py keeps a short @rpc declaration that calls it)"
+            f"{source} {'would have' if plan.dry_run else 'has'} {size} lines with this RPC, over {limit} (where new "
+            f"suggests --module, before the layout test warns): {module} its own module (rpcs.py keeps a short @rpc "
+            "declaration that calls it)"
         )
 
 

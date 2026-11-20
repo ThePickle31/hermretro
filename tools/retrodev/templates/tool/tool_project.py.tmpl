@@ -19,8 +19,8 @@
 
 
 def {short}_handler(args, **kwargs) -> str:
-    """{tool}: acts on the project (tool_args.tool_project: `project`, else this chat's); answers a JSON string,
-    never raises."""
+    """{tool}: acts on the project (tool_args.tool_project: `project`, else this chat's);
+    answers a JSON string, never raises."""
     try:
         args = args if isinstance(args, dict) else {{}}
         root, error = tool_project("{tool}", args, kwargs)

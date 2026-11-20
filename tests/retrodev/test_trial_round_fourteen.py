@@ -288,7 +288,7 @@ class Scaffolds(ScaffoldCase):
         out = self.new("tab", "home", "extra")
         self.assertTrue(
             out["next"][0].startswith(
-                "this page has no tabs yet: python tools/retrodev new tab home main --from-page makes its current "
+                "this page has no tabs yet: `python tools/retrodev new tab home main --from-page` makes its current "
                 "content a tab"
             ),
             out["next"],
