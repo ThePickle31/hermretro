@@ -41,6 +41,7 @@ import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
 import { PageView } from './page-view.js'
 import { NAV_PAGES, pageById } from './registry.js'
+import { UpdateChip } from './update/chip.js'
 import { usePluginUpdate } from './update/use-update.js'
 
 export function StudioPage({ ctx }) {
@@ -415,7 +416,14 @@ export function StudioPage({ ctx }) {
       children: [
         jsx(PageStyle, {}, 'style'),
         onboardScreen
-          ? jsx(OnboardHeader, { stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null }, 'nav')
+          ? jsx(
+              OnboardHeader,
+              {
+                end: pluginUpdate.visible ? jsx(UpdateChip, { update: pluginUpdate }) : null,
+                stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null
+              },
+              'nav'
+            )
           : jsx(
               StudioNav,
               {

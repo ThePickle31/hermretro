@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 bd92009b01eb487ee0acfdecd22fc1aa27f6d701a28f82016e9799833e094546
- * body: sha256 6f703c7eb184c9141e60da3f940643add83f348ad886cd2c8a8201d0cd2904a9
+ * sources: sha256 5764b551444f8b338bec5fb3f2b56f83ba4d9079d269f1f673e1c876ced9e6ce
+ * body: sha256 ccbe98bed526a86f639ad5dac746bed757f5e639f4f7f06ad80851cd9db49c8f
  */
 // page/sdk.js
 import {
@@ -2862,7 +2862,7 @@ var ONBOARD_STAGES = [
   ["chromatic", "Your hardware"],
   ["make", "First game"]
 ];
-function OnboardHeader({ stage }) {
+function OnboardHeader({ stage, end = null }) {
   const index = ONBOARD_STAGES.findIndex(([id]) => id === stage);
   return jsxs("header", {
     className: "cs-top",
@@ -2876,7 +2876,8 @@ function OnboardHeader({ stage }) {
           ...ONBOARD_STAGES.map(([id], position) => jsx("i", { className: position < index ? "done" : position === index ? "cur" : "" }, id)),
           jsx("span", { children: `${index + 1} / ${ONBOARD_STAGES.length} · ${ONBOARD_STAGES[index][1]}` })
         ]
-      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) })
+      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) }),
+      end ? jsx("div", { className: "cs-top-end", children: end }) : null
     ]
   });
 }
@@ -16072,7 +16073,14 @@ function StudioPage({ ctx }) {
       },
       children: [
         jsx(PageStyle, {}, "style"),
-        onboardScreen ? jsx(OnboardHeader, { stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null }, "nav") : jsx(
+        onboardScreen ? jsx(
+          OnboardHeader,
+          {
+            end: pluginUpdate.visible ? jsx(UpdateChip, { update: pluginUpdate }) : null,
+            stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null
+          },
+          "nav"
+        ) : jsx(
           StudioNav,
           {
             nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },

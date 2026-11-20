@@ -130,11 +130,23 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await fresh({ updateLater: 'abc123' })
   check('a newer version after Later shows the chip again', () => { assert.ok(chip()) })
 
+  // First-time setup has its own header: the chip is there too (a release may fix the install itself).
+  scenario['plugin-update'] = check_({ update_available: true, update_target: 'def456' })
+  await act(async () => { root.render(null) })
+  scenario.storage = {}
+  scenario.status = answered(base({ profile: { name: 'default', is_studio: false, studio: { name: 'hermretro', exists: false, installed: false, ours: false } } }))
+  scenario.doctor = answered(doctor(['cli']))
+  await render()
+  check('the first-time setup header shows the update chip too', () => {
+    assert.ok(document.querySelector('.cs-onb-steps')); assert.equal(chip()?.textContent, 'Update ready')
+  })
+
   // A linked development checkout: Hermes does not update it, so there is no check and no chip.
   await act(async () => { root.render(null) })
   scenario['plugin-update'] = undefined
   scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'setup' }
   scenario.status = answered(base({ plugin: { version: '0.0.8', installed_in: { profile: null, linked: true } } }))
+  scenario.doctor = answered(doctor([]))
   await render()
   check('a linked checkout gets no update check and says how it is updated', () => {
     assert.equal(scenario.queries.filter(entry => entry.key === 'plugin-update').at(-1).enabled, false)
