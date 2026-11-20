@@ -8,6 +8,7 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_nine_review
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -16,7 +17,7 @@ from pathlib import Path
 
 from retrodev import scaffold_move
 from retrodev.output import Failure
-from retrodev.scaffold_page import add_to_descriptor
+from retrodev.scaffold_page import SLOTS_LIST, add_to_descriptor
 
 from tests.retrodev import test_scaffold_tree as tree_test
 from tests.retrodev.fixture import git, parallel, write
@@ -97,7 +98,9 @@ class QuotedSiblings(ScaffoldCase):
         slots = '  Page: RdprobeHostPage,\n  slots: {\n    "rdprobe-host.extra": \'Doc.\'\n  }\n'
         text = self.read(door).replace("  Page: RdprobeHostPage\n", slots)
         write(self.tree, door, text)
-        registry = self.read(REGISTRY_TEST).replace("['emulator.barActions'", "[\"emulator.barActions\"")
+        registry = self.read(REGISTRY_TEST)
+        declared = re.findall(r"'([^']*)'", SLOTS_LIST.search(registry).group(2))  # the tree's, never pinned here
+        registry = registry.replace(f"['{declared[0]}'", f'["{declared[0]}"')  # its first in double quotes
         write(self.tree, REGISTRY_TEST, registry)
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "quoted")
@@ -105,7 +108,8 @@ class QuotedSiblings(ScaffoldCase):
         self.new("slot", "rdprobe-host", "extra", code=1)  # declared already, in double quotes
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
         self.new("slot", "rdprobe-host", "more")
-        self.assertIn("['emulator.barActions', 'games.cardMenu', 'rdprobe-host.more']", self.read(REGISTRY_TEST))
+        listed = ", ".join(f"'{slot}'" for slot in sorted([*declared, "rdprobe-host.more"]))
+        self.assertIn(f"[{listed}]", self.read(REGISTRY_TEST))
 
     def test_a_descriptor_field_new_cannot_extend_is_refused_never_added_twice(self):
         base = "export const RD_PAGE = {\n  id: 'rd',\n  %s\n}\n"
