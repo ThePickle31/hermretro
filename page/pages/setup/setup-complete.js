@@ -23,6 +23,17 @@ function versionFact(data, update) {
     })
   }
 
+  if (update.phase === 'partial') {
+    return jsxs('span', {
+      className: 'cs-note',
+      children: [
+        `${version} · the update is not finished`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Finish update' }),
+        update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
+      ]
+    })
+  }
+
   if (update.phase === 'updating') {
     return `${version} · updating…`
   }

@@ -4,6 +4,7 @@ import { host, useEffect, useQuery, useQueryClient, useRef, useState } from '#sd
 import { LINKS } from '#shared/ui/links.js'
 import { ID, PLUGINS_HREF } from '#app/ids.js'
 import { busyChats, busySentence, installTarget, pluginRow, requestOn, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
+import { setUpdating } from './lock.js'
 
 // Hermes checks for plugin updates about once a day; reading its answer is cheap but not free (every plugin's row).
 const CHECK_EVERY_MS = 30 * 60_000
@@ -13,6 +14,19 @@ const DONE_SHOWN_MS = 10_000
 // While an update is ready, how often the hermretro profile's chats are checked for a build under way.
 const BUSY_EVERY_MS = 5_000
 const INSTALLING = 'The game tools are being installed. You can update when that finishes.'
+// Hermes installed the new version but the rest (the hermretro profile, the page) did not finish: { at, error }. Kept
+// until a run finishes, so Finish update resumes it even though Hermes now answers "unchanged".
+const PENDING = 'updatePending'
+
+function pendingUpdate(ctx) {
+  try {
+    const pending = ctx.storage.get(PENDING, null)
+
+    return pending && typeof pending === 'object' ? pending : null
+  } catch {
+    return null
+  }
+}
 
 function takeMarker(ctx) {
   try {
@@ -37,7 +51,8 @@ function remember(ctx, key, value) {
 }
 
 /** `phase`: idle (the chip shows only when an update is ready), updating, review (Hermes wants a yes first),
- *  failed, restart (installed, but something only a restart loads), done (just updated), current.
+ *  failed (nothing changed), partial (installed, but the hermretro profile or the page is not done: Finish update
+ *  runs the rest), restart (installed, but something only a restart loads), done (just updated), current.
  *  `installing`: the page's toolchain install is running. While it is, or while a chat in the hermretro profile is
  *  building (`blocked` says which), Update is refused: an update must never swap the plugin under a build. */
 export function usePluginUpdate({ ctx, status, running, installing = false }) {
@@ -60,7 +75,13 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
   const [state, setState] = useState(() => {
     const marker = takeMarker(ctx)
 
-    return marker ? { phase: marker.restart ? 'restart' : 'done', step: 0, announce: true } : { phase: 'idle', step: 0 }
+    if (marker) {
+      return { phase: marker.restart ? 'restart' : 'done', step: 0, announce: true }
+    }
+
+    const pending = pendingUpdate(ctx)
+
+    return pending ? { phase: 'partial', step: 0, error: pending.error ?? null } : { phase: 'idle', step: 0 }
   })
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState(() => {
@@ -101,7 +122,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
   const building = useQuery({
     queryKey: [ID, 'update-busy'],
     queryFn: async () => busyChats(await studioReloadTarget()),
-    enabled: running && ready && state.phase === 'idle',
+    enabled: running && ((ready && state.phase === 'idle') || state.phase === 'partial'),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
   })
@@ -127,24 +148,44 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
 
     busy.current = true
+    setUpdating(true)
     setOpen(true)
     setState({ phase: 'updating', step: 0 })
 
-    const studio = await studioReloadTarget()
-    const outcome = await runUpdate({
-      install: target,
-      studio,
-      options,
-      busy: () => busyChats(studio),
-      onStep: step => setState(current => ({ ...current, step })),
-      onWaiting: waiting => setState(current => ({ ...current, waiting })),
-      remember: marker => remember(ctx, UPDATE_MARKER, marker)
-    })
+    const resume = Boolean(pendingUpdate(ctx))
+    let outcome
 
-    busy.current = false
+    try {
+      const studio = await studioReloadTarget()
+
+      outcome = await runUpdate({
+        install: target,
+        studio,
+        options,
+        resume,
+        busy: () => busyChats(studio),
+        onStep: step => setState(current => ({ ...current, step })),
+        onWaiting: waiting => setState(current => ({ ...current, waiting })),
+        installed: () => remember(ctx, PENDING, { at: Date.now(), error: null }),
+        remember: marker => {
+          remember(ctx, PENDING, null)
+          remember(ctx, UPDATE_MARKER, marker)
+        }
+      })
+    } finally {
+      busy.current = false
+      setUpdating(false)
+    }
+
     void queryClient.invalidateQueries({ queryKey: [ID] })
+    // Installed but not finished (now or by an earlier run): what is left is shown as a half-done update, never as
+    // "nothing was changed".
+    const half = outcome.kind === 'partial' || (pendingUpdate(ctx) && ['failed', 'blocked'].includes(outcome.kind))
 
-    if (outcome.kind === 'updated') {
+    if (half) {
+      remember(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null })
+      setState({ phase: 'partial', step: 0, error: outcome.error ?? null })
+    } else if (outcome.kind === 'updated') {
       // The app reloads this page with its new copy; until then (or when it cannot), say where things stand.
       setState({ phase: outcome.restart || !outcome.pageRefreshed ? 'restart' : 'done', step: 2 })
     } else if (outcome.kind === 'current') {
@@ -153,7 +194,13 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
       host.notify({ kind: 'success', message: 'hermretro is already up to date.' })
     } else if (outcome.kind === 'busy') {
       // A build started after the last check: say so until the next check answers (it then says the same, or not).
-      setState({ phase: 'idle', step: 0, raced: outcome.chats, racedAt: building.dataUpdatedAt ?? 0 })
+      setState(current => ({
+        phase: resume ? 'partial' : 'idle',
+        step: 0,
+        error: resume ? (current.error ?? null) : null,
+        raced: outcome.chats,
+        racedAt: building.dataUpdatedAt ?? 0
+      }))
     } else if (outcome.kind === 'review') {
       setState({ phase: 'review', step: 0, review: outcome })
     } else {

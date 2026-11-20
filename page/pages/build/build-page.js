@@ -19,6 +19,7 @@ import { buildHistory, deriveTurns } from './transcript/turns.js'
 import { callStudioOnly, describeRequestError } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
 import { RPC_BUILD_RESTORE } from '#app/rpc.js'
+import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
@@ -163,7 +164,22 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     openWhenDone.current = false
   }, [game?.id])
 
+  // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
+  const refuseWhileUpdating = () => {
+    if (!isUpdating()) {
+      return false
+    }
+
+    host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+    return true
+  }
+
   const startGame = async ({ idea, name, plan }) => {
+    if (refuseWhileUpdating()) {
+      return
+    }
+
     let id = null
 
     try {
@@ -224,6 +240,10 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   // A game with no conversation opens a blank one; the session is made on the first message and bound to
   // the game (replacing a removed one), so the agent is told which game it works on and finds it selected.
   const send = async (text, attachments = [], shown = text) => {
+    if (refuseWhileUpdating()) {
+      return
+    }
+
     if (!fresh) {
       if (stored) {
         await sendBuildChat(stored, text, shown, attachments)
@@ -301,7 +321,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   // Restore: the backend saves the game as it is now, puts that build's files back, and the agent is
   // asked to build it again, which makes it the newest build.
   const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored) {
+    if (!game || !shownStored || refuseWhileUpdating()) {
       return false
     }
 
@@ -399,7 +419,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
             game && (builds.length || shownStored)
               ? jsx(BuildsMenu, {
                   builds,
-                  busy: Boolean(shownChat?.busy),
+                  busy: Boolean(shownChat?.busy || updating),
                   game,
                   onRestore: restoreBuild,
                   onShow: key => setFocusTurn(current => ({ key, seq: (current?.seq ?? 0) + 1 }))

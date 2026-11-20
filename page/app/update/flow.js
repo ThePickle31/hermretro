@@ -134,7 +134,7 @@ async function reloadStudio(studio) {
   }
 
   if (!answer?.ok) {
-    throw new Error('hermretro could not be switched back on in the hermretro profile. Open Setup and press Repair.')
+    throw new Error('hermretro could not be switched back on in the hermretro profile.')
   }
 
   return Boolean(answer.gateway_reloaded) && !answer.restart_required
@@ -145,19 +145,26 @@ async function reloadStudio(studio) {
  *  asked; `onStep(i)` follows UPDATE_STEPS. Resolves to one outcome, never throws:
  *  `{ kind: 'updated', restart, pageRefreshed }`, `{ kind: 'current' }`, `{ kind: 'busy', chats }` (a chat in the
  *  hermretro profile is building: nothing was changed), `{ kind: 'review', findings, lines, retry }` (Hermes wants the
- *  user to agree to something first: retry with `retry`), `{ kind: 'blocked', error }` (the security check refused the
- *  new version) or `{ kind: 'failed', error }`.
+ *  user to agree to something first: retry with `retry`, which keeps every earlier yes), `{ kind: 'blocked', error }`
+ *  (the security check refused the new version), `{ kind: 'failed', error }` (nothing was changed) or
+ *  `{ kind: 'partial', error }` (the new version is installed, but the hermretro profile or the page is not done yet).
  *  `busy()` names the chats building right now (busyChats). It is asked right before anything changes, and again before
- *  the hermretro profile is reloaded: a turn started meanwhile is waited for (`onWaiting(chats)`, every `waitMs`). */
+ *  the hermretro profile is reloaded: a turn started meanwhile is waited for (`onWaiting(chats)`, every `waitMs`); the
+ *  reload needs a successful idle answer, and `checkTries` failed checks in a row end in `partial`.
+ *  `installed()` is called once Hermes has put the new version in place (the caller remembers it); `resume` is set
+ *  when an earlier run got that far: Hermes then answers "unchanged" and the remaining steps still run. */
 export async function runUpdate({
   install,
   studio,
   options = {},
+  resume = false,
   busy = async () => [],
   onStep = () => {},
   onWaiting = () => {},
+  installed = () => {},
   remember = () => {},
-  waitMs = 2_000
+  waitMs = 2_000,
+  checkTries = 5
 }) {
   let building
 
@@ -185,22 +192,31 @@ export async function runUpdate({
     const findings = Array.isArray(result.scan_findings) ? result.scan_findings : []
 
     return result.scan_verdict === 'caution' && !options.force
-      ? { kind: 'review', findings, lines: [], retry: { force: true } }
-      : { kind: 'blocked', error: `Hermes's security check stopped this version (${result.scan_verdict ?? 'blocked'}). Nothing was changed.` }
+      ? { kind: 'review', findings, lines: [], retry: { ...options, force: true } }
+      : { kind: 'blocked', error: `Hermes's security check stopped this version (${result.scan_verdict ?? 'blocked'}).` }
   }
 
   if (result?.consent_required) {
     return options.accept_capabilities
       ? { kind: 'failed', error: result.error ?? 'Hermes did not apply the update.' }
-      : { kind: 'review', findings: [], lines: Array.isArray(result.delta_lines) ? result.delta_lines : [], retry: { accept_capabilities: true } }
+      : {
+          kind: 'review',
+          findings: [],
+          lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+          retry: { ...options, accept_capabilities: true }
+        }
   }
 
   if (!result?.ok) {
     return { kind: 'failed', error: result?.error ?? 'The update did not finish.' }
   }
 
-  if (result.unchanged) {
+  if (result.unchanged && !resume) {
     return { kind: 'current' }
+  }
+
+  if (!result.unchanged) {
+    installed()
   }
 
   let restart = Boolean(result.restart_required)
@@ -211,15 +227,32 @@ export async function runUpdate({
     // Settings the new version ships for the hermretro profile (its SOUL, toolsets): best effort, a Repair redoes it.
     await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000).catch(() => null)
 
-    // A turn started while Hermes was updating finishes on the code it started with, then the profile reloads.
-    for (;;) {
-      const chats = await busy().catch(() => [])
+    // A turn started while Hermes was updating finishes on the code it started with, then the profile reloads. Only a
+    // successful answer with nothing building allows the reload: a failed check is never read as "idle".
+    for (let failures = 0; ; ) {
+      let chats
 
-      if (!chats.length) {
+      try {
+        chats = await busy()
+        failures = 0
+      } catch (error) {
+        failures += 1
+
+        if (failures >= checkTries) {
+          return { kind: 'partial', error: `Could not check whether a game is being built (${String(error?.message ?? error)})` }
+        }
+
+        chats = null
+      }
+
+      if (chats && !chats.length) {
         break
       }
 
-      onWaiting(chats)
+      if (chats) {
+        onWaiting(chats)
+      }
+
       await new Promise(resolve => globalThis.setTimeout(resolve, waitMs))
     }
 
@@ -228,7 +261,7 @@ export async function runUpdate({
     try {
       restart = !(await reloadStudio(studio)) || restart
     } catch (error) {
-      return { kind: 'failed', error: String(error?.message ?? error) }
+      return { kind: 'partial', error: String(error?.message ?? error) }
     }
   }
 
@@ -237,4 +270,3 @@ export async function runUpdate({
 
   return { kind: 'updated', restart, pageRefreshed: await refreshDesktopHalf() }
 }
-

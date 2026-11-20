@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 2fa2c738299be968fea80e2bbe4343ec100df884fa135924a1d8eb41717daab5
- * body: sha256 b03932c8d523efd2bd6851c45f21d22402e8f33d5b87b42f4e09c93e94c40603
+ * sources: sha256 4a0bdca2fb9f149976c46b3e93555b62085cca8a6016d8a76db0f5b1b8a18d86
+ * body: sha256 dd4376eb7cc3fa867db9217d656845aecafcf6067508ae22a4056b8a706b38c6
  */
 // page/sdk.js
 import {
@@ -2104,6 +2104,16 @@ function versionFact(data, update) {
       ]
     });
   }
+  if (update.phase === "partial") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · the update is not finished`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
+      ]
+    });
+  }
   if (update.phase === "updating") {
     return `${version} · updating…`;
   }
@@ -3456,6 +3466,16 @@ var CART_SHELF_CSS = `
 .cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
 `;
 
+// page/app/update/lock.js
+var lock = { active: false };
+function isUpdating() {
+  return lock.active;
+}
+function setUpdating(active) {
+  lock.active = Boolean(active);
+}
+var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
+
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
 function mergeAttachments(current, more) {
@@ -4143,6 +4163,10 @@ async function createBuildChat(title, pick = null) {
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return false;
+  }
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored);
   }
@@ -12359,7 +12383,17 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   useEffect(() => {
     openWhenDone.current = false;
   }, [game?.id]);
+  const refuseWhileUpdating = () => {
+    if (!isUpdating()) {
+      return false;
+    }
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return true;
+  };
   const startGame = async ({ idea, name, plan }) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
@@ -12400,6 +12434,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   }
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
   const send = async (text2, attachments = [], shown = text2) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     if (!fresh) {
       if (stored) {
         await sendBuildChat(stored, text2, shown, attachments);
@@ -12456,7 +12493,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     onLibraryChanged();
   };
   const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored) {
+    if (!game || !shownStored || refuseWhileUpdating()) {
       return false;
     }
     try {
@@ -12529,7 +12566,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx("span", { className: "cs-grow" }),
       game && (builds.length || shownStored) ? jsx(BuildsMenu, {
         builds,
-        busy: Boolean(shownChat?.busy),
+        busy: Boolean(shownChat?.busy || updating),
         game,
         onRestore: restoreBuild,
         onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
@@ -15341,7 +15378,7 @@ async function reloadStudio(studio) {
     answer = await toggle(true).catch(() => null);
   }
   if (!answer?.ok) {
-    throw new Error("hermretro could not be switched back on in the hermretro profile. Open Setup and press Repair.");
+    throw new Error("hermretro could not be switched back on in the hermretro profile.");
   }
   return Boolean(answer.gateway_reloaded) && !answer.restart_required;
 }
@@ -15349,14 +15386,18 @@ async function runUpdate({
   install,
   studio,
   options = {},
+  resume = false,
   busy = async () => [],
   onStep = () => {
   },
   onWaiting = () => {
   },
+  installed = () => {
+  },
   remember: remember3 = () => {
   },
-  waitMs = 2e3
+  waitMs = 2e3,
+  checkTries = 5
 }) {
   let building;
   try {
@@ -15376,34 +15417,54 @@ async function runUpdate({
   }
   if (result?.scan_blocked) {
     const findings = Array.isArray(result.scan_findings) ? result.scan_findings : [];
-    return result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}). Nothing was changed.` };
+    return result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { ...options, force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}).` };
   }
   if (result?.consent_required) {
-    return options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : { kind: "review", findings: [], lines: Array.isArray(result.delta_lines) ? result.delta_lines : [], retry: { accept_capabilities: true } };
+    return options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : {
+      kind: "review",
+      findings: [],
+      lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+      retry: { ...options, accept_capabilities: true }
+    };
   }
   if (!result?.ok) {
     return { kind: "failed", error: result?.error ?? "The update did not finish." };
   }
-  if (result.unchanged) {
+  if (result.unchanged && !resume) {
     return { kind: "current" };
+  }
+  if (!result.unchanged) {
+    installed();
   }
   let restart = Boolean(result.restart_required);
   onStep(1);
   if (studio && studio.profile !== install.profile) {
     await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4).catch(() => null);
-    for (; ; ) {
-      const chats = await busy().catch(() => []);
-      if (!chats.length) {
+    for (let failures = 0; ; ) {
+      let chats;
+      try {
+        chats = await busy();
+        failures = 0;
+      } catch (error) {
+        failures += 1;
+        if (failures >= checkTries) {
+          return { kind: "partial", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+        }
+        chats = null;
+      }
+      if (chats && !chats.length) {
         break;
       }
-      onWaiting(chats);
+      if (chats) {
+        onWaiting(chats);
+      }
       await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
     }
     onWaiting(null);
     try {
       restart = !await reloadStudio(studio) || restart;
     } catch (error) {
-      return { kind: "failed", error: String(error?.message ?? error) };
+      return { kind: "partial", error: String(error?.message ?? error) };
     }
   }
   onStep(2);
@@ -15418,6 +15479,7 @@ var CHIP = {
   review: ["warn", "Needs a look"],
   failed: ["bad", "Update failed"],
   restart: ["warn", "Restart to finish"],
+  partial: ["bad", "Finish update"],
   done: ["good", "Updated"]
 };
 function Steps({ step, waiting }) {
@@ -15471,6 +15533,20 @@ function body(update) {
         jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
         actions(
           jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "partial":
+      return [
+        "Almost there",
+        jsx(
+          "p",
+          { children: `The new version is installed, but ${update.error ?? "its last steps did not finish"}. Finish the update to load it everywhere.` },
+          "p"
+        ),
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }, "finish"),
           jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
         )
       ];
@@ -15729,6 +15805,15 @@ var MARKER_FRESH_MS = 15 * 6e4;
 var DONE_SHOWN_MS = 1e4;
 var BUSY_EVERY_MS = 5e3;
 var INSTALLING = "The game tools are being installed. You can update when that finishes.";
+var PENDING = "updatePending";
+function pendingUpdate(ctx) {
+  try {
+    const pending = ctx.storage.get(PENDING, null);
+    return pending && typeof pending === "object" ? pending : null;
+  } catch {
+    return null;
+  }
+}
 function takeMarker(ctx) {
   try {
     const marker = ctx.storage.get(UPDATE_MARKER, null);
@@ -15764,7 +15849,11 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
   });
   const [state, setState] = useState(() => {
     const marker = takeMarker(ctx);
-    return marker ? { phase: marker.restart ? "restart" : "done", step: 0, announce: true } : { phase: "idle", step: 0 };
+    if (marker) {
+      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true };
+    }
+    const pending = pendingUpdate(ctx);
+    return pending ? { phase: "partial", step: 0, error: pending.error ?? null } : { phase: "idle", step: 0 };
   });
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
@@ -15795,7 +15884,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
   const building = useQuery({
     queryKey: [ID, "update-busy"],
     queryFn: async () => busyChats(await studioReloadTarget()),
-    enabled: running && ready && state.phase === "idle",
+    enabled: running && (ready && state.phase === "idle" || state.phase === "partial"),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
   });
@@ -15816,28 +15905,50 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       return;
     }
     busy.current = true;
+    setUpdating(true);
     setOpen(true);
     setState({ phase: "updating", step: 0 });
-    const studio = await studioReloadTarget();
-    const outcome = await runUpdate({
-      install: target,
-      studio,
-      options,
-      busy: () => busyChats(studio),
-      onStep: (step) => setState((current) => ({ ...current, step })),
-      onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
-      remember: (marker) => remember2(ctx, UPDATE_MARKER, marker)
-    });
-    busy.current = false;
+    const resume = Boolean(pendingUpdate(ctx));
+    let outcome;
+    try {
+      const studio = await studioReloadTarget();
+      outcome = await runUpdate({
+        install: target,
+        studio,
+        options,
+        resume,
+        busy: () => busyChats(studio),
+        onStep: (step) => setState((current) => ({ ...current, step })),
+        onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
+        installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
+        remember: (marker) => {
+          remember2(ctx, PENDING, null);
+          remember2(ctx, UPDATE_MARKER, marker);
+        }
+      });
+    } finally {
+      busy.current = false;
+      setUpdating(false);
+    }
     void queryClient.invalidateQueries({ queryKey: [ID] });
-    if (outcome.kind === "updated") {
+    const half = outcome.kind === "partial" || pendingUpdate(ctx) && ["failed", "blocked"].includes(outcome.kind);
+    if (half) {
+      remember2(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null });
+      setState({ phase: "partial", step: 0, error: outcome.error ?? null });
+    } else if (outcome.kind === "updated") {
       setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2 });
     } else if (outcome.kind === "current") {
       setState({ phase: "idle", step: 0 });
       setOpen(false);
       host.notify({ kind: "success", message: "hermretro is already up to date." });
     } else if (outcome.kind === "busy") {
-      setState({ phase: "idle", step: 0, raced: outcome.chats, racedAt: building.dataUpdatedAt ?? 0 });
+      setState((current) => ({
+        phase: resume ? "partial" : "idle",
+        step: 0,
+        error: resume ? current.error ?? null : null,
+        raced: outcome.chats,
+        racedAt: building.dataUpdatedAt ?? 0
+      }));
     } else if (outcome.kind === "review") {
       setState({ phase: "review", step: 0, review: outcome });
     } else {

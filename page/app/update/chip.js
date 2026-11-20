@@ -9,6 +9,7 @@ const CHIP = {
   review: ['warn', 'Needs a look'],
   failed: ['bad', 'Update failed'],
   restart: ['warn', 'Restart to finish'],
+  partial: ['bad', 'Finish update'],
   done: ['good', 'Updated']
 }
 
@@ -74,6 +75,20 @@ function body(update) {
         jsx('p', { children: `${update.error ?? 'The update did not finish.'} Nothing was changed${update.version ? `; you are still on ${update.version}` : ''}.` }, 'p'),
         actions(
           jsx(Button, { onClick: update.start, size: 'sm', variant: 'default', children: 'Try again' }, 'again'),
+          jsx(Button, { onClick: update.openPlugins, size: 'sm', variant: 'link', children: 'Open Capabilities → Plugins' }, 'plugins')
+        )
+      ]
+    case 'partial':
+      return [
+        'Almost there',
+        jsx(
+          'p',
+          { children: `The new version is installed, but ${update.error ?? 'its last steps did not finish'}. Finish the update to load it everywhere.` },
+          'p'
+        ),
+        update.blocked ? jsxs('p', { className: 'cs-upd-wait', role: 'status', children: [jsx(Codicon, { name: 'clock', size: 12 }), update.blocked] }, 'wait') : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Finish update' }, 'finish'),
           jsx(Button, { onClick: update.openPlugins, size: 'sm', variant: 'link', children: 'Open Capabilities → Plugins' }, 'plugins')
         )
       ]

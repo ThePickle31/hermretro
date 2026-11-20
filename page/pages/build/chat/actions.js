@@ -2,6 +2,7 @@
 import { host } from '#sdk'
 import { describeRequestError } from '#app/backend.js'
 import { studioTarget } from '#app/routing.js'
+import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { attachmentLine } from './attachments.js'
 import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
@@ -111,6 +112,13 @@ export async function createBuildChat(title, pick = null) {
 /** Send a message. Never throws: a failure shows up in the transcript (with the words the user sent).
  *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. */
 export async function sendBuildChat(stored, text, shown = text, attachments = []) {
+  // An update is swapping and reloading the plugin: no new turn starts until it is done.
+  if (isUpdating()) {
+    host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+    return false
+  }
+
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored)
   }
