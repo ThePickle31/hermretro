@@ -80,6 +80,13 @@ class Publishes(RunCase):
         view = {"tagName": tag, "isDraft": True, "isPrerelease": False, "body": "## Changes\n- A thing", "url": URL}
         self.gh.answers[("release", "view", tag, "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
         self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
+        self.gh.answers[("release", "view", tag, "--json", "body")] = (0, view["body"] + "\n", "")
+        self.view_info = view
+
+    def published(self, tag: str) -> None:
+        """GitHub now shows the release as published (whatever gh said)."""
+        view = dict(self.view_info, isDraft=False)
+        self.gh.answers[("release", "view", tag, "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
 
     def dev_version(self) -> str:
         git(self.main, "fetch", "-q", "origin")
@@ -90,7 +97,15 @@ class Publishes(RunCase):
         self.assertEqual(code, 0, data)
         steps = [s["step"] for s in data["run_steps"]]
         self.assertEqual(steps, ["prepare", "approve", "land", "wait", "publish", "verify", "next"], data)
-        self.assertEqual(self.gh.called("release", "edit"), [["release", "edit", f"v{NEXT}", "--draft=false"]])
+        self.assertEqual(
+            self.gh.called("release", "edit", f"v{NEXT}", "--draft=false"),
+            [["release", "edit", f"v{NEXT}", "--draft=false"]],
+        )
+        notes = self.gh.called("release", "edit", f"v{NEXT}", "--notes")
+        self.assertEqual(len(notes), 1, "the notes say the checklist was not run, before publishing")
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not run", notes[0][-1])
+        order = [i for i, c in enumerate(self.gh.calls) if c[:2] == ["release", "edit"]]
+        self.assertEqual([self.gh.calls[i][3] for i in order], ["--notes", "--draft=false"])
         self.assertEqual(data["url"], URL)
         installs = [entry for entry in self.check_log() if entry.get("script")]
         self.assertEqual(len(installs), 1, "verify reused publish's update check on the same commit")
@@ -124,7 +139,7 @@ class Publishes(RunCase):
         self.assertEqual(code, 1, data)
         self.assertIn("released, but dev did not move to the next version", data["error"]["message"])
         self.assertIn(RESUME, data["error"]["fix"])
-        self.assertEqual(len(self.gh.called("release", "edit")), 1, "published before the next step")
+        self.assertEqual(len(self.gh.called("release", "edit", f"v{NEXT}", "--draft=false")), 1, "published first")
         self.gh.answers[("pr", "checks", NEXT_PR)] = (0, json.dumps(GREEN), "")
         code, data = self.release_run()  # without the printed --version: a new release, and nothing is new
         self.assertEqual(code, 1, data)
@@ -132,9 +147,28 @@ class Publishes(RunCase):
         self.assertIn("release next --owner-words", data["error"]["fix"])
         code, data = self.release_run("--version", NEXT)  # the printed command
         self.assertEqual(code, 0, data)
-        self.assertEqual(len(self.gh.called("release", "edit")), 1, "never published twice")
+        self.assertEqual(
+            len(self.gh.called("release", "edit", f"v{NEXT}", "--draft=false")), 1, "never published twice"
+        )
         self.assertEqual(len([c for c in self.gh.called("pr", "create") if NEXT_BRANCH in c]), 1, "the same #41")
         self.assertEqual(self.dev_version(), f"version: {AFTER}")
+
+    def test_a_release_github_published_while_failing_is_recorded_on_resume_and_never_chosen_again(self):
+        tag = f"v{NEXT}"
+        self.gh.answers[("release", "edit", tag, "--draft=false")] = (1, "", "HTTP 502: Bad Gateway")
+        self.gh.effects[("release", "edit", tag, "--draft=false")] = lambda _args: self.published(tag)
+        code, data = self.release_run()
+        self.assertEqual(code, 1, data)
+        self.assertFalse(state.load_release(self.main, NEXT).get("published"), "the record missed the publish")
+        code, data = self.release_run("--version", NEXT)  # the printed command
+        self.assertEqual(code, 0, data)
+        self.assertTrue(state.load_release(self.main, NEXT)["published"]["reconciled"])
+        self.assertEqual(self.dev_version(), f"version: {AFTER}")
+        self.on_dev("docs/more.md", "# More\n", "More for users")
+        git(self.main, "fetch", "-q", "origin")
+        self.ci(git(self.main, "rev-parse", "origin/dev").strip(), runs("success"))
+        code, data = self.release_run("--draft", "--dry-run")
+        self.assertEqual(data["version"], AFTER, "the next release, not the old one again")
 
     def test_an_open_next_version_pull_request_is_used_or_closed_when_another_version_is_named(self):
         self.gh.answers[("pr", "checks", NEXT_PR)] = (0, json.dumps(RED), "")

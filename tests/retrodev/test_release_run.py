@@ -254,6 +254,18 @@ class Refused(RunCase):
         self.assertEqual((self.gh.called("pr", "ready"), self.gh.called("pr", "merge")), ([], []))
         self.assertNotIn("approval", state.load_branch(self.main, BRANCH))
 
+    def test_every_recovery_command_keeps_draft(self):
+        code, data = self.run_cli("release", "run", "--draft", as_json=True)  # no words
+        self.assertIn("--draft", data["error"]["fix"])
+        tree = self.worktree("feat/elsewhere")
+        code, data = self.run_cli("release", "run", "--owner-words", WORDS, "--draft", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertIn("--draft", data["error"]["fix"])
+        code, data = self.run_cli(
+            "release", "run", "--owner-words", WORDS, "--version", "1.0.0-rc.1", "--draft", as_json=True
+        )
+        self.assertIn("--draft", data["error"]["fix"])
+
     def test_a_dry_run_changes_nothing_and_every_command_it_prints_keeps_dry_run(self):
         before = self.snapshot()
         code, out = self.release_run("--dry-run", as_json=False)  # nothing started yet

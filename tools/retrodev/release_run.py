@@ -307,8 +307,9 @@ class Run:
     def verify(self) -> int:
         """Step 6: release verify --publish, its checks first (the update check publish ran is reused)."""
         ctx, version = self.ctx, self.version
-        ctx.out.say(f"running: {cmd('python', 'tools/retrodev', 'release', 'verify', version, '--publish')}")
         try:
+            release_guard.disclose_checklist(ctx, version)  # the notes say whether the checklist ran, before publishing
+            ctx.out.say(f"running: {cmd('python', 'tools/retrodev', 'release', 'verify', version, '--publish')}")
             release_verify.run(ctx, version, publish=True)
         except Failure as failure:
             raise resumable(failure, self.again)
@@ -343,14 +344,14 @@ def run(
     try:
         words = release.words_gate(words)
     except Failure as failure:
-        shown = command("<their exact words>", rc, named, dry_run)
+        shown = command("<their exact words>", rc, named, dry_run, draft)
         raise Failure(failure.message, f"ask the owner; when they ask for a release: {shown}", failure.code)
     if named and release.parse(named)[3] is not None:
-        raise Failure("--version takes X.Y.Z; --rc adds the -rc.M", command(words, True, None, dry_run) + " ...")
+        raise Failure("--version takes X.Y.Z; --rc adds the -rc.M", command(words, True, None, dry_run, draft) + " ...")
     if ctx.top.resolve() != ctx.main().resolve():
         raise Failure(
             f"release run runs from the main checkout ({ctx.main()}): land removes the release worktree",
-            f"{cmd('cd', ctx.main())} && {command(words, rc, named, dry_run)}",
+            f"{cmd('cd', ctx.main())} && {command(words, rc, named, dry_run, draft)}",
         )
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)

@@ -140,6 +140,12 @@ def run(ctx, version: str, publish: bool = False) -> int:
     if not info.get("isDraft"):
         ctx.out.say("it is published already (published releases are immutable)")
         ctx.out.set(published=True)
+        rec = state.load_release(ctx.top, version) or {}
+        approved = (rec.get("approved") or {}).get("sha")
+        if not rec.get("published") and approved and approved == sha:  # published, but the record was not saved
+            rec["published"] = {"at": state.now(), "sha": sha, "url": info.get("url"), "reconciled": True}
+            state.save_release(ctx.top, rec)
+            ctx.out.say("recorded it as published (the earlier run stopped before saving that)")
         return 0
     if not publish:
         ctx.out.say(f"next: read the draft ({info.get('url')}), then release verify {version} --publish")

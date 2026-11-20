@@ -93,3 +93,20 @@ def rerun(ctx, rec: dict, sha: str, why: str) -> bool:
         github.gh(ctx, ["run", "rerun", str(run_id), "--failed"])
     ctx.out.say(f"CI failed on {sha[:9]} ({why}): reran the failed jobs once (a flaky runner?); waiting again")
     return True
+
+
+CHECKLIST = "docs/dev/RELEASE-CHECKLIST.md"
+
+
+def disclose_checklist(ctx, version: str) -> None:
+    """Before release run publishes on its own: notes that do not mention the real-machine checklist get the line
+    saying it was not run (the agent guide's rule), so nothing is published without saying so."""
+    tag = f"v{version}"
+    code, out, err = github.gh(ctx, ["release", "view", tag, "--json", "body", "--jq", ".body"], check=False)
+    if code:
+        raise github.failed(["release", "view", tag], err or out)
+    if "checklist" in out.lower():
+        return
+    body = out.rstrip() + f"\n\nReal-machine checklist ({CHECKLIST}): not run for this release.\n"
+    github.gh(ctx, ["release", "edit", tag, "--notes", body])
+    ctx.out.say(f"the notes now say the real-machine checklist ({CHECKLIST}) was not run")
