@@ -108,7 +108,7 @@ class Approve(RepoCase):
         self.assertIn("start <kind>/alone", line)
         for kind in ("feat", "fix", "docs", "chore"):
             self.assertIn(kind, line)
-        self.assertIn("chore (refactors of tests, tools and CI that change no behaviour)", line)
+        self.assertIn("chore (refactors that change no behaviour)", line)
         self.assertNotIn("start feat/alone", line)
 
 
