@@ -97,11 +97,6 @@ def _demo_entry() -> dict:
     return dict(player_server.DEMO)
 
 
-def _capture_root(identifier) -> Path | None:
-    """Where a game's captures live: its project, or the library folder for the demo cartridge."""
-    return player_server.demo_captures_root() if player_server.is_demo(identifier) else host._game_root(identifier)
-
-
 @rpc("games")
 def rpc_games(ctx):
     def games(params, **_kwargs):
@@ -268,7 +263,7 @@ def rpc_captures(ctx):
     def captures(params, **_kwargs):
         try:
             identifier = str((params or {}).get("id") or "")
-            root = _capture_root(identifier)
+            root = player_server.capture_root(identifier, host._game_root)
             if root is None:
                 return {"ok": False, "error": "Unknown game.", "captures": []}
             server = player_server.get_server(host._game_root)
@@ -301,7 +296,7 @@ def rpc_capture_image(ctx):
         try:
             params = params or {}
             identifier = str(params.get("id") or "")
-            root = _capture_root(identifier)
+            root = player_server.capture_root(identifier, host._game_root)
             if root is None:
                 return {"ok": False, "error": "Unknown game."}
             png = library.decode_png(params.get("png"), 4 * 1024 * 1024)

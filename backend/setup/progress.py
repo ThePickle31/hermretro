@@ -103,8 +103,9 @@ def manifest() -> dict:
     }
 
 
-def directory_bytes(root: Path) -> int:
-    """Bytes under the engine's download folders. Cheap enough to call every poll (a few thousand files)."""
+def download_bytes(root: Path) -> int:
+    """Bytes under a toolchain root's ``downloads/`` and ``cache/`` only (what an install adds while it runs; the
+    whole folder is ``provision.folder_bytes``). Cheap enough to call every poll (a few thousand files)."""
     total = 0
     stack = [root / name for name in _DOWNLOAD_DIRS]
     while stack:
@@ -204,7 +205,7 @@ def progress(state: dict, root: Path) -> dict:
     for item in MANIFEST:
         sizes[item["component"]] += item["bytes"]
     total = sum(sizes.values())
-    grown = max(0, directory_bytes(root) - int(state.get("baseline_bytes") or 0)) if started else 0
+    grown = max(0, download_bytes(root) - int(state.get("baseline_bytes") or 0)) if started else 0
     answer["downloaded_bytes"] = grown
     components = (run or {}).get("components") or {}
     finished = sum(sizes[name] for name in COMPONENTS if components.get(name, {}).get("state") == "done")

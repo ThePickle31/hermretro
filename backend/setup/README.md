@@ -7,11 +7,14 @@ Preparing the machine and the studio profile: the page's toolchain install and i
 - RPCs (`rpcs.py`): `status`, `doctor`, `activity`, `studio_profile`, `install`, `remove_tools`.
 - Tools (`tools.py`): `chromatic_studio_device_cli`.
 - Hooks (`hooks.py`): `pre_tool_call` — asks before downloading ModRetro's CLI (chained after the Hermes layer's hardware approvals).
+- Folder sizes: `download_bytes(root)` (`progress.py`) counts only the engine's `downloads/` and `cache/` under a
+  toolchain root (the install's progress, polled by the broker); `folder_bytes(path)` (`provision.py`) counts a whole
+  file or folder tree, links not followed (what removing the tools freed).
 - Events emitted: `setup.tools_removed`, `setup.studio_profile_ready`. Listens to: none.
 
 ## Front door
 
-`backend.setup`: `install_progress`, `directory_bytes`, `seed_toolchain_cache` (used by the broker). Standard library only: the broker imports it, so it never imports `rpcs.py`, `tools.py`, `hooks.py` or `studio_profile.py`.
+`backend.setup`: `install_progress`, `download_bytes`, `folder_bytes`, `seed_toolchain_cache` (used by the broker). Standard library only: the broker imports it, so it never imports `rpcs.py`, `tools.py`, `hooks.py` or `studio_profile.py`.
 
 ## Tests
 

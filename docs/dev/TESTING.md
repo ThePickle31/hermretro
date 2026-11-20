@@ -74,6 +74,22 @@ and `.dev/` are not linted.
 
 The single required check is **All checks pass**.
 
+## The Hermes names check
+
+`tools/ci/hermes_api_check.py` checks that a Hermes still has every name in `backend/hermes/api.py` `USED`. CI runs
+it with Hermes's own Python (`$HERMES_RUNTIME_PY`, built from a hermes-agent checkout by `tools/ci/hermes_runtime.py`
+in `.github/actions/hermes`): on every pull request at `HERMES_REF` (`ci.yml`, the oldest supported Hermes) and
+nightly on Hermes `main`. Locally it needs the Python of your Hermes install, which has Hermes's dependencies:
+
+```sh
+hermes --run-module site | grep site-packages   # the .../venv/lib/python3.X/site-packages line: <venv>/bin/python
+<venv>/bin/python -c 'import hermes_cli.config'  # no output: this Python imports Hermes
+<venv>/bin/python tools/ci/hermes_api_check.py
+```
+
+Another Python fails first with each module's import error and a `FIX:` saying to use this Python, never with a
+rename `FIX:`.
+
 ## Where tests live
 
 Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feature, `tests/page/` for the page
