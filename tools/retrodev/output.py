@@ -18,7 +18,18 @@ CODE_NAMES = {OK: "ok", FAILED: "failed", WAITING: "waiting", OWNER: "needs the 
 def cmd(*parts) -> str:
     """A command printed for people to run: each part shell-quoted, so a path with a space (or a quote) survives a
     paste into sh, bash or zsh. Placeholders such as <index> stay out of it: they are text around the command."""
-    return " ".join(shlex.quote(str(part)) for part in parts)
+    return " ".join(quote(str(part)) for part in parts)
+
+
+DOUBLE_UNSAFE = set('"$`\\!')  # what double quotes still expand (! is zsh's and interactive bash's history)
+
+
+def quote(word: str) -> str:
+    """One word of a printed command: a word with an apostrophe (a title such as Fix the player's frame) in double
+    quotes, readable and easy to copy, when nothing in it expands there; otherwise shlex's quoting ('"'"' form)."""
+    if "'" in word and not DOUBLE_UNSAFE & set(word):
+        return f'"{word}"'
+    return shlex.quote(word)
 
 
 class Failure(Exception):

@@ -252,6 +252,12 @@ def made_by(ctx, env=None) -> str:
     return f"Made by an agent ({agent}) for {'@' + found.group(1) if found else 'the owner'}."
 
 
+def agent_prefix(env=None) -> str:
+    """What goes before a printed command that writes the body (plan approve after takeover), so its Made by line
+    names the agent: RETRODEV_AGENT='<agent, model>' while it is unset, as start's step 3 in the README says."""
+    return "" if (os.environ if env is None else env).get("RETRODEV_AGENT") else "RETRODEV_AGENT='<agent, model>' "
+
+
 GENERIC = ("Made by an agent (Hermes)", "Made by an agent for the owner")  # made_by's default; an older body's
 
 

@@ -172,13 +172,13 @@ def isolation_step(plan: Plan, owner: str, event: str) -> str:
 
 def docstring_head(event: str, payload: str, feature: str) -> str:
     """The listener docstring's first paragraph, wrapped within 120 characters at the function's indent: it copies
-    the EVENTS description, which may be long. The placeholder stays on one line (the placeholder gate reads it)."""
-    glue = "\u00a0"
-    text = f"When {event} happens ({payload}): {LISTENS.replace(' ', glue)} (backend/{feature}). A listener that raises is logged."
+    the EVENTS description, which may be long. The placeholder is a line of its own (the placeholder gate reads
+    it), so the sentence that replaces it has the whole line."""
+    text = f"When {event} happens ({payload}), backend/{feature} does this (a listener that raises is logged):"
     lines = textwrap.wrap(
         text, 120, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
     )
-    return "\n".join(lines).removeprefix('    """').replace(glue, " ")
+    return "\n".join([*lines, f"    {LISTENS}."]).removeprefix('    """')
 
 
 def test_template(plan: Plan) -> str:
@@ -315,7 +315,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         else "; say it on the README's 'Listens to' line too"
     )
     plan.next_steps += [
-        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']})",
+        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); log with "
+        "host.logger (from ..hermes import host)",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
         isolation_step(plan, event.partition(".")[0], event),
