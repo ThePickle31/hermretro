@@ -201,6 +201,33 @@ class BodyCitedPaths(RepoCase):
         )
         self.assertEqual(self.warning(quiet), "")
 
+    def test_any_verb_claims_an_untouched_file(self):  # review 2, 0
+        for claim in (
+            "- Fixed the crash in `backend/hermes/glue.py`.",
+            "- Updated `backend/hermes/glue.py` for the value.",
+            "- `backend/library/core.py` keeps the value; tidied `backend/hermes/glue.py`.",
+        ):
+            with self.subTest(claim=claim):
+                self.assertIn("names the file(s) `backend/hermes/glue.py`, which the", self.warning(claim))
+
+    def test_a_citation_clause_holds_its_whole_list_until_a_new_change_clause(self):  # review 2, 1
+        quiet = (
+            "- Changed `backend/library/core.py`, checked against `backend/hermes/glue.py` and "
+            "`tests/backend/library/test_core.py`.\n"
+            "- Changed `backend/library/core.py`, based on `backend/hermes/glue.py`, `tools/layout.toml` and "
+            "`docs/dev/CONTRACT.md` (cited by `backend/library/names.py`)."
+        )
+        self.assertEqual(self.warning(quiet), "")
+        for claim in (
+            "- Changed `backend/library/core.py`, checked against `tools/layout.toml`; removed X from "
+            "`backend/hermes/glue.py`.",
+            "- Checked against `tools/layout.toml` and removed X from `backend/hermes/glue.py`.",
+        ):
+            with self.subTest(claim=claim):
+                said = self.warning(claim)
+                self.assertIn("names the file(s) `backend/hermes/glue.py`, which the", said)
+                self.assertNotIn("`tools/layout.toml`", said)
+
 
 class QuickPath(RepoCase):
     def test_step_three_starts_with_the_agent_named(self):

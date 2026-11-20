@@ -3,11 +3,12 @@
 A body is often written from the plan before the code, and a name the code then changed (`games.rom_path`, renamed
 `games.built_rom` while building) stays in the body the owner reads. ship and check's last line name each
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
-and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch, but only a
-path in a bullet or sentence that claims a change (CHANGE_WORDS, or a bullet that opens with the path and a colon),
-never one cited as evidence (`checked against`, `verified in`, `comes from`, `taken from`, `read from`, `copied from`,
-`source:`, `see`, `per`, `as in` right before it) nor one under engine/ (never changed outside an engine update, so
-only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
+and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch. Any quoted path
+there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
+phrase (CITATION: `checked against`, `verified in`, `comes from`, `source:`, `see`, `per`, `based on`, ...) to the
+end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
+cited list (`checked against `a` and `b``) is cited. A path under engine/ never warns (never changed outside an engine
+update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
 """
 
 from __future__ import annotations
@@ -32,26 +33,20 @@ def is_path(word: str) -> bool:
     return bool(PATH.match(word)) and ("/" in word or word.lower().endswith(SUFFIXES)) and not word.startswith("/")
 
 
-CHANGE_WORDS = re.compile(
-    r"\b(?:add|adds|added|change|changes|changed|move|moves|moved|remove|removes|removed|rename|renames|renamed|new|"
-    r"edit|edits|edited|now|write|writes|wrote|delete|deletes|deleted|split|splits|drop|drops|dropped|extract|"
-    r"extracts|extracted)\b",
+# Where a citation clause starts: words that cite what follows as evidence rather than claim a change to it.
+CITATION = re.compile(
+    r"\b(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|"
+    r"as in|cited|based on)(?!\w)",
     re.I,
 )
-# Right before a quoted path, words that cite it as evidence rather than claim a change to it.
-CITED = re.compile(
-    r"\b(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|as in)"
-    r"\s*$",
-    re.I,
-)
+# Where a new change clause starts, ending a citation clause: a semicolon, or `and` with a past-tense verb.
+CLAUSE = re.compile(r";|\band\s+(?=[a-z]+ed\b)", re.I)
 BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
-LEADING_PATH = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+`([^`\n]+)`\s*:")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`(])")
 
 
 def claims(lines: list[str]) -> list[str]:
-    """The section's bullets (a wrapped bullet joined back into one) and paragraphs, each split into sentences; a
-    bullet that opens with `path`: keeps that opening on its first sentence."""
+    """The section's bullets (a wrapped bullet joined back into one) and paragraphs, each split into sentences."""
     blocks: list[str] = []
     for line in lines:
         if not line.strip():
@@ -64,15 +59,18 @@ def claims(lines: list[str]) -> list[str]:
 
 
 def claimed(sentence: str) -> list[str]:
-    """The paths ``sentence`` claims a change to: all of its quoted paths not cited as evidence, when it has a change
-    word or opens a bullet with a path and a colon (that path always); never a path under engine/."""
-    leading = LEADING_PATH.match(sentence)
-    found = [leading.group(1).strip()] if leading and is_path(leading.group(1).strip()) else []
-    if leading or CHANGE_WORDS.search(sentence):
-        for match in QUOTED.finditer(sentence):
-            word = match.group(1).strip()
-            if is_path(word) and not CITED.search(sentence[: match.start()]):
-                found.append(word)
+    """The paths ``sentence`` claims a change to: every quoted path outside a citation clause (one that starts at a
+    CITATION and runs to the sentence's end or the next CLAUSE); never a path under engine/."""
+    marks = sorted(
+        [(m.start(), True) for m in CITATION.finditer(sentence)]
+        + [(m.start(), False) for m in CLAUSE.finditer(sentence)]
+    )
+    found = []
+    for match in QUOTED.finditer(sentence):
+        word = match.group(1).strip()
+        cited = [citing for at, citing in marks if at < match.start()]
+        if is_path(word) and not (cited and cited[-1]):
+            found.append(word)
     return [path for path in found if not path.startswith("engine/") and path != "engine"]
 
 
