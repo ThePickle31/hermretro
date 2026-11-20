@@ -14,7 +14,7 @@ from backend.setup import rpcs as host_setup  # noqa: E402 - the repository root
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 CLEAN = {k: v for k, v in os.environ.items() if k not in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")}
 
@@ -101,25 +101,9 @@ class RemoveDownloads(unittest.TestCase):
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
 
     def test_the_rpc_stops_an_idle_broker_first_and_refuses_a_busy_one(self):
-        class Client:
-            hello = {"pid": -1}
-
-            def __init__(self, answer):
-                self.answer, self.asked = answer, []
-
-            def request(self, payload):
-                self.asked.append(payload)
-                return self.answer
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
         (self.home / "run").mkdir()
         rpc = setup_rpcs.rpc_remove_tools(None)
-        busy = Client({"ok": False, "denied": {"code": "BUSY"}})
+        busy = FakeBrokerClient({"ok": False, "denied": {"code": "BUSY"}})
         with (
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (busy, None)),
             mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"),
@@ -128,7 +112,7 @@ class RemoveDownloads(unittest.TestCase):
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
         self.assertEqual(busy.asked, [{"op": "shutdown"}])  # never forced
         self.assertTrue((self.cache / "toolchain").is_dir())
-        idle = Client({"ok": True})
+        idle = FakeBrokerClient({"ok": True})
         with (
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (idle, None)),
             mock.patch.object(paths, "runtime_dir", lambda: self.home / "run"),

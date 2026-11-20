@@ -4,7 +4,8 @@
 transcript (`transcript/`), the message box (`composer/`), the game playing inside the reply (`player/`), the
 picture viewer (`viewer/`), the image cache (`assets/`) and the game drawn behind New Game (`attract/`) with the shelf of games being worked on standing on its floor (`cart-shelf.js`). `chat/` holds the conversations, the gateway events
 and the actions. While the hermretro profile is missing it shows `studio-needed.js` instead (the choice is the page's
-`Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last).
+`Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last). Its games are the `games` RPC's game
+objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game-object)).
 
 **Tabs:** none (its areas are subfolders, not tabs).
 
@@ -39,6 +40,8 @@ profile).
 
 Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-motion changes in
 `build-responsive.css.js`); the header row itself, `.cs-b-head`, is in `transcript/transcript.css.js`.
+`build-page.js` is near the size limit (`tests/repo/test_layout.py`: a warning above 400 lines, a failure above 600),
+so a new header part goes in its own file in `page/pages/build/`, with a row in the table above.
 
 ## The New Game level (`attract/`)
 
@@ -65,7 +68,8 @@ readers, stops drawing while the window is hidden, and shows one still frame und
 
 ## Adding a tab here
 
-Make a folder `page/pages/build/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,
+The page has no tabs yet, so the first is `python tools/retrodev new tab build main --from-page --label Chat` (its
+current content becomes that tab; the id `chat` is taken by the conversations folder `chat/`). After that, make a folder `page/pages/build/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/build/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:

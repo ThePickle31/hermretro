@@ -22,7 +22,15 @@ ASSET_SUFFIXES = {
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
 }
-ASSET_MAX_BYTES = 6 * 1024 * 1024
+ASSET_MAX_BYTES = 6 * 1024 * 1024  # the "up to 6 MB" of docs/dev/STUDIO-PAGES.md (tests/repo/test_lockstep.py)
+
+
+def size_text(size: int) -> str:
+    """A byte count as the docs write it: ``6 MB``, ``512 KB``, or bytes when it is neither."""
+    for unit, name in ((1024 * 1024, "MB"), (1024, "KB")):
+        if size >= unit and size % unit == 0:
+            return f"{size // unit} {name}"
+    return f"{size} bytes"
 
 
 def _image_size(data: bytes) -> tuple[int, int]:
@@ -194,3 +202,12 @@ def _versions(real: Path) -> list[dict]:
     else:
         match["current"] = True
     return versions
+
+
+def older_versions(real: Path) -> int:
+    """How many kept versions of a game image are older than the file as it is now (the current one is not
+    counted); 0 when none are kept or the file cannot be read."""
+    try:
+        return sum(1 for version in _versions(real) if not version["current"])
+    except OSError:
+        return 0

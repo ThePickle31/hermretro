@@ -208,5 +208,13 @@ test("page/ gives Small no tone but 'warn'", () => {
   const found = pageFiles(path.join(root, 'page')).flatMap(file =>
     badTones(readFileSync(file, 'utf8')).map(line => `${path.relative(root, file)} ${line}`)
   )
-  assert.deepEqual(found, [], "FIX: Small's tone takes only 'warn' (page/shared/ui/text.js); write tone: 'warn' or leave it out")
+  assert.deepEqual(found, [], "FIX: Small's tone takes only 'warn' (page/shared/ui/text.js); write tone: 'warn' or leave it out. " +
+    'To add a tone: the className test in page/shared/ui/text.js, TONES in this file, and its colour class (.cs-<tone>) in page/shared/styles/base.css.js')
+})
+
+test('every tone and the shared colour classes are in base.css.js', () => {
+  const base = readFileSync(path.join(root, 'page/shared/styles/base.css.js'), 'utf8')
+  for (const name of [...TONES, 'bad', 'good']) {
+    assert.match(base, new RegExp(`^\\.cs-${name} \\{ color:`, 'm'), `FIX: define .cs-${name} { color: ... } in page/shared/styles/base.css.js, next to .cs-warn`)
+  }
 })

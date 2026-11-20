@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, holdTimers, button, typeInto, key, mount, check, answered, doctor, installAnswer, complete }) => {
+await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, tab, settle, holdTimers, button, typeInto, key, mount, check, answered, installAnswer, complete }) => {
   // Where the Emulator scenarios leave the app: a game loaded in the player.
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
   scenario.install = installAnswer({ state: 'idle' })
@@ -39,9 +39,7 @@ await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, h
     await fire([...view.node.querySelectorAll('.cs-b-sw-list button')].find(node => node.textContent.includes(title)), 'click')
     await settle()
   }
-  scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
-  scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build' }
-  scenario.ambient = complete; scenario.routes = []; scenario.byProfile = {}
+  buildScenario()
   const lib14 = [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio', state: 'ready',
     rom: null, webExport: true, thumb: null, chat: null, error: null }]
   scenario.games = answered({ games: lib14, device: { hardwareEnabled: false, skipped: true } })

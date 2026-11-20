@@ -13,6 +13,13 @@ Game images for the Build page: the asset viewer's RPCs (`rpcs.py`), how a proje
 
 A game's images live in `<root>/assets/<kind>/` (`sprites/`, `backgrounds/`, `ui/`, `fonts/`, subfolders included): mostly `*.png`, each beside its `<image>.gbsres` sidecar (JSON: `id`, `name`, and for a sprite its frame size and animations; `backend/library/README.md` "Project files"). To count or list them, use `project_images(root, kinds=None)` from `project_files.py`: it yields `(path, resolved path, kind)` for each image (`kind` is `sprite`, `background` or `ui`; `kinds={"sprite"}` keeps only sprites), never one outside `root`, e.g. `sum(1 for _ in project_images(root, kinds={"sprite"}))`. The `assets` RPC lists the game's pictures with it.
 
+## Kept versions
+
+`versions.py` keeps each version of a game image a reply showed or a step looked at, under the plugin data folder's
+`asset-versions/`, newest `ASSET_KEEP_VERSIONS` (40) per image, images up to `ASSET_MAX_BYTES` (6 MB) only. To count
+an image's older versions, use `older_versions(real)` (`real` the resolved path; the current file is not counted);
+`_versions(real)` lists them all, the current one marked.
+
 ## Front door
 
 `backend.assets` exports nothing; other features reach it through events.

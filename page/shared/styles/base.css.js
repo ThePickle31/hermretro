@@ -17,6 +17,8 @@ export const BASE_CSS = `
 .cs-grow { flex: 1; }
 .cs-error { color: var(--ui-red); font: 12px/1.5 ${MONO}; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .cs-warn { color: var(--ui-yellow); }
+.cs-bad { color: var(--ui-red); }
+.cs-good { color: var(--ui-green); }
 .cs-draft { color: var(--ui-yellow); font: 700 9.5px ${MONO}; letter-spacing: .1em; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }

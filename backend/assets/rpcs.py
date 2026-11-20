@@ -33,6 +33,7 @@ from .versions import (
     _version_at,
     _versions,
     _versions_dir,
+    size_text,
 )
 
 logger = host.logger  # one logger for the Hermes side of the backend,
@@ -64,7 +65,12 @@ def rpc_asset(ctx):
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
             size = real.stat().st_size
             if size > ASSET_MAX_BYTES:
-                return {"ok": False, "code": "TOO_LARGE", "error": "The image is too large to preview."}
+                limit = size_text(ASSET_MAX_BYTES)
+                return {
+                    "ok": False,
+                    "code": "TOO_LARGE",
+                    "error": f"The image is larger than {limit}, too large to preview.",
+                }
             _keep_version(real)
             earlier = None
             wanted = str(params.get("version") or "")
