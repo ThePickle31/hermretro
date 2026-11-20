@@ -178,7 +178,9 @@ class Takeover(RepoCase):
         for step in steps[1:]:
             command = step.partition("when they say start: ")[2] or step
             command = command.split(" (", 1)[0].replace("<their exact words>", "start")
-            self.assertTrue(command.startswith(runner + " "), step)
+            agent = "RETRODEV_AGENT='<agent, model>' "  # round 15: plan approve names the agent (start's step 3)
+            self.assertTrue(command.removeprefix(agent).startswith(runner + " "), step)
+            command = command.replace("<agent, model>", "Hermes, a test")
             done = sh(command, tree)  # verbatim, in the worktree the first step went to
             if " plan new " in command:
                 (self.main / "notes/plans/mate.md").write_text(FILLED_PLAN.format(topic="mate"))
