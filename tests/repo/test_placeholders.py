@@ -10,8 +10,11 @@ its throwaway copy).
 """
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -153,19 +156,36 @@ def _scaffold():
     return scaffold
 
 
-def _planned(*steps) -> dict[str, str]:
-    """The scanned files a throwaway feature (rdplaceholder) and then each `new` step would write, planned in memory
-    only (nothing is written): a step is (module name, function name, *arguments after the plan)."""
+def _added(before: str, after: str) -> str:
+    """The lines `after` has that `before` does not (counted, so a moved line is not new): the plan's own text."""
+    old = Counter(before.splitlines())
+    added = []
+    for line in after.splitlines():
+        if old[line]:
+            old[line] -= 1
+        else:
+            added.append(line)
+    return "\n".join(added)
+
+
+def _planned(*steps, top: Path = ROOT) -> dict[str, str]:
+    """The text a throwaway feature (rdplaceholder) and then each `new` step would write into scanned files, planned
+    in memory only (nothing is written): a step is (module name, function name, *arguments after the plan). Only the
+    lines the plan adds are returned, never what the tree held before: a tree that already has filled or unfilled
+    stubs (the scaffold check's grown copy, whose `new event --payload count` leaves `count` (<...>) in CONTRACT)
+    changes nothing here."""
     import importlib
 
-    plan = _scaffold().Plan(ROOT)
+    plan = _scaffold().Plan(top)
     backend = importlib.import_module("retrodev.scaffold_backend")
     backend.feature(plan, "rdplaceholder", None)
     for module, function, *args in steps:
         getattr(importlib.import_module(f"retrodev.{module}"), function)(plan, *args)
+    written = {rel: text for rel, text in plan.created.items()}
+    written.update({rel: _added((top / rel).read_text(encoding="utf-8"), text) for rel, text in plan.changed.items()})
     return {
         rel: text
-        for rel, text in {**plan.created, **plan.changed}.items()
+        for rel, text in written.items()
         if not rel.startswith(SKIPPED) and Path(rel).suffix in SCANNED_SUFFIXES and rel not in GENERATED
     }
 
@@ -195,6 +215,38 @@ PLANNED = {
 }
 
 
+# The files `new feature` and `new event` read: enough of a tree to plan both in, copied into a throwaway folder.
+EVENT_TREE = (
+    "backend/features.py",
+    "backend/system/events.py",
+    "docs/dev/ARCHITECTURE.md",
+    "docs/dev/CONTRACT.md",
+    "tools/layout.toml",
+)
+
+
+def _event_tree(case: unittest.TestCase) -> Path:
+    """A throwaway tree with the files an event plan reads, plus an unfilled event with a bare payload key
+    (`new event rdother pinged --payload count`) written into it, so its CONTRACT already says `count` (<...>)."""
+    folder = tempfile.TemporaryDirectory()
+    case.addCleanup(folder.cleanup)
+    top = Path(folder.name)
+    for rel in [*EVENT_TREE, *(str(p.relative_to(ROOT)) for p in sorted(ROOT.glob("backend/*/__init__.py")))]:
+        (top / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / rel, top / rel)
+    import importlib
+
+    plan = _scaffold().Plan(top)
+    backend = importlib.import_module("retrodev.scaffold_backend")
+    backend.feature(plan, "rdother", "A throwaway feature with an unfilled event")
+    backend.event(plan, "rdother", "pinged", "count", "the probe was pinged")
+    for rel, text in {**plan.created, **plan.changed}.items():
+        (top / rel).parent.mkdir(parents=True, exist_ok=True)
+        (top / rel).write_text(text, encoding="utf-8")
+    case.assertIn("(<...>)", (top / "docs/dev/CONTRACT.md").read_text(encoding="utf-8"))
+    return top
+
+
 class EachPlaceholderIsCaught(unittest.TestCase):
     """For every placeholder: the unfilled `new` that writes it leaves it, whole on one line, in a file the gate
     scans, and the gate's line check finds it there. A placeholder missing from PLACEHOLDERS fails here."""
@@ -215,8 +267,13 @@ class EachPlaceholderIsCaught(unittest.TestCase):
                 self.assertTrue(hits, f"{text!r} is not left in a scanned line of {sorted(files)}")
 
     def test_a_filled_event_leaves_no_event_placeholder(self):
+        """A `new event` with every payload key described and --when, planned in a throwaway tree that already holds
+        another feature's unfilled bare-payload event (as the scaffold check's grown copy does), adds no event
+        placeholder: only the plan's own lines are checked, never what the tree held."""
+        top = _event_tree(self)
         files = _planned(
-            ("scaffold_backend", "event", "rdplaceholder", "probed", "root=<project folder, str>", "a probe ran")
+            ("scaffold_backend", "event", "rdplaceholder", "probed", "root=<project folder, str>", "a probe ran"),
+            top=top,
         )
         left = {text for body in files.values() for line in body.splitlines() for text in left_in(line)}
         self.assertEqual(left & {"=<...>", "(<...>)", "say when it is emitted", "| say when |"}, set())
