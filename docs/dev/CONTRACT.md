@@ -188,6 +188,11 @@ instead of throwing.
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
 | `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
 
+`captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
+Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
+(`engine/modretro-chromatic/dist/web-preview-states.js`), at most 8 kept per build; no RPC reads them
+(`backend/library/README.md`, "Save states", has the fields).
+
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
 web export (else `BUILD_FIRST`) and a complete game card (else `GAME_INFO_INCOMPLETE` with `missing`,
 `problems` and `guidance`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,

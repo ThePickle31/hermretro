@@ -17,12 +17,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tests.repo.test_layout import files  # noqa: E402 - the repository root goes on the path first
+from tests.repo.markdown import split_code_spans, without_fences  # noqa: E402 - the repository root goes on the path first
+from tests.repo.test_layout import files  # noqa: E402 - the repository root goes on sys.path first
 
 SKIPPED = ("engine/", "tools/npm/", "desktop/", "player/")  # vendored or generated
 SELF = "tests/repo/test_doc_links.py"  # its examples of broken pointers
 SOURCES = (".md", ".py", ".js", ".mjs")
-FENCE = re.compile(r"^(```|~~~).*?^\1", re.M | re.S)
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
 ANCHOR_LINK = re.compile(r"\]\(([^()\s]*?)#([^()\s]+)\)")
 QUOTE = r"(?:\"([^\"\n]{2,80})\"|'([^'\n]{2,80})'|“([^”\n]{2,80})”)"
@@ -30,7 +30,6 @@ QUOTE = r"(?:\"([^\"\n]{2,80})\"|'([^'\n]{2,80})'|“([^”\n]{2,80})”)"
 SECTION = re.compile(r"\b(README|[\w./-]+\.md)(?:,? " + QUOTE + r"|'s " + QUOTE + r" section)")
 
 
-CODE_SPAN = re.compile(r"(`+)(.+?)\1")
 EMPHASIS_UNDERSCORE = re.compile(r"(?<![^\W_])_+|_+(?![^\W_])")  # a run of _ not inside a word
 
 
@@ -39,16 +38,13 @@ def heading_text(raw: str) -> str:
     (underscores included, as in an identifier)."""
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", raw)
     parts = []
-    for index, piece in enumerate(CODE_SPAN.split(text)):
-        if index % 3 == 2:
-            parts.append(piece)  # a code span's content
-        elif index % 3 == 0:
-            parts.append(EMPHASIS_UNDERSCORE.sub("", piece.replace("*", "")))
+    for piece, code in split_code_spans(text):
+        parts.append(piece if code else EMPHASIS_UNDERSCORE.sub("", piece.replace("*", "")))
     return "".join(parts).strip()
 
 
 def headings(text: str) -> list[str]:
-    return [heading_text(found) for found in HEADING.findall(FENCE.sub("", text))]
+    return [heading_text(found) for found in HEADING.findall(without_fences(text))]
 
 
 def slugs(text: str) -> set[str]:
@@ -80,7 +76,7 @@ def resolve(name: str, source: str, tracked: set[str]) -> str | None:
 def broken(text: str, source: str, read, tracked: set[str]) -> list[str]:
     found = []
     if source.endswith(".md"):
-        for target, anchor in ANCHOR_LINK.findall(FENCE.sub("", text)):
+        for target, anchor in ANCHOR_LINK.findall(without_fences(text)):
             if target.startswith(("http://", "https://")):
                 continue
             path = (Path(source).parent / target).as_posix() if target else source
@@ -160,6 +156,16 @@ class DocLinks(unittest.TestCase):
         contract = (ROOT / "docs/dev/CONTRACT.md").read_text(encoding="utf-8")
         self.assertIn("studio_profile--no-params", slugs(contract))
         self.assertNotIn("studioprofile--no-params", slugs(contract))
+
+    def test_a_longer_fence_hides_a_shorter_one(self):
+        """A four-backtick block showing a three-backtick example is code to its closing fence, and only to it."""
+        text = "````md\n```\n```\n# Shown heading\n````\n# Real heading\n~~~~\n~~~\n# Tilde shown\n~~~~\n"
+        self.assertEqual(slugs(text), {"real-heading"})
+        self.assertEqual(headings("# ``a`b`` and `c` d\n"), ["a`b and c d"])
+
+    def test_a_code_span_drops_one_padding_space_and_an_escaped_backtick_opens_none(self):
+        self.assertEqual(headings("# `` `x` `` tips\n"), ["`x` tips"])
+        self.assertEqual(headings("# A \\`not_code\\` b\n"), ["A \\`not_code\\` b"])
 
 
 if __name__ == "__main__":
