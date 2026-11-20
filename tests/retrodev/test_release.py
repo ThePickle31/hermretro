@@ -278,13 +278,22 @@ class Publish(ReleaseCase):
         self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
         self.gh.answers[("release", "view", tag, "--json", "body")] = (0, drafted, "")
         self.gh.answers[("release", "edit")] = (0, "", "")
+        self.gh.answers[("release", "edit")] = (1, "", "HTTP 422: Validation Failed")  # the notes edit fails once
         code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 1, data)
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        self.gh.calls.clear()
+        code, data = self.publish(NEXT)  # the resume, without --checklist: the kept result still goes in
         self.assertEqual(code, 0, data)
         edit = self.gh.called("release", "edit", tag, "--notes")
         self.assertEqual(len(edit), 1, self.gh.calls)
         self.assertIn("RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", edit[0][-1])
         self.assertIn("A hand-written note.", edit[0][-1])
         self.assertNotIn("not needed", edit[0][-1])
+        self.gh.answers[("release", "view", tag, "--json", "body")] = (0, edit[0][-1], "")
+        self.gh.calls.clear()
+        self.assertEqual(self.publish(NEXT)[0], 0)
+        self.assertEqual(self.gh.called("release", "edit"), [], "the notes have it: no edit again")
 
     def test_a_retry_after_dev_moves_releases_the_commit_the_first_publish_chose(self):
         sha = self.merged_release(pr=None)  # no version pull request: the release commit is dev's head

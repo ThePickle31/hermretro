@@ -293,11 +293,14 @@ def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) 
                 "read git's message; nothing later ran. Fix it, then python tools/retrodev release publish "
                 f"{version} again (it skips the steps that are done)",
             )
-    if drafted and checklist and checklist.strip():  # a result given after the draft was made: into its notes
+    result = (checklist or "").strip() or rec.get("checklist")  # given now, or kept from an earlier run
+    if drafted and result:  # the draft was made before the result: its notes get it (each run, until they have it)
         tag = f"v{version}"
         body = github.gh(ctx, ["release", "view", tag, "--json", "body", "--jq", ".body"])[1]
-        github.gh(ctx, ["release", "edit", tag, "--notes", release_notes.with_result(body, checklist)])
-        ctx.out.say(f"the draft's notes now give the real-machine checklist's result: {checklist.strip()}")
+        new = release_notes.with_result(body, result)
+        if new.strip() != body.strip():
+            github.gh(ctx, ["release", "edit", tag, "--notes", new])
+            ctx.out.say(f"the draft's notes now give the real-machine checklist's result: {result}")
     if not url:
         url = github.gh(ctx, ["release", "view", f"v{version}", "--json", "url", "--jq", ".url"])[1].strip()
     rec.update(published_draft={"at": state.now(), "sha": sha, "url": url})
