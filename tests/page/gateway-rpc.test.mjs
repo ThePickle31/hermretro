@@ -1,5 +1,6 @@
 // tools/debug/gateway_rpc.mjs without a gateway: one JSON line naming what hermes said, exit 1 (not a Node stack).
-// Uses a stub `hermes` on PATH, so it needs no Hermes. Run alone: node tests/page/gateway-rpc.test.mjs
+// Uses a stub `hermes` on PATH, so it needs no Hermes.
+// Run alone: node tests/page/gateway-rpc.test.mjs
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
