@@ -119,12 +119,18 @@ the owner, `from .module import NAME`). Importing it from the module that define
 | an event | the owner's front door `EVENTS` + `emit(...)` where it happens: something the broker does is announced from the gateway side (the broker stays standard library only and emits nothing), in the RPC or hook that first learns of it, once per occurrence; listeners in `backend/<other>/listeners.py` with `@on(...)`. Or: `python tools/retrodev new event <feature> <name>` (the entry, an `emits.py` function, a test, the CONTRACT row), and `python tools/retrodev new listener <feature> <event>` for each feature that reacts (not `broker` or `system`, which stay standard library only) |
 | state a listener keeps | a module-level value in the feature's own module (where the listener lives, or the module it calls), with a reader function beside it (listeners run in the emitting process, so this value is per process: the gateway, a plugin host and a turn process each hold their own); export the reader in the front door's `__all__` only when another feature reads it (then as the row below). Not on `host` or another feature's module. State another process must read (the broker, the player, another Hermes process) is a file under `backend.system.paths.hermretro_home()`, written atomically with `paths.write_json_atomic(path, data)` (a temp file beside it, then `os.replace`), not module state |
 | a name exported from a feature's front door (a value other features read) | import it in the owner's `backend/<owner>/__init__.py` and add it to `__all__` (`tests/repo/test_boundaries.py` checks only these two); by hand also: that docstring's "Front door:" line when it says nothing is exported, the owner README's `## Front door` line, and the owner's "Front door / events" cell in the table above. Readers import `from ..<owner> import NAME` |
-| a module split or renamed inside a feature | the feature README's module list (its opening paragraph) and any mention in `ARCHITECTURE.md`; `tests/repo/test_doc_pointers.py` fails on a backtick-quoted `backend/` or `page/` path that no longer exists |
+| a module split or renamed inside a feature | as "Splitting a module" below: the feature README's module list (its opening paragraph) and any mention in `ARCHITECTURE.md`; `tests/repo/test_doc_pointers.py` fails on a backtick-quoted `backend/` or `page/` path that no longer exists |
 | a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its area in `tools/layout.toml` and the Map above; tests in `tests/backend/<name>/`. Or: `python tools/retrodev new feature <name> --purpose '...'` (all of it) |
 
 Each feature's row in the table above lists what it registers: `python tools/retrodev new rpc|tool <feature> ...`
 adds the new name to its Declares cell, and `new event` adds the event to its Front door / events cell; by hand, add
 it there along with the feature's README.
+
+**Splitting a module.** The new module goes next to the old one in the same feature folder
+(`backend/<feature>/<new>.py`). Update every caller to import from it, or, when tests or other features still use the
+moved names through the old module, import them back there with `# noqa: F401 - re-exported`. Move the moved code's
+tests to `tests/backend/<feature>/test_<new>.py`. Then change the feature README's module list and any doc that
+names the old module for the moved code (`tests/repo/test_doc_pointers.py` checks the paths they name).
 
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
