@@ -33,7 +33,7 @@ export function DownloadTable({ manifest, install, phase, profileRow }) {
           jsx('td', { className: 's', children: item.source }),
           jsx('td', {
             className: `z ${item.state ?? ''}`,
-            children: item.state && item.state !== 'pending' ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, item.approx) : 'no download'
+            children: item.state && item.state !== 'pending' ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, { approx: item.approx }) : 'no download'
           })
         ]
       },
@@ -120,9 +120,9 @@ export function InstallFacts({ manifest, status, root }) {
     className: 'cs-onb-facts',
     children: [
       jsx('dt', { children: 'Download' }),
-      jsx('dd', { children: formatBytes(manifest?.bytes ?? 0, true) }),
+      jsx('dd', { children: formatBytes(manifest?.bytes ?? 0, { approx: true }) }),
       jsx('dt', { children: 'On disk' }),
-      jsx('dd', { children: formatBytes(manifest?.disk_bytes ?? 0, true) }),
+      jsx('dd', { children: formatBytes(manifest?.disk_bytes ?? 0, { approx: true }) }),
       jsx('dt', { children: 'Installs to' }),
       jsx('dd', { className: 'path', title: root ?? '', children: shortPath(root) ?? "the plugin's deps folder" }),
       jsx('dt', { children: 'Already here' }),

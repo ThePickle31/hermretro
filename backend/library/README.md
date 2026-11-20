@@ -34,6 +34,8 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
 - `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest 50 are kept: `games.MAX_PENDING`; `docs/dev/STUDIO-PAGES.md`, "Binding (`games.json`)", states it too, and `tests/repo/test_lockstep.py` keeps both in step with it). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
+Reading it: `Registry.load()["games"]` is the raw entries above (game id → entry), including games whose folder is gone; `Registry.library()` answers the page's game objects (`Registry.describe` of each entry, newest `updatedAt` first), only games whose folder exists, and is slower: it hashes each ROM and web export and reads each card.
+
 Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
 Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`games.project_title`: the `.gbsproj` name, else the web export's, else the folder name).

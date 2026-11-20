@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 098faf839a27cd9cf9037958855fc9001439afd3b14d9f80592b4e639b892afd
- * body: sha256 06d99625d37ce05ed912f825c7cb8c5386f2293cfaf440c9671b040b961fb220
+ * sources: sha256 460c88755201887b3bc575e0126070904c73dc39e238e715174ab040acab91bb
+ * body: sha256 5f31e1db4ceb077af63b3b8ef6078868ac8a6725e68565bdaee4e154cb7a7e06
  */
 // page/sdk.js
 import {
@@ -771,6 +771,26 @@ function Cartridge({ game, title, note = null, label, disabled = false, play = f
   });
 }
 
+// page/app/format.js
+function formatBytes(bytes, { approx = false, unit = null } = {}) {
+  if (unit === "MB") {
+    bytes = bytes || 0;
+  }
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "";
+  }
+  const mb = bytes / 1e6;
+  const text2 = unit === "MB" ? `${Math.round(mb).toLocaleString()} MB` : unit === "KB" ? `${Math.max(1, Math.round(bytes / 1024))} KB` : mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+  return approx ? `≈ ${text2}` : text2;
+}
+function shortPath(path, keep = 4) {
+  if (!path) {
+    return null;
+  }
+  const parts = String(path).split(/[\\/]/).filter(Boolean);
+  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
+}
+
 // page/shared/ui/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
@@ -1204,7 +1224,7 @@ var GAME_STATES = {
 function gameMeta(game, { kind = true, now = Date.now() } = {}) {
   return [
     kind ? KIND_LABELS[game.kind] ?? game.kind ?? null : null,
-    game.rom?.size ? `${Math.max(1, Math.round(game.rom.size / 1024))} KB` : null,
+    game.rom?.size ? formatBytes(game.rom.size, { unit: "KB" }) : null,
     game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : "never built"
   ].filter(Boolean);
 }
@@ -2273,23 +2293,6 @@ function ProfileBody({ status }) {
   });
 }
 
-// page/app/format.js
-function formatBytes(bytes, approx = false) {
-  if (!Number.isFinite(bytes) || bytes < 0) {
-    return "";
-  }
-  const mb = bytes / 1e6;
-  const text2 = mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
-  return approx ? `≈ ${text2}` : text2;
-}
-function shortPath(path, keep = 4) {
-  if (!path) {
-    return null;
-  }
-  const parts = String(path).split(/[\\/]/).filter(Boolean);
-  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
-}
-
 // page/pages/setup/install/install-panel.js
 var ROW_LABEL = { done: "verified", running: "installing", failed: "failed", pending: "" };
 function DownloadTable({ manifest, install, phase, profileRow }) {
@@ -2311,7 +2314,7 @@ function DownloadTable({ manifest, install, phase, profileRow }) {
         jsx("td", { className: "s", children: item.source }),
         jsx("td", {
           className: `z ${item.state ?? ""}`,
-          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, item.approx) : "no download"
+          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, { approx: item.approx }) : "no download"
         })
       ]
     },
@@ -2383,9 +2386,9 @@ function InstallFacts({ manifest, status, root }) {
     className: "cs-onb-facts",
     children: [
       jsx("dt", { children: "Download" }),
-      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, true) }),
+      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, { approx: true }) }),
       jsx("dt", { children: "On disk" }),
-      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, true) }),
+      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, { approx: true }) }),
       jsx("dt", { children: "Installs to" }),
       jsx("dd", { className: "path", title: root ?? "", children: shortPath(root) ?? "the plugin's deps folder" }),
       jsx("dt", { children: "Already here" }),
@@ -2511,7 +2514,6 @@ function InstallPanel({ ctx, status, install, step, profileStep }) {
 }
 
 // page/pages/setup/remove-tools.js
-var megabytes = (bytes) => `${Math.round((bytes || 0) / 1e6).toLocaleString()} MB`;
 function RemoveTools({ status, doctor }) {
   const [state, setState] = useState("idle");
   const [failure, setFailure] = useState(null);
@@ -2523,7 +2525,7 @@ function RemoveTools({ status, doctor }) {
       if (!data?.ok) {
         throw new Error(data?.error || "The tools could not be removed.");
       }
-      host.notify({ kind: "success", message: `Downloaded tools removed (${megabytes(data.removed_bytes)}). Your games are untouched.` });
+      host.notify({ kind: "success", message: `Downloaded tools removed (${formatBytes(data.removed_bytes, { unit: "MB" })}). Your games are untouched.` });
       status.refetch?.();
       doctor.refetch?.();
       setState("idle");
@@ -2876,7 +2878,7 @@ function OnboardWelcome({ manifest, onStart }) {
             style: { gap: 16 },
             children: [
               jsxs(Button, { onClick: onStart, size: "lg", variant: "default", children: ["Get started", jsx(Codicon, { name: "arrow-right", size: 14 })] }),
-              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, true)} download · ${formatBytes(manifest.disk_bytes, true)} on disk` }) : null
+              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, { approx: true })} download · ${formatBytes(manifest.disk_bytes, { approx: true })} on disk` }) : null
             ]
           })
         ]

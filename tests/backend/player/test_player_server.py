@@ -3,7 +3,6 @@
 import base64
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -23,7 +22,7 @@ from backend.hermes import host as hermes_host  # noqa: E402 - the repository ro
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.player import server as player_server  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -267,22 +266,13 @@ class Pieces(unittest.TestCase):
 
 class PlayerRpcs(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        base = Path(self.tmp.name).resolve()  # macOS: /var is a link to /private/var
-        self.patches = [
-            mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(base / "lib")}),
-            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-        ]
-        for patch in self.patches:
-            patch.start()
+        base = isolated_home(self).base  # resolved (macOS: /var is a link to /private/var)
+        patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
+        patch.start()
+        self.addCleanup(patch.stop)
         self.root = make_export(base)
         self.gid = games.Registry(paths.library_dir()).upsert(str(self.root))["id"]
         self.ctx = mock.Mock()
-
-    def tearDown(self):
-        for patch in reversed(self.patches):
-            patch.stop()
-        self.tmp.cleanup()
 
     def test_player_rpc_returns_a_working_url(self):
         answer = library_rpcs.rpc_player(self.ctx)({"id": self.gid})
@@ -317,37 +307,32 @@ class PlayerRpcs(unittest.TestCase):
         self.assertEqual((status, body), (200, PNG))
         self.assertFalse(library_rpcs.rpc_capture_image(self.ctx)({"id": self.gid, "png": "data:text/plain,hi"})["ok"])
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_captures_list_the_newest_first(self):
+        # The sidecar's createdAt decides the order, not the file name or the folder's order.
+        folder = player_server.captures_dir(self.root, self.gid)
+        folder.mkdir()
+        for name, created in (
+            ("b.png", "2026-01-02T00:00:00.000Z"),
+            ("a.png", "2026-03-01T00:00:00.000Z"),
+            ("c.png", "2026-02-01T00:00:00.000Z"),
+        ):
+            (folder / name).write_bytes(PNG)
+            (folder / f"{name}.json").write_text(json.dumps({"kind": "screenshot", "createdAt": created}))
+        listed = library_rpcs.rpc_captures(self.ctx)({"id": self.gid})["captures"]
+        self.assertEqual([Path(c["path"]).name for c in listed], ["a.png", "c.png", "b.png"])
+        self.assertEqual(listed[0]["createdAt"], "2026-03-01T00:00:00.000Z")
 
 
 class DemoCartridge(unittest.TestCase):
     """The built-in demo: the bundled player plus the engine's hello-color ROM, with no project."""
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.patches = [
-            mock.patch.dict(
-                os.environ,
-                {
-                    "HERMRETRO_LIBRARY_DIR": str(Path(self.tmp.name) / "lib"),
-                    "HERMRETRO_GAMES_DIR": str(Path(self.tmp.name) / "games"),
-                    "HERMRETRO_RUNTIME_DIR": str(Path(self.tmp.name) / "run"),
-                },
-            ),
-            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-            throwaway_profile(Path(self.tmp.name)),
-        ]
-        for patch in self.patches:
-            patch.start()
+        self.base = isolated_home(self).base
+        patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
+        patch.start()
+        self.addCleanup(patch.stop)
         self.ctx = mock.Mock()
         self.ctx.get_config.return_value = False
-
-    def tearDown(self):
-        for patch in reversed(self.patches):
-            patch.stop()
-        self.tmp.cleanup()
 
     def test_player_rpc_opens_the_demo_by_id_and_without_one(self):
         rom = paths.ENGINE_ROOT / "examples/hello-color/hello-color.gbc"
@@ -410,9 +395,13 @@ class DemoCartridge(unittest.TestCase):
         self.assertNotIn("url", answer["demo"])
 
     def test_a_user_game_without_a_web_export_still_errors(self):
-        root = make_export(Path(self.tmp.name))
+        root = make_export(self.base)
         (root / "build/web/index.html").unlink()
         gid = games.Registry(paths.library_dir()).upsert(str(root))["id"]
         answer = library_rpcs.rpc_player(self.ctx)({"id": gid})
         self.assertFalse(answer["ok"])
         self.assertIn("no playable build", answer["error"])
+
+
+if __name__ == "__main__":
+    unittest.main()

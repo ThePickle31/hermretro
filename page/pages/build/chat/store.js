@@ -30,7 +30,9 @@ export function injectBuildDraft(stored, text) {
 // shows the same session in the app's own thread. Stop editing un-hides it.
 // The game ↔ session binding is the backend's (`build` RPC, `games[].session`, `pending`).
 
-// Stored session id → the conversation as the Build page renders it.
+// Stored session id (a game's `session.storedId`) → the conversation as the Build page renders it: `items` (the
+// transcript), `busy` (true while a turn runs), `turnStartedAt`, `lastCompleteAt` (when the last turn ended),
+// `seenAt`, `runtime`/`seq`/`epoch` (the live session), `activity`, `segments` (see `patchChat` and chat/reducer.js).
 export const BUILD_CHATS = atom({})
 // Runtime session id (what events carry) → stored session id.
 export const buildRuntime = new Map()
