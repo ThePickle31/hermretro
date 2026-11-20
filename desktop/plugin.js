@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 b95e3a0554dbadef859a6b5a04e1f5f6b2910d930e759b0f412cc0cb94d0a96b
- * body: sha256 e384936bf13c216b64971ae3c437e385ad900e5e8c854b9ffc18adf099866cab
+ * sources: sha256 3a8722af98cb34e64eab0f3a100208a4a64618d5584b9990db06eb2303be3e26
+ * body: sha256 07932e6f8f16477bf7143e40f5c92383a49bd70a0b922ba413d51c4b293545cf
  */
 // page/sdk.js
 import {
@@ -2117,7 +2117,15 @@ function versionFact(data, update) {
   if (update.phase === "updating") {
     return `${version} · updating…`;
   }
-  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked ? `${version} · up to date` : version;
+  const standing = {
+    failed: "the update did not go through: see the update in the header",
+    review: "the update waits for your answer in the header",
+    restart: "updated: quit and reopen Hermes to finish"
+  }[update.phase];
+  if (standing) {
+    return `${version} · ${standing}`;
+  }
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked && !update.ready ? `${version} · up to date` : version;
 }
 function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
   const data = status.data ?? {};
@@ -4203,6 +4211,10 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored);
+    if (isUpdating()) {
+      host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+      return false;
+    }
   }
   const chat = BUILD_CHATS.get()[stored];
   const now = Date.now();
@@ -4271,6 +4283,11 @@ async function resumeBuildChat(stored) {
     const runtime = snapshot?.session_id ?? chat.runtime;
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? [];
     for (const turn of lostTurns(pending)) {
+      if (isUpdating()) {
+        patchChat(stored, (current) => ({ ...current, resuming: false }));
+        host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+        return;
+      }
       await chatRequest("prompt.resolve_unknown", { session_id: runtime, admission_id: turn.id });
     }
     const waiting = Array.isArray(pending) && pending.some((row) => row?.status === "queued");
@@ -15442,6 +15459,8 @@ async function runUpdate({
   },
   installed = () => {
   },
+  refused = () => {
+  },
   remember: remember3 = () => {
   },
   waitMs = 2e3,
@@ -15457,32 +15476,41 @@ async function runUpdate({
     return { kind: "busy", chats: building };
   }
   onStep(0);
+  installed();
+  const refuse = (outcome) => {
+    if (!resume) {
+      refused();
+    }
+    return outcome;
+  };
   let result;
   try {
     result = await requestOn(install, "plugins.manage", { action: "update", name: ID, ...options }, UPDATE_TIMEOUT_MS);
   } catch (error) {
-    return { kind: "failed", error: String(error?.message ?? error ?? "The update did not finish.") };
+    const message = String(error?.message ?? error ?? "The update did not finish.");
+    return typeof error?.code === "number" ? refuse({ kind: "failed", error: message }) : { kind: "partial", error: `Hermes's answer was lost (${message}), so the update may not have finished` };
   }
   if (result?.scan_blocked) {
     const findings = Array.isArray(result.scan_findings) ? result.scan_findings : [];
-    return result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { ...options, force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}).` };
+    return refuse(
+      result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { ...options, force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}).` }
+    );
   }
   if (result?.consent_required) {
-    return options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : {
-      kind: "review",
-      findings: [],
-      lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
-      retry: { ...options, accept_capabilities: true }
-    };
+    return refuse(
+      options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : {
+        kind: "review",
+        findings: [],
+        lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+        retry: { ...options, accept_capabilities: true }
+      }
+    );
   }
   if (!result?.ok) {
-    return { kind: "failed", error: result?.error ?? "The update did not finish." };
+    return refuse({ kind: "failed", error: result?.error ?? "The update did not finish." });
   }
   if (result.unchanged && !resume) {
-    return { kind: "current" };
-  }
-  if (!result.unchanged) {
-    installed();
+    return refuse({ kind: "current" });
   }
   let restart = Boolean(result.restart_required);
   onStep(1);
@@ -15985,6 +16013,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
         onStep: (step) => setState((current) => ({ ...current, step })),
         onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
         installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
+        refused: () => remember2(ctx, PENDING, null),
         remember: (marker) => {
           remember2(ctx, PENDING, null);
           remember2(ctx, UPDATE_MARKER, marker);

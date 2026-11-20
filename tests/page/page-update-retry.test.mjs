@@ -94,6 +94,44 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true']); assert.equal(chip().textContent, 'Updated')
   })
 
+  // Hermes installs the new version but its answer is lost (no JSON-RPC code: a timeout or a dropped connection).
+  scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return { ok: true } }
+  updateAnswer = () => { throw new Error('request timed out') }
+  await fresh()
+  await openChip(); await click('Update now'); await settle(40)
+  check('a lost answer from Hermes leaves the update unfinished, never "nothing was changed"', () => {
+    assert.equal(chip().textContent, 'Finish update'); assert.match(popover(), /Hermes's answer was lost \(request timed out\)/)
+    assert.ok(scenario.storage.updatePending); assert.ok(!/Nothing was changed/.test(popover()))
+  })
+  updateAnswer = () => ({ ok: true, unchanged: true })
+  log.length = 0
+  if (!document.querySelector('.cs-upd-pop')) await openChip()
+  await click('Finish update', document.querySelector('.cs-upd-pop')); await settle(40)
+  check('the retry finds it installed ("unchanged") and still finishes every step', () => {
+    assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true']); assert.equal(chip().textContent, 'Updated')
+  })
+  // A Hermes refusal (with a code) changed nothing: a plain failure that forgets the marker.
+  updateAnswer = () => { throw Object.assign(new Error('Plugin is being updated by another process'), { code: 4021 }) }
+  await fresh()
+  await openChip(); await click('Update now'); await settle(40)
+  check('a refusal from Hermes is a plain failure and leaves nothing pending', () => {
+    assert.equal(chip().textContent, 'Update failed'); assert.equal(scenario.storage.updatePending, null)
+  })
+  // The Setup row says where the update stands, never "up to date" while one is outstanding.
+  scenario.storage.page = 'setup'
+  await act(async () => { root.render(null) }); scenario['plugin-update'] = row(true); await render()
+  await openChip(); await click('Update now'); await settle(40)
+  check('after a failed update the Setup row does not say "up to date"', () => {
+    assert.match(document.querySelector('.cs-facts').textContent, /the update did not go through/)
+    assert.ok(!/up to date/.test(document.querySelector('.cs-facts').textContent))
+  })
+  updateAnswer = () => ({ ok: false, scan_blocked: true, scan_verdict: 'caution', scan_findings: [] })
+  await fresh({ page: 'setup' })
+  await openChip(); await click('Update now', document.querySelector('.cs-upd-pop')); await settle(40)
+  check('while Hermes waits for an answer the Setup row says so', () => {
+    assert.match(document.querySelector('.cs-facts').textContent, /the update waits for your answer in the header/)
+  })
+
   // The app cannot list its profiles while the status says the hermretro profile exists: not read as "no profile".
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
   await fresh()

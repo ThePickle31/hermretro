@@ -165,8 +165,9 @@ async function reloadStudio(studio) {
  *  `busy()` names the chats building right now (busyChats). It is asked right before anything changes, and again before
  *  the hermretro profile is reloaded: a turn started meanwhile is waited for (`onWaiting(chats)`, every `waitMs`); the
  *  reload needs a successful idle answer, and `checkTries` failed checks in a row end in `partial`.
- *  `installed()` is called once Hermes has put the new version in place (the caller remembers it); `resume` is set
- *  when an earlier run got that far: Hermes then answers "unchanged" and the remaining steps still run. */
+ *  `installed()` is called right before Hermes is asked to update (the caller remembers it, since a lost answer may
+ *  follow an install) and `refused()` when Hermes definitely changed nothing; `resume` is set when an earlier run got
+ *  that far: Hermes then answers "unchanged" and the remaining steps still run. */
 export async function runUpdate({
   install,
   studio,
@@ -176,6 +177,7 @@ export async function runUpdate({
   onStep = () => {},
   onWaiting = () => {},
   installed = () => {},
+  refused = () => {},
   remember = () => {},
   waitMs = 2_000,
   checkTries = 5
@@ -194,43 +196,61 @@ export async function runUpdate({
 
   onStep(0)
 
+  // Remembered before Hermes is asked: an answer lost on the way (a timeout, a dropped connection) may follow an
+  // install, so it is treated as unfinished; Hermes's definite refusals below forget it again.
+  installed()
+
+  const refuse = outcome => {
+    if (!resume) {
+      refused()
+    }
+
+    return outcome
+  }
+
   let result
 
   try {
     result = await requestOn(install, 'plugins.manage', { action: 'update', name: ID, ...options }, UPDATE_TIMEOUT_MS)
   } catch (error) {
-    return { kind: 'failed', error: String(error?.message ?? error ?? 'The update did not finish.') }
+    const message = String(error?.message ?? error ?? 'The update did not finish.')
+
+    // Hermes's own refusal is a JSON-RPC error with a code (4021 for a failed pull): nothing changed. Without a code
+    // the answer was lost on the way (a timeout, a dropped connection), after which the files may be new.
+    return typeof error?.code === 'number'
+      ? refuse({ kind: 'failed', error: message })
+      : { kind: 'partial', error: `Hermes's answer was lost (${message}), so the update may not have finished` }
   }
 
   if (result?.scan_blocked) {
     const findings = Array.isArray(result.scan_findings) ? result.scan_findings : []
 
-    return result.scan_verdict === 'caution' && !options.force
-      ? { kind: 'review', findings, lines: [], retry: { ...options, force: true } }
-      : { kind: 'blocked', error: `Hermes's security check stopped this version (${result.scan_verdict ?? 'blocked'}).` }
+    return refuse(
+      result.scan_verdict === 'caution' && !options.force
+        ? { kind: 'review', findings, lines: [], retry: { ...options, force: true } }
+        : { kind: 'blocked', error: `Hermes's security check stopped this version (${result.scan_verdict ?? 'blocked'}).` }
+    )
   }
 
   if (result?.consent_required) {
-    return options.accept_capabilities
-      ? { kind: 'failed', error: result.error ?? 'Hermes did not apply the update.' }
-      : {
-          kind: 'review',
-          findings: [],
-          lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
-          retry: { ...options, accept_capabilities: true }
-        }
+    return refuse(
+      options.accept_capabilities
+        ? { kind: 'failed', error: result.error ?? 'Hermes did not apply the update.' }
+        : {
+            kind: 'review',
+            findings: [],
+            lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+            retry: { ...options, accept_capabilities: true }
+          }
+    )
   }
 
   if (!result?.ok) {
-    return { kind: 'failed', error: result?.error ?? 'The update did not finish.' }
+    return refuse({ kind: 'failed', error: result?.error ?? 'The update did not finish.' })
   }
 
   if (result.unchanged && !resume) {
-    return { kind: 'current' }
-  }
-
-  if (!result.unchanged) {
-    installed()
+    return refuse({ kind: 'current' })
   }
 
   let restart = Boolean(result.restart_required)

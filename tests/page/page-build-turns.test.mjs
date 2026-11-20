@@ -420,6 +420,23 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.deepEqual(resolved, []); assert.equal(submits.length, submitsUpdating)
   })
   await act(async () => { finishUpdate({ ok: true, unchanged: true }) }); await settle()
+  // Continue pressed first; an update starts while its session.resume is still on the way: when that answer
+  // arrives, nothing is released.
+  const normalResume = scenario.byMethod['session.resume']
+  let releaseResume = null
+  scenario.byMethod['session.resume'] = params => (params.omit_messages && !releaseResume
+    ? new Promise(resolve => { releaseResume = () => resolve(normalResume(params)) })
+    : normalResume(params))
+  await click('Continue', build14l.node.querySelector('.cs-b-card.warn')); await settle()
+  await click('Update ready', build14l.node); await click('Update now', build14l.node); await settle()
+  check('the resume is still on the way when the update starts', () => { assert.ok(releaseResume, 'session.resume is pending') })
+  await act(async () => { releaseResume() }); await settle()
+  check('a Continue pressed before an update releases nothing once the update has started', () => {
+    assert.deepEqual(resolved, []); assert.equal(submits.length, submitsUpdating)
+    assert.ok(build14l.node.querySelector('.cs-b-card.warn'), 'the conversation stays paused')
+  })
+  await act(async () => { finishUpdate({ ok: true, unchanged: true }) }); await settle()
+  scenario.byMethod['session.resume'] = normalResume
   scenario['plugin-update'] = undefined
   await build14l.rerender()
   await click('Continue', build14l.node.querySelector('.cs-b-card.warn'))

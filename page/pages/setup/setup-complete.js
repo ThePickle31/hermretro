@@ -38,7 +38,18 @@ function versionFact(data, update) {
     return `${version} · updating…`
   }
 
-  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked ? `${version} · up to date` : version
+  // Anything but a finished or untouched install: say where the update stands, never "up to date".
+  const standing = {
+    failed: 'the update did not go through: see the update in the header',
+    review: 'the update waits for your answer in the header',
+    restart: 'updated: quit and reopen Hermes to finish'
+  }[update.phase]
+
+  if (standing) {
+    return `${version} · ${standing}`
+  }
+
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked && !update.ready ? `${version} · up to date` : version
 }
 
 export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {

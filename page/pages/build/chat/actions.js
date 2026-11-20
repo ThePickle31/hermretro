@@ -121,6 +121,13 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
 
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored)
+
+    // An update may have started while the conversation opened.
+    if (isUpdating()) {
+      host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+      return false
+    }
   }
 
   const chat = BUILD_CHATS.get()[stored]
@@ -225,6 +232,14 @@ export async function resumeBuildChat(stored) {
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? []
 
     for (const turn of lostTurns(pending)) {
+      // An update may have started while this waited: stay paused, nothing released.
+      if (isUpdating()) {
+        patchChat(stored, current => ({ ...current, resuming: false }))
+        host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+        return
+      }
+
       await chatRequest('prompt.resolve_unknown', { session_id: runtime, admission_id: turn.id })
     }
 

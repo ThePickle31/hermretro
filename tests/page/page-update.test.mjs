@@ -130,7 +130,8 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   })
 
   // A failure: the reason, Try again, and the way to Hermes's own Plugins page.
-  updateAnswer = () => { throw new Error('GitHub could not be reached.') }
+  // Hermes's own refusal: a JSON-RPC error with a code (4021, a failed pull).
+  updateAnswer = () => { throw Object.assign(new Error('GitHub could not be reached.'), { code: 4021 }) }
   await fresh()
   await openChip(); await click('Update now'); await settle(40)
   check('a failed update says why and that nothing changed', () => {

@@ -179,6 +179,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
         onStep: step => setState(current => ({ ...current, step })),
         onWaiting: waiting => setState(current => ({ ...current, waiting })),
         installed: () => remember(ctx, PENDING, { at: Date.now(), error: null }),
+        refused: () => remember(ctx, PENDING, null),
         remember: marker => {
           remember(ctx, PENDING, null)
           remember(ctx, UPDATE_MARKER, marker)
