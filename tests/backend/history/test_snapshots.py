@@ -17,6 +17,7 @@ from backend.assets import versions as host_assets  # noqa: E402 - the repositor
 from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import hooks as history_hooks  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
@@ -187,6 +188,15 @@ class BuildHistoryHost(unittest.TestCase):
         self.assertEqual(len(builds), 1)
         self.assertEqual(builds[0]["reason"], "build")
         self.assertEqual(builds[0]["builds"], [int(builds[0]["id"])])
+
+    def test_a_kept_build_announces_history_build_kept_once(self):
+        heard = []
+        listener = events.on("history.build_kept")(lambda **payload: heard.append(payload))
+        self.addCleanup(events._listeners["history.build_kept"].remove, listener)
+        self.hook(result=json.dumps({"structuredContent": {"success": False}}))
+        self.assertEqual(heard, [])
+        self.hook()
+        self.assertEqual(heard, [{"game": self.game, "root": self.root}])
 
     def test_the_project_comes_from_the_chat_when_the_result_does_not_name_it(self):
         bare = json.dumps({"structuredContent": {"success": True}})

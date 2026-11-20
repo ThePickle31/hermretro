@@ -24,7 +24,7 @@ presentation and refreshes open players after builds.
 tool results).
 
 **Tests:** `tests/page/page-games.test.mjs` (the Emulator page and the tab beside the chat),
-`tests/page/registry.test.mjs` (also: a `emulator.barActions` contribution gets `go` on the page, not beside the
+`tests/page/registry.test.mjs` (also: an `emulator.barActions` contribution gets `go` on the page, not beside the
 chat).
 
 ## Adding a tab here

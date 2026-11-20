@@ -49,7 +49,7 @@ const pageOf = id => PAGES.find(page => page.id === id)
 // How to draw each slot's host, once per place it renders the slot. `where` matches the doc string's
 // "on the <where> only". A new slot gets its recipe here (the first test says so). Draw a page with ownPage(page)
 // (its Page, or its first tab's once it has tabs), never page.Page. A slot on Home: draw it with
-// { shell: homeShell({ ... }) } from tests/page/shells.mjs (every shell field Home reads, with its shape; the last
+// { shell: homeShell({ ... }) } from tests/page/shells.mjs (every field of the real shell, with its shape; the last
 // tests here check that list against the real shell).
 const HOSTS = {
   'emulator.barActions': [
@@ -281,8 +281,8 @@ test('Home draws from homeShell(), the fixture a Home host recipe uses', async (
   await shown.close()
 })
 
-// The real shell (page/app/studio-page.js) with a probe in Home's place: homeShell() lists only fields it has,
-// with the same kind of value, and every field Home's Page passes on is in the list.
+// The real shell (page/app/studio-page.js) with a probe in Home's place: homeShell() has exactly its fields, each
+// with the same kind of value, so a page that starts reading any shell field (shell.viaProfile) finds it there.
 test("homeShell() matches the shell Home really gets", async () => {
   const { StudioPage } = await import('../../page/app/studio-page.js')
   const home = pageOf('home')
@@ -302,11 +302,14 @@ test("homeShell() matches the shell Home really gets", async () => {
     assert.ok(seen.length, 'Home rendered')
     const shell = seen.at(-1)
     const fixture = homeShell()
-    const scalar = new Set(['auto', 'autoId', 'choosing'])  // null / an id / a boolean, by setup state
+    // null or a value, by setup state and routing
+    const scalar = new Set(['auto', 'autoId', 'choosing', 'shown', 'viaProfile', 'newGameFolder'])
     const missing = Object.keys(fixture).filter(key => !(key in shell))
+    const absent = Object.keys(shell).filter(key => !(key in fixture))
     const differ = Object.keys(fixture).filter(key => key in shell && !scalar.has(key) && shapeOf(shell[key]) !== shapeOf(fixture[key]))
 
     assert.deepEqual(missing, [], 'FIX: homeShell() in tests/page/shells.mjs lists a field the real shell lacks')
+    assert.deepEqual(absent, [], 'FIX: add the real shell field to homeShell() in tests/page/shells.mjs')
     assert.deepEqual(differ.map(key => `${key}: real ${shapeOf(shell[key])}, fixture ${shapeOf(fixture[key])}`), [], 'FIX: give the field its real shape in homeShell()')
     const homeReads = [...['pages/home/index.js', 'pages/home/home-page.js'].map(file => readFileSync(join(PAGE_DIR, file), 'utf8')).join('\n').matchAll(/\bshell\.(\w+)/g)].map(match => match[1])
 
