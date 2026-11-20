@@ -13,8 +13,9 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 from __future__ import annotations
 
 import difflib
+from collections.abc import Sequence
 
-from . import gates, land_carry, repo, sync_moved
+from . import gates, land_carry, repo, sync_followup, sync_moved
 from .sync_rewrite import AMBIGUOUS, new_location, rewritten_from
 from .output import Failure, cmd
 
@@ -137,8 +138,9 @@ def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
     return None, lines[0] if lines else None
 
 
-def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) -> str | None:
-    """The hint for a hunk where dev rewrote the block HEAD changed (rewritten_from), or None."""
+def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) -> tuple[str, str | None] | None:
+    """(the hint, the file to redo the change in, or None) for a hunk where dev rewrote the block HEAD changed
+    (rewritten_from), or None."""
     base, dev = _side(ctx, ":1", name), _side(ctx, "MERGE_HEAD", name)
     if not base or not dev:
         return None
@@ -150,18 +152,19 @@ def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) 
         return (
             f"{name}:{first}-{last}: {ctx.base} rewrote this block (see git diff HEAD...{ctx.remote_base} -- {name}); "
             f"take {ctx.base}'s side, then redo your change where it belongs now in its own commit after sync"
-        )
+        ), None
     return (
         f"{name}:{first}-{last}: {ctx.base} rewrote this block; take {ctx.base}'s side, then redo your change in "
         f"{where} in its own commit after sync"
-    )
+    ), where
 
 
-def moved_hints(ctx, files: list[str]) -> list[str]:
+def moved_hints(ctx, files: list[str], found: list[dict] | None = None) -> list[str]:
     """For each conflict hunk whose base side is empty (dev removed or moved that block): where it went (the
     base's file holding the hunk's most distinctive line) and how to resolve it; for a hunk dev rewrote into a much
-    longer block (rewrite_hint): take dev's side and where to redo the change."""
-    hints = []
+    longer block (rewrite_hint): take dev's side and where to redo the change. Each hint also goes into ``found``
+    as data (file, lines, kind, where, commit) for sync_followup."""
+    hints, found = [], [] if found is None else found
     for name in files:
         path = ctx.top / name
         text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
@@ -169,7 +172,9 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
         for index, (first, last, ours, theirs) in enumerate(conflict_hunks(text)):
             if theirs.strip() and ours.strip():
                 rewrite = rewrite_hint(ctx, name, first, last, ours, theirs)
-                hints += [rewrite] if rewrite else []
+                if rewrite:
+                    hints.append(rewrite[0])
+                    found.append(dict(file=name, lines=f"{first}-{last}", kind="rewritten", where=rewrite[1]))
                 continue
             if not ours.strip():
                 continue
@@ -183,6 +188,7 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
             if line and not where:  # moved and changed: the commit that removed it, and where it added a copy
                 where, commit = sync_moved.taken_over(ctx, name, line)
             log = cmd("git", "log", "-p", ctx.remote_base, f"-S{line}") if line else ""  # the whole tree
+            found.append(dict(file=name, lines=f"{first}-{last}", kind="moved", where=where, commit=commit))
             if where:
                 hints.append(
                     f"{name}:{first}-{last}: {ctx.base} moved this block to {where}"
@@ -206,7 +212,8 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
 def conflict_failure(ctx, message: str, files: list[str]) -> Failure:
     """The failure for source conflicts: each hunk's own instruction (moved_hints) on its own line under the message,
     before the general FIX text, so the per-hunk steps are read first and none is buried at the end of a paragraph."""
-    hints = moved_hints(ctx, files)
+    hints = moved_hints(ctx, files, found := [])
+    sync_followup.remember(ctx, found)  # the sync that finishes the merge repeats it
     ctx.out.set(hunks=hints)
     fix = resume_fix(ctx) + ("; first do what each hunk's line above says" if hints else "")
     return Failure("\n".join([message, *hints]), fix)
@@ -220,8 +227,9 @@ def unresolved(ctx) -> list[str]:
     return repo.git(["diff", "--name-only", "--diff-filter=U"], ctx.top).split()
 
 
-def finish(ctx, conflicts: list[str], resumed: bool = False) -> int:
-    """Take the base's side of the conflicted generated files, rebuild every generated file, commit the merge."""
+def finish(ctx, conflicts: list[str], resumed: bool = False, followup: Sequence[str] = ()) -> int:
+    """Take the base's side of the conflicted generated files, rebuild every generated file, commit the merge; then
+    the ``followup`` lines (sync_followup.advice) before the next step."""
     base = ctx.remote_base
     if conflicts:
         repo.git(["checkout", "--theirs", "--", *conflicts], ctx.top)
@@ -235,7 +243,10 @@ def finish(ctx, conflicts: list[str], resumed: bool = False) -> int:
     repo.git(["commit", "--no-edit", "--quiet"], ctx.top)
     done = "finished the merge" if resumed else f"merged {base}"
     ctx.out.say(f"{done}; rebuilt the generated files" + (f" ({', '.join(conflicts)} conflicted)" if conflicts else ""))
-    ctx.out.set(merged=True, resolved=conflicts, resumed=resumed, head=repo.head(ctx.top))
+    sync_followup.forget(ctx)
+    for line in followup:
+        ctx.out.say(line)
+    ctx.out.set(merged=True, resolved=conflicts, resumed=resumed, head=repo.head(ctx.top), followup=list(followup))
     return _next(ctx)
 
 
@@ -248,7 +259,8 @@ def resume(ctx) -> int:
     if other:
         raise conflict_failure(ctx, f"the merge is still open; still unresolved: {', '.join(other)}", other)
     ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
-    added = new_lines(ctx, generated)
+    hit = conflicted(ctx)
+    added = new_lines(ctx, generated, hit)
     if added:
         limit = ctx.policy.get("land", {}).get("max_sync_resolution_lines", 20)
         files = ", ".join(sorted(added))
@@ -257,7 +269,8 @@ def resume(ctx) -> int:
             f"in its own commit after sync (a resolution over {limit} lines needs a full review round at land)"
         )
         ctx.out.set(new_lines=added)
-    return finish(ctx, left, resumed=True)
+    followup = sync_followup.advice(ctx, hit, generated)
+    return finish(ctx, left, resumed=True, followup=followup)
 
 
 def _side(ctx, rev: str, name: str) -> list[str] | None:
@@ -279,12 +292,11 @@ def conflicted(ctx) -> list[str] | None:
     return None if parsed is None else parsed[1]
 
 
-def new_lines(ctx, generated: set[str]) -> dict[str, int]:
+def new_lines(ctx, generated: set[str], hit: list[str] | None) -> dict[str, int]:
     """{file: lines} the resolved conflicts hold that neither this branch (HEAD) nor the base (MERGE_HEAD) had: work
     written into the merge instead of a commit of its own. Only files that were in conflict count (git merged the
-    rest by itself); blank lines, generated files and binary files (never decoded as text) do not."""
+    rest by itself: ``hit``, conflicted's answer); blank lines, generated files and binary files do not."""
     staged = repo.git(["diff", "--cached", "--name-only", "-z", "HEAD"], ctx.top, check=False).split("\0")
-    hit = conflicted(ctx)
     found = {}
     for name in staged:
         if not name or name in generated or (hit is not None and name not in hit):
@@ -319,6 +331,7 @@ def run(ctx) -> int:
         gates.enforce(ctx, [gates.on_work_branch(ctx, branch)], "sync")
         return resume(ctx)
     gates.enforce(ctx, [gates.on_work_branch(ctx, branch), gates.committed(ctx)], "sync")
+    sync_followup.forget(ctx)  # a new merge: what an aborted one's sync said is no longer about this one
     repo.git(["fetch", "--quiet", ctx.remote], ctx.top)
     base = ctx.remote_base
     before = repo.head(ctx.top)

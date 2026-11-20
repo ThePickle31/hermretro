@@ -27,7 +27,8 @@ Title: <!-- One plain sentence, at most 100 characters, no trailing period: the 
 
 ## What changes
 <!-- The behaviour and the code that change, step by step, in the present tense ('X does Y'): start copies
-this section into the pull request body's What changed. -->
+this section into the pull request body's What changed. A new tool, RPC or hook also changes the generated
+registration snapshot (tests/repo/registration.json, rebuilt by `new`): say so here. -->
 
 ## Where files go
 <!-- New and moved files, by folder (tools/layout.toml has the map). `python tools/retrodev new <kind> ... --dry-run`

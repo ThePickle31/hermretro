@@ -229,8 +229,13 @@ it rebuilds the generated files and makes the merge commit (no `git commit` by h
 side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync,
 and where: for a table row of a markdown file, the subsection headed with the row's first cell (else the most alike
 heading and its lines, never a table row); when two places match about as well, `git diff HEAD...origin/dev -- <file>`.
-After the merge its `next:` line is `status`'s next step (a plan to write or approve first; `check, then ship` before the branch has a pull request,
-`check, then ship again` once it has one).
+After a source conflict, `sync` remembers the hunk advice in `sync/<branch>.json` under retrodev's state folder,
+tied to the branch and the merge's `HEAD` and `MERGE_HEAD`. The finishing `sync` repeats advice about moved,
+deleted or rewritten blocks before the normal `next:` step (`followup` in JSON). If the record is unavailable or
+invalid and Git identifies source conflicts, it gives a general reminder without a destination. `sync` tries to remove
+the record when it finishes this merge or starts another; an unavailable record never blocks the merge. The advice
+does not edit or stage code. The `next:` line is still `status`'s next step (a plan to write or approve first;
+`check, then ship` before the branch has a pull request; `check, then ship again` once it has one).
 When the resolved conflicts hold lines neither side had (only the files that were in conflict count; binary files are
 read as bytes and never counted; compared word by word with line breaks and spaces normalised, so a paragraph rewrapped
 around an edit from each side adds nothing), it warns `new work belongs in its own commit after sync (a resolution over N lines
@@ -395,7 +400,9 @@ nothing, so the registration snapshot stays
 `game_thumb` and `capture_image` keep `id`), its next steps running the query in the component that has the game with
 `queryKey: [ID, '<name>', game.id]` (no `viaProfile`, with either call, as the `captures` and `player` queries) and `{ game: game.id }`,
 answering `NO_GAME` when `host._game_root(game)` finds none (as `builds` does), its test registering a game with
-`tests.support.make_library_game(home, name)`. `--module <module>` (e.g. `<name>_rpcs`) puts the handler factory in
+`tests.support.make_library_game(home, name)`. Before adding a per-game query, its next steps point to the data
+`games` already returns, including the `card` fields in CONTRACT.md under "The game object".
+`--module <module>` (e.g. `<name>_rpcs`) puts the handler factory in
 `backend/<feature>/<module>.py` (the README's RPCs line names it: ``RPCs (`rpcs.py`, `<module>.py`)``) and keeps in
 `rpcs.py` a short `@rpc("<name>")` function calling it (`from . import <module> as _<module>_mod`: a private alias,
 which no `rpc_<x>` or public name can equal; `new rpc` refuses, before writing, a wrapper, factory or alias name that
@@ -418,8 +425,9 @@ snapshots, asset versions), otherwise `callStudio` (the library's way; history a
 (`queryKey: [ID, '<name>', shell.viaProfile]` in the page's own Page component with `callStudio`, without viaProfile
 with `callStudioOnly`; for `--game`, in the component that has the game, as above), whose second word the page tests
 answer (`scenario.<name>`); that a page reading a new shell field adds it to its fixture in `tests/page/shells.mjs`
-(`homeShell()`); the page's README and a bullet in its `### <Page>` subsection under `## Pages` of
-`docs/dev/STUDIO-PAGES.md` (the table row stays short); and the row to add to the RPC table under
+(`homeShell()`); the page's README and a bullet where `docs/dev/STUDIO-PAGES.md` describes the page: the
+`### <Page>` subsection under `## Pages`, or the page's own top section (for Build, its `### Page` subsection
+under `## Build: one game, one conversation`); and the row to add to the RPC table under
 CONTRACT.md's "Studio pages (desktop) and their RPCs", naming the RPCs it lists. It also names the RPC in the
 feature's "The agent half" Declares cell in `docs/dev/ARCHITECTURE.md` (`nothing yet` becomes `RPC \`<name>\``, else
 it joins the RPCs, as `new tool` does with tools and `new event` with the row's events), and when the module docstring
@@ -441,7 +449,8 @@ when `tools.py` is over 400 lines or only takes in sibling modules (no `Tool` of
 own `TOOLS`, `tools.py` aggregates them (`from . import <module>`, `*<module>.TOOLS`), and tests patch names on the new
 module (`mock.patch("backend.<feature>.<module>.<name>")`), not on `tools.py`. In a sibling module the README's Tools line names it too (`Tools
 (\`tools.py\`, \`<module>.py\`)`). `--project` is for a tool that acts on the game's project (most library tools): a
-`project` schema property, a handler that calls `tool_args.tool_project` (the `project` given, else this chat's) and
+`project` schema property (at most 4096 characters), a handler that calls `tool_args.tool_project` (the `project`
+given, else this chat's) and
 answers failures with `tool_error`, and a test with `isolated_home(self)` that passes a temp project and a missing
 one. It is on by default in a feature with `tool_args.py` (library); in another feature `--project` imports them from
 `backend/hermes/tool_args.py` (`from ..hermes.tool_args import tool_error, tool_project`), refused while that file is
@@ -486,8 +495,8 @@ its own (`Listens to: none.` becomes ``Listens to (`listeners.py`): `<event>` â€
 an event already listed, ``; `<event>` â€” say what this listener does``: the placeholder gate refuses it until
 written), the CONTRACT events row's "Heard by" cell and the feature's row in ARCHITECTURE.md "The agent half". The
 test calls it with the event's payload keys (its CONTRACT row, else its `EVENTS` entry); the next steps say to test
-what it does, name `host.library_game_for([path])` and `tests.support.make_library_game` for a payload with a path or
-root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers and emit this event
+what it does (for a listener that only logs, pass its actual log level to `assertLogs`), name
+`host.library_game_for([path])` and `tests.support.make_library_game` for a payload with a path or root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers and emit this event
 (they name it, or call its emitter in `emits.py` or a function that calls that or `emit("<event>")`, found by parsing
 the feature's code): the listener now runs against those mocks. The next steps say to log with `host.logger` (`from
 ..hermes import host`); the docstring says that a listener runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
@@ -501,8 +510,9 @@ listener: those whose `setUp` lacks `isolated_home(self)`, and those `already is
 paragraph copies the `EVENTS` description wrapped within 120 characters, then `say what this listener does.` on a
 line of its own (its replacement has the whole line); the test's call gives each key a sample of
 the type its `EVENTS` entry hints (`<..., int>` 1, `str` `"probe"`, `pathlib.Path` `Path("/games/probe")`, `bool`
-`True`). The last next step points to "Changing an event's payload or name". Refuses an event no front door's `EVENTS` declares, one the feature hears
-already, and the stdlib-only features
+`True`). The last next step points to "Changing an event's payload or name". Refuses an undeclared event, one the
+feature hears already, and the stdlib-only features. For an undeclared event, only `--dry-run` can show a generic
+preview (`**_payload`, no CONTRACT "Heard by" row); preview again after `new event` to see the actual payload and row.
 
 ### Changing an event's payload or name
 
@@ -575,7 +585,8 @@ where `docs/dev/STUDIO-PAGES.md` describes the page: its `### <Page>` subsection
 section of its own (Build's `## Build: one game, one conversation`, and there its `### Page` subsection), else a new
 `### <Page>` subsection to add (the table row stays short); and to add the tab's checks to one of the page's own
 `tests/page/page-<page>*.test.mjs` that covers it, or a new `tests/page/page-<page>-<tab>.test.mjs` (picked up
-automatically; named on the README's **Tests:** line). A `**Tabs:** none (...)` line becomes the first tab, its
+automatically; named on the README's **Tests:** line). The testing step points to the runnable example under
+`docs/dev/STUDIO-PAGES.md` "A tab" when it is present. A `**Tabs:** none (...)` line becomes the first tab, its
 parenthetical dropped; a Page moved out of `index.js` whose page
 `tests/page/registry.test.mjs` still names in `PAGE_IN_INDEX` gets a step to remove it there (new never edits
 `tests/page/`)
