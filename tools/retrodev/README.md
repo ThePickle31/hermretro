@@ -10,8 +10,8 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 
 1. `python tools/retrodev plan new <topic>`, then fill in `notes/plans/<topic>.md` (its `Title:` line too: one plain sentence, at most 100 characters, no trailing period)
 2. `python tools/retrodev plan approve <topic> --words "<the owner's exact words>"`
-3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` branches from `origin/dev` and prints the worktree to enter: by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it).
-4. `python tools/retrodev new <kind> ...` (`--dry-run` previews it, even on `dev`); use `--no-check` on intermediate scaffolds and run step 6 on the finished tree. For an `rpcs.py` over 350 lines use `--module <name>_rpcs`; an RPC about one game takes `--game` (a `game` param with the library id; `NO_GAME` if unknown).
+3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`), then enter its printed worktree: by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it).
+4. `python tools/retrodev new <kind> ...` (`--dry-run` previews it, even on `dev`); use `--no-check` on intermediate scaffolds and run step 6 on the finished tree. An RPC in an `rpcs.py` over 350 lines takes `--module <name>_rpcs`; an RPC about one game takes `--game` (a `game` param with the library id; `NO_GAME` if unknown).
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
 6. `python tools/retrodev check`
 7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
@@ -22,8 +22,8 @@ before `start` or `takeover`, which record it for the branch: a later `plan appr
 names that agent even without the variable (`takeover`'s printed `plan approve` step carries it too); or edit the
 line; `start` says so when it is unset.
 
-`notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
-worktree, and every next step names them by their full path.
+`notes/` is in the main checkout, shared by every worktree. `start` writes the pull request body from the plan or,
+with `--no-plan`, the template. Next steps name the plan and body by full path.
 
 ### Add a plugin tool
 
