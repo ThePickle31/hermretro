@@ -135,6 +135,15 @@ def agent_half(text: str, event: str, feature: str) -> str:
     return in_section(text, "## The agent half", change)
 
 
+def catch_all(keys: list[str]) -> str:
+    """The listener's **name for keys the event gains later: _payload, else _rest, _rest2, ... (the first that is
+    not a payload key, so the signature never names one argument twice)."""
+    for name in ("_payload", "_rest", *(f"_rest{n}" for n in range(2, len(keys) + 3))):
+        if name not in keys:
+            return name
+    raise AssertionError("unreachable: more candidate names than keys")
+
+
 def listener(plan: Plan, feature_name: str, event: str) -> str:
     known_feature(plan, feature_name, "listener")
     declared = declared_events(plan)
@@ -152,7 +161,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     keys = payload_of(plan, event, declared[event])
     values["call"] = emitter_values(keys)["sample"]  # the test calls it with the declared payload's keys
     named = emitter_values(keys)["params"]  # keyword-only, one per payload key; later keys still arrive in **_payload
-    values["params"] = "**_payload" if named == "**payload" else named + ", **_payload"
+    rest = catch_all(keys)  # never one of the keys: a key named _payload would be bound twice
+    values["params"] = f"**{rest}" if named == "**payload" else f"{named}, **{rest}"
     plan.ensure(source, render("listener", "listeners.py.tmpl", **values))
     text = plan.read(source)
     if f'@on("{event}")' in text or func in module_names(text):

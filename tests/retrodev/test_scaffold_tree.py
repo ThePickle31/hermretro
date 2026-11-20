@@ -7,7 +7,7 @@ folder (a fresh git repository on a work branch, so nothing of this checkout or 
 installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc` (four times: plain,
 --module, --game, --game with --module: their generated tests register a game with make_library_game), `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
 which goes in its own module too; once in library, a --project tool; once in rdtree, a --project tool importing
-backend/hermes/tool_args.py, when the tree has it),
+backend/hermes/tool_args.py),
 `new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
@@ -80,8 +80,7 @@ STEPS = [
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
 ]
-SHARED_ARGS = (ROOT / "backend/hermes/tool_args.py").is_file()  # a --project tool outside library imports them there
-STEPS += [["tool", "rdtree", "rdtree_proj", "--project"]] if SHARED_ARGS else []
+STEPS += [["tool", "rdtree", "rdtree_proj", "--project"]]  # outside library: imports backend/hermes/tool_args.py
 # The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
 # contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
 # listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
@@ -186,7 +185,7 @@ STRUCTURE = [
     "tests.backend.library.test_tool_rdtree_lib",
     "tests.backend.rdtree.test_event_pinged",
     "tests.backend.rdtree.test_listener_on_library_build_reported",
-    *(["tests.backend.rdtree.test_tool_rdtree_proj"] if SHARED_ARGS else []),
+    "tests.backend.rdtree.test_tool_rdtree_proj",
 ]
 
 

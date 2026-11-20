@@ -9,10 +9,13 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_eight_new
 
 import argparse
 import ast
+import re
 import shutil
+import tomllib
 import unittest
+from typing import Any
 
-from retrodev import cli
+from retrodev import cli, scaffold_rpc
 
 from tests.retrodev.fixture import git, parallel, write
 from tests.retrodev.test_scaffold import ROOT, ScaffoldCase
@@ -34,6 +37,19 @@ def help_of(*path: str) -> str:
 
 
 class Rpc(ScaffoldCase):
+    def test_the_module_suggestion_reads_the_one_size_rule(self):  # follow-up of #60: one source for the size
+        warn = tomllib.loads((ROOT / "tools/layout.toml").read_text())["size"]["warn"]
+        self.assertEqual(scaffold_rpc.big_rpcs(), warn - scaffold_rpc.MODULE_MARGIN)
+        self.assertIn(f"over {warn - scaffold_rpc.MODULE_MARGIN} lines", help_of("new", "rpc"))
+        size = len(self.read("backend/history/rpcs.py").splitlines())
+        for threshold, noted in ((size - 1, True), (size, False)):  # the tree's own layout.toml decides
+            layout = self.read("tools/layout.toml")
+            write(self.tree, "tools/layout.toml", re.sub(r"(?m)^warn = \d+", f"warn = {threshold + 50}", layout))
+            git(self.tree, "add", "-A")
+            git(self.tree, "commit", "-q", "-m", f"warn at {threshold + 50}")
+            out = self.new("rpc", "history", f"rdprobe_sized{threshold}", "--dry-run", as_json=False)
+            self.assertEqual("note: backend/history/rpcs.py has" in out, noted, threshold)
+
     def test_game_s_next_steps_key_and_call_with_the_game_where_the_game_is(self):
         steps = joined(self.new("rpc", "history", "rdprobe_card", "--game"))
         self.assertIn("run the query in the component that has the game", steps)
@@ -78,7 +94,7 @@ class Tool(ScaffoldCase):
         self.assertEqual(git(self.tree, "status", "--porcelain"), "")
 
     def test_project_outside_library_imports_the_shared_helpers(self):
-        write(self.tree, "backend/hermes/tool_args.py", '"""Shared."""\n\n\ndef tool_error(m, c):\n    return m\n')
+        write(self.tree, "backend/hermes/tool_args.py", (ROOT / "backend/hermes/tool_args.py").read_text())  # #60's
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "The shared helpers")
         out = self.new("tool", "history", "rdprobe_proj", "--project")
@@ -105,6 +121,26 @@ class Listener(ScaffoldCase):
         with self.assertRaises(TypeError):
             listener(game="g")  # a key the event carries is missing: it fails where it is called
         ast.parse(self.read("tests/backend/rdprobe_ears/test_listener_on_library_build_reported.py"))
+
+    def test_a_payload_key_named_like_the_catch_all_keeps_the_listener_valid(self):  # review 1, 0
+        self.new("event", "history", "rdprobe_caught", "--payload", "_payload, _rest, game")
+        emits = self.read("backend/history/emits.py")  # the emitter's own names (emit) never meet these keys
+        heard = []
+        scope: dict[str, Any] = {"emit": lambda name, **kw: heard.append((name, kw))}
+        exec(compile(emits.replace("from ..system.events import emit", ""), "emits.py", "exec"), scope)
+        scope["rdprobe_caught"](_payload=1, _rest=2, game="g")
+        self.assertEqual(heard, [("history.rdprobe_caught", {"_payload": 1, "_rest": 2, "game": "g"})])
+        self.new("feature", "rdprobe_ears")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Probe event and feature")
+        self.new("listener", "rdprobe_ears", "history.rdprobe_caught")
+        source = self.read("backend/rdprobe_ears/listeners.py")
+        self.assertIn("def on_history_rdprobe_caught(*, _payload, _rest, game, **_rest2) -> None:", source)
+        scope: dict[str, Any] = {"on": lambda _name: lambda function: function}
+        exec(compile(source.replace("from ..system.events import on", ""), "listeners.py", "exec"), scope)
+        listener = scope["on_history_rdprobe_caught"]
+        self.assertIsNone(listener(_payload=1, _rest=2, game="g", later="a key added later"))
+        ast.parse(self.read("tests/backend/rdprobe_ears/test_listener_on_history_rdprobe_caught.py"))
 
 
 class Slot(ScaffoldCase):

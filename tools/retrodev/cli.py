@@ -34,6 +34,7 @@ from . import (
     release_verify,
     report,
     scaffold,
+    scaffold_rpc,
     ship,
     start,
     stats,
@@ -216,7 +217,7 @@ def scaffolds(sub, common) -> None:
     rpc.add_argument(
         "--module",
         help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
-        "declaration that calls it (suggested when rpcs.py is over 350 lines)",
+        f"declaration that calls it (suggested when rpcs.py is over {scaffold_rpc.big_rpcs()} lines)",
     )
     rpc.add_argument(
         "--game",

@@ -86,8 +86,8 @@ def wants_project(plan: Plan, feature_name: str, project: bool | None) -> bool:
         raise Failure(
             f"--project needs tool_error and tool_project, from backend/{feature_name}/{TOOL_ARGS}.py or {SHARED_ARGS}, "
             "and this tree has neither; nothing was written",
-            f"sync once {SHARED_ARGS} is on dev (python tools/retrodev sync), declare the tool in library (it has "
-            "them), or leave out --project",
+            f"bring {SHARED_ARGS} from dev (python tools/retrodev sync; it is there since #60), declare the tool in "
+            "library (it has them), or leave out --project",
         )
     return has if project is None else project
 
