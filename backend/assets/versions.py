@@ -68,8 +68,8 @@ def _asset_kind(relative: str | None) -> str:
     return "image"
 
 
-# The "up to 40 per file" of docs/dev/STUDIO-PAGES.md, "Versions" (under the asset RPC): the newest kept, the oldest
-# dropped (tests/backend/assets/test_asset_versions.py, AssetRetention, reads the number there).
+# The "up to 40 per file" of the Versions paragraph (under the asset RPC heading) in docs/dev/STUDIO-PAGES.md: the
+# newest kept, the oldest dropped. AssetRetention in tests/backend/assets/test_asset_versions.py reads the number there.
 ASSET_KEEP_VERSIONS = 40
 # A line of a reply that delivers a file (``MEDIA:/path``), quotes or backticks allowed around the path.
 _MEDIA_LINE = re.compile(
