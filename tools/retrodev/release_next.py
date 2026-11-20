@@ -90,10 +90,17 @@ def finish_landing(ctx, released: str) -> None:
     kept = (state.load_release(ctx.top, released) or {}).get("next") or {}
     if not kept.get("pr") or kept.get("merged") or kept.get("closed"):
         return
-    if github.pr_state(ctx, int(kept["pr"])) != "MERGED":
+    number = int(kept["pr"])
+    found = github.pr_state(ctx, number)
+    if found is None:  # unknown is not "not merged": its landing may be left half done
+        raise Failure(
+            f"GitHub did not say whether #{number} (the next version's pull request) is merged",
+            f"gh pr view {number}; then {command(kept.get('words') or '<the owner words>')} again (it resumes)",
+        )
+    if found != "MERGED":
         return
-    land.run(ctx, int(kept["pr"]))
-    landed(ctx, released, int(kept["pr"]))
+    land.run(ctx, number)
+    landed(ctx, released, number)
 
 
 def landed(ctx, released: str, number: int) -> None:
@@ -169,7 +176,7 @@ def run(ctx, words: str | None, dry_run: bool = False) -> int:
         number = int(found["number"]) if found else open_it(ctx, released, version, words)
     except Failure as failure:
         raise Failure(failure.message, f"{failure.fix}; then {again} (it resumes)", failure.code, failure.data)
-    remember(ctx, released, {"version": version, "branch": branch, "pr": number, "at": state.now()})
+    remember(ctx, released, {"version": version, "branch": branch, "pr": number, "at": state.now(), "words": words})
     ctx.out.set(pr=number)
     from . import release_run  # its checks of a version pull request's head (release_run imports this module)
 

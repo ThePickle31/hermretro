@@ -184,6 +184,14 @@ class Publishes(RunCase):
         self.assertEqual(code, 1, data)
         self.assertIn("released, but dev did not move to the next version", data["error"]["message"])
         git(self.main, "checkout", "--", "plugin.yaml")
+        state_view = ("pr", "view", NEXT_PR, "--json", "state")
+        kept = self.gh.answers[state_view]
+        self.gh.answers[state_view] = (1, "", "HTTP 502: Bad Gateway")  # GitHub cannot say, even after the retries
+        code, data = self.release_run("--version", NEXT)
+        self.assertEqual(code, 1, data)
+        self.assertIn(f"GitHub did not say whether #{NEXT_PR}", data["error"]["message"])
+        self.assertNotEqual((self.main / "plugin.yaml").read_text().strip(), f"version: {AFTER}", "not pulled yet")
+        self.gh.answers[state_view] = kept
         code, data = self.release_run("--version", NEXT)
         self.assertEqual(code, 0, data)
         self.assertEqual((self.main / "plugin.yaml").read_text().strip(), f"version: {AFTER}", "pulled")
