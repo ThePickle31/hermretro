@@ -115,7 +115,8 @@ class Takeover(RepoCase):
         self.assertEqual(code, 0, out)
         note = line_with(out, "note: 'test' is not one of this repository's kinds")
         self.assertIn("test/extra keeps its name: ship, land and CI accept any work branch", note)
-        self.assertIn("git branch -m test/extra fix/extra && git push -u origin fix/extra", note)
+        self.assertIn("so keep it", note)
+        self.assertNotIn("git branch -m", note)  # a rename would strand the branch's retrodev record
         self.new_plan("extra")
         code, out = self.run_cli("plan", "approve", "extra", "--words", "start", cwd=tree)
         self.assertEqual(code, 0, out)

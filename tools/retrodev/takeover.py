@@ -87,11 +87,7 @@ def run(ctx, branch: str, setup: bool = True) -> int:
         ctx.out.say(
             f"note: '{kind or branch}' is not one of this repository's kinds ({', '.join(kinds)}); {branch} keeps its "
             "name: ship, land and CI accept any work branch (the pull request's title and labels are what the "
-            "release notes use). To rename it anyway, before plan approve: "
-            + cmd("git", "branch", "-m", branch, f"fix/{topic}")
-            + " && "
-            + cmd("git", "push", "-u", ctx.remote, f"fix/{topic}")
-            + f", then python tools/retrodev plan link {topic} there"
+            "release notes use), so keep it: retrodev's record follows this name"
         )
         ctx.out.set(kind_note=True)
     for step in steps:
