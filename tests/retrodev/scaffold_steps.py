@@ -17,9 +17,9 @@ from retrodev.scaffold_page import own_page
 # contributor's branch does, so a test that pins the real tree's current content (Prompts' slots, history without a
 # listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
 # library tool are in STEPS already. The steps follow what the copy holds (real_steps), so a branch that gives
-# setup or prompts tabs, or history a listener, still passes: the tabless-page conversions have their own probe
+# setup or games tabs, or history a listener, still passes: the tabless-page conversions have their own probe
 # fixtures (tab_from_page below, tests/retrodev/test_trial_round_five.py).
-REAL_PAGES = ("setup", "prompts")
+REAL_PAGES = ("setup", "games")  # prompts stays tabless: the tab tests use it as their host
 REAL_LISTENERS = ("history", "assets", "library", "setup", "hermes")  # the first that can take one more
 
 
