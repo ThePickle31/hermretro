@@ -1,0 +1,56 @@
+// The Build page's Builds menu (page/pages/build/builds-menu.js): each build of the conversation, and whether
+// the backend kept its files (plugin.hermretro.builds). A build's startAt/endAt are page times in milliseconds
+// (a message's `timestamp`, Unix seconds, × 1000), and so is a snapshot's `at`/`builds`: a snapshot matches a build
+// when one of its times falls from 2 s before the turn started to 5 s after it ended.
+// Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
+import assert from 'node:assert/strict'
+
+import { runScenario } from './harness.mjs'
+
+await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mount, check, answered }) => {
+  buildScenario({ selected: 'fff666fff666' })
+  scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
+    state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
+  device: { hardwareEnabled: false, skipped: true } })
+  const callOf = (id, name) => ({ id, function: { name, arguments: '{}' } })
+  scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
+    { role: 'user', content: 'make the frog jump', timestamp: 1000 },
+    { role: 'assistant', content: '', timestamp: 1001, tool_calls: [callOf('b1', 'chromatic_rom_build')] },
+    { role: 'tool', tool_call_id: 'b1', content: JSON.stringify({ ok: true }), timestamp: 1020 },
+    { role: 'assistant', content: 'It jumps.', timestamp: 1030 },
+    { role: 'user', content: 'make it jump higher', timestamp: 2000 },
+    { role: 'assistant', content: '', timestamp: 2001, tool_calls: [callOf('b2', 'chromatic_rom_build')] },
+    { role: 'tool', tool_call_id: 'b2', content: JSON.stringify({ ok: true }), timestamp: 2020 },
+    { role: 'assistant', content: 'Higher now.', timestamp: 2030 }] })
+  const asked = []
+  let snapshots = []
+  scenario.byMethod['plugin.hermretro.builds'] = params => { asked.push(params); return { ok: true, builds: snapshots } }
+  const view = await mount(page)
+  await settle(100)
+  const openMenu = async () => {
+    await click('Builds', view.node.querySelector('.cs-b-head'))
+    await settle(30)
+    const rows = [...view.node.querySelectorAll('.cs-b-brow')]
+    const restore = rows[1] && [...rows[1].querySelectorAll('button')].find(node => node.textContent === 'Restore')
+    await key('keydown', 'Escape')
+    return { rows: rows.map(node => node.textContent), restore }
+  }
+
+  // Build #1's turn ran from 1000 s to 1030 s: a snapshot at 1 010 000 ms is its files.
+  snapshots = [{ id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' }]
+  const kept = await openMenu()
+  check('the Builds menu asks plugin.hermretro.builds for this game and lists the builds newest first', () => {
+    assert.deepEqual(asked.at(-1), { game: 'fff666fff666' })
+    assert.equal(kept.rows.length, 2); assert.match(kept.rows[0], /#2make it jump higher/); assert.match(kept.rows[1], /#1make the frog jump/)
+  })
+  check('a snapshot taken during build #1 (in milliseconds) lets it be restored', () => {
+    assert.ok(kept.restore, 'build #1 has a Restore button'); assert.equal(kept.restore.disabled, false)
+  })
+  // The same time in seconds matches no build: snapshot times are milliseconds, as the page's are.
+  snapshots = [{ id: 'snap-1', at: 1010, builds: [1010], reason: 'build' }]
+  const lost = await openMenu()
+  check('a snapshot from outside the build\u2019s turn matches nothing, so Restore stays disabled', () => {
+    assert.ok(lost.restore); assert.equal(lost.restore.disabled, true)
+  })
+  await view.close()
+})
