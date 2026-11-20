@@ -163,7 +163,7 @@ def approve(ctx, topic: str, words: str | None) -> int:
     else:
         ctx.out.say(
             f"next: python tools/retrodev start <kind>/{topic}, kind one of: feat (a new ability), fix (a bug), docs "
-            "(documentation only), chore (refactors of tests, tools and CI that change no behaviour)"
+            "(documentation only), chore (refactors that change no behaviour)"
         )
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
