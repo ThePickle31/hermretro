@@ -189,7 +189,13 @@ def tool(
             if project
             else ""
         ),
-        f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
+        f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)"
+        + (
+            ": generic words new made from the tool's name, so write what the user should read, e.g. 'Reading the "
+            f"game card' / 'Read the game card', in {STEP_WORDS} and the Tool's step_words in {home}"
+            if step is None
+            else ""
+        ),
         f"tests/backend/{feature_name}/test_tool_{short}.py pins the stub's answer: change it with the real answer",
     ]
     codes = error_codes(plan)

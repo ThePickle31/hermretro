@@ -105,7 +105,10 @@ class Contribution(ScaffoldCase):
     def test_a_dry_run_previews_a_slot_not_declared_yet_and_the_real_run_refuses(self):
         self.host(declared=False)
         out = self.new("contribution", "home", "rdprobe-host.extra", "RdprobeItem", "--dry-run", as_json=False)
-        self.assertIn("note: slot not declared yet: run new slot rdprobe-host extra first", out)
+        self.assertIn(
+            "note: slot not declared yet: preview it with python tools/retrodev new slot rdprobe-host extra --dry-run",
+            out,
+        )
         self.assertIn("dry run: nothing was written", out)
         out = self.new("contribution", "home", "rdprobe-host.extra", "RdprobeItem", code=1)
         self.assertIn("no page declares the slot 'rdprobe-host.extra'", out["error"]["message"])

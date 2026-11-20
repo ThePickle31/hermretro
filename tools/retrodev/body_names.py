@@ -10,7 +10,8 @@ in it and its top folder one of the repository's (TOPS: `backend/x/y.py`, `tools
 there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
 phrase (CITATION: `checked against`, `comes from`, `see`, `documents`, `describes`, `how to use`, ...) to the
 end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
-cited list (`checked against `a` and `b``) is cited. A path under engine/ never warns (never changed outside an engine
+cited list (`checked against `a` and `b``) is cited; so is one the sentence calls unchanged (`x` is unchanged, no
+change to `x`: said_unchanged). A path under engine/ never warns (never changed outside an engine
 update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x. On a
 branch with a sync merge of the base, a file or name the base changed in what that merge brought in never warns
 (synced_from_dev): a takeover's body explains code dev moved.
@@ -60,6 +61,12 @@ CITATION = re.compile(
 )
 # Where a new change clause starts, ending a citation clause: a semicolon, or `and` with a past-tense verb.
 CLAUSE = re.compile(r";|\band\s+(?=[a-z]+ed\b)", re.I)
+# Words that say the quoted paths next to them did NOT change cite them: `x` is unchanged, left `x` untouched,
+# kept `x` as is (right after them), no change to `x` (right before).
+UNCHANGED = re.compile(
+    r"^\s*(?:(?:is|are|was|were|stays?|stayed|remains?|remained)\s+)?(?:unchanged|untouched|not changed|as is)\b", re.I
+)
+UNCHANGED_BEFORE = re.compile(r"\b(?:no changes? (?:to|in)|unchanged:|untouched:)\s*$", re.I)  # right before it
 BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`(])")
 
@@ -85,12 +92,44 @@ def claimed(sentence: str) -> list[str]:
         + [(m.start(), False) for m in CLAUSE.finditer(sentence)]
     )
     found = []
+    kept = said_unchanged(sentence)
     for match in QUOTED.finditer(sentence):
         word = match.group(1).strip()
         cited = [citing for at, citing in marks if at < match.start()]
-        if is_repo_path(word) and not (cited and cited[-1]):
+        if is_repo_path(word) and not (cited and cited[-1]) and match.start() not in kept:
             found.append(word)
     return [path for path in found if not path.startswith("engine/") and path != "engine"]
+
+
+LIST_GLUE = re.compile(r"^\s*(?:,|,?\s*(?:and|or))\s*$")
+
+
+def said_unchanged(sentence: str) -> set[int]:
+    """Where the quoted names start that the sentence says are unchanged: a run of quotes joined only by `,`, `and`
+    or `or` is one list, cited when UNCHANGED stands in the words right before it (no change to `x`, `y`) or right
+    after it (up to the neighbouring quote or clause end) and the list has an `and`/`or` (`x`, `y` and `z` are
+    unchanged); a comma-only run followed by the words cites its last name only: `Fixed `a`, `b` unchanged`."""
+    quotes, groups = list(QUOTED.finditer(sentence)), []
+    for match in quotes:
+        if groups and LIST_GLUE.match(sentence[groups[-1][-1].end() : match.start()]):
+            groups[-1].append(match)
+        else:
+            groups.append([match])
+    stops = sorted({0, len(sentence), *(m.start() for m in CLAUSE.finditer(sentence)), *(m.start() for m in quotes)})
+    stops += [m.end() for m in quotes]
+    kept: set[int] = set()
+    for group in groups:
+        first, last = group[0].start(), group[-1].end()
+        before = sentence[max([s for s in stops if s <= first and s != first] or [0]) : first]
+        after = sentence[last : min([s for s in stops if s > last] or [len(sentence)])]
+        joined = any(
+            re.search(r"\b(?:and|or)\b", sentence[a.end() : b.start()]) for a, b in zip(group, group[1:], strict=False)
+        )
+        if UNCHANGED_BEFORE.search(before) or (UNCHANGED.search(after) and joined):
+            kept |= {match.start() for match in group}
+        elif UNCHANGED.search(after):
+            kept.add(group[-1].start())
+    return kept
 
 
 def quoted_paths(text: str) -> list[str]:

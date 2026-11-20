@@ -18,7 +18,7 @@ from .scaffold import Plan, in_section, label, pascal, render
 from .scaffold_backend import ARCHITECTURE, CONTRACT, PAYLOAD_GUIDE, known_feature
 from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, typed_sample, undescribed
 from .scaffold_readme import add_test
-from .scaffold_source import module_names
+from .scaffold_source import bindings, module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 
@@ -261,13 +261,30 @@ def catch_all(keys: list[str]) -> str:
     raise AssertionError("unreachable: more candidate names than keys")
 
 
+def host_name(text: str, reserved: tuple[str, ...] = ()) -> tuple[str, str]:
+    """Reuse an unshadowed host import, or suggest an alias free both in the module and in the listener."""
+    for node in ast.parse(text).body:
+        if isinstance(node, ast.ImportFrom) and node.level == 2 and node.module == "hermes":
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if alias.name == "host" and name not in reserved and len(bindings(text, name)) == 1:
+                    return name, ""
+    name, suffix = "host", 1
+    while name in reserved or bindings(text, name):
+        name = "hermes_host" if suffix == 1 else f"hermes_host{suffix}"
+        suffix += 1
+    line = "from ..hermes import host" + (f" as {name}" if name != "host" else "")
+    return name, f"add `{line}` to its imports first, then "
+
+
 def listener(plan: Plan, feature_name: str, event: str) -> str:
     known_feature(plan, feature_name, "listener")
     declared = declared_events(plan)
     if plan.dry_run and EVENT.match(event or "") and event not in declared:  # a plan lists its files before the event
         plan.notes.append(
             f"no front door declares {event} yet: the real run refuses until it exists (python tools/retrodev new "
-            f"event {event.partition('.')[0]} {event.partition('.')[2]} first); this dry run shows the files it "
+            f"event {event.partition('.')[0]} {event.partition('.')[2]} --dry-run previews that prerequisite); "
+            "this dry run shows the files it "
             "would write for it in a generic form (**_payload for the payload, no CONTRACT 'Heard by' row): not the "
             "final payload or row; once the event exists, --dry-run again shows the exact ones"
         )
@@ -324,9 +341,10 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         if on_readme
         else "; say it on the README's 'Listens to' line too"
     )
+    host, first = host_name(plan.read(source), (*keys, rest))
     plan.next_steps += [
-        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); log with "
-        "host.logger (from ..hermes import host)",
+        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); to log, "
+        f"{first}use {host}.logger (e.g. {host}.logger.info(...))",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
         isolation_step(plan, event.partition(".")[0], event),
@@ -334,9 +352,9 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
-        "assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.host."
-        'logger, "<LEVEL>"):`, the level the listener logs at ("INFO" for host.logger.info, "WARNING" for '
-        ".warning; listeners.py imports host: from ..hermes import host)",
+        f"assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.{host}."
+        f'logger, "<LEVEL>"):`, the level the listener logs at ("INFO" for {host}.logger.info, "WARNING" for '
+        ".warning)" + (" once listeners.py imports host as the first step says" if first else ""),
         f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
     entry = declared[event] or ""

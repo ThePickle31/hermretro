@@ -41,14 +41,19 @@ class Rpc(ScaffoldCase):
         warn = tomllib.loads((ROOT / "tools/layout.toml").read_text())["size"]["warn"]
         self.assertEqual(scaffold_rpc.big_rpcs(), warn - scaffold_rpc.MODULE_MARGIN)
         self.assertIn(f"over {warn - scaffold_rpc.MODULE_MARGIN} lines", help_of("new", "rpc"))
-        size = len(self.read("backend/history/rpcs.py").splitlines())
-        for threshold, noted in ((size - 1, True), (size, False)):  # the tree's own layout.toml decides
+
+        def noted(threshold: int) -> str:  # the tree's own layout.toml decides
             layout = self.read("tools/layout.toml")
             write(self.tree, "tools/layout.toml", re.sub(r"(?m)^warn = \d+", f"warn = {threshold + 50}", layout))
             git(self.tree, "add", "-A")
             git(self.tree, "commit", "-q", "-m", f"warn at {threshold + 50}")
-            out = self.new("rpc", "history", f"rdprobe_sized{threshold}", "--dry-run", as_json=False)
-            self.assertEqual("note: backend/history/rpcs.py has" in out, noted, threshold)
+            return self.new("rpc", "history", "rdprobe_sized", "--dry-run", as_json=False)
+
+        out = noted(0)  # round 20: the size rpcs.py would have with the RPC in decides, not its size now
+        size = int(re.search(r"note: backend/history/rpcs.py would have (\d+) lines", out).group(1))
+        self.assertGreater(size, len(self.read("backend/history/rpcs.py").splitlines()))
+        self.assertIn("note: backend/history/rpcs.py would have", noted(size - 1))
+        self.assertNotIn("note: backend/history/rpcs.py", noted(size))
 
     def test_game_s_next_steps_key_and_call_with_the_game_where_the_game_is(self):
         steps = joined(self.new("rpc", "history", "rdprobe_card", "--game"))

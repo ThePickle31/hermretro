@@ -225,11 +225,12 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
     if module:  # the handler in its own module; rpcs.py keeps the @rpc declaration (scaffold_rpc.py)
         source = scaffold_rpc.in_module(plan, feature_name, module, values)
     else:
-        scaffold_rpc.big_note(plan, feature_name, name)
         source = scaffold_rpc.inline(plan, feature_name, values)
     if game:
         scaffold_rpc.needs_host(plan, source)
     scaffold_rpc.listed_in_docstring(plan, f"backend/{feature_name}/rpcs.py", name)
+    if not module:  # measured with every rpcs.py edit in: the size it would have
+        scaffold_rpc.big_note(plan, feature_name, name, game)
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
     plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
@@ -329,7 +330,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
         f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),
         "the broker process never emits (backend/system/events.py): call it from Hermes-side code (an RPC, tool "
         "or hook) that sees it happen",
-        f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
+        f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py), which `python '
+        f"tools/retrodev new listener <feature> {full}` writes with its test once the event is written",
         f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
         f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",
         f"changing {full}'s payload later: {PAYLOAD_GUIDE} ({emits}'s function {name}, its callers: grep -rn "

@@ -173,6 +173,7 @@ class ListenerDryRun(RealFiles):
         self.assertIn(
             "note: no front door declares history.rdprobe_later yet: the real run refuses until it exists", out
         )
+        self.assertIn("python tools/retrodev new event history rdprobe_later --dry-run", out)
         refused = self.new("listener", "assets", "history.rdprobe_later", code=1)
         self.assertIn("no front door declares the event 'history.rdprobe_later'", refused["error"]["message"])
 

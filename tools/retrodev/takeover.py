@@ -136,8 +136,9 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
     if planned and named:
         if not plan.plan_file(ctx, named).is_file():
             steps.append(
-                f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
-                "does and what is left)"
+                f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: a takeover's plan says "
+                f"what the teammate's commits already do (git log --oneline --no-merges {ctx.remote_base}..HEAD), "
+                "what is left for you, and that you took the branch over)"
             )
         # the body plan approve writes names the agent in its Made by line (the recorded one, printed here too)
         agent = gates.agent_prefix(gates.environment(ctx), record)

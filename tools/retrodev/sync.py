@@ -50,7 +50,7 @@ def older(ctx, path) -> str:
         return ""
     return (
         f"; this branch's own tools/retrodev is older than {ctx.remote_base}'s, so the main checkout's runs it, with "
-        "sync's conflict hints"
+        "sync's conflict hints, and every retrodev step until sync is done: then the worktree's own copy is current"
     )
 
 

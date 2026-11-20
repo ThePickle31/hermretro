@@ -233,7 +233,13 @@ def scaffolds(sub, common) -> None:
         "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does; "
         "elsewhere it imports them from backend/hermes/tool_args.py)",
     )
-    event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
+    event = kind(
+        "event",
+        "an EVENTS entry in the front door and its CONTRACT row; e.g. new event library game_moved --payload "
+        "'game=<library id>, root=<project folder>' --when 'after `chromatic_move_game` moved a game'",
+        "feature",
+        "name",
+    )
     event.add_argument(
         "--payload",
         action="append",
@@ -245,7 +251,13 @@ def scaffolds(sub, common) -> None:
         help="one line: when it is emitted, tool and RPC names in backticks, e.g. 'after `chromatic_build_report` "
         "accepted a card' (the EVENTS entry and the CONTRACT row say it)",
     )
-    kind("listener", "an @on stub in backend/<feature>/listeners.py, its test, the README and docs", "feature", "event")
+    kind(
+        "listener",
+        "an @on stub in backend/<feature>/listeners.py, its test, the README and docs; the event is <owner>.<name>, "
+        "as a front door's EVENTS declares it: e.g. new listener history library.build_reported",
+        "feature",
+        "event",
+    )
     kind("page", "page/pages/<id>/: descriptor, component, README, the registry line", None, "id").add_argument(
         "--label", help="its nav label (default: from the id)"
     )

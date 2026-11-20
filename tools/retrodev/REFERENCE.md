@@ -359,7 +359,10 @@ schema constant or handler name the module binds already (a second binding would
 label with a quote, backslash or line terminator (it goes into a JavaScript string), and an RPC, tool or event in a
 stdlib-only feature (`policy.toml` `[new] stdlib_only`: broker, system; their gateway-side pieces go in setup, library
 or another feature). `--dry-run` lists the files, prints the unified diff of every file it would create or change
-(from the plan's in-memory edits; `diff` in `--json`) and writes nothing; `--no-check` skips the checks; `--no-build`
+(from the plan's in-memory edits; `diff` in `--json`), then the next steps the real run would print, as a preview
+whose `new` commands keep `--dry-run` (`next` in `--json`), and writes nothing; a later `new --dry-run` does not see
+the previewed files, so preview a piece that builds on another (a second tab) after the first is written. Advisory
+messages print as `note:` lines (`notes` in `--json`). `--no-check` skips the checks; `--no-build`
 skips the rebuild (when several `new` run in a row, let the last one rebuild). It never writes a broken or partial
 change: every edit is made in memory first, each Python file of it must parse, and only then is anything written. It
 extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `EVENTS` a dict literal, on one line or
@@ -409,8 +412,9 @@ which no `rpc_<x>` or public name can equal; `new rpc` refuses, before writing, 
 `rpcs.py` binds already, so a new RPC never rebinds an earlier one's; it also refuses a name the page test harness
 keeps on `scenario` for itself, read from `tests/page/sdk-stub.mjs` and `tests/page/harness.mjs` (`storage`, `calls`,
 `queries`, ...: a page test answers a query by `scenario.<name>`), suggesting another): `tools/bundle/rpc_names.py` and the lock-step
-test read `@rpc` in `rpcs.py` only, so the declaration stays there; without it, an `rpcs.py` within 50 lines of the
-one size rule's warning (`tools/layout.toml` `[size]` `warn`) gets a note suggesting `--module`. RPC names are global
+test read `@rpc` in `rpcs.py` only, so the declaration stays there; without it, an `rpcs.py` that would end within 50 lines of the
+one size rule's warning (`tools/layout.toml` `[size]` `warn`) once the new RPC is in gets a note suggesting `--module`
+(an advice, never a gate; a dry run's suggested command keeps `--dry-run`). RPC names are global
 and flat: the page calls `plugin.hermretro.<name>` whichever feature declares it, so `library.recent` means feature
 `library`, RPC `recent`. An `@rpc("<name>")` stub in `backend/<feature>/rpcs.py` (made with its imports when missing;
 the handler its factory returns is always named `_answer`, so an RPC named `host`, `logger` or a builtin never shadows
@@ -498,8 +502,8 @@ test calls it with the event's payload keys (its CONTRACT row, else its `EVENTS`
 what it does (for a listener that only logs, pass its actual log level to `assertLogs`), name
 `host.library_game_for([path])` and `tests.support.make_library_game` for a payload with a path or root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers and emit this event
 (they name it, or call its emitter in `emits.py` or a function that calls that or `emit("<event>")`, found by parsing
-the feature's code): the listener now runs against those mocks. The next steps say to log with `host.logger` (`from
-..hermes import host`); the docstring says that a listener runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
+the feature's code): the listener now runs against those mocks. The next steps say to log with `host.logger` and, when
+`listeners.py` does not import it yet, to add `from ..hermes import host` (`as hermes_host` if `host` is taken); the docstring says that a listener runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
 process), never in the broker, so module-level state is per process: state other processes must read goes in a file
 under `backend.system.paths.hermretro_home()`, written atomically. The next steps add: export a reader other code
 needs in the feature's `__init__.py` `__all__` and name it on the README Front door line. Its next steps name the
@@ -605,7 +609,7 @@ the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's; the nex
 
 A component of `<page>` in another page's declared slot (an undeclared slot is refused, naming the declared ones;
 with `--dry-run` only, a slot of an existing host page that is not declared yet is previewed with the note `slot not
-declared yet: run new slot <page> <name> first`, so a plan that adds a slot and fills it can list both): the
+declared yet` and a read-only `new slot ... --dry-run` command, so a plan that adds a slot and fills it can list both): the
 stub `page/pages/<page>/<component-file>.js` (`InstallButton` -> `install-button.js`, returning `null`), its import
 and `contributes: { '<slot>': [Component] }` in `page/pages/<page>/index.js` (after the slot's list when the page
 fills it already), the page README's **Slots:** line (`contributes none` becomes ``contributes `<Component>` to

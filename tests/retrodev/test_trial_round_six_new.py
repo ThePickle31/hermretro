@@ -103,7 +103,7 @@ class Rpc(ScaffoldCase):
         write(self.tree, "backend/history/rpcs.py", source + "".join(f"# line {n}\n" for n in range(360)))
         git(self.tree, "commit", "-qam", "A long rpcs.py")
         out = self.new("rpc", "history", "rdprobe_big", as_json=False)
-        self.assertIn("python tools/retrodev new rpc history rdprobe_big --module rdprobe_big_rpcs", out)
+        self.assertIn("give the next one its own module (python tools/retrodev new rpc history <name> --module", out)
         out = self.new("rpc", "history", "rdprobe_small", "--module", "rdprobe_small_rpcs", as_json=False)
         self.assertNotIn("note: backend/history/rpcs.py has", out)
 

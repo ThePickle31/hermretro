@@ -117,7 +117,7 @@ class ListenerStub(ScaffoldCase):
         self.assertEqual([line for line in lines if left_in(line)], ["    say what this listener does."])
         self.assertNotIn("host.logger", source)
         self.assertTrue(all(len(line) <= 120 for line in lines))
-        self.assertIn("log with host.logger (from ..hermes import host)", " ".join(out["next"]))
+        self.assertIn("to log, add `from ..hermes import host` to its imports first", " ".join(out["next"]))
 
 
 class EventBroker(ScaffoldCase):
