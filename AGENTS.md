@@ -51,7 +51,7 @@ since their last pass on the branch (a cached pass prints `ok (cached)`; `--agai
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
 `engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
 check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
-new` run on a throwaway copy of the tree, about 40 s) when it changed the scaffolds or the files whose structure they
+new` run on a throwaway copy of the tree, about 50 s) when it changed the scaffolds or the files whose structure they
 parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count). A
 branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
 on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`

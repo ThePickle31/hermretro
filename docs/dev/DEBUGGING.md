@@ -37,6 +37,15 @@ trace (above), not these logs.
   registers the plugin in a temporary home. Use `hermes -p hermretro tools list`.
 - **"hermretro is still running an older session for a game in a chat."** A broker from older code is kept
   alive by a live game; it retires when that chat's game closes. A forced restart kills open players.
+- **The player stays black.** Open the app's developer console: errors inside the player frame arrive as
+  `[Chromatic player] <text>` warnings (`page/shared/player/bridge.js`; the frame forwards its `console.error`,
+  uncaught errors and rejections, `page/frame/sandbox.js`). The stage (`page/app/player/stage.js`) shows "Reading
+  your games…" before the library answers, "Starting the player for <game>…" while the `player` RPC runs, "The
+  player could not start" with Refresh above an empty stage when that RPC fails (with -32601: reload the plugin),
+  and "The player could not start" with Build it in chat when the game has no web export. Then check the game's
+  `webExport` and `web.sha256` in the `games` answer (`node tools/debug/gateway_rpc.mjs hermretro
+  plugin.hermretro.games`) against the `romSha256` the `player` RPC returns: when they differ, the bar shows
+  "Hermes rebuilt <game> · Load the new build" (`page/pages/emulator/emulator-bar.js`), which reloads the frame.
 - **The emulator lease is stuck** (`recordingAccessFailure`). The broker clears it only when its owner is dead
   (`backend/broker/leases.py`); the trace says so.
 

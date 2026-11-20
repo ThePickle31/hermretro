@@ -358,7 +358,7 @@ when the agent is ready to present the game after making it, never for the whole
 ### `games` → library
 Params: none. Result:
 ```json
-{ "games": [ {
+{ "ok": true, "games": [ {
     "id": "<sha1 of projectRoot, 12 hex>",
     "title": "Comet Drift",
     "projectRoot": "/abs/path",
@@ -368,9 +368,15 @@ Params: none. Result:
     "webExport": true,
     "web": { "sha256": "…", "builtAt": 1731400000 } | null,
     "thumb": "data:image/png;base64,…" | null,
-    "chat": { "sessionId": "…", "title": "…" } | null,
+    "cover": false,
+    "card": { "title": "…", … } | null,
+    "displayTitle": "Comet Drift",
+    "chat": { "sessionId": "…", "title": "…", "conversationId": "…", "profile": "…", "thisProfile": true } | null,
+    "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,
     "error": "<last build error, ≤240 chars>" | null
   } ],
+  "pending": [ … ],
+  "gamesDir": "/abs/…/games",
   "demo": { "id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example" },
   "device": { "hardwareEnabled": false, "skipped": false }
 }
