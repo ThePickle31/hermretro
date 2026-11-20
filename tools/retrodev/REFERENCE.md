@@ -307,7 +307,7 @@ number>` records it (the time, and that the agent did it) in the same record; `-
 refused. Exit 2 while a step is left, an unrecorded manual one included (the next one named, with its `--done`), 0
 only when every step is done. It never changes `engine/` itself. `--dry-run` records and runs nothing
 
-### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--draft] [--dry-run]`
+### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--draft] [--checklist "..."] [--dry-run]`
 
 The usual way: the version pull request only when dev does not say the version yet, CI on the release commit, the
 draft, the published release (`--draft` stops at the draft), then `release next`. Below
@@ -316,7 +316,7 @@ draft, the published release (`--draft` stops at the draft), then `release next`
 
 Only when the owner asks for a release: without their words (naming a release) exit 3. Below
 
-### `release publish <version> [--dry-run]`
+### `release publish <version> [--checklist "..."] [--dry-run]`
 
 The gates, the update check, then main, the tag and the draft release. Below
 
@@ -746,7 +746,13 @@ three steps below remain, to run or resume one at a time:
    the commit). Then, each step skipped when done already, so a stopped publish resumes: `git push origin <sha>` onto
    `main` (a plain fast-forward push, with `HERMES_RELEASE=1` in that one push's environment for the local guard
    hooks), `git tag -a v<version> <sha>`, `git push origin refs/tags/v<version>`, `gh release create v<version>
-   --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`. It prints the draft's address and the
+   --verify-tag --notes-file <state>/releases/<version>-notes.md --draft`. Retrodev writes those notes
+   (`release_notes.py`) from the squash commits since the previous stable tag: New (`feat/` branches), Fixes and
+   improvements (other changes to files users run; folder notes aside), Behind the scenes (folded: tools, tests,
+   development docs), version pull requests left out and the fresh-agent trial rounds of one kind in one line; then
+   Updating, Tested (CI's systems and the update from the previous release) and the real-machine checklist: "not
+   needed" unless setup, the broker or `backend/system/host.py` changed, else the result `--checklist "<result>"`
+   recorded (on `release run` or `publish`), else "not run" naming the files. It prints the draft's address and the
    next step. Before the steps it records that commit as approved (all gates passed) in the release record.
    `--dry-run` fetches nothing, runs nothing and changes nothing: it prints the gates and every command.
 3. With `--draft` or by hand: read the draft, then `release verify

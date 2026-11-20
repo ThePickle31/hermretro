@@ -83,26 +83,67 @@ def branches(ctx) -> dict[str, str]:
     }
 
 
+TRIALS = re.compile(r"^(?P<what>.*?): fixes from the (?P<nth>\w+) round of fresh-agent trials$")
+
+
+def runs_for_users(name: str) -> bool:
+    """A file users run or see: under USER_PATHS, a folder's notes (.md) aside, except the root README."""
+    if name == "README.md":
+        return True
+    return not name.endswith(".md") and (name.startswith(USER_PATHS) or name in USER_PATHS)
+
+
 def group(entry: dict, branch: str) -> str | None:
     """new, fixes or behind; None for a version pull request."""
     if branch.startswith("chore/release-") or VERSION_PR.match(entry["subject"]):
         return None
     if branch.startswith("feat/"):
         return "new"
-    if any(name.startswith(USER_PATHS) or name in USER_PATHS for name in entry["files"]):
+    if any(runs_for_users(name) for name in entry["files"]):
         return "fixes"
     return "behind"
 
 
 def checklist_files(entries: list[dict]) -> list[str]:
     files = sorted({name for entry in entries for name in entry["files"]})
-    return [name for name in files if name.startswith(CHECKLIST_PATHS)]
+    return [name for name in files if name.startswith(CHECKLIST_PATHS) and not name.endswith(".md")]
 
 
 def slug(ctx) -> str | None:
     url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
     match = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
     return match.group(1) if match else None
+
+
+def fold(entries: list[dict], where: str | None) -> list[str]:
+    """One line per change; the fresh-agent trial rounds of one kind in one line ("... from N rounds of ...")."""
+    lines, rounds = [], {}
+    for entry in entries:
+        match = TRIALS.match(entry["subject"])
+        if match:
+            if match["what"] not in rounds:
+                rounds[match["what"]] = []
+                lines.append(match["what"])  # its place: where the first round was
+            rounds[match["what"]].append(entry)
+        else:
+            lines.append(entry)
+    shown = []
+    for item in lines:
+        if isinstance(item, dict):
+            shown.append(line(item, where))
+            continue
+        same = rounds[item]
+        if len(same) == 1:
+            shown.append(line(same[0], where))
+            continue
+        refs = ", ".join(ref(entry, where) for entry in same if entry["number"])
+        shown.append(f"- {item}: fixes from {len(same)} rounds of fresh-agent trials ({refs})")
+    return shown
+
+
+def ref(entry: dict, where: str | None) -> str:
+    number = entry["number"]
+    return f"[#{number}](https://github.com/{where}/pull/{number})" if where else f"#{number}"
 
 
 def line(entry: dict, where: str | None) -> str:
@@ -117,11 +158,12 @@ def write(ctx, version: str, sha: str, previous: str | None, checklist: str | No
     entries = commits(ctx, since, sha)
     heads = branches(ctx)
     where = slug(ctx)
-    groups: dict[str, list[str]] = {"new": [], "fixes": [], "behind": []}
+    sorted_: dict[str, list[dict]] = {"new": [], "fixes": [], "behind": []}
     for entry in entries:
         kind = group(entry, heads.get(entry["sha"], ""))
         if kind:
-            groups[kind].append(line(entry, where))
+            sorted_[kind].append(entry)
+    groups = {kind: fold(items, where) for kind, items in sorted_.items()}
     parts = []
     if rc:
         parts.append(f"A release candidate for {version.split('-rc.')[0]}: for trying out before the release.\n")
@@ -155,7 +197,7 @@ def write(ctx, version: str, sha: str, previous: str | None, checklist: str | No
         )
     parts.append(f"## Tested\n\n{tested}.\n\n{machine}\n")
     if groups["behind"]:
-        count = len(groups["behind"])
+        count = len(sorted_["behind"])
         parts.append(
             f"<details><summary>Behind the scenes ({count} change{'s' if count != 1 else ''} to tests, tools and "
             "docs)</summary>\n\n" + "\n".join(groups["behind"]) + "\n\n</details>\n"

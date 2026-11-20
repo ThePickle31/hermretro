@@ -207,9 +207,12 @@ def install_gate(ctx, rec: dict, sha: str, dry_run: bool, version: str) -> Gate:
     return gates.passed(name, result["detail"])
 
 
-def run(ctx, version: str, dry_run: bool = False) -> int:
+def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) -> int:
     rc = release.parse(version)[3] is not None
     rec = state.load_release(ctx.top, version)
+    if rec and checklist and checklist.strip() and not dry_run:
+        rec["checklist"] = checklist.strip()  # the owner's real-machine result, for the notes
+        state.save_release(ctx.top, rec)
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     found = []

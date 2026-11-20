@@ -250,6 +250,7 @@ class Publish(ReleaseCase):
         self.assertEqual(create[0][-3:], ["--notes-file", str(notes_file), "--draft"])
         notes = notes_file.read_text()
         self.assertIn("## Updating", notes)
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not needed", notes)
         self.assertNotIn(f"Release {NEXT}", notes, "the version pull request is left out")
         self.assertEqual(data["url"], URL)
         self.assertEqual(self.check_log()[0]["script"], ["--update-from", "v0.0.1"])  # from the last release
@@ -260,6 +261,14 @@ class Publish(ReleaseCase):
         self.assertEqual(code, 0, again)
         self.assertEqual(len(self.gh.called("release", "create")), 1, "nothing is done twice")
         self.assertEqual(len(self.check_log()), 1, "the update check's pass is kept for this commit")
+
+    def test_the_owners_checklist_result_goes_into_the_notes(self):
+        self.merged_release()
+        code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 0, data)
+        notes = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text()
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", notes)
+        self.assertEqual(state.load_release(self.main, NEXT)["checklist"], "passed on a MacBook Pro (M3)")
 
     def test_a_retry_after_dev_moves_releases_the_commit_the_first_publish_chose(self):
         sha = self.merged_release(pr=None)  # no version pull request: the release commit is dev's head

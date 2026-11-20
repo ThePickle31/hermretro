@@ -60,6 +60,28 @@ class Notes(ReleaseCase):
         self.assertIn("passed on a MacBook Pro (M3), Hermes 0.24", notes)
         self.assertNotIn("not run", notes)
 
+    def test_trial_rounds_fold_into_one_line_and_folder_notes_are_not_user_changes(self):
+        merged = [
+            self.land(
+                "fix/docs-trial-round-one",
+                "page/a.js",
+                "Pages and docs: fixes from the first round of fresh-agent trials",
+                5,
+            ),
+            self.land(
+                "fix/docs-trial-round-two",
+                "page/b.js",
+                "Pages and docs: fixes from the second round of fresh-agent trials",
+                6,
+            ),
+            self.land("docs/setup-notes", "backend/setup/README.md", "The setup notes name the steps", 7),
+        ]
+        notes = self.write(merged)
+        self.assertIn("- Pages and docs: fixes from 2 rounds of fresh-agent trials (#5, #6)", notes)
+        self.assertNotIn("first round", notes)
+        self.assertLess(notes.index("Behind the scenes"), notes.index("The setup notes name the steps"))
+        self.assertIn("not needed", notes, "a README under backend/setup/ asks for no checklist")
+
     def test_without_github_each_change_is_grouped_by_its_files(self):
         self.land("x", "page/a.js", "A page change", 5)
         self.land("x", "tests/repo/test_x.py", "A test change", 6)
