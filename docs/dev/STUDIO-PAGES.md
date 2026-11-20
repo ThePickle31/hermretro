@@ -8,13 +8,56 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 
 `Home · Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them).
 
-| Page | Approved design | Mockup file (source template) |
+| Page | Approved design (details below) | Mockup file (source template) |
 |---|---|---|
-| Home | E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio). While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does). | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
-| Setup | Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion. Setup tab shows a small dot while incomplete. | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
-| Prompts | **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right. Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic). | `src/prompts-page.template.html` variant 2 |
-| Games | **Shelf**: grid of the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border). Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control. Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built. Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder. A game showing its title screen rather than a cover gets a small "No cover" tag on the label. The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library. The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen. A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent. A faded "Blank cartridge" slot = New game. Empty library page (with the Chromatic status strip). | `src/games-page.template.html` (`.mcart.real`) |
-| Emulator | ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install). A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins). Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game). Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark). "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded. Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below). Default device finish **Hermes Edition · Midnight**. | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+| Home | E · Segmented nav, home variant 1 "Hero + band" | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
+| Setup | Atelier wizard with the flying Chromatic | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
+| Prompts | **Reader** | `src/prompts-page.template.html` variant 2 |
+| Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
+| Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+
+Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
+(`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
+approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps
+means both.
+
+### Home
+
+- E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio).
+- While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does).
+
+### Setup
+
+- Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion.
+- Setup tab shows a small dot while incomplete.
+
+### Prompts
+
+- **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right.
+- Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic).
+
+### Games
+
+- **Shelf**: grid of the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
+- Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control.
+- Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built.
+- Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder.
+- A game showing its title screen rather than a cover gets a small "No cover" tag on the label.
+- The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library.
+- The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen.
+- A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent.
+- A faded "Blank cartridge" slot = New game.
+- Empty library page (with the Chromatic status strip).
+
+### Emulator
+
+- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
+- A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
+- Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game).
+- Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
+- "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
+- Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below).
+- Default device finish **Hermes Edition · Midnight**.
 
 ## Build: one game, one conversation
 
@@ -458,7 +501,10 @@ a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
 `README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
-`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. Or:
+`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
+player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after
+`Page` and before `BelowPlayer`: a page puts its content above the player (`Page`) or below it (`BelowPlayer`,
+which needs `pad`); content beside the player needs a change to that shell. Or:
 `python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
 nav list (it goes last; move it in both).
 

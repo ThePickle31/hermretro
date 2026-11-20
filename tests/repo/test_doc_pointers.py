@@ -174,7 +174,8 @@ def feature_readmes() -> list[Path]:
 def missing_local_modules(docs: list[Path]) -> list[str]:
     """``doc:line: name`` for each relative source name in ``docs`` not found beside the README.
 
-    A name resolves against the README's folder, or a folder its section's heading names in backticks (`attract/`).
+    A name resolves against the README's folder, or a folder its section's heading names in backticks (`attract/`),
+    or the repository root (a file in another folder, such as the engine's).
     "Adding ..." sections name what a scaffold would write, so they are skipped; so are repository-root paths (the
     MODULE check covers them), tests (`test_*.py`, `*.test.mjs`, `tests/...`) and placeholders, which LOCAL never
     matches (`<`, `*`).
@@ -192,6 +193,8 @@ def missing_local_modules(docs: list[Path]) -> list[str]:
             for name in LOCAL.findall(line):
                 if name.startswith(("backend/", "page/", "tests/")) or re.match(r"test_|.*\.test\.", Path(name).name):
                     continue
+                if "/" in name and (ROOT / name).is_file():
+                    continue  # a repository-root path to another folder (`engine/.../web-preview-states.js`)
                 if not any((folder / name).is_file() for folder in folders):
                     shown = doc.relative_to(ROOT) if doc.is_relative_to(ROOT) else doc
                     missing.append(f"{shown}:{number}: {name}")
@@ -246,7 +249,7 @@ class DocPathTests(unittest.TestCase):
                 "# backend/setup\n\n"
                 "Preparing the machine: ModRetro's CLI (`provision.py`, was `old_provision.py`) and the RPCs (`rpcs.py`).\n"
                 "\n## What it adds\n\n- RPCs (`rpcs.py`): `status`. Tools (`tools.py`): none.\n"
-                "\n## The level (`attract/`)\n\n| `run.js` | `attract/run.js` | `gone.js` |\n"
+                "\n## The level (`attract/`)\n\n| `run.js` | `attract/run.js` | `gone.js` | `engine/modretro-chromatic/dist/web-preview-states.js` |\n"
                 "\n## Tests\n\n`tests/backend/setup/`: `test_provision.py`, `tests/page/attract.test.mjs`.\n"
                 "\n## Adding here\n\n- an event: writes `emits.py`; a split writes `<name>_tools.py`, `listeners.py`.\n",
                 encoding="utf-8",

@@ -27,7 +27,7 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
   - `addedAt`: when the library first recorded the game. Never changes.
   - `updatedAt`: the last time the library recorded something about the game: the broker saw it created or selected (`project_create`, `project_create_blank`, `project_select`), built (`rom_build`) or exported (`web_preview` open), or `chromatic_present_game` showed it (`Registry.upsert` and `Registry.present`; each `games` RPC also adds projects the running broker has selected that the library lacks, setting it only for those). Binding a conversation, editing the game card or a thumbnail does not change it. The Games page lists games newest `updatedAt` first: this is what "recent" means. Nothing records when the user opened a game.
   - `chat`: `{conversationId, sessionId, profile}` of the chat that last selected, created (with `select`), built, exported or presented it (the seeded entries carry only `sessionId`).
-  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (240 characters at most, or null)}`.
+  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
   - `lastWebExport`: `{t}` of the last successful `web_preview` open (the engine may reuse an export without rewriting it).
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
   - `session`: the game's Build conversation, `{storedId, profile, createdAt, aliases}` (`aliases`: up to 16 later session ids of it, since compression rotates them). Absent when the game has none.
@@ -41,6 +41,18 @@ Which title the user sees: the card's `title` (the project's `game.json`, set by
 ## Captures
 
 Screenshots and videos saved from the player live in `<project>/captures/` (the demo cartridge's in `<library>/captures/demo`): `captures_dir(root, game_id)` in `backend/player/server.py` (not in the player's front door) names the folder, and `player.list_captures(root, game_id)` (`from ..player import list_captures`) lists its media files newest first as `{id, path, kind, createdAt, file}` (`kind` from the `.json` sidecar, else `screenshot` for a PNG and `video` otherwise; `createdAt` an ISO time; there is no size field: `stat` the `path`). The `captures` RPC (`rpcs.py`) reads them through `list_captures` and answers `{path, kind, createdAt, url}` for each. Writes go through `save_capture`: the `capture_image` RPC saves a page-sent game-screen PNG there as an `annotation` capture, and the player server's `codex-captures` POST saves the player's own.
+
+## Save states
+
+The player's save states live in `<project>/save-states/<build digest>/<id>.gbstate.json`, written by the engine's
+web preview (`engine/modretro-chromatic/dist/web-preview-states.js`, `PreviewStateStore`); the plugin only keeps them
+out of source checks and snapshots (`games.NOT_SOURCE`, `backend/history/snapshots.py`). `<build digest>` is the
+SHA-256 of the JSON `{romSha256, runtimeSha256, sourceRevision, cartridgeType}` (so each build has its own folder) and
+`<id>` the SHA-256 of the file's canonical text. Each file is one JSON object (`engine/modretro-chromatic/dist/web-annotations/save-state.js`):
+`format` (`codex-gb-studio-save-state`), `version` (`1`), `identity` (that build identity), `frame`, `createdAt` (an
+ISO time), `title` (160 characters at most), and `state`, `framebuffer`, `sgbFramebuffer`, each `{encoding: "base64",
+byteLength, sha256, data}` (1 MiB decoded at most). Each build keeps its newest 8 (`MAX_PREVIEW_STATES`; a save
+prunes older ones) and refuses a save once its folder holds 64 entries.
 
 ## Project files
 
@@ -65,4 +77,7 @@ Use `python tools/retrodev new <kind> library <name>`: it writes the stub, its t
 - an event: `python tools/retrodev new event library <what happened> --payload "<keyword arguments>"`, then call `emits.<what happened>(...)` (`from . import emits`: the function it writes in `emits.py`) where it happens.
 - changing an event's payload: edit the `emit("library.<name>", ...)` call in `tools.py` (or `emits.py`'s function, for an event `new event` wrote), the `EVENTS` description in `__init__.py` (each key with what it holds and its type, e.g. `root=<the project folder, str>`), the `docs/dev/CONTRACT.md` events row and its test (`tests/backend/library/test_build_report.py` for `library.build_reported`; `tests/backend/library/test_event_<name>.py` for one `new event` wrote), and every listener that reads the key (`backend/assets/listeners.py` hears `library.build_reported`).
 - a listener: `python tools/retrodev new listener library <feature>.<event>`: an `@on("<feature>.<event>")` stub taking `**_payload` (so a new payload field never breaks it) in this folder's `listeners.py`, its test, "Listens to" above and the CONTRACT events row's "Heard by". A listener reaches the library with `host._registry()` and logs with `host.logger` (`from ..hermes import host`), as a tool does: `listeners.py` is Hermes-side and the broker never imports it (`tests/repo/test_broker_imports.py`). What stays standard library only is the front door, `__init__.py` and the modules it imports (the broker imports it): never import `listeners.py`, `tools.py` or `backend.hermes` there. Listeners run synchronously in the emitting process and thread on the Hermes side (the gateway, a plugin host or a turn process), so module state a listener keeps is that process's own; state other processes must read goes in a file under `backend.system.paths.hermretro_home()`, written atomically (a temp file, then `os.replace`, as `games.json` is), not in module state.
+- a field in the games RPC answer: `Registry.describe` (`games.py`), the key set pinned by
+  `tests/backend/library/test_games.py` (its failure message names these places), the `docs/dev/CONTRACT.md` games row
+  and the `docs/dev/STUDIO-PAGES.md` games JSON. `rpcs.py` drops `updatedAt` before answering.
 - a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`.

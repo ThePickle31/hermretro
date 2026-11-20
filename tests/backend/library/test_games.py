@@ -195,6 +195,21 @@ class BrokerHook(unittest.TestCase):
         [game] = broker.games.library()
         self.assertEqual((game["state"], game["error"]), ("failed", "boom"))
 
+    def test_a_failed_builds_error_reaches_the_page_whole_up_to_its_limit(self):
+        broker = Broker.__new__(Broker)
+        broker.lanes, broker.table_lock = {}, threading.RLock()
+        broker.games = games.Registry(self.base / "lib")
+        broker.trace = lambda **record: None
+        lane = broker.lane_for(("profile", "conv"), create=True)
+        lane.selected_root = str(make_project(self.base))
+        for message, expected in (("e" * 200, "e" * 200), ("x" * (games.ERROR_CHARS + 60), "x" * games.ERROR_CHARS)):
+            lane.remember(
+                "rom_build", "project-write", {"isError": True, "structuredContent": {"error": message}}, 1.0, {}
+            )
+            [game] = broker.games.library()
+            self.assertEqual(game["error"], expected)
+        self.assertEqual(games.ERROR_CHARS, 240)
+
     def test_a_failing_library_never_breaks_a_call(self):
         lane = Lane(("p", "c"))
         lane.observer = mock.Mock(side_effect=OSError("disk full"))
@@ -260,6 +275,9 @@ class GamesRpc(unittest.TestCase):
                 "card",
                 "displayTitle",
             },
+            "the games RPC's keys changed: change Registry.describe (backend/library/games.py), this set, the "
+            "docs/dev/CONTRACT.md games row and the docs/dev/STUDIO-PAGES.md games JSON together "
+            "(backend/library/README.md, 'Adding here')",
         )
         self.assertTrue(game["cover"])
         self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
