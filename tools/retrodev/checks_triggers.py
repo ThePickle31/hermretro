@@ -4,7 +4,8 @@ header alone (``sources:``, after an edit that did not change what it bundles): 
 file [checks.trigger_ignore] lists for that check, or a change to a scaffold-parsed file made only of the lines `new`
 itself writes there ([checks.new_lines]). A change to a file only the nested scaffold run reads
 ([checks.nested_triggers]: the tests the grown copy runs, which CI's page job runs with RD_SCAFFOLD_FULL=nested)
-adds scaffold in that nested mode, so a test that reads the surrounding tree fails here as it would in CI.
+adds scaffold in that nested mode, so a test that reads the surrounding tree fails here as it would in CI; a
+generated file there ([generated] files: the registration snapshot `new tool` and `new rpc` rewrite) never does.
 """
 
 from __future__ import annotations
@@ -82,10 +83,11 @@ def triggered(ctx) -> dict[str, str]:
             hits = [p for p in hits if not only_new_lines(ctx.top, ctx.remote_base, p, new_lines.get(p, []))]
         if hits:
             found[name] = f"changed {hits[0]}" + (f" and {len(hits) - 1} more" if len(hits) > 1 else "")
-    deep = [
+    deep = [  # never a generated file (tests/repo/registration.json): `new tool` and `new rpc` rewrite it
         path
         for path in changed
-        if repo.matches(path, ctx.policy["checks"].get("nested_triggers", {}).get("scaffold", []))
+        if path not in generated
+        and repo.matches(path, ctx.policy["checks"].get("nested_triggers", {}).get("scaffold", []))
     ]
     if deep:
         found["scaffold"] = f"changed {deep[0]}" + (f" and {len(deep) - 1} more" if len(deep) > 1 else "") + NESTED

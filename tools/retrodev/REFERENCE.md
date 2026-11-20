@@ -351,7 +351,8 @@ pins the real tree's current content fails in CI, not in a contributor's branch 
 that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
 runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
 copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
-(`policy.toml` `[checks.nested_triggers]`); a fast-mode pass never stands for a nested one.
+(`policy.toml` `[checks.nested_triggers]`; never the generated `tests/repo/registration.json` that `new tool` and
+`new rpc` rewrite); a fast-mode pass never stands for a nested one.
 
 ### `new feature <name> [--purpose "..."]`
 

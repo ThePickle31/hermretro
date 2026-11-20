@@ -83,6 +83,18 @@ class NestedScaffold(RepoCase):
         self.assertTrue(checks_triggers.nested(checks_triggers.select(ctx, ["scaffold"], False)["scaffold"]))
         self.assertEqual(checks_triggers.select(ctx, ["unit"], False), {"unit": "asked"})
 
+    def test_the_registration_snapshot_new_rewrites_never_adds_it_nested_and_a_repo_test_still_does(self):
+        """Review round 2 of #75: `new tool` and `new rpc` rewrite tests/repo/registration.json (generated), which
+        matched tests/repo/* and sent an ordinary tool branch through the nested run. The real plans' whole
+        changed-file sets: test_scaffold_tree.py's test_the_files_new_writes_never_add_the_nested_scaffold_run."""
+        code, out, scaffold = self.checked("tests/repo/registration.json", '{"tools": []}\n', "feat/snapshot")
+        self.assertNotIn("run nested", out)
+        self.assertEqual(scaffold, [])
+        self.clear_log()
+        code, out, scaffold = self.checked("tests/repo/test_docs.py", "VALUE = 1\n", "fix/docs-test")
+        self.assertIn("adding scaffold: changed tests/repo/test_docs.py; run nested", out)
+        self.assertEqual([entry.get("mode") for entry in scaffold], ["nested"])
+
     def test_the_page_harness_adds_it_nested_too(self):
         code, out, scaffold = self.checked("tests/page/harness.mjs", "export const x = 1\n", "fix/harness")
         self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)

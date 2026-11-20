@@ -65,7 +65,9 @@ clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/h
 # Tests the nested scaffold run also runs in its grown copy (CI's page job, RD_SCAFFOLD_FULL=nested: the full unit and
 # page suites in a copy of the tree grown by `new` of every kind): the repository-wide tests, their temp-folder helpers
 # and the page test harness. A change to one adds scaffold in that nested mode (108 s on an idle machine; the fast
-# mode 48 s), as a test there that reads the surrounding tree passes here and fails only in CI's grown copy.
+# mode 48 s), as a test there that reads the surrounding tree passes here and fails only in CI's grown copy. Test
+# sources only: a [generated] file here (tests/repo/registration.json, which `new tool` and `new rpc` rewrite) never
+# adds it, and no other file `new` writes matches (its tests go in tests/backend/, its pins in registry.test.mjs).
 scaffold = ["tests/repo/*", "tests/support.py", "tests/page/harness.mjs", "tests/page/shells.mjs",
             "tests/page/sdk-stub.mjs", "tests/page/aliases.mjs", "tests/page/games-fixture.mjs", "tests/page/preview/*"]
 
