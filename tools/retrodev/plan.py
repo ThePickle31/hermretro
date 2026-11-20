@@ -144,7 +144,7 @@ def approve(ctx, topic: str, words: str | None) -> int:
     here_body(ctx, topic)
     linked = linked_branches(ctx, topic)
     if linked:
-        from . import status  # status imports this module
+        from . import status, sync  # status imports this module
 
         stale = {str(tree.branch): tree for tree in repo.worktrees(ctx.main()) if not tree.path.is_dir()}
         for row in linked:
@@ -152,7 +152,7 @@ def approve(ctx, topic: str, words: str | None) -> int:
             if where:
                 behind = status.behind(ctx, Path(where))  # status's rule: sync first while HEAD lacks base commits
                 sync = (
-                    f"python tools/retrodev sync (HEAD lacks {behind} commit(s) of {ctx.remote_base}), then "
+                    f"{sync.sync_command(ctx, Path(where))} (HEAD lacks {behind} commit(s) of {ctx.remote_base}), then "
                     if behind
                     else ""
                 )

@@ -23,7 +23,9 @@ Two more run `new page rdtabs` (its Page imported under another name; then impor
 tab rdtabs second` with their own checks (the page suite among them), then `tools/check.py lint bundle` (the tab
 imports the Page's exported name as #pages/..., never ../). One more moves an exported Page that index.js defines
 (`new tab rdinline first --from-page`) while another page imports it through #pages/rdinline/index.js: it bundles;
-so do inline Pages moved with block comments and into an import with a trailing comma (scaffold_moves.py).
+so do inline Pages moved with block comments and into an import with a trailing comma (scaffold_moves.py). One
+more runs `new rpc` in history with RPCs named host, logger, dict and isinstance (host inline and --module, in two
+rounds) and their generated tests pass: the handler's fixed name _answer shadows nothing it uses.
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -332,6 +334,31 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         self.assertEqual(run(["git", "diff", "--quiet", "HEAD", "--", "engine"], tree, env).returncode, 0)
+
+    def test_rpcs_named_after_what_their_handler_uses_pass_their_generated_tests(self):  # review 2, 2
+        """RPCs named host, logger or a builtin, in every variant (host both inline and --module, so in two rounds:
+        RPC names are global), on their own copy: the handler's fixed name _answer shadows none of them."""
+        _, tree, env = self.make_tree()
+        rounds = [
+            [["host", "--game"], ["logger", "--game", "--module", "rdshadow_logger_rpcs"], ["dict"]],
+            [
+                ["host", "--game", "--module", "rdshadow_host_rpcs"],
+                ["logger"],
+                ["isinstance", "--module", "rdshadow_isinstance_rpcs"],
+            ],
+        ]
+        for steps in rounds:
+            for step in steps:
+                done = run([*RETRODEV, "new", "rpc", "history", *step, "--no-check"], tree, env)
+                self.assertEqual(done.returncode, 0, f"new rpc {' '.join(step)}:\n{done.stdout}{done.stderr}")
+            tests = [f"tests.backend.history.test_rpc_{step[0]}" for step in steps]
+            judged = run([sys.executable, "-m", "unittest", *tests], tree, env)
+            self.assertEqual(judged.returncode, 0, judged.stdout + judged.stderr)
+            self.assertIn("OK", judged.stderr)
+            linted = run([sys.executable, "tools/check.py", "lint"], tree, env)
+            self.assertEqual(linted.returncode, 0, linted.stdout + linted.stderr)
+            for command in (["reset", "-q", "--hard"], ["clean", "-qfd"]):  # the next round starts from the copy
+                self.assertEqual(run(["git", *command], tree, env).returncode, 0, command)
 
     def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
         moved_pages_bundle(self, RETRODEV)

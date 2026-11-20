@@ -4,7 +4,7 @@
 def rpc_{rpc}(ctx):
     """The page's ``{rpc}`` RPC (docs/dev/CONTRACT.md): ``{{ echo? }}`` -> ``{{ ok, echo }}``. Never raises."""
 
-    def {rpc}(params, **_kwargs):
+    def _answer(params, **_kwargs):  # a fixed name: the RPC's own could shadow host, logger or a builtin
         try:
             params = params if isinstance(params, dict) else {}
             return {"ok": True, "echo": params.get("echo")}
@@ -12,4 +12,4 @@ def rpc_{rpc}(ctx):
             logger.exception("hermretro {rpc} failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
 
-    return {rpc}
+    return _answer

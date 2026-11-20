@@ -34,14 +34,15 @@ def next_step(facts: dict) -> str:
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
     if facts.get("protected"):
         return "next: python tools/retrodev start <kind>/<topic> (work happens in a worktree on its own branch)"
+    syncing = facts.get("sync") or "python tools/retrodev sync"  # sync.sync_command: the newer retrodev
     if facts.get("merging"):  # an open sync merge: only sync finishes it (rebuilds generated files, commits)
         if facts.get("merge_unresolved"):
             return (
                 f"next: resolve the conflict hunks in {', '.join(facts['merge_unresolved'])} ({sync.HUNKS}), "
                 + cmd("git", "add", *facts["merge_unresolved"])
-                + ", then python tools/retrodev sync (it rebuilds the generated files and makes the merge commit)"
+                + f", then {syncing} (it rebuilds the generated files and makes the merge commit)"
             )
-        return "next: python tools/retrodev sync (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
+        return f"next: {syncing} (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
     planned = plan_steps(facts)
     if facts.get("behind"):
         lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
@@ -55,9 +56,9 @@ def next_step(facts: dict) -> str:
                 + cmd("git", "add", "-A")
                 + " && "
                 + cmd("git", "commit", "-m", "<what changed>")
-                + f", then {first}python tools/retrodev sync ({lacks}; sync merges only a committed tree), then {after}"
+                + f", then {first}{syncing} ({lacks}; sync merges only a committed tree), then {after}"
             )
-        return f"next: {first}python tools/retrodev sync ({lacks}), then {after}"
+        return f"next: {first}{syncing} ({lacks}), then {after}"
     if planned and facts.get("plan_exists") is False:
         return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
     if planned:
@@ -202,6 +203,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
+        "sync": sync.sync_command(ctx, path) if behind(ctx, path) or merging else None,
         "overlap": overlap(ctx, path) if record.get("taken_over") and behind(ctx, path) else [],
         "base": ctx.remote_base,
         "branch": branch,
@@ -251,7 +253,7 @@ def show_branch(ctx, facts: dict) -> None:
     if facts.get("merging"):
         say("  merge:  open (a sync stopped on conflicts)")
     if facts.get("behind"):
-        say(f"  behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
+        say(f"  behind {ctx.remote_base}: {facts['behind']} commits ({facts['sync']})")
     if facts["pr"]:
         pushed = "pushed" if facts["pushed"] == facts["head"] else "NOT pushed"
         say(f"  pr:     #{facts['pr']} {facts['pr_url'] or ''} (head {pushed}); CI {facts['ci']}")
@@ -298,7 +300,7 @@ def run(ctx) -> int:
         rows.append(facts)
         ctx.out.say(f"  {name:<34} {facts['path'] or '-'}")
         if facts.get("behind"):
-            ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
+            ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits ({facts['sync']})")
         ctx.out.say(f"    {facts['next']}")
     if not rows:
         ctx.out.say("  no work in progress")

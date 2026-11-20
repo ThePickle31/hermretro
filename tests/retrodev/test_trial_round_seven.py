@@ -106,6 +106,31 @@ class Takeover(RepoCase):
         sync = line_with(out, f"next: python {self.main}/tools/retrodev sync (HEAD lacks 3 commit(s) of origin/dev; ")
         self.assertIn("this branch's own tools/retrodev is older than origin/dev's", sync, out)
 
+    def test_plan_approve_and_status_after_takeover_also_sync_with_the_newer_retrodev(self):
+        tree = self.pushed(retrodev_too=True)
+        code, out = self.run_cli("takeover", "feat/mate")
+        self.assertEqual(code, 0, out)
+        newer = f"python {self.main}/tools/retrodev sync"
+        self.new_plan("mate")
+        code, out = self.run_cli("plan", "approve", "mate", "--words", "start")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"next: feat/mate already works under it: cd {tree} && {newer} (HEAD lacks 3", out)
+        for where in (tree, self.main):  # the branch's own status, and the main checkout's list of every branch
+            code, out = self.run_cli("status", cwd=where)
+            self.assertEqual(code, 0, out)
+            self.assertIn(f"commits ({newer})", out)
+            self.assertIn(
+                f"next: {newer} (HEAD lacks 3 commit(s) of origin/dev), then python tools/retrodev check", out
+            )
+            self.assertNotIn("python tools/retrodev sync", out.replace(newer, ""), out)
+        code, out = self.run_cli("status", cwd=tree, as_json=True)
+        self.assertEqual(out["sync"], newer, out)
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)  # core.py conflicts: sync's own "sync again" too
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"then {newer} again", out["error"]["fix"])
+        code, out = self.run_cli("status", cwd=tree)
+        self.assertIn(f", then {newer} (it rebuilds the generated files", out)
+
 
 class Body(RepoCase):
     def started(self) -> Path:

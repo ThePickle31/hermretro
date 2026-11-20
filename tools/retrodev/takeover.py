@@ -12,7 +12,7 @@ retrodev when the branch's own copy is older than the base's: it lacks newer syn
 
 from __future__ import annotations
 
-from . import gates, plan, repo, start, state, status
+from . import gates, plan, repo, start, state, status, sync
 from .gates import Gate
 from .output import Failure, cmd
 
@@ -104,25 +104,7 @@ def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
         )
     if behind:
         steps.append(
-            f"{sync_command(ctx, path)} (HEAD lacks {behind} commit(s) of {ctx.remote_base}{older(ctx, path)})"
+            f"{sync.sync_command(ctx, path)} (HEAD lacks {behind} commit(s) of {ctx.remote_base}{sync.older(ctx, path)})"
         )
     steps.append("python tools/retrodev check")
     return steps
-
-
-def older(ctx, path) -> str:
-    """Why sync runs from the main checkout: the branch's own tools/retrodev predates the base's (empty when not)."""
-    if not repo.git(["diff", "--name-only", f"HEAD...{ctx.remote_base}", "--", "tools/retrodev"], path, check=False):
-        return ""
-    return (
-        f"; this branch's own tools/retrodev is older than {ctx.remote_base}'s, so the main checkout's runs it, with "
-        "sync's conflict hints"
-    )
-
-
-def sync_command(ctx, path) -> str:
-    """sync for the taken-over worktree: the branch's own copy of retrodev when it is current, else the main
-    checkout's (the one running takeover), run inside the worktree: an older copy lacks newer sync fixes."""
-    if not older(ctx, path):
-        return "python tools/retrodev sync"
-    return cmd("python", ctx.main() / "tools" / "retrodev", "sync")

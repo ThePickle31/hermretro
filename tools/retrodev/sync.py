@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 
 from . import gates, repo
-from .output import Failure
+from .output import Failure, cmd
 
 REGENERATED = "Regenerate generated files after merging dev"
 
@@ -41,12 +41,36 @@ def generated_changes(ctx) -> list[str]:
     return [line[3:] for line in out.splitlines() if line.strip()]
 
 
+def older(ctx, path) -> str:
+    """Why sync runs from the main checkout: the branch's own tools/retrodev predates the base's (empty when not)."""
+    if not repo.head(path, ctx.remote_base):
+        return ""
+    if not repo.git(["diff", "--name-only", f"HEAD...{ctx.remote_base}", "--", "tools/retrodev"], path, check=False):
+        return ""
+    return (
+        f"; this branch's own tools/retrodev is older than {ctx.remote_base}'s, so the main checkout's runs it, with "
+        "sync's conflict hints"
+    )
+
+
+def sync_command(ctx, path) -> str:
+    """The one sync command every next step prints (takeover, plan approve, status, land): the branch's own copy of
+    retrodev when it is current, else the main checkout's, run inside the worktree: an older copy lacks newer sync
+    fixes (its conflict hints)."""
+    if not older(ctx, path):
+        return "python tools/retrodev sync"
+    return cmd("python", ctx.main() / "tools" / "retrodev", "sync")
+
+
 HUNKS = "edit the hunks; never git checkout --ours/--theirs a whole file: its other hunks were merged and would be lost"
-RESUME = (
-    f"resolve each listed source file ({HUNKS}; keep both changes; leave the generated ones, retrodev rebuilds them), "
-    "git add those files, then python tools/retrodev sync again: it rebuilds the generated files and finishes the "
-    "merge, making the merge commit itself (git merge --abort undoes the merge)"
-)
+
+
+def resume_fix(ctx) -> str:
+    return (
+        f"resolve each listed source file ({HUNKS}; keep both changes; leave the generated ones, retrodev rebuilds "
+        f"them), git add those files, then {sync_command(ctx, ctx.top)} again: it rebuilds the generated files and "
+        "finishes the merge, making the merge commit itself (git merge --abort undoes the merge)"
+    )
 
 
 NOT_NAMES = frozenset(
@@ -136,7 +160,7 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
 
 def with_hints(ctx, files: list[str]) -> str:
     hints = moved_hints(ctx, files)
-    return RESUME + ("; " + "; ".join(hints) if hints else "")
+    return resume_fix(ctx) + ("; " + "; ".join(hints) if hints else "")
 
 
 def merging(ctx) -> bool:
@@ -156,7 +180,7 @@ def finish(ctx, conflicts: list[str], resumed: bool = False) -> int:
     if problems:
         raise Failure(
             "could not rebuild the generated files: " + "; ".join(problems),
-            "fix what the generator says, then python tools/retrodev sync again (it finishes the merge)",
+            f"fix what the generator says, then {sync_command(ctx, ctx.top)} again (it finishes the merge)",
         )
     repo.git(["add", "--", *conflicts, *generated_changes(ctx)], ctx.top)
     repo.git(["commit", "--no-edit", "--quiet"], ctx.top)

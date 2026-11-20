@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ast
 import json
-import keyword
 import re
 
 from . import scaffold_rpc
@@ -28,6 +27,7 @@ from .scaffold import (
     readme_item,
     render,
 )
+from .scaffold_payload import emitter_values, events_payload, payload_keys, refuse_reserved_keys
 from .scaffold_source import add_event, files_line
 
 FEATURES = "backend/features.py"
@@ -268,60 +268,6 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
 
 
-def events_payload(payload: str) -> str:
-    """The payload as the EVENTS entries write it, ``key=<...>`` for each keyword ('game=<id>, root' -> 'game=<id>,
-    root=<...>'): a part that says what its key holds keeps it."""
-    parts = []
-    for part in split_parts(payload):
-        part = part.strip()
-        found = re.match(r"([A-Za-z_]\w*)\b(.*)$", part)
-        if found and not found.group(2).strip():
-            part = f"{found.group(1)}=<...>"
-        parts.append(part)
-    return ", ".join(part for part in parts if part)
-
-
-def split_parts(payload: str) -> list[str]:
-    """The comma-separated parts of a --payload line, a comma inside brackets kept in its part."""
-    parts, depth, current = [], 0, ""
-    for char in payload:
-        depth += char in "([{<"
-        depth -= char in ")]}>"
-        if char == "," and depth <= 0:
-            parts.append(current)
-            current = ""
-        else:
-            current += char
-    return [*parts, current]
-
-
-def payload_keys(payload: str) -> list[str]:
-    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
-    the leading name of each comma-separated part outside brackets."""
-    keys = [found.group(1) for part in split_parts(payload) if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
-    return list(dict.fromkeys(keys))
-
-
-def keyword_names(keys: list[str]) -> bool:
-    """Whether every payload key can be a keyword-only parameter of the emitter (emit itself is its global)."""
-    return bool(keys) and all(k.isidentifier() and not keyword.iskeyword(k) and k != "emit" for k in keys)
-
-
-def emitter_values(keys: list[str]) -> dict:
-    """The emitter's parameters and emit arguments (keyword-only, one per payload key: a missing or misspelled key
-    fails where it is called), and its test's call with sample values and what a listener hears; **payload when
-    --payload names no keys new can use."""
-    if not keyword_names(keys):
-        return {"params": "**payload", "args": "**payload", "sample": "example=1", "heard": '{"example": 1}'}
-    samples = {key: f"sample {key}" for key in keys}
-    return {
-        "params": "*, " + ", ".join(keys),
-        "args": ", ".join(f"{key}={key}" for key in keys),
-        "sample": ", ".join(f"{key}={value!r}" for key, value in samples.items()).replace("'", '"'),
-        "heard": "{" + ", ".join(f'"{key}": "{value}"' for key, value in samples.items()) + "}",
-    }
-
-
 def event_row(body: str, feature_name: str, row: str) -> str:
     """The CONTRACT events row after the owner feature's last row (after the table's last row when it has none)."""
     owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
@@ -342,6 +288,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
     keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
+    refuse_reserved_keys(plan, keys)
     plain = when.replace("`", "") if when else None  # backticks are Markdown: the CONTRACT row keeps them
     doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
     plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))

@@ -9,17 +9,22 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_seven_new
 """
 
 import ast
+import logging
 import re
 import unittest
+from types import SimpleNamespace
 
+from backend.system import events
 from retrodev.scaffold import Plan
 from retrodev.scaffold_listener import payload_of
 
 from tests.retrodev.fixture import git, parallel, write
+from tests.support import isolated_home
 from tests.retrodev.hand_edits import line_of
 from tests.retrodev.test_scaffold import ROOT, ScaffoldCase, count_words, test_lockstep
 
 load_tests = parallel
+DISPATCHER = "backend/system/events.py"
 
 
 def flat(text: str) -> str:
@@ -93,6 +98,32 @@ class Rpc(ScaffoldCase):
         self.new("rpc", "rdprobe_g", "rdprobe_more", "--game", "--module", "rdprobe_more_rpcs")
         self.assertIn("host._game_root(game)", self.read("backend/rdprobe_g/rdprobe_more_rpcs.py"))
 
+    def test_an_rpc_named_after_the_handler_s_imports_answers_in_every_variant(self):  # review 2, 2
+        variants = [
+            ("host", ["--game"], "rpcs"),
+            ("logger", ["--game", "--module", "logger_rpcs"], "logger_rpcs"),
+            ("dict", [], "rpcs"),
+            ("isinstance", ["--module", "isinstance_rpcs"], "isinstance_rpcs"),
+        ]
+        for name, flags, _module in variants:
+            self.new("rpc", "history", name, *flags)
+        roots = {"g": "/games/g"}
+        host = SimpleNamespace(_game_root=roots.get, logger=logging.getLogger("rdprobe"))
+        for name, flags, module in variants:
+            source = self.read(f"backend/history/{module}.py")
+            self.assertIn("    def _answer(params, **_kwargs):", source)
+            self.assertNotIn(f"    def {name}(", source)
+            scope = {"rpc": lambda _name: lambda factory: factory, "host": host, "logger": host.logger}
+            code = re.sub(r"^from \.\S* import .*$", "", source, flags=re.M)
+            code = re.sub(r"^logger = host\.logger.*$", "", code, flags=re.M)
+            exec(compile(code, f"{module}.py", "exec"), scope)
+            answer = scope[f"rpc_{name}"](None)
+            if "--game" in flags:
+                self.assertEqual(answer({"game": "g"}), {"ok": True, "game": "g"}, name)
+                self.assertEqual(answer({"game": "x"})["code"], "NO_GAME", name)
+            else:
+                self.assertEqual(answer({"echo": 1}), {"ok": True, "echo": 1}, name)
+
 
 class Event(ScaffoldCase):
     def test_the_emitter_takes_the_payload_keys_and_its_test_emits_them(self):
@@ -120,6 +151,53 @@ class Event(ScaffoldCase):
             "| `history.rdprobe_edited` | `game`, `fields` | after `builds` answered |",
             self.read("docs/dev/CONTRACT.md"),
         )
+
+    def test_the_generated_emitter_reaches_a_listener_through_the_real_dispatcher(self):  # review 2, 1
+        write(self.tree, DISPATCHER, (ROOT / DISPATCHER).read_text())
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "The real dispatcher")
+        self.new("event", "history", "rdprobe_renamed", "--payload", "game=<id>, title=<new title>, old=<old title>")
+        emits = self.read("backend/history/emits.py")
+        isolated_home(self)  # a real emit loads every feature's listeners
+        scope = {}
+        exec(compile(emits.replace("from ..system.events import emit", ""), "emits.py", "exec"), scope)
+        scope["emit"] = events.emit  # the real dispatcher, not a stand-in
+        heard = []
+        listener = events.on("history.rdprobe_renamed")(lambda **payload: heard.append(payload))
+        self.addCleanup(events._listeners["history.rdprobe_renamed"].remove, listener)
+        scope["rdprobe_renamed"](game="g", title="New", old="Old")
+        self.assertEqual(heard, [{"game": "g", "title": "New", "old": "Old"}])
+
+    def test_a_payload_key_the_dispatcher_takes_itself_is_refused_with_nothing_written(self):  # review 2, 1
+        self.assertIn("def emit(name: str, **payload)", (ROOT / DISPATCHER).read_text())
+        before = git(self.tree, "rev-parse", "HEAD")
+        for payload in ("name", "game=<id>, name=<new name>"):
+            out = self.new("event", "history", "rdprobe_renamed", "--payload", payload, code=1)
+            self.assertIn("reserved word(s) 'name' cannot be payload keys", out["error"]["message"])
+            self.assertIn("game_name instead of name", out["error"]["fix"])
+            self.assertEqual(git(self.tree, "status", "--porcelain"), "", payload)
+            self.assertEqual(git(self.tree, "rev-parse", "HEAD"), before)
+        # the reserved words are read from the tree's dispatcher: a parameter it gains is refused as well
+        write(self.tree, DISPATCHER, "def emit(name: str, *, when=None, **payload) -> None:\n    pass\n")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "A dispatcher with another parameter")
+        out = self.new("event", "history", "rdprobe_timed", "--payload", "when=<time>", code=1)
+        self.assertIn("reserved word(s) 'name', 'when'", out["error"]["message"])
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+
+    def test_a_python_keyword_key_keeps_payload_and_still_reaches_the_dispatcher(self):  # review 2, 1
+        self.new("event", "history", "rdprobe_sorted", "--payload", "class=<kind>, for=<whom>")
+        emits = self.read("backend/history/emits.py")
+        self.assertIn("def rdprobe_sorted(**payload) -> None:", emits)
+        isolated_home(self)
+        scope = {}
+        exec(compile(emits.replace("from ..system.events import emit", ""), "emits.py", "exec"), scope)
+        scope["emit"] = events.emit
+        heard = []
+        listener = events.on("history.rdprobe_sorted")(lambda **payload: heard.append(payload))
+        self.addCleanup(events._listeners["history.rdprobe_sorted"].remove, listener)
+        scope["rdprobe_sorted"](**{"class": "a", "for": "b"})
+        self.assertEqual(heard, [{"class": "a", "for": "b"}])
 
     def test_a_payload_without_keys_keeps_payload(self):
         self.new("event", "history", "rdprobe_any")

@@ -14,7 +14,8 @@ import re
 
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
-from .scaffold_backend import ARCHITECTURE, CONTRACT, emitter_values, known_feature, payload_keys, split_parts
+from .scaffold_backend import ARCHITECTURE, CONTRACT, known_feature
+from .scaffold_payload import emitter_values, payload_keys, split_parts
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
