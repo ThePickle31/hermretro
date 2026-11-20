@@ -1,8 +1,8 @@
 // The New Game attract mode: a GBC-style platformer drawn behind the New Game form, where the Nous Girl plays one
-// fixed level by herself and the form's boxes are platforms in it. Dimmed to half strength with a pool of the page's
-// own colour behind the composer, so the game stays in the background ("Spotlight"). Purely decorative: no clicks,
-// no keys, hidden from screen readers. The running is in run.js.
-import { jsx, jsxs, useEffect, useRef } from '#sdk'
+// fixed level by herself. The form is not part of it: she plays behind the frosted composer and cards, and the level
+// is dimmed so the game stays in the background. Purely decorative: no clicks, no keys, hidden from screen readers.
+// The running is in run.js.
+import { jsx, useEffect, useRef } from '#sdk'
 import { World } from './world.js'
 import { runAttract } from './run.js'
 
@@ -32,11 +32,10 @@ export function AttractLevel() {
   const box = useRef(null), cv = useRef(null)
 
   useEffect(() => {
-    const layer = box.current, canvasEl = cv.current, host = layer?.parentElement
+    const canvasEl = cv.current, host = box.current?.parentElement
     if (!host || !canvasEl || !canDraw()) return undefined
     return runAttract({
       host,
-      layer,
       canvasEl,
       makeWorld: seed => new World(seed),
       env: browserEnv(),
@@ -44,10 +43,5 @@ export function AttractLevel() {
     })
   }, [])
 
-  return jsxs('div', {
-    'aria-hidden': true,
-    className: 'cs-at',
-    ref: box,
-    children: [jsx('canvas', { ref: cv }, 'level'), jsx('div', { className: 'cs-at-spot' }, 'spot')]
-  })
+  return jsx('div', { 'aria-hidden': true, className: 'cs-at', ref: box, children: jsx('canvas', { ref: cv }) })
 }

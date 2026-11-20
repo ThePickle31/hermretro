@@ -29,16 +29,15 @@ profile).
 ## The New Game level (`attract/`)
 
 Behind the New Game form the page draws a Game Boy Color style platformer where the Nous Girl plays one fixed level
-by herself (no ROM: a canvas at native pixels, scaled x2 with pixelated scaling, dimmed to half strength with a pool
-of the page colour behind the composer). The elements marked `data-plat` in `new-game.js` (title, composer, the two
-choices) are platforms in it; the level is rebuilt around them when the area or one of them changes size, and its
-sky follows the theme (day on a light page, night on a dark one). It ignores clicks and keys, is hidden from screen
+by herself (no ROM: a canvas at native pixels, scaled x2 with pixelated scaling, dimmed). The form takes no part in
+it: the composer and the two choices are frosted glass over the level, and she plays behind them. The level is
+rebuilt when the area changes size, and its sky follows the theme (day on a light page, night on a dark one). It ignores clicks and keys, is hidden from screen
 readers, stops drawing while the window is hidden, and shows one still frame under reduced motion.
 
 | File | What it is |
 |---|---|
-| `index.js` | `AttractLevel`: the canvas and its overlay, started with the browser's functions |
-| `run.js` | Running it: measuring the platforms, the 60 Hz loop, theme, rebuilding on resize and when a scroll moves a platform |
+| `index.js` | `AttractLevel`: the canvas, started with the browser's functions |
+| `run.js` | Running it: the 60 Hz loop, theme, rebuilding on resize |
 | `world.js` | `World`: the game without drawing (build, step); pilot, actors and drawing are mixed in |
 | `physics.js` | Units (24-px tiles), her box and jump, the collider grid, one physics step, the seeded random |
 | `level.js` | The level builder: ground, pits and movers, pipes, stairs, the lattice of rows, cannons, flag |
@@ -48,7 +47,7 @@ readers, stops drawing while the window is hidden, and shows one still frame und
 | `actors.js` | Enemies, bats, cannon shots, blocks, power-ups, particles |
 | `draw.js`, `hud.js`, `sprites.js` | Drawing: prerendered tiles, sprites, the HUD and its pixel font |
 | `girl.js`, `art.js`, `art-enemies.js`, `palettes.js` | The pixel art (one character per pixel) and the day and night palettes |
-| `attract.css.js` | The layer, the dimming and the spotlight |
+| `attract.css.js` | The layer, the dimming and the frosted glass of the form in front |
 
 ## Adding a tab here
 

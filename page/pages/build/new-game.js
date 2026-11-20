@@ -9,8 +9,8 @@ const NEW_GAME_MODES = [
 ]
 
 /** New Game: one centred composer (the Build page's own) and two choices under it, each saying what it does.
- *  No name field: the agent names the project when it creates it. The title, the composer and the choices are
- *  marked `data-plat`: the attract-mode level behind the form (attract/) uses them as platforms. */
+ *  No name field: the agent names the project when it creates it. The attract-mode level (attract/) plays behind
+ *  it and takes no part in the form. */
 export function BuildNewGame({ onStart, picker = null }) {
   const [idea, setIdea] = useState('')
   const [mode, setMode] = useState('build')
@@ -57,10 +57,9 @@ export function BuildNewGame({ onStart, picker = null }) {
   return jsxs('section', {
     className: 'cs-b-new',
     children: [
-      jsxs('h1', { className: 'cs-word cs-title', 'data-plat': 'title', children: ['What are we ', jsx('span', { className: 'cs-accent', children: 'making?' })] }),
+      jsxs('h1', { className: 'cs-word cs-title', children: ['What are we ', jsx('span', { className: 'cs-accent', children: 'making?' })] }),
       jsxs('div', {
         className: 'cs-b-comp',
-        'data-plat': 'composer',
         children: [
           jsx('textarea', {
             'aria-label': 'Your game idea',
@@ -105,7 +104,6 @@ export function BuildNewGame({ onStart, picker = null }) {
             {
               'aria-checked': mode === item.id,
               className: mode === item.id ? 'cs-b-opt on' : 'cs-b-opt',
-              'data-plat': 'opt',
               'data-mode': item.id,
               onClick: () => setMode(item.id),
               onKeyDown: onModeKey,
