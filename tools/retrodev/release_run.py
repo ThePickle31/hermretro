@@ -383,6 +383,9 @@ def run(
                 + ("" if moved else f" (to move dev on after v{previous}: {release_next.command(words)})"),
             )
         release_guard.stale_next(ctx, version, dry_run)
+    if checklist and checklist.strip() and not dry_run:  # kept before any step: a resumed run still has it
+        rec["checklist"] = checklist.strip()
+        state.save_release(ctx.top, rec)
     if not dry_run and not rec.get("run"):
         rec.update(run={"at": state.now()}, rc=rc)  # the release this command works on, before any step acts
         state.save_release(ctx.top, rec)

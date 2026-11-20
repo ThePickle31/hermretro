@@ -82,6 +82,24 @@ class Notes(ReleaseCase):
         self.assertLess(notes.index("Behind the scenes"), notes.index("The setup notes name the steps"))
         self.assertIn("not needed", notes, "a README under backend/setup/ asks for no checklist")
 
+    def test_shipped_skills_and_the_studio_profile_are_user_changes(self):
+        merged = [
+            self.land("fix/skill", "skills/authoring/SKILL.md", "The authoring skill names the palette limits", 5),
+            self.land("fix/soul", "profile/SOUL.md", "The studio speaks more plainly", 6),
+        ]
+        notes = self.write(merged)
+        self.assertLess(notes.index("## Fixes and improvements"), notes.index("The authoring skill names"))
+        self.assertIn("The studio speaks more plainly", notes.split("<details>")[0])
+        self.assertNotIn("Nothing that changes what you see", notes)
+
+    def test_a_result_replaces_the_checklist_line_of_an_edited_draft_and_keeps_the_rest(self):
+        body = "## New\n\n- A thing\n\nA hand-written note.\n\nReal-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not run, though x\n"
+        new = release_notes.with_result(body, "passed on a MacBook Pro (M3)")
+        self.assertIn("A hand-written note.", new)
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", new)
+        self.assertNotIn("not run", new)
+        self.assertIn("passed on", release_notes.with_result("## New\n- A thing\n", "passed on a MacBook"))
+
     def test_without_github_each_change_is_grouped_by_its_files(self):
         self.land("x", "page/a.js", "A page change", 5)
         self.land("x", "tests/repo/test_x.py", "A test change", 6)

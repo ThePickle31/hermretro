@@ -155,6 +155,16 @@ class Flow(RunCase):
         self.assertEqual(sorted(p.name for p in (state.root(self.main) / "releases").glob("*.json")), [f"{NEXT}.json"])
         self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), merge)
 
+    def test_a_checklist_result_survives_a_stop_and_the_printed_resume(self):
+        self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(RED), "")  # land stops before publish
+        code, data = self.release_run("--draft", "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 1, data)
+        self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(GREEN), "")
+        code, data = self.release_run("--draft")  # the printed command, without --checklist
+        self.assertEqual(code, 0, data)
+        notes = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text()
+        self.assertIn("RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", notes)
+
     def test_the_release_approval_covers_only_the_version_line_also_when_land_runs_on_its_own(self):
         self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(RED), "")  # land stops on red CI, after the approval
         code, data = self.release_run()

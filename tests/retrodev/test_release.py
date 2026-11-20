@@ -270,6 +270,22 @@ class Publish(ReleaseCase):
         self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", notes)
         self.assertEqual(state.load_release(self.main, NEXT)["checklist"], "passed on a MacBook Pro (M3)")
 
+    def test_a_checklist_result_given_after_the_draft_goes_into_its_notes(self):
+        self.merged_release()
+        self.assertEqual(self.publish()[0], 0)  # the draft, "not needed"
+        tag = f"v{NEXT}"
+        drafted = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text() + "\nA hand-written note.\n"
+        self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
+        self.gh.answers[("release", "view", tag, "--json", "body")] = (0, drafted, "")
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 0, data)
+        edit = self.gh.called("release", "edit", tag, "--notes")
+        self.assertEqual(len(edit), 1, self.gh.calls)
+        self.assertIn("RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", edit[0][-1])
+        self.assertIn("A hand-written note.", edit[0][-1])
+        self.assertNotIn("not needed", edit[0][-1])
+
     def test_a_retry_after_dev_moves_releases_the_commit_the_first_publish_chose(self):
         sha = self.merged_release(pr=None)  # no version pull request: the release commit is dev's head
         self.gh.answers[("release", "create")] = (1, "", "HTTP 502")  # stopped after the tag was pushed

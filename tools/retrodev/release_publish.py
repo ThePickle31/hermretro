@@ -274,6 +274,7 @@ def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) 
             ctx.out.say(("  (done) " if step["done"] else "  ") + shown(step))
         ctx.out.say("dry run: nothing was pushed, tagged or created")
         return 0
+    drafted = todo[-1]["done"]  # the draft existed before this run
     url = ""
     for step in todo:
         if step["done"]:
@@ -292,6 +293,11 @@ def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) 
                 "read git's message; nothing later ran. Fix it, then python tools/retrodev release publish "
                 f"{version} again (it skips the steps that are done)",
             )
+    if drafted and checklist and checklist.strip():  # a result given after the draft was made: into its notes
+        tag = f"v{version}"
+        body = github.gh(ctx, ["release", "view", tag, "--json", "body", "--jq", ".body"])[1]
+        github.gh(ctx, ["release", "edit", tag, "--notes", release_notes.with_result(body, checklist)])
+        ctx.out.say(f"the draft's notes now give the real-machine checklist's result: {checklist.strip()}")
     if not url:
         url = github.gh(ctx, ["release", "view", f"v{version}", "--json", "url", "--jq", ".url"])[1].strip()
     rec.update(published_draft={"at": state.now(), "sha": sha, "url": url})

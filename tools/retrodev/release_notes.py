@@ -86,11 +86,38 @@ def branches(ctx) -> dict[str, str]:
 TRIALS = re.compile(r"^(?P<what>.*?): fixes from the (?P<nth>\w+) round of fresh-agent trials$")
 
 
+def folder_notes(name: str) -> bool:
+    """A folder's README under the code (developer notes), never the root README, a skill or the profile's files."""
+    return name.endswith("/README.md")
+
+
 def runs_for_users(name: str) -> bool:
-    """A file users run or see: under USER_PATHS, a folder's notes (.md) aside, except the root README."""
-    if name == "README.md":
-        return True
-    return not name.endswith(".md") and (name.startswith(USER_PATHS) or name in USER_PATHS)
+    """A file users run or see: under USER_PATHS (skills and the studio profile's Markdown included), folder READMEs
+    aside."""
+    return not folder_notes(name) and (name.startswith(USER_PATHS) or name in USER_PATHS)
+
+
+def checklist_line(result: str | None, touched: list[str]) -> str:
+    """The notes' real-machine checklist line: the owner's result, else whether it was needed."""
+    if result and result.strip():
+        return f"Real-machine checklist ({CHECKLIST_DOC}): {result.strip()}"
+    if touched:
+        shown = ", ".join(f"`{name}`" for name in touched[:4]) + (" and more" if len(touched) > 4 else "")
+        return (
+            f"Real-machine checklist ({CHECKLIST_DOC}): not run, though this release changes setup, the broker or the "
+            f"host code ({shown}); tell us if setup or the broker misbehaves."
+        )
+    return f"Real-machine checklist ({CHECKLIST_DOC}): not needed, as nothing in setup, the broker or the host code changed."
+
+
+LINE = re.compile(r"^Real-machine checklist \([^)]*\):[^\n]*$", re.M)
+
+
+def with_result(body: str, result: str) -> str:
+    """``body`` (a draft's notes, perhaps edited) with its checklist line replaced by the owner's result, or the
+    line added; everything else kept as it is."""
+    new = checklist_line(result, [])
+    return LINE.sub(lambda _m: new, body, count=1) if LINE.search(body) else body.rstrip() + f"\n\n{new}\n"
 
 
 def group(entry: dict, branch: str) -> str | None:
@@ -106,7 +133,7 @@ def group(entry: dict, branch: str) -> str | None:
 
 def checklist_files(entries: list[dict]) -> list[str]:
     files = sorted({name for entry in entries for name in entry["files"]})
-    return [name for name in files if name.startswith(CHECKLIST_PATHS) and not name.endswith(".md")]
+    return [name for name in files if name.startswith(CHECKLIST_PATHS) and not folder_notes(name)]
 
 
 def slug(ctx) -> str | None:
@@ -181,20 +208,7 @@ def write(ctx, version: str, sha: str, previous: str | None, checklist: str | No
     tested = "CI on Linux, Apple Silicon and Intel macOS, including the real engine"
     if previous:
         tested += f", and the update from v{previous} (a library game, a New Game chat and a running broker kept)"
-    touched = checklist_files(entries)
-    if checklist:
-        machine = f"Real-machine checklist ({CHECKLIST_DOC}): {checklist.strip()}"
-    elif touched:
-        shown = ", ".join(f"`{name}`" for name in touched[:4]) + (" and more" if len(touched) > 4 else "")
-        machine = (
-            f"Real-machine checklist ({CHECKLIST_DOC}): not run, though this release changes setup, the broker or the "
-            f"host code ({shown}); tell us if setup or the broker misbehaves."
-        )
-    else:
-        machine = (
-            f"Real-machine checklist ({CHECKLIST_DOC}): not needed, as nothing in setup, the broker or the host code "
-            "changed."
-        )
+    machine = checklist_line(checklist, checklist_files(entries))
     parts.append(f"## Tested\n\n{tested}.\n\n{machine}\n")
     if groups["behind"]:
         count = len(sorted_["behind"])
