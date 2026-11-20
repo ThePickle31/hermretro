@@ -95,6 +95,63 @@ class SyncPickaxeFromTheBase(RepoCase):
         self.assertIn(moved[:7], hint)
 
 
+RATE = "page/shared/rate.js"
+SPEED_LINE = "const megabytes = Math.round(bytes / 1048576 / 8);"
+TWO_TEXT = (
+    SIZE_TEXT
+    + '\nexport function speed(bytes) {\n  log("speed");\n  '
+    + SPEED_LINE
+    + '\n  log("rate");\n  return label(megabytes);\n}\n'
+)
+
+
+class SyncHintPerHunk(RepoCase):
+    def test_each_hunk_names_where_its_own_base_lines_went(self):
+        self.on_dev(SIZE, TWO_TEXT, "Sizes and speeds")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/sizes")
+        # the speed hunk's new line is an exact copy of size's base line: a whole-file search picks size's commit
+        self.commit(
+            tree,
+            SIZE,
+            TWO_TEXT.replace(BASE_LINE, BASE_LINE.replace("1048576", "1000000")).replace(SPEED_LINE, BASE_LINE),
+        )
+        other = self.base / "other"
+        write(
+            other,
+            FORMAT,
+            "export function formatBytes(bytes) {\n  const megabytes = Math.round(bytes / 1024 / 1024);\n}\n",
+        )
+        write(other, SIZE, TWO_TEXT.replace("  " + BASE_LINE + "\n", ""))
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "formatBytes takes the sizes over")
+        write(
+            other, RATE, "export function rate(bytes) {\n  const megabytes = Math.round(bytes / 1024 / 1024 / 8);\n}\n"
+        )
+        write(other, SIZE, TWO_TEXT.replace("  " + BASE_LINE + "\n", "").replace("  " + SPEED_LINE + "\n", ""))
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "rate takes the speeds over")
+        git(other, "push", "-q", "origin", "dev")
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, out)
+        hints = [line for line in out["error"]["message"].splitlines() if line.startswith(SIZE + ":")]
+        self.assertEqual(len(hints), 2, hints)
+        self.assertIn(FORMAT, hints[0])
+        self.assertNotIn(RATE, hints[0])
+        self.assertIn(RATE, hints[1])
+        self.assertNotIn(FORMAT, hints[1])
+
+    def test_a_hunk_whose_context_is_not_unique_gives_no_base_lines(self):
+        from retrodev import sync_moved
+
+        text = "x\n<<<<<<< HEAD\nnew\n=======\n>>>>>>> dev\nx\n"
+        self.assertEqual(sync_moved._region(["x", "old", "x", "y", "x", "old2", "x"], text, 2, 5), [])
+        self.assertEqual(
+            sync_moved._region(["x", "y", "x", "old", "x", "z"], text.replace("x\n", "y\nx\n", 1) + "z\n", 3, 6),
+            ["old"],
+        )
+
+
 class RealFiles(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
@@ -105,6 +162,16 @@ class RealFiles(ScaffoldCase):
 
 
 class ReservedScenarioKeys(RealFiles):
+    def test_new_rpc_refuses_ambient_a_null_key_the_harness_reads(self):
+        self.real("tests/page/sdk-stub.mjs", "tests/page/harness.mjs", "backend/setup/*.py", "backend/setup/*.md")
+        out = self.new("rpc", "setup", "ambient", "--dry-run", code=1)
+        self.assertIn("reserves scenario.ambient", out["error"]["message"])
+        from retrodev import scaffold, scaffold_rpc
+
+        reserved = scaffold_rpc.reserved_scenario(scaffold.Plan(self.tree))
+        self.assertIn("ambient", reserved)
+        self.assertFalse({"status", "doctor", "activity"} & reserved, reserved)
+
     def test_new_rpc_refuses_a_key_the_page_harness_keeps_on_scenario(self):
         self.real("tests/page/sdk-stub.mjs", "tests/page/harness.mjs", "backend/setup/*.py", "backend/setup/*.md")
         for name in ("storage", "calls", "queries"):

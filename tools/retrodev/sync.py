@@ -174,7 +174,8 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
             if not ours.strip():
                 continue
             # the base's version of what dev removed: the branch's own new lines were never on dev
-            had = sync_moved.base_lines(ctx, name, ours, parts[index] if index < len(parts) else "")
+            part = parts[index] if index < len(parts) else ""
+            had = sync_moved.base_lines(ctx, name, ours, part, text, first, last)
             where, line = moved_to(ctx, name, "\n".join(had) or ours)
             line = (distinctive_lines("\n".join(had)) or [None])[0] if had else None
             commit = None

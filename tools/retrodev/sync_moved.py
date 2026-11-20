@@ -1,8 +1,8 @@
 """Where dev took the lines of a conflict hunk it removed: for sync's per-hunk hint.
 
 The branch's side of a hunk holds its own new lines, which can never be on dev, so the search uses the base side:
-the diff3/zdiff3 '|||||||' part when git wrote one, else the merge base's lines dev removed that the branch's lines
-are edited copies of (`:1:<path>`, the index's merge-base stage). base_lines gives those; taken_over names the dev
+the diff3/zdiff3 '|||||||' part when git wrote one, else the merge base's lines dev removed, in the region the hunk's
+unchanged context places it in `:1:<path>` (the index's merge-base stage), that the branch's lines are edited copies of. base_lines gives those; taken_over names the dev
 commit that removed the first of them and the other file it added the most similar line to (never a generated file).
 """
 
@@ -38,13 +38,61 @@ def _lines(ctx, spec: str) -> list[str]:
     return content.splitlines() if content else []
 
 
-def base_lines(ctx, name: str, ours: str, base_part: str = "") -> list[str]:
+CONTEXT = 5  # unchanged lines at most on each side of a hunk that place it in the merge base's file
+
+
+def _find(base: list[str], lines: list[str], last: bool) -> int | None:
+    """Where the shortest unique run of ``lines`` next to the hunk (their end when ``last``) is in ``base``: the index
+    just past it (above the hunk) or of its first line (below); None when no run is unique."""
+    for size in range(1, len(lines) + 1):
+        run = lines[-size:] if last else lines[:size]
+        found = [i for i in range(len(base) - size + 1) if base[i : i + size] == run]
+        if len(found) == 1:
+            return found[0] + size if last else found[0]
+        if not found:
+            return None
+    return None
+
+
+def _context(text: str, first: int, last: int) -> tuple[list[str], list[str]]:
+    """The unchanged lines just above and just below the hunk (markers at lines first..last, 1-based), stopping at
+    another hunk's marker."""
+    lines = text.splitlines()
+    markers = ("<<<<<<<", "|||||||", "=======", ">>>>>>>")
+    above, below = [], []
+    for line in reversed(lines[max(0, first - 1 - CONTEXT) : first - 1]):
+        if line.startswith(markers):
+            break
+        above.insert(0, line)
+    for line in lines[last : last + CONTEXT]:
+        if line.startswith(markers):
+            break
+        below.append(line)
+    return above, below
+
+
+def _region(base: list[str], text: str, first: int, last: int) -> list[str]:
+    """The merge base's lines this hunk replaces, placed by its unchanged context lines; [] when either side of it
+    is not found in exactly one place (a guess could name another hunk's destination)."""
+    above, below = _context(text, first, last)
+    start = _find(base, above, last=True) if above else (0 if first == 1 else None)
+    end = _find(base, below, last=False) if below else (len(base) if last == len(text.splitlines()) else None)
+    if start is None or end is None or end < start:
+        return []
+    return base[start:end]
+
+
+def base_lines(
+    ctx, name: str, ours: str, base_part: str = "", text: str = "", first: int = 0, last: int = 0
+) -> list[str]:
     """The merge base's lines dev removed that this hunk's branch side changed: the diff3 base part when there is
-    one, else the base's lines missing from dev's file that a line of ours is an edited copy of (stripped)."""
+    one, else the lines of the base's region of this hunk (placed by its context in ``text``, the conflicted file;
+    lines first..last its markers) missing from dev's file that a line of ours is an edited copy of (stripped)."""
     if base_part.strip():
         return [line.strip() for line in base_part.splitlines() if line.strip()]
     base, dev = _lines(ctx, f":1:{name}"), set(_lines(ctx, f"MERGE_HEAD:{name}"))
-    removed = [line for line in dict.fromkeys(base) if line.strip() and line not in dev]
+    region = _region(base, text, first, last) if first else []
+    removed = [line for line in dict.fromkeys(region) if line.strip() and line not in dev]
     mine = [line.strip() for line in ours.splitlines() if line.strip()]
     if not removed or not mine:
         return []

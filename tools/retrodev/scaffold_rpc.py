@@ -305,20 +305,21 @@ HARNESS = ("tests/page/sdk-stub.mjs", "tests/page/harness.mjs")  # where the pag
 
 def reserved_scenario(plan: Plan) -> set[str]:
     """The keys the page test harness keeps on `scenario` for itself (the host storage stub, the call log, ...), read
-    from its files: the scenario literal's keys and every `scenario.<key>` the code uses, less the query answers
-    (a literal key defaulting to null, or one a helper sets to answered(...): status, doctor). A query key, which
-    is the RPC name, must not be one of them: scenario[<name>] is what a query answers."""
-    keys, answers = set(), set()
+    from its files: the scenario literal's keys not defaulting to null and every `scenario.<key>` the code uses other
+    than to set a query answer (`= answered(...)`: status, doctor), so a null key the code reads (ambient) stays
+    reserved. A query key, which is the RPC name, must not be one of them: scenario[<name>] is what a query answers."""
+    keys = set()
     for rel in HARNESS:
         if not plan.exists(rel):
             continue
         code = re.sub(r"(?m)^\s*//.*$|//[^\n'`]*$", "", plan.read(rel))
         literal = re.search(r"export const scenario = \{(.*?)\n\}", code, re.S)
         for key, value in re.findall(r"(\w+):\s*([^,\n]+)", literal.group(1) if literal else ""):
-            (answers if value.strip() == "null" else keys).add(key)
-        keys |= set(re.findall(r"\bscenario\.(\w+)", code))
-        answers |= set(re.findall(r"\bscenario\.(\w+)\s*=\s*answered\(", code))
-    return keys - answers
+            if value.strip() != "null":  # a null one is a query answer a test sets (activity)
+                keys.add(key)
+        # any use but `scenario.<key> = answered(...)` is the harness's own (scenario.ambient: host.request's answer)
+        keys |= set(re.findall(r"\bscenario\.(\w+)\b(?!\s*=\s*answered\()", code))
+    return keys
 
 
 def refuse_reserved(plan: Plan, name: str) -> None:
