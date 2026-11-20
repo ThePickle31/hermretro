@@ -21,12 +21,12 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 
 | Event | Payload | Emitted when | Heard by |
 |---|---|---|---|
-| `library.build_reported` | `game` (the game's id, `null` without a project), `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
-| `library.game_presented` | `game`, `root` | `chromatic_present_game` showed a game | — |
-| `setup.tools_removed` | `root` | `remove_tools` emptied the download folder | — |
-| `setup.studio_profile_ready` | `profile` | `studio_profile` finished the profile | — |
-| `assets.image_restored` | `path` | `asset_restore` put a kept version back | — |
-| `history.build_kept` | `game`, `root` | a successful build was kept as a snapshot | — |
+| `library.build_reported` | `game` (library id, str; `null` without a project), `assets` (absolute image paths, list of str) | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
+| `library.game_presented` | `game` (library id, str), `root` (project folder, str) | `chromatic_present_game` showed a game | — |
+| `setup.tools_removed` | `root` (the emptied download folder, str) | `remove_tools` emptied the download folder | — |
+| `setup.studio_profile_ready` | `profile` (profile name, str) | `studio_profile` finished the profile | — |
+| `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
+| `history.build_kept` | `game` (library id, str), `root` (the real project folder, `pathlib.Path`) | a successful build was kept as a snapshot | — |
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
@@ -44,6 +44,10 @@ not `history.builds`). One name is declared once across all features: the page-n
 (`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second, and `python tools/retrodev
 new rpc <feature> <name>` refuses a taken one.
 A disabled or missing backend answers JSON-RPC error `-32601`.
+Which profile the page asks is chosen by what the handler reads, not by its feature: one reading the Build
+conversations or the plugin data folder (`host._data_dir()`, one per profile: history snapshots, asset versions) is
+called with `callStudioOnly` (the hermretro profile only: `build`, `builds`, `build_restore`, `asset`, `asset_info`,
+`asset_restore`, `assets`); the others with `callStudio` or `callBackend` (`page/app/backend.js`).
 The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generated from the `@rpc` declarations into
 `page/app/rpc-names.js` by `tools/bundle/rpc_names.py` (`node tools/bundle/bundle.mjs` runs it; the bundle check
 fails when it is stale); the agent tool names it reacts to are in

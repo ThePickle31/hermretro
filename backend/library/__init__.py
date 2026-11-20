@@ -38,8 +38,10 @@ __all__ = [
 # What the library tells other features (backend/system/events.py); payloads are keyword arguments.
 EVENTS = {
     "library.build_reported": (
-        "chromatic_build_report accepted a build card; game=<id> (None without a project), "
-        "assets=[absolute image paths it shows]"
+        "chromatic_build_report accepted a build card; game=<library id, str; None without a project>, "
+        "assets=[the absolute image paths it shows, list of str]"
     ),
-    "library.game_presented": "chromatic_present_game showed a game beside the chat; game=<id>, root=<project>",
+    "library.game_presented": (
+        "chromatic_present_game showed a game beside the chat; game=<library id, str>, root=<the project folder, str>"
+    ),
 }
