@@ -3,7 +3,7 @@
 Personal values live in <git common dir>/retrodev/config.toml (never committed, shared by every worktree) and
 win over the policy's [config] defaults. Only keys the policy declares can be set, so a typo is refused.
 
-    python tools/retrodev config list | get <key> | set <key> <value> | set <key> ""   (back to the default)
+    python tools/retrodev config [list] | get <key> | set <key> <value> | set <key> ""   (back to the default)
 """
 
 from __future__ import annotations

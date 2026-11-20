@@ -127,19 +127,36 @@ def page_label(plan: Plan, page_id: str) -> str | None:
     return found.group(2) if found else None
 
 
+REACH_LINES = 3  # a click within this many lines after tab('<Label>') uses the page: it is shown ready to use
+
+
+def reaches(code: str, opens: re.Pattern) -> bool:
+    """The test uses the page after opening it: a click() within REACH_LINES lines of a tab('<Label>'), before
+    another tab() or render(). A page shown while the studio is not ready (Home during setup) is only looked at."""
+    for match in opens.finditer(code):
+        after = "\n".join(code[match.end() :].split("\n")[: REACH_LINES + 1])
+        after = re.split(r"\b(?:tab|render)\(", after, maxsplit=1)[0]
+        if re.search(r"\bclick\(", after):
+            return True
+    return False
+
+
 def scenario_tests(plan: Plan, page_id: str) -> list[str]:
     """The tests/page/*.test.mjs that open the page: those that press its nav tab (tab('<Label>')), and one named
-    page-<page>*.test.mjs; named ones first, then by how often they open it."""
+    page-<page>*.test.mjs. Named ones first (the page's own test), then those that use the page once open (reaches:
+    the page shown in a ready studio, e.g. page-studio.test.mjs's tab('Home') then a click, over
+    page-setup.test.mjs's Home during setup), then by how often they open it."""
     label = page_label(plan, page_id)
     opens = re.compile(rf"""\btab\(\s*(['"]){re.escape(label)}\1\s*\)""") if label else None
     ranked = []
     for path in sorted(plan.top.glob("tests/page/*.test.mjs")):
         rel = str(path.relative_to(plan.top))
-        count = len(opens.findall(lex(plan.read(rel))[0])) if opens else 0  # a commented-out tab() opens nothing
+        code = lex(plan.read(rel))[0]  # a commented-out tab() opens nothing
+        count = len(opens.findall(code)) if opens else 0
         named = path.name.startswith(f"page-{page_id}.") or path.name.startswith(f"page-{page_id}-")
         if count or named:
-            ranked.append((not named, -count, rel))
-    return [rel for _named, _count, rel in sorted(ranked)]
+            ranked.append((not named, not (opens and reaches(code, opens)), -count, rel))
+    return [rel for *_rank, rel in sorted(ranked)]
 
 
 def slot_file(plan: Plan, host: str, slot: str) -> str | None:

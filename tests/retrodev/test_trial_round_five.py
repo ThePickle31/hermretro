@@ -301,7 +301,7 @@ class New(ScaffoldCase):
         self.new("slot", "rdprobe-notes", "more", "--doc", "Buttons after the lede. Props: { ctx }")
         readme = self.read("page/pages/rdprobe-notes/README.md")
         self.assertIn(
-            "**Slots:** declares `rdprobe-notes.more`: buttons after the lede. Props: { ctx }. Contributes", readme
+            "**Slots:** declares `rdprobe-notes.more`: buttons after the lede. Props: `{ ctx }`. Contributes", readme
         )
 
     def test_the_rpc_test_uses_isolated_home_and_the_next_steps_name_the_page_docs(self):

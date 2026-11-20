@@ -23,6 +23,25 @@ before `start` writes the body (step 3), or edit the line; `start` says so when 
 `notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
 worktree, and every next step names them by their full path.
 
+### Add a plugin tool
+
+```sh
+python tools/retrodev new tool library probe --dry-run    # the files it would write, and its next steps (--json)
+python tools/retrodev new tool library probe --step 'Probing the game' 'Probed the game'
+```
+
+`new` writes every registry line (`plugin.yaml`, the page's step words, the counts, the README line, the snapshot).
+You edit three files, each named in its next steps:
+
+1. the handler module, `backend/<feature>/tools.py` (or `backend/<feature>/<name>_tools.py`, here `probe_tools.py`,
+   when `tools.py` is long; the first next step says which): the schema and the handler;
+2. its test, `tests/backend/<feature>/test_tool_<name>.py` (here `test_tool_probe.py`): it pins the stub's answer,
+   so change it with the real one;
+3. the CONTRACT line: the next step quotes it as `docs/dev/CONTRACT.md:<line>`; replace `say what it does and when
+   the agent calls it` after `chromatic_probe` with exactly that.
+
+Then steps 5 to 8 of the Quick path.
+
 ## The flow, from plan to merge
 
 | Step | Who | Command |

@@ -35,7 +35,8 @@ lists the files a new feature, rpc, tool, event, listener, page, tab, slot or co
 nothing, so it runs on dev too). -->
 
 ## How it is tested
-<!-- The tests added or changed, and the checks that prove it (python tools/retrodev check). -->
+<!-- The tests added or changed, and the checks that prove it (python tools/retrodev check). For a page: each page
+README's Tests: line names the test file that covers it. -->
 
 ## How the owner and users use it
 <!-- Commands, pages or tools, and what they see. -->

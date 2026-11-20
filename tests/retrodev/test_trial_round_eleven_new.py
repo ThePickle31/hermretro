@@ -127,7 +127,7 @@ class Slot(ScaffoldCase):
         line = next(r for r in self.read("page/pages/rdprobe-shelf/README.md").splitlines() if "**Slots:**" in r)
         self.assertEqual(
             line,
-            "**Slots:** declares `rdprobe-shelf.more`: buttons after the lede (one per page). Props: { ctx }. "
+            "**Slots:** declares `rdprobe-shelf.more`: buttons after the lede (one per page). Props: `{ ctx }`. "
             "Contributes none.",
         )
         emulator = (ROOT / "page/pages/emulator/README.md").read_text()

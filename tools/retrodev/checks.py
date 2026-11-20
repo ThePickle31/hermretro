@@ -35,13 +35,28 @@ from .checks_run import (  # noqa: F401 - the other modules and the tests use th
     run_script,
     short_tmp,
 )
-from .checks_triggers import known, required, select, triggered  # noqa: F401 - as above
+from .checks_triggers import known, nested, required, select, triggered  # noqa: F401 - as above
 from .output import Failure
 
 
 def budget(ctx, name: str) -> float:
     budgets = ctx.policy["checks"]["budgets"]
     return float(budgets.get(name, budgets["default"]))
+
+
+NESTED_KEY = "scaffold_nested"  # the nested scaffold run's budget, duration and cache key (a mode-1 pass is not it)
+
+
+def budget_key(name: str, why: str) -> str:
+    """The name a check's budget and recorded time go under: scaffold run nested has its own."""
+    return NESTED_KEY if name == "scaffold" and nested(why) else name
+
+
+def input_digest(ctx, ids: dict, name: str, why: str) -> str:
+    """The digest a check's pass is kept against: its inputs, and for scaffold run nested the mode too, so a pass
+    in the fast mode never stands for the nested one."""
+    found = repo.digest(ids, ctx.policy["checks"]["inputs"][name])
+    return found + "+nested" if budget_key(name, why) == NESTED_KEY else found
 
 
 def refuse_uncommitted_installs(ctx, todo: list[str], wanted: dict[str, str]) -> None:
@@ -69,7 +84,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
     tree = repo.digest(ids)
     need = required(ctx)
     wanted = select(ctx, names, full, need)
-    digests = {name: repo.digest(ids, ctx.policy["checks"]["inputs"][name]) for name in wanted}
+    digests = {name: input_digest(ctx, ids, name, why) for name, why in wanted.items()}
     extra = {name: why for name, why in wanted.items() if why not in ("fast", "asked")}
     for name, why in extra.items():
         ctx.out.say(f"adding {name}: {why}")
@@ -93,7 +108,8 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         refuse_uncommitted_installs(ctx, todo, wanted)
     started = time.monotonic()
     fast = [name for name in todo if name in CHECK_PY and name != "acceptance"]
-    results = run_check_py(ctx, fast, env_for("fast", env), record, ids) if fast else {}
+    deep = {"RD_SCAFFOLD_FULL": "nested"} if "scaffold" in fast and nested(wanted["scaffold"]) else {}
+    results = run_check_py(ctx, fast, env_for("fast", {**(env or {}), **deep}), record, ids) if fast else {}
     wall = time.monotonic() - started
     if "acceptance" in todo:
         results |= run_check_py(ctx, ["acceptance"], env_for("acceptance", env))
@@ -130,6 +146,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
                 "cached": False,
                 "detail": result["detail"],
                 "more": result["more"],
+                "budget": budget_key(name, wanted[name]),
             }
         )
     passing = all(results[name]["state"] == "ok" for name in fast)  # the wall of a run with a failure is no measure
@@ -146,7 +163,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         "fast_wall": round(wall, 1) if fast else None,
     }
     may_skip = set(ctx.policy["checks"]["may_skip"])
-    all_digests = {name: repo.digest(ids, ctx.policy["checks"]["inputs"][name]) for name in need}
+    all_digests = {name: input_digest(ctx, ids, name, why) for name, why in need.items()}
     good = all(
         (last := record["checks"].get(name, {})).get("digest") == all_digests[name]
         and (last.get("state") == "ok" or (last.get("state") == "skipped" and name in may_skip))
@@ -234,7 +251,7 @@ def durations(rows: list[dict], wall: float | None, before: dict) -> dict:
     found = dict(before)
     for row in rows:
         if not row["cached"] and row["state"] == "ok":  # only a passing run measures the check
-            found[row["name"]] = round(float(row["seconds"]), 1)
+            found[row.get("budget", row["name"])] = round(float(row["seconds"]), 1)
     if wall is not None:
         found[FAST_TOTAL] = round(wall, 1)
     return found
@@ -248,12 +265,13 @@ def budget_warnings(
     before = before or {}
     found = []
     for row in rows:
-        limit = budget(ctx, row["name"])
+        name = row.get("budget", row["name"])  # scaffold run nested: its own budget and last time
+        limit = budget(ctx, name)
         if (
             not row["cached"]
             and row["state"] == "ok"
-            and over(ctx, row["name"], row["seconds"])
-            and over(ctx, row["name"], before.get(row["name"], 0.0))
+            and over(ctx, name, row["seconds"])
+            and over(ctx, name, before.get(name, 0.0))
         ):
             found.append(
                 f"{row['name']} took {row['seconds']:.1f} s, over its {limit:g} s budget twice in a row: slower than "

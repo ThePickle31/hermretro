@@ -182,7 +182,8 @@ def tool(
         plan.edit(f"backend/{feature_name}/README.md", lambda text: tools_line(text, module))
     plan.regenerate = True
     plan.next_steps += [
-        f"write the schema and handler in {home}; describe {full} in {CONTRACT} (its line says what it does)"
+        f"write the schema and handler in {home}; in {contract_at(plan, full)} replace '{TOOL_LINE}' after `{full}` "
+        "with what it does and when the agent calls it"
         + (
             f"; it acts on a project: tool_project gives the `project` argument's folder, else this chat's ({TOOL_ARGS}.py)"
             if project
@@ -265,6 +266,14 @@ def _contract_tool(text: str, full: str, feature_name: str, home: str | None = N
 
 
 TOOL_LINE = "say what it does and when the agent calls it"  # tests/repo/test_placeholders.py refuses it unfilled
+
+
+def contract_at(plan: Plan, full: str) -> str:
+    """CONTRACT.md:<line> of the placeholder new wrote after the tool's name (just CONTRACT.md when it is not there)."""
+    text = plan.read(CONTRACT) if plan.exists(CONTRACT) else ""
+    at = text.find(f"`{full}` (")
+    at = text.find(TOOL_LINE, at) if at >= 0 else -1
+    return f"{CONTRACT}:{text[:at].count(chr(10)) + 1}" if at >= 0 else CONTRACT
 
 
 def owned_sentence(text: str, full: str, what: str = "") -> str:

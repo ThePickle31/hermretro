@@ -351,7 +351,7 @@ class Readme(unittest.TestCase):
         text = retrodev_docs("REFERENCE.md")
         part = text[text.index("**Taking over a teammate's branch**") :].split("\n\n", 1)[0]
         self.assertIn("When the branch is checked out already", part)
-        self.assertIn("skip the worktree: run `plan new`, `plan approve`, `sync`, `check` and `ship` there", part)
+        self.assertIn("skip the worktree: run `sync`, `plan new`, `plan approve`, `check` and `ship` there", part)
 
 
 if __name__ == "__main__":

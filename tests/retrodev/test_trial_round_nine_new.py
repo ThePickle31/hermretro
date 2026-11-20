@@ -151,8 +151,11 @@ class Contribution(ScaffoldCase):
         self.assertIn(f"const {{ RdprobeButton }} = await import('../../{folder}/rdprobe-button.js')", registry)
         self.assertRegex(registry, r"const expected = \{[^\n]*'rdprobe-host\.extra': \[RdprobeButton\]")
         steps = joined(out)
-        for place in ("'Events and slots today'", "page/pages/rdprobe-host/README.md **Slots:**", "HOSTS"):
+        for place in ("'Events and slots today'", "HOSTS"):
             self.assertIn(place, steps)
+        # the host's Slots line is written, not left as a step (round 14)
+        host = " ".join(self.read("page/pages/rdprobe-host/README.md").split())
+        self.assertIn("Rdprobe giver fills it with `RdprobeButton`.", host)
 
     def test_a_second_contribution_joins_the_list_in_pages_order(self):
         self.host()

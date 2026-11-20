@@ -3,7 +3,9 @@
 A body is often written from the plan before the code, and a name the code then changed (`games.rom_path`, renamed
 `games.built_rom` while building) stays in the body the owner reads. ship and check's last line name each
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
-and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch. Any quoted path
+and each backtick-quoted repository path the branch's diff does not touch: a slash in it and its top folder one of the
+repository's (TOPS: `backend/x/y.py`, `tools/`), never a bare file name (`tools.py`, a caller cited as unchanged, or
+`games.json`, a runtime data file, are no claim the diff can check). Any such path
 there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
 phrase (CITATION: `checked against`, `verified in`, `comes from`, `source:`, `see`, `per`, `based on`, ...) to the
 end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
@@ -27,6 +29,19 @@ IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?
 # A file suffix a quoted name is taken as a path by (`ship.py` is a file, not the identifier `ship.py`).
 SUFFIXES = (".py", ".js", ".mjs", ".md", ".toml", ".yaml", ".yml", ".json", ".tmpl", ".css", ".html", ".sh", ".txt")
 PATH = re.compile(r"^[\w.@-]+(?:/[\w.@-]+)*/?$")
+
+
+# The repository's top folders a quoted path must start with to be checked against the diff (it must exist too).
+TOPS = ("backend", "page", "tools", "tests", "docs", "player", "skills", "profile", ".github")
+
+
+def is_repo_path(word: str, top: Path | None = None) -> bool:
+    """A repository path the diff can be checked against: a slash in it, under one of TOPS (that exists in ``top``,
+    when given); never a bare file name."""
+    first = word.split("/", 1)[0]
+    if not PATH.match(word) or "/" not in word or word.startswith("/") or first not in TOPS:
+        return False
+    return top is None or (top / first).is_dir()
 
 
 def is_path(word: str) -> bool:
@@ -70,14 +85,14 @@ def claimed(sentence: str) -> list[str]:
     for match in QUOTED.finditer(sentence):
         word = match.group(1).strip()
         cited = [citing for at, citing in marks if at < match.start()]
-        if is_path(word) and not (cited and cited[-1]):
+        if is_repo_path(word) and not (cited and cited[-1]):
             found.append(word)
     return [path for path in found if not path.startswith("engine/") and path != "engine"]
 
 
 def quoted_paths(text: str) -> list[str]:
-    """The file paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `sync.py`, `backend/library/`)
-    in sentences that claim a change to them (claimed), in order, each once; a path with a placeholder or a space in
+    """The repository paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `backend/library/`; never
+    a bare `sync.py`) in sentences that claim a change to them (claimed), in order, each once; a path with a placeholder or a space in
     it is not one."""
     found = [path for sentence in claims(gates.section_lines(text).get(SECTION, [])) for path in claimed(sentence)]
     return list(dict.fromkeys(found))
@@ -86,7 +101,7 @@ def quoted_paths(text: str) -> list[str]:
 def untouched(ctx, text: str | None) -> list[str]:
     """The quoted paths the branch's changes (committed, uncommitted and new files) do not touch: no changed file is
     that path, ends with it (a bare file name), or lies under it (a folder)."""
-    paths = quoted_paths(text or "")
+    paths = [path for path in quoted_paths(text or "") if is_repo_path(path, Path(ctx.top))]
     changed = repo.changed_files(ctx.top, ctx.remote_base) if paths else []
     if not paths or changed is None:
         return []

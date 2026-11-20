@@ -96,7 +96,7 @@ class SyncRewrite(RepoCase):
         self.on_dev(name, REWRITTEN, "The row becomes a subsection")
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
-        fix = out["error"]["fix"]
+        fix = out["error"]["message"]
         self.assertRegex(
             fix,
             r"docs/dev/STUDIO-PAGES\.md:\d+-\d+: dev rewrote this block; take dev's side, then redo your change in "
@@ -119,7 +119,7 @@ class SyncRewrite(RepoCase):
         self.on_dev(name, split, "The row becomes two subsections")
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
-        fix = out["error"]["fix"]
+        fix = out["error"]["message"]
         self.assertIn(
             "dev rewrote this block (see git diff HEAD...origin/dev -- docs/dev/STUDIO-PAGES.md); take dev's side, "
             "then redo your change where it belongs now in its own commit after sync",
