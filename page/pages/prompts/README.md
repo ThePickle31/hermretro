@@ -13,6 +13,8 @@ middle, its actions (Start a new chat, Add to current chat, Copy), Hermes art on
 **Exposes** (`index.js`): the prompt library (`ALL_PROMPTS`, `promptById`, `NEW_GAME_PROMPT`, `SETUP_PROMPT`,
 `DEVICE_CLI_PROMPT`, `FLASH_PROMPT`) for Home, Setup and Games.
 
+**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `promptFolder`.
+
 **Tests:** `tests/page/page-prompts.test.mjs` (the Prompts page's Reader), `tests/page/registry.test.mjs`.
 
 ## Adding a tab here

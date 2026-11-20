@@ -44,7 +44,8 @@ export function BuildPill({ builds, chat, game }) {
   return jsxs('span', { className: `cs-b-pill ${tone}`, children: [tone === 'quiet' ? null : jsx('i', { className: 'cs-b-pill-dot' }), label] })
 }
 
-/** The snapshot the backend kept for a build: one taken while its turn ran (latest wins). */
+/** The snapshot the backend kept for a build: one taken while its turn ran (latest wins). Every time here is in
+ *  milliseconds: startAt/endAt are message timestamps (Unix seconds) × 1000, snapshot times are the backend's ms. */
 function snapshotFor(build, snapshots) {
   if (!build.endAt || !Array.isArray(snapshots)) {
     return null

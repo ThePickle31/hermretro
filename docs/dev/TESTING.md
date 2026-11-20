@@ -92,6 +92,29 @@ hermes --run-module site | grep site-packages   # the .../venv/lib/python3.X/sit
 Another Python fails first with each module's import error and a `FIX:` saying to use this Python, never with a
 rename `FIX:`.
 
+## The clean install and update checks
+
+`tools/ci/clean_install_check.py` installs the committed checkout into a throwaway Hermes home (the `hermretro`
+profile and the default one; the install scanner must not ask) and checks the tools register only in `hermretro`.
+With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`): it installs REF (default: the newest
+stable `v*` tag on `origin/main`, else local `main`) from a local bare copy of the repository, uses it as the page
+does (studio profile, a library game, a New Game chat, a running broker), moves the copy's `main` to HEAD and runs
+`hermes plugins update hermretro`: no prompt, the folder at HEAD, no leftover files that are not bytecode, the agent
+side only in `hermretro`, `hermes plugins validate` still matching `plugin.yaml`, the library read back and the old
+broker replaced when its code changed. Both need `hermes` on PATH (or `--hermes-python <a Python that imports
+hermes_cli>`) and no model; the update check also needs the history and tags (`git fetch --tags`) and a
+REF that HEAD contains. Run it locally after moving, renaming or deleting files a running process loads:
+
+```sh
+python tools/ci/clean_install_check.py --update-from          # from the newest release
+python tools/ci/clean_install_check.py --update-from v0.0.N   # from that tag
+```
+
+The throwaway folder goes in `HERMRETRO_CLEAN_INSTALL_TMP`, else `TMPDIR`, else `/tmp`, and is removed afterwards. It
+must be outside the real Hermes home and short enough for the broker's socket path (27 bytes at most:
+`$XDG_RUNTIME_DIR` or `/tmp`); a `TMPDIR` that is not is passed over for `/tmp`, such a `HERMRETRO_CLEAN_INSTALL_TMP`
+is refused.
+
 ## Where tests live
 
 Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feature, `tests/page/` for the page
