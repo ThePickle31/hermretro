@@ -2,7 +2,7 @@
  * Builds the plugin's two generated scripts from the modules in page/:
  *   - desktop/plugin.js       the one file Hermes Desktop loads (entry page/index.js);
  *   - player/frame-shim.js    the script the player frame runs first (entry page/frame/index.js),
- *                             inlined into the frame page by backend/player/server.py.
+ *                             inlined into the frame page by the player backend (backend/player/).
  *
  *   node tools/bundle/bundle.mjs                  build (writes only when the bytes change)
  *   node tools/bundle/bundle.mjs --watch          rebuild on every source save; a linked checkout hot-reloads
@@ -99,7 +99,7 @@ const TARGETS = [
     about: [
       'hermretro \u2014 the player frame shim. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/frame/. Rebuild: node tools/bundle/bundle.mjs`,
-      'Inlined first in the player frame page by backend/player/server.py; imports nothing.'
+      'Inlined first in the player frame page by the player backend (backend/player/); imports nothing.'
     ],
     esbuild: { format: 'iife', external: [] },
     maxBytes: 100_000,
@@ -107,7 +107,7 @@ const TARGETS = [
     problems(text) {
       return [
         importsOf(text).length ? 'the frame shim must import nothing (it runs as an inline classic script)' : null,
-        ['__DEFAULT_COLOR__', '__COLOR_KEY__'].every(marker => text.includes(marker)) ? null : 'the frame shim lost a placeholder that backend/player/server.py fills in'
+        ['__DEFAULT_COLOR__', '__COLOR_KEY__'].every(marker => text.includes(marker)) ? null : 'the frame shim lost a placeholder that the player backend (backend/player/) fills in'
       ]
     }
   }

@@ -10,10 +10,20 @@
 | Hardware operations (read only) | `~/.codex-gb-studio/chromatic/<id>/operation.json` (the engine's journal) |
 | What a tool returned in a chat | the profile's `state.db`, table `messages` (open read-only) |
 | What the broker holds now (lanes, worker pids and their processes, leases) | `python tools/debug/broker_stats.py` (read-only, never starts one; exits 2 when no broker runs, 3 when one does not answer) |
+| A screenshot or recording from the player | `<project>/captures/` (the demo's: `~/.hermes/hermretro/library/captures/demo`), each with a `.json` sidecar: "Player captures" below |
 | What the page's RPC answers | `node tools/debug/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
 
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
 capped at 104 bytes on macOS).
+
+## Player captures
+
+`save_capture` in `backend/player/server.py` writes each screenshot or recording as `<project>/captures/<stamp>-<kind>.<png|webm|mp4>`:
+`<stamp>` is the UTC save time, `YYYY-MM-DDTHH-MM-SS-mmmZ` (`_stamp`), `<kind>` is `screenshot`, `video` or
+`annotation` (a page-sent game screen), and a name already taken gets `-2`, `-3`… (`_free_name`). Beside it,
+`<file>.json` holds `id`, `kind`, `media` (the file name), `mimeType`, `bytes`, `sha256`, `createdAt`, `game` (the game id),
+`romSha256` and `sourceRevision` (the build it came from; player saves only) and `metadata` (what the engine sent, null
+for an `annotation`). Which RPCs read and write them: [backend/library/README.md, "Captures"](../../backend/library/README.md#captures).
 
 ## Calling a page RPC by hand
 
