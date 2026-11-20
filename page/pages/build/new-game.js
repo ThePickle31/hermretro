@@ -3,22 +3,14 @@ import { Codicon, jsx, jsxs, useLayoutEffect, useRef, useState } from '#sdk'
 import { AGENT } from '#app/ids.js'
 
 // The two ways to start, as the backend tells the agent (backend/library/rpcs.py build context): keep the words in step.
-// Starter ideas under New Game: each fills the box with an idea to edit (never sends it).
-const NEW_GAME_IDEAS = [
-  ['Fly around a big sky', 'A little bird that flies around a big, bright daytime sky with clouds and treetops.'],
-  ['Top-down adventure room', 'A top-down adventure: a hero explores one room, talks to a villager and finds a key.'],
-  ['Simple puzzle screen', 'A one-screen puzzle where you push blocks onto switches to open a door.'],
-  ['Side-scrolling runner', 'A side-scrolling runner: a fox jumps over logs and collects berries.'],
-  ['Story with choices', 'A short story game with a few choices that lead to different endings.']
-]
-
 const NEW_GAME_MODES = [
   { id: 'build', title: 'Build it', text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: 'Ends with a game you can play' },
   { id: 'plan', title: 'Plan first', text: 'A short interview, then a brief, backlog and test plan. Nothing is built until you say so.', ends: 'Ends with a plan to review' }
 ]
 
 /** New Game: one centred composer (the Build page's own) and two choices under it, each saying what it does.
- *  No name field: the agent names the project when it creates it. */
+ *  No name field: the agent names the project when it creates it. The title, the composer and the choices are
+ *  marked `data-plat`: the attract-mode level behind the form (attract/) uses them as platforms. */
 export function BuildNewGame({ onStart, picker = null }) {
   const [idea, setIdea] = useState('')
   const [mode, setMode] = useState('build')
@@ -65,9 +57,10 @@ export function BuildNewGame({ onStart, picker = null }) {
   return jsxs('section', {
     className: 'cs-b-new',
     children: [
-      jsxs('h1', { className: 'cs-word cs-title', children: ['What are we ', jsx('span', { className: 'cs-accent', children: 'making?' })] }),
+      jsxs('h1', { className: 'cs-word cs-title', 'data-plat': 'title', children: ['What are we ', jsx('span', { className: 'cs-accent', children: 'making?' })] }),
       jsxs('div', {
         className: 'cs-b-comp',
+        'data-plat': 'composer',
         children: [
           jsx('textarea', {
             'aria-label': 'Your game idea',
@@ -112,6 +105,7 @@ export function BuildNewGame({ onStart, picker = null }) {
             {
               'aria-checked': mode === item.id,
               className: mode === item.id ? 'cs-b-opt on' : 'cs-b-opt',
+              'data-plat': 'opt',
               'data-mode': item.id,
               onClick: () => setMode(item.id),
               onKeyDown: onModeKey,
@@ -132,29 +126,6 @@ export function BuildNewGame({ onStart, picker = null }) {
             item.id
           )
         )
-      }),
-      jsx('div', {
-        'aria-label': 'Ideas to start from',
-        className: 'cs-b-ideas',
-        children: NEW_GAME_IDEAS.map(([label, text]) =>
-          jsx('button', {
-            className: 'cs-b-sugg-chip',
-            disabled: busy,
-            onClick: () => {
-              setIdea(text)
-              box.current?.focus?.()
-            },
-            type: 'button',
-            children: label
-          }, label)
-        )
-      }),
-      jsxs('div', {
-        className: 'cs-b-hint',
-        children: [
-          jsx('span', { 'aria-hidden': true, className: 'cs-b-hint-tiles', children: [jsx('i', {}, 'a'), jsx('i', {}, 'b'), jsx('i', {}, 'c')] }),
-          jsxs('span', { children: [`Sprites and backgrounds show up as ${AGENT} draws them. Type `, jsx('b', { children: '@' }), ' in a message to point at one.'] })
-        ]
       })
     ]
   })
