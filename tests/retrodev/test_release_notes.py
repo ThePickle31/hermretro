@@ -100,6 +100,20 @@ class Notes(ReleaseCase):
         self.assertNotIn("not run", new)
         self.assertIn("passed on", release_notes.with_result("## New\n- A thing\n", "passed on a MacBook"))
 
+    def test_a_candidates_notes_say_plugin_updates_stay_on_the_stable_release(self):
+        self.gh.answers[("pr", "list", "--base")] = (
+            0,
+            json.dumps([self.land("feat/x", "page/x.js", "A thing", 5)]),
+            "",
+        )
+        git(self.main, "fetch", "-q", "origin")
+        ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()), gh_runner=self.gh)
+        sha = git(self.main, "rev-parse", "origin/dev").strip()
+        notes = release_notes.write(ctx, "0.0.2-rc.1", sha, "0.0.1", None, rc=True)
+        self.assertNotIn("## Updating", notes)
+        self.assertIn("stays on the stable release", notes)
+        self.assertIn("git checkout v0.0.2-rc.1", notes)
+
     def test_without_github_each_change_is_grouped_by_its_files(self):
         self.land("x", "page/a.js", "A page change", 5)
         self.land("x", "tests/repo/test_x.py", "A test change", 6)

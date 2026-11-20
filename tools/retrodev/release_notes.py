@@ -200,11 +200,19 @@ def write(ctx, version: str, sha: str, previous: str | None, checklist: str | No
         parts.append("## Fixes and improvements\n\n" + "\n".join(groups["fixes"]) + "\n")
     if not groups["new"] and not groups["fixes"]:
         parts.append("## Changes\n\nNothing that changes what you see; the work below is behind the scenes.\n")
-    parts.append(
-        "## Updating\n\n"
-        "`hermes plugins update hermretro` in the profile you installed it into (or Capabilities > Plugins), then quit "
-        "and reopen Hermes. Your games and library are kept.\n"
-    )
+    if rc:
+        stable = version.split("-rc.")[0]
+        parts.append(
+            "## Trying it\n\n"
+            f"`hermes plugins update hermretro` stays on the stable release: an install follows `main`, which moves only "
+            f"when {stable} is released. To try this candidate, use a clone of the repository: `git checkout v{version}`.\n"
+        )
+    else:
+        parts.append(
+            "## Updating\n\n"
+            "`hermes plugins update hermretro` in the profile you installed it into (or Capabilities > Plugins), then "
+            "quit and reopen Hermes. Your games and library are kept.\n"
+        )
     tested = "CI on Linux, Apple Silicon and Intel macOS, including the real engine"
     if previous:
         tested += f", and the update from v{previous} (a library game, a New Game chat and a running broker kept)"
