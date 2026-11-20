@@ -36,7 +36,8 @@ def _stream(ctx, command: list[str], env: dict):
         command,
         cwd=str(ctx.top),
         env=env,
-        text=True,
+        encoding="utf-8",
+        errors="replace",  # a tool's line that is not UTF-8 shows with U+FFFD; it never stops the run
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL,

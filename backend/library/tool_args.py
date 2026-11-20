@@ -21,10 +21,6 @@ from __future__ import annotations
 
 from ..hermes.tool_args import tool_error, tool_project
 
-# The codes tool_project answers with, written the way `retrodev new tool` reads a feature's codes from its own
-# tool_args.py: tool_error(..., "INVALID_ARGUMENTS"), tool_error(..., "PROJECT_NOT_FOUND"),
-# tool_error(..., "NO_PROJECT").
-
 __all__ = ["tool_error", "tool_project"]
 
 # The names tools.py has always used.

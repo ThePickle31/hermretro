@@ -11,15 +11,13 @@ plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and its body gate stops: fill it in, then ship
 again. Every gate runs in every ship, a missing title included, so one run reports every refusal. A --dry-run
-writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
-its FIX the same ship --dry-run with this title and body. Every ship command printed during or after a dry run
-(a FIX here, status's next step) is a dry run too: they are all built by command(), and the dry run is recorded
-before anything (the title included) can stop it.
+writes the same skeleton and reports the body gate as 'NO  body: fill in <path>'. Every ship command printed during
+or after a dry run is a dry run too (all built by command(); the dry run is recorded before any gate can stop it).
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
-a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
-and a line saying an agent made it; everything committed;
-`check` passed on exactly this tree; the branch has commits; the remote branch has not moved away from it.
+a one-line title without a trailing period; a branch that changes at least one file; a body with every section of
+the pull request template filled in and a line saying an agent made it; everything committed; `check` passed on
+exactly this tree; the branch has commits; the remote branch has not moved away from it.
 Then `git push -u <remote> <branch>` (a plain push, never anything that rewrites the remote) and
 `gh pr create --draft` with labels from the areas the change touches, or `gh pr edit` on the open one (refused
 when that one goes into another branch than the base: the FIX retargets it, ship never does).
@@ -35,7 +33,6 @@ from pathlib import Path
 from . import gates, github, plan, repo, reviews, state
 from .gates import Gate
 from .output import Failure, cmd
-
 from .review import records
 
 TEMPLATE = ".github/pull_request_template.md"
@@ -139,12 +136,17 @@ PREFILL = {"What changed": ("What changes",), "Not done": ("Not in scope",)}
 
 
 def plan_title(ctx, branch: str, record: dict) -> str | None:
-    """The plan's own title line ('# Plan: <words>'), when it says more than the topic."""
+    """The plan's 'Title:' line (the template asks for one plain sentence), else its own title line ('# Plan:
+    <words>') when it says more than the topic."""
     named = gates.plan_for(ctx, branch, record)
     path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
     if not path or not path.is_file():
         return None
-    first = next((line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("# ")), "")
+    lines = gates.COMMENT.sub("", path.read_text(encoding="utf-8")).splitlines()
+    said = next((line[6:].strip() for line in lines if line.startswith("Title:")), "")
+    if said and not gates.title_problems(said):
+        return said
+    first = next((line for line in lines if line.startswith("# ")), "")
     words = first[2:].strip().removeprefix("Plan:").strip()
     return words if words and words != named and not gates.title_problems(words) else None
 
@@ -223,24 +225,23 @@ def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
 
 def body_step(ctx, branch: str | None, record: dict) -> str | None:
     """check's last line once the tree passes: before the first ship, while the branch's body (the recorded one,
-    else notes/pr/<topic>.md) exists and still fails the body gate, fill it in, then ship."""
+    else notes/pr/<topic>.md) is missing or fails the body gate, fill it in, then ship."""
     if not branch or branch in ctx.policy["branches"]["protected"] or record.get("pr"):
         return None
     chosen = record.get("body")
     path = Path(chosen) if chosen else default_body(ctx, branch, record)
-    problems = (
-        gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"]) if path.is_file() else []
-    )
-    unfilled = [
-        found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
-    ]
-    if not problems:
-        return None
     title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
     custom = path if path != default_body(ctx, branch, record) else None
     # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
+    then = command(title, custom, bool(record.get("last_ship_dry_run")))
+    if not path.is_file():  # ship writes it from the template and stops: name it all the same
+        return f"next: fill in the pull request body (missing: {path}; ship writes it from the template), then {then}"
+    problems = gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"])
+    unfilled = [
+        found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
+    ]
     unfilled += ["the Made by line"] if len(unfilled) < len(problems) else []  # names the agent: section-less
-    return f"next: fill in {', '.join(unfilled)} in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
+    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}" if problems else None
 
 
 def again(record: dict, dry_run: bool = False) -> str:

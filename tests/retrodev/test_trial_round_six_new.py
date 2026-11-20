@@ -226,6 +226,8 @@ class ToolProject(ScaffoldCase):
     def test_root_is_narrowed_and_the_codes_in_use_are_listed(self):
         self.new("feature", "rdprobe_lib")
         write(self.tree, "backend/rdprobe_lib/tool_args.py", (ROOT / "backend/library/tool_args.py").read_text())
+        # what it re-exports, where tool_project's own codes are written (as the real tree has it)
+        write(self.tree, "backend/hermes/tool_args.py", (ROOT / "backend/hermes/tool_args.py").read_text())
         write(self.tree, "tests/support.py", "def isolated_home(test):\n    pass\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "A feature with tool_args")

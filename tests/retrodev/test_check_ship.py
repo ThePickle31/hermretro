@@ -32,7 +32,11 @@ class Check(RepoCase):
         self.assertEqual(
             sorted(data),
             sorted(
-                ["branch", "checks", "code", "command", "fast_wall", "ok", "status", "tree", "tree_passed", "warnings"]
+                # next: the body to fill in (missing here), then ship (round eight: also before the body exists)
+                [
+                    *["branch", "checks", "code", "command", "fast_wall", "next", "ok", "status", "tree"],
+                    *["tree_passed", "warnings"],
+                ]
             ),
         )
         self.clear_log()

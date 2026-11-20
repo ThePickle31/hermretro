@@ -244,10 +244,16 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
         "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
     ]
     if game:
-        plan.next_steps.append(
+        plan.next_steps += [
             "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
-            "home being what isolated_home(self) returns; host._game_root(game) gives the project root"
-        )
+            "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
+            f"run the query in the component that has the game: queryKey: [ID, '{name}', viaProfile, game.id], "
+            f"queryFn: () => callStudio(RPC_{const(name)}, {{ game: game.id }}) (the game's id in the key, so each "
+            "game gets its own answer)",
+            "callStudio for an RPC about the library (player, captures: whichever profile answered status serves "
+            "it); callStudioOnly for one that reads or binds a profile's Build conversations (build, builds, "
+            "build_restore, asset*: the hermretro profile only), as page/app/backend.js says",
+        ]
     return f"RPC {name}"
 
 

@@ -160,7 +160,7 @@ def tree_digest(folder: Path) -> str:
 
 
 def _git(cwd, *args) -> str:
-    proc = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+    proc = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, encoding="utf-8", errors="replace")
     return proc.stdout if proc.returncode == 0 else f"(git {' '.join(args)} failed: {proc.stderr.strip()})"
 
 

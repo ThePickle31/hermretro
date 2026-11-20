@@ -34,6 +34,7 @@ from . import (
     release_verify,
     report,
     scaffold,
+    scaffold_rpc,
     ship,
     start,
     stats,
@@ -216,12 +217,15 @@ def scaffolds(sub, common) -> None:
     rpc.add_argument(
         "--module",
         help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
-        "declaration that calls it (suggested when rpcs.py is over 350 lines)",
+        f"declaration that calls it (suggested when rpcs.py is over {scaffold_rpc.big_rpcs()} lines)",
     )
     rpc.add_argument(
         "--game",
         action="store_true",
-        help="an RPC about one library game: a `game` param, NO_GAME unless host._game_root finds it",
+        help="an RPC about one library game: a `game` param (the rule: a game's library id is `game`, as builds, "
+        "build_restore, build, assets and the events' payloads take it; `id` names the RPC's own object, as "
+        "build_restore's snapshot; the older player, captures, game_thumb and capture_image keep `id`), NO_GAME "
+        "unless host._game_root finds it",
     )
     tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
     tool.add_argument(
@@ -237,7 +241,8 @@ def scaffolds(sub, common) -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="a tool that acts on the game's project: a `project` schema property, tool_args.tool_project and "
-        "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does)",
+        "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does; "
+        "elsewhere it imports them from backend/hermes/tool_args.py)",
     )
     event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
     event.add_argument(
