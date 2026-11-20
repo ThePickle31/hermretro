@@ -213,6 +213,8 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
     imports = f"(useQuery from '#sdk', ID from '#app/ids.js', {call} from '#app/backend.js')"
     if game:
         steps += [
+            "check what the `games` RPC already returns about a game (rom, state, web, ...) before adding a per-game "
+            "query (its row in docs/dev/CONTRACT.md; backend/library/rpcs.py): the page may have it already",
             "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
             "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
             f"run the query in the component that has the game (as page/pages/emulator/emulator-bar.js runs "

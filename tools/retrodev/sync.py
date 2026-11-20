@@ -13,8 +13,6 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 from __future__ import annotations
 
 
-import re
-
 from . import gates, land_carry, repo
 from .output import Failure, cmd
 
@@ -88,60 +86,20 @@ def resume_fix(ctx) -> str:
     )
 
 
-NOT_NAMES = frozenset(
-    [
-        "def",
-        "class",
-        "return",
-        "import",
-        "from",
-        "export",
-        "const",
-        "let",
-        "var",
-        "function",
-        "async",
-        "await",
-        "if",
-        "else",
-        "for",
-        "while",
-        "in",
-        "is",
-        "not",
-        "and",
-        "or",
-        "with",
-        "as",
-        "try",
-        "except",
-        "finally",
-        "pass",
-        "none",
-        "true",
-        "false",
-        "self",
-        "cls",
-        "new",
-        "this",
-        "default",
-    ]
-)
-
-
-def conflict_hunks(text: str) -> list[tuple[str, str]]:
-    """(this branch's side, the base's side) of each conflict hunk in a file git left markers in (the merge style,
-    or diff3/zdiff3 with a '|||||||' common-ancestor part, which belongs to neither side)."""
-    hunks, ours, theirs, part = [], [], [], None
-    for line in text.splitlines():
+def conflict_hunks(text: str) -> list[tuple[int, int, str, str]]:
+    """(first line, last line, this branch's side, the base's side) of each conflict hunk in a file git left markers
+    in (the merge style, or diff3/zdiff3 with a '|||||||' common-ancestor part, which belongs to neither side); the
+    lines are the markers' own, 1-based."""
+    hunks, ours, theirs, part, start = [], [], [], None, 0
+    for number, line in enumerate(text.splitlines(), 1):
         if line.startswith("<<<<<<<"):
-            ours, theirs, part = [], [], "ours"
+            ours, theirs, part, start = [], [], "ours", number
         elif part and line.startswith("|||||||"):
             part = "base"
         elif part and line.startswith("======="):
             part = "theirs"
         elif part and line.startswith(">>>>>>>"):
-            hunks.append(("\n".join(ours), "\n".join(theirs)))
+            hunks.append((start, number, "\n".join(ours), "\n".join(theirs)))
             part = None
         elif part == "ours":
             ours.append(line)
@@ -150,26 +108,57 @@ def conflict_hunks(text: str) -> list[tuple[str, str]]:
     return hunks
 
 
-def first_name(text: str) -> str | None:
-    """The hunk's first identifier that is not a keyword: what git log -S can follow to where the block went."""
-    return next((w for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", text) if w.lower() not in NOT_NAMES), None)
+MIN_DISTINCT = 8  # characters: a shorter line (`return 2`, `)`) is in too many files to say where a block went
+TRIED_LINES = 5  # git grep runs per hunk at most
+
+
+def distinctive_lines(ours: str) -> list[str]:
+    """The hunk's lines that say where a block went, longest first: each appears once in the hunk and is long
+    enough to be found in few files."""
+    lines = [line.strip() for line in ours.splitlines()]
+    once = [line for line in dict.fromkeys(lines) if lines.count(line) == 1 and len(line) >= MIN_DISTINCT]
+    return sorted(once, key=len, reverse=True)
+
+
+def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
+    """(the file on the base branch that holds the hunk's most distinctive line, that line) by `git grep -l -F`,
+    trying the longest lines first; (None, the longest line) when no other file has any of them."""
+    lines = distinctive_lines(ours)
+    for line in lines[:TRIED_LINES]:
+        code, stdout, _err = repo.run(["git", "grep", "-l", "-F", "-e", line, ctx.remote_base, "--"], ctx.top)
+        files = [hit.partition(":")[2] for hit in stdout.splitlines() if hit.strip()] if code == 0 else []
+        files = [found for found in files if found and found != name]
+        if files:
+            return files[0], line
+    return None, lines[0] if lines else None
 
 
 def moved_hints(ctx, files: list[str]) -> list[str]:
-    """For each conflict hunk whose base side is empty (dev removed or moved that block): where to look for it."""
+    """For each conflict hunk whose base side is empty (dev removed or moved that block): where it went (the
+    base's file holding the hunk's most distinctive line) and how to resolve it."""
     hints = []
     for name in files:
         path = ctx.top / name
         text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-        for ours, theirs in conflict_hunks(text):
+        for first, last, ours, theirs in conflict_hunks(text):
             if theirs.strip() or not ours.strip():
                 continue
-            found = first_name(ours)
-            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "")  # the whole tree: tests move too
-            hints.append(
-                f"{name}: {ctx.base} removed this block; if it moved, `{log}` finds where; apply your change there "
-                "and drop this side"
-            )
+            where, line = moved_to(ctx, name, ours)
+            log = cmd("git", "log", "-p", ctx.remote_base, f"-S{line}") if line else ""  # the whole tree
+            if where:
+                hints.append(
+                    f"{name}:{first}-{last}: {ctx.base} moved this block to {where} (or deleted it); delete the HEAD "
+                    f"side of this hunk, git add, sync again, then add your lines in {where} in a new commit"
+                    + (f" (`{log}` shows the move)" if log else "")
+                )
+            else:
+                hints.append(
+                    f"{name}:{first}-{last}: {ctx.base} deleted this block (no other file on {ctx.remote_base} has its "
+                    "lines"
+                    + (f"; if it moved and changed, `{log}` finds where" if log else "")
+                    + "); delete the HEAD side of this hunk, git add, sync again, then redo your change where it "
+                    "belongs now in a new commit"
+                )
     return list(dict.fromkeys(hints))
 
 

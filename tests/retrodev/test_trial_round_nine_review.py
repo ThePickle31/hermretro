@@ -46,7 +46,7 @@ class ContributionNames(ScaffoldCase):
         registry = self.read(REGISTRY_TEST)
         self.assertIn("const { Text: TextFromHome } = await import('../../page/pages/home/text.js')", registry)
         self.assertIn(f"'{SLOT}': [TextFromHome]", registry)
-        self.assertIn("as TextFromHome: the test names Text already", " ".join(out["next"]))
+        self.assertIn("as TextFromHome: the test names Text already", " ".join(out["done"]))
         self.parses()
         self.new("contribution", "rdprobe-host", SLOT, "JSDOM")  # a later page: joins the list, aliased too
         registry = self.read(REGISTRY_TEST)

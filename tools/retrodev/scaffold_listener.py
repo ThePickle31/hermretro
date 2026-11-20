@@ -54,14 +54,63 @@ def payload_of(plan: Plan, event: str, doc: str) -> list[str]:
     return payload_keys(doc.partition("; ")[2]) if "; " in doc else []
 
 
-def mocked_helpers(plan: Plan, owner: str) -> list[str]:
-    """The emitting feature's tests that patch backend.hermes.host helpers ('file (helper, ...)'): an emitter they
-    call now runs the new listener against those mocks."""
+def _emits(call: ast.Call, event: str, emitters: set[str]) -> bool:
+    """Whether the call is ``emit("<event>", ...)`` or a call of one of the feature's emitter functions."""
+    func = call.func
+    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    if name == "emit":
+        first = call.args[0] if call.args else None
+        return isinstance(first, ast.Constant) and first.value == event
+    return name in emitters
+
+
+def _callers(tree: ast.AST, event: str, emitters: set[str]) -> set[str]:
+    """The functions (every enclosing one, nested handlers too) whose body emits the event."""
+    found: set[str] = set()
+
+    def visit(node: ast.AST, chain: tuple[str, ...]) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            chain = (*chain, node.name)
+        if isinstance(node, ast.Call) and _emits(node, event, emitters):
+            found.update(chain)
+        for child in ast.iter_child_nodes(node):
+            visit(child, chain)
+
+    visit(tree, ())
+    return found
+
+
+def emitting_names(plan: Plan, owner: str, event: str) -> set[str]:
+    """The names a test that emits ``event`` calls: the owner's emitter functions (emits.py) and every function
+    that calls one of them or ``emit("<event>")`` directly."""
+    trees = {}
+    for path in sorted(plan.top.glob(f"backend/{owner}/**/*.py")):
+        try:
+            trees[path.relative_to(plan.top).as_posix()] = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+    emits = f"backend/{owner}/emits.py"
+    emitters = _callers(trees[emits], event, set()) if emits in trees else set()
+    names = set(emitters)
+    for rel, tree in trees.items():
+        if rel != emits:
+            names |= _callers(tree, event, emitters)
+    return names
+
+
+def mocked_helpers(plan: Plan, owner: str, event: str) -> list[str]:
+    """The emitting feature's tests that patch backend.hermes.host helpers and emit the event ('file (helper,
+    ...)': they call a function that emits it, or name the event): the new listener now runs against those mocks."""
+    names = emitting_names(plan, owner, event)
+    calls = re.compile(r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")\b") if names else None
     found = []
     for path in sorted(plan.top.glob(f"tests/backend/{owner}/*.py")):
-        names = list(dict.fromkeys(MOCKED.findall(path.read_text(encoding="utf-8", errors="replace"))))
-        if names:
-            found.append(f"{path.relative_to(plan.top)} ({', '.join(names)})")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if f'"{event}"' not in text and f"'{event}'" not in text and not (calls and calls.search(text)):
+            continue
+        helpers = list(dict.fromkeys(MOCKED.findall(text)))
+        if helpers:
+            found.append(f"{path.relative_to(plan.top)} ({', '.join(helpers)})")
     return found
 
 
@@ -222,10 +271,10 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
             "find the library game with host.library_game_for([path]); in tests register one with "
             "tests.support.make_library_game(home, name) -> (game_id, root)"
         )
-    mocked = mocked_helpers(plan, event.partition(".")[0])
+    mocked = mocked_helpers(plan, event.partition(".")[0], event)
     if mocked:
         plan.next_steps.append(
-            "these emitter tests mock backend.hermes.host helpers, and the listener now runs against those mocks "
-            "when they emit: " + "; ".join(mocked)
+            f"these tests emit {event} and mock backend.hermes.host helpers, so the listener now runs against "
+            "those mocks: " + "; ".join(mocked)
         )
     return f"listener {feature_name} <- {event}"

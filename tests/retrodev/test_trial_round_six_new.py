@@ -46,7 +46,8 @@ class Event(ScaffoldCase):
         door = self.read("backend/history/__init__.py")
         self.assertIn('"history.rdprobe_three": "it counted; game=<...>, root=<project>, count=<...>",', door)
         self.assertIn(
-            "| `history.rdprobe_three` | `game`, `root`, `count` | it counted |", self.read("docs/dev/CONTRACT.md")
+            "| `history.rdprobe_three` | `game` (<...>), `root` (project), `count` (<...>) | it counted |",
+            self.read("docs/dev/CONTRACT.md"),
         )
         self.assertIn("(game, root=<project>, count)", self.read("backend/history/emits.py"))
         reference = retrodev_docs("REFERENCE.md")

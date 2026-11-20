@@ -147,7 +147,7 @@ class Event(ScaffoldCase):
             '"history.rdprobe_edited": "after builds answered; game=<id>, fields=[the fields it changed]"', door
         )
         self.assertIn(
-            "| `history.rdprobe_edited` | `game`, `fields` | after `builds` answered |",
+            "| `history.rdprobe_edited` | `game` (id), `fields` ([the fields it changed]) | after `builds` answered |",
             self.read("docs/dev/CONTRACT.md"),
         )
 
@@ -180,7 +180,7 @@ class Listener(ScaffoldCase):
         write(
             self.tree,
             "tests/backend/history/test_probe_mocks.py",
-            "mock.patch.object(hermes_host, '_chat_project', f)\n",
+            "mock.patch.object(hermes_host, '_chat_project', f)\nemits.rdprobe_moved(path='p', root='r')\n",
         )
         self.new("feature", "rdprobe_ears")
         git(self.tree, "add", "-A")
@@ -194,7 +194,7 @@ class Listener(ScaffoldCase):
             "tests.support.make_library_game(home, name) -> (game_id, root)",
             steps,
         )
-        mocked = next(s for s in steps if "mock backend.hermes.host helpers" in s)
+        mocked = next(s for s in steps if "mock backend.hermes.host helpers" in s)  # it emits the event
         self.assertIn("tests/backend/history/test_probe_mocks.py (_chat_project)", mocked)
 
     def test_the_payload_keys_are_each_entry_s_leading_name_not_the_names_in_its_description(self):  # review 1, 1

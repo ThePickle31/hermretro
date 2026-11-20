@@ -15,8 +15,10 @@ only when its shape is known, and every other shape is refused before anything i
 from __future__ import annotations
 
 import ast
+import io
 import json
 import re
+import tokenize
 
 from .output import Failure
 
@@ -79,11 +81,41 @@ def shape(node: ast.stmt) -> str:
     return f"a {type(getattr(node, 'value', node)).__name__} expression"
 
 
-def _comma_after(lines: list[str], node: ast.expr) -> None:
-    """A comma right after ``node`` unless one follows it already (comments after it stay where they are)."""
-    line = lines[node.end_lineno - 1]
-    if not line[node.end_col_offset :].lstrip().startswith(","):
-        lines[node.end_lineno - 1] = line[: node.end_col_offset] + "," + line[node.end_col_offset :]
+def _char_col(line: str, byte_offset: int) -> int:
+    """ast's column (UTF-8 bytes) as an index into the line's text."""
+    return len(line.encode("utf-8")[:byte_offset].decode("utf-8", errors="ignore"))
+
+
+SKIPPED_TOKENS = (tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT)
+
+
+def _outer_end(text: str, node: ast.expr) -> tuple[int, int]:
+    """(line index, column) just past ``node`` and the parentheses around it alone: ast's end of a parenthesised
+    value (``("a " "b")``, an implicit concatenation) stops before its ``)``, and a comma there would turn the
+    value into a one-element tuple."""
+    lines, last = text.split("\n"), node.end_lineno or node.lineno
+    start = (node.lineno, _char_col(lines[node.lineno - 1], node.col_offset))
+    end = (last, _char_col(lines[last - 1], node.end_col_offset or 0))
+    tokens = [t for t in tokenize.generate_tokens(io.StringIO(text).readline) if t.type not in SKIPPED_TOKENS]
+    opened = 0
+    for token in reversed([t for t in tokens if t.end <= start]):
+        if token.type != tokenize.OP or token.string != "(":
+            break
+        opened += 1
+    for token in [t for t in tokens if t.start >= end][:opened]:
+        if token.type != tokenize.OP or token.string != ")":
+            break
+        end = token.end
+    return end[0] - 1, end[1]
+
+
+def _comma_after(text: str, lines: list[str], node: ast.expr) -> None:
+    """A comma right after ``node`` (after its closing parentheses) unless one follows it already (comments after
+    it stay where they are)."""
+    row, col = _outer_end(text, node)
+    line = lines[row]
+    if not line[col:].lstrip().startswith(","):
+        lines[row] = line[:col] + "," + line[col:]
 
 
 def _tools_node(text: str, rel: str, entry: str) -> ast.Assign | None:
@@ -124,7 +156,7 @@ def append_entry(text: str, rel: str, entry: str) -> str:
                 f"TOOLS in {rel} does not end in a '{close}' line; nothing was changed", "add by hand:\n" + entry
             )
         if value.elts:
-            _comma_after(lines, value.elts[-1])
+            _comma_after(text, lines, value.elts[-1])
         lines[last:last] = [entry]
     return "\n".join(lines)
 
@@ -248,6 +280,25 @@ def take_in_module(text: str, rel: str, module: str) -> str:
     return append_entry(text, rel, entry)
 
 
+LINE_LENGTH = 120  # tools/py/ruff.toml line-length
+
+
+def event_entry(key: str, doc: str) -> str:
+    """One EVENTS entry, ``    "<key>": "<doc>",``; a doc too long for one line is wrapped as the front doors
+    wrap theirs: a parenthesised implicit concatenation, one string per line, each line within the line length."""
+    line = f"    {py_str(key)}: {py_str(doc)},"
+    if len(line) <= LINE_LENGTH:
+        return line
+    chunks, current = [], ""
+    for word in re.findall(r"\S+\s*", doc):
+        if current and len("        " + py_str(current + word)) > LINE_LENGTH:
+            chunks.append(current)
+            current = ""
+        current += word
+    chunks.append(current)
+    return "\n".join([f"    {py_str(key)}: (", *(f"        {py_str(chunk)}" for chunk in chunks), "    ),"])
+
+
 def add_event(text: str, entry: str) -> str:
     for node in ast.parse(text).body:
         target = (
@@ -276,6 +327,6 @@ def add_event(text: str, entry: str) -> str:
         if lines[last][: value.end_col_offset].strip() != "}":
             raise Failure("EVENTS does not end in a '}' line; nothing was changed", "add the entry by hand:\n" + entry)
         if value.values:
-            _comma_after(lines, value.values[-1])
+            _comma_after(text, lines, value.values[-1])
         return "\n".join(lines[:last] + [entry] + lines[last:])
     raise Failure("the front door has no EVENTS dict", "add EVENTS = {} to it (backend/system/events.py)")
