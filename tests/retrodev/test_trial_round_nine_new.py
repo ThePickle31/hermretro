@@ -58,9 +58,10 @@ class Rpc(ScaffoldCase):
             self.assertIn("host._data_dir()", (ROOT / f"backend/{feature}/rpcs.py").read_text(), feature)
 
     def test_the_next_steps_name_contract_s_page_rpc_table_and_what_it_lists(self):
-        steps = joined(self.new("rpc", "history", "rdprobe_table"))
         listed = scaffold_rpc.page_rpcs(self.read("docs/dev/CONTRACT.md"))
         self.assertIn("builds", listed)  # read from the tree, not pinned
+        self.new("feature", "rdprobe", "--purpose", "A probe")  # no RPC in the table yet (history's get a row)
+        steps = joined(self.new("rpc", "rdprobe", "rdprobe_table"))
         self.assertIn(f"'Studio pages (desktop) and their RPCs' (it lists {', '.join(listed)})", steps)
         self.assertEqual(scaffold_rpc.page_rpcs("## Studio pages (desktop) and their RPCs\nno table\n"), [])
         later = "## Studio pages (desktop) and their RPCs\n| `a` | x |\n\n## Other\n| `b` | y |\n"

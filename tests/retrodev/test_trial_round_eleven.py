@@ -46,7 +46,8 @@ class Sync(RepoCase):
         self.assertRegex(
             fix,
             r"backend/library/names\.py:\d+-\d+: dev moved this block to backend/library/folders\.py \(or deleted "
-            r"it\); delete the HEAD side of this hunk, git add, sync again, then add your lines in "
+            r"it\); first check whether dev's version there already does what your lines did; if it does, add only a "
+            r"test that pins it; delete the HEAD side of this hunk, git add, sync again, then add your lines in "
             r"backend/library/folders\.py in a new commit",
         )
         self.assertNotIn("-SThe", fix)

@@ -111,13 +111,23 @@ def tmp_message(leftover: list[str], modules: list[str]) -> str:
     )
 
 
-def layout_note(lines: list[str]) -> str:
+def layout_note(lines: list[str], changed: list[str] | None = None) -> str:
     """The unit row's note on tests/repo/test_layout.py's warnings (it prints them without failing): how many, the
-    files over the size warning (tools/layout.toml [size]) by name, and the command that lists them all."""
+    files over the size warning (tools/layout.toml [size]) by name, those the branch changed (``changed``) first,
+    and the command that lists them all."""
     warnings = [line.split("layout warning: ", 1)[1] for line in lines if "layout warning: " in line]
     if not warnings:
         return ""
     big = [w.split(" has ")[0] for w in warnings if " has " in w and " lines " in w]
+    mine = set(changed or ())
+    big = [name for name in big if name in mine] + [name for name in big if name not in mine]
     shown = ", ".join(big[:6]) + (f" and {len(big) - 6} more" if len(big) > 6 else "")
     over = f"; over the size warning: {shown}" if big else ""
     return f"; {len(warnings)} layout warnings{over} (all: python -m unittest tests.repo.test_layout)"
+
+
+def branch_files(run) -> list[str]:
+    """The files the branch changed since it left origin/dev, committed or not (none outside a git checkout or
+    without that ref): layout_note names the over-size ones among them first."""
+    found = run(["git", "diff", "--name-only", "--merge-base", "origin/dev"])
+    return found.stdout.split() if found.returncode == 0 else []
