@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from retrodev import checks, scaffold
+from retrodev import checks, scaffold_checks
 
 from tests.retrodev.fixture import alone
 from tests.retrodev.pool import ParallelSuite
@@ -26,33 +26,33 @@ class ScaffoldGate(unittest.TestCase):
         patcher = mock.patch.dict(os.environ)
         patcher.start()
         self.addCleanup(patcher.stop)
-        os.environ.pop(scaffold.SCAFFOLD_CHECK, None)
+        os.environ.pop(scaffold_checks.SCAFFOLD_CHECK, None)
 
     def test_validate_passes_the_gate_only_to_its_subprocesses(self):  # review 1, 0
         seen = {}
 
         def fake_run(ctx, names, **kwargs):
-            seen["during"] = os.environ.get(scaffold.SCAFFOLD_CHECK)
+            seen["during"] = os.environ.get(scaffold_checks.SCAFFOLD_CHECK)
             seen["env"] = kwargs.get("env")
 
         before = dict(os.environ)
         with (
-            mock.patch.object(scaffold.repo, "branch", return_value="feat/x"),
-            mock.patch.object(scaffold.state, "load_branch", return_value={}),
-            mock.patch.object(scaffold.state, "save_branch"),
-            mock.patch.object(scaffold.checks, "run", fake_run),
+            mock.patch.object(scaffold_checks.repo, "branch", return_value="feat/x"),
+            mock.patch.object(scaffold_checks.state, "load_branch", return_value={}),
+            mock.patch.object(scaffold_checks.state, "save_branch"),
+            mock.patch.object(scaffold_checks.checks, "run", fake_run),
         ):
-            scaffold.validate(mock.Mock(), ["unit"])
+            scaffold_checks.validate(mock.Mock(), ["unit"])
         self.assertIsNone(seen["during"], "validate set the gate in os.environ, which every pooled thread shares")
-        self.assertEqual(seen["env"], {scaffold.SCAFFOLD_CHECK: "1"})
+        self.assertEqual(seen["env"], {scaffold_checks.SCAFFOLD_CHECK: "1"})
         self.assertEqual(dict(os.environ), before)
 
     def test_the_subprocess_environment_carries_the_gate_and_os_environ_does_not(self):
         before = dict(os.environ)
         for name in ("fast", "acceptance"):
-            env = checks.env_for(name, {scaffold.SCAFFOLD_CHECK: "1"})
-            self.assertEqual(env[scaffold.SCAFFOLD_CHECK], "1", name)
-        self.assertNotIn(scaffold.SCAFFOLD_CHECK, checks.env_for("fast"))
+            env = checks.env_for(name, {scaffold_checks.SCAFFOLD_CHECK: "1"})
+            self.assertEqual(env[scaffold_checks.SCAFFOLD_CHECK], "1", name)
+        self.assertNotIn(scaffold_checks.SCAFFOLD_CHECK, checks.env_for("fast"))
         self.assertEqual(dict(os.environ), before)
 
 

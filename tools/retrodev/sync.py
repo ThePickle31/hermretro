@@ -12,6 +12,7 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 
 from __future__ import annotations
 
+import difflib
 
 from . import gates, land_carry, repo
 from .output import Failure, cmd
@@ -248,11 +249,24 @@ def new_lines(ctx, generated: set[str]) -> dict[str, int]:
         if any(side is None for side in sides):
             continue  # binary on some side: not lines
         merged, ours, theirs = sides
-        known = set(ours or []) | set(theirs or [])
-        count = sum(1 for line in merged or [] if line.strip() and line not in known)
+        count = unseen_lines(merged or [], ours or [], theirs or [])
         if count:
             found[name] = count
     return found
+
+
+def unseen_lines(merged: list[str], ours: list[str], theirs: list[str]) -> int:
+    """How many non-blank lines of ``merged`` hold a word neither side had there. Compared as each side's words in
+    order (lines joined, spaces collapsed), so rewrapping a paragraph that merges a one-line edit from each side adds
+    nothing: every word of it lines up with one side or the other."""
+    words = [(index, word) for index, line in enumerate(merged) for word in line.split()]
+    sequence = [word for _index, word in words]
+    seen: set[int] = set()
+    for side in (ours, theirs):
+        matcher = difflib.SequenceMatcher(None, " ".join(side).split(), sequence, autojunk=False)
+        for block in matcher.get_matching_blocks():
+            seen.update(range(block.b, block.b + block.size))
+    return len({index for at, (index, _word) in enumerate(words) if at not in seen})
 
 
 def run(ctx) -> int:

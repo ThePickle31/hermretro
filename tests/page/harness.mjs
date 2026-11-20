@@ -24,6 +24,7 @@ import { staleReasons } from '../../tools/bundle/bundle.mjs'
 import { findModules, MISSING_HINT } from '../../tools/bundle/node-modules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+const realSetTimeout = globalThis.setTimeout  // settle() waits on the real clock, even while holdTimers() holds timers
 
 /** The optional node_modules folder after the file's name, absolute: the temp folder links to it, and a relative
  *  link target would be read from inside that folder (so `node tests/page/<file> tools/npm/node_modules` works). */
@@ -127,7 +128,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   }
   const currentTab = () => nav()?.querySelector('[aria-current="page"]')?.firstChild?.textContent ?? null
-  const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => setTimeout(resolve, ms)) }) }
+  const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => realSetTimeout(resolve, ms)) }) }
   const button = label => [...dom.window.document.querySelectorAll('button')].find(node => node.textContent.includes(label))
   const typeInto = async (input, value) => {
     const proto = input.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype
@@ -147,12 +148,39 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
   const shows = (expected, message) => assertShows(text(), expected, message)
   const hides = (expected, message) => assertHides(text(), expected, message)
   const checks = []
-  const check = (name, fn) => { fn(); checks.push(name) }
+  // A failing check names itself on stderr first: tools/check.py page shows a failing file's own output.
+  const check = (name, fn) => {
+    try { fn() } catch (error) { console.error(`check failed: ${name}`); throw error }
+    checks.push(name)
+  }
+  // The page's long timers (the Build page's open-request poll, 1.2 to 4 s), held instead of run by the real
+  // clock: a fixed wait for one raced it on a loaded machine (the poll came late, or early with an old answer).
+  // Call holdTimers() before the page schedules them; clock.fire() then runs every timer held so far, once.
+  const holdTimers = (atLeast = 1_000) => {
+    const held = new Map()
+    const realSet = realSetTimeout
+    const realClear = globalThis.clearTimeout
+    let next = 1_000_000
+    globalThis.setTimeout = (fn, ms = 0, ...args) => {
+      if (!(ms >= atLeast)) return realSet(fn, ms, ...args)
+      next += 1; held.set(next, () => fn(...args)); return next
+    }
+    globalThis.clearTimeout = id => (held.delete(id) ? undefined : realClear(id))
+    return {
+      held: () => held.size,
+      fire: async () => {
+        const due = [...held.values()]
+        held.clear()
+        await act(async () => { for (const run of due) run() })
+        await settle()
+      }
+    }
+  }
 
   return {
     act, createRoot, dom, emit, host, plugin, scenario,
     registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
-    settle, button, typeInto, key, mount, checks, check,
+    settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }
 }
