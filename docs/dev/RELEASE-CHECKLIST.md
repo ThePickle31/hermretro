@@ -39,11 +39,12 @@ lives (`backend/system/paths.py`) or what the broker answers to `hello` must kee
 
 Before a release, `python tools/retrodev mac` runs the checks on the MacBook when one is set up
 (`retrodev config set mac_host <host>`; asleep or unset, CI's macOS runners cover it). Once `release publish` has
-made the draft, `python tools/retrodev release verify <version>` repeats the update check from the previous stable release on
-the tagged commit, with the notes and the tag; `--publish` then publishes it.
+made the draft, `python tools/retrodev release verify <version>` checks the notes and the tag (the update check from
+the previous stable release that publish ran on the same commit counts); `--publish` then publishes it.
 
 ## Then release
 
-The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release run`
-(prepare, the version pull request's approval and landing, and publish, up to the draft), or its steps one at a
-time, `release prepare` and `release publish`; then `release verify` (`tools/retrodev/README.md`, "Releases").
+The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release run` (the
+version pull request only when `dev` does not say the version yet, then publish and the published release, then
+`release next` moves `dev` to the next version; `--draft` stops at the draft), or its steps one at a time, `release
+prepare`, `release publish`, `release verify` and `release next` (`tools/retrodev/README.md`, "Releases").

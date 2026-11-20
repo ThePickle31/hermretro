@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import time
 from pathlib import Path
 
 from . import repo
@@ -20,10 +21,55 @@ def real_runner(args: list[str], cwd: Path | str) -> tuple[int, str, str]:
     return repo.run(["gh", *args], cwd, timeout=120)
 
 
+# GitHub's passing failures: a 5xx from its API or a dropped connection. Worth a retry, never a FIX.
+TRANSIENT = re.compile(
+    r"HTTP 5\d\d|\b50[234]\b|bad gateway|service unavailable|gateway time-?out|server error|connection reset|"
+    r"connection refused|i/o timeout|TLS handshake|unexpected EOF|temporary failure in name resolution",
+    re.I,
+)
+RETRY_DELAYS = (2.0, 6.0)  # two retries: about 8 s at most before the failure is reported
+
+
+def read_only(args: list[str]) -> bool:
+    """A gh call that changes nothing, so running it twice is safe: views, lists, checks and GET api calls."""
+    if not args:
+        return False
+    if args[0] == "api":
+        writes = {"-f", "-F", "--field", "--raw-field", "--input"}
+        method = next((args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-X", "--method")), "GET")
+        return method.upper() == "GET" and not writes.intersection(args)
+    return len(args) > 1 and (args[0], args[1]) in {
+        ("pr", "view"),
+        ("pr", "list"),
+        ("pr", "checks"),
+        ("pr", "diff"),
+        ("run", "list"),
+        ("run", "view"),
+        ("release", "view"),
+        ("release", "list"),
+        ("repo", "view"),
+        ("auth", "status"),
+    }
+
+
+def transient(text: str) -> bool:
+    return bool(TRANSIENT.search(text or ""))
+
+
 def gh(ctx, args: list[str], check: bool = True) -> tuple[int, str, str]:
-    """Run gh through the context's runner (the real one unless a test set another)."""
+    """Run gh through the context's runner (the real one unless a test set another). A read-only call that fails
+    the way a busy GitHub fails (a 5xx, a dropped connection) is retried twice before its failure counts."""
     runner = ctx.gh_runner or real_runner
+    sleep = ctx.fakes.get("sleep", time.sleep)
     code, out, err = runner(list(args), ctx.top or ctx.cwd)
+    for delay in RETRY_DELAYS if read_only(args) else ():
+        if not code or not transient(err or out):
+            break
+        ctx.out.say(
+            f"note: gh {' '.join(args[:2])} failed on GitHub's side ({(err or out).strip()[:80]}); again in {delay:g} s"
+        )
+        sleep(delay)
+        code, out, err = runner(list(args), ctx.top or ctx.cwd)
     if check and code:
         raise failed(args, err or out)
     return code, out, err

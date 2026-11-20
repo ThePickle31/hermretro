@@ -9,7 +9,8 @@ the patch after the version on the base branch (another only when the owner name
 chore/release-X.Y.Z worktree (start, no plan), changes only the `version:` line, commits, runs check and ships
 the pull request 'Release X.Y.Z'; the agent then lands it like any pull request. When the base branch already
 carries an untagged version (an earlier release candidate bumped it), no pull request is needed, and the record
-says so (no_pr). A prepare stopped after recording its branch (check or ship failed) prints the same prepare command
+says so (no_pr): the usual case, since release next moves dev to the next version right after each release. An open
+pull request from chore/release-X.Y.Z (release next's) is recorded instead of opening another. A prepare stopped after recording its branch (check or ship failed) prints the same prepare command
 to finish it: run again, it reuses the worktree, checks, ships and records the pull request, or, when the pull
 request exists already (even merged), records it (gh pr list --head chore/release-X.Y.Z --state all).
 --rc names the next candidate X.Y.Z-rc.M; publishing it tags a base-branch commit and leaves main alone.
@@ -105,7 +106,7 @@ def target(ctx, rc: bool, named: str | None) -> tuple[str, str, bool]:
         major, minor, patch, _rc = parse(current)
         version = f"{major}.{minor}.{patch + 1}"  # patch only, unless the owner names another
     else:
-        version = current  # bumped already (by an earlier candidate's pull request): release it as is
+        version = current  # moved on already (release next, or a candidate's pull request): release it as is
     needs_pr = version != current
     if rc:
         numbers = [parse(v)[3] or 0 for v in released if stable(v) == version and "-rc." in v]
@@ -212,9 +213,10 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
     title = f"Release {stable(version)}"
     branch = f"chore/release-{stable(version)}"
     ctx.out.set(version=version, title=title, pr_needed=needs_pr or pending)
-    if pending:
+    if pending or needs_pr:  # resumed, or opened already (release next made it right after the last release)
         pr = github.branch_pr(ctx, branch)
         if pr:
+            record.update(branch=branch, title=title)
             return bind(ctx, record, pr)
     if not needs_pr:
         record.update(pr=None, branch=None, no_pr=True)  # decided here, explicitly: publish takes the base's head

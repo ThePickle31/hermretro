@@ -3,7 +3,8 @@
 Checks, all reported: the release exists (gh release view --json) and its notes are not empty; the tag is on the
 remote; for a stable release it points at main's head and plugin.yaml there says the version; for a candidate
 it is a prerelease on a base-branch commit. Then `tools/ci/clean_install_check.py --update-from v<previous stable>`
-runs on the tagged commit in a throwaway checkout: users of the last release update to it. With --publish and
+runs on the tagged commit in a throwaway checkout: users of the last release update to it (a pass release publish
+kept for that commit and starting release counts, so it runs once per release). With --publish and
 everything ok, it says that a published release is immutable and runs `gh release edit v<version> --draft=false`.
 --publish also needs the authorization: the owner's words recorded for this version (release prepare), the tag at
 the very commit `release publish` approved after all its gates passed (kept in the release record), and the
@@ -14,7 +15,7 @@ from __future__ import annotations
 
 import json
 
-from . import gates, github, release, release_publish, repo, state, trial
+from . import gates, github, release, release_publish, repo, state
 from .gates import Gate
 from .output import OWNER, Failure
 
@@ -117,9 +118,16 @@ def run(ctx, version: str, publish: bool = False) -> int:
             if has == release.stable(version)
             else Gate("plugin.yaml says the version", False, f"plugin.yaml at the tag says {has}", "ask the owner")
         )
-        previous = release.previous_stable(ctx, version)
-        result = trial.install_check(ctx, sha, f"v{previous}" if previous else None)
-        detail = f"from v{previous}: {result['detail']}" if previous else result["detail"]
+        start = release_publish.update_from(ctx, version)
+        rec = state.load_release(ctx.top, version) or {"version": version}
+        kept = release_publish.kept_install(rec, sha, start)
+        # release publish ran this very check on this commit minutes ago: its pass counts, so it runs once
+        result = (
+            {"ok": True, "detail": f"{kept['detail']} (release publish's run at {kept.get('at')})"}
+            if kept
+            else release_publish.install_check(ctx, rec, sha, start)
+        )
+        detail = f"from {start}: {result['detail']}" if start else result["detail"]
         found.append(
             gates.passed("update from the last release", detail)
             if result["ok"]
