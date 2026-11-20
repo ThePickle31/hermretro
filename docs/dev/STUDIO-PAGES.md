@@ -34,6 +34,10 @@ means both.
 ### Prompts
 
 - **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right.
+- **Search** filters by title, text and group (`prompts-page.js`): the chosen prompt stays shown while it still
+  matches, even when it is not first; otherwise the first visible match is shown, and with no match at all the
+  chosen prompt stays. Typing never changes the choice itself (only a click or ↑/↓ does), so clearing the query
+  shows the chosen prompt again. Checked by `tests/page/page-prompts.test.mjs`.
 - Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic).
 
 ### Games
@@ -530,7 +534,10 @@ tab bar (of one). Switching tabs remounts the chosen tab's `Page` (`page-view.js
 one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
 content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
 drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
-page only). Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
+page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator
+(`onEmulator`) and `BelowPlayer` whenever the page has `pad`, whichever tab is chosen (`page-view.js` draws only
+the tab bar and the tab's body, and the shell does not know the chosen tab, which `page-view.js` keeps in
+`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 

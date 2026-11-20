@@ -46,10 +46,26 @@ await runScenario(async helpers => {
   check('Add to current chat goes to the composer the user is in first', () => { assert.deepEqual(scenario.calls[0], ['insert', null]) })
   await key('keydown', 'ArrowDown', dom.window.document.body)
   check('↓ moves to the next prompt', () => { assert.equal(dom.window.document.querySelector('.cs-rdetail h3').textContent, 'Remix an example') })
-  await typeInto(dom.window.document.querySelector('.cs-search input'), 'palette')
-  check('search filters the list', () => {
-    assert.deepEqual([...dom.window.document.querySelectorAll('.cs-ritem')].map(node => node.textContent), ['Update the palette'])
-    assert.equal(dom.window.document.querySelector('.cs-rdetail h3').textContent, 'Update the palette')
+  const search = () => dom.window.document.querySelector('.cs-search input')
+  const shown = () => dom.window.document.querySelector('.cs-rdetail h3').textContent
+  const listed = () => [...dom.window.document.querySelectorAll('.cs-ritem')].map(node => node.textContent)
+  await typeInto(search(), 'create')
+  check('a query that still matches the chosen prompt keeps it, even when it is not first', () => {
+    assert.equal(listed()[0], 'Create a new game'); assert.ok(listed().includes('Remix an example'))
+    assert.equal(shown(), 'Remix an example')
+  })
+  await typeInto(search(), 'palette')
+  check('a query that no longer matches it shows the first visible match', () => {
+    assert.deepEqual(listed(), ['Update the palette'])
+    assert.equal(shown(), 'Update the palette')
+  })
+  await typeInto(search(), 'zzzz')
+  check('with no match the list is empty and the chosen prompt stays shown', () => {
+    assert.deepEqual(listed(), []); assert.equal(shown(), 'Remix an example')
+  })
+  await typeInto(search(), '')
+  check('searching never changes the choice: clearing the query shows the chosen prompt again', () => {
+    assert.equal(listed().length, 11); assert.equal(shown(), 'Remix an example')
   })
   await studio.close()
 })
