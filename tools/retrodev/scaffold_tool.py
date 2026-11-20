@@ -204,6 +204,10 @@ def tool(
             'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
         )
         plan.next_steps.append(
+            "the game card (from . import game_card): game_card.public(root) (None without a game.json); "
+            "game_card.status(root, strict=True) for what is missing (its missing and problems)"
+        )
+        plan.next_steps.append(
             "a test that needs the game's last build: seed it after isolated_home(self) with "
             'host._registry().upsert(str(project), build={"t": time.time(), "ok": True, "rom": None, "sha256": '
             '"abc", "error": None}) (from backend.hermes import host; the fields Registry.upsert stores as lastBuild, '
@@ -211,6 +215,10 @@ def tool(
             '["lastBuild"]'
         )
     if project:
+        plan.next_steps.append(
+            "the chat's or given project: tool_project (as the stub does); use host.library_game_for only when the "
+            "tool needs the game's library id or entry"
+        )
         plan.next_steps.append(
             "a tool about the selected game: host.library_game_for([root]) -> (game id, root) or None "
             "(from ..hermes import host); a test for the selected game: `game, root = make_library_game(self.home, "

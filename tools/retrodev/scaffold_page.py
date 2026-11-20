@@ -30,10 +30,10 @@ from .scaffold_move import move_out
 from .scaffold_readme import (
     DESIGN_DOC,
     code_spans,
+    declares_line,
     design_heading,
     first_tab_step,
     slots_block,
-    slots_line,
     taken_readme,
     with_block,
 )
@@ -369,7 +369,7 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
     rel = f"page/pages/{page_id}/README.md"
     before = plan.read(rel) if plan.exists(rel) else None
     if before is not None:
-        plan.edit(rel, lambda text: slots_line(text, said))
+        plan.edit(rel, lambda text: declares_line(text, said))
         plan.edit(rel, lambda text: with_block(text, found.group(0)) if (found := slots_block(text)) else text)
     if before is None or plan.read(rel) == before:
         plan.notes.append(f"mention {said} under **Slots:** in {rel}")

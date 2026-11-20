@@ -69,12 +69,12 @@ class Rpc(ScaffoldCase):
     def test_next_steps_say_where_a_page_s_query_goes(self):
         steps = self.new("rpc", "history", "rdprobe_recent")["next"]
         self.assertIn(
-            "in the page's own Page component (e.g. Games in page/pages/games/games-page.js) and pass the result down "
-            "as a prop",
+            "in the page's own Page component, or a hook it calls (as page/pages/setup/install/installer.js's "
+            "useInstall does for the Setup page), and pass the result down as a prop",
             " ".join(steps),
         )
         self.assertIn("extend tests/page/page-<page>.test.mjs", " ".join(steps))
-        self.assertIn("export function Games(", (ROOT / "page/pages/games/games-page.js").read_text())
+        self.assertIn("useQuery({", (ROOT / "page/pages/setup/install/installer.js").read_text())  # round 16
 
     def test_game_takes_a_game_answers_no_game_and_its_test_registers_one(self):
         self.new("feature", "rdprobe_g")

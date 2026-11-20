@@ -67,9 +67,11 @@ clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/h
 # and the page test harness. A change to one adds scaffold in that nested mode (108 s on an idle machine; the fast
 # mode 48 s), as a test there that reads the surrounding tree passes here and fails only in CI's grown copy. Test
 # sources only: a [generated] file here (tests/repo/registration.json, which `new tool` and `new rpc` rewrite) never
-# adds it, and no other file `new` writes matches (its tests go in tests/backend/, its pins in registry.test.mjs).
+# adds it, and no other file `new` writes matches (its tests go in tests/backend/, its pins in registry.test.mjs). Not
+# tests/page/games-fixture.mjs: data its scenarios start from, reading nothing of the tree (the fast page check runs
+# it). A change to one of these made only of comments, docstrings or blank lines adds nothing either.
 scaffold = ["tests/repo/*", "tests/support.py", "tests/page/harness.mjs", "tests/page/shells.mjs",
-            "tests/page/sdk-stub.mjs", "tests/page/aliases.mjs", "tests/page/games-fixture.mjs", "tests/page/preview/*"]
+            "tests/page/sdk-stub.mjs", "tests/page/aliases.mjs", "tests/page/preview/*"]
 
 [checks.trigger_ignore]
 # Files a trigger's patterns match that still do not add its check: a backend README changes no code the real-engine
