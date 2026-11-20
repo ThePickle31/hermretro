@@ -23,6 +23,8 @@ VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
 # Folders under a project that hold build output, recordings or tooling, never game source.
 NOT_SOURCE = frozenset({"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs"})
+# How many source files sources_newer_than looks at before it stops and calls the ROM current. Its own bound, not the
+# snapshot cap (backend/history/snapshots.py MAX_FILES, which skips the copy): the two only happen to share a number.
 MAX_SOURCE_FILES = 20000
 MAX_THUMB_BYTES = 64 * 1024
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"

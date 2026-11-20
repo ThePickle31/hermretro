@@ -35,7 +35,7 @@ One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-i
 current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 18 s on an idle machine)
+python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 28 s on an idle machine)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest; pytest is not used)

@@ -9,6 +9,8 @@ export function Lede({ children }) {
   return jsx('p', { className: 'cs-lede', children })
 }
 
+// Small print. `tone` takes only 'warn' (the warning colour); leave it out for plain small print. Any other value
+// renders as plain small print, so tests/page/small-tone.test.mjs refuses one written in page/.
 export function Small({ children, tone }) {
   return jsx('p', { className: tone === 'warn' ? 'cs-small cs-warn' : 'cs-small', children })
 }

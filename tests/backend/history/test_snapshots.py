@@ -93,6 +93,13 @@ class Snapshots(unittest.TestCase):
             self.assertIn("skipped", snapshots.take(self.store, "g", self.root, "build", now_ms=1000))
         self.assertEqual(snapshots.list_snapshots(self.store, "g"), [])
 
+    def test_a_project_over_the_file_cap_is_skipped(self):
+        count = len(snapshots.walk(self.root))
+        with mock.patch.object(snapshots, "MAX_FILES", count - 1):
+            answer = snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        self.assertEqual(answer, {"skipped": f"more than {count - 1} files"})
+        self.assertEqual(snapshots.list_snapshots(self.store, "g"), [])
+
     def test_restore_brings_back_changed_files_removes_new_ones_and_keeps_a_backup(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-2")

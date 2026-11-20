@@ -587,7 +587,9 @@ Test what the item does in the host page's scenario test, where the slot is draw
 `ctx.os.writeClipboard`, `scenario.notices` each `host.notify({ kind, message })`, `scenario.revealed` the last
 `ctx.os.revealPath`, `scenario.inserted` what went into a chat's composer (`tests/page/sdk-stub.mjs`,
 `tests/page/harness.mjs`; "Show in folder on a remote Hermes" in `page-games.test.mjs` is one). For
-`emulator.barActions`, `tests/page/page-emulator.test.mjs`.
+`emulator.barActions`, `tests/page/page-emulator.test.mjs`. For a slot on Home, two scenario tests draw it:
+`tests/page/page-studio.test.mjs` reaches a ready Home (onboarded, Chromatic set up, tools verified: its opening
+`scenario.storage`), and `tests/page/page-setup.test.mjs` shows Home while setup is incomplete and in emulator-only mode.
 
 ### Calling the backend from a page
 
