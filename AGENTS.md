@@ -93,8 +93,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
    `isolated_home(self)` from `tests/support.py`: it moves both, plus its own short broker folder (`throwaway_deps`
    for downloads). A test that calls a real event emitter reaches every feature's listeners, so it needs this too.
    Import helpers as `from tests.support import ...`, never with `tests/` on `sys.path`. `python tools/check.py unit`
-   runs the suite with an empty home folder and fails if anything is written there, naming the test module that
-   wrote it. The unit tests must pass on a machine without Hermes.
+   runs the suite with an empty home folder and an empty `TMPDIR` and fails if anything is written to the home or
+   left in `TMPDIR`, naming the test module. The unit tests must pass on a machine without Hermes.
 8. **Notes stay local.** Plans, reports, logs, summaries and evidence written while working go in `notes/`, which
    git ignores. Committed documents are only those listed in `tools/layout.toml` `[docs]`; `tests/repo/test_docs.py`
    fails on any other.
@@ -120,7 +120,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - `dev` takes changes only through pull requests, squash-merged. `main` moves only when the owner
   releases: a fast-forward to a green `dev` commit, a tag and generated release notes.
 - Work in a worktree on its own branch from `dev`, named `feat/…` (a new ability), `fix/…` (a bug), `docs/…`
-  (documentation only) or `chore/…` (refactors of tests, tools and CI that change no behaviour). A checkout that a
+  (documentation only) or `chore/…` (refactors that change no behaviour). A checkout that a
   Hermes profile loads as its live plugin stays on `dev`.
 - One concern per pull request, opened with `python tools/retrodev ship` (into `dev`, after `check`). The title is a
   plain sentence; it becomes the commit and the release-note line.
@@ -132,7 +132,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   request needs its own approval. GitHub auto-merge stays off.
 - When `dev` moved on, `python tools/retrodev sync` merges it in. On a conflict in a source file, edit the
   conflicting hunks (never take one side of a whole file with `git checkout --ours/--theirs`: its other hunks were
-  merged), `git add` them and run `sync` again; it rebuilds the generated files and makes the merge commit.
+  merged), `git add` them and run `sync` again; it rebuilds the generated files and makes the merge commit. Resolve only the
+  conflict there; new work goes in its own commit after `sync`.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through
   front doors and events (`docs/dev/ARCHITECTURE.md`, "The agent half"; checked by `tests/repo/test_boundaries.py`,
   registrations pinned by `tests/repo/test_registration_snapshot.py`). Names that must still change together
