@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import difflib
 
-from . import gates, land_carry, repo
+from . import gates, land_carry, repo, sync_moved
 from .sync_rewrite import AMBIGUOUS, new_location, rewritten_from
 from .output import Failure, cmd
 
@@ -165,20 +165,28 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
     for name in files:
         path = ctx.top / name
         text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-        for first, last, ours, theirs in conflict_hunks(text):
+        parts = sync_moved.base_parts(text)
+        for index, (first, last, ours, theirs) in enumerate(conflict_hunks(text)):
             if theirs.strip() and ours.strip():
                 rewrite = rewrite_hint(ctx, name, first, last, ours, theirs)
                 hints += [rewrite] if rewrite else []
                 continue
             if not ours.strip():
                 continue
-            where, line = moved_to(ctx, name, ours)
+            # the base's version of what dev removed: the branch's own new lines were never on dev
+            had = sync_moved.base_lines(ctx, name, ours, parts[index] if index < len(parts) else "")
+            where, line = moved_to(ctx, name, "\n".join(had) or ours)
+            line = (distinctive_lines("\n".join(had)) or [None])[0] if had else None
+            commit = None
+            if line and not where:  # moved and changed: the commit that removed it, and where it added a copy
+                where, commit = sync_moved.taken_over(ctx, name, line)
             log = cmd("git", "log", "-p", ctx.remote_base, f"-S{line}") if line else ""  # the whole tree
             if where:
                 hints.append(
-                    f"{name}:{first}-{last}: {ctx.base} moved this block to {where} (or deleted it); delete the HEAD "
-                    f"side of this hunk, git add, sync again, then add your lines in {where} in a new commit"
-                    + (f" (`{log}` shows the move)" if log else "")
+                    f"{name}:{first}-{last}: {ctx.base} moved this block to {where}"
+                    + (f" in {commit}" if commit else " (or deleted it)")
+                    + f"; delete the HEAD side of this hunk, git add, sync again, then add your lines in {where} in a "
+                    "new commit" + (f" (`{log}` shows the move)" if log else "")
                 )
             else:
                 hints.append(

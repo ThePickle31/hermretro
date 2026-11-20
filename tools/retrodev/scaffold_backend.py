@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import re
+import textwrap
 
 from . import scaffold_rpc
 from .output import Failure
@@ -210,6 +211,7 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
     if name in rpc_names(plan) or name in {a or b for a, b in documented}:
         raise Failure(f"an RPC named {name} exists (or CONTRACT.md documents one)", "pick another RPC name")
+    scaffold_rpc.refuse_reserved(plan, name)
     values = {"name": feature_name, "Name": label(feature_name), "rpc": name, "Rpc": pascal(name), "RPC": const(name)}
     if game:  # about one library game: host._game_root finds it, else NO_GAME (as history's builds answers)
         values["handler"] = "rpc_game.py.tmpl"
@@ -263,6 +265,14 @@ def event_row(body: str, feature_name: str, row: str) -> str:
     return insert_after(body, anchor, row, CONTRACT)
 
 
+def emit_docstring(text: str) -> str:
+    """The emits.py function's docstring, wrapped within 120 characters as its EVENTS entry is (a long payload)."""
+    lines = textwrap.wrap(
+        text, 117, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
+    )
+    return "\n".join(lines) + '"""'
+
+
 def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: str | None = None) -> str:
     known_feature(plan, feature_name, "event")
     check_name(name, SNAKE, "event", "build_kept")
@@ -291,6 +301,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
     values = {"name": feature_name, "Name": label(feature_name), "event": name, "Event": pascal(name)}
     values |= {"full": full, "payload": payload, **emitter_values(keys)}
+    values["docstring"] = emit_docstring(f"Tell other features that {full} happened ({payload}).")
     emits = f"backend/{feature_name}/emits.py"
     if re.search(rf"^def {name}\(", plan.read(emits) if plan.exists(emits) else "", re.M):
         raise Failure(f"{emits} has a function named {name} already", "pick another event name")

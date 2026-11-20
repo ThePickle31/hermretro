@@ -105,7 +105,7 @@ class Tool(ScaffoldCase):
         source = self.read("backend/history/tools.py")
         self.assertIn("from ..hermes.tool_args import tool_error, tool_project", source)
         self.assertIn('tool_project("chromatic_rdprobe_proj", args, kwargs)', source)
-        self.assertIn("a tool about the selected game: host.library_game_for([root])", joined(out))
+        self.assertIn("call host.library_game_for([root]) -> (game id, root) or None", joined(out))  # round 17
         self.assertNotIn("--project", joined(self.new("tool", "history", "rdprobe_flat")))
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from dataclasses import asdict, dataclass
 
 from . import checks, repo, state
@@ -243,28 +244,42 @@ def body_gate(text: str | None, sections: list[str]) -> Gate:
     return passed("body", "every section filled in")
 
 
-def made_by(ctx, env=None) -> str:
-    """The attribution: the agent (RETRODEV_AGENT, else Hermes) and the GitHub account (no GitHub remote: 'the
-    owner'). The agent is always named, so the line agrees with agent_hint and the body gate takes it as written."""
+def agent_name(env=None, record: dict | None = None) -> str | None:
+    """The agent RETRODEV_AGENT names now, else the one start or takeover recorded for the branch (a later plan
+    approve or ship is a new process that may not have the variable)."""
+    return (os.environ if env is None else env).get("RETRODEV_AGENT") or (record or {}).get("agent") or None
+
+
+def environment(ctx) -> dict:
+    """The environment retrodev reads RETRODEV_AGENT from (a test passes its own as ctx.fakes['env'])."""
+    return (getattr(ctx, "fakes", None) or {}).get("env", os.environ)
+
+
+def made_by(ctx, env=None, record: dict | None = None) -> str:
+    """The attribution: the agent (RETRODEV_AGENT, else the branch's recorded one, else Hermes) and the GitHub account
+    (no GitHub remote: 'the owner'). The agent is always named, so the line agrees with agent_hint and the body gate
+    takes it as written."""
     url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
     found = re.search(r"github\.com[:/]([^/]+)/", url)
-    agent = (os.environ if env is None else env).get("RETRODEV_AGENT") or "Hermes"
+    agent = agent_name(environment(ctx) if env is None else env, record) or "Hermes"
     return f"Made by an agent ({agent}) for {'@' + found.group(1) if found else 'the owner'}."
 
 
-def agent_prefix(env=None) -> str:
+def agent_prefix(env=None, record: dict | None = None) -> str:
     """What goes before a printed command that writes the body (plan approve after takeover), so its Made by line
-    names the agent: RETRODEV_AGENT='<agent, model>' while it is unset, as start's step 3 in the README says."""
-    return "" if (os.environ if env is None else env).get("RETRODEV_AGENT") else "RETRODEV_AGENT='<agent, model>' "
+    names the agent: RETRODEV_AGENT='<the agent named or recorded>' (a placeholder while neither is), as start's step
+    3 in the README says."""
+    agent = agent_name(env, record)
+    return f"RETRODEV_AGENT={shlex.quote(agent)} " if agent else "RETRODEV_AGENT='<agent, model>' "
 
 
 GENERIC = ("Made by an agent (Hermes)", "Made by an agent for the owner")  # made_by's default; an older body's
 
 
-def agent_hint(text: str | None, env=None) -> str:
+def agent_hint(text: str | None, env=None, record: dict | None = None) -> str:
     """While the body's Made by line names the default agent (or none, in a body an older retrodev wrote), or the
-    body is still to be written without RETRODEV_AGENT: how to name the real one."""
-    if (os.environ if env is None else env).get("RETRODEV_AGENT"):
+    body is still to be written without RETRODEV_AGENT (or an agent start or takeover recorded): how to name it."""
+    if agent_name(env, record):
         return ""
     if text is not None and not any(line in text for line in GENERIC):
         return ""

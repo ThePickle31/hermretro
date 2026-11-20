@@ -153,7 +153,7 @@ def skeleton(ctx, branch: str, record: dict) -> str:
             at = re.search(rf"^## {re.escape(heading)}[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
             if at:
                 text = text[: at.end()] + "\n".join(lines) + "\n" + text[at.end() :]
-    line = made_by(ctx)
+    line = made_by(ctx, record=record)
     made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
     if made:  # the template's own section for it, its comment (who to name) replaced by the line itself
         return text[: made.start()] + "## Made by\n" + line + "\n" + text[made.end() :]
@@ -228,14 +228,15 @@ def body_step(ctx, branch: str | None, record: dict) -> str | None:
     then += "" if title else title_note(ctx, branch, record)
     if not path.is_file():  # ship writes it from the template and stops: name it all the same
         missing = f"missing: {path}; ship writes it from the template"
-        return f"next: fill in the pull request body ({missing}), then {then}{agent_hint(None)}"
+        return f"next: fill in the pull request body ({missing}), then {then}{agent_hint(None, record=record)}"
     text = path.read_text(encoding="utf-8")
     problems = gates.body_problems(text, ctx.policy["ship"]["sections"])
     unfilled = [
         found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
     ]
     unfilled += ["the Made by line"] if len(unfilled) < len(problems) else []  # names the agent: section-less
-    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}{agent_hint(text)}" if problems else None
+    hint = agent_hint(text, record=record)
+    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}{hint}" if problems else None
 
 
 agent_hint = gates.agent_hint

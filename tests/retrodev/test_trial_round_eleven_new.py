@@ -167,7 +167,8 @@ class ToolAndRpc(ScaffoldCase):
         git(self.tree, "commit", "-qm", "tool_args")
         steps = joined(self.new("tool", "library", "rdprobe_picked"))
         self.assertIn(
-            "a test for the selected game: `game, root = make_library_game(self.home, name)` from tests.support", steps
+            "a test that needs a library game: `game, root = make_library_game(self.home, name)` from tests.support",
+            steps,
         )
         self.assertEqual(list(inspect.signature(support.make_library_game).parameters), ["home", "name"])
         self.assertIn("self.home = isolated_home(self)", self.read("tests/backend/library/test_tool_rdprobe_picked.py"))
