@@ -27,7 +27,8 @@ import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
 
-export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
+/** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
+export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   // The model and effort a new conversation starts on (New Game, a game with no conversation yet).
   const [draftPick, setDraftPick] = useDraftPick(ctx)
@@ -490,7 +491,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
           children: [
             jsx(AttractLevel, {}, 'level'),
             header,
-            jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new'),
+            jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new'),
             jsx(CartShelf, { entries, onAll: view => setSwitcherRequest(current => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, 'shelf')
           ]
         })
@@ -502,7 +503,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
             jsx(BuildComposer, {
               busy: Boolean(shownChat?.busy),
               game,
-              disabled: Boolean(elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || (!fresh && !shownChat?.runtime)),
+              disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || (!fresh && !shownChat?.runtime)),
               onSend: (text, attachments) => void send(text, attachments),
               onStop: () => void stopBuildChat(shownStored),
               picker: elsewhere || shownChat?.missing
@@ -512,7 +513,11 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
                   : shownStored
                     ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored })
                     : null,
-              placeholder: shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+              placeholder: updating
+                ? 'hermretro is updating. You can send again in a moment.'
+                : shownChat?.busy
+                  ? `Reply to ${AGENT}…`
+                  : `Tell ${AGENT} what to change in ${title}…`,
               status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
               stored: shownStored
             })

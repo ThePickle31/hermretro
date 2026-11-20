@@ -3,13 +3,16 @@
 import { host, useEffect, useQuery, useQueryClient, useRef, useState } from '#sdk'
 import { LINKS } from '#shared/ui/links.js'
 import { ID, PLUGINS_HREF } from '#app/ids.js'
-import { installTarget, pluginRow, requestOn, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
+import { busyChats, busySentence, installTarget, pluginRow, requestOn, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
 
 // Hermes checks for plugin updates about once a day; reading its answer is cheap but not free (every plugin's row).
 const CHECK_EVERY_MS = 30 * 60_000
 // A marker older than this is from an update whose page never came back: not worth announcing.
 const MARKER_FRESH_MS = 15 * 60_000
 const DONE_SHOWN_MS = 10_000
+// While an update is ready, how often the hermretro profile's chats are checked for a build under way.
+const BUSY_EVERY_MS = 5_000
+const INSTALLING = 'The game tools are being installed. You can update when that finishes.'
 
 function takeMarker(ctx) {
   try {
@@ -34,8 +37,10 @@ function remember(ctx, key, value) {
 }
 
 /** `phase`: idle (the chip shows only when an update is ready), updating, review (Hermes wants a yes first),
- *  failed, restart (installed, but something only a restart loads), done (just updated), current. */
-export function usePluginUpdate({ ctx, status, running }) {
+ *  failed, restart (installed, but something only a restart loads), done (just updated), current.
+ *  `installing`: the page's toolchain install is running. While it is, or while a chat in the hermretro profile is
+ *  building (`blocked` says which), Update is refused: an update must never swap the plugin under a build. */
+export function usePluginUpdate({ ctx, status, running, installing = false }) {
   const queryClient = useQueryClient()
   const installedIn = status.data?.plugin?.installed_in ?? null
   const profile = installedIn && !installedIn.linked ? (installedIn.profile ?? null) : null
@@ -93,9 +98,31 @@ export function usePluginUpdate({ ctx, status, running }) {
   const target = check.data?.target ?? null
   const ready = row?.update_available === true && Boolean(target)
   const later = ready && dismissed && dismissed === (row.update_target ?? 'ready')
+  const building = useQuery({
+    queryKey: [ID, 'update-busy'],
+    queryFn: async () => busyChats(await studioReloadTarget()),
+    enabled: running && ready && state.phase === 'idle',
+    refetchInterval: BUSY_EVERY_MS,
+    retry: false
+  })
+  const fresher = state.raced && (building.dataUpdatedAt ?? 0) > state.racedAt
+  const chats = (!fresher && state.raced) || (Array.isArray(building.data) ? building.data : [])
+
+  useEffect(() => {
+    if (fresher) {
+      setState(current => ({ ...current, raced: undefined, racedAt: undefined }))
+    }
+  }, [fresher])
+  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null
 
   const start = async (options = {}) => {
     if (busy.current || !target) {
+      return
+    }
+
+    if (blocked) {
+      setOpen(true)
+
       return
     }
 
@@ -103,11 +130,14 @@ export function usePluginUpdate({ ctx, status, running }) {
     setOpen(true)
     setState({ phase: 'updating', step: 0 })
 
+    const studio = await studioReloadTarget()
     const outcome = await runUpdate({
       install: target,
-      studio: await studioReloadTarget(),
+      studio,
       options,
+      busy: () => busyChats(studio),
       onStep: step => setState(current => ({ ...current, step })),
+      onWaiting: waiting => setState(current => ({ ...current, waiting })),
       remember: marker => remember(ctx, UPDATE_MARKER, marker)
     })
 
@@ -121,6 +151,9 @@ export function usePluginUpdate({ ctx, status, running }) {
       setState({ phase: 'idle', step: 0 })
       setOpen(false)
       host.notify({ kind: 'success', message: 'hermretro is already up to date.' })
+    } else if (outcome.kind === 'busy') {
+      // A build started after the last check: say so until the next check answers (it then says the same, or not).
+      setState({ phase: 'idle', step: 0, raced: outcome.chats, racedAt: building.dataUpdatedAt ?? 0 })
     } else if (outcome.kind === 'review') {
       setState({ phase: 'review', step: 0, review: outcome })
     } else {
@@ -139,6 +172,10 @@ export function usePluginUpdate({ ctx, status, running }) {
     linked: Boolean(installedIn?.linked),
     phase,
     step: state.step,
+    // why Update is refused right now (a build under way, the toolchain installing), or null
+    blocked,
+    // the chats a running update waits for before it reloads the hermretro profile, or null
+    waiting: state.waiting ?? null,
     error: state.error ?? null,
     review: state.review ?? null,
     version: status.data?.plugin?.version ?? null,

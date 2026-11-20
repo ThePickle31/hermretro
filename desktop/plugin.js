@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 36453d79508725b8632333bf14bf19e9f69468947c4d7ffd9a7108f7ee007c94
- * body: sha256 fe099b7cda5379efcd78b27dbbefdfe54c4273153b3acaa2a44d93a6277bd8d8
+ * sources: sha256 2fa2c738299be968fea80e2bbe4343ec100df884fa135924a1d8eb41717daab5
+ * body: sha256 b03932c8d523efd2bd6851c45f21d22402e8f33d5b87b42f4e09c93e94c40603
  */
 // page/sdk.js
 import {
@@ -2098,8 +2098,9 @@ function versionFact(data, update) {
       className: "cs-note",
       children: [
         `${version} · a new version is ready`,
-        jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Update" }),
-        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] })
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update" }),
+        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
       ]
     });
   }
@@ -8914,7 +8915,7 @@ var NEW_GAME_MODES = [
   { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
   { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
 ];
-function BuildNewGame({ onStart, picker = null }) {
+function BuildNewGame({ onStart, picker = null, updating = false }) {
   const [idea, setIdea] = useState("");
   const [mode, setMode] = useState("build");
   const [busy, setBusy] = useState(false);
@@ -8928,7 +8929,7 @@ function BuildNewGame({ onStart, picker = null }) {
     }
   }, [idea]);
   const start = async () => {
-    if (starting.current || !idea.trim()) {
+    if (starting.current || !idea.trim() || updating) {
       return;
     }
     starting.current = true;
@@ -8978,9 +8979,9 @@ function BuildNewGame({ onStart, picker = null }) {
               jsx("button", {
                 "aria-label": mode === "plan" ? "Start planning" : "Start building",
                 className: "cs-b-send",
-                disabled: busy || !idea.trim(),
+                disabled: busy || updating || !idea.trim(),
                 onClick: () => void start(),
-                title: mode === "plan" ? "Start planning" : "Start building",
+                title: updating ? "hermretro is updating. You can start in a moment." : mode === "plan" ? "Start planning" : "Start building",
                 type: "button",
                 children: [jsx(Codicon, { name: "arrow-up", size: 14 }, "icon"), jsx("span", { className: "cs-sr", children: busy ? "Starting…" : "Start" }, "label")]
               })
@@ -12261,7 +12262,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
+function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
@@ -12606,7 +12607,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     children: [
       jsx(AttractLevel, {}, "level"),
       header,
-      jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
   }) : jsxs("div", {
@@ -12617,11 +12618,11 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
-        disabled: Boolean(elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
+        disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
         onSend: (text2, attachments) => void send(text2, attachments),
         onStop: () => void stopBuildChat(shownStored),
         picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored }) : null,
-        placeholder: shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+        placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
       })
@@ -12686,7 +12687,7 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
 }
 
 // page/pages/build/chat/events.js
@@ -13633,6 +13634,8 @@ var UPDATE_CSS = `
 .cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .cs-upd-fill { flex: 1; }
+.cs-upd-pop p.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); color: var(--ui-text-primary); display: flex; gap: 8px; padding: 7px 9px; }
+.cs-upd-wait > :first-child { color: var(--ui-yellow); flex: none; margin-top: 2px; }
 .cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
 .cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
 .cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
@@ -15301,6 +15304,19 @@ async function studioReloadTarget() {
   const route = routes.find((candidate) => routeProfile(candidate) === STUDIO_PROFILE);
   return route ? { route, profile: STUDIO_PROFILE } : null;
 }
+var BUSY_STATUSES = /* @__PURE__ */ new Set(["starting", "working", "waiting", "streaming"]);
+async function busyChats(studio) {
+  if (!studio) {
+    return [];
+  }
+  const answer = await requestOn(studio, "session.active_list", {}, 15e3);
+  const sessions = Array.isArray(answer?.sessions) ? answer.sessions : [];
+  return sessions.filter((session) => BUSY_STATUSES.has(session?.status)).map((session) => String(session.title || session.preview || "a chat").trim());
+}
+function busySentence(chats) {
+  const names = chats.slice(0, 2).map((name) => `"${name}"`).join(" and ");
+  return chats.length === 1 ? `A game is being built in ${names}. You can update when it finishes.` : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? "…" : ""}). You can update when they finish.`;
+}
 function pluginRow(list) {
   const rows = Array.isArray(list?.plugins) ? list.plugins : [];
   return rows.find((row) => row?.name === ID || row?.key === ID) ?? null;
@@ -15329,9 +15345,28 @@ async function reloadStudio(studio) {
   }
   return Boolean(answer.gateway_reloaded) && !answer.restart_required;
 }
-async function runUpdate({ install, studio, options = {}, onStep = () => {
-}, remember: remember3 = () => {
-} }) {
+async function runUpdate({
+  install,
+  studio,
+  options = {},
+  busy = async () => [],
+  onStep = () => {
+  },
+  onWaiting = () => {
+  },
+  remember: remember3 = () => {
+  },
+  waitMs = 2e3
+}) {
+  let building;
+  try {
+    building = await busy();
+  } catch (error) {
+    return { kind: "failed", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+  }
+  if (building.length) {
+    return { kind: "busy", chats: building };
+  }
   onStep(0);
   let result;
   try {
@@ -15356,6 +15391,15 @@ async function runUpdate({ install, studio, options = {}, onStep = () => {
   onStep(1);
   if (studio && studio.profile !== install.profile) {
     await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4).catch(() => null);
+    for (; ; ) {
+      const chats = await busy().catch(() => []);
+      if (!chats.length) {
+        break;
+      }
+      onWaiting(chats);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+    }
+    onWaiting(null);
     try {
       restart = !await reloadStudio(studio) || restart;
     } catch (error) {
@@ -15376,10 +15420,11 @@ var CHIP = {
   restart: ["warn", "Restart to finish"],
   done: ["good", "Updated"]
 };
-function Steps({ step }) {
+function Steps({ step, waiting }) {
+  const labels = waiting?.length ? UPDATE_STEPS.map((label, index) => index === 1 ? `Waiting for "${waiting[0]}" to finish building` : label) : UPDATE_STEPS;
   return jsx("ol", {
     className: "cs-upd-steps",
-    children: UPDATE_STEPS.map(
+    children: labels.map(
       (label, index) => jsxs(
         "li",
         {
@@ -15403,7 +15448,7 @@ function body(update) {
   const whatsNew = jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new");
   switch (update.phase) {
     case "updating":
-      return ["Updating…", jsx(Steps, { step: update.step }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
+      return ["Updating…", jsx(Steps, { step: update.step, waiting: update.waiting }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
     case "review":
       return [
         "Review the new version",
@@ -15442,8 +15487,9 @@ function body(update) {
         "A new version is ready",
         jsx("p", { children: "Your games, library and chats are kept. It takes about a minute." }, "p"),
         update.version ? jsxs("p", { className: "cs-upd-kv", children: [jsx("b", { children: "Installed" }), update.version] }, "kv") : null,
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
         actions(
-          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
           whatsNew,
           jsx("span", { className: "cs-upd-fill" }, "fill"),
           jsx(Button, { onClick: update.later, size: "sm", variant: "ghost", children: "Later" }, "later")
@@ -15681,6 +15727,8 @@ function PageView({ page, shell }) {
 var CHECK_EVERY_MS = 30 * 6e4;
 var MARKER_FRESH_MS = 15 * 6e4;
 var DONE_SHOWN_MS = 1e4;
+var BUSY_EVERY_MS = 5e3;
+var INSTALLING = "The game tools are being installed. You can update when that finishes.";
 function takeMarker(ctx) {
   try {
     const marker = ctx.storage.get(UPDATE_MARKER, null);
@@ -15698,7 +15746,7 @@ function remember2(ctx, key, value) {
   } catch {
   }
 }
-function usePluginUpdate({ ctx, status, running }) {
+function usePluginUpdate({ ctx, status, running, installing = false }) {
   const queryClient = useQueryClient();
   const installedIn = status.data?.plugin?.installed_in ?? null;
   const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
@@ -15744,18 +15792,40 @@ function usePluginUpdate({ ctx, status, running }) {
   const target = check.data?.target ?? null;
   const ready = row?.update_available === true && Boolean(target);
   const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
+  const building = useQuery({
+    queryKey: [ID, "update-busy"],
+    queryFn: async () => busyChats(await studioReloadTarget()),
+    enabled: running && ready && state.phase === "idle",
+    refetchInterval: BUSY_EVERY_MS,
+    retry: false
+  });
+  const fresher = state.raced && (building.dataUpdatedAt ?? 0) > state.racedAt;
+  const chats = !fresher && state.raced || (Array.isArray(building.data) ? building.data : []);
+  useEffect(() => {
+    if (fresher) {
+      setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
+    }
+  }, [fresher]);
+  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null;
   const start = async (options = {}) => {
     if (busy.current || !target) {
+      return;
+    }
+    if (blocked) {
+      setOpen(true);
       return;
     }
     busy.current = true;
     setOpen(true);
     setState({ phase: "updating", step: 0 });
+    const studio = await studioReloadTarget();
     const outcome = await runUpdate({
       install: target,
-      studio: await studioReloadTarget(),
+      studio,
       options,
+      busy: () => busyChats(studio),
       onStep: (step) => setState((current) => ({ ...current, step })),
+      onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
       remember: (marker) => remember2(ctx, UPDATE_MARKER, marker)
     });
     busy.current = false;
@@ -15766,6 +15836,8 @@ function usePluginUpdate({ ctx, status, running }) {
       setState({ phase: "idle", step: 0 });
       setOpen(false);
       host.notify({ kind: "success", message: "hermretro is already up to date." });
+    } else if (outcome.kind === "busy") {
+      setState({ phase: "idle", step: 0, raced: outcome.chats, racedAt: building.dataUpdatedAt ?? 0 });
     } else if (outcome.kind === "review") {
       setState({ phase: "review", step: 0, review: outcome });
     } else {
@@ -15782,6 +15854,10 @@ function usePluginUpdate({ ctx, status, running }) {
     linked: Boolean(installedIn?.linked),
     phase,
     step: state.step,
+    // why Update is refused right now (a build under way, the toolchain installing), or null
+    blocked,
+    // the chats a running update waits for before it reloads the hermretro profile, or null
+    waiting: state.waiting ?? null,
     error: state.error ?? null,
     review: state.review ?? null,
     version: status.data?.plugin?.version ?? null,
@@ -15832,7 +15908,6 @@ function StudioPage({ ctx }) {
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio);
   }
-  const pluginUpdate = usePluginUpdate({ ctx, running, status });
   const hardwareOn = Boolean(status.data?.hardware_enabled);
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn;
   const gameReady = running && steps.filter((step) => !step.hardware).every((step) => step.complete);
@@ -15869,6 +15944,7 @@ function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
   const install = useInstall({ enabled: wantInstall });
   const installState = install.data?.install?.state ?? null;
+  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
   const lastInstall = useRef(installState);
   useEffect(() => {
     const before = lastInstall.current;

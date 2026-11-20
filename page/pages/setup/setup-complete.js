@@ -16,8 +16,9 @@ function versionFact(data, update) {
       className: 'cs-note',
       children: [
         `${version} · a new version is ready`,
-        jsx(Button, { onClick: update.start, size: 'sm', variant: 'default', children: 'Update' }),
-        jsxs(Button, { onClick: update.whatsNew, size: 'sm', variant: 'link', children: ["What's new", jsx(Codicon, { name: 'link-external', size: 12 })] })
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Update' }),
+        jsxs(Button, { onClick: update.whatsNew, size: 'sm', variant: 'link', children: ["What's new", jsx(Codicon, { name: 'link-external', size: 12 })] }),
+        update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
       ]
     })
   }

@@ -12,10 +12,13 @@ const CHIP = {
   done: ['good', 'Updated']
 }
 
-function Steps({ step }) {
+function Steps({ step, waiting }) {
+  // A chat that started building while Hermes updated: the hermretro profile reloads once it finishes.
+  const labels = waiting?.length ? UPDATE_STEPS.map((label, index) => (index === 1 ? `Waiting for "${waiting[0]}" to finish building` : label)) : UPDATE_STEPS
+
   return jsx('ol', {
     className: 'cs-upd-steps',
-    children: UPDATE_STEPS.map((label, index) =>
+    children: labels.map((label, index) =>
       jsxs(
         'li',
         {
@@ -46,7 +49,7 @@ function body(update) {
 
   switch (update.phase) {
     case 'updating':
-      return ['Updating…', jsx(Steps, { step: update.step }, 'steps'), jsx('p', { children: 'You can keep using Hermes. This page reloads by itself at the end.' }, 'p')]
+      return ['Updating…', jsx(Steps, { step: update.step, waiting: update.waiting }, 'steps'), jsx('p', { children: 'You can keep using Hermes. This page reloads by itself at the end.' }, 'p')]
     case 'review':
       return [
         'Review the new version',
@@ -87,8 +90,9 @@ function body(update) {
         'A new version is ready',
         jsx('p', { children: 'Your games, library and chats are kept. It takes about a minute.' }, 'p'),
         update.version ? jsxs('p', { className: 'cs-upd-kv', children: [jsx('b', { children: 'Installed' }), update.version] }, 'kv') : null,
+        update.blocked ? jsxs('p', { className: 'cs-upd-wait', role: 'status', children: [jsx(Codicon, { name: 'clock', size: 12 }), update.blocked] }, 'wait') : null,
         actions(
-          jsx(Button, { onClick: update.start, size: 'sm', variant: 'default', children: 'Update now' }, 'go'),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Update now' }, 'go'),
           whatsNew,
           jsx('span', { className: 'cs-upd-fill' }, 'fill'),
           jsx(Button, { onClick: update.later, size: 'sm', variant: 'ghost', children: 'Later' }, 'later')

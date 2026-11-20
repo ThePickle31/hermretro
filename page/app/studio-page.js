@@ -78,7 +78,6 @@ export function StudioPage({ ctx }) {
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio)
   }
-  const pluginUpdate = usePluginUpdate({ ctx, running, status })
   const hardwareOn = Boolean(status.data?.hardware_enabled)
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn
   const gameReady = running && steps.filter(step => !step.hardware).every(step => step.complete)
@@ -142,6 +141,7 @@ export function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
   const install = useInstall({ enabled: wantInstall })
   const installState = install.data?.install?.state ?? null
+  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === 'running', running, status })
   const lastInstall = useRef(installState)
 
   // The page's install finished: read the tools again so the step can verify.

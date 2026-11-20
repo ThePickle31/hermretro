@@ -24,7 +24,11 @@ dangerous verdict is never offered), then the `studio_profile` RPC there, then `
 the hermretro profile (Hermes reloads only the profile that ran the update), then the app's
 `hermesDesktop.reconcileDesktopPlugins` (the call Capabilities > Plugins makes; not in the plugin SDK, used only when
 present) so the app copies and reloads the new page. A storage marker (`update`) lets the reloaded page say how it
-went. "Later" hides the chip until a newer target. The Setup page's complete screen has a hermretro row with the
+went. "Later" hides the chip until a newer target. No update while something is being built: while a chat in the
+hermretro profile has a turn under way (`session.active_list` there: `working`, `waiting`, `streaming` or `starting`;
+checked every 5 s while an update is ready, and again right before anything changes) or the page's toolchain install
+runs, Update is disabled with the reason; a turn started while Hermes updates is waited for before the hermretro
+profile reloads; the Build page starts and sends nothing while an update runs. The Setup page's complete screen has a hermretro row with the
 version and, when one is ready, Update.
 
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page

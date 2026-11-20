@@ -11,7 +11,7 @@ const NEW_GAME_MODES = [
 /** New Game: one centred composer (the Build page's own) and two choices under it, each saying what it does.
  *  No name field: the agent names the project when it creates it. The attract-mode level (attract/) plays behind
  *  it and takes no part in the form. */
-export function BuildNewGame({ onStart, picker = null }) {
+export function BuildNewGame({ onStart, picker = null, updating = false }) {
   const [idea, setIdea] = useState('')
   const [mode, setMode] = useState('build')
   const [busy, setBusy] = useState(false)
@@ -29,7 +29,7 @@ export function BuildNewGame({ onStart, picker = null }) {
   }, [idea])
 
   const start = async () => {
-    if (starting.current || !idea.trim()) {
+    if (starting.current || !idea.trim() || updating) {
       return
     }
 
@@ -84,9 +84,9 @@ export function BuildNewGame({ onStart, picker = null }) {
               jsx('button', {
                 'aria-label': mode === 'plan' ? 'Start planning' : 'Start building',
                 className: 'cs-b-send',
-                disabled: busy || !idea.trim(),
+                disabled: busy || updating || !idea.trim(),
                 onClick: () => void start(),
-                title: mode === 'plan' ? 'Start planning' : 'Start building',
+                title: updating ? 'hermretro is updating. You can start in a moment.' : mode === 'plan' ? 'Start planning' : 'Start building',
                 type: 'button',
                 children: [jsx(Codicon, { name: 'arrow-up', size: 14 }, 'icon'), jsx('span', { className: 'cs-sr', children: busy ? 'Starting…' : 'Start' }, 'label')]
               })

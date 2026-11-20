@@ -24,6 +24,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     return { plugins: [] }
   }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => { calls.push({ action: 'finish' }); return { ok: true } }
+  scenario.byMethod['session.active_list'] = () => ({ sessions: [] })  // nothing is being built (page-update-busy covers that)
   const reconciled = []
   dom.window.hermesDesktop = { reconcileDesktopPlugins: async () => { reconciled.push(true); return [] } }
   const fresh = async (storage = {}) => {

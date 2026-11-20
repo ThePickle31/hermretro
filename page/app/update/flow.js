@@ -69,6 +69,32 @@ export async function studioReloadTarget() {
   return route ? { route, profile: STUDIO_PROFILE } : null
 }
 
+// A chat whose turn is under way (running, asking the user something, or starting): the agent may be building a game,
+// and an update must not swap the plugin's code under it.
+const BUSY_STATUSES = new Set(['starting', 'working', 'waiting', 'streaming'])
+
+/** The titles of the hermretro profile's chats with a turn under way (Hermes's `session.active_list` there), [] when
+ *  there is no such profile. Rejects when the profile cannot be asked. */
+export async function busyChats(studio) {
+  if (!studio) {
+    return []
+  }
+
+  const answer = await requestOn(studio, 'session.active_list', {}, 15_000)
+  const sessions = Array.isArray(answer?.sessions) ? answer.sessions : []
+
+  return sessions.filter(session => BUSY_STATUSES.has(session?.status)).map(session => String(session.title || session.preview || 'a chat').trim())
+}
+
+/** One sentence naming what is being built, for the popover and the Setup row. */
+export function busySentence(chats) {
+  const names = chats.slice(0, 2).map(name => `"${name}"`).join(' and ')
+
+  return chats.length === 1
+    ? `A game is being built in ${names}. You can update when it finishes.`
+    : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? '…' : ''}). You can update when they finish.`
+}
+
 /** hermretro's row in Hermes's `plugins.manage list` answer, or null. */
 export function pluginRow(list) {
   const rows = Array.isArray(list?.plugins) ? list.plugins : []
@@ -117,10 +143,34 @@ async function reloadStudio(studio) {
 /** Run the whole update. `install` and `studio` are targets ({ route, profile }; `studio` null when there is no
  *  hermretro profile yet); `options` carries `force` / `accept_capabilities` after the user agreed to what Hermes
  *  asked; `onStep(i)` follows UPDATE_STEPS. Resolves to one outcome, never throws:
- *  `{ kind: 'updated', restart, pageRefreshed }`, `{ kind: 'current' }`, `{ kind: 'review', findings, lines,
- *  retry }` (Hermes wants the user to agree to something first: retry with `retry`), `{ kind: 'blocked', error }`
- *  (the security check refused the new version) or `{ kind: 'failed', error }`. */
-export async function runUpdate({ install, studio, options = {}, onStep = () => {}, remember = () => {} }) {
+ *  `{ kind: 'updated', restart, pageRefreshed }`, `{ kind: 'current' }`, `{ kind: 'busy', chats }` (a chat in the
+ *  hermretro profile is building: nothing was changed), `{ kind: 'review', findings, lines, retry }` (Hermes wants the
+ *  user to agree to something first: retry with `retry`), `{ kind: 'blocked', error }` (the security check refused the
+ *  new version) or `{ kind: 'failed', error }`.
+ *  `busy()` names the chats building right now (busyChats). It is asked right before anything changes, and again before
+ *  the hermretro profile is reloaded: a turn started meanwhile is waited for (`onWaiting(chats)`, every `waitMs`). */
+export async function runUpdate({
+  install,
+  studio,
+  options = {},
+  busy = async () => [],
+  onStep = () => {},
+  onWaiting = () => {},
+  remember = () => {},
+  waitMs = 2_000
+}) {
+  let building
+
+  try {
+    building = await busy()
+  } catch (error) {
+    return { kind: 'failed', error: `Could not check whether a game is being built (${String(error?.message ?? error)})` }
+  }
+
+  if (building.length) {
+    return { kind: 'busy', chats: building }
+  }
+
   onStep(0)
 
   let result
@@ -160,6 +210,20 @@ export async function runUpdate({ install, studio, options = {}, onStep = () => 
   if (studio && studio.profile !== install.profile) {
     // Settings the new version ships for the hermretro profile (its SOUL, toolsets): best effort, a Repair redoes it.
     await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000).catch(() => null)
+
+    // A turn started while Hermes was updating finishes on the code it started with, then the profile reloads.
+    for (;;) {
+      const chats = await busy().catch(() => [])
+
+      if (!chats.length) {
+        break
+      }
+
+      onWaiting(chats)
+      await new Promise(resolve => globalThis.setTimeout(resolve, waitMs))
+    }
+
+    onWaiting(null)
 
     try {
       restart = !(await reloadStudio(studio)) || restart

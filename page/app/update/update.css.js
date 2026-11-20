@@ -23,6 +23,8 @@ export const UPDATE_CSS = `
 .cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .cs-upd-fill { flex: 1; }
+.cs-upd-pop p.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); color: var(--ui-text-primary); display: flex; gap: 8px; padding: 7px 9px; }
+.cs-upd-wait > :first-child { color: var(--ui-yellow); flex: none; margin-top: 2px; }
 .cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
 .cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
 .cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
