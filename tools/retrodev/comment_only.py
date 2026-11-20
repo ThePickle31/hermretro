@@ -2,7 +2,8 @@
 
 Python: the two sides' syntax trees with every docstring dropped (a comment is never in the tree). JavaScript
 (.js, .mjs): the text with its // and /* */ comments cut, outside strings, template literals and regular expression
-literals, then compared line by line without blank lines or trailing spaces. Anything this cannot read for sure (a
+literals, then compared line by line without blank lines or trailing spaces; each template literal's text stays
+byte-exact (compared on its own, never normalised). Anything this cannot read for sure (a
 syntax error, another kind of file, a missing side) counts as a real change: the caller then does what it did before.
 """
 
@@ -43,9 +44,14 @@ def _regex_allowed(out: list[str]) -> bool:
     )
 
 
-def js_without_comments(text: str) -> str | None:
-    """``text`` with its comments cut (None when a string, template or comment never closes)."""
+TEMPLATE = "\x00"  # stands in the code for one piece of template literal text, kept apart byte-exact
+
+
+def js_without_comments(text: str, pieces: list[str] | None = None) -> str | None:
+    """``text`` with its comments cut (None when a string, template or comment never closes). With ``pieces``, each
+    template literal's text (from its ` or } to its closing ` or up to its ${) goes there verbatim, a TEMPLATE mark in its place."""
     out: list[str] = []
+    keep = out if pieces is None else []
     braces: list[int] = []  # for each open template ${...}: the brace depth it closes at
     depth, i, n = 0, 0, len(text)
     in_template = False
@@ -53,18 +59,20 @@ def js_without_comments(text: str) -> str | None:
         c = text[i]
         if in_template:
             if c == "\\":
-                out.append(text[i : i + 2])
+                keep.append(text[i : i + 2])
                 i += 2
-            elif c == "`":
-                out.append(c)
-                in_template, i = False, i + 1
-            elif text.startswith("${", i):
-                out.append("${")
-                braces.append(depth)
-                depth += 1
-                in_template, i = False, i + 2
+            elif c == "`" or text.startswith("${", i):
+                keep.append("`" if c == "`" else "")
+                if pieces is not None:
+                    pieces.append("".join(keep))
+                    keep.clear()
+                if c != "`":
+                    out.append("${")  # in the code: a '/' right after it opens a regular expression
+                    braces.append(depth)
+                    depth += 1
+                in_template, i = False, i + 1 + (c != "`")
             else:
-                out.append(c)
+                keep.append(c)
                 i += 1
             continue
         if text.startswith("//", i):
@@ -85,7 +93,7 @@ def js_without_comments(text: str) -> str | None:
             out.append(text[i : end + 1])
             i = end + 1
         elif c == "`":
-            out.append(c)
+            _open_template(out, keep, pieces, c)
             in_template, i = True, i + 1
         elif c == "/" and _regex_allowed(out):
             end, in_class = i + 1, False
@@ -108,7 +116,7 @@ def js_without_comments(text: str) -> str | None:
                 depth -= 1
                 if braces and depth == braces[-1]:
                     braces.pop()
-                    out.append(c)
+                    _open_template(out, keep, pieces, c)
                     in_template, i = True, i + 1
                     continue
             out.append(c)
@@ -116,11 +124,21 @@ def js_without_comments(text: str) -> str | None:
     return None if in_template else "".join(out)
 
 
+def _open_template(out: list[str], keep: list[str], pieces: list[str] | None, c: str) -> None:
+    """A piece of template text starts at ``c``: in the code itself, or (with pieces) a mark there and the text kept."""
+    if pieces is not None:
+        out.append(TEMPLATE)
+    keep.append(c)
+
+
 def js_shape(text: str) -> str | None:
-    cut = js_without_comments(text)
+    """The code without comments, blank lines and trailing spaces, then every template text piece byte-exact."""
+    pieces: list[str] = []
+    cut = js_without_comments(text, pieces)
     if cut is None:
         return None
-    return "\n".join(line.rstrip() for line in cut.splitlines() if line.strip())
+    code = "\n".join(line.rstrip() for line in cut.splitlines() if line.strip())
+    return code + TEMPLATE * 2 + TEMPLATE.join(pieces)
 
 
 def comments_only(path: str, before: str | None, after: str | None) -> bool:

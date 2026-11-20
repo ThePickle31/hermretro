@@ -100,9 +100,10 @@ def quoted_paths(text: str) -> list[str]:
 
 def own_commits_files(ctx) -> list[str]:
     """The files the branch's own commits touched (merges left out): a merge of the base can drop a branch's edit
-    (a taken-over branch), and the body still describes what the branch did."""
+    (a taken-over branch), and the body still describes what the branch did. No rename detection: a rename counts
+    both paths, as repo.changed_files does."""
     code, out, _err = repo.run(
-        ["git", "log", "--no-merges", "--name-only", "--format=", f"{ctx.remote_base}..HEAD"], ctx.top
+        ["git", "log", "--no-merges", "--no-renames", "--name-only", "--format=", f"{ctx.remote_base}..HEAD"], ctx.top
     )
     return [line for line in out.splitlines() if line.strip()] if code == 0 else []
 

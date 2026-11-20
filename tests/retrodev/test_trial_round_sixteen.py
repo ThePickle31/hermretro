@@ -85,6 +85,23 @@ class BodyDroppedInMerge(RepoCase):
         never = GOOD_BODY.replace("Things.", "- Changed `tools/never.py`.")
         self.assertIn("`tools/never.py`", body_names.warning(ctx, never) or "")
 
+    def test_a_rename_dev_also_made_counts_its_old_path_too(self):
+        self.on_dev("tools/old_name.py", "VALUE = 1\n", "The file")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/rename")
+        git(tree, "mv", "tools/old_name.py", "tools/new_name.py")
+        git(tree, "commit", "-q", "-m", "Rename")
+        other = self.base / "other"
+        git(other, "pull", "-q", "origin", "dev")
+        git(other, "mv", "tools/old_name.py", "tools/new_name.py")
+        git(other, "commit", "-q", "-m", "dev renames it the same")
+        git(other, "push", "-q", "origin", "dev")
+        git(tree, "fetch", "-q", "origin")
+        git(tree, "merge", "-q", "--no-edit", "origin/dev")
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        body = GOOD_BODY.replace("Things.", "- Renamed `tools/old_name.py` to `tools/new_name.py`.")
+        self.assertIsNone(body_names.warning(ctx, body))
+
 
 class CommentOnly(RepoCase):
     def checked(self, name: str, before: str, after: str, branch: str) -> str:
@@ -113,6 +130,13 @@ class CommentOnly(RepoCase):
         out = self.checked("tests/page/shells.mjs", before, before.replace("x/y", "x/z"), "fix/jsx")
         self.assertIn("adding scaffold: changed tests/page/shells.mjs; run nested", out)
 
+    def test_blank_lines_or_trailing_spaces_inside_a_template_are_code(self):
+        before = "// The harness.\nexport const page = `a\n\nb`\n"
+        out = self.checked("tests/page/harness.mjs", before, before.replace("a\n\nb", "a\nb"), "fix/tblank")
+        self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
+        out = self.checked("tests/page/shells.mjs", before, before.replace("a\n", "a  \n"), "fix/tspace")
+        self.assertIn("adding scaffold: changed tests/page/shells.mjs; run nested", out)
+
     def test_the_games_fixture_is_data_and_never_adds_it(self):
         out = self.checked("tests/page/games-fixture.mjs", "export const A = 1\n", "export const A = 2\n", "fix/data")
         self.assertNotIn("run nested", out)
@@ -132,6 +156,13 @@ class CommentOnly(RepoCase):
         self.assertFalse(same("a.mjs", "const t = `${f({ a: 1 })}`\n", "const t = `${f({ a: 2 })}`\n"))
         self.assertFalse(same("a.json", "{}\n", "{ }\n"))  # another kind of file: a real change
         self.assertFalse(same("a.mjs", "const a = 1\n", "const a = 1 /* open\n"))
+        template = "const t = `a\n\nb ${f(\n\n  x)}  \nc`\n"
+        self.assertFalse(same("a.mjs", template, template.replace("a\n\nb", "a\nb")))
+        self.assertFalse(same("a.mjs", template, template.replace("}  \nc", "}\nc")))
+        regex = "const t = `a ${/x\\/y/.test(s)} b`\n"
+        self.assertTrue(same("a.mjs", regex, regex + "// c\n"))
+        self.assertFalse(same("a.mjs", regex, regex.replace("x\\/y", "x\\/z")))
+        self.assertTrue(same("a.mjs", template, "// c\n\n" + template.replace("(\n\n  x)", "(\n  // d\n  x)")))
 
 
 class RealFiles(ScaffoldCase):
