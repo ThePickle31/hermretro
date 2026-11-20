@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 af61264a6b591764cbcfdda64828bc38116708266ae46da866168b776bd691df
- * body: sha256 f9cc729a0c23a8988f8b5f85d91acf5dd5315f77a85706606319b68f466f63be
+ * sources: sha256 33075cdc5824adef48df70fa152744e693a624fb483cdc7d1eb96958567c032a
+ * body: sha256 cfe978b0496eb6488c90b79e2b9038c02706f17a7bb6ab44f84fe27a3aeece1a
  */
 // page/sdk.js
 import {
@@ -12157,7 +12157,8 @@ var SLOT = 126;
 var MIN_HEIGHT = 560;
 function shelfOrder(entries) {
   const rank = (entry) => entry.state?.waiting ? 0 : entry.pending ? 1 : 2;
-  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index).map((item) => item.entry);
+  const started2 = (entry) => entry.pending ? entry.pending.createdAt ?? Infinity : 0;
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || started2(b.entry) - started2(a.entry) || a.index - b.index).map((item) => item.entry);
 }
 function shelfFit(width, count, more) {
   const slots = Math.max(1, Math.floor((width + 26) / SLOT));
@@ -12332,7 +12333,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
-      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null }] }));
+      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 }] }));
       select(`pending:${id}`);
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim());
       onLibraryChanged();
@@ -12840,8 +12841,9 @@ var HEADER_CSS = `
 
 // page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
-/* New Game: the Build page's composer, centred, with the two ways to start under it */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+/* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-new .cs-title { margin: 0; text-align: center; }
 .cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }

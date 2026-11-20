@@ -8,6 +8,7 @@ import { registerAliases } from './aliases.mjs'
 registerAliases()
 const { shelfFit, shelfOrder } = await import('../../page/pages/build/cart-shelf.js')
 const { CART_SHELF_CSS } = await import('../../page/pages/build/cart-shelf.css.js')
+const { NEW_GAME_CSS } = await import('../../page/pages/build/new-game.css.js')
 const { World } = await import('../../page/pages/build/attract/world.js')
 const { T } = await import('../../page/pages/build/attract/physics.js')
 
@@ -25,11 +26,28 @@ test('newest work first: waiting for an answer, then games being set up, then th
   assert.deepEqual(shelfOrder(entries).map(entry => entry.key), ['waiting', 'pending:s1', 'newest', 'replied', 'older'])
 })
 
+test('New Game chats being set up: the latest started first, so a full shelf keeps the newest', () => {
+  const pending = (id, createdAt) => ({ key: `pending:${id}`, title: 'New game', game: null, pending: { storedId: id, createdAt }, state: null })
+  // as the library lists them (oldest first), then one started this visit that it does not know yet
+  const entries = [pending('a', 100), pending('b', 200), pending('c', 300), game('done'), pending('local', undefined)]
+  const order = shelfOrder(entries).map(entry => entry.key)
+  assert.deepEqual(order, ['pending:local', 'pending:c', 'pending:b', 'pending:a', 'done'])
+  assert.deepEqual(order.slice(0, shelfFit(3 * 126, order.length, false)), ['pending:local', 'pending:c'], 'two places and the All games tile')
+})
+
 test('the cartridges stand on the ground and their captions hang below it at a fixed height', () => {
   const rule = sel => CART_SHELF_CSS.split('\n').find(line => line.startsWith(`${sel} {`)) ?? ''
   assert.match(rule('.cs-b-shelf'), /bottom: calc\(var\(--cs-at-ground, 48px\) - var\(--cs-b-cap\)\)/, 'the shelf drops by the caption height')
   assert.match(rule('.cs-b-shelf-cart .cap'), /height: var\(--cs-b-cap\)/, 'so the caption is exactly that tall')
   assert.match(rule('.cs-b-shelf'), /align-items: flex-end/, 'and every column ends on the same line')
+})
+
+test('the form above the shelf is centred only while it fits, so a tall form scrolls back to its title', () => {
+  // with plain centring, a form taller than the room left above the shelf (a narrow pane, a long idea) overflows
+  // above the top of its scroll box, where scrolling cannot reach (measured in Chromium: the title 9-121 px out)
+  const rule = NEW_GAME_CSS.split('\n').find(line => line.startsWith('.cs-b-new {')) ?? ''
+  assert.match(rule, /justify-content: safe center;/)
+  assert.match(rule, /overflow: auto;/)
 })
 
 test('as many cartridges as fit, keeping a place for All games when anything is left over', () => {

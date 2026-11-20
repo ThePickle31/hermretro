@@ -171,7 +171,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
 
-      setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null }] }))
+      setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }] }))
       select(`pending:${id}`)
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim())
       onLibraryChanged()

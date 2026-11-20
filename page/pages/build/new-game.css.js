@@ -1,8 +1,9 @@
 import { MONO } from '#shared/styles/tokens.js'
 
 export const NEW_GAME_CSS = `
-/* New Game: the Build page's composer, centred, with the two ways to start under it */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+/* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-new .cs-title { margin: 0; text-align: center; }
 .cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }

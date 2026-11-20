@@ -8,15 +8,16 @@ import { statusMark } from './switcher.js'
 const SLOT = 126 // one cartridge and its gap, in px
 const MIN_HEIGHT = 560 // a shorter New Game area shows no shelf: the form needs the room
 
-/** Newest work first: games waiting for an answer, then New Game chats still being set up, then the rest in the
- *  library's own order (the games RPC lists the most recently changed game first). `entries` come from
- *  switcherEntries, which keeps that order. */
+/** Newest work first: games waiting for an answer, then New Game chats still being set up (the latest started
+ *  first: by `createdAt`, and one started this visit before the library knows it), then the rest in the library's
+ *  own order (the games RPC lists the most recently changed game first). `entries` come from switcherEntries. */
 export function shelfOrder(entries) {
   const rank = entry => (entry.state?.waiting ? 0 : entry.pending ? 1 : 2)
+  const started = entry => (entry.pending ? (entry.pending.createdAt ?? Infinity) : 0)
 
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index)
+    .sort((a, b) => rank(a.entry) - rank(b.entry) || started(b.entry) - started(a.entry) || a.index - b.index)
     .map(item => item.entry)
 }
 
