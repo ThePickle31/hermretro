@@ -13,13 +13,15 @@
     new tab <page> <id> [--label L] [--from-page]   page/pages/<page>/<id>/index.js, listed in the page's tabs
                                                (--from-page: a tabless page's own Page becomes this tab)
     new slot <page> <name> [--doc TEXT]        a slot the page declares for others to fill
+    new contribution <page> <slot> <Component> a component of <page> filling another page's declared slot
 
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
 replaced; {{ and }} are literal braces), prints every file it created or changed, rebuilds the generated files
 when the change needs it (policy.toml [generated] regenerate), runs the checks those files feed (not the install
 scan: `check` runs it before ship; the page kinds run only lint, bundle and page, `check` runs unit) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
 --no-check skips the checks, --no-build the rebuild (for several `new` in a row: the last one rebuilds). It
-refuses a name that exists or breaks the naming rules, and works only on a work branch (never dev or main).
+refuses a name that exists or breaks the naming rules, and writes only on a work branch (never dev or main; a
+--dry-run, which writes nothing, runs anywhere).
 """
 
 from __future__ import annotations
@@ -245,7 +247,8 @@ def guard(ctx) -> str:
     if not branch or branch in policy["protected"]:  # any work branch: ship and land take any name (a takeover's)
         raise Failure(
             f"new writes code only on a work branch, and this checkout is on {branch or 'a detached HEAD'}",
-            "python tools/retrodev start feat/<topic> (a worktree on its own branch), then run new there",
+            "python tools/retrodev start feat/<topic> (a worktree on its own branch), then run new there (--dry-run "
+            "lists the files from here)",
         )
     return branch
 
@@ -344,14 +347,16 @@ def then(ctx, paths: list[str]) -> str:
 
 
 def run(ctx, args) -> int:
-    from . import (
+    from . import (  # the kinds; they import this module
         scaffold_backend,
+        scaffold_contribution,
         scaffold_listener,
         scaffold_page,
         scaffold_tool,
-    )  # the kinds; they import this module
+    )
 
-    guard(ctx)
+    if not args.dry_run:  # a dry run writes nothing, so a planner may list the files from dev or main
+        guard(ctx)
     plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
     kind = args.kind
     if kind == "feature":
@@ -376,8 +381,10 @@ def run(ctx, args) -> int:
         what = scaffold_page.page(plan, args.name, args.label)
     elif kind == "tab":
         what = scaffold_page.tab(plan, args.target, args.name, args.label, getattr(args, "from_page", False))
+    elif kind == "contribution":
+        what = scaffold_contribution.contribution(plan, args.target, args.name, args.component)
     else:
         what = scaffold_page.slot(plan, args.target, args.name, args.doc)
-    if kind in ("page", "tab", "slot"):
+    if kind in ("page", "tab", "slot", "contribution"):
         plan.only_checks = PAGE_CHECKS
     return apply(ctx, plan, what, args.dry_run, not args.no_check, not getattr(args, "no_build", False))

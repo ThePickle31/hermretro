@@ -19,7 +19,7 @@ TEMPLATE = """# Plan: {topic}
 
 Status: draft for the owner's approval.
 
-Title: <!-- One plain sentence, no trailing period: the pull request's title (ship --title). -->
+Title: <!-- One plain sentence, at most 100 characters, no trailing period: the pull request's title (ship --title). -->
 
 ## Goal
 <!-- What the change is for, in one or two sentences. -->
@@ -29,7 +29,9 @@ Title: <!-- One plain sentence, no trailing period: the pull request's title (sh
 this section into the pull request body's What changed. -->
 
 ## Where files go
-<!-- New and moved files, by folder (tools/layout.toml has the map). -->
+<!-- New and moved files, by folder (tools/layout.toml has the map). `python tools/retrodev new <kind> ... --dry-run`
+lists the files a new feature, rpc, tool, event, listener, page, tab, slot or contribution writes (it writes
+nothing, so it runs on dev too). -->
 
 ## How it is tested
 <!-- The tests added or changed, and the checks that prove it (python tools/retrodev check). -->
@@ -134,6 +136,10 @@ def approve(ctx, topic: str, words: str | None) -> int:
             + " hold only its comments (the owner approves what the plan says, as ship needs a filled-in body)",
             f"fill in notes/plans/{topic}.md first ({path}), show it to the owner, then plan approve again",
         )
+    said = title_line(path.read_text(encoding="utf-8"))
+    title = gates.title_gate(said or "", f"the Title: line of {path}") if said is not None else None
+    if title and not title.ok:  # ship's own title gate: the title is settled before the work starts
+        raise Failure(f"the plan's title: {title.message}", f"{title.fix}; then plan approve again")
     if not words or not words.strip():
         raise Failure(
             "an approval records the owner's exact words, so anyone can see who said go and what they said",
@@ -184,6 +190,19 @@ def here_body(ctx, topic: str) -> None:
     from . import start  # start imports ship, which imports this module
 
     ctx.out.set(body=start.body_note(ctx, branch, record))
+
+
+def title_line(text: str) -> str | None:
+    """The plan's 'Title:' line without its template comment ('' when it says nothing), None without one (a plan
+    written by hand in another shape)."""
+    lines = gates.COMMENT.sub("", text).splitlines()
+    return next((line[6:].strip() for line in lines if line.startswith("Title:")), None)
+
+
+def title_skipped(text: str) -> str | None:
+    """Why a plan's Title: line is not offered as the --title (check, status and ship then say so): its problems."""
+    said = title_line(text)
+    return "; ".join(gates.title_problems(said)).replace("the title", "the plan's title") if said else None
 
 
 def unfilled(text: str) -> list[str]:
@@ -245,3 +264,27 @@ def link(ctx, topic: str) -> int:
     ctx.out.say(f"{branch} works under the plan {topic} ({'approved' if row['approved'] else 'NOT approved yet'})")
     ctx.out.set(branch=branch, plan=topic, approved=bool(row["approved"]))
     return 0
+
+
+def branch_title(ctx, branch: str, record: dict) -> str | None:
+    """The plan's 'Title:' line (the template asks for one plain sentence), else its own title line ('# Plan:
+    <words>') when it says more than the topic."""
+    named = gates.plan_for(ctx, branch, record)
+    path = plan_file(ctx, named) if named and state.NAME.match(named) else None
+    if not path or not path.is_file():
+        return None
+    lines = gates.COMMENT.sub("", path.read_text(encoding="utf-8")).splitlines()
+    said = next((line[6:].strip() for line in lines if line.startswith("Title:")), "")
+    if said and not gates.title_problems(said):
+        return said
+    first = next((line for line in lines if line.startswith("# ")), "")
+    words = first[2:].strip().removeprefix("Plan:").strip()
+    return words if words and words != named and not gates.title_problems(words) else None
+
+
+def title_note(ctx, branch: str | None, record: dict) -> str:
+    """' (the plan's Title: line is not offered: <why>)' when the plan has a Title: line ship cannot take, else ''."""
+    named = gates.plan_for(ctx, branch, record) if branch else None
+    path = plan_file(ctx, named) if named and state.NAME.match(named) else None
+    why = title_skipped(path.read_text(encoding="utf-8")) if path and path.is_file() else None
+    return f" (the plan's Title: line is not offered: {why})" if why else ""

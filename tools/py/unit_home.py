@@ -22,11 +22,15 @@ from pathlib import Path
 LOCATE_BUDGET_S = 120  # stop looking after this; the leak itself is already reported
 
 
-def unit_env(home: str, bytecode: str, tmp: str | None = None) -> dict[str, str]:
-    """No HERMRETRO_* folders from the developer's shell, HOME and HERMES_HOME (Hermes's plugin data folder,
+def unit_env(home: str, bytecode: str, tmp: str | None = None, source: dict | None = None) -> dict[str, str]:
+    """No HERMRETRO_* folders (nor RD_SCAFFOLD_* modes) from the developer's shell, HOME and HERMES_HOME (Hermes's plugin data folder,
     host._data_dir(), lands there too) in the empty home, TMPDIR in the empty temp folder ``tmp``, and an empty
     bytecode folder (-B alone still reads stale .pyc)."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_") and k != "GB_STUDIO_SETUP_ROOT"}
+    # RD_SCAFFOLD_* belong to check.py scaffold's own run: in the suite they would run the slow scaffold module
+    # (nested, minutes) inside unit, and turn the tests of check.py scaffold itself to that mode.
+    dropped = ("HERMRETRO_", "RD_SCAFFOLD_")
+    source = os.environ if source is None else source  # tests pass their own: os.environ is shared by the pool
+    env = {k: v for k, v in source.items() if not k.startswith(dropped) and k != "GB_STUDIO_SETUP_ROOT"}
     env.update(HOME=home, HERMES_HOME=str(Path(home) / ".hermes"))
     if tmp:
         env.update(TMPDIR=tmp)

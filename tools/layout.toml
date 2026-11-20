@@ -114,7 +114,8 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "profile/SOUL.md" = "The studio profile's personality"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
-"tools/retrodev/README.md" = "The development CLI: every command, the flow from plan to merge, state, config, exit codes"
+"tools/retrodev/README.md" = "The development CLI: what it is, the quick path, the flow from plan to merge, exit codes"
+"tools/retrodev/REFERENCE.md" = "The development CLI in full: every command, new by kind, land, releases, state, config"
 "tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]

@@ -17,7 +17,7 @@ from pathlib import Path
 import retrodev
 from retrodev import checks, config, output, repo, ship, state
 
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 
 load_tests = parallel
@@ -159,9 +159,9 @@ class Flow(RepoCase):
     def test_the_budgets_are_measured_cold_runs_and_the_readme_agrees(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
         budgets = ctx.policy["checks"]["budgets"]
-        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 30, 60))
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        self.assertIn("unit 45 s, scaffold 30 s, the fast checks together 60 s", readme)
+        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 40, 60))
+        readme = retrodev_docs()
+        self.assertIn("unit 45 s, scaffold 40 s, the fast checks together 60 s", readme)
         self.assertIn("over its budget twice in a row", readme)
         self.assertNotIn("Over twice its budget", readme)
 
@@ -173,8 +173,8 @@ class Flow(RepoCase):
         self.assertEqual(ship.labels(ctx, [".github/actions/hermes/action.yml"]), ["ci"])
 
     def test_the_readme_flow_covers_taking_over_a_teammate_s_branch(self):
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        flow = " ".join(readme.split("## Commands")[0].split())
+        reference = retrodev_docs("REFERENCE.md")
+        flow = " ".join(reference.split("## Commands")[0].split())
         self.assertIn("Taking over a teammate's branch", flow)
         self.assertIn("`plan new <topic>` describing what the branch does", flow)
         self.assertIn(
@@ -324,8 +324,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         out = self.new("rpc", "history", "rdprobe_recent")
         steps = " ".join(out["next"])
         self.assertIn(
-            "useQuery({ queryKey: [ID, 'rdprobe_recent', viaProfile], queryFn: () => "
-            "callStudio(RPC_RDPROBE_RECENT), enabled })",
+            "useQuery({ queryKey: [ID, 'rdprobe_recent'], queryFn: () => callStudioOnly(RPC_RDPROBE_RECENT) })",
             steps,
         )
         self.assertIn("scenario.rdprobe_recent = answered(", steps)

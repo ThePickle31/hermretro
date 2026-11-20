@@ -11,6 +11,7 @@ Nothing is written here: it fills scaffold.py's Plan.
 from __future__ import annotations
 
 import ast
+import re
 import tomllib
 from pathlib import Path
 
@@ -179,3 +180,67 @@ def big_note(plan: Plan, feature_name: str, name: str) -> None:
             f"{source} has {size} lines: python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs puts "
             "the handler in its own module (rpcs.py keeps a short @rpc declaration that calls it)"
         )
+
+
+CONTRACT = "docs/dev/CONTRACT.md"
+PAGE_RPCS = "## Studio pages (desktop) and their RPCs"  # its table lists RPCs the pages call
+# Features whose RPCs read the hermretro profile's plugin data folder (host._data_dir()) or its Build chats: the
+# page calls them with callStudioOnly (page/app/backend.js), never whichever profile answered status.
+STUDIO_ONLY = ("history", "assets")
+
+
+def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool) -> list[str]:
+    """new rpc's next steps for the handler and the page: one rule for the call, the query key and where it runs."""
+    constant, only = f"RPC_{name.upper()}", feature_name in STUDIO_ONLY
+    call = "callStudioOnly" if only else "callStudio"
+    steps = [
+        f"write the handler in {source} and its section in {CONTRACT} (params, result)",
+        f"call it from the page: import {{ {constant} }} from '#app/rpc.js' (re-exports the generated rpc-names.js)",
+        "callStudioOnly (page/app/backend.js) for an RPC that reads a profile's Build conversations or the plugin "
+        "data folder (host._data_dir(): history's snapshots, assets' versions): the hermretro profile only; "
+        "callStudio for the library (whichever profile answered status serves it)"
+        + (f"; backend/{feature_name} reads that folder: use callStudioOnly" if only else ""),
+        "callStudio and callStudioOnly resolve to the RPC's answer itself (data.ok, ...); callBackend resolves to "
+        "{ data } (read .data): page/app/backend.js",
+    ]
+    imports = f"(useQuery from '#sdk', ID from '#app/ids.js', {call} from '#app/backend.js')"
+    if game:
+        steps += [
+            "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
+            "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
+            f"run the query in the component that has the game (as page/pages/emulator/emulator-bar.js runs "
+            f"captures): useQuery({{ queryKey: [ID, '{name}', game.id], queryFn: () => {call}({constant}, "
+            f"{{ game: game.id }}) }}) {imports}: the game's id in the key gives each game its own answer"
+            + ("" if only else "; with callStudio, shell.viaProfile goes after game.id (the answering profile)"),
+        ]
+    else:
+        key = f"[ID, '{name}']" if only else f"[ID, '{name}', shell.viaProfile]"
+        steps.append(
+            f"in a page, put useQuery({{ queryKey: {key}, queryFn: () => {call}({constant}) }}) {imports} in the "
+            "page's own Page component (e.g. Games in page/pages/games/games-page.js) and pass the result down as a "
+            "prop" + ("" if only else " (viaProfile only with callStudio: the answer depends on the profile)")
+        )
+    steps += [
+        f"keep the queryKey's second word '{name}': page tests answer by it, scenario.{name} = answered({{ ok: "
+        "true, ... }) (tests/page/harness.mjs), set before the page renders; extend tests/page/page-<page>.test.mjs",
+        "a page that reads a new shell field adds it to its fixture in tests/page/shells.mjs (homeShell())",
+        f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
+        "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
+    ]
+    listed = page_rpcs(plan.read(CONTRACT) if plan.exists(CONTRACT) else "")
+    if listed:
+        steps.append(
+            f"a page calls it: add its row to the RPC table under {CONTRACT} '{PAGE_RPCS[3:]}' (it lists "
+            f"{', '.join(listed)}): | `{name}` | <params> | <result> |"
+        )
+    return steps
+
+
+def page_rpcs(contract: str) -> list[str]:
+    """The RPCs the table under CONTRACT.md's page section lists (none when that section or table is gone)."""
+    start = contract.find(PAGE_RPCS + "\n")
+    if start < 0:
+        return []
+    body = contract[start + len(PAGE_RPCS) :]
+    body = body[: body.find("\n## ")] if "\n## " in body else body
+    return re.findall(r"^\| `(\w+)` \|", body, re.M)

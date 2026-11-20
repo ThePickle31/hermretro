@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -284,18 +285,73 @@ def scaffold_fix(test: list[str]) -> str:
 
 
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
+PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # the tree fails page before new runs at all
+BASE = "RD_SCAFFOLD_BASE"  # suites known to pass on this tree (comma-separated): the scaffold test skips its own run
 
 
-def check_scaffold(_args) -> str:
+def base_failure(args, name: str) -> str:
+    """What this tree fails of ``name`` already ("" when it passes): this invocation's own row when it runs that
+    check too (waited for, never run twice), a pass the caller vouches for in RD_SCAFFOLD_BASE (retrodev check's
+    cached one), else a run of it here (``args.known``: main took RD_SCAFFOLD_BASE out of the environment). A check
+    that cannot run here (Skip) is no failure."""
+    if name in getattr(args, "known", "").split(","):
+        return ""
+    finished = getattr(args, "finished", {})
+    if name in finished:
+        finished[name].wait()
+        return getattr(args, "details", {}).get(name) or "failed" if args.states.get(name) == "FAILED" else ""
+    try:
+        CHECKS[name](args or argparse.Namespace(strict=False))
+    except AssertionError as error:
+        return str(error) or "failed"
+    except Skip:
+        return ""
+    return ""
+
+
+def scaffold_mode() -> str:
+    return os.environ.get("RD_SCAFFOLD_FULL") or "1"
+
+
+def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
+    """(the suites run on the tree before new, those taken as covered elsewhere). Nested adds unit, except in GitHub
+    Actions when this invocation does not run unit itself: CI's unit job runs it on every system for the same
+    commit, so the page job would only repeat it (and a failure there is already red, with its tests named)."""
+    environ = os.environ if environ is None else environ
+    if mode != "nested":
+        return ["page"], []
+    if environ.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
+        return ["page"], ["unit"]
+    return ["unit", "page"], []
+
+
+def base_skip(name: str, message: str, failure: str) -> Skip:
+    """The skip for a tree that fails ``name`` before new runs: the last lines of that failure (its own FIX line
+    left out), then the command that shows all of it."""
+    said = [line for line in failure.strip().splitlines() if not line.startswith("FIX:")][-30:]
+    return Skip(
+        "\n".join([message, *said])
+        + f"\nFIX: python tools/check.py {name} shows the whole failure; fix it first (it says nothing of new)"
+    )
+
+
+def check_scaffold(args) -> str:
     # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
     if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
         raise Skip(f"{missing} (npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py)")
     need("node")
-    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
     # RD_SCAFFOLD_FULL=nested (CI's page job) adds every kind on the real features and the full suites there
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": os.environ.get("RD_SCAFFOLD_FULL") or "1"})
-    if not result.returncode and "skipped 'the tree fails unit (fix unit first)" in result.stderr:
-        raise Skip(UNIT_FIRST)
+    mode = scaffold_mode()
+    # The whole check first: a tree that fails page (nested: or unit) already says nothing of new, and every test
+    # that runs new with its checks would fail on it. Checked once here, so the test module does not again.
+    first, covered = scaffold_baseline(args, mode)
+    with ThreadPoolExecutor(max_workers=len(first)) as pool:
+        failing = dict(zip(first, pool.map(lambda name: base_failure(args, name), first), strict=True))
+    for name, message in (("unit", UNIT_FIRST), ("page", PAGE_FIRST)):
+        if failing.get(name):
+            raise base_skip(name, message, failing[name])
+    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first + covered)})
     if result.returncode or " skipped " in result.stderr:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"
@@ -359,22 +415,31 @@ def main(argv: list[str] | None = None) -> int:
         step_summary.write([row])
         return 1
 
+    # scaffold reads page's (and nested, unit's) row of this same run instead of running it again (base_failure); a
+    # pass the caller vouches for is read once and taken out of the environment, so no other check's tests see it
+    args.finished, args.states, args.details = {name: threading.Event() for name in wanted}, {}, {}
+    args.known = os.environ.pop(BASE, "")
+
     def one(name: str) -> tuple[str, str, float, str]:
         start = time.monotonic()
+        state, detail = "FAILED", ""
         try:
             state, detail = "ok", CHECKS[name](args)
         except Skip as skip:
             state, detail = ("FAILED" if args.strict else "skipped"), str(skip)
-            if args.strict:
+            if args.strict and "\nFIX:" not in detail:  # a skip that names its own next step keeps it
                 detail += "\nFIX: install what is missing (see AGENTS.md, \"Checks\")"
         except AssertionError as error:
             state, detail = "FAILED", str(error)
+        finally:
+            args.states[name], args.details[name] = state, detail
+            args.finished[name].set()
         return name, state, time.monotonic() - start, detail
 
     def show(row: tuple[str, str, float, str]) -> None:
         name, state, seconds, detail = row
         print(f"{state:>7}  {name:<10} {seconds:5.1f} s  {detail.splitlines()[0] if detail else ''}", flush=True)
-        if state == "FAILED" and "\n" in detail:
+        if state != "ok" and "\n" in detail:  # a skip's reason and next step show too
             print("\n".join("         " + line for line in detail.splitlines()[1:]), flush=True)
 
     # The fast checks are independent (each in its own processes and temp folders): run them together and

@@ -16,7 +16,7 @@ import retrodev
 from retrodev import checks_triggers
 
 from tests.retrodev import test_trial_round_two as two
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 from tests.retrodev.test_trial_round_two import TITLE, line_with
 
@@ -304,8 +304,9 @@ class New(ScaffoldCase):
         self.assertIn("def on_library_build_reported(*, game, assets, **_payload) -> None:", listeners)
 
     def test_rpc_next_steps_name_shell_via_profile(self):
-        steps = " ".join(self.new("rpc", "history", "rdprobe_recent")["next"])
-        self.assertIn("use shell.viaProfile for the queryKey's third part", steps)
+        self.new("feature", "rdprobe")  # not history or assets, whose RPCs go through callStudioOnly (round nine)
+        steps = " ".join(self.new("rpc", "rdprobe", "rdprobe_recent")["next"])
+        self.assertIn("queryKey: [ID, 'rdprobe_recent', shell.viaProfile]", steps)
 
     def test_a_library_project_tool_s_next_steps_name_project_files_and_the_title(self):
         for name in ("__init__.py", "tool_args.py"):
@@ -347,7 +348,7 @@ class Pool(unittest.TestCase):
 
 class Readme(unittest.TestCase):
     def test_taking_over_a_branch_already_checked_out_skips_the_worktree(self):
-        text = (ROOT / "tools/retrodev/README.md").read_text()
+        text = retrodev_docs("REFERENCE.md")
         part = text[text.index("**Taking over a teammate's branch**") :].split("\n\n", 1)[0]
         self.assertIn("When the branch is checked out already", part)
         self.assertIn("skip the worktree: run `plan new`, `plan approve`, `sync`, `check` and `ship` there", part)

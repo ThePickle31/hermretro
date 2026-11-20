@@ -98,12 +98,13 @@ def _next_step(facts: dict) -> str:
         dry = bool(facts.get("last_ship_dry_run"))  # a dry run's next step stays one: status never makes it a push
         if dry:
             why += "; the last ship was a dry run: without --dry-run the same command pushes and opens the pull request"
-        return "next: " + ship.command(title, facts["body"], dry) + why
+        return "next: " + ship.command(title, facts["body"], dry) + why + no_title(facts)
     if not facts.get("pr"):
         dry = bool(facts.get("last_ship_dry_run"))
         return (
             "next: "
             + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
+            + no_title(facts)
             + f" (no body yet: ship writes notes/pr/{facts.get('topic') or '<topic>'}.md from the template when it is "
             + "missing, then stops for it to be filled in"
             + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
@@ -142,6 +143,11 @@ def _next_step(facts: dict) -> str:
     )
 
 
+def no_title(facts: dict) -> str:
+    """Why the plan's Title: line is not the title offered (too long, a period), while no title is."""
+    return "" if facts.get("title") else facts.get("title_note") or ""
+
+
 def overlap(ctx, path) -> list[str]:
     """The files this branch changes that the base branch also changed since they parted (none when not behind)."""
     base = ctx.remote_base
@@ -155,7 +161,8 @@ def overlap(ctx, path) -> list[str]:
 def read_first(files: list[str], base: str, before: str = "writing the plan") -> str:
     """Read what the base changed in the branch's files before planning: sync's merge makes that diff empty."""
     shown = cmd("git", "diff", f"HEAD...{base}", "--", *files)
-    return f"read `{shown}` before {before} ({base} changed these files of the branch too)"
+    log = cmd("git", "log", "--oneline", f"HEAD..{base}", "--", *files)  # which commits, and why
+    return f"read `{shown}` and `{log}` before {before} ({base} changed these files of the branch too)"
 
 
 def behind(ctx, path) -> int:
@@ -213,6 +220,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
         "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
+        "title_note": ship.title_note(ctx, branch, record),
         "behind": behind(ctx, path),
         "sync": sync.sync_command(ctx, path) if behind(ctx, path) or merging else None,
         "runner": sync.runner(ctx, path),

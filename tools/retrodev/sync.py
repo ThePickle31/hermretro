@@ -82,7 +82,9 @@ def resume_fix(ctx) -> str:
     return (
         f"resolve each listed source file ({HUNKS}; keep both changes; leave the generated ones, retrodev rebuilds "
         f"them), git add those files, then {sync_command(ctx, ctx.top)} again: it rebuilds the generated files and "
-        "finishes the merge, making the merge commit itself (git merge --abort undoes the merge)"
+        f"finishes the merge, making the merge commit itself (git merge --abort undoes the merge); if {ctx.base} "
+        f"rewrote the code your side changed, take {ctx.base}'s lines in the merge and redo your change on top in "
+        "its own commit after sync"
     )
 
 
