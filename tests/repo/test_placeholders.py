@@ -31,6 +31,8 @@ PLACEHOLDERS = {
     "say what this listener does": "the listener's docstring: what the feature does when the event happens",
     # The tool's schema description (tools.py), which is what the agent reads to pick the tool.
     '"description": "Describe what': "the tool's schema description: what it does and when the agent should call it",
+    # `new contribution`'s component stub (scaffold_contribution.py), which returns null until it is written.
+    "shows from this page for these props": "the contribution component's docstring and what it returns for the slot",
 }
 # Where they end up: the docs, every README, the folder map, the feature list and the page.
 SCANNED_SUFFIXES = {".md", ".toml", ".py", ".js"}
@@ -54,6 +56,11 @@ def scanned() -> list[Path]:
     return found
 
 
+def left_in(line: str) -> list[str]:
+    """The placeholders in one line."""
+    return [text for text in PLACEHOLDERS if text in line]
+
+
 class ScaffoldPlaceholderTests(unittest.TestCase):
     @unittest.skipIf(os.environ.get("RETRODEV_SCAFFOLD_CHECK"), "retrodev new's own run: the stubs are not filled yet")
     def test_no_scaffold_placeholder_is_left(self):
@@ -61,9 +68,8 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
         for path in scanned():
             for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 found += [
-                    f"{path.relative_to(ROOT)}:{number}: '{text}' (write {what})"
-                    for text, what in PLACEHOLDERS.items()
-                    if text in line
+                    f"{path.relative_to(ROOT)}:{number}: '{text}' (write {PLACEHOLDERS[text]})"
+                    for text in left_in(line)
                 ]
         self.assertEqual(
             found,
@@ -87,6 +93,25 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
         planned = {rel: text for rel, text in {**plan.created, **plan.changed}.items() if not rel.startswith(SKIPPED)}
         for text in ("say what this listener does", "(say what it does)"):
             self.assertTrue(any(text in body for body in planned.values()), f"{text!r} not in {sorted(planned)}")
+
+    def test_a_planned_contribution_stub_is_caught(self):
+        """`new contribution` (planned in memory, nothing written) leaves in its component stub, in a file the gate
+        scans, a placeholder the gate finds: an unfilled stub fails."""
+        sys.path.insert(0, str(SCAFFOLD.parent))
+        from retrodev import scaffold, scaffold_contribution
+
+        plan = scaffold.Plan(ROOT)
+        scaffold_contribution.contribution(plan, "home", "games.cardMenu", "RdplaceholderItem")
+        stubs = {rel: text for rel, text in plan.created.items() if not rel.startswith(SKIPPED)}
+        self.assertEqual(sorted(stubs), ["page/pages/home/rdplaceholder-item.js"])
+        self.assertIn(Path(next(iter(stubs))).suffix, SCANNED_SUFFIXES)
+        self.assertTrue(any(text in stubs["page/pages/home/rdplaceholder-item.js"] for text in PLACEHOLDERS))
+
+    def test_each_placeholder_is_caught_in_a_line(self):
+        """The gate's own line check (left_in) names every listed placeholder wherever it sits in a line."""
+        for text in PLACEHOLDERS:
+            self.assertIn(text, left_in(f"  before {text} after"), text)
+        self.assertEqual(left_in("a filled line"), [])
 
     def test_a_new_tools_schema_description_is_caught(self):
         """Each tool template's schema description, with a tool name filled in, is a placeholder the gate finds."""

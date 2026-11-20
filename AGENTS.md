@@ -39,6 +39,7 @@ python tools/check.py            # fast: unit, bundle, lint, page, scan (togethe
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest; pytest is not used)
+node tests/page/<name>.test.mjs    # one page test (rebuild the bundle first after editing page/)
 python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
@@ -50,7 +51,7 @@ since their last pass on the branch (a cached pass prints `ok (cached)`; `--agai
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
 `engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
 check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
-new` run on a throwaway copy of the tree, about 20 s) when it changed the scaffolds or the files whose structure they
+new` run on a throwaway copy of the tree, about 40 s) when it changed the scaffolds or the files whose structure they
 parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count). A
 branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
 on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`
@@ -106,8 +107,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   `plan approve <topic> --words "..."` records the owner's go in their words; `start <kind>/<topic>` makes the
   worktree from a fresh `dev`, sets it up and writes the pull request body `notes/pr/<topic>.md` from the plan to
   fill in (docs and chore branches may skip the plan with `--no-plan`; `takeover <branch>` does the same for a
-  teammate's pushed branch); `new feature|rpc|tool|event|listener|page|tab|slot ...` writes a piece with every
-  registry line it needs (`--dry-run` shows the diff first); `check`; `ship --title ...` stops until the body is
+  teammate's pushed branch); `new feature|rpc|tool|event|listener|page|tab|slot|contribution ...` writes a piece
+  with every registry line it needs (`--dry-run` shows the diff first, also on `dev`); `check`; `ship --title ...` stops until the body is
   filled in (writing it when missing; a dry run too), then pushes and
   opens the draft pull request only for a committed tree that passed `check`; after that a bare `ship` reuses the
   recorded title and body; `report` gives the facts for the report to the owner; `approve <n> --words
