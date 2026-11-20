@@ -7,7 +7,9 @@
 // own process with its own copy; a file sets every precondition it relies on itself.
 // What a query shows is read at render time: the stub's useQuery returns scenario[<query key>] (scenario.games,
 // scenario.player, ...) while the page renders, so set that value before render() (or rerender after changing it);
-// a value set afterwards is not seen. scenario.byMethod[<rpc>] is what a direct host.request call answers.
+// a value set afterwards is not seen. A function there gets the query's whole key and answers for it (a per-game
+// query: scenario.captures = key => answered({ captures: byGame[key[2]] })).
+// scenario.byMethod[<rpc>] is what a direct host.request call answers.
 // A slot's contributions render in PAGES order (page/pages/index.js), not in the order pages were written.
 // Assert DOM presence and identity as booleans so failures do not inspect React's object graph, and the page's text
 // with shows(expected) / hides(expected) (a string or a RegExp), whose failures print only the part of the page

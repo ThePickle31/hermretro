@@ -112,7 +112,8 @@ it), like `tests/page/build-player.test.mjs`.
 `await import('#shared/...')`, as `tests/page/time.test.mjs` does; `check.py page` runs every
 `tests/page/**/*test*.mjs`, so the name must contain `test`.
 The SDK stand-in's react-query (`tests/page/sdk-stub.mjs`, listed in its header): `useQuery` (answers
-`scenario[queryKey[1]]`) and `useQueryClient()` with `invalidateQueries` (a no-op), `setQueryData` and `getQueryData`
+`scenario[queryKey[1]]`, or, when that is a function, what it returns for the whole `queryKey`: a per-game query
+such as `[ID, 'captures', gameId]` then answers each game differently) and `useQueryClient()` with `invalidateQueries` (a no-op), `setQueryData` and `getQueryData`
 (one cache, `scenario.queryData`); add what else a page starts to use.
 
 ## Adding a test

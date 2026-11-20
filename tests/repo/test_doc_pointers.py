@@ -3,6 +3,8 @@
 - Every `tests/...` path they name exists. The docs send readers (and agents) to test files by path; a test that
   moves, splits or is renamed leaves those pointers dangling. Paths with a placeholder (`<feature>`, `*`, `{...}`)
   are patterns, not files, and are skipped.
+- Every backtick-quoted `backend/<feature>/<module>.py` and `page/....js` path they name exists: a module split or
+  renamed inside a feature otherwise leaves its README's module list and ARCHITECTURE.md naming a file that is gone.
 - None says `retrodev new` lacks a kind it has (`new <kind>`, read from tools/retrodev/cli.py's syntax tree and
   checked against the real parser): such a line sends the reader to hand steps the scaffold now does.
 """
@@ -20,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SKIPPED = ("engine/", "tools/npm/", "player/web/", ".dev/", "notes/", ".git/")
 PATH = re.compile(r"(?<![\w./-])tests/[\w./<>*{}$-]*")
 PATTERN = re.compile(r"[<>*{}$]")
+# A concrete source path in a code span (a placeholder such as `<feature>` stops the match, so patterns are skipped).
+MODULE = re.compile(r"`((?:backend|page)/[\w./-]+\.(?:py|js|mjs))`")
 NO_KIND = re.compile(r"retrodev new`? (?:has|had) no (\w+) kind")
 EXPECTED_KINDS = {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot"}
 CLI = ROOT / "tools" / "retrodev" / "cli.py"
@@ -144,7 +148,43 @@ def named_paths(text: str) -> list[tuple[int, str]]:
     return named
 
 
+def missing_modules(docs: list[Path]) -> list[str]:
+    """``doc:line: path`` for each backtick-quoted backend/ or page/ source path in ``docs`` that does not exist."""
+    return [
+        f"{doc.relative_to(ROOT) if doc.is_relative_to(ROOT) else doc}:{number}: {path}"
+        for doc in docs
+        for number, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1)
+        for path in MODULE.findall(line)
+        if not (ROOT / path).is_file()
+    ]
+
+
 class DocPathTests(unittest.TestCase):
+    def test_every_named_module_exists(self):
+        missing = missing_modules(documents())
+        self.assertEqual(
+            missing,
+            [],
+            "\nthese docs name backend/ or page/ files that do not exist:\n  "
+            + "\n  ".join(missing)
+            + "\nFIX: after a module split or rename, update the feature README's module list and any mention in "
+            "docs/dev/ARCHITECTURE.md (git log --follow -- <old path> finds where it went)",
+        )
+
+    def test_a_doc_naming_a_missing_module_is_caught(self):
+        with tempfile.TemporaryDirectory() as folder:
+            doc = Path(folder) / "README.md"
+            doc.write_text(
+                "Real: `backend/library/games.py`, `page/app/player/stage.js`.\n"
+                "Gone: `backend/library/old_games.py`.\nPattern: `backend/<feature>/rpcs.py`, `page/pages/<page>/index.js`.\n"
+                "Gone too: `page/app/player/no-stage.js`\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                missing_modules([doc]),
+                [f"{doc}:2: backend/library/old_games.py", f"{doc}:4: page/app/player/no-stage.js"],
+            )
+
     def test_every_named_test_path_exists(self):
         missing = [
             f"{doc.relative_to(ROOT)}:{number}: {path}"
