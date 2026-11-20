@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 8f71c2618b8f43d5b92d4cbec91ebb98761b047366551c301292a1902b9d36bd
- * body: sha256 5f31e1db4ceb077af63b3b8ef6078868ac8a6725e68565bdaee4e154cb7a7e06
+ * sources: sha256 fa4b4e82e0654e64b8e9837921b17223c7b1f4a74992595e08b7d1b7751cdd69
+ * body: sha256 6e1dd545441effa2d5e7c52ef2ec1f33c5f6e3a729ac7aa77a7dc658643eb0db
  */
 // page/sdk.js
 import {
@@ -3417,15 +3417,15 @@ var CART_SHELF_CSS = `
 .cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
 .cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
 .cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
-.cs-b-shelf-cart b, .cs-b-shelf-cart small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
-.cs-b-shelf-cart:has(.cs-cart:hover) b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) b { color: var(--ui-accent); }
-.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
-.cs-b-shelf-cart.wait small { color: var(--ui-yellow); }
-.cs-b-shelf-cart small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
-.cs-b-shelf-cart small .dot.wait { background: var(--ui-yellow); }
-.cs-b-shelf-cart small .dot.new { background: var(--ui-accent); }
-.cs-b-shelf-cart small .cs-b-spin { height: 8px; width: 8px; }
+.cs-b-shelf-cart .cap b, .cs-b-shelf-cart .cap small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-shelf-cart .cap b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
+.cs-b-shelf-cart:has(.cs-cart:hover) .cap b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) .cap b { color: var(--ui-accent); }
+.cs-b-shelf-cart .cap small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
+.cs-b-shelf-cart.wait .cap small { color: var(--ui-yellow); }
+.cs-b-shelf-cart .cap small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
+.cs-b-shelf-cart .cap small .dot.wait { background: var(--ui-yellow); }
+.cs-b-shelf-cart .cap small .dot.new { background: var(--ui-accent); }
+.cs-b-shelf-cart .cap small .cs-b-spin { height: 8px; width: 8px; }
 .cs-b-shelf-more { align-items: center; aspect-ratio: 299 / 340; background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 55%, transparent); border: 2px dashed var(--ui-text-quaternary, var(--ui-text-tertiary)); border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: grid; font: 700 18px ${MONO}; justify-content: center; width: 100px; }
 .cs-b-shelf-more:hover, .cs-b-shelf-more:focus-visible { border-color: var(--ui-accent); color: var(--ui-accent); }
 .cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
@@ -12160,6 +12160,12 @@ function shelfOrder(entries) {
   const started2 = (entry) => entry.pending ? entry.pending.createdAt ?? Infinity : 0;
   return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || started2(b.entry) - started2(a.entry) || a.index - b.index).map((item) => item.entry);
 }
+function labelNote(game) {
+  if (!game) {
+    return "Being set up";
+  }
+  return game.state === "unbuilt" || game.state === "failed" ? "No build yet" : "Title screen after first play";
+}
 function shelfFit(width, count, more) {
   const slots = Math.max(1, Math.floor((width + 26) / SLOT));
   return count + (more ? 1 : 0) <= slots ? count : Math.max(0, slots - 1);
@@ -12199,7 +12205,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
               jsx(Cartridge, {
                 game: entry.game,
                 label: `${entry.title}, ${entry.sub}`,
-                note: entry.game ? null : "Being set up",
+                note: labelNote(entry.game),
                 onClick: () => onSelect(entry.key),
                 title: entry.title
               }),
