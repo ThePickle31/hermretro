@@ -383,7 +383,8 @@ snapshots, asset versions), otherwise `callStudio` (the library's way; history a
 (`queryKey: [ID, '<name>', shell.viaProfile]` in the page's own Page component with `callStudio`, without viaProfile
 with `callStudioOnly`; for `--game`, in the component that has the game, as above), whose second word the page tests
 answer (`scenario.<name>`); that a page reading a new shell field adds it to its fixture in `tests/page/shells.mjs`
-(`homeShell()`); the page's README and `docs/dev/STUDIO-PAGES.md`; and the row to add to the RPC table under
+(`homeShell()`); the page's README and a bullet in its `### <Page>` subsection under `## Pages` of
+`docs/dev/STUDIO-PAGES.md` (the table row stays short); and the row to add to the RPC table under
 CONTRACT.md's "Studio pages (desktop) and their RPCs", naming the RPCs it lists. It also names the RPC in the
 feature's "The agent half" Declares cell in `docs/dev/ARCHITECTURE.md` (`nothing yet` becomes `RPC \`<name>\``, else
 it joins the RPCs, as `new tool` does with tools and `new event` with the row's events)
@@ -480,7 +481,8 @@ its docstring's copy of the `EVENTS` entry and its test's call (`tests/backend/<
 `page/pages/<id>/` (`index.js` with the `<ID>_PAGE` descriptor, `<id>-page.js`, `README.md`), its import and place
 (last) in `PAGES` of `page/pages/index.js`, and the nav list in `tests/page/registry.test.mjs`; then the bundle. Its
 next steps name the places that list the pages (README.md "What works today", the first sentence under CONTRACT.md's
-"Studio pages (desktop) and their RPCs", STUDIO-PAGES.md's Pages table)
+"Studio pages (desktop) and their RPCs", STUDIO-PAGES.md's Pages table: a row of cells of at most 160 characters plus
+a new `### <Page>` subsection under `## Pages`, with "not designed yet" in the design columns)
 
 ### `new tab <page> <id> [--label "..."] [--from-page]`
 
@@ -506,7 +508,8 @@ files (`scaffold_move.mjs`, the pinned npm tools: without them the move is refus
 default or namespace import or a Page `index.js` neither imports nor defines). An aliased import keeps its exported
 name (`import { SetupPage as SetupPanel }` stays that in the tab). Its automatic page check runs:
 `tests/page/registry.test.mjs` takes a page whose tabs each have a Page. Every tab's next steps say to describe it in
-the page's README **Shows:** line and its row in `docs/dev/STUDIO-PAGES.md`; a Page moved out of `index.js` whose page
+the page's README **Shows:** line and as a bullet in its `### <Page>` subsection under `## Pages` of
+`docs/dev/STUDIO-PAGES.md` (the table row stays short); a Page moved out of `index.js` whose page
 `tests/page/registry.test.mjs` still names in `PAGE_IN_INDEX` gets a step to remove it there (new never edits
 `tests/page/`)
 

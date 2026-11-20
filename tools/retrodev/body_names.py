@@ -3,7 +3,10 @@
 A body is often written from the plan before the code, and a name the code then changed (`games.rom_path`, renamed
 `games.built_rom` while building) stays in the body the owner reads. ship and check's last line name each
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
-and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch.
+and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch, but only a
+path in a bullet or sentence that claims a change (CHANGE_WORDS, or a bullet that opens with the path and a colon),
+never one cited as evidence (`checked against`, `verified in`, `from`, `source:` right before it) nor one under
+engine/ (never changed outside an engine update, so only ever cited).
 """
 
 from __future__ import annotations
@@ -28,15 +31,50 @@ def is_path(word: str) -> bool:
     return bool(PATH.match(word)) and ("/" in word or word.lower().endswith(SUFFIXES)) and not word.startswith("/")
 
 
+CHANGE_WORDS = re.compile(
+    r"\b(?:add|adds|added|change|changes|changed|move|moves|moved|remove|removes|removed|rename|renames|renamed|new|"
+    r"edit|edits|edited|now|write|writes|wrote)\b",
+    re.I,
+)
+# Right before a quoted path, words that cite it as evidence rather than claim a change to it.
+CITED = re.compile(r"(?:checked against|verified (?:in|against)|from|source:|see|per|as in)\s*$", re.I)
+BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+LEADING_PATH = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+`([^`\n]+)`\s*:")
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`(])")
+
+
+def claims(lines: list[str]) -> list[str]:
+    """The section's bullets (a wrapped bullet joined back into one) and paragraphs, each split into sentences; a
+    bullet that opens with `path`: keeps that opening on its first sentence."""
+    blocks: list[str] = []
+    for line in lines:
+        if not line.strip():
+            blocks.append("")
+        elif BULLET.match(line) or not blocks or not blocks[-1]:
+            blocks.append(line.strip())
+        else:
+            blocks[-1] += " " + line.strip()
+    return [sentence for block in blocks if block for sentence in SENTENCE_END.split(block)]
+
+
+def claimed(sentence: str) -> list[str]:
+    """The paths ``sentence`` claims a change to: all of its quoted paths not cited as evidence, when it has a change
+    word or opens a bullet with a path and a colon (that path always); never a path under engine/."""
+    leading = LEADING_PATH.match(sentence)
+    found = [leading.group(1).strip()] if leading and is_path(leading.group(1).strip()) else []
+    if leading or CHANGE_WORDS.search(sentence):
+        for match in QUOTED.finditer(sentence):
+            word = match.group(1).strip()
+            if is_path(word) and not CITED.search(sentence[: match.start()]):
+                found.append(word)
+    return [path for path in found if not path.startswith("engine/") and path != "engine"]
+
+
 def quoted_paths(text: str) -> list[str]:
-    """The file paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `sync.py`, `backend/library/`),
-    in order, each once; a path with a placeholder or a space in it is not one."""
-    found = [
-        quoted.strip()
-        for line in gates.section_lines(text).get(SECTION, [])
-        for quoted in QUOTED.findall(line)
-        if is_path(quoted.strip())
-    ]
+    """The file paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `sync.py`, `backend/library/`)
+    in sentences that claim a change to them (claimed), in order, each once; a path with a placeholder or a space in
+    it is not one."""
+    found = [path for sentence in claims(gates.section_lines(text).get(SECTION, [])) for path in claimed(sentence)]
     return list(dict.fromkeys(found))
 
 
@@ -110,7 +148,8 @@ def warning(ctx, text: str | None) -> str | None:
         listed = ", ".join(f"`{path}`" for path in away)
         lines.append(
             f"warning: the body's 'What changed' names the file(s) {listed}, which the branch's diff does not touch: "
-            "a typo, or a change that went elsewhere? check the body against git diff --stat (a warning, not a gate)"
+            "a typo, or a change that went elsewhere? check the body against git diff --stat; ignore if the file is only "
+            "cited (a warning, not a gate)"
         )
     return "\n".join(lines) or None
 

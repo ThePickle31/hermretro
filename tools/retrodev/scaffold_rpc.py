@@ -234,7 +234,8 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
         "true, ... }) (tests/page/harness.mjs), set before the page renders; extend tests/page/page-<page>.test.mjs",
         "a page that reads a new shell field adds it to its fixture in tests/page/shells.mjs (homeShell())",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
-        "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
+        "if a page shows it, describe it in that page's README **Shows:** line and as a bullet in its `### <Page>` "
+        "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
     ]
     listed = page_rpcs(plan.read(CONTRACT) if plan.exists(CONTRACT) else "")
     if listed:

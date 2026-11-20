@@ -134,15 +134,76 @@ def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
     return None, lines[0] if lines else None
 
 
+REWRITE_RATIO = 0.6  # difflib ratio: HEAD's changed line is a modified copy of a line dev removed
+LONGER = 2  # dev's side of the hunk has at least this many times HEAD's lines (and at least 3)
+
+
+def similarity(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b, autojunk=False).ratio()
+
+
+def rewritten_from(ours: str, theirs: str, base: list[str], dev: list[str]) -> list[str]:
+    """HEAD's changed lines of a hunk that are modified copies of lines dev removed, when dev's side of the hunk is
+    much longer than HEAD's (dev rewrote the block, e.g. a table row into a subsection); [] otherwise."""
+    mine = [line.strip() for line in ours.splitlines() if line.strip()]
+    others = [line for line in theirs.splitlines() if line.strip()]
+    if not mine or len(others) < max(3, LONGER * len(mine)):
+        return []
+    had, kept = {line.strip() for line in base}, {line.strip() for line in dev}
+    removed = [line for line in had if line and line not in kept]
+    changed = [line for line in mine if line not in had]
+    if not changed or not removed:
+        return []
+    copies = [line for line in changed if max(similarity(line, old) for old in removed) > REWRITE_RATIO]
+    return copies if len(copies) == len(changed) else []
+
+
+def new_location(name: str, changed: list[str], dev: list[str], base: list[str]) -> str | None:
+    """Where on the base branch HEAD's change belongs now: ``name``'s line most like HEAD's changed lines among those
+    dev added, with the heading above it when the file has headings; None when dev added nothing alike."""
+    had = {line.strip() for line in base}
+    scored = [
+        (max(similarity(line.strip(), mine) for mine in changed), number)
+        for number, line in enumerate(dev, 1)
+        if line.strip() and line.strip() not in had
+    ]
+    if not scored:
+        return None
+    _score, number = max(scored, key=lambda pair: (pair[0], -pair[1]))
+    above = range(number - 1, -1, -1) if name.endswith(".md") else ()
+    heading = next((dev[i].strip() for i in above if dev[i].startswith("#")), None)
+    return f"{name}:{number}" + (f" (under `{heading}`)" if heading else "")
+
+
+def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) -> str | None:
+    """The hint for a hunk where dev rewrote the block HEAD changed (rewritten_from), or None."""
+    base, dev = _side(ctx, ":1", name), _side(ctx, "MERGE_HEAD", name)
+    if not base or not dev:
+        return None
+    changed = rewritten_from(ours, theirs, base, dev)
+    if not changed:
+        return None
+    where = new_location(name, changed, dev, base) or (moved_to(ctx, name, "\n".join(changed))[0] or name)
+    return (
+        f"{name}:{first}-{last}: {ctx.base} rewrote this block; take {ctx.base}'s side, then redo your change in "
+        f"{where} in its own commit after sync"
+    )
+
+
 def moved_hints(ctx, files: list[str]) -> list[str]:
     """For each conflict hunk whose base side is empty (dev removed or moved that block): where it went (the
-    base's file holding the hunk's most distinctive line) and how to resolve it."""
+    base's file holding the hunk's most distinctive line) and how to resolve it; for a hunk dev rewrote into a much
+    longer block (rewrite_hint): take dev's side and where to redo the change."""
     hints = []
     for name in files:
         path = ctx.top / name
         text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
         for first, last, ours, theirs in conflict_hunks(text):
-            if theirs.strip() or not ours.strip():
+            if theirs.strip() and ours.strip():
+                rewrite = rewrite_hint(ctx, name, first, last, ours, theirs)
+                hints += [rewrite] if rewrite else []
+                continue
+            if not ours.strip():
                 continue
             where, line = moved_to(ctx, name, ours)
             log = cmd("git", "log", "-p", ctx.remote_base, f"-S{line}") if line else ""  # the whole tree

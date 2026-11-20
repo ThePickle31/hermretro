@@ -67,7 +67,9 @@ def page(plan: Plan, page_id: str, page_label: str | None) -> str:
         f"it is last in the nav: move it in PAGES ({REGISTRY}) and in {REGISTRY_TEST} together",
         f"python tools/retrodev new tab {page_id} <tab> | new slot {page_id} <name>",
         f"name {page_label} wherever the pages are listed or counted: README.md 'What works today' (the page list), "
-        "docs/dev/CONTRACT.md 'Studio pages (desktop) and their RPCs' (its first sentence) and the Pages table of docs/dev/STUDIO-PAGES.md",
+        "docs/dev/CONTRACT.md 'Studio pages (desktop) and their RPCs' (its first sentence) and docs/dev/STUDIO-PAGES.md: "
+        f"a row in its Pages table (cells of at most 160 characters) plus a new `### {page_label}` subsection under "
+        "`## Pages`, with 'not designed yet' in the design columns",
     ]
     return f"page {page_id}"
 
@@ -222,7 +224,8 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             f"descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)"
         )
     plan.next_steps.append(
-        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and in the page's row of docs/dev/STUDIO-PAGES.md"
+        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and "
+        "as a bullet in its `### <Page>` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)"
     )
     if from_page and values.get("moved") and page_in_index(plan, page_id):
         plan.next_steps.append(
