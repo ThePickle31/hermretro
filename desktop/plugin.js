@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 5764b551444f8b338bec5fb3f2b56f83ba4d9079d269f1f673e1c876ced9e6ce
- * body: sha256 ccbe98bed526a86f639ad5dac746bed757f5e639f4f7f06ad80851cd9db49c8f
+ * sources: sha256 36453d79508725b8632333bf14bf19e9f69468947c4d7ffd9a7108f7ee007c94
+ * body: sha256 fe099b7cda5379efcd78b27dbbefdfe54c4273153b3acaa2a44d93a6277bd8d8
  */
 // page/sdk.js
 import {
@@ -15289,6 +15289,18 @@ async function installTarget(installedIn) {
   const route = routes.find((candidate) => routeProfile(candidate) === profile);
   return route ? { route, profile } : null;
 }
+async function studioReloadTarget() {
+  const known = studioTarget();
+  if (known) {
+    return { route: known.route, profile: STUDIO_PROFILE };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    return null;
+  }
+  const routes = await host.profileRoutes().catch(() => []) ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === STUDIO_PROFILE);
+  return route ? { route, profile: STUDIO_PROFILE } : null;
+}
 function pluginRow(list) {
   const rows = Array.isArray(list?.plugins) ? list.plugins : [];
   return rows.find((row) => row?.name === ID || row?.key === ID) ?? null;
@@ -15739,10 +15751,9 @@ function usePluginUpdate({ ctx, status, running }) {
     busy.current = true;
     setOpen(true);
     setState({ phase: "updating", step: 0 });
-    const studio = studioTarget();
     const outcome = await runUpdate({
       install: target,
-      studio: studio ? { route: studio.route, profile: studio.profile ?? STUDIO_PROFILE } : null,
+      studio: await studioReloadTarget(),
       options,
       onStep: (step) => setState((current) => ({ ...current, step })),
       remember: (marker) => remember2(ctx, UPDATE_MARKER, marker)

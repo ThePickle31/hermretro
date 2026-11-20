@@ -3,8 +3,8 @@
 // Hermes reloads only the profile that ran the update), refresh that profile's settings, and refresh this page.
 // No React here, so the steps can be tested on their own.
 import { host } from '#sdk'
-import { ID } from '#app/ids.js'
-import { routeProfile } from '#app/routing.js'
+import { ID, STUDIO_PROFILE } from '#app/ids.js'
+import { routeProfile, studioTarget } from '#app/routing.js'
 import { RPC_STUDIO_PROFILE } from '#app/rpc.js'
 
 export const UPDATE_STEPS = ['Downloading and checking the new version', 'Loading it into the hermretro profile', 'Refreshing this page']
@@ -47,6 +47,26 @@ export async function installTarget(installedIn) {
   const route = routes.find(candidate => routeProfile(candidate) === profile)
 
   return route ? { route, profile } : null
+}
+
+/** The hermretro profile, to reload after the update: the page's own route to it when it has one (or the app
+ *  itself when the app is on it), else that profile's route from the app, whether or not the page adopted it yet.
+ *  Null when there is no such profile. */
+export async function studioReloadTarget() {
+  const known = studioTarget()
+
+  if (known) {
+    return { route: known.route, profile: STUDIO_PROFILE }
+  }
+
+  if (typeof host.profileRoutes !== 'function' || typeof host.requestProfile !== 'function') {
+    return null
+  }
+
+  const routes = (await host.profileRoutes().catch(() => [])) ?? []
+  const route = routes.find(candidate => routeProfile(candidate) === STUDIO_PROFILE)
+
+  return route ? { route, profile: STUDIO_PROFILE } : null
 }
 
 /** hermretro's row in Hermes's `plugins.manage list` answer, or null. */

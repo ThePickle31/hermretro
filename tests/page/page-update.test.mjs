@@ -70,6 +70,25 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   })
   check('until the app reloads the page, the chip says it is updated', () => { assert.equal(chip().textContent, 'Updated') })
 
+  // The page has not adopted the hermretro profile (the app is on another profile that answers): the profile is
+  // still found among the app's routes and reloaded there.
+  const elsewhere = { ...base(), profile: { name: 'default', is_studio: false, studio: { name: 'hermretro', exists: true, installed: false, ours: false } } }
+  scenario.ambient = elsewhere
+  scenario.routes = [{ profile: 'default', connectionId: 'local' }, { profile: 'hermretro', connectionId: 'local' }]
+  const viaRoute = []
+  const realRequestProfile = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => { viaRoute.push([route.profile, method, params?.action, params?.enable]); return { ok: true, gateway_reloaded: true } }
+  await act(async () => { root.render(null) })
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'home' }
+  scenario.status = answered(elsewhere); calls.length = 0; reconciled.length = 0
+  await render()
+  await openChip(); await click('Update now'); await settle(40)
+  check('an hermretro profile the page never adopted is still found and reloaded through its route', () => {
+    assert.deepEqual(viaRoute.filter(([, method]) => method === 'plugins.manage'), [['hermretro', 'plugins.manage', 'toggle', false], ['hermretro', 'plugins.manage', 'toggle', true]])
+    assert.equal(calls[0].action, 'update')
+  })
+  scenario.requestProfileHook = realRequestProfile; scenario.ambient = null; scenario.routes = []
+
   // The page the app loads next says how it went, once.
   const marker = scenario.storage.update
   await fresh({ update: marker })

@@ -2,9 +2,8 @@
 // button's progress, and how the last update went (told by the page that loads after it).
 import { host, useEffect, useQuery, useQueryClient, useRef, useState } from '#sdk'
 import { LINKS } from '#shared/ui/links.js'
-import { ID, PLUGINS_HREF, STUDIO_PROFILE } from '#app/ids.js'
-import { studioTarget } from '#app/routing.js'
-import { installTarget, pluginRow, requestOn, runUpdate, UPDATE_MARKER } from './flow.js'
+import { ID, PLUGINS_HREF } from '#app/ids.js'
+import { installTarget, pluginRow, requestOn, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
 
 // Hermes checks for plugin updates about once a day; reading its answer is cheap but not free (every plugin's row).
 const CHECK_EVERY_MS = 30 * 60_000
@@ -104,10 +103,9 @@ export function usePluginUpdate({ ctx, status, running }) {
     setOpen(true)
     setState({ phase: 'updating', step: 0 })
 
-    const studio = studioTarget()
     const outcome = await runUpdate({
       install: target,
-      studio: studio ? { route: studio.route, profile: studio.profile ?? STUDIO_PROFILE } : null,
+      studio: await studioReloadTarget(),
       options,
       onStep: step => setState(current => ({ ...current, step })),
       remember: marker => remember(ctx, UPDATE_MARKER, marker)
