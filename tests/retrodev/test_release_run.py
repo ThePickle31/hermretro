@@ -7,6 +7,7 @@ Run alone: python -m unittest tests.retrodev.test_release_run
 """
 
 import json
+import re
 
 from retrodev import state
 
@@ -189,24 +190,44 @@ class Refused(RunCase):
                 self.assertEqual((self.gh.called("pr", "ready"), self.gh.called("pr", "merge")), ([], []))
                 self.assertNotIn("approval", state.load_branch(self.main, BRANCH))
 
+    def assert_dry(self, text: str) -> None:
+        """Every retrodev command in ``text`` (each `python tools/retrodev ...` up to the next `;` or line end) keeps
+        --dry-run, except read-only ones."""
+        for found in re.findall(r"python tools/retrodev [^;\n]*", text):
+            if found.split()[2] in ("status", "report", "summary"):
+                continue
+            self.assertIn("--dry-run", found, f"a dry run printed a real command: {found}")
+
+    def test_a_version_pull_request_that_sets_another_version_is_never_approved(self):
+        self.version_pr({"plugin.yaml": "version: 9.9.9\n"})  # one line changed, but not to the release's version
+        code, data = self.release_run()
+        self.assertEqual(code, 3, data)
+        self.assertIn(f"sets version 9.9.9, not {NEXT}", data["error"]["message"])
+        self.assertIn(RESUME, data["error"]["fix"])
+        self.assertEqual((self.gh.called("pr", "ready"), self.gh.called("pr", "merge")), ([], []))
+        self.assertNotIn("approval", state.load_branch(self.main, BRANCH))
+
     def test_a_dry_run_changes_nothing_and_every_command_it_prints_keeps_dry_run(self):
         before = self.snapshot()
         code, out = self.release_run("--dry-run", as_json=False)  # nothing started yet
         self.assertEqual(code, 0, out)
-        self.assertIn(f"would run: python tools/retrodev release prepare --version {NEXT}", out)
+        self.assertIn(f"would run: release prepare for {NEXT}", out)
+        self.assert_dry(out)
         self.assertEqual((self.snapshot(), self.gh.calls), (before, []))
         self.version_pr({"plugin.yaml": f"version: {NEXT}\n"})  # open and version-only: would approve and land
         before = self.snapshot()
         code, out = self.release_run("--dry-run", as_json=False)
         self.assertEqual(code, 0, out)
-        self.assertIn(f"would run: python tools/retrodev approve {PR} --words 'make a release'", out)
+        self.assertIn(f"would run: approve #{PR} with the owner's release words", out)
+        self.assertIn(f"would run: python tools/retrodev land {PR} --dry-run", out)
+        self.assert_dry(out)
         self.assertEqual(self.snapshot(), before)
         self.setUp()
         self.version_pr({"plugin.yaml": f"version: {NEXT}\n", "docs/extra.md": "# Extra\n"})
         code, out = self.release_run("--dry-run", as_json=False)
         self.assertEqual(code, 3, out)
         for text in (out, self.release_run("--dry-run")[1]["error"]["fix"]):
-            lines = [line for line in text.splitlines() if "tools/retrodev release run" in line]
-            self.assertTrue(lines and all("--dry-run" in line for line in lines), text)
+            self.assertIn("tools/retrodev release run", text)
+            self.assert_dry(text)
         for verb in (("pr", "ready"), ("pr", "merge"), ("pr", "create"), ("release", "create"), ("release", "edit")):
             self.assertEqual(self.gh.called(*verb), [], verb)

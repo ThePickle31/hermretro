@@ -15,7 +15,8 @@ so running the same command again after any stop resumes where it stopped:
 It never publishes: it prints the draft's address and `release verify <version> --publish` as the next step, for
 after the owner has read the draft. The version it works on is kept in the release record (`run`), and every
 printed command names it (--version), so a rerun takes the same release. --dry-run fetches nothing and changes
-nothing: it prints what is done and what it would run, and every command it prints keeps --dry-run.
+nothing: it prints what is done and what it would run, and every command it prints keeps --dry-run (a step with no
+dry run of its own, prepare and approve, is described, not printed as a command).
 """
 
 from __future__ import annotations
@@ -93,6 +94,15 @@ def checked_head(ctx, info: dict, rec: dict, again: str) -> str:
             OWNER,
             {"pr": number, "head": sha, "extra": extra},
         )
+    found, wanted = release.version_at(ctx, sha), release.stable(rec["version"])
+    if found != wanted:
+        raise Failure(
+            f"the version pull request #{number} sets version {found}, not {wanted}, the release these words were "
+            "recorded for: nothing was approved",
+            f"ask the owner; {branch} must set version: {wanted} (or start the release they name), then {again}",
+            OWNER,
+            {"pr": number, "head": sha, "version": found},
+        )
     return sha
 
 
@@ -131,8 +141,8 @@ class Run:
             return rec
         argv = ["python", "tools/retrodev", "release", "prepare"] + (["--rc"] if self.rc else [])
         argv += ["--version", release.stable(self.version), "--owner-words", self.words]
-        if self.dry_run:
-            self.would("prepare", shlex.join(argv))
+        if self.dry_run:  # prepare has no dry run of its own: say what it does, print nothing that would do it
+            self.would("prepare", f"release prepare for {release.stable(self.version)} (the version pull request)")
             return rec
         self.ctx.out.say(f"running: {shlex.join(argv)}")
         try:
@@ -153,7 +163,7 @@ class Run:
                 if rec.get("no_pr"):
                     self.step(name, f"skipped: {why}")
                 else:
-                    self.would(name, f"{name} <its pull request> ({why})")
+                    self.would(name, f"{name} the version pull request ({why})")
             return
         number = int(rec["pr"])
         info = reviews.pr_view(ctx, number)
@@ -177,7 +187,7 @@ class Run:
         if given.get("pr") == number:
             self.step("approve", f'done: #{number} approved at {given.get("at")}: "{given.get("words")}"')
         elif self.dry_run:
-            self.would("approve", cmd("python", "tools/retrodev", "approve", number, "--words", self.words))
+            self.would("approve", f"approve #{number} with the owner's release words")
         else:
             approve.approve(ctx, number, self.words)  # the release words; it records the head it saw
             given = state.load_branch(ctx.top, branch).get("approval") or {}
@@ -190,7 +200,7 @@ class Run:
                 )
             self.step("approve", f"done: #{number} at {sha[:9]}, with the owner's release words")
         if self.dry_run:
-            self.would("land", cmd("python", "tools/retrodev", "land", number))
+            self.would("land", cmd("python", "tools/retrodev", "land", number, "--dry-run"))
             return
         if checked_head(ctx, reviews.pr_view(ctx, number), rec, self.again) != sha:  # again, right before land
             raise Failure(f"#{number}'s head moved since it was checked", self.again)
@@ -257,7 +267,7 @@ class Run:
         ctx, version = self.ctx, self.version
         argv = ["python", "tools/retrodev", "release", "publish", version]
         if self.waiting:
-            self.would("publish", shlex.join(argv))
+            self.would("publish", shlex.join(argv + ["--dry-run"]))
             ctx.out.say("dry run: nothing was prepared, approved, merged, pushed, tagged or published")
             return 0
         ctx.out.say(f"running: {shlex.join(argv + (['--dry-run'] if self.dry_run else []))}")
