@@ -1,6 +1,7 @@
 // Running the attract level inside the New Game area: building the world for the area's size, the fixed 60 Hz
 // loop, following the theme and rebuilding when the area changes size. The page in front plays no part in the
-// level. Plain DOM code with the browser functions passed in (`env`), so tests drive it with a fake
+// level; the one thing read from it is where the ground must stay flat (`data-at-flat`: the New Game shelf), and
+// the level tells the page where its ground is (`--cs-at-ground`, px from the bottom). Plain DOM code with the browser functions passed in (`env`), so tests drive it with a fake
 // world and a fake clock.
 
 export const SCALE = 2 // screen pixels per game pixel
@@ -19,11 +20,21 @@ export function backgroundOf(el, getStyle) {
 }
 export const skyFor = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? 'day' : 'night')
 
+/** The horizontal spans of the elements in `root` marked `data-at-flat`, in game pixels from the canvas's left. */
+export function flatSpans(root, canvasEl) {
+  const origin = canvasEl.getBoundingClientRect(), out = []
+  for (const el of root.querySelectorAll('[data-at-flat]')) {
+    const r = el.getBoundingClientRect()
+    if (r.width >= 4) out.push([Math.floor((r.left - origin.left) / SCALE), Math.ceil((r.right - origin.left) / SCALE)])
+  }
+  return out
+}
+
 /** Start the level in `host` (the positioned New Game area) on `canvasEl`.
  *  `makeWorld(seed)` returns a world (build, attach, setPalette, step, render). Returns a stop function. */
 export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env
-  let world = null, sky = '', bgCss = '', frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true
+  let world = null, flat = '[]', sky = '', bgCss = '', frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true
   const still = () => !!motion?.matches
 
   // the theme: the palette and `--cs-at-bg` (the frosted glass) follow the page background; true when either changed
@@ -45,8 +56,12 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null
     look()
+    const spans = flatSpans(host, canvasEl)
+    flat = JSON.stringify(spans)
     world = makeWorld(seed)
-    world.build(W, H)
+    world.build(W, H, { flat: spans })
+    // where the ground's top is, for the page: the shelf's cartridges stand on it
+    if (world.L) host.style.setProperty('--cs-at-ground', `${(H - world.L.groundY) * SCALE}px`)
     if (keep) Object.assign(world, keep)
     world.attach(canvasEl, sky)
     // reduce motion: one still frame, a moment into the game so everything has settled
@@ -59,7 +74,11 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     frameId = raf(frame)
     if (!world || isHidden()) { last = now; return }
     // the theme is checked in both modes, so a still frame repaints in the new colours too
-    if (++ticks % LOOK_EVERY === 0 && look() && still()) world.render()
+    // and whether the flat ground moved (the shelf appeared, or gained or lost a cartridge)
+    if (++ticks % LOOK_EVERY === 0) {
+      if (look() && still()) world.render()
+      if (JSON.stringify(flatSpans(host, canvasEl)) !== flat) later()
+    }
     if (still()) { last = now; return }
     acc += Math.min(100, now - (last || now)); last = now
     let n = 0
@@ -78,6 +97,7 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     clearTimer(timer)
     unobserve()
     host.style.removeProperty('--cs-at-bg')
+    host.style.removeProperty('--cs-at-ground')
     motion?.removeEventListener?.('change', later)
   }
 }

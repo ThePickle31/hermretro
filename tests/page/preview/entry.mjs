@@ -309,7 +309,13 @@ export const SCENARIOS = {
   buildcards: buildScenario('Build (build cards)', null, CARDS_HISTORY),
   buildnew: {
     label: 'Build (new game)',
-    status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareSkipped: true }, games: library(), player: playerAt,
+    status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareSkipped: true }, player: playerAt,
+    // Three games with a Build conversation and a New Game being set up: the shelf under the form.
+    games: answered({
+      games: GAMES.map((game, index) => ([0, 1, 4].includes(index) ? { ...game, updatedAt: t - index * 3600, session: { storedId: `st-${game.id}`, thisProfile: true, exists: true } } : game)),
+      pending: [{ storedId: 'st-lamp', name: 'Lamplight', exists: true }],
+      demo: DEMO, device: { hardwareEnabled: true, skipped: false }
+    }),
     extra: { buildSelected: 'new' }
   },
   old: { label: 'Old backend', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareSkipped: true }, games: notLoaded, player: notLoaded }

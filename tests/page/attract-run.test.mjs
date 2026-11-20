@@ -26,7 +26,7 @@ function setup({ still = false } = {}) {
   const makeWorld = seed => {
     const w = { seed, builds: [], palettes: [], renders: 0, steps: 0, score: 0, coinsGot: 0 }
     Object.assign(w, {
-      build: (W, H, boxes) => w.builds.push({ W, H, boxes }), attach: (cv, sky) => w.palettes.push(sky), setPalette: sky => w.palettes.push(sky),
+      L: { groundY: 380 }, build: (W, H, boxes) => w.builds.push({ W, H, boxes }), attach: (cv, sky) => w.palettes.push(sky), setPalette: sky => w.palettes.push(sky),
       step: () => w.steps++, render: () => w.renders++
     })
     worlds.push(w)
@@ -48,7 +48,7 @@ function setup({ still = false } = {}) {
 test('the level is built for the area alone, not around the form, and keeps going', () => {
   const t = setup()
   assert.equal(t.worlds.length, 1)
-  assert.deepEqual(t.worlds[0].builds[0], { W: 600, H: 400, boxes: undefined }, 'built from the area size only')
+  assert.deepEqual(t.worlds[0].builds[0], { W: 600, H: 400, boxes: { flat: [] } }, 'built from the area size only')
   assert.deepEqual(t.observed(), [t.host], 'only the area is watched for size changes')
   assert.deepEqual(t.worlds[0].palettes, ['night'])
   t.tick(30)
@@ -56,6 +56,29 @@ test('the level is built for the area alone, not around the form, and keeps goin
   t.stop()
   assert.equal(t.observed(), null, 'resize watching stopped')
   assert.equal(t.motion.listeners.length, 0, 'reduced-motion listener removed')
+})
+
+test('the shelf\'s span is kept flat, and the page learns where the ground is', () => {
+  const t = setup()
+  const shelf = t.doc.createElement('nav')
+  let width = 400
+  shelf.setAttribute('data-at-flat', '')
+  shelf.getBoundingClientRect = () => ({ left: 400, right: 400 + width, top: 600, bottom: 760, width, height: 160 })
+  t.host.append(shelf)
+  assert.equal(t.host.style.getPropertyValue('--cs-at-ground'), '40px', '(400 - 380) game px from the bottom, x2')
+  t.tick(30)
+  t.fireTimers()
+  assert.equal(t.worlds.length, 2, 'the shelf appeared: rebuilt')
+  assert.deepEqual(t.worlds[1].builds[0].boxes, { flat: [[200, 400]] }, 'its span in game pixels')
+  t.tick(30)
+  t.fireTimers()
+  assert.equal(t.worlds.length, 2, 'nothing moved: no rebuild')
+  width = 520
+  t.tick(30)
+  t.fireTimers()
+  assert.deepEqual(t.worlds[2].builds[0].boxes, { flat: [[200, 460]] }, 'a cartridge more: rebuilt with the wider span')
+  t.stop()
+  assert.equal(t.host.style.getPropertyValue('--cs-at-ground'), '', 'removed on stop')
 })
 
 test('scrolling the form or typing in it leaves the game running', () => {

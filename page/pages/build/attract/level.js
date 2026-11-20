@@ -5,7 +5,9 @@ import { T, indexColliders, rngOf } from './physics.js'
 import { buildEdges, buildSurfaces, connect } from './paths.js'
 import { placeCoins } from './coins.js'
 
-export function buildLevel(W, H, seed) {
+/** `flat`: spans [x0, x1] (game px) of ground kept flat and whole, with no pit, pipe, stairs or tower: the New Game
+ *  shelf's cartridges stand there. A layout rule only: nothing there is solid or different for her. */
+export function buildLevel(W, H, seed, { flat = [] } = {}) {
   const rng = rngOf(seed)
   const cols = Math.ceil(W / T), rows = Math.max(4, Math.floor(H / T)), oy = H - rows * T
   const grid = new Uint8Array(cols * rows)
@@ -26,9 +28,10 @@ export function buildLevel(W, H, seed) {
     pipes.push({ c, dir, h, x: c * T, y: cellY(gTop - h), timer: 60 + Math.floor(rng() * 300) })
     claim(c - 1, c + 2)
   }
+  for (const [x0, x1] of flat) claim(Math.floor(x0 / T) - 1, Math.ceil(x1 / T))
   if (cols >= 10 && rows >= 6) {
-    pipe(1, 1, 2); claim(0, 4)
-    pipe(cols - 3, -1, 2); claim(cols - 5, cols - 1)
+    if (!taken[1] && !taken[2]) { pipe(1, 1, 2); claim(0, 4) }
+    if (!taken[cols - 3] && !taken[cols - 2]) { pipe(cols - 3, -1, 2); claim(cols - 5, cols - 1) }
     const extra = Math.floor(cols / 26)
     for (let i = 0; i < extra * 3 && pipes.length < 2 + extra; i++) {
       const c = 4 + Math.floor(rng() * (cols - 8))
