@@ -1,7 +1,7 @@
 # hermretro's checks. The only required check is "All checks pass" (all-checks-pass), which sums up the
 # others, so jobs can be added, split or skipped without touching the repository rules. The integration tier
 # (real engine) runs for pull requests that touch the backend, engine, player or toolchain, and on every push to
-# dev and main. Every check here is
+# dev and main, except a change of only plugin.yaml's version line (job `changes`). Every check here is
 # also `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
 #
 # Safety: this workflow runs code from pull requests (forks included), so it uses no secrets, its token
@@ -166,13 +166,18 @@ jobs:
           fetch-depth: 2
       - name: Does this touch the backend, the engine or the toolchain?
         id: diff
+        # tools/ci/changes.py decides (its paths, and why a change of only plugin.yaml's version line skips the
+        # real-engine run). A pull request's checkout is its merge commit: the first parent is the base. A push is
+        # judged only when it pushed one commit (before is HEAD's parent); any other push runs everything.
+        env:
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then echo "engine=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          # A pull request's checkout is its merge commit: the first parent is the base.
-          if git diff --name-only HEAD^1 HEAD | grep -qE '^(backend/|engine/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/check\.py$|tools/ci/|\.github/(workflows|actions)/|profile/)'; then
-            echo "engine=true" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            python3 tools/ci/changes.py HEAD^1 HEAD >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$BEFORE" = "$(git rev-parse -q --verify HEAD^1 || true)" ]; then
+            python3 tools/ci/changes.py --push "$BEFORE" HEAD >> "$GITHUB_OUTPUT"
           else
-            echo "engine=false" >> "$GITHUB_OUTPUT"
+            echo "engine=true" >> "$GITHUB_OUTPUT"
           fi
 
   integration:

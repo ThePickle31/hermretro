@@ -91,8 +91,9 @@ class Prepare(ReleaseCase):
         self.assertEqual(create[create.index("--base") + 1], "dev")
         record = state.load_release(self.main, NEXT)
         self.assertEqual((record["words"], record["pr"]), (WORDS, int(PR)))
-        ran = [entry.get("names") or entry.get("script") for entry in self.check_log()]
-        self.assertIn(["acceptance"], ran)  # plugin.yaml changed: the real-engine run and the clean install too
+        ran = [entry.get("names", entry.get("script")) for entry in self.check_log()]
+        self.assertIn([], ran)  # plugin.yaml changed: the clean install (its stand-in, no arguments)
+        self.assertNotIn(["acceptance"], ran)  # only its version line: no real-engine run (checks_triggers)
 
     def test_the_release_body_ticks_the_system_the_checks_ran_on(self):
         with mock.patch("platform.system", return_value="Darwin"), mock.patch("platform.machine", return_value="arm64"):

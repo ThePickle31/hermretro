@@ -108,6 +108,12 @@ engine = ["engine/*"]
 ci = [".github/*.yml", ".github/*.yaml", ".github/actions/*", "tools/*"]
 documentation = [".github/*.md", "docs/*"]
 
+[release]
+# release run: once the version pull request is merged, it waits for the push run (CI) on the release commit,
+# polling every ci_poll seconds up to ci_timeout; then it stops with 2 and the command that resumes it.
+ci_poll = 30
+ci_timeout = 1500
+
 [land]
 # land merges only on green CI for the pull request's exact head: every job must pass or be skipped, except these
 # (names as gh pr checks prints them), and the required ones must be there (no jobs yet is still waiting).

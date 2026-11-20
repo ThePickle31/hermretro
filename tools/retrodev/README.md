@@ -74,6 +74,7 @@ a MacBook, `preview` builds the page's browser preview, and `release ...` makes 
 | `new slot <page> <name> [--doc "..."]` | `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the README's **Slots:** line (`declares `<page>.<name>`: <doc, its first letter lowercased>`); then the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's |
 | `stats` | Read-only: pull requests landed through retrodev (review records with a merge) against all merged into `dev` (git subjects ending `(#N)`); per landed pull request its review rounds, findings per round and answers; the mean time from the first `ship` (recorded from now on) and from the owner's approval to the merge; check times from the branch records; rows and open rows of the main checkout's `notes/friction.md` |
 | `engine update <version> --owner-words "..." [--done N ...] [--dry-run]` | `docs/dev/ENGINE-UPDATE.md` as a checklist. Without the owner's words exit 3 (a dry run too): anything under `engine/` needs the owner. Then only on `chore/engine-<version>`; records the words in `<state>/engine/<version>.json`; judges each step from the tree (the vendored `package.json`, the local patch, `engine/pins/<version>/`, `ENGINE_VERSION`), runs only the read-only helpers (`manifest.py verify`, the lock-step test) and prints the others with the version filled in. A step the tree cannot show (comparing the skills, the full checks) is manual: once done, `--done <its number>` records it (the time, and that the agent did it) in the same record; `--done` on a step the tree judges is refused. Exit 2 while a step is left, an unrecorded manual one included (the next one named, with its `--done`), 0 only when every step is done. It never changes `engine/` itself. `--dry-run` records and runs nothing |
+| `release run [--rc] [--version X.Y.Z] --owner-words "..." [--dry-run]` | The usual way: prepare, approve and land the version pull request, wait for CI on the release commit, publish up to the draft; never publishes it. Below |
 | `release prepare [--rc] [--version X.Y.Z] --owner-words "..."` | Only when the owner asks for a release: without their words (naming a release) exit 3. Below |
 | `release publish <version> [--dry-run]` | The gates, the update check, then main, the tag and the draft release. Below |
 | `release verify <version> [--publish]` | Reads the draft and proves the update path; `--publish` publishes it. Below |
@@ -160,6 +161,29 @@ are in `<state>/reviews/<pr>.json`, readable in the main checkout's `notes/revie
 
 The rules are in the agent guide's "Releases"; these commands carry them out. The version lives only in
 `plugin.yaml` and moves one patch at a time unless the owner names another (`--version`).
+
+The usual way is one command, run from the main checkout in the background:
+`release run --owner-words "<the owner's exact words>"` (`--rc`, `--version` as for prepare). It chains these steps
+in order, each skipped when its record says it is done, so the same command run again after any stop resumes
+there (every command it prints names the version it chose, `--version X.Y.Z`, which it records before any step):
+
+- `release prepare` with those words (when prepare records `no_pr`, approve and land are skipped);
+- `approve <n>` with the same words: the owner's words for the release are the approval of its version pull request,
+  given only after checking that the pull request (its head, into `dev`, from the recorded branch) changes nothing but
+  `plugin.yaml`'s `version:` line; anything more is refused with exit 3 and nothing is approved. The approval is
+  bound to the head it checked (a head that moved meanwhile withdraws it), and the head is checked again right
+  before `land <n>`, which then reviews, waits for CI on that exact head and merges;
+- waits for the push run on the release commit (`release publish`'s CI gate, every `[release] ci_poll` seconds up
+  to `ci_timeout` in `policy.toml`, 30 and 1500); still running: exit 2 with the exact command that resumes it.
+  Before it, the release commit (pinned in the record, as publish pins it) must change only the version line too;
+- `release publish <version>`, with all its gates, up to the draft. It prints the draft's address and
+  `release verify <version> --publish` as the next step, for after the owner has read the draft: it never publishes.
+
+`--dry-run` fetches nothing and changes nothing (no prepare, approve, land or publish, no record): it prints the
+steps done and what it would run (with `release publish --dry-run`'s commands once the commit is known), and
+every command it prints keeps `--dry-run`. A version pull request changes only the `version:` line, so its CI and
+`check` skip the real-engine run (`tools/ci/changes.py`, `checks_triggers.py`); the clean install still runs. The
+three steps below remain, to run or resume one at a time:
 
 1. `release prepare --owner-words "<the owner's exact words>"`: refuses (exit 3) without words that ask for a
    release. Fetches; the version is the patch after `plugin.yaml` on `dev` (or `dev`'s own version when it is not

@@ -44,5 +44,6 @@ the tagged commit, with the notes and the tag; `--publish` then publishes it.
 
 ## Then release
 
-The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release prepare`,
-`release publish` and `release verify` (`tools/retrodev/README.md`, "Releases").
+The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release run`
+(prepare, the version pull request's approval and landing, and publish, up to the draft), or its steps one at a
+time, `release prepare` and `release publish`; then `release verify` (`tools/retrodev/README.md`, "Releases").
