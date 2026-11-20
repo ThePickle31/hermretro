@@ -22,6 +22,12 @@ load_tests = alone
 
 
 class ScaffoldGate(unittest.TestCase):
+    def setUp(self):  # new's own unit run (test_scaffold_tree) has the gate set: start without it
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop(scaffold.SCAFFOLD_CHECK, None)
+
     def test_validate_passes_the_gate_only_to_its_subprocesses(self):  # review 1, 0
         seen = {}
 
