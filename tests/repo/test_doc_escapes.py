@@ -14,26 +14,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-FENCE = re.compile(r"^\s*(```|~~~)")
-CODE_SPAN = re.compile(r"(`+)(?:.+?)\1")
+from tests.repo.markdown import fenced_lines, without_code_spans  # noqa: E402 - the repository root goes on the path first
+
 ESCAPED_QUOTE = re.compile(r"\\[\"']")
 NOT_OURS = ("engine/",)
 
 
 def stray_escapes(text: str) -> list[int]:
     """Line numbers (1-based) with a backslash-escaped quote outside code spans and fenced blocks."""
-    found, fence = [], None
-    for number, line in enumerate(text.splitlines(), 1):
-        opened = FENCE.match(line)
-        if opened:
-            if fence is None:
-                fence = opened.group(1)
-            elif opened.group(1) == fence:
-                fence = None
-            continue
-        if fence is None and ESCAPED_QUOTE.search(CODE_SPAN.sub("", line)):
-            found.append(number)
-    return found
+    lines = text.splitlines()
+    return [
+        number
+        for number, (line, fenced) in enumerate(zip(lines, fenced_lines(text), strict=True), 1)
+        if not fenced and ESCAPED_QUOTE.search(without_code_spans(line))
+    ]
 
 
 def committed_markdown() -> list[str]:
@@ -64,6 +58,34 @@ class DocEscapes(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(stray_escapes(doc.read_text(encoding="utf-8")), [2, 7])
+
+    def test_a_longer_fence_closes_only_on_a_matching_fence(self):
+        text = (
+            "````md\n"  # 1: a four-backtick block showing a three-backtick example
+            "```py\n"
+            "print(\\'inside\\')\n"
+            "```\n"
+            "still code \\'here\\'\n"  # 5: the shorter fence did not close the block
+            "```` trailing\n"  # 6: text after a fence: not a closing fence
+            "code \\'too\\'\n"
+            "````\n"  # 8: closes
+            'Prose \\"after\\" the block.\n'  # 9: flagged
+        )
+        self.assertEqual(stray_escapes(text), [9])
+
+    def test_tilde_fences_follow_the_same_rule(self):
+        text = "~~~~\n~~~\nprint(\\'hi\\')\n```\n~~~~~\nIt\\'s prose.\n"
+        self.assertEqual(stray_escapes(text), [6])
+
+    def test_an_indented_fence_of_four_spaces_is_not_a_fence(self):
+        self.assertEqual(stray_escapes("```\nx = \\'a\\'\n    ```\ny = \\'b\\'\n```\nIt\\'s prose.\n"), [6])
+
+    def test_code_spans_close_on_a_run_of_the_same_length(self):
+        text = (
+            'Double ``say(`\\"hi\\"`)`` is code.\n'  # a span of two holds single backticks
+            'A run ``` \\"a\\" `` is no span.\n'  # three opens, nothing closes it: prose
+        )
+        self.assertEqual(stray_escapes(text), [2])
 
 
 if __name__ == "__main__":
