@@ -9,7 +9,7 @@
 | The last toolchain install | `~/.hermes/hermretro/.cache/toolchain/last-run.json` |
 | Hardware operations (read only) | `~/.codex-gb-studio/chromatic/<id>/operation.json` (the engine's journal) |
 | What a tool returned in a chat | the profile's `state.db`, table `messages` (open read-only) |
-| What the broker holds now (lanes, worker pids and their processes, leases) | `python tools/debug/broker_stats.py` (read-only; exits 2 when no broker runs, never starts one) |
+| What the broker holds now (lanes, worker pids and their processes, leases) | `python tools/debug/broker_stats.py` (read-only, never starts one; exits 2 when no broker runs, 3 when one does not answer) |
 | What the page's RPC answers | `node tools/debug/gateway_rpc.mjs <profile> plugin.hermretro.status` (never prints the attach ticket) |
 
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
@@ -18,10 +18,15 @@ capped at 104 bytes on macOS).
 ## A build hangs or the broker seems stuck
 
 1. `python tools/debug/broker_stats.py` prints the broker's `stats` answer (each lane's `engine_pid`, `alive`,
-   `inflight` calls, writer leases) and, for each live worker, the processes of its process group (the worker
-   starts its own session, so the group id is its pid: a hung `make` or emulator shows there). Add
-   `--activity hermretro <chat id>` for the page's view of one chat (its current tool and recent events).
-   It sends only read-only operations and exits 2 when no broker answers.
+   `inflight` calls, writer leases) and, for each live worker, the worker and every process descended from it,
+   each with its pid, ppid, pgid, elapsed time and command line (`engine_processes`). They come from one
+   `ps -A -o pid=,ppid=,pgid=,etime=,command=` snapshot (the same on Linux and macOS) by following parent pids,
+   so the ROM and web compilers, which the engine starts in sessions of their own, show there too: a hung `make`
+   or emulator shows with its own pgid. Add `--activity hermretro <chat id>` for the page's view of one chat (its
+   current tool and recent events). It sends only read-only operations and waits at most `--timeout` seconds
+   (default 5) for the connect, the handshake and each answer. Exit codes: 0 printed, 2 no broker runs (no
+   socket, a stale one, or the handshake was refused), 3 a broker accepted the connection but did not answer in
+   time or closed it.
 2. The trace (`trace.jsonl` in the run folder, above) has one JSON record per line with `t` and
    `broker_generation`: `dispatch` when a call goes to a worker, `outcome_unknown` when it timed out,
    `denied`, `broker_error`, `worker_closed`, `broker_started`, `broker_stopped`, `broker_idle_exit` and others
@@ -34,7 +39,7 @@ capped at 104 bytes on macOS).
 5. Timeouts: a tool call waits `DEFAULT_CALL_TIMEOUT` (900 s, `backend/broker/lane.py`) unless the request sets
    `timeout`; a worker's start waits 60 s for its `initialize` answer and other requests 60 s by default
    (`backend/broker/engine.py`). A timed-out call is reported as outcome unknown (the engine may still finish
-   it), never as not done. The client side of the socket sets no timeout of its own.
+   it), never as not done. The client side of the socket sets no timeout of its own (only `broker_stats.py` does).
 
 ## Logging
 
