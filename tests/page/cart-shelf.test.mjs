@@ -58,6 +58,17 @@ test('a label with no picture says why, as the Games shelf does', () => {
   assert.equal(labelNote({ state: 'changed' }), 'Title screen after first play')
 })
 
+test('the shelf\'s caption styles reach only its captions, never the text inside a cartridge\'s label', () => {
+  // the label's own "why there is no picture" line is a small inside .cs-cart .ph: it keeps the Games shelf's wrapping
+  for (const line of CART_SHELF_CSS.split('\n')) {
+    for (const sel of (line.split('{')[0] ?? '').split(',')) {
+      if (/\.cs-b-shelf-cart\b/.test(sel) && /(^|\s)(b|small)\b/.test(sel.replace(/:has\([^)]*\)/g, ''))) {
+        assert.match(sel, /\.cap (b|small)\b/, `scoped to the caption: ${sel.trim()}`)
+      }
+    }
+  }
+})
+
 test('as many cartridges as fit, keeping a place for All games when anything is left over', () => {
   assert.equal(shelfFit(630, 4, false), 4, 'four fit in five places')
   assert.equal(shelfFit(630, 4, true), 4, 'four and the All games tile fill five places')
