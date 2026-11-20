@@ -378,6 +378,29 @@ def _controls_problem(value) -> str | None:
     return None
 
 
+def _cover(root: Path, strict: bool) -> dict | None:
+    """``check_cover`` of the project's cover (None when there is no cover file); ``strict`` also refuses one
+    copied unchanged from the game's assets."""
+    if not cover_path(root).is_file():
+        return None
+    cover = check_cover(cover_path(root))
+    if cover["ok"] and strict:
+        copied = copied_asset(root, cover["sha256"])
+        if copied:
+            cover = {**cover, "ok": False, "problem": _copy_problem(copied)}
+    return cover
+
+
+def cover_problem(root: Path, strict: bool = True) -> str | None:
+    """What is wrong with the project's cover by the rules ``status`` uses (``strict``, the default, is
+    chromatic_present_game's: a cover copied unchanged from ``assets/`` is refused too), as the text ``status``
+    lists in ``problems``; None for a usable cover. A project without ``cover.png`` gets a sentence saying so."""
+    cover = _cover(Path(root), strict)
+    if cover is None:
+        return f"There is no {COVER_FILE} yet; draw one and set it with chromatic_game_info."
+    return None if cover["ok"] else cover["problem"]
+
+
 def status(root: Path, data: dict | None = None, *, strict: bool = False) -> dict:
     """What the card still needs: ``{complete, missing: [field], problems: [text], cover}``. ``strict``
     (presenting) also refuses a cover copied unchanged from the game's assets."""
@@ -395,11 +418,7 @@ def status(root: Path, data: dict | None = None, *, strict: bool = False) -> dic
         missing.append("genres")
         if genres:
             problems.append(_list_problem("genres", genres))
-    cover = check_cover(cover_path(root)) if cover_path(root).is_file() else None
-    if cover and cover["ok"] and strict:
-        copied = copied_asset(root, cover["sha256"])
-        if copied:
-            cover = {**cover, "ok": False, "problem": _copy_problem(copied)}
+    cover = _cover(root, strict)
     if not cover or not cover["ok"]:
         missing.append("cover")
         if cover:
