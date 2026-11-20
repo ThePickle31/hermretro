@@ -23,7 +23,7 @@ export function libraryGames(now2) {
     { id: 'ddd444ddd444', title: 'Ace Arena', projectRoot: '/home/u/ChromaticGames/AceArena', kind: 'gbstudio', state: 'unbuilt', rom: null,
       webExport: false, thumb: null, chat: null, error: null },
     { id: 'ccc333ccc333', title: 'Old Orbit', projectRoot: '/home/u/ChromaticGames/OldOrbit', kind: 'gbstudio', state: 'ready', // built first:
-      rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null, // Home skips it
+      rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null,
       card: { title: 'Old Orbit', tagline: null, description: null, about: null, genres: ['Puzzle'], tags: [], controls: {},
         complete: false, missing: ['tagline', 'description', 'cover'], hasCover: false, coverForBuild: null } }
   ]

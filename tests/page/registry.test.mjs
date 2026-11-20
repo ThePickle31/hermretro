@@ -49,7 +49,7 @@ async function render(element) {
 test('the registry lists every page folder once, in nav order, each describing itself', () => {
   const folders = readdirSync(path.join(ROOT, 'page', 'pages')).filter(name => statSync(path.join(ROOT, 'page', 'pages', name)).isDirectory())
 
-  assert.deepEqual(PAGES.map(page => page.id), ['home', 'build', 'setup', 'prompts', 'games', 'emulator'])
+  assert.deepEqual(PAGES.map(page => page.id), ['build', 'setup', 'prompts', 'games', 'emulator'])
   assert.deepEqual([...folders].sort(), PAGES.map(page => page.id).sort(), 'every folder under page/pages/ is a page in page/pages/index.js')
   assert.deepEqual(pageProblems(PAGES), [])
   assert.equal(NAV_PAGES, PAGES)
@@ -242,7 +242,7 @@ test('an unknown slot fails: rendering it, or contributing to it', () => {
 })
 
 test('descriptors are checked: ids, labels, Page or tabs, unknown fields, descriptions', () => {
-  const problems = pageProblems([{ id: 'Bad', label: '', colour: 'red', events: { 'Bad.x': '' } }, fakePage('home'), fakePage('home')])
+  const problems = pageProblems([{ id: 'Bad', label: '', colour: 'red', events: { 'Bad.x': '' } }, fakePage('dup'), fakePage('dup')])
   const text = problems.join('\n')
 
   for (const part of ['id must be a unique lowercase name', 'label must be', 'give the page a Page component, or tabs', 'unknown field "colour"', 'needs a one-line description']) {
@@ -277,14 +277,14 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
   await act(async () => { root.unmount(); beside.root.unmount(); plain.root.unmount() })
 })
 
-// The shell every Page gets, from the real StudioPage, with a probe in Home's place.
+// The shell every Page gets, from the real StudioPage, with a probe in Prompts' place.
 test('a page sees shell.viaProfile: the profile the studio page queries', async () => {
   const { StudioPage } = await import('../../page/app/studio-page.js')
   const { scenario } = await import('./sdk-stub.mjs')
-  const home = PAGES.find(page => page.id === 'home')
-  const original = home.Page
+  const probe = PAGES.find(page => page.id === 'prompts')
+  const original = probe.Page
   const seen = []
-  const storage = { page: 'home', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
+  const storage = { page: 'prompts', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
   const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
   const answered = data => ({ data, isFetching: false, isPending: false })
   const ready = { state: 'installed', version: '1.2.1' }
@@ -292,15 +292,15 @@ test('a page sees shell.viaProfile: the profile the studio page queries', async 
   scenario.status = answered({ ok: true, via_profile: 'hermretro', hardware_enabled: false, project: null, plugin: { version: '9' }, node: { ok: true }, engine: { present: true, verified: true },
     profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } }, deps: { device_cli: ready } })
   scenario.doctor = answered({ ok: true, missing_required: [], components: [] })
-  home.Page = ({ shell }) => { seen.push(shell.viaProfile); return null }
+  probe.Page = ({ shell }) => { seen.push(shell.viaProfile); return null }
   try {
     const { root } = await render(jsx(StudioPage, { ctx }))
 
-    assert.ok(seen.length, 'Home rendered')
+    assert.ok(seen.length, 'the probe rendered')
     assert.equal(seen.at(-1), 'hermretro')
     await act(async () => root.unmount())
   } finally {
-    home.Page = original
+    probe.Page = original
   }
 })
 

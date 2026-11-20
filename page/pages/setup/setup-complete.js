@@ -48,7 +48,7 @@ export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, 
       jsxs('div', {
         className: 'cs-actions',
         children: [
-          jsx(Button, { onClick: () => onGo('home'), size: 'sm', variant: 'default', children: 'Go to the studio' }),
+          jsx(Button, { onClick: () => onGo('build'), size: 'sm', variant: 'default', children: 'Go to the studio' }),
           jsxs(Button, {
             disabled: rechecking,
             onClick: onRecheck,

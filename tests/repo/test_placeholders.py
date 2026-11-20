@@ -112,11 +112,11 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
         from retrodev import scaffold, scaffold_contribution
 
         plan = scaffold.Plan(ROOT)
-        scaffold_contribution.contribution(plan, "home", "games.cardMenu", "RdplaceholderItem")
+        scaffold_contribution.contribution(plan, "prompts", "games.cardMenu", "RdplaceholderItem")
         stubs = {rel: text for rel, text in plan.created.items() if not rel.startswith(SKIPPED)}
-        self.assertEqual(sorted(stubs), ["page/pages/home/rdplaceholder-item.js"])
+        self.assertEqual(sorted(stubs), ["page/pages/prompts/rdplaceholder-item.js"])
         self.assertIn(Path(next(iter(stubs))).suffix, SCANNED_SUFFIXES)
-        self.assertTrue(any(text in stubs["page/pages/home/rdplaceholder-item.js"] for text in PLACEHOLDERS))
+        self.assertTrue(any(text in stubs["page/pages/prompts/rdplaceholder-item.js"] for text in PLACEHOLDERS))
 
     def test_each_placeholder_is_caught_in_a_line(self):
         """The gate's own line check (left_in) names every listed placeholder wherever it sits in a line."""
@@ -205,13 +205,13 @@ PLANNED = {
     "(say what it does here)": [],
     "describe what the page shows.": [("scaffold_page", "page", "rdplaceholder", None)],
     "describe what this page shows.": [("scaffold_page", "page", "rdplaceholder", None)],
-    "describe what this tab shows.": [("scaffold_page", "tab", "home", "rdprobe", None)],
+    "describe what this tab shows.": [("scaffold_page", "tab", "prompts", "rdprobe", None)],
     "(say what it does)": [("scaffold_listener", "listener", "rdplaceholder", "library.build_reported")],
     "say what this listener does": [("scaffold_listener", "listener", "rdplaceholder", "library.build_reported")],
     "shows from this page for these props": [
-        ("scaffold_contribution", "contribution", "home", "games.cardMenu", "RdItem")
+        ("scaffold_contribution", "contribution", "prompts", "games.cardMenu", "RdItem")
     ],
-    "is on the page. Props: { ... }": [("scaffold_page", "slot", "home", "rdProbe", None)],
+    "is on the page. Props: { ... }": [("scaffold_page", "slot", "prompts", "rdProbe", None)],
 }
 
 

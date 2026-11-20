@@ -379,7 +379,7 @@ nor a change to `page/pages/index.js` or `step-words.js` made only of the lines 
 and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
 `scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
-on prompts, a slot on home, a contribution from home to a declared slot), then the full unit and page suites, so a test that
+on prompts, a slot on prompts, a contribution from prompts to a declared slot), then the full unit and page suites, so a test that
 pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. `check` runs it in
 that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
 runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
@@ -430,7 +430,7 @@ snapshots, asset versions), otherwise `callStudio` (the library's way; history a
 (`queryKey: [ID, '<name>', shell.viaProfile]` in the page's own Page component with `callStudio`, without viaProfile
 with `callStudioOnly`; for `--game`, in the component that has the game, as above), whose second word the page tests
 answer (`scenario.<name>`); that a page reading a new shell field adds it to its fixture in `tests/page/shells.mjs`
-(`homeShell()`); the page's README and a bullet where `docs/dev/STUDIO-PAGES.md` describes the page: the
+(`pageShell()`); the page's README and a bullet where `docs/dev/STUDIO-PAGES.md` describes the page: the
 `### <Page>` subsection under `## Pages`, or the page's own top section (for Build, its `### Page` subsection
 under `## Build: one game, one conversation`); and the row to add to the RPC table under
 CONTRACT.md's "Studio pages (desktop) and their RPCs", naming the RPCs it lists. It also names the RPC in the

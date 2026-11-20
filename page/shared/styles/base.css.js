@@ -19,7 +19,6 @@ export const BASE_CSS = `
 .cs-warn { color: var(--ui-yellow); }
 .cs-bad { color: var(--ui-red); }
 .cs-good { color: var(--ui-green); }
-.cs-draft { color: var(--ui-yellow); font: 700 9.5px ${MONO}; letter-spacing: .1em; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cs-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }

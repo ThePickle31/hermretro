@@ -51,8 +51,8 @@ class TabDesignHeading(ScaffoldCase):
             "its `### Page` subsection under `## Build: one game, one conversation` of docs/dev/STUDIO-PAGES.md",
         )
         self.assertEqual(
-            scaffold_readme.design_heading(PAGES_DOC, "Home"),
-            "its `### Home` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md",
+            scaffold_readme.design_heading(PAGES_DOC, "Prompts"),
+            "its `### Prompts` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md",
         )
         self.assertIn("it has none yet: add one", scaffold_readme.design_heading(PAGES_DOC, "Rdprobe"))
         self.assertEqual(
@@ -64,8 +64,8 @@ class TabDesignHeading(ScaffoldCase):
         write(self.tree, "docs/dev/STUDIO-PAGES.md", PAGES_DOC)
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "the pages doc")
-        said = " ".join(self.new("tab", "home", "extra")["next"])
-        self.assertIn("as a bullet in its `### Home` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md", said)
+        said = " ".join(self.new("tab", "prompts", "extra")["next"])
+        self.assertIn("as a bullet in its `### Prompts` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md", said)
         self.assertNotIn("`### <Page>`", said)
 
 
@@ -75,33 +75,33 @@ class TabsNoneLine(ScaffoldCase):
         self.assertEqual(
             scaffold.readme_item(line, "Tabs:", "`main` (`main/index.js`)"), "**Tabs:** `main` (`main/index.js`)."
         )
-        readme = self.read("page/pages/home/README.md")
+        readme = self.read("page/pages/prompts/README.md")
         self.assertIn("**Tabs:** none.", readme)
-        write(self.tree, "page/pages/home/README.md", readme.replace("**Tabs:** none.", line))
+        write(self.tree, "page/pages/prompts/README.md", readme.replace("**Tabs:** none.", line))
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "a none with a reason")
-        self.new("tab", "home", "main", "--from-page")
-        self.new("tab", "home", "history")
-        tabs = next(row for row in self.read("page/pages/home/README.md").splitlines() if "**Tabs:**" in row)
+        self.new("tab", "prompts", "main", "--from-page")
+        self.new("tab", "prompts", "history")
+        tabs = next(row for row in self.read("page/pages/prompts/README.md").splitlines() if "**Tabs:**" in row)
         self.assertEqual(tabs, "**Tabs:** `main` (`main/index.js`), `history` (`history/index.js`).")
 
 
 class TabTests(ScaffoldCase):
     def test_the_step_names_the_page_s_own_files_or_a_new_one_for_the_tab(self):
-        write(self.tree, "tests/page/page-home-shelf.test.mjs", "await tab('Home')\n")
-        write(self.tree, "tests/page/page-home.test.mjs", "await tab('Home')\n")
-        write(self.tree, "tests/page/page-homely.test.mjs", "await tab('Home')\n")  # another page's
+        write(self.tree, "tests/page/page-prompts-shelf.test.mjs", "await tab('Prompts')\n")
+        write(self.tree, "tests/page/page-prompts.test.mjs", "await tab('Prompts')\n")
+        write(self.tree, "tests/page/page-promptsly.test.mjs", "await tab('Prompts')\n")  # another page's
         git(self.tree, "add", "-A")
-        git(self.tree, "commit", "-q", "-m", "home tests")
-        said = " ".join(self.new("tab", "home", "extra")["next"])
+        git(self.tree, "commit", "-q", "-m", "prompts tests")
+        said = " ".join(self.new("tab", "prompts", "extra")["next"])
         self.assertIn(
-            "the tab's checks: add a check to the existing tests/page/page-home*.test.mjs that covers this tab "
-            "(tests/page/page-home-shelf.test.mjs, tests/page/page-home.test.mjs), or a new "
-            "tests/page/page-home-extra.test.mjs (tests/page/*.test.mjs are picked up automatically; name a new one "
-            "on the **Tests:** line of page/pages/home/README.md)",
+            "the tab's checks: add a check to the existing tests/page/page-prompts*.test.mjs that covers this tab "
+            "(tests/page/page-prompts-shelf.test.mjs, tests/page/page-prompts.test.mjs), or a new "
+            "tests/page/page-prompts-extra.test.mjs (tests/page/*.test.mjs are picked up automatically; name a new one "
+            "on the **Tests:** line of page/pages/prompts/README.md)",
             said,
         )
-        self.assertNotIn("page-homely", said)
+        self.assertNotIn("page-promptsly", said)
         self.assertNotIn("the page's checks are in", said)
 
 

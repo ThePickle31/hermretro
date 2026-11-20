@@ -11,7 +11,7 @@ middle, its actions (Start a new chat, Add to current chat, Copy), Hermes art on
 **Slots:** declares none, contributes none.
 
 **Exposes** (`index.js`): the prompt library (`ALL_PROMPTS`, `promptById`, `NEW_GAME_PROMPT`, `SETUP_PROMPT`,
-`DEVICE_CLI_PROMPT`, `FLASH_PROMPT`) for Home, Setup and Games.
+`DEVICE_CLI_PROMPT`, `FLASH_PROMPT`) for Setup and Games.
 
 **Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `promptFolder`.
 

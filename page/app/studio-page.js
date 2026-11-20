@@ -47,11 +47,11 @@ export function StudioPage({ ctx }) {
   const [memory, update] = useSetupMemory(ctx)
   const [page, setPage] = useState(() => {
     try {
-      const stored = ctx.storage.get('page', 'home')
+      const stored = ctx.storage.get('page', 'build')
 
-      return pageById(stored) ? stored : 'home'
+      return pageById(stored) ? stored : 'build'
     } catch {
-      return 'home'
+      return 'build'
     }
   })
   // Step the user chose to look at; null follows the first incomplete step.
@@ -154,7 +154,7 @@ export function StudioPage({ ctx }) {
 
   const finishOnboarding = () => {
     update({ onboarded: true })
-    go('home')
+    go('build')
   }
 
   useEffect(() => {
