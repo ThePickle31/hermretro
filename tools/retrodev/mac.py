@@ -29,7 +29,12 @@ def real_ssh(args: list[str], say) -> int:
     """Run ssh with these arguments, passing each output line to ``say``; its exit code."""
     try:
         with subprocess.Popen(
-            ["ssh", *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+            ["ssh", *args],
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
         ) as process:
             assert process.stdout is not None
             for line in process.stdout:

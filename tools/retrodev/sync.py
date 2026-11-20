@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from . import gates, repo
+from . import gates, land_carry, repo
 from .output import Failure, cmd
 
 REGENERATED = "Regenerate generated files after merging dev"
@@ -225,21 +225,40 @@ def resume(ctx) -> int:
 
 
 def _side(ctx, rev: str, name: str) -> list[str] | None:
-    code, out, _err = repo.run(["git", "show", f"{rev}:{name}"], ctx.top)
-    return out.splitlines() if code == 0 else None
+    """The lines of ``name`` at ``rev`` ("" for the index): [] when it is not there, None when it is binary."""
+    data = repo.blob(ctx.top, f"{rev}:{name}")
+    if data is None:
+        return []
+    content = repo.text(data)
+    return None if content is None else content.splitlines()
+
+
+def conflicted(ctx) -> list[str] | None:
+    """The paths the open merge conflicted on (git merge-tree of HEAD and MERGE_HEAD redoes it without touching the
+    index: once they are resolved and added, git keeps no list of them); None when git's answer cannot be read."""
+    code, out, _err = repo.run(
+        ["git", "merge-tree", "--write-tree", "--name-only", "-z", "HEAD", "MERGE_HEAD"], ctx.top
+    )
+    parsed = land_carry.merge_tree_output(code, out)
+    return None if parsed is None else parsed[1]
 
 
 def new_lines(ctx, generated: set[str]) -> dict[str, int]:
-    """{file: lines} the staged merge holds that neither this branch (HEAD) nor the base (MERGE_HEAD) had: work
-    written into the merge instead of a commit of its own. Blank lines and generated files do not count."""
-    staged = repo.git(["diff", "--cached", "--name-only", "HEAD"], ctx.top, check=False).split()
+    """{file: lines} the resolved conflicts hold that neither this branch (HEAD) nor the base (MERGE_HEAD) had: work
+    written into the merge instead of a commit of its own. Only files that were in conflict count (git merged the
+    rest by itself); blank lines, generated files and binary files (never decoded as text) do not."""
+    staged = repo.git(["diff", "--cached", "--name-only", "-z", "HEAD"], ctx.top, check=False).split("\0")
+    hit = conflicted(ctx)
     found = {}
     for name in staged:
-        merged = _side(ctx, "", name) if name not in generated else None
-        if merged is None:
+        if not name or name in generated or (hit is not None and name not in hit):
             continue
-        known = set(_side(ctx, "HEAD", name) or []) | set(_side(ctx, "MERGE_HEAD", name) or [])
-        count = sum(1 for line in merged if line.strip() and line not in known)
+        sides = [_side(ctx, rev, name) for rev in ("", "HEAD", "MERGE_HEAD")]
+        if any(side is None for side in sides):
+            continue  # binary on some side: not lines
+        merged, ours, theirs = sides
+        known = set(ours or []) | set(theirs or [])
+        count = sum(1 for line in merged or [] if line.strip() and line not in known)
         if count:
             found[name] = count
     return found
