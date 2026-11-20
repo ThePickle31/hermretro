@@ -6,6 +6,9 @@ from pathlib import Path
 TOOLS = str(Path(__file__).resolve().parents[2] / "tools")
 if TOOLS not in sys.path:
     sys.path.insert(0, TOOLS)
+HELPERS = TOOLS + "/py"  # tools/check.py's helpers, on the path before the pool: pooled tests load check.py
+if HELPERS not in sys.path:
+    sys.path.append(HELPERS)
 
 
 def load_tests(loader, standard_tests, pattern):

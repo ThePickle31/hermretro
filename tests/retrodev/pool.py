@@ -1,15 +1,18 @@
 """How the retrodev tests run on threads: `parallel` (a module's load_tests), `alone` (a module that must run by
 itself) and `one_pool` (the package's load_tests under discovery: one pool for every module). Each thread's test
 reports into a recorder, replayed onto the real result in order afterwards. The environment the tests share
-(fixture.shared_env) is set once around the pool, never per test.
+(fixture.shared_env) is set once around the pool, never per test. Each pooled item that leaves os.environ, the
+working folder or sys.path changed fails, naming its module (a mutation the syntax guard cannot see).
 """
 
 from __future__ import annotations
 
 import os
+import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
+from unittest.suite import _ErrorHolder
 
 
 class _Recorded(unittest.TestResult):
@@ -59,7 +62,19 @@ class ParallelSuite(unittest.TestSuite):
 
         def one(test):
             recorded = _Recorded()
+            before = _process_state()
             test(recorded)
+            changed = _changed(before, _process_state())
+            if changed:
+                module = _module(test)
+                try:
+                    raise AssertionError(
+                        f"{module} (or a module on another thread meanwhile) changed process-wide state the pool's "
+                        f"threads share: {'; '.join(changed)}\nFIX: set it only in the env= of the subprocesses it "
+                        "starts (or pass cwd=), or make the module alone (load_tests = alone)"
+                    )
+                except AssertionError:
+                    recorded.addError(_ErrorHolder(f"process state ({module})"), sys.exc_info())
             return recorded.calls
 
         from tests.retrodev.fixture import shared_env  # the fixture imports this module
@@ -77,6 +92,28 @@ class ParallelSuite(unittest.TestSuite):
                 if method is not None:
                     method(*args)
         return result
+
+
+def _process_state() -> tuple:
+    return dict(os.environ), os.getcwd(), list(sys.path)
+
+
+def _changed(before: tuple, after: tuple) -> list[str]:
+    (env, cwd, path), (env2, cwd2, path2) = before, after
+    changed = [f"os.environ {key}" for key in sorted(set(env) | set(env2)) if env.get(key) != env2.get(key)]
+    if cwd != cwd2:
+        changed.append(f"working folder {cwd} -> {cwd2}")
+    if path != path2:
+        added = [p for p in path2 if path2.count(p) > path.count(p)]
+        removed = [p for p in path if path.count(p) > path2.count(p)]
+        changed.append(f"sys.path added {sorted(set(added))}, removed {sorted(set(removed))} (or reordered)")
+    return changed
+
+
+def _module(test) -> str:
+    while isinstance(test, unittest.BaseTestSuite):
+        test = next(iter(test), None)
+    return type(test).__module__ if test is not None else "a pooled module"
 
 
 def _flatten(suite):

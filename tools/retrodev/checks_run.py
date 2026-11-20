@@ -125,8 +125,9 @@ def run_script(ctx, name: str, env: dict) -> dict:
     return result
 
 
-def env_for(name: str) -> dict:
-    env = dict(os.environ)
+def env_for(name: str, extra: dict | None = None) -> dict:
+    """A check's process environment: a copy of os.environ plus ``extra`` (os.environ itself is never changed)."""
+    env = {**os.environ, **(extra or {})}
     if name == "acceptance":
         # The broker's socket path must stay short, and the run uses the toolchain setup put in place.
         env["TMPDIR"] = short_tmp()
