@@ -11,9 +11,10 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_sixteen
 """
 
 import io
+import unittest
 from pathlib import Path
 
-from retrodev import body_names, comment_only, config, output, state
+from retrodev import body_names, comment_only, config, output, scaffold_readme, state
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
@@ -160,9 +161,18 @@ class CommentOnly(RepoCase):
         self.assertFalse(same("a.mjs", template, template.replace("a\n\nb", "a\nb")))
         self.assertFalse(same("a.mjs", template, template.replace("}  \nc", "}\nc")))
         regex = "const t = `a ${/x\\/y/.test(s)} b`\n"
-        self.assertTrue(same("a.mjs", regex, regex + "// c\n"))
         self.assertFalse(same("a.mjs", regex, regex.replace("x\\/y", "x\\/z")))
         self.assertTrue(same("a.mjs", template, "// c\n\n" + template.replace("(\n\n  x)", "(\n  // d\n  x)")))
+
+    def test_a_slash_whose_meaning_needs_context_is_code(self):
+        same = comment_only.comments_only
+        guard = "if (enabled) /[//]/.test(oldValue)\n"
+        self.assertFalse(same("a.mjs", guard, guard.replace("oldValue", "newValue")))
+        self.assertFalse(same("a.mjs", "a = (b) / 2\n", "a = (b) / 3\n"))
+        self.assertFalse(same("a.mjs", "a = (b) / 2 // c\n", "a = (b) / 2 // d\n"))  # unsure: counts as changed
+        self.assertTrue(same("a.mjs", "a = (b) * 2 // c\n", "a = (b) * 2 // d\n"))
+        out = self.checked("tests/page/harness.mjs", guard, guard.replace("oldValue", "newValue"), "fix/slash")
+        self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
 
 
 class RealFiles(ScaffoldCase):
@@ -188,6 +198,25 @@ class SlotOnADeclaringPage(RealFiles):
         slots = self.read("page/pages/games/README.md").split("**Slots:**")[1].split("\n\n")[0]
         self.assertTrue(all(len(line) <= 120 for line in slots.splitlines()), slots)
         self.assertIn("Also declares `<page>.<name>`: <doc>.", retrodev_docs("REFERENCE.md"))
+
+
+class WrappedSlots(unittest.TestCase):
+    def test_each_fills_sentence_follows_its_own_slot_when_wrapping_split_the_boundary(self):
+        for gap in ("Also\ndeclares `games.cardBadge`", "Also declares\n`games.cardBadge`"):
+            text = (
+                "# Games\n\n**Slots:** declares `games.cardActions`: buttons on a card. "
+                + gap
+                + ": a badge on a card. Contributes `X` to `emulator.barActions`.\n\nMore.\n"
+            )
+            text = scaffold_readme.filled_by(text, "games.cardActions", "Setup", "Install")
+            text = scaffold_readme.filled_by(text, "games.cardBadge", "Library", "Badge")
+            flat = " ".join(text.split())
+            self.assertIn(
+                "buttons on a card. Setup fills it with `Install`. Also declares `games.cardBadge`", flat, gap
+            )
+            self.assertIn("a badge on a card. Library fills it with `Badge`. Contributes `X`", flat, gap)
+            said = "declares `games.cardBadge`: a badge on a card"
+            self.assertEqual(scaffold_readme.also_declares(text, said), text, gap)
 
 
 class NewSteps(RealFiles):

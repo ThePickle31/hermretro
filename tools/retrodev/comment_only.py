@@ -1,10 +1,11 @@
 """Whether a change to a source file touches only its comments, docstrings and blank lines (comments_only answers).
 
 Python: the two sides' syntax trees with every docstring dropped (a comment is never in the tree). JavaScript
-(.js, .mjs): the text with its // and /* */ comments cut, outside strings, template literals and regular expression
-literals, then compared line by line without blank lines or trailing spaces; each template literal's text stays
-byte-exact (compared on its own, never normalised). Anything this cannot read for sure (a
-syntax error, another kind of file, a missing side) counts as a real change: the caller then does what it did before.
+(.js, .mjs): the text with its // and /* */ comments cut, outside strings and template literals, then compared line by
+line without blank lines or trailing spaces; each template literal's text stays byte-exact (compared on its own, never
+normalised). Any other '/' in the code (a division or a regular expression literal, which only context tells apart)
+makes the file unreadable here. Anything this cannot read for sure (a syntax error, such a '/', another kind of file,
+a missing side) counts as a real change: the caller then does what it did before.
 """
 
 from __future__ import annotations
@@ -12,9 +13,6 @@ from __future__ import annotations
 import ast
 
 JS_SUFFIXES = (".js", ".mjs")
-# A '/' after one of these (or at the start) opens a regular expression literal, not a division.
-REGEX_BEFORE = set("(,=:[!&|?{};+-*%<>~^")
-REGEX_WORDS = ("return", "typeof", "case", "do", "else", "in", "of", "void", "yield", "await", "delete", "throw")
 
 
 def python_shape(text: str) -> str | None:
@@ -33,22 +31,12 @@ def python_shape(text: str) -> str | None:
     return ast.dump(tree, include_attributes=False)
 
 
-def _regex_allowed(out: list[str]) -> bool:
-    """A '/' here starts a regular expression literal: what came before is an operator, an opening or a keyword."""
-    code = "".join(out[-40:]).rstrip()
-    if not code or code[-1] in REGEX_BEFORE:
-        return True
-    return any(
-        code.endswith(word) and not (code[: -len(word)][-1:].isalnum() or code[: -len(word)][-1:] in "_$")
-        for word in REGEX_WORDS
-    )
-
-
 TEMPLATE = "\x00"  # stands in the code for one piece of template literal text, kept apart byte-exact
 
 
 def js_without_comments(text: str, pieces: list[str] | None = None) -> str | None:
-    """``text`` with its comments cut (None when a string, template or comment never closes). With ``pieces``, each
+    """``text`` with its comments cut (None when a string, template or comment never closes, or when the code holds a
+    '/' that opens no comment: a division or a regular expression, which only context tells apart). With ``pieces``, each
     template literal's text (from its ` or } to its closing ` or up to its ${) goes there verbatim, a TEMPLATE mark in its place."""
     out: list[str] = []
     keep = out if pieces is None else []
@@ -67,7 +55,7 @@ def js_without_comments(text: str, pieces: list[str] | None = None) -> str | Non
                     pieces.append("".join(keep))
                     keep.clear()
                 if c != "`":
-                    out.append("${")  # in the code: a '/' right after it opens a regular expression
+                    out.append("${")
                     braces.append(depth)
                     depth += 1
                 in_template, i = False, i + 1 + (c != "`")
@@ -95,20 +83,8 @@ def js_without_comments(text: str, pieces: list[str] | None = None) -> str | Non
         elif c == "`":
             _open_template(out, keep, pieces, c)
             in_template, i = True, i + 1
-        elif c == "/" and _regex_allowed(out):
-            end, in_class = i + 1, False
-            while end < n and text[end] != "\n" and (in_class or text[end] != "/"):
-                if text[end] == "\\":
-                    end += 1
-                elif text[end] == "[":
-                    in_class = True
-                elif text[end] == "]":
-                    in_class = False
-                end += 1
-            if end >= n or text[end] != "/":
-                return None
-            out.append(text[i : end + 1])
-            i = end + 1
+        elif c == "/":  # a division or a regular expression: telling them apart needs a parser, so unsure
+            return None
         else:
             if c == "{":
                 depth += 1
