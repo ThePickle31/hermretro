@@ -147,8 +147,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 
 ## Releases (only when the owner asks)
 
-`python tools/retrodev release run` takes steps 2 to 4 up to the draft (its parts are `release prepare|publish|verify`;
-`tools/retrodev/README.md`, "Releases"); it refuses without the owner's words asking for a release. By hand:
+`python tools/retrodev release run` takes steps 2 to 4 and publishes (`--draft` stops at the draft), then `release next`
+puts `dev` on the next version, so the next release skips step 2 (`tools/retrodev/README.md`, "Releases"); it refuses
+without the owner's words asking for a release. By hand:
 
 The version lives only in `plugin.yaml` (`tests/repo/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
