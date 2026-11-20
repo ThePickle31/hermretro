@@ -302,6 +302,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
         f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
         f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",
+        f"changing {full}'s payload later: edit {emits}'s function {name}, the EVENTS description in {door}, its "
+        f"{CONTRACT} row and tests/backend/{feature_name}/test_event_{name}.py",
     ]
     bare = undescribed(payload) if keys else []
     if bare:

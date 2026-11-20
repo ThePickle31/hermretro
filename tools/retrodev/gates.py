@@ -80,11 +80,7 @@ def plan_for(ctx, branch: str, record: dict) -> str | None:
     A record from start or plan link names its plan (None: started with --no-plan); a branch made by hand, or
     one whose record only check wrote, follows its kind: feat and fix need the plan named by their topic.
     """
-    kind, _, topic = branch.partition("/")
-    named = record.get("plan")
-    if named is None and (record.get("kind") or kind) not in ctx.policy["branches"]["no_plan"]:
-        named = record.get("topic") or topic  # only docs and chore may go without a plan
-    return named
+    return state.plan_named(record, branch, ctx.policy["branches"]["no_plan"])  # only docs and chore go without
 
 
 def plan_gate(ctx, branch: str, record: dict) -> Gate:
@@ -247,23 +243,27 @@ def body_gate(text: str | None, sections: list[str]) -> Gate:
     return passed("body", "every section filled in")
 
 
-def made_by(ctx) -> str:
-    """The attribution: agent (RETRODEV_AGENT, else Hermes) and GitHub account; no GitHub remote: neither."""
+def made_by(ctx, env=None) -> str:
+    """The attribution: the agent (RETRODEV_AGENT, else Hermes) and the GitHub account (no GitHub remote: 'the
+    owner'). The agent is always named, so the line agrees with agent_hint and the body gate takes it as written."""
     url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
     found = re.search(r"github\.com[:/]([^/]+)/", url)
-    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
-    return f"Made by an agent ({agent}) for @{found.group(1)}." if found else "Made by an agent for the owner."
+    agent = (os.environ if env is None else env).get("RETRODEV_AGENT") or "Hermes"
+    return f"Made by an agent ({agent}) for {'@' + found.group(1) if found else 'the owner'}."
 
 
-GENERIC = ("Made by an agent (Hermes)", "Made by an agent for the owner")  # made_by's, RETRODEV_AGENT unset
+GENERIC = ("Made by an agent (Hermes)", "Made by an agent for the owner")  # made_by's default; an older body's
 
 
-def agent_hint(text: str | None) -> str:
-    """While the body's Made by line names the generic agent (or the body is still to be written without
-    RETRODEV_AGENT): how to name the real one."""
-    if os.environ.get("RETRODEV_AGENT") or (text is not None and not any(line in text for line in GENERIC)):
+def agent_hint(text: str | None, env=None) -> str:
+    """While the body's Made by line names the default agent (or none, in a body an older retrodev wrote), or the
+    body is still to be written without RETRODEV_AGENT: how to name the real one."""
+    if (os.environ if env is None else env).get("RETRODEV_AGENT"):
         return ""
+    if text is not None and not any(line in text for line in GENERIC):
+        return ""
+    said = "no agent" if text is not None and GENERIC[0] not in text else "no agent but Hermes"
     return (
-        "; its Made by line names no agent but Hermes: name your agent and model there "
+        f"; its Made by line names {said}: name your agent and model there "
         "(RETRODEV_AGENT='<agent, model>' names it in a body start or ship writes)"
     )

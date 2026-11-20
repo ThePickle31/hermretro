@@ -248,14 +248,14 @@ class Body(RepoCase):
     def test_the_made_by_line_replaces_the_template_s_comment_and_names_no_owner_without_github(self):
         self.started()
         body = (self.main / "notes/pr/goalie.md").read_text()
-        self.assertTrue(body.endswith("## Made by\nMade by an agent for the owner.\n"), body)
+        self.assertTrue(body.endswith("## Made by\nMade by an agent (Hermes) for the owner.\n"), body)
         self.assertNotIn("A person: your name", body)
         github = SimpleNamespace(remote="gh", top=self.main)
         git(self.main, "remote", "add", "gh", "git@github.com:someone/hermretro.git")
         self.assertEqual(ship.made_by(github), "Made by an agent (Hermes) for @someone.")
         readme = retrodev_docs()
-        self.assertIn("`Made by an agent for the owner.`", readme)
-        self.assertIn("add the agent and model if known", readme)
+        self.assertIn("`Made by an agent (Hermes) for the owner.`", readme)
+        self.assertIn("add the model, and name your agent if it is not Hermes", readme)
 
     def test_check_names_the_sections_still_to_fill_in(self):
         tree = self.started()

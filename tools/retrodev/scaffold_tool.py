@@ -202,6 +202,13 @@ def tool(
         plan.next_steps.append(
             'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
         )
+        plan.next_steps.append(
+            "a test that needs the game's last build: seed it after isolated_home(self) with "
+            'host._registry().upsert(str(project), build={"t": time.time(), "ok": True, "rom": None, "sha256": '
+            '"abc", "error": None}) (from backend.hermes import host; the fields Registry.upsert stores as lastBuild, '
+            "backend/library/games.py); the tool reads it back with host._registry().get(library.game_id(root))"
+            '["lastBuild"]'
+        )
     if project:
         plan.next_steps.append(
             "a tool about the selected game: host.library_game_for([root]) -> (game id, root) or None "

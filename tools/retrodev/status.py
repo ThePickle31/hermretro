@@ -31,7 +31,7 @@ def _plan_steps(facts: dict) -> str | None:
     approve = f'python tools/retrodev plan approve {topic} --words "<the owner\'s exact words>"'
     if facts.get("plan_exists") is False:
         return f"python tools/retrodev plan new {topic}, fill it in, show the owner, then {approve}"
-    return f"show the owner notes/plans/{topic}.md; when they say start: {approve}"
+    return f"show the owner {facts.get('plan_path') or f'notes/plans/{topic}.md'}; when they say start: {approve}"
 
 
 def next_step(facts: dict) -> str:
@@ -74,7 +74,8 @@ def _next_step(facts: dict) -> str:
         return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
     if planned:
         return (
-            f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
+            f"next: show the owner {facts.get('plan_path') or f'notes/plans/{topic}.md'}; when they say start: "
+            "python tools/retrodev plan "
             f'approve {topic} --words "<their exact words>"'
         )
     if not facts.get("checks_passed"):
@@ -101,11 +102,12 @@ def _next_step(facts: dict) -> str:
         return "next: " + ship.command(title, facts["body"], dry) + why + no_title(facts)
     if not facts.get("pr"):
         dry = bool(facts.get("last_ship_dry_run"))
+        written = facts.get("body_path") or f"notes/pr/{facts.get('topic') or '<topic>'}.md"
         return (
             "next: "
             + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
             + no_title(facts)
-            + f" (no body yet: ship writes notes/pr/{facts.get('topic') or '<topic>'}.md from the template when it is "
+            + f" (no body yet: ship writes {written} from the template when it is "
             + "missing, then stops for it to be filled in"
             + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
             + ")"
@@ -216,6 +218,8 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "merging": merging,
         "merge_unresolved": merge_unresolved,
         "body": shown,
+        "body_path": body,  # absolute: notes/ is in the main checkout, not the worktree
+        "plan_path": plan_row["path"] if plan_row else None,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
         "last_ship_dry_run": bool(record.get("last_ship_dry_run")),

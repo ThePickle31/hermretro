@@ -36,8 +36,14 @@ class Rpc(ScaffoldCase):
 
     def test_history_and_assets_rpcs_go_through_call_studio_only_others_through_call_studio(self):
         steps = joined(self.new("rpc", "history", "rdprobe_list"))
-        self.assertIn("backend/history reads that folder: use callStudioOnly", steps)
-        self.assertIn("or its plugin data folder (snapshots, asset versions; host._data_dir())", steps)
+        # round ten: what the handler reads decides, not the feature; history and assets stay the default
+        self.assertIn(
+            "if the handler reads or binds a profile's Build conversations or its plugin data folder "
+            "(host._data_dir(): snapshots, asset versions); otherwise callStudio",
+            steps,
+        )
+        self.assertIn("history and assets RPCs usually do: check what yours reads", steps)
+        self.assertNotIn("reads that folder: use callStudioOnly", steps)
         self.assertIn(SHELLS, steps)
         self.new("feature", "rdprobe")
         steps = joined(self.new("rpc", "rdprobe", "rdprobe_count", "--game"))
