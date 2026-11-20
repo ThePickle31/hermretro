@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -225,6 +226,26 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(listed["assets"][1]["relative"], "assets/sprites/bird.png")
         self.assertFalse(assets_rpcs.rpc_assets(None)({"root": str(self.outside)})["ok"])  # not a library game
         self.assertFalse(assets_rpcs.rpc_assets(None)({})["ok"])
+
+    def test_older_versions_counts_the_kept_versions_but_not_the_current_one(self):
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # no file yet
+        self.write(PNG_A, 1000)
+        self.shown()
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # only the current one
+        self.write(PNG_B, 2000)
+        self.shown()
+        self.write(PNG_A, 3000)
+        self.shown()
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 2)
+
+    def test_a_too_large_image_names_the_limit(self):
+        self.assertEqual(assets_versions.size_text(6 * 1024 * 1024), "6 MB")
+        self.assertEqual(assets_versions.size_text(512 * 1024), "512 KB")
+        self.write(PNG_A, 1000)
+        with mock.patch.object(assets_rpcs, "ASSET_MAX_BYTES", 16):
+            answer = self.asset({"path": str(self.cover)})
+        self.assertEqual(answer["code"], "TOO_LARGE")
+        self.assertEqual(answer["error"], "The image is larger than 16 bytes, too large to preview.")
 
 
 if __name__ == "__main__":

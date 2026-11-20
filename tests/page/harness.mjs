@@ -177,8 +177,17 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     }
   }
 
+  // The Build page's starting point (page-build*.test.mjs): setup finished in this profile (hardware off and skipped),
+  // the Build page open; `selected` is the game (or 'new') it remembers as storage.buildSelected.
+  const buildScenario = ({ selected } = {}) => {
+    const complete = completeStatus()
+    scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
+    scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build', ...(selected ? { buildSelected: selected } : {}) }
+    scenario.ambient = complete; scenario.routes = []; scenario.byProfile = {}
+  }
+
   return {
-    act, createRoot, dom, emit, host, plugin, scenario,
+    act, createRoot, dom, emit, host, plugin, scenario, buildScenario,
     registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
     settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()

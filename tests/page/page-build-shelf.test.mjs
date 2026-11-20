@@ -5,11 +5,9 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, scenario, page, click, tab, settle, mount, check, answered, doctor, complete }) => {
+await runScenario(async ({ buildScenario, act, dom, scenario, page, click, tab, settle, mount, check, answered }) => {
   const fire = (node, type) => act(async () => { node.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true })) })
-  scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
-  scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build' }
-  scenario.ambient = complete; scenario.routes = []; scenario.byProfile = {}
+  buildScenario()
   // As the games RPC answers: most recently changed first, no updatedAt (it strips it).
   const game = (id, title, extra = {}) => ({ id, title, projectRoot: `/home/u/games/${id}`, kind: 'gbstudio', state: 'ready',
     rom: null, webExport: false, thumb: null, chat: null, error: null, ...extra })

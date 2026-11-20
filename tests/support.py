@@ -78,6 +78,35 @@ def throwaway_deps(base: Path):
         yield cache
 
 
+class FakeBrokerClient:
+    """A connected broker client (``backend/broker/client.py``) stand-in: a context manager whose ``request(message)``
+    and ``call(owner, tool, args, **options)`` record what they were sent (``asked``, ``calls``) and answer ``answer``
+    (a dict, or a function given what was sent). Patch it in with ``mock.patch.object(hermes_host, "try_connect",
+    lambda _dir: (client, None))`` or ``mock.patch.object(hermes_host, "ensure_broker", lambda: client)``."""
+
+    hello = {"pid": -1}  # the broker's handshake; -1 is no real process
+
+    def __init__(self, answer=None):
+        self.answer, self.asked, self.calls = answer, [], []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def _reply(self, *sent, **options):
+        return self.answer(*sent, **options) if callable(self.answer) else self.answer
+
+    def request(self, message):
+        self.asked.append(message)
+        return self._reply(message)
+
+    def call(self, *args, **options):
+        self.calls.append(args)
+        return self._reply(*args, **options)
+
+
 def registered_hook(name: str, ctx=None):
     """The callback the plugin registers for the Hermes hook ``name``: one feature's, or the chain of every
     feature that hooks it (backend/hermes/declare.py), built from the ``backend`` modules tests patch."""
