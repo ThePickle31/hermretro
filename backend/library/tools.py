@@ -227,8 +227,8 @@ def game_info_handler(args: dict, **kwargs) -> str:
         if host._is_child(str(kwargs.get("session_id") or "")):
             return _present_error("Only the main conversation can change the game card.", "PARENT_ONLY")
         root, error = _tool_project("chromatic_game_info", args, kwargs)
-        if error:
-            return error
+        if error or root is None:  # narrows root to str for pyright: tool_project gives one or the other
+            return error or _present_error("chromatic_game_info: no project folder.", "NO_PROJECT")
         path = Path(root)
         title = library.project_title(path)
         game_card.scaffold(path, title)
