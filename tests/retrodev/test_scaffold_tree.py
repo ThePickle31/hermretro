@@ -51,7 +51,7 @@ from tests.retrodev.fixture import parallel
 from tests.retrodev.hand_edits import note_feature_readmes
 from tests.retrodev.scaffold_inherited import INNER, inherited_page_failure_skips_the_whole_check
 from tests.retrodev.scaffold_moves import moved_pages_bundle
-from tests.retrodev.tree_copy import copy_base, copy_tree, git_ok, run
+from tests.retrodev.tree_copy import NO_MAINTENANCE, copy_base, copy_tree, git_ok, run
 
 load_tests = parallel
 
@@ -229,6 +229,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             "RETRODEV_STATE_DIR": str(base / "state"),
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
+            **NO_MAINTENANCE,  # git commit's detached maintenance would still write in .git as the copy is removed
             "GIT_AUTHOR_NAME": "t",
             "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t",

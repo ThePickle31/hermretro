@@ -7,6 +7,7 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_five
 """
 
 import argparse
+import functools
 import importlib.util
 import io
 import tempfile
@@ -122,6 +123,8 @@ class Guard(unittest.TestCase):
             mock.patch.object(module, "ruff_missing", lambda: None),
             mock.patch.object(module, "need", lambda tool: tool),
             mock.patch.object(module, "scaffold_mode", lambda: "nested"),
+            # as on a developer's machine: in GitHub Actions the page job leaves unit to the unit job
+            mock.patch.object(module, "scaffold_baseline", functools.partial(module.scaffold_baseline, environ={})),
             mock.patch.dict(module.CHECKS, {"unit": failing, "page": lambda _args: "fine"}),
             mock.patch.object(module, "ROOT", ROOT if (ROOT / "tools/npm/node_modules").is_dir() else Path("/")),
         ):
@@ -129,7 +132,10 @@ class Guard(unittest.TestCase):
                 self.skipTest("the npm tools are not set up here")
             with self.assertRaises(module.Skip) as raised:
                 module.check_scaffold(None)
-        self.assertEqual(str(raised.exception), "skipped: the tree fails unit (fix unit first)")
+        said = str(raised.exception).splitlines()
+        self.assertEqual(said[0], "skipped: the tree fails unit (fix unit first)")
+        self.assertIn("FAILED (failures=1)", said, "the failure itself shows")
+        self.assertTrue(said[-1].startswith("FIX: python tools/check.py unit"), said)
         self.assertEqual((failing.call_count, ran), (1, []), "unit ran once; the scaffold module not at all")
 
 

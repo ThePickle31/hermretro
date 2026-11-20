@@ -16,6 +16,15 @@ def run(command: list[str], cwd: Path, env: dict) -> subprocess.CompletedProcess
 
 
 GIB = 1024**3
+# git commit starts `git maintenance run --auto --detach`, which can go on writing in .git after its test ended
+# (macOS's rm -rf then says "Directory not empty"): off for every git run in a test's copy, by environment.
+NO_MAINTENANCE = {
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "maintenance.auto",
+    "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "gc.auto",
+    "GIT_CONFIG_VALUE_1": "0",
+}
 
 
 def git_ok(case: unittest.TestCase, tree: Path, env: dict, command: list[str]) -> None:

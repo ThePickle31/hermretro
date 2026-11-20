@@ -315,7 +315,7 @@ every kind on a copy of the repository, then lint, the bundle, the structure tes
 part of `check.py full` and `check --full`, `check` adds it when the branch changed the scaffolds or the files whose
 structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds),
 and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
-`scaffold: skipped: the tree fails unit (fix unit first)`, checked once for the whole check, as page is), it runs each kind once more on a real feature or page (an
+`scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
 on prompts, a slot on home, a contribution from home to a declared slot), then the full unit and page suites, so a test that
 pins the real tree's current content fails in CI, not in a contributor's branch that used `new`.

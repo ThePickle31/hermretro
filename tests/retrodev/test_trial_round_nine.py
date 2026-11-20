@@ -213,7 +213,8 @@ class WholeScaffoldCheckFirst(unittest.TestCase):
     def test_a_page_row_of_the_same_run_that_failed_skips_the_whole_check(self):
         module = self.check_py()
         said, ran = self.scaffold(module, self.invocation("FAILED"), page=self.fail)
-        self.assertEqual(said, "skipped: the tree fails page (fix page first)")
+        self.assertEqual(said.splitlines()[0], "skipped: the tree fails page (fix page first)")
+        self.assertIn("FIX: python tools/check.py page", said)
         self.assertEqual(ran, [], "the scaffold module does not run at all")
 
     def test_a_page_row_of_the_same_run_that_passed_is_reused(self):
@@ -231,7 +232,9 @@ class WholeScaffoldCheckFirst(unittest.TestCase):
             raise AssertionError("not ok 1 - rdprobe")
 
         said, ran = self.scaffold(module, argparse.Namespace(strict=False), page=page)
-        self.assertEqual((said, calls, ran), ("skipped: the tree fails page (fix page first)", [1], []))
+        first, shown = said.splitlines()[:2]
+        self.assertEqual((first, calls, ran), ("skipped: the tree fails page (fix page first)", [1], []))
+        self.assertEqual(shown, "not ok 1 - rdprobe", "the failure shows, not only that there was one")
 
     @staticmethod
     def fail(_args):
