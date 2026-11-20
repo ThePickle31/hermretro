@@ -20,6 +20,9 @@ import re
 from . import comment_only, repo
 from .output import Failure
 
+# diff output to parse, whatever the user's git config says (color.ui=always would prefix every line with escapes)
+PLAIN = ("--no-color", "--no-ext-diff")
+
 BODY = re.compile(r"^ \* body: sha256 ([0-9a-f]{64})$", re.M)  # tools/bundle/bundle.mjs's banner line
 VERSION_LINE = re.compile(r"^version:[ \t]*[\"']?([^\"'\s#]+)[\"']?.*$")  # release.VERSION_LINE, one line at a time
 
@@ -37,8 +40,18 @@ def version_only(top, base: str) -> bool:
     point = repo.merge_base(top, base)
     if not point:
         return False
-    code, diff, _err = repo.run(["git", "diff", "-U0", point, "--", "plugin.yaml"], top)
+    code, diff, _err = repo.run(["git", "diff", *PLAIN, "-U0", point, "--", "plugin.yaml"], top)
     return not code and only_version_line(diff)
+
+
+def beyond_version(top, old: str, new: str) -> str | None:
+    """None when ``old``..``new`` changes only plugin.yaml's version line; else what it changes besides."""
+    names = repo.git(["diff", *PLAIN, "--name-only", old, new], top).split()
+    diff = repo.git(["diff", *PLAIN, "-U0", old, new, "--", "plugin.yaml"], top)
+    if names == ["plugin.yaml"] and only_version_line(diff):
+        return None
+    lines = [line for line in diff.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+    return (", ".join(names) or "no file") + ("; plugin.yaml: " + " | ".join(lines[:6]) if lines else "")
 
 
 def body_hash(text: str | None) -> str | None:

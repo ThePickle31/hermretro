@@ -44,8 +44,9 @@ def only_version_line(diff: str) -> bool:
 
 
 def needs_engine(old: str, new: str, push: bool) -> bool:
-    names = [name for name in git("diff", "--name-only", old, new).splitlines() if name]
-    if names == ["plugin.yaml"] and only_version_line(git("diff", "-U0", old, new, "--", "plugin.yaml")):
+    names = [name for name in git("diff", "--no-color", "--name-only", old, new).splitlines() if name]
+    plain = git("diff", "--no-color", "--no-ext-diff", "-U0", old, new, "--", "plugin.yaml")
+    if names == ["plugin.yaml"] and only_version_line(plain):
         return False
     return push or any(PATHS.match(name) for name in names)
 

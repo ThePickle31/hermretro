@@ -65,12 +65,20 @@ def choose(ctx, rc: bool, named: str | None) -> str:
 
 def version_only(ctx, old: str, new: str) -> str | None:
     """None when ``old``..``new`` changes only plugin.yaml's version line; else what it changes besides."""
-    names = repo.git(["diff", "--name-only", old, new], ctx.top).split()
-    diff = repo.git(["diff", "-U0", old, new, "--", "plugin.yaml"], ctx.top)
-    if names == ["plugin.yaml"] and checks_triggers.only_version_line(diff):
-        return None
-    lines = [line for line in diff.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---"))]
-    return (", ".join(names) or "no file") + ("; plugin.yaml: " + " | ".join(lines[:6]) if lines else "")
+    return checks_triggers.beyond_version(ctx.top, old, new)
+
+
+def limit(ctx, branch: str, number: int, version: str, sha: str) -> None:
+    """Mark the approval just given as the release words' (scope release): land then merges this pull request only
+    while it changes nothing but the version line, to ``version`` (land_gates.release_scope_gate), also when land
+    is run on its own after release run stopped."""
+    scope = {"scope": "release", "version": version, "checked": sha}
+    record = state.load_branch(ctx.top, branch)
+    record["approval"] = {**(record.get("approval") or {}), **scope}
+    state.save_branch(ctx.top, record)
+    review = reviews.load(ctx, number)
+    review["approval"] = {**(review.get("approval") or {}), **scope}
+    reviews.save(ctx, review)
 
 
 def checked_head(ctx, info: dict, rec: dict, again: str) -> str:
@@ -190,6 +198,7 @@ class Run:
             self.would("approve", f"approve #{number} with the owner's release words")
         else:
             approve.approve(ctx, number, self.words)  # the release words; it records the head it saw
+            limit(ctx, branch, number, release.stable(rec["version"]), sha)
             given = state.load_branch(ctx.top, branch).get("approval") or {}
             if given.get("head") != sha:
                 unapprove(ctx, branch, number)

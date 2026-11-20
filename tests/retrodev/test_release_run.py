@@ -150,6 +150,32 @@ class Flow(RunCase):
         self.assertEqual(sorted(p.name for p in (state.root(self.main) / "releases").glob("*.json")), [f"{NEXT}.json"])
         self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), merge)
 
+    def test_the_release_approval_covers_only_the_version_line_also_when_land_runs_on_its_own(self):
+        self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(RED), "")  # land stops on red CI, after the approval
+        code, data = self.release_run()
+        self.assertEqual(code, 1, data)
+        approval = json.loads((state.root(self.main) / "reviews" / f"{PR}.json").read_text())["approval"]
+        self.assertEqual((approval["scope"], approval["version"]), ("release", NEXT))
+        tree = self.tree()
+        self.commit(tree, "docs/extra.md", "# Extra\n", "An unrelated change")  # pushed after release run stopped
+        git(tree, "push", "-q", "origin", BRANCH)
+        self.view(headRefOid=git(tree, "rev-parse", "HEAD").strip())
+        self.gh.answers[("pr", "checks", PR)] = (0, json.dumps(GREEN), "")
+        self.run_cli("check", cwd=tree)  # what is pushed passed the checks: only the release scope can stop it
+        code, data = self.run_cli("land", PR, as_json=True)
+        self.assertEqual(code, 3, data)
+        scope = [gate for gate in data["gates"] if gate["name"] == "release approval covers this head"]
+        self.assertTrue(scope and not scope[0]["ok"], data["gates"])
+        self.assertIn("changes more", scope[0]["message"])
+        self.assertEqual(self.gh.called("pr", "merge"), [], "nothing merged on the release words")
+
+    def test_a_version_only_pull_request_passes_whatever_git_colours(self):
+        git(self.main, "config", "color.ui", "always")  # diffs read for the version check must stay plain
+        code, data = self.release_run()
+        self.assertEqual(code, 0, data)
+        ran = [entry.get("names") for entry in self.check_log()]
+        self.assertNotIn(["acceptance"], ran, "still a version-only branch")
+
     def test_no_version_pull_request_skips_approve_and_land(self):
         self.on_dev("plugin.yaml", f"version: {NEXT}\n", "An earlier candidate bumped it")
         git(self.main, "fetch", "-q", "origin")

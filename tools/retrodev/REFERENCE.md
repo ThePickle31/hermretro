@@ -683,7 +683,10 @@ there (every command it prints names the version it chose, `--version X.Y.Z`, wh
   given only after checking that the pull request (its head, into `dev`, from the recorded branch) changes nothing but
   `plugin.yaml`'s `version:` line; anything more is refused with exit 3 and nothing is approved. The approval is
   bound to the head it checked (a head that moved meanwhile withdraws it), and the head is checked again right
-  before `land <n>`, which then reviews, waits for CI on that exact head and merges;
+  before `land <n>`, which then reviews, waits for CI on that exact head and merges. It is recorded as a release
+  approval (`scope: release`): `land`, also run on its own after release run stopped, merges that pull request on
+  it only while the head changes nothing but the version line, to that version (gate "release approval covers this
+  head"); an ordinary `approve` by the owner replaces it;
 - waits for the push run on the release commit (`release publish`'s CI gate, every `[release] ci_poll` seconds up
   to `ci_timeout` in `policy.toml`, 30 and 1500); still running: exit 2 with the exact command that resumes it.
   Before it, the release commit (pinned in the record, as publish pins it) must change only the version line too;
