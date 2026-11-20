@@ -229,7 +229,9 @@ class Publish(ReleaseCase):
                 f"HERMES_RELEASE=1 git push origin {sha}:main",
                 f"git tag -a v{NEXT} {sha} -m 'Release {NEXT}'",
                 f"git push origin refs/tags/v{NEXT}",
-                f"gh release create v{NEXT} --verify-tag --generate-notes --notes-start-tag v0.0.1 --draft",
+                f"gh release create v{NEXT} --verify-tag --notes-file "
+                + str(state.root(self.main) / "releases" / f"{NEXT}-notes.md")
+                + " --draft",
             ],
         )
         self.assertEqual((self.remote("refs/heads/main"), self.remote(f"refs/tags/v{NEXT}")), (before, ""))
@@ -244,7 +246,12 @@ class Publish(ReleaseCase):
         self.assertEqual(self.remote(f"refs/tags/v{NEXT}^{{commit}}"), sha)
         self.assertEqual(git(self.origin, "cat-file", "-t", f"v{NEXT}").strip(), "tag", "annotated")
         create = self.gh.called("release", "create")
-        self.assertEqual(create[0][-3:], ["--notes-start-tag", "v0.0.1", "--draft"])
+        notes_file = state.root(self.main) / "releases" / f"{NEXT}-notes.md"
+        self.assertEqual(create[0][-3:], ["--notes-file", str(notes_file), "--draft"])
+        notes = notes_file.read_text()
+        self.assertIn("## Updating", notes)
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not needed", notes)
+        self.assertNotIn(f"Release {NEXT}", notes, "the version pull request is left out")
         self.assertEqual(data["url"], URL)
         self.assertEqual(self.check_log()[0]["script"], ["--update-from", "v0.0.1"])  # from the last release
         self.assertEqual(self.check_log()[0]["head"], sha)
@@ -254,6 +261,39 @@ class Publish(ReleaseCase):
         self.assertEqual(code, 0, again)
         self.assertEqual(len(self.gh.called("release", "create")), 1, "nothing is done twice")
         self.assertEqual(len(self.check_log()), 1, "the update check's pass is kept for this commit")
+
+    def test_the_owners_checklist_result_goes_into_the_notes(self):
+        self.merged_release()
+        code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 0, data)
+        notes = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text()
+        self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", notes)
+        self.assertEqual(state.load_release(self.main, NEXT)["checklist"], "passed on a MacBook Pro (M3)")
+
+    def test_a_checklist_result_given_after_the_draft_goes_into_its_notes(self):
+        self.merged_release()
+        self.assertEqual(self.publish()[0], 0)  # the draft, "not needed"
+        tag = f"v{NEXT}"
+        drafted = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text() + "\nA hand-written note.\n"
+        self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
+        self.gh.answers[("release", "view", tag, "--json", "body")] = (0, drafted, "")
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        self.gh.answers[("release", "edit")] = (1, "", "HTTP 422: Validation Failed")  # the notes edit fails once
+        code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
+        self.assertEqual(code, 1, data)
+        self.gh.answers[("release", "edit")] = (0, "", "")
+        self.gh.calls.clear()
+        code, data = self.publish(NEXT)  # the resume, without --checklist: the kept result still goes in
+        self.assertEqual(code, 0, data)
+        edit = self.gh.called("release", "edit", tag, "--notes")
+        self.assertEqual(len(edit), 1, self.gh.calls)
+        self.assertIn("RELEASE-CHECKLIST.md): passed on a MacBook Pro (M3)", edit[0][-1])
+        self.assertIn("A hand-written note.", edit[0][-1])
+        self.assertNotIn("not needed", edit[0][-1])
+        self.gh.answers[("release", "view", tag, "--json", "body")] = (0, edit[0][-1], "")
+        self.gh.calls.clear()
+        self.assertEqual(self.publish(NEXT)[0], 0)
+        self.assertEqual(self.gh.called("release", "edit"), [], "the notes have it: no edit again")
 
     def test_a_retry_after_dev_moves_releases_the_commit_the_first_publish_chose(self):
         sha = self.merged_release(pr=None)  # no version pull request: the release commit is dev's head
