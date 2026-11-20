@@ -216,13 +216,13 @@ def tool(
         )
     if project:
         plan.next_steps.append(
-            "the chat's or given project: tool_project (as the stub does); use host.library_game_for only when the "
-            "tool needs the game's library id or entry"
+            "the selected game is this chat's project (or the `project` argument): tool_project, as the stub does; "
+            "call host.library_game_for([root]) -> (game id, root) or None (from ..hermes import host) only when you "
+            "need the game's library id or entry (e.g. the id player.list_captures(root, game_id) takes)"
         )
         plan.next_steps.append(
-            "a tool about the selected game: host.library_game_for([root]) -> (game id, root) or None "
-            "(from ..hermes import host); a test for the selected game: `game, root = make_library_game(self.home, "
-            "name)` from tests.support (self.home = isolated_home(self), as the test's setUp has it)"
+            "a test that needs a library game: `game, root = make_library_game(self.home, name)` from tests.support "
+            "(self.home = isolated_home(self), as the test's setUp has it)"
         )
     return f"tool {full}"
 

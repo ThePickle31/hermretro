@@ -137,7 +137,8 @@ class EventBroker(ScaffoldCase):
 class TakeoverAgent(RepoCase):
     def test_the_plan_approve_step_names_the_agent_while_it_is_unset(self):
         self.assertEqual(gates.agent_prefix({}), "RETRODEV_AGENT='<agent, model>' ")
-        self.assertEqual(gates.agent_prefix({"RETRODEV_AGENT": "Hermes, a model"}), "")
+        # round seventeen: a set variable is printed with its real value (the new process may not have it)
+        self.assertEqual(gates.agent_prefix({"RETRODEV_AGENT": "Hermes, a model"}), "RETRODEV_AGENT='Hermes, a model' ")
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
         git(mate, "switch", "-q", "-c", "feat/mate")
@@ -172,6 +173,7 @@ class BodyCitations(RepoCase):
         ):
             with self.subTest(said=said):
                 self.assertEqual(self.warning(said), "")
+        self.commit(self.tree, "tools/kept.py", "VALUE = 1\n")  # round 17: a docs-only branch never warns on code
         self.assertIn("`tools/x.py`", self.warning("- Changed `tools/x.py`."))
         self.assertIn("`tools/x.py`", self.warning("- Documents the gateway; changed `tools/x.py`."))
 

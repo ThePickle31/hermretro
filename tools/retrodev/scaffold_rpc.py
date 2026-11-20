@@ -298,3 +298,35 @@ def listed_in_docstring(plan: Plan, source: str, name: str) -> None:
         return
     plan.edit(source, lambda text: docstring_listed(text, name) or text)
     plan.done.append(f"added `{name}` to the list of RPCs in {source}'s docstring")
+
+
+HARNESS = ("tests/page/sdk-stub.mjs", "tests/page/harness.mjs")  # where the page test harness fills `scenario`
+
+
+def reserved_scenario(plan: Plan) -> set[str]:
+    """The keys the page test harness keeps on `scenario` for itself (the host storage stub, the call log, ...), read
+    from its files: the scenario literal's keys not defaulting to null and every `scenario.<key>` the code uses other
+    than to set a query answer (`= answered(...)`: status, doctor), so a null key the code reads (ambient) stays
+    reserved. A query key, which is the RPC name, must not be one of them: scenario[<name>] is what a query answers."""
+    keys = set()
+    for rel in HARNESS:
+        if not plan.exists(rel):
+            continue
+        code = re.sub(r"(?m)^\s*//.*$|//[^\n'`]*$", "", plan.read(rel))
+        literal = re.search(r"export const scenario = \{(.*?)\n\}", code, re.S)
+        for key, value in re.findall(r"(\w+):\s*([^,\n]+)", literal.group(1) if literal else ""):
+            if value.strip() != "null":  # a null one is a query answer a test sets (activity)
+                keys.add(key)
+        # any use but `scenario.<key> = answered(...)` is the harness's own (scenario.ambient: host.request's answer)
+        keys |= set(re.findall(r"\bscenario\.(\w+)\b(?!\s*=\s*answered\()", code))
+    return keys
+
+
+def refuse_reserved(plan: Plan, name: str) -> None:
+    """new rpc NAME where the page test harness reserves scenario.NAME: a page test could never answer its query."""
+    if name in reserved_scenario(plan):
+        raise Failure(
+            f"the page test harness reserves scenario.{name} ({' or '.join(HARNESS)}), and a page test answers a "
+            f"query by its RPC name (scenario.<rpc>); nothing was written",
+            f"pick another RPC name (for example {name}_info, or a more specific one such as disk_usage)",
+        )

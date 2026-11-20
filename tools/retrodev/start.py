@@ -114,6 +114,9 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
         created=state.now(),
         start_sha=repo.head(path),
     )
+    agent = gates.agent_name(gates.environment(ctx))
+    if agent:  # a later plan approve or ship (new processes, maybe without the variable) still names it
+        record["agent"] = agent
     state.save_branch(main, record)
     if not no_plan:
         from . import plan  # ship imports plan; start stays importable on its own
@@ -150,6 +153,6 @@ def body_note(ctx, branch: str, record: dict, no_plan: bool = False) -> str | No
         ctx.out.say(
             f"wrote {written}: the pull request body ({copied}); fill in the "
             "rest while you build, ship refuses it until every section says something"
-            + gates.agent_hint(written.read_text(encoding="utf-8"))
+            + gates.agent_hint(written.read_text(encoding="utf-8"), gates.environment(ctx), record)
         )
     return str(written or ship.default_body(ctx, branch, record))
