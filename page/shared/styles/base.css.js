@@ -19,6 +19,9 @@ export const BASE_CSS = `
 .cs-warn { color: var(--ui-yellow); }
 .cs-bad { color: var(--ui-red); }
 .cs-good { color: var(--ui-green); }
+.cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
+.cs-screen { aspect-ratio: 10 / 9; background: var(--ui-bg-tertiary); display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.cs-screen.ph { align-content: center; color: var(--ui-text-quaternary); display: grid; font: 700 10px/1.4 ${MONO}; letter-spacing: .1em; padding: 10px; text-align: center; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cs-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }

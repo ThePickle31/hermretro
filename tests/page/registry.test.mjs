@@ -304,6 +304,18 @@ test('a page sees shell.viaProfile: the profile the studio page queries', async 
   }
 })
 
+// A shared component's class is styled by the shared stylesheets, not by one page's: removing that page (as Home was)
+// must not leave the component bare on every other page.
+test('every class a shared component sets (and the default of Screen) has a rule in the composed stylesheet', () => {
+  const css = composeStyles(PAGES)
+  const dir = path.join(ROOT, 'page', 'shared', 'ui')
+  const used = new Set(readdirSync(dir).filter(name => name.endsWith('.js') && !name.endsWith('.css.js'))
+    .flatMap(name => [...readFileSync(path.join(dir, name), 'utf8').matchAll(/className(?: = |: )'(cs-[a-z0-9-]+)/g)].map(match => match[1])))
+
+  assert.ok(used.has('cs-foot') && used.has('cs-screen'), 'the scan finds the footer and the screen')
+  assert.deepEqual([...used].filter(name => !new RegExp(`\\.${name}(?![\\w-])`).test(css)), [], 'FIX: style the class in page/shared/styles/ or page/app/shell.css.js')
+})
+
 test('the stylesheet holds every page rule once; Build after the narrow-pane rules', () => {
   const css = composeStyles(PAGES)
 

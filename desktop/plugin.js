@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 381af8242c14d87ba5c3a0302a24cc949ecc50cc75efcbedc859058e8d6f50a0
- * body: sha256 f618fa1c7fc75ed64ed8a6d213a70a336c09b34bb15298fcefcc0e44077c5d80
+ * sources: sha256 74aec03d3ff19cc7aa01fffdf0d6d2b79e6877ffcb6e064eba5be3decd6d090f
+ * body: sha256 9a53028462cc2e650fa421035e7b3232c328636c30a49416ba1017bf87d04a67
  */
 // page/sdk.js
 import {
@@ -13180,6 +13180,9 @@ var BASE_CSS = `
 .cs-warn { color: var(--ui-yellow); }
 .cs-bad { color: var(--ui-red); }
 .cs-good { color: var(--ui-green); }
+.cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
+.cs-screen { aspect-ratio: 10 / 9; background: var(--ui-bg-tertiary); display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.cs-screen.ph { align-content: center; color: var(--ui-text-quaternary); display: grid; font: 700 10px/1.4 ${MONO}; letter-spacing: .1em; padding: 10px; text-align: center; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cs-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
