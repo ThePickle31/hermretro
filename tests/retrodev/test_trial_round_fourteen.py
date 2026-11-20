@@ -58,6 +58,31 @@ class NestedScaffold(RepoCase):
                 self.assertIn("as CI's page job runs those tests in its grown copy", out)
                 self.assertEqual([entry.get("mode") for entry in scaffold], ["nested"])
 
+    def test_a_named_scaffold_or_again_keeps_the_branch_s_nested_mode_and_the_tree_s_pass(self):
+        """Review round 1 of #75: `check scaffold` ran the fast guard on a nested-trigger branch, and `check --again
+        scaffold` after a passing check overwrote the nested pass and took the tree's shipping approval back."""
+        code, out, scaffold = self.checked("tests/repo/test_probe.py", "VALUE = 1\n", "fix/named")
+        self.assertEqual(code, 0, out)
+        self.assertIn("this tree may ship", out)
+        tree = self.base / "hermretro-wt" / "named"
+        for args in (("check", "scaffold"), ("check", "--again", "scaffold"), ("check", "--full", "--again")):
+            with self.subTest(args=args):
+                self.clear_log()
+                code, out = self.run_cli(*args, cwd=tree)
+                if "--full" in args and code:  # the full run's other checks need what the fixture lacks
+                    continue
+                self.assertEqual(code, 0, out)
+                ran = [entry for entry in self.check_log() if "scaffold" in entry.get("names", [])]
+                if "--again" in args:
+                    self.assertEqual([entry.get("mode") for entry in ran], ["nested"], out)
+                else:  # the nested pass above stands for it: a fast-mode run would have missed that cache
+                    self.assertEqual(ran, [], out)
+                    self.assertIn("scaffold        0.0 s  ok (cached)", out)
+                self.assertIn("this tree may ship", out)
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        self.assertTrue(checks_triggers.nested(checks_triggers.select(ctx, ["scaffold"], False)["scaffold"]))
+        self.assertEqual(checks_triggers.select(ctx, ["unit"], False), {"unit": "asked"})
+
     def test_the_page_harness_adds_it_nested_too(self):
         code, out, scaffold = self.checked("tests/page/harness.mjs", "export const x = 1\n", "fix/harness")
         self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
@@ -238,13 +263,32 @@ class Scaffolds(ScaffoldCase):
         out = self.new("tab", "home", "extra")
         self.assertTrue(
             out["next"][0].startswith(
-                "this page has no tabs yet: run new tab home main --from-page first so its current content becomes "
-                "a tab"
+                "this page has no tabs yet: python tools/retrodev new tab home main --from-page makes its current "
+                "content a tab"
             ),
             out["next"],
         )
         out = self.new("tab", "home", "more")
         self.assertFalse(any(step.startswith("this page has no tabs yet") for step in out["next"]), out["next"])
+
+    def test_the_undo_step_names_only_new_s_own_edits_never_a_whole_file_or_folder(self):
+        """Review round 1 of #75: the undo restored page/pages/<page> and desktop/plugin.js, discarding unrelated
+        uncommitted work on the branch. Each step now names only what new wrote, and each of those is really there."""
+        self.readmes()
+        out = self.new("tab", "home", "extra")
+        said = " ".join(out["next"] + out.get("notes", []) + out.get("done", []))
+        for whole in ("git restore", "git checkout", "git reset", "git stash", "git clean", "rm -r page/pages/home "):
+            self.assertNotIn(whole, said)
+        self.assertNotIn("rm -r page/pages/home;", said)
+        undo = out["next"][0]
+        self.assertIn("rm -r page/pages/home/extra;", undo)
+        self.assertIn("then node tools/bundle/bundle.mjs", undo)
+        index = self.read("page/pages/home/index.js")
+        line = "import { HOME_EXTRA_TAB } from './extra/index.js'"
+        self.assertIn(f"delete the line {line} and the", undo)
+        self.assertIn(line, index)
+        self.assertIn("  tabs: [\n    HOME_EXTRA_TAB\n  ]", index)
+        self.assertIn("three lines tabs: [ HOME_EXTRA_TAB ]", undo)
 
     def test_new_tab_adds_its_id_to_the_readme_s_taken_ones(self):
         self.readmes()

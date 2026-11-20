@@ -102,13 +102,16 @@ def required(ctx) -> dict[str, str]:
 
 
 def select(ctx, names: list[str], full: bool, need: dict[str, str] | None = None) -> dict[str, str]:
+    """{check: why} for this run. The scaffold check's mode is the branch's, however it was asked for: on a branch
+    that calls for it nested, a named `check scaffold`, `--again` and `--full` run it nested too, so their pass
+    lands under the nested digest the shipping record asks for (a fast-mode pass there would revoke it)."""
+    wanted = dict(need if need is not None else required(ctx))
+    deep = {"scaffold": wanted["scaffold"]} if nested(wanted.get("scaffold", "")) else {}
     if names:
         unknown = [name for name in names if name not in known(ctx)]
         if unknown:
             raise Failure(f"unknown check: {', '.join(unknown)}", "use one of: " + ", ".join(known(ctx)))
-        return {name: "asked" for name in names}
-    wanted = dict(need if need is not None else required(ctx))
+        return {name: deep.get(name, "asked") for name in names}
     if full:
-        keep = {"scaffold": wanted["scaffold"]} if nested(wanted.get("scaffold", "")) else {}
-        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"} | keep
+        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"} | deep
     return wanted

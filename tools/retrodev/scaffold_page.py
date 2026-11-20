@@ -27,7 +27,7 @@ from .scaffold import (
 from .scaffold import camel as to_camel
 from .scaffold_imports import PAGE_FIELD, binding, drop_page, statements
 from .scaffold_move import move_out
-from .scaffold_readme import code_spans, slots_block, slots_line, taken_readme, with_block
+from .scaffold_readme import code_spans, first_tab_step, slots_block, slots_line, taken_readme, with_block
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"
@@ -209,13 +209,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
         )
     else:
         if tabless and component:
-            plan.next_steps.insert(  # first: the tab is better made after the page's content became one
-                0,
-                f"this page has no tabs yet: run new tab {page_id} main --from-page first so its current content "
-                f"becomes a tab (python tools/retrodev new tab {page_id} main --from-page; undo this one first: git "
-                f"restore page/pages/{page_id} desktop/plugin.js && rm -r page/pages/{page_id}/{tab_id}, then run it "
-                f"again), unless {component} is meant to stay above every tab",
-            )
+            plan.next_steps.insert(0, first_tab_step(page_id, tab_id, component, door, name))  # before anything
             plan.skip_checks.append("page")
             plan.notes.append(
                 f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), "
