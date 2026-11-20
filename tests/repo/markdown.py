@@ -112,17 +112,22 @@ def without_code_spans(text: str) -> str:
     return "".join(piece for piece, code in split_code_spans(text) if not code)
 
 
+# A Setext heading underline or a thematic break ends the paragraph above it (CommonMark 4.1, 4.3); it holds no
+# prose of its own.
+BLOCK_END = re.compile(r"^ {0,3}(?:=+|-+|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})[ \t]*$")
+
+
 def _paragraphs(text: str) -> list[list[int]]:
     """Indexes of ``text``'s lines grouped into the runs a code span can cross: not fenced, not blank, a new group at a
-    line that starts a block, and an ATX heading alone."""
+    line that starts a block, a Setext underline or thematic break ends one, and an ATX heading stands alone."""
     groups: list[list[int]] = []
     current: list[int] = []
     for number, (line, fenced) in enumerate(zip(text.splitlines(), fenced_lines(text), strict=True)):
-        if fenced or not line.strip() or BLOCK_START.match(line):
+        if fenced or not line.strip() or BLOCK_START.match(line) or BLOCK_END.match(line):
             if current:
                 groups.append(current)
             current = []
-            if fenced or not line.strip():
+            if fenced or not line.strip() or BLOCK_END.match(line):
                 continue
         current.append(number)
         if ATX_HEADING.match(line):

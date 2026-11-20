@@ -103,6 +103,19 @@ class DocEscapes(unittest.TestCase):
         )
         self.assertEqual(stray_escapes(text), [5, 8, 12])
 
+    def test_a_setext_underline_or_thematic_break_ends_the_paragraph(self):
+        # An unmatched backtick above the boundary cannot hide an escaped quote below it as code.
+        text = (
+            "Heading `one\n---\nProse \\\"bad\\\" `two`\n"  # 1-3: a Setext heading ends at its underline
+            "\n"
+            "Title `one\n===\nProse \\\"bad\\\" `two`\n"  # 5-7: the same with =
+            "\n"
+            "Before `one\n\n* * *\nAfter \\\"bad\\\" `two`\n"  # 9-12: a thematic break
+            "\n"
+            "Lead `one\n___\nTail \\\"bad\\\" `two`\n"  # 14-16: an underscore break right under a line
+        )
+        self.assertEqual(stray_escapes(text), [3, 7, 12, 16])
+
 
 if __name__ == "__main__":
     unittest.main()
