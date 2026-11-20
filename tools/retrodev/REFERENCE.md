@@ -307,10 +307,10 @@ number>` records it (the time, and that the agent did it) in the same record; `-
 refused. Exit 2 while a step is left, an unrecorded manual one included (the next one named, with its `--done`), 0
 only when every step is done. It never changes `engine/` itself. `--dry-run` records and runs nothing
 
-### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--dry-run]`
+### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--draft] [--dry-run]`
 
-The usual way: prepare, approve and land the version pull request, wait for CI on the release commit, publish up to
-the draft; never publishes it. Below
+The usual way: the version pull request only when dev does not say the version yet, CI on the release commit, the
+draft, the published release (`--draft` stops at the draft), then `release next`. Below
 
 ### `release prepare [--rc] [--version X.Y.Z] --owner-words "..."`
 
@@ -323,6 +323,11 @@ The gates, the update check, then main, the tag and the draft release. Below
 ### `release verify <version> [--publish]`
 
 Reads the draft and proves the update path; `--publish` publishes it. Below
+
+### `release next --owner-words "..." [--dry-run]`
+
+Right after a stable release (release run runs it): dev moves to the next version through its version pull request,
+so the next release needs none. Below
 
 ## new
 
@@ -694,8 +699,21 @@ there (every command it prints names the version it chose, `--version X.Y.Z`, wh
 - waits for the push run on the release commit (`release publish`'s CI gate, every `[release] ci_poll` seconds up
   to `ci_timeout` in `policy.toml`, 30 and 1500); still running: exit 2 with the exact command that resumes it.
   Before it, the release commit (pinned in the record, as publish pins it) must change only the version line too;
-- `release publish <version>`, with all its gates, up to the draft. It prints the draft's address and
-  `release verify <version> --publish` as the next step, for after the owner has read the draft: it never publishes.
+  A failed push run has its failed jobs rerun once (`gh run rerun <id> --failed`, recorded per commit: a flaky
+  runner); failing again stops the release;
+- `release publish <version>`, with all its gates, up to the draft;
+- `release verify <version> --publish`: its checks (the update check `release publish` just passed on that commit,
+  from the same release, is reused, not run again), then the release is published. GitHub keeps a published
+  release's title and notes editable; its tag is locked, and the gates proved it first. `--draft` stops before this
+  step and prints the same command without `--draft`, which resumes here once the owner has read the draft;
+- for a stable release, `release next` with the same words (below). A stop there leaves the release published; the
+  printed command (`--version X.Y.Z`) resumes at this step.
+
+A new release (no record of this command yet) is refused when `dev` has nothing since the newest stable tag besides
+the `version:` line, and a next-version pull request `release next` opened for another version than this one (the
+owner named a different one) is closed with a comment first. Read-only `gh` calls that fail the way a busy GitHub
+fails (a 5xx, a dropped connection) are retried twice; a `gh pr create` that failed after opening the pull request
+is picked up by its branch.
 
 `--dry-run` fetches nothing and changes nothing (no prepare, approve, land or publish, no record): it prints the
 steps done and what it would run (with `release publish --dry-run`'s commands once the commit is known), and
@@ -731,13 +749,21 @@ three steps below remain, to run or resume one at a time:
    --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft`. It prints the draft's address and the
    next step. Before the steps it records that commit as approved (all gates passed) in the release record.
    `--dry-run` fetches nothing, runs nothing and changes nothing: it prints the gates and every command.
-3. Read the draft (add a short summary on top, and whether the real-machine checklist ran), then `release verify
+3. With `--draft` or by hand: read the draft, then `release verify
    <version>`: the release exists and its notes are not empty; the tag points at `main`'s head and `plugin.yaml` there
    says the version; `clean_install_check.py --update-from v<previous stable>` passes on it. `release verify <version>
    --publish` does the same, and also needs the owner's words recorded for the version, the tag at exactly the commit
    `release publish` approved, and "All checks pass" green on it (so a draft made by hand or a tag moved since is
    refused, exit 3); when all is well, it says that a published release is immutable and runs `gh release edit
    v<version> --draft=false`.
+
+4. `release next --owner-words "..."`: when `dev`'s `plugin.yaml` still says the newest stable release's version,
+   it opens `chore/release-X.Y.Z` for the next patch ("Version X.Y.Z for the next release": the `version:` line only,
+   made, checked and shipped as prepare makes one; a pull request an earlier run opened, kept in the released
+   version's record as `next`, is resumed instead), approves it with those words as a release approval scoped to that
+   version and lands it. Nothing to do when `dev` already says a newer version. The next `release run` then finds
+   `dev` on an untagged version (`no_pr`) and releases its green head as it is: no version pull request and no CI run
+   of its own. `release prepare` resumes such an open pull request too, instead of opening a second one.
 
 A release candidate: `release prepare --rc ...` names `X.Y.Z-rc.M` (the next M); `release publish X.Y.Z-rc.M` tags the
 `dev` commit and adds `--prerelease`; `main` does not move; `release verify` checks it is a prerelease on `dev`.

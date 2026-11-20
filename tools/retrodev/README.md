@@ -93,7 +93,7 @@ Each in full: `tools/retrodev/REFERENCE.md`, "Commands".
 
 ## Releases
 
-Only when the owner says "make a release": `release run`, or step by step `release prepare`, `publish`, `verify`;
+Only when the owner says "make a release": `release run`, or step by step `release prepare`, `publish`, `verify`, `next`;
 the steps and their gates: `tools/retrodev/REFERENCE.md`, "Releases".
 
 ## Exit codes
