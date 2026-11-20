@@ -12,9 +12,12 @@ import ast
 import re
 import unittest
 
+from retrodev.scaffold import Plan
+from retrodev.scaffold_listener import payload_of
+
 from tests.retrodev.fixture import git, parallel, write
 from tests.retrodev.hand_edits import line_of
-from tests.retrodev.test_scaffold import ROOT, ScaffoldCase
+from tests.retrodev.test_scaffold import ROOT, ScaffoldCase, count_words, test_lockstep
 
 load_tests = parallel
 
@@ -23,15 +26,42 @@ def flat(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+RPCS_LINE = re.compile(r"^- RPCs \(([^)]*)\): (.*?)(\.(?:\s.*)?)$")
+
+
+def rpcs_parts(line: str) -> tuple[str, str, str]:
+    """(files, names, trailing text) of a README's '- RPCs (`rpcs.py`, ...): `a`, `b`. ...' line."""
+    parts = RPCS_LINE.match(line)
+    assert parts, f"not an RPCs line naming its files: {line}"
+    return parts.group(1), parts.group(2), parts.group(3)
+
+
+def module_added(before: str, module: str, name: str) -> str:
+    """The README RPCs line ``before`` with ``module`` appended to its files and ``name`` to its RPCs, the files
+    and names it held and its trailing text kept (derived from the line read before new ran, never pinned)."""
+    files, names, tail = rpcs_parts(before)
+    return f"- RPCs ({files}, `{module}.py`): {names}, `{name}`{tail}"
+
+
 class Rpc(ScaffoldCase):
     def test_module_names_its_module_on_the_readme_rpcs_line(self):
         before = line_of(self.read("backend/history/README.md"), "- RPCs")
         self.new("rpc", "history", "rdprobe_pong", "--module", "rdprobe_pong_rpcs")
         after = line_of(self.read("backend/history/README.md"), "- RPCs")
-        self.assertTrue(after.startswith("- RPCs (`rpcs.py`, `rdprobe_pong_rpcs.py`): "), after)
-        self.assertEqual(
-            after.split("): ", 1)[1].split("`rdprobe_pong`")[0], before.split("): ", 1)[1].split(".")[0] + ", "
-        )
+        self.assertEqual(after, module_added(before, "rdprobe_pong_rpcs", "rdprobe_pong"))
+
+    def test_module_keeps_the_rpc_modules_and_the_text_the_line_holds_already(self):  # review 1, 2
+        readme = self.read("backend/history/README.md")
+        files, names, tail = rpcs_parts(line_of(readme, "- RPCs"))
+        grown = f"- RPCs ({files}, `rdprobe_old_rpcs.py`): {names}, `rdprobe_old`{tail} (x)"
+        write(self.tree, "backend/history/README.md", readme.replace(line_of(readme, "- RPCs"), grown, 1))
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "An RPC sibling module listed already")
+        self.new("rpc", "history", "rdprobe_pong", "--module", "rdprobe_pong_rpcs")
+        after = line_of(self.read("backend/history/README.md"), "- RPCs")
+        self.assertEqual(after, module_added(grown, "rdprobe_pong_rpcs", "rdprobe_pong"))
+        self.assertIn("`rdprobe_old_rpcs.py`, `rdprobe_pong_rpcs.py`): ", after)
+        self.assertTrue(after.endswith(" (x)"), after)
 
     def test_next_steps_say_where_a_page_s_query_goes(self):
         steps = self.new("rpc", "history", "rdprobe_recent")["next"]
@@ -120,6 +150,19 @@ class Listener(ScaffoldCase):
         mocked = next(s for s in steps if "mock backend.hermes.host helpers" in s)
         self.assertIn("tests/backend/history/test_probe_mocks.py (_chat_project)", mocked)
 
+    def test_the_payload_keys_are_each_entry_s_leading_name_not_the_names_in_its_description(self):  # review 1, 1
+        row = line_of((ROOT / "docs/dev/CONTRACT.md").read_text(), "| `library.build_reported` |")
+        self.assertIn("`null`", row)  # inside game's description: not a key
+        self.assertEqual(payload_of(Plan(ROOT), "library.build_reported", ""), ["game", "assets"])
+        self.new("feature", "rdprobe_ears")
+        write(self.tree, "backend/library/__init__.py", (ROOT / "backend/library/__init__.py").read_text())
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Probe feature and the library's front door")
+        self.new("listener", "rdprobe_ears", "library.build_reported")
+        test = self.read("tests/backend/rdprobe_ears/test_listener_on_library_build_reported.py")
+        self.assertIn('listeners.on_library_build_reported(game="sample game", assets="sample assets")', test)
+        self.assertNotIn("null", test)
+
 
 class Tool(ScaffoldCase):
     def test_the_contract_sentence_names_the_new_tool_last(self):
@@ -127,11 +170,25 @@ class Tool(ScaffoldCase):
         total = int(re.search(r"(\d+) in total", contract).group(1))
         sentence = contract[contract.index("tools, plus") : contract.index(f"{total} in total")]
         self.new("tool", "history", "rdprobe_snap")
-        after = flat(self.read("docs/dev/CONTRACT.md"))
-        self.assertIn(f"and `chromatic_rdprobe_snap`. {total + 1} in total", after)
+        self.new("tool", "history", "rdprobe_shot")
+        raw = self.read("docs/dev/CONTRACT.md")
+        after = flat(raw)
+        said = "say what it does and when the agent calls it"
+        self.assertIn(f"and `chromatic_rdprobe_shot` (`backend/history/tools.py`: {said}). {total + 2} in total", after)
         names = re.findall(r"`(chromatic_\w+)`", sentence)
-        listed = after[after.index("tools, plus") : after.index(f"{total + 1} in total")]
-        self.assertEqual(re.findall(r"`(chromatic_\w+)`", listed), [*names, "chromatic_rdprobe_snap"])
+        listed = after[after.index("tools, plus") : after.index(f"{total + 2} in total")]
+        self.assertEqual(
+            re.findall(r"`(chromatic_\w+)`", listed), [*names, "chromatic_rdprobe_snap", "chromatic_rdprobe_shot"]
+        )
+
+    def test_the_lockstep_check_counts_each_new_tool_once(self):  # review 1, follow-up: no bullet after the sentence
+        self.new("tool", "history", "rdprobe_snap")
+        self.new("tool", "history", "rdprobe_shot")
+        raw = self.read("docs/dev/CONTRACT.md")
+        self.assertNotIn("- `chromatic_rdprobe_", raw)
+        word, listed = test_lockstep.contract_tool_list(raw)
+        self.assertEqual(count_words.count_value(word), len(listed), listed)
+        self.assertEqual(len(listed), len(set(listed)), listed)
 
 
 class Tab(ScaffoldCase):

@@ -229,13 +229,24 @@ def _contract_tool(text: str, full: str, feature_name: str, home: str | None = N
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):
         raise Failure(f"{CONTRACT}: the tool counts are not where they were", "update them by hand, then run check")
-    line = f"- `{full}` (`{home or f'backend/{feature_name}/tools.py'}`): say what it does and when the agent calls it."
-    return insert_after(owned_sentence(text, full), re.compile(r"in total\.$"), line, CONTRACT, last=False)
+    what = f"`{home or f'backend/{feature_name}/tools.py'}`: {TOOL_LINE}"
+    named = owned_sentence(text, full, what)
+    if named == text:
+        raise Failure(
+            f"{CONTRACT}: the 'plus <count> plugin-owned tools' sentence names no tool to add {full} after",
+            f"name {full} ({what}) at the end of that sentence by hand, then run check",
+        )
+    return named
 
 
-def owned_sentence(text: str, full: str) -> str:
+TOOL_LINE = "say what it does and when the agent calls it"  # tests/repo/test_placeholders.py refuses it unfilled
+
+
+def owned_sentence(text: str, full: str, what: str = "") -> str:
     """The sentence the 'plus N' count opens names every plugin-owned tool ('`a`, `b` (what) and `c`.'): the new
-    one goes last ('`a`, `b` (what), `c` and `<full>`.'). Unchanged when that sentence lists no backticked name."""
+    one goes last, with what it does in brackets ('`a`, `b` (what), `c` and `<full>` (<what>).'), the only place
+    CONTRACT lists it (tests/repo/test_lockstep.py counts the names in that sentence). Unchanged when that
+    sentence lists no backticked name or names it already."""
     plus, total = re.search(r"\d+ tools, plus\s+\w+", text), re.search(r"\d+ in total", text)
     if not plus or not total or total.start() < plus.end():
         return text
@@ -247,4 +258,5 @@ def owned_sentence(text: str, full: str) -> str:
     joins = [m for m in re.finditer(r"\s+and\s+", head) if head[: m.start()].count("(") == head[: m.start()].count(")")]
     if joins:
         head = head[: joins[-1].start()] + ", " + head[joins[-1].end() :]
-    return text[: plus.end()] + head + f" and `{full}`" + region[end:] + text[total.start() :]
+    said = f" ({what})" if what else ""
+    return text[: plus.end()] + head + f" and `{full}`{said}" + region[end:] + text[total.start() :]

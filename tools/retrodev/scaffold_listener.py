@@ -14,7 +14,7 @@ import re
 
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
-from .scaffold_backend import ARCHITECTURE, CONTRACT, emitter_values, known_feature, payload_keys
+from .scaffold_backend import ARCHITECTURE, CONTRACT, emitter_values, known_feature, payload_keys, split_parts
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -40,11 +40,14 @@ MOCKED = re.compile(r"mock\.patch\.object\(hermes_host,\s*[\"'](\w+)[\"']")
 
 
 def payload_of(plan: Plan, event: str, doc: str) -> list[str]:
-    """The event's payload keys: its CONTRACT row's backticked Payload cell, else its EVENTS doc after '; '."""
+    """The event's payload keys: the leading backticked name of each top-level entry of its CONTRACT row's Payload
+    cell ('`game` (the game's id, `null` without a project), `assets`' -> game, assets: a name inside an entry's
+    description is not a key), else its EVENTS doc after '; '."""
     for line in plan.read(CONTRACT).splitlines() if plan.exists(CONTRACT) else []:
         if line.startswith(f"| `{event}` |"):
             cells = line.strip().strip("|").split(" | ")
-            keys = re.findall(r"`([A-Za-z_]\w*)`", cells[1]) if len(cells) > 1 else []
+            parts = split_parts(cells[1]) if len(cells) > 1 else []
+            keys = [found.group(1) for part in parts if (found := re.match(r"\s*`([A-Za-z_]\w*)`", part))]
             if keys:
                 return list(dict.fromkeys(keys))
     return payload_keys(doc.partition("; ")[2]) if "; " in doc else []

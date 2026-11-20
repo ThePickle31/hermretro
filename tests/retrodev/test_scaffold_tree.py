@@ -4,8 +4,8 @@ The one slow retrodev test (a few seconds), so it runs only with RD_SCAFFOLD_FUL
 scaffold` (part of `check.py full` and `retrodev check --full`, added by `retrodev check` when a branch changes the
 scaffolds or the files they edit; CI's page job runs it). It copies what a commit of this tree would hold into a short temp
 folder (a fresh git repository on a work branch, so nothing of this checkout or its .git changes), borrows the
-installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc` (twice: once with
---module), `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
+installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature rdtree`, `new rpc` (four times: plain,
+--module, --game, --game with --module: their generated tests register a game with make_library_game), `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
 which goes in its own module too; once in library, a --project tool),
 `new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
@@ -15,8 +15,8 @@ the stubs are unfilled), and it is the guard against tests that pin the real tre
 unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
 reports as such), notes every real feature README's RPCs/Tools/Listens lines (hand_edits.py), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
 contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
-the same on a copy where setup has tabs and history listens to library.game_presented already (made only where the copy
-lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
+the same on a copy where setup has tabs, history listens to library.game_presented and history's README names an RPC
+module beside rpcs.py already (made only where the copy lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 Two more run `new page rdtabs` (its Page imported under another name; then imported on several lines), then `new tab rdtabs first --from-page` and `new
@@ -57,6 +57,9 @@ STEPS = [
     ["feature", "rdtree", "--purpose", "A probe feature made by retrodev new"],
     ["rpc", "rdtree", "rdtree_ping"],
     ["rpc", "rdtree", "rdtree_pong", "--module", "rdtree_pong_rpcs"],  # its handler in its own module
+    # about one library game: its generated test registers one with tests.support.make_library_game (review 1, 0)
+    ["rpc", "rdtree", "rdtree_info", "--game"],
+    ["rpc", "rdtree", "rdtree_card", "--game", "--module", "rdtree_card_rpcs"],
     ["tool", "rdtree", "rdtree_ping", "--step", 'Pinging "it"', "Pinged the probe's twin"],
     ["tool", "rdtree", "rdtree_more", "--module", "rdtree_more_tools"],  # its own module, taken in by tools.py
     # history has no tools.py: --module first makes an aggregator one, and a plain tool after it gets its own module
@@ -123,6 +126,7 @@ def real_steps(tree: Path) -> list[list[str]]:
     feature, event = pairs[0] if pairs else ("library", f"history.{pruned}")  # the new event: nobody hears it yet
     steps = [
         ["rpc", "library", "rdreal_ping"],
+        ["rpc", "library", "rdreal_info", "--game"],  # its generated test runs make_library_game on the real tree
         ["event", "history", pruned, "--payload", "game", "--when", "the probe pruned a snapshot"],
         ["listener", feature, event],
     ]
@@ -132,10 +136,16 @@ def real_steps(tree: Path) -> list[list[str]]:
 
 
 def grown_steps(tree: Path) -> list[list[str]]:
-    """What makes the copy a grown tree (setup with tabs, history listening to library.game_presented), only where
-    it lacks that already: a branch that added either keeps it, and nothing is made twice."""
+    """What makes the copy a grown tree (setup with tabs, history listening to library.game_presented, history's
+    README naming an RPC module beside rpcs.py), only where it lacks that already: a branch that added any of them
+    keeps it, and nothing is made twice."""
     tabless, _component = own_page((tree / "page/pages/setup/index.js").read_text())
     steps = page_steps(tree, "setup", "rdgrown") if tabless else []
+    rpcs = next(
+        (row for row in (tree / "backend/history/README.md").read_text().splitlines() if row.startswith("- RPCs")), ""
+    )
+    if not re.match(r"- RPCs \(`rpcs\.py`, `", rpcs):  # review 1, 2: a test pinning the module list fails here
+        steps.append(["rpc", "history", "rdgrown_pong", "--module", "rdgrown_pong_rpcs"])
     event = "library.game_presented"
     heard = listens(tree, "history", event) or event not in declared_events(tree)
     return steps + ([] if heard else [["listener", "history", event]])
@@ -145,6 +155,7 @@ FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_place
     ("describe what this tab shows.", "a probe tab."),
     ("say what this listener does", "keeps a note"),
     ("(say what it does)", "(keeps a note)"),
+    ("Describe what it does, its params and its result here.", "Answers ok."),
 )
 REAL_STEPS = real_steps(ROOT)  # this tree's, for the fast checks; the guard computes them again on its copy
 UNIT_FIRST = "the tree fails unit (fix unit first)"  # tools/check.py scaffold reports this skip as such
@@ -160,6 +171,8 @@ STRUCTURE = [
     "tests.backend.rdtree.test_rdtree",
     "tests.backend.rdtree.test_rpc_rdtree_ping",
     "tests.backend.rdtree.test_rpc_rdtree_pong",
+    "tests.backend.rdtree.test_rpc_rdtree_info",
+    "tests.backend.rdtree.test_rpc_rdtree_card",
     "tests.backend.rdtree.test_tool_rdtree_ping",
     "tests.backend.rdtree.test_tool_rdtree_more",
     "tests.backend.history.test_tool_rdtree_hist_first",
@@ -283,6 +296,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             steps = real_steps(tree)
             self.assertNotIn("--from-page", [word for step in steps if step[1] == "setup" for word in step])
             self.assertNotIn(["listener", "history", "library.game_presented"], steps)
+            self.assertEqual(grown_steps(tree), [], "the grown copy has everything grown_steps makes")
 
         if (
             os.environ.get("RD_SCAFFOLD_FULL", "") != "nested"
