@@ -368,15 +368,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         return 0
     repo.git(push[1:], ctx.top)
     ctx.out.say(f"pushed {branch} ({sha[:9]})")
-    code, out, err = github.gh(ctx, gh_args, check=False)
-    if code and not existing:  # GitHub may have opened it before failing (a 502 after the write): look first
-        opened = github.open_pr(ctx, branch)
-        if not opened:
-            raise github.failed(gh_args, err or out)
-        out = opened.get("url") or ""
-        ctx.out.say(f"note: gh pr create failed ({(err or out).strip()[:120]}), but GitHub had opened it")
-    elif code:
-        raise github.failed(gh_args, err or out)
+    out = github.gh(ctx, gh_args)[1] if existing else github.create_or_find(ctx, gh_args, branch)
     if existing:
         number, url = existing["number"], existing.get("url", "")
         ctx.out.say(f"updated pull request #{number} {url}")

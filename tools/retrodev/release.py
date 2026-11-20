@@ -257,3 +257,35 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
         f"then land {pr}), then python tools/retrodev release publish {version}"
     )
     return 0
+
+
+def parser(sub, common) -> None:
+    """The `release` command and its steps, for cli.py."""
+    help_text = "releases, only when the owner says 'make a release': run, or prepare, publish, verify, next"
+    p = sub.add_parser("release", help=help_text, description=help_text, parents=[common])
+    steps = p.add_subparsers(dest="action", required=True, metavar="<action>")
+    run = steps.add_parser(
+        "run",
+        help="the version pull request when needed, publish, then dev moves to the next version",
+        parents=[common],
+    )
+    run.add_argument(
+        "--owner-words", help="the owner's exact words asking for the release (also approve its pull request)"
+    )
+    run.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
+    run.add_argument("--version", help="the version the owner named (default: the next patch, or the one started)")
+    run.add_argument("--draft", action="store_true", help="stop at the draft release (the owner reads it first)")
+    run.add_argument("--dry-run", action="store_true", help="print what is done and what it would run; change nothing")
+    prepare = steps.add_parser("prepare", help="the chore/release-X.Y.Z pull request", parents=[common])
+    prepare.add_argument("--owner-words", help="the owner's exact words asking for the release")
+    prepare.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
+    prepare.add_argument("--version", help="the version the owner named (default: the next patch)")
+    publish = steps.add_parser("publish", help="main, the tag and the draft release, after the gates", parents=[common])
+    publish.add_argument("version")
+    publish.add_argument("--dry-run", action="store_true", help="print the gates and every command; change nothing")
+    verify = steps.add_parser("verify", help="read the draft, check it, then (--publish) publish", parents=[common])
+    verify.add_argument("version")
+    verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")
+    nxt = steps.add_parser("next", help="dev moves to the next version (its version pull request)", parents=[common])
+    nxt.add_argument("--owner-words", help="the owner's exact words asking for releases (approve that pull request)")
+    nxt.add_argument("--dry-run", action="store_true", help="say what it would do; change nothing")

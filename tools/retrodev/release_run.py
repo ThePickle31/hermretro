@@ -27,16 +27,15 @@ described, not printed as a command).
 
 from __future__ import annotations
 
-import json
 import shlex
 import time
 
 from . import (
     approve,
     checks_triggers,
-    github,
     land,
     release,
+    release_guard,
     release_next,
     release_publish,
     release_verify,
@@ -55,75 +54,12 @@ def command(words: str, rc: bool, version: str | None, dry_run: bool, draft: boo
     return shlex.join(argv)
 
 
-def news(ctx) -> str | None:
-    """None when the base branch has nothing since the newest stable tag besides plugin.yaml's version line (or no
-    tag exists); else what changed."""
-    previous = release.previous_stable(ctx)
-    if not previous:
-        return "no stable release yet"
-    since = repo.head(ctx.top, f"refs/tags/v{previous}")
-    if not since:
-        return f"v{previous} is not here"
-    if repo.ok(["diff", "--quiet", since, ctx.remote_base, "--"], ctx.top):
-        return None  # the very same files
-    return checks_triggers.beyond_version(ctx.top, since, ctx.remote_base)
-
-
-def stale_next(ctx, version: str, dry_run: bool) -> None:
-    """A next-version pull request release next opened for another version than this release's (the owner named a
-    different one) would set dev back once this lands: closed, with a comment saying why."""
-    for rec in records(ctx):
-        nxt = rec.get("next") or {}
-        if not nxt.get("pr") or nxt.get("merged") or nxt.get("closed") or nxt.get("version") == release.stable(version):
-            continue
-        number = int(nxt["pr"])
-        if github.pr_state(ctx, number) != "OPEN":
-            continue
-        why = f"release {version} sets its own version; this pull request for {nxt.get('version')} is not needed"
-        if dry_run:
-            ctx.out.say(f"would close #{number}: {why}")
-            continue
-        github.gh(ctx, ["pr", "close", str(number), "--comment", why + " (release run)", "--delete-branch"])
-        rec["next"] = {**nxt, "closed": state.now()}
-        state.save_release(ctx.top, rec)
-        ctx.out.say(f"closed #{number}: {why}")
-
-
 RERUN_START = 120.0  # seconds GitHub may take to start a requested rerun before the old failure counts again
-FAILED_RUN = {"failure", "cancelled", "timed_out", "startup_failure"}
 
 
 def resumable(failure: Failure, again: str) -> Failure:
     """A step's own refusal (its message and FIX unchanged), then how to resume the whole release."""
     return Failure(failure.message, f"{failure.fix}; then {again} (it resumes)", failure.code, failure.data)
-
-
-def records(ctx) -> list[dict]:
-    folder = state.root(ctx.top) / "releases"
-    found = []
-    for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
-        if release.VERSION.match(path.stem):
-            found.append(state.load_release(ctx.top, path.stem) or {})
-    return [rec for rec in found if rec.get("version")]
-
-
-def choose(ctx, rc: bool, named: str | None) -> str:
-    """The release this run works on: an unpublished one an earlier run started (or the one named, also a published
-    one this command started: its last step, release next, may be left), else the next."""
-    if named and not rc:
-        kept = state.load_release(ctx.top, release.stable(named)) or {}
-        if kept.get("published") and kept.get("run"):
-            return kept["version"]
-    started = [
-        rec
-        for rec in records(ctx)
-        if not rec.get("published")
-        and bool(rec.get("rc")) == rc
-        and (release.stable(rec["version"]) == named if named else bool(rec.get("run")))
-    ]
-    if started:
-        return max(started, key=lambda rec: release.key(rec["version"]))["version"]
-    return release.target(ctx, rc, named)[0]
 
 
 def version_only(ctx, old: str, new: str) -> str | None:
@@ -315,7 +251,7 @@ class Run:
                 rerun_at = None  # the rerun is under way: its own result counts from here
             elif rerun_at is not None and clock() - rerun_at < RERUN_START:
                 pass  # GitHub has not started the rerun yet: the old failure is still the newest
-            elif not self.dry_run and self.rerun(sha, gate.message):
+            elif not self.dry_run and release_guard.rerun(ctx, self.record(), sha, gate.message):
                 rerun_at = clock()
             else:
                 raise Failure(gate.message, f"{gate.fix}; then {self.again}", gate.code)
@@ -331,29 +267,6 @@ class Run:
                     {"sha": sha},
                 )
             sleep(min(poll, max(limit - waited, 0.0)))
-
-    def rerun(self, sha: str, why: str) -> bool:
-        """Once per release commit: rerun the failed jobs of its failed push runs (a flaky runner). False when it
-        was rerun already or no failed run is found."""
-        ctx, rec = self.ctx, self.record()
-        if sha in (rec.get("ci_rerun") or {}):
-            return False
-        code, out, _err = github.gh(
-            ctx, ["run", "list", "--commit", sha, "--json", "databaseId,conclusion,event"], check=False
-        )
-        try:
-            found = json.loads(out) if code == 0 else []
-        except json.JSONDecodeError:
-            found = []
-        failed = [r["databaseId"] for r in found if r.get("event") == "push" and r.get("conclusion") in FAILED_RUN]
-        if not failed:
-            return False
-        rec.setdefault("ci_rerun", {})[sha] = {"at": state.now(), "runs": failed, "why": why}
-        state.save_release(ctx.top, rec)  # before asking: a stopped run never reruns twice
-        for run_id in failed:
-            github.gh(ctx, ["run", "rerun", str(run_id), "--failed"])
-        ctx.out.say(f"CI failed on {sha[:9]} ({why}): reran the failed jobs once (a flaky runner?); waiting again")
-        return True
 
     def publish(self) -> int:
         ctx, version = self.ctx, self.version
@@ -441,7 +354,7 @@ def run(
         )
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
-    version = choose(ctx, rc, named)
+    version = release_guard.choose(ctx, rc, named)
     flow = Run(ctx, words, rc, version, dry_run, draft)
     rec = flow.record()
     ctx.out.set(version=version, dry_run=dry_run, resume=flow.again)
@@ -452,7 +365,7 @@ def run(
             return 0
         return flow.next_version()  # a run stopped after publishing: finish moving dev on
     if not rec.get("run"):  # a new release: something to release, and no next-version pull request in its way
-        if not news(ctx):
+        if not release_guard.news(ctx):
             previous = release.previous_stable(ctx)
             moved = release.version_at(ctx, ctx.remote_base) != previous
             raise Failure(
@@ -460,7 +373,7 @@ def run(
                 "land a change first; a release needs something new for users"
                 + ("" if moved else f" (to move dev on after v{previous}: {release_next.command(words)})"),
             )
-        stale_next(ctx, version, dry_run)
+        release_guard.stale_next(ctx, version, dry_run)
     if not dry_run and not rec.get("run"):
         rec.update(run={"at": state.now()}, rc=rc)  # the release this command works on, before any step acts
         state.save_release(ctx.top, rec)

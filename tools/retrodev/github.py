@@ -60,7 +60,7 @@ def gh(ctx, args: list[str], check: bool = True) -> tuple[int, str, str]:
     """Run gh through the context's runner (the real one unless a test set another). A read-only call that fails
     the way a busy GitHub fails (a 5xx, a dropped connection) is retried twice before its failure counts."""
     runner = ctx.gh_runner or real_runner
-    sleep = ctx.fakes.get("sleep", time.sleep)
+    sleep = (getattr(ctx, "fakes", None) or {}).get("sleep", time.sleep)
     code, out, err = runner(list(args), ctx.top or ctx.cwd)
     for delay in RETRY_DELAYS if read_only(args) else ():
         if not code or not transient(err or out):
@@ -147,6 +147,19 @@ def branch_pr(ctx, branch: str) -> dict | None:
             if pr.get("state") == wanted:
                 return pr
     return None
+
+
+def create_or_find(ctx, args: list[str], branch: str) -> str:
+    """Run ``gh pr create``; when it fails, GitHub may have opened the pull request before failing (a 502 after the
+    write), so the open pull request from ``branch`` counts. gh's output (its address), else raises."""
+    code, out, err = gh(ctx, args, check=False)
+    if not code:
+        return out
+    opened = open_pr(ctx, branch)
+    if not opened:
+        raise failed(args, err or out)
+    ctx.out.say(f"note: gh pr create failed ({(err or out).strip()[:120]}), but GitHub had opened it")
+    return opened.get("url") or ""
 
 
 def pr_state(ctx, number: int) -> str | None:
