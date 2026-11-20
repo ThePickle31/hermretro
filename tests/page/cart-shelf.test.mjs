@@ -6,7 +6,7 @@ import test from 'node:test'
 import { registerAliases } from './aliases.mjs'
 
 registerAliases()
-const { shelfFit, shelfOrder } = await import('../../page/pages/build/cart-shelf.js')
+const { labelNote, shelfFit, shelfOrder } = await import('../../page/pages/build/cart-shelf.js')
 const { CART_SHELF_CSS } = await import('../../page/pages/build/cart-shelf.css.js')
 const { NEW_GAME_CSS } = await import('../../page/pages/build/new-game.css.js')
 const { World } = await import('../../page/pages/build/attract/world.js')
@@ -48,6 +48,14 @@ test('the form above the shelf is centred only while it fits, so a tall form scr
   const rule = NEW_GAME_CSS.split('\n').find(line => line.startsWith('.cs-b-new {')) ?? ''
   assert.match(rule, /justify-content: safe center;/)
   assert.match(rule, /overflow: auto;/)
+})
+
+test('a label with no picture says why, as the Games shelf does', () => {
+  assert.equal(labelNote(null), 'Being set up')
+  assert.equal(labelNote({ state: 'unbuilt' }), 'No build yet')
+  assert.equal(labelNote({ state: 'failed' }), 'No build yet')
+  assert.equal(labelNote({ state: 'ready' }), 'Title screen after first play')
+  assert.equal(labelNote({ state: 'changed' }), 'Title screen after first play')
 })
 
 test('as many cartridges as fit, keeping a place for All games when anything is left over', () => {

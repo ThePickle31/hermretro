@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 460c88755201887b3bc575e0126070904c73dc39e238e715174ab040acab91bb
- * body: sha256 5f31e1db4ceb077af63b3b8ef6078868ac8a6725e68565bdaee4e154cb7a7e06
+ * sources: sha256 6ded1cc78826f556f7b51f57c43623c30ac310ae6f2684d776908362c5b03c61
+ * body: sha256 51a0e6c4ba12cbfabfb6795ff5e36f2a51d58d304ddedc8c6ae158d1c0d21070
  */
 // page/sdk.js
 import {
@@ -12160,6 +12160,12 @@ function shelfOrder(entries) {
   const started2 = (entry) => entry.pending ? entry.pending.createdAt ?? Infinity : 0;
   return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || started2(b.entry) - started2(a.entry) || a.index - b.index).map((item) => item.entry);
 }
+function labelNote(game) {
+  if (!game) {
+    return "Being set up";
+  }
+  return game.state === "unbuilt" || game.state === "failed" ? "No build yet" : "Title screen after first play";
+}
 function shelfFit(width, count, more) {
   const slots = Math.max(1, Math.floor((width + 26) / SLOT));
   return count + (more ? 1 : 0) <= slots ? count : Math.max(0, slots - 1);
@@ -12199,7 +12205,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
               jsx(Cartridge, {
                 game: entry.game,
                 label: `${entry.title}, ${entry.sub}`,
-                note: entry.game ? null : "Being set up",
+                note: labelNote(entry.game),
                 onClick: () => onSelect(entry.key),
                 title: entry.title
               }),
