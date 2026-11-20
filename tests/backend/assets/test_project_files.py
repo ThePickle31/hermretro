@@ -3,6 +3,7 @@
 Run alone: python -m unittest tests.backend.assets.test_project_files
 """
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +56,23 @@ class ProjectImages(unittest.TestCase):
         self.assertEqual(self.listed(kinds=("background",)), [("assets/backgrounds/field.png", "background")])
         self.assertEqual(sum(1 for _ in project_images(self.root, kinds={"sprite"})), 3)
         self.assertEqual(list(project_images(self.outside)), [])  # no assets folder
+
+    def test_relative_root_and_symlinked_root_list_the_same_images(self):
+        # The containment check compares against the resolved root, so neither "." nor a link to the project
+        # rejects every image; the outside link stays out either way.
+        expected = self.listed()
+        link = self.outside.parent / "game-link"
+        link.symlink_to(self.root, target_is_directory=True)
+        found = [(image.relative_to(link).as_posix(), kind) for image, _real, kind in project_images(link)]
+        self.assertEqual(found, expected)
+        self.assertTrue(all(real.is_relative_to(self.root) for _image, real, _kind in project_images(link)))
+        previous = os.getcwd()
+        os.chdir(self.root)
+        try:
+            found = [(image.as_posix(), kind) for image, _real, kind in project_images(Path("."))]
+        finally:
+            os.chdir(previous)
+        self.assertEqual(found, expected)
 
 
 if __name__ == "__main__":

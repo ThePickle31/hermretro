@@ -19,6 +19,12 @@ def project_images(root: Path, kinds: Iterable[str] | None = None) -> Iterator[t
     resolves outside root. ``kinds`` keeps only those kinds ("sprite", "background", "ui"). The sidecar of an
     image is ``image.with_name(image.name + ".gbsres")``. A generator: stop early to cap the list."""
     wanted = None if kinds is None else set(kinds)
+    # Images resolve to canonical paths, so the containment check needs the canonical root too: a relative root
+    # or one through a link would otherwise reject every image. Traversal keeps the root as given.
+    try:
+        real_root = root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return
     for folder, kind in ASSET_FOLDERS:
         if wanted is not None and kind not in wanted:
             continue
@@ -32,6 +38,6 @@ def project_images(root: Path, kinds: Iterable[str] | None = None) -> Iterator[t
                 real = image.resolve(strict=True)
             except (OSError, RuntimeError):
                 continue
-            if real != root and root not in real.parents:
+            if real != real_root and real_root not in real.parents:
                 continue
             yield image, real, kind
