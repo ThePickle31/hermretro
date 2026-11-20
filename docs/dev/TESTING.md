@@ -27,7 +27,8 @@ on the current tree is what `python tools/retrodev ship` requires.
 - Run `python tools/check.py fix` and commit before `python tools/retrodev check`: when the clean install is due it
   installs the committed tree, so uncommitted edits are not what it tests (and `ship` needs a committed tree anyway).
 - A branch that changes `backend/` (or `engine/`, `player/`, the toolchain, `plugin.yaml`) makes `retrodev check`
-  add the real-engine acceptance run, about a minute more. Without the toolchain (`python
+  add the real-engine acceptance run, about a minute more; a branch whose only change is `plugin.yaml`'s `version:`
+  line (a release's version pull request) gets the clean install but not acceptance. Without the toolchain (`python
   tools/ci/prepare_toolchain.py`) it is skipped, and CI runs it on Linux and macOS. `retrodev check` always uses the
   toolchain that setup put in place: it clears `HERMRETRO_DEPS_ROOT` for the run. To use a toolchain somewhere else,
   run the check directly: `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
@@ -68,7 +69,8 @@ and `.dev/` are not linted.
   with the oldest supported Hermes.
   About 3 minutes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
-  macOS, for pull requests that touch the backend, engine or toolchain, and on every push.
+  macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
+  `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
   and integration on Linux, Apple Silicon and Intel macOS.
 
