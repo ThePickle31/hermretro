@@ -1,7 +1,7 @@
 """Friction the thirteenth round of fresh-agent trials found: `new`'s next steps said to describe a tab or an RPC in
 the page's row of docs/dev/STUDIO-PAGES.md, whose Pages table keeps short cells and a `### <Page>` subsection per page
 since #70; sync gave no hint for a block dev rewrote into a longer one (a table row into a subsection); the body's
-'What changed' warning named files cited only as evidence; the README's Quick path started without RETRODEV_AGENT.
+'What changed' warning named files cited only as evidence (yet a change from a file still claims it); the README's Quick path started without RETRODEV_AGENT.
 Each test failed before its fix.
 
 Run alone: python -m unittest tests.retrodev.test_trial_round_thirteen
@@ -100,9 +100,32 @@ class SyncRewrite(RepoCase):
         self.assertRegex(
             fix,
             r"docs/dev/STUDIO-PAGES\.md:\d+-\d+: dev rewrote this block; take dev's side, then redo your change in "
-            r"docs/dev/STUDIO-PAGES\.md:\d+ \(under `### Home`\) in its own commit after sync",
+            r"the `### Home` subsection at docs/dev/STUDIO-PAGES\.md:\d+ in its own commit after sync",
         )
         self.assertNotIn("dev moved this block", fix)
+        git(tree, "merge", "--abort")
+
+    def test_a_row_dev_rewrote_into_two_alike_subsections_names_no_place_but_the_diff(self):
+        name = "docs/dev/STUDIO-PAGES.md"
+        self.on_dev(name, ROWS, "Pages")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("docs/news")
+        self.commit(tree, name, MINE)
+        twins = "- Hero band with the title, the last game played\n- Quick start buttons under the band\n"
+        split = ROWS.replace(
+            "| Home | Hero band with the title, the last game played and the quick start buttons under it |\n",
+            f"| Home | Hero + band |\n\n### Hero\n\n{twins}\n### Band\n\n{twins}",
+        )
+        self.on_dev(name, split, "The row becomes two subsections")
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, out)
+        fix = out["error"]["fix"]
+        self.assertIn(
+            "dev rewrote this block (see git diff HEAD...origin/dev -- docs/dev/STUDIO-PAGES.md); take dev's side, "
+            "then redo your change where it belongs now in its own commit after sync",
+            fix,
+        )
+        self.assertNotRegex(fix, r"redo your change in docs/dev/STUDIO-PAGES\.md:\d+")
         git(tree, "merge", "--abort")
 
     def test_only_a_modified_copy_of_a_removed_line_in_a_much_longer_dev_side_counts(self):
@@ -114,11 +137,35 @@ class SyncRewrite(RepoCase):
         self.assertEqual(sync.rewritten_from("| Away | something else entirely here |", theirs, base, dev), [])
         self.assertEqual(sync.rewritten_from(mine, "| Home | Hero |", base, dev), [], "dev's side is not longer")
 
+    def test_a_rewritten_row_points_to_its_subsection_never_to_the_shortened_row(self):
+        base = ["| Home | Hero band with the title and the buttons |", "x"]
+        dev = ["| Home | Hero |", "", "### Home", "- Hero band", "- Buttons", "x"]
+        mine = ["| Home | Hero band with the title and the buttons, and news |"]
+        self.assertEqual(sync.new_location("docs/p.md", mine, dev, base), "the `### Home` subsection at docs/p.md:3")
+
+    def test_without_a_heading_named_by_the_row_the_most_alike_block_wins_and_never_a_row(self):
+        base = ["| Start | Hero band with the title and the buttons |", "x"]
+        dev = ["| Start | Hero band with the title |", "", "### Landing", "- Hero band with the title", "- The buttons",
+               "", "### Other", "- Unrelated words entirely", "x"]  # fmt: skip
+        mine = ["| Start | Hero band with the title and the buttons, and news |"]
+        self.assertEqual(sync.new_location("docs/p.md", mine, dev, base), "the `### Landing` subsection at docs/p.md:3")
+
+    def test_two_blocks_about_as_alike_or_two_named_headings_name_no_place(self):
+        base = ["| Start | Hero band with the title and the buttons |", "x"]
+        twins = ["- Hero band with the title", "- The buttons"]
+        dev = ["| Start | Hero |", "", "### Left", *twins, "", "### Right", *twins, "x"]
+        mine = ["| Start | Hero band with the title and the buttons, and news |"]
+        self.assertEqual(sync.new_location("docs/p.md", mine, dev, base), sync.AMBIGUOUS)
+        named = ["| Start | Hero |", "## A", "### Start", "- one", "## B", "### Start", "- two", "x"]
+        self.assertEqual(sync.new_location("docs/p.md", mine, named, base), sync.AMBIGUOUS)
+
 
 class BodyCitedPaths(RepoCase):
     def warning(self, what: str) -> str:
-        tree = self.worktree("fix/core")
-        self.commit(tree, "backend/library/core.py", "VALUE = 2\n")
+        if not hasattr(self, "tree"):
+            self.tree = self.worktree("fix/core")
+            self.commit(self.tree, "backend/library/core.py", "VALUE = 2\n")
+        tree = self.tree
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         return body_names.warning(ctx, GOOD_BODY.replace("Things.", what)) or ""
 
@@ -139,6 +186,20 @@ class BodyCitedPaths(RepoCase):
         )
         self.assertIn("names the file(s) `backend/library/extra.py`, `backend/hermes/glue.py`, which the", said)
         self.assertIn("ignore if the file is only cited", said)
+
+    def test_a_change_from_an_untouched_file_still_warns_and_a_source_it_comes_from_does_not(self):
+        for claim in (
+            "- Removed the obsolete helper from `backend/hermes/glue.py`.",
+            "- Moved the parser from `backend/hermes/glue.py` to `backend/library/core.py`.",
+            "- Deleted the old copy from `backend/hermes/glue.py`.",
+        ):
+            with self.subTest(claim=claim):
+                self.assertIn("names the file(s) `backend/hermes/glue.py`, which the", self.warning(claim))
+        quiet = (
+            "- Changed `backend/library/core.py`: the numbers come from `backend/hermes/glue.py`, taken from "
+            "`backend/library/names.py`, read from `docs/dev/CONTRACT.md` and copied from `tools/layout.toml`."
+        )
+        self.assertEqual(self.warning(quiet), "")
 
 
 class QuickPath(RepoCase):

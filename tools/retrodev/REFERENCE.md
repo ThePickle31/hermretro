@@ -214,7 +214,9 @@ on `origin/dev` for the hunk's longest distinctive line (one it holds once, of 8
 origin/dev -S<that line>\` to show the move; the whole tree, since blocks move into tests too; when no other file has
 any of its lines: `dev deleted this block`, the same steps); resolve only the conflict in the merge (never the generated ones), `git add` those files and run `sync` again:
 it rebuilds the generated files and makes the merge commit (no `git commit` by hand). If `dev` rewrote the code your
-side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync.
+side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync,
+and where: for a table row of a markdown file, the subsection headed with the row's first cell (else the most alike
+heading and its lines, never a table row); when two places match about as well, `git diff HEAD...origin/dev -- <file>`.
 When the resolved conflicts hold lines neither side had (only the files that were in conflict count; binary files are
 read as bytes and never counted; compared word by word with line breaks and spaces normalised, so a paragraph rewrapped
 around an edit from each side adds nothing), it warns `new work belongs in its own commit after sync (a resolution over N lines

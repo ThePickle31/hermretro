@@ -5,8 +5,9 @@ A body is often written from the plan before the code, and a name the code then 
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
 and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch, but only a
 path in a bullet or sentence that claims a change (CHANGE_WORDS, or a bullet that opens with the path and a colon),
-never one cited as evidence (`checked against`, `verified in`, `from`, `source:` right before it) nor one under
-engine/ (never changed outside an engine update, so only ever cited).
+never one cited as evidence (`checked against`, `verified in`, `comes from`, `taken from`, `read from`, `copied from`,
+`source:`, `see`, `per`, `as in` right before it) nor one under engine/ (never changed outside an engine update, so
+only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
 """
 
 from __future__ import annotations
@@ -33,11 +34,16 @@ def is_path(word: str) -> bool:
 
 CHANGE_WORDS = re.compile(
     r"\b(?:add|adds|added|change|changes|changed|move|moves|moved|remove|removes|removed|rename|renames|renamed|new|"
-    r"edit|edits|edited|now|write|writes|wrote)\b",
+    r"edit|edits|edited|now|write|writes|wrote|delete|deletes|deleted|split|splits|drop|drops|dropped|extract|"
+    r"extracts|extracted)\b",
     re.I,
 )
 # Right before a quoted path, words that cite it as evidence rather than claim a change to it.
-CITED = re.compile(r"(?:checked against|verified (?:in|against)|from|source:|see|per|as in)\s*$", re.I)
+CITED = re.compile(
+    r"\b(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|as in)"
+    r"\s*$",
+    re.I,
+)
 BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 LEADING_PATH = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+`([^`\n]+)`\s*:")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`(])")

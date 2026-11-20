@@ -15,6 +15,7 @@ from __future__ import annotations
 import difflib
 
 from . import gates, land_carry, repo
+from .sync_rewrite import AMBIGUOUS, new_location, rewritten_from
 from .output import Failure, cmd
 
 REGENERATED = "Regenerate generated files after merging dev"
@@ -134,47 +135,6 @@ def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
     return None, lines[0] if lines else None
 
 
-REWRITE_RATIO = 0.6  # difflib ratio: HEAD's changed line is a modified copy of a line dev removed
-LONGER = 2  # dev's side of the hunk has at least this many times HEAD's lines (and at least 3)
-
-
-def similarity(a: str, b: str) -> float:
-    return difflib.SequenceMatcher(None, a, b, autojunk=False).ratio()
-
-
-def rewritten_from(ours: str, theirs: str, base: list[str], dev: list[str]) -> list[str]:
-    """HEAD's changed lines of a hunk that are modified copies of lines dev removed, when dev's side of the hunk is
-    much longer than HEAD's (dev rewrote the block, e.g. a table row into a subsection); [] otherwise."""
-    mine = [line.strip() for line in ours.splitlines() if line.strip()]
-    others = [line for line in theirs.splitlines() if line.strip()]
-    if not mine or len(others) < max(3, LONGER * len(mine)):
-        return []
-    had, kept = {line.strip() for line in base}, {line.strip() for line in dev}
-    removed = [line for line in had if line and line not in kept]
-    changed = [line for line in mine if line not in had]
-    if not changed or not removed:
-        return []
-    copies = [line for line in changed if max(similarity(line, old) for old in removed) > REWRITE_RATIO]
-    return copies if len(copies) == len(changed) else []
-
-
-def new_location(name: str, changed: list[str], dev: list[str], base: list[str]) -> str | None:
-    """Where on the base branch HEAD's change belongs now: ``name``'s line most like HEAD's changed lines among those
-    dev added, with the heading above it when the file has headings; None when dev added nothing alike."""
-    had = {line.strip() for line in base}
-    scored = [
-        (max(similarity(line.strip(), mine) for mine in changed), number)
-        for number, line in enumerate(dev, 1)
-        if line.strip() and line.strip() not in had
-    ]
-    if not scored:
-        return None
-    _score, number = max(scored, key=lambda pair: (pair[0], -pair[1]))
-    above = range(number - 1, -1, -1) if name.endswith(".md") else ()
-    heading = next((dev[i].strip() for i in above if dev[i].startswith("#")), None)
-    return f"{name}:{number}" + (f" (under `{heading}`)" if heading else "")
-
-
 def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) -> str | None:
     """The hint for a hunk where dev rewrote the block HEAD changed (rewritten_from), or None."""
     base, dev = _side(ctx, ":1", name), _side(ctx, "MERGE_HEAD", name)
@@ -184,6 +144,11 @@ def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) 
     if not changed:
         return None
     where = new_location(name, changed, dev, base) or (moved_to(ctx, name, "\n".join(changed))[0] or name)
+    if where == AMBIGUOUS:
+        return (
+            f"{name}:{first}-{last}: {ctx.base} rewrote this block (see git diff HEAD...{ctx.remote_base} -- {name}); "
+            f"take {ctx.base}'s side, then redo your change where it belongs now in its own commit after sync"
+        )
     return (
         f"{name}:{first}-{last}: {ctx.base} rewrote this block; take {ctx.base}'s side, then redo your change in "
         f"{where} in its own commit after sync"
