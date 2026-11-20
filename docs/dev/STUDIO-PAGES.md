@@ -188,8 +188,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and
   Enter/Tab pick, Esc closes. The pick leaves the text and is attached as an `@name` chip (sent as
   "About <path>:" like any attachment); the user's bubble shows it as `@name`.
-- **New Game** keeps its two choices and adds starter ideas (chips that fill the box, editable) and a
-  dashed hint that pictures show up as HermRetro draws them and `@` points at one.
+- **New Game** keeps its two choices over a game the page draws behind them: the Nous Girl plays a
+  Game Boy Color style level by herself, with the title, the message box and the choices as platforms
+  (`page/pages/build/attract/`, described in the Build page's README).
 - **Assets as they land.** Images a step made or looked at (`image_path`, result images,
   `assetPath`/`outputPath`, `vision_analyze`'s `image_url`; project-relative paths joined to the
   game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets

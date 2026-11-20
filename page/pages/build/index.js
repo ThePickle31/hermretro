@@ -1,6 +1,7 @@
 // Build: the front door of the page (its descriptor; fields in app/registry.js), and what the Emulator page
 // asks of it (is a session one of Build's conversations, which game is shown here, tool results unwrapped).
 import { ASSETS_CSS } from './assets/assets.css.js'
+import { ATTRACT_CSS } from './attract/attract.css.js'
 import { BUILD_RESPONSIVE_CSS } from './build-responsive.css.js'
 import { BUILD_CSS } from './build.css.js'
 import { Build } from './build-entry.js'
@@ -55,6 +56,7 @@ export const BUILD_PAGE = {
     HEADER_CSS,
     WORKED_MODE_CSS,
     MENTIONS_CSS,
+    ATTRACT_CSS,
     BUILD_RESPONSIVE_CSS
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.

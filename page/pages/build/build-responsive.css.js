@@ -6,7 +6,6 @@ export const BUILD_RESPONSIVE_CSS = `
   .cs-b-bc-sum, .cs-b-bc-changes, .cs-b-ba, .cs-b-bc-foot, .cs-b-bc-details { padding-left: 12px; padding-right: 12px; }
   .cs-b-ba-pair { gap: 8px; }
   .cs-b-gist { display: none; }
-  .cs-b-hint-tiles { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cs-b-spin, .cs-b-shimmer, .cs-b-pulse, .cs-b-live.on, .cs-b-game .dot.wait, .cs-b-th.loading, .cs-b-skel i { animation: none; }

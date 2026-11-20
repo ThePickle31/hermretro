@@ -34,16 +34,10 @@ export const BUILD_CARD_CSS = `
 .cs-b-ba-side.now .cs-b-ba-cap { color: var(--ui-text-primary); font-weight: 600; }
 .cs-b-ba-arrow { color: var(--ui-accent); flex: none; font-size: 20px; }
 .cs-b-ba-acts { gap: 8px; }
-/* next steps (a reply's suggestions, New Game's ideas) and the @ hint */
-.cs-b-next-steps, .cs-b-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
-.cs-b-ideas { justify-content: center; }
+/* next steps (a reply's suggestions) */
+.cs-b-next-steps { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs-b-sugg-chip { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12.5px; gap: 5px; padding: 5px 12px; transition: box-shadow .12s ease, color .12s ease; }
 .cs-b-sugg-chip:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-text-primary); }
 .cs-b-sugg-chip:disabled { cursor: default; opacity: .5; }
 .cs-b-sugg-chip > i { color: var(--ui-accent); }
-.cs-b-hint { align-items: center; border: 1px dashed var(--ui-stroke-secondary); border-radius: 12px; color: var(--ui-text-tertiary); display: flex; font-size: 12.5px; gap: 12px; line-height: 1.45; padding: 10px 14px; }
-.cs-b-hint b { color: var(--ui-text-primary); }
-.cs-b-hint-tiles { display: flex; flex: none; gap: 5px; }
-.cs-b-hint-tiles i { background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, transparent 0 50%) 0 0 / 8px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); height: 26px; width: 26px; }
-.cs-b-hint-tiles i:nth-child(2) { opacity: .6; } .cs-b-hint-tiles i:nth-child(3) { opacity: .35; }
 `
