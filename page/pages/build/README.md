@@ -2,7 +2,7 @@
 
 **Shows:** one game, one conversation with the agent (`build-page.js`): the game switcher in the header, the
 transcript (`transcript/`), the message box (`composer/`), the game playing inside the reply (`player/`), the
-picture viewer (`viewer/`), the image cache (`assets/`) and the game drawn behind New Game (`attract/`). `chat/` holds the conversations, the gateway events
+picture viewer (`viewer/`), the image cache (`assets/`) and the game drawn behind New Game (`attract/`) with the shelf of games being worked on standing on its floor (`cart-shelf.js`). `chat/` holds the conversations, the gateway events
 and the actions. While the hermretro profile is missing it shows `studio-needed.js` instead (the choice is the page's
 `Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last).
 
@@ -19,12 +19,13 @@ message box, not sent) and `emulator.presented` (plays the presented game in its
 **Starts with the plugin** (`register`): `watchBuildChats(ctx)`, the gateway listeners that keep a conversation
 streaming while the page is closed.
 
-**Uses from other pages:** `#pages/games/index.js` (game states), `#pages/setup/index.js` (creating the studio
+**Uses from other pages:** `#pages/games/index.js` (game states, and the `Cartridge` of the New Game shelf), `#pages/setup/index.js` (creating the studio
 profile).
 
 **Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`,
 `tests/page/build-player.test.mjs`, `tests/page/registry.test.mjs` (its listeners), `tests/page/attract.test.mjs`
-(the New Game level, run headless), `tests/page/attract-run.test.mjs` (running it in the page).
+(the New Game level, run headless), `tests/page/attract-run.test.mjs` (running it in the page),
+`tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf).
 
 ## The New Game level (`attract/`)
 
