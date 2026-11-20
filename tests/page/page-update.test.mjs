@@ -13,7 +13,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
   // The app on the default profile, where the plugin was installed; the hermretro profile answers the page.
   const installed = { profile: 'default', linked: false }
-  const base = (extra = {}) => ({ ...status(), plugin: { version: '0.0.8', installed_in: installed }, ...extra })
+  const base = (extra = {}) => ({ ...status(), plugin: { version: '1.2.3', installed_in: installed }, ...extra })
   const check_ = (row, target = { route: null, profile: 'default' }) => answered({ target, row: { name: 'hermretro', key: 'hermretro', ...row } })
   const calls = []
   let updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })
@@ -44,16 +44,16 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.equal(query.refetchInterval, 30 * 60_000)
   })
   await tab('Setup')
-  check('Setup lists the hermretro version as up to date', () => { shows(/hermretro0\.0\.8 · up to date/) })
+  check('Setup lists the hermretro version as up to date', () => { shows(/hermretro1\.2\.3 · up to date/) })
 
   // A newer version: the chip, then the popover.
   scenario['plugin-update'] = check_({ update_available: true, update_target: 'abc123' })
   await fresh({ page: 'setup' })
-  check('Setup offers the update in the hermretro row', () => { shows(/0\.0\.8 · a new version is ready/); assert.ok(button('Update')) })
+  check('Setup offers the update in the hermretro row', () => { shows(/1\.2\.3 · a new version is ready/); assert.ok(button('Update')) })
   check('the header shows an "Update ready" chip', () => { assert.ok(chip()); assert.equal(chip().textContent, 'Update ready') })
   await openChip()
   check('the chip opens the popover with Update now, What\'s new and Later', () => {
-    assert.match(popover(), /A new version is ready/); assert.match(popover(), /Installed0\.0\.8/)
+    assert.match(popover(), /A new version is ready/); assert.match(popover(), /Installed1\.2\.3/)
     assert.ok(button('Update now')); assert.ok(button("What's new")); assert.ok(button('Later'))
   })
 
@@ -133,7 +133,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await fresh()
   await openChip(); await click('Update now'); await settle(40)
   check('a failed update says why and that nothing changed', () => {
-    assert.match(popover(), /GitHub could not be reached\. Nothing was changed; you are still on 0\.0\.8\./)
+    assert.match(popover(), /GitHub could not be reached\. Nothing was changed; you are still on 1\.2\.3\./)
     assert.ok(button('Try again'))
   })
   await click('Open Capabilities')
@@ -164,7 +164,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await act(async () => { root.render(null) })
   scenario['plugin-update'] = undefined
   scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'setup' }
-  scenario.status = answered(base({ plugin: { version: '0.0.8', installed_in: { profile: null, linked: true } } }))
+  scenario.status = answered(base({ plugin: { version: '1.2.3', installed_in: { profile: null, linked: true } } }))
   scenario.doctor = answered(doctor([]))
   await render()
   check('a linked checkout gets no update check and says how it is updated', () => {
