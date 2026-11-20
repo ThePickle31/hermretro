@@ -1,4 +1,5 @@
 // What the page knows about a library game: labels, states and the prompts about it.
+import { formatBytes } from '#app/format.js'
 import { gameLabel } from '#app/game-prompts.js'
 import { ago } from '#shared/ui/time.js'
 import { FLASH_PROMPT } from '#pages/prompts/index.js'
@@ -14,7 +15,7 @@ export const GAME_STATES = {
 export function gameMeta(game, { kind = true, now = Date.now() } = {}) {
   return [
     kind ? KIND_LABELS[game.kind] ?? game.kind ?? null : null,
-    game.rom?.size ? `${Math.max(1, Math.round(game.rom.size / 1024))} KB` : null,
+    game.rom?.size ? formatBytes(game.rom.size, { unit: 'KB' }) : null,
     game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : 'never built'
   ].filter(Boolean)
 }

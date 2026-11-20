@@ -1,9 +1,8 @@
 // Setup: delete the downloaded tools (about 2.4 GB). Games stay; setup can install them again.
 import { Button, host, jsx, jsxs, useState } from '#sdk'
 import { callBackend, describeRequestError } from '#app/backend.js'
+import { formatBytes } from '#app/format.js'
 import { RPC_REMOVE_TOOLS } from '#app/rpc.js'
-
-const megabytes = bytes => `${Math.round((bytes || 0) / 1e6).toLocaleString()} MB`
 
 export function RemoveTools({ status, doctor }) {
   const [state, setState] = useState('idle') // idle · confirm · working
@@ -20,7 +19,7 @@ export function RemoveTools({ status, doctor }) {
         throw new Error(data?.error || 'The tools could not be removed.')
       }
 
-      host.notify({ kind: 'success', message: `Downloaded tools removed (${megabytes(data.removed_bytes)}). Your games are untouched.` })
+      host.notify({ kind: 'success', message: `Downloaded tools removed (${formatBytes(data.removed_bytes, { unit: 'MB' })}). Your games are untouched.` })
       status.refetch?.()
       doctor.refetch?.()
       setState('idle')
