@@ -72,7 +72,7 @@ kind: feat (a new ability), fix (a bug), docs (documentation only), chore (refac
 body `notes/pr/<topic>.md` in the main checkout (the file `ship` reads; never over an existing one) from
 `.github/pull_request_template.md`: Why from the plan's Goal, What changed from its "What changes", Not done from its
 "Not in scope" (each only when the plan says something there; under a plan shared by several branches, one whose
-`## Branches` (or `## PRs`) list names more than one or that a branch started earlier works under, Why comes only
+`## Branches` (or `## PRs`) list names more than one or that a branch started earlier works under, landed or not, Why comes only
 from a section whose heading names this branch or its topic, Not done stays the template's, and the plan's `Title:`
 is not offered as the `--title`), and the `Made by` line (while it names only the generic
 agent, the next step says to name yours there or set `RETRODEV_AGENT=<agent, model>`); ship's body gate still refuses
@@ -606,7 +606,8 @@ A release candidate: `release prepare --rc ...` names `X.Y.Z-rc.M` (the next M);
 
 Records live in `<git common dir>/retrodev/` (the main checkout's `.git/retrodev/`, shared by every worktree, never
 committed): `branches/<branch>.json` (plan, checks with their input digests, the passing tree, the pull request and
-pushed head, the owner's approval, land's last step), `plans/<topic>.json` (the plan's approval), `reviews/<pr>.json`
+pushed head, the owner's approval, land's last step), `plans/<topic>.json` (the plan's approval and the branches that started under it, kept after land or gc forgets
+their records), `reviews/<pr>.json`
 and `reviews/<pr>/round<N>/` (every review round; `shipped` is the first ship's time, for `stats`),
 `engine/<version>.json` (the owner's words for an engine update), `releases/<version>.json` (the owner's words, the
 pull request, the update check's pass and the steps done), `preview/` (the page preview), `config.toml` (personal

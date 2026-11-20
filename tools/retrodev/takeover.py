@@ -81,6 +81,7 @@ def run(ctx, branch: str, setup: bool = True) -> int:
         taken_over=remote,
     )
     state.save_branch(main, record)
+    plan.remember(ctx, branch, record)  # a plan its topic names keeps it after land or gc forgets this record
     steps = next_steps(ctx, branch, path, record, topic)
     kinds = ctx.policy["branches"]["kinds"]
     if kind not in kinds:  # ship, land and CI read no branch kind (release notes group by labels): it keeps its name

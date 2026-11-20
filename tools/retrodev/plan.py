@@ -270,13 +270,18 @@ def link(ctx, topic: str) -> int:
     if not plan_file(ctx, topic).is_file():
         raise Failure(f"there is no plan '{topic}'", f"python tools/retrodev plan new {topic}")
     record = state.load_branch(ctx.top, branch)
+    before = gates.plan_for(ctx, branch, record) if record else None
+    if before and before != topic and state.NAME.match(before):  # relinked: it no longer works under the old plan
+        state.forget_plan_branch(ctx.top, before, branch)
     kind, _, named = branch.partition("/")
     record.setdefault("branch", branch)
     record.setdefault("kind", kind)
     record.setdefault("topic", named)
     record.setdefault("worktree", str(repo.toplevel(here)))
     record["plan"] = topic
+    record.setdefault("created", state.now())
     state.save_branch(ctx.top, record)
+    remember(ctx, branch, record)
     row = describe(ctx, topic)
     ctx.out.say(f"{branch} works under the plan {topic} ({'approved' if row['approved'] else 'NOT approved yet'})")
     ctx.out.set(branch=branch, plan=topic, approved=bool(row["approved"]))
@@ -292,20 +297,40 @@ def shared(ctx, branch: str, record: dict) -> bool:
     whole plan, not to this branch's pull request."""
     named = gates.plan_for(ctx, branch, record)
     path = plan_file(ctx, named) if named and state.NAME.match(named) else None
-    if not path or not path.is_file():
+    if not named or not path or not path.is_file():
         return False
     found = gates.section_lines(path.read_text(encoding="utf-8"))
     listed = next((found[name] for name in found if name.strip().lower() in {s.lower() for s in LISTS}), [])
     if sum(1 for line in listed if re.match(r"^\s*(?:[-*+]|\d+[.)])\s+\S", line)) > 1:
         return True
-    mine = record.get("created") or state.now()
+    started = started_under(ctx, named)
+    mine = min(filter(None, (record.get("created"), started.get(branch))), default=state.now())
+    # Another branch started before this one (a record without a time counts), landed and forgotten or not.
+    return any(at <= mine for name, at in started.items() if name != branch)
+
+
+def remember(ctx, branch: str, record: dict) -> None:
+    """Note in the plan's own record (state.py) that this branch started under it, so the plan stays shared after
+    this branch lands and its record is forgotten. Called by start, plan link and takeover."""
+    named = gates.plan_for(ctx, branch, record)
+    if named and state.NAME.match(named) and plan_file(ctx, named).is_file():
+        state.remember_plan_branch(ctx.top, named, branch, record.get("created") or state.now())
+
+
+def started_under(ctx, named: str) -> dict[str, str]:
+    """Every branch that started under the plan, with the time: the plan record's list (it outlives branch records)
+    and the branch records that name it (one recorded before plans kept the list; each is added to the list)."""
+    started = dict((state.load_plan(ctx.top, named) or {}).get("branches") or {})
     for other in state.branches(ctx.top):
         name = other.get("branch")
-        if not name or name == branch or gates.plan_for(ctx, name, other) != named:
+        if not name or gates.plan_for(ctx, name, other) != named:
             continue
-        if (other.get("created") or "") <= mine:  # started before this one (a record without a time counts)
-            return True
-    return False
+        at = other.get("created") or ""
+        if name not in started or at < started[name]:
+            started[name] = at
+            if at:
+                state.remember_plan_branch(ctx.top, named, name, at)
+    return started
 
 
 def branch_section(ctx, branch: str, record: dict) -> list[str]:

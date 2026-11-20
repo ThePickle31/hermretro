@@ -114,6 +114,10 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
         start_sha=repo.head(path),
     )
     state.save_branch(main, record)
+    if not no_plan:
+        from . import plan  # ship imports plan; start stays importable on its own
+
+        plan.remember(ctx, name, record)  # the plan keeps the branch after land or gc forgets this record
     body = None if no_plan else body_note(ctx, name, record)
     ctx.out.say(str(path))
     fill = f" (fill in {body} as you go: notes/ is in the main checkout, shared by every worktree)" if body else ""
