@@ -1,5 +1,5 @@
 name: hermretro
-version: 0.0.5
+version: 0.0.6
 manifest_version: 2
 description: Plan, build, playtest and ship Game Boy Color games for the ModRetro Chromatic
 author: hermretro contributors
