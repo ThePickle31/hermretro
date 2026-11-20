@@ -1,8 +1,9 @@
 """`new`: add a feature, page, tab, tool, RPC, event, listener or slot in the repository's shape, in one command.
 
     new feature <name> [--purpose TEXT]        backend/<name>/ (front door, README), its tests, the registry lines
-    new rpc <feature> <name> | <feature>.<name> [--module M]  an @rpc stub (its handler in backend/<feature>/<M>.py
-                                               with --module), its test, its CONTRACT section, the generated names
+    new rpc <feature> <name> | <feature>.<name> [--module M] [--game]  an @rpc stub (its handler in
+                                               backend/<feature>/<M>.py with --module; a `game` param that answers
+                                               NO_GAME with --game), its test, its CONTRACT section, the generated names
     new tool <feature> <name> [--step R D] [--module M] [--[no-]project]   a Tool stub (in backend/<feature>/<M>.py with its own
                                                TOOLS with --module, or when tools.py is over 400 lines), its test,
                                                plugin.yaml, the page's step words, CONTRACT
@@ -371,7 +372,7 @@ def run(ctx, args) -> int:
                     f"new rpc needs a feature and a name, as two words or <feature>.<name>; got '{args.target}'",
                     "python tools/retrodev new rpc library recent (or: new rpc library.recent)",
                 )
-        what = scaffold_backend.rpc_(plan, target, name, args.module)
+        what = scaffold_backend.rpc_(plan, target, name, args.module, bool(getattr(args, "game", False)))
     elif kind == "listener":
         what = scaffold_listener.listener(plan, args.target, args.name)
     elif kind == "tool":

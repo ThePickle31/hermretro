@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import keyword
 import re
 
 from . import scaffold_rpc
@@ -27,9 +28,7 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import (
-    add_event,
-)
+from .scaffold_source import add_event, files_line
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -199,24 +198,31 @@ def rpc_names(plan: Plan) -> set[str]:
     return found
 
 
-def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) -> str:
+def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, game: bool = False) -> str:
     known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
     if name in rpc_names(plan) or name in {a or b for a, b in documented}:
         raise Failure(f"an RPC named {name} exists (or CONTRACT.md documents one)", "pick another RPC name")
     values = {"name": feature_name, "Name": label(feature_name), "rpc": name, "Rpc": pascal(name), "RPC": const(name)}
+    if game:  # about one library game: host._game_root finds it, else NO_GAME (as history's builds answers)
+        values["handler"] = "rpc_game.py.tmpl"
     source = f"backend/{feature_name}/rpcs.py"
     if module:  # the handler in its own module; rpcs.py keeps the @rpc declaration (scaffold_rpc.py)
         source = scaffold_rpc.in_module(plan, feature_name, module, values)
     else:
         scaffold_rpc.big_note(plan, feature_name, name)
         source = scaffold_rpc.inline(plan, feature_name, values)
+    if game:
+        scaffold_rpc.needs_host(plan, source)
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
-    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", "test_rpc.py.tmpl", **values))
-    block = render("rpc", "contract.md.tmpl", **values)
+    test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
+    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
+    block = render("rpc", "contract_game.md.tmpl" if game else "contract.md.tmpl", **values)
     plan.edit(CONTRACT, lambda text: _before_heading(text, "## Studio pages", block))
     readme(plan, feature_name, "RPCs", f"`{name}`")
+    if module and plan.exists(f"backend/{feature_name}/README.md"):  # as new tool --module names its module
+        plan.edit(f"backend/{feature_name}/README.md", lambda text: files_line(text, "RPCs", "rpcs.py", module))
     agent_half(plan, feature_name, lambda row: declares(row, "RPC", name))
     plan.regenerate = True
     plan.next_steps += [
@@ -233,8 +239,15 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) ->
         f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
         "(tests/page/harness.mjs), set before the page renders: the stub's useQuery reads it at render time",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
+        "in a page: put the useQuery in the page's own Page component (e.g. Games in page/pages/games/games-page.js) "
+        "and pass the result down as a prop; extend tests/page/page-<page>.test.mjs",
         "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
     ]
+    if game:
+        plan.next_steps.append(
+            "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
+            "home being what isolated_home(self) returns; host._game_root(game) gives the project root"
+        )
     return f"RPC {name}"
 
 
@@ -289,6 +302,26 @@ def payload_keys(payload: str) -> list[str]:
     return list(dict.fromkeys(keys))
 
 
+def keyword_names(keys: list[str]) -> bool:
+    """Whether every payload key can be a keyword-only parameter of the emitter (emit itself is its global)."""
+    return bool(keys) and all(k.isidentifier() and not keyword.iskeyword(k) and k != "emit" for k in keys)
+
+
+def emitter_values(keys: list[str]) -> dict:
+    """The emitter's parameters and emit arguments (keyword-only, one per payload key: a missing or misspelled key
+    fails where it is called), and its test's call with sample values and what a listener hears; **payload when
+    --payload names no keys new can use."""
+    if not keyword_names(keys):
+        return {"params": "**payload", "args": "**payload", "sample": "example=1", "heard": '{"example": 1}'}
+    samples = {key: f"sample {key}" for key in keys}
+    return {
+        "params": "*, " + ", ".join(keys),
+        "args": ", ".join(f"{key}={key}" for key in keys),
+        "sample": ", ".join(f"{key}={value!r}" for key, value in samples.items()).replace("'", '"'),
+        "heard": "{" + ", ".join(f'"{key}": "{value}"' for key, value in samples.items()) + "}",
+    }
+
+
 def event_row(body: str, feature_name: str, row: str) -> str:
     """The CONTRACT events row after the owner feature's last row (after the table's last row when it has none)."""
     owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
@@ -309,7 +342,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
     keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
-    doc = f"{when or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
+    plain = when.replace("`", "") if when else None  # backticks are Markdown: the CONTRACT row keeps them
+    doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
     plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
     cell = ", ".join(f"`{key}`" for key in keys) or payload
     row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
@@ -321,7 +355,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     )
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
     values = {"name": feature_name, "Name": label(feature_name), "event": name, "Event": pascal(name)}
-    values |= {"full": full, "payload": payload}
+    values |= {"full": full, "payload": payload, **emitter_values(keys)}
     emits = f"backend/{feature_name}/emits.py"
     if re.search(rf"^def {name}\(", plan.read(emits) if plan.exists(emits) else "", re.M):
         raise Failure(f"{emits} has a function named {name} already", "pick another event name")

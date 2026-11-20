@@ -1,0 +1,34 @@
+"""The {rpc} RPC of backend/{name}. Run alone: python -m unittest tests.backend.{name}.test_rpc_{rpc}
+
+isolated_home(self) (tests/support.py) points HERMRETRO_HOME and the plugin's data folder at a temp folder: never
+the real library.
+"""
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.{name} import rpcs  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+
+
+class Rpc{Rpc}(unittest.TestCase):
+    def setUp(self):
+        self.home = isolated_home(self)
+        self.handler = rpcs.rpc_{rpc}(None)
+
+    def test_a_library_game_answers_ok(self):
+        from tests.support import make_library_game  # imported here: it registers a real game in the temp library
+
+        game, _root = make_library_game(self.home, "Probe")
+        self.assertEqual(self.handler({{"game": game}}), {{"ok": True, "game": game}})
+
+    def test_a_game_outside_the_library_answers_no_game(self):
+        for params in ({{"game": "nope"}}, {{}}, None, "text"):
+            self.assertEqual(self.handler(params)["code"], "NO_GAME", params)
+
+
+if __name__ == "__main__":
+    unittest.main()

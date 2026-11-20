@@ -73,7 +73,8 @@ def inline(plan: Plan, feature_name: str, values: dict) -> str:
     names = [f"rpc_{values['rpc']}"]
     refuse_bound(rpcs_text(plan, source, values), source, names)
     plan.ensure(source, render("rpc", "rpcs.py.tmpl", **values))
-    plan.edit(source, lambda text: appended(text, render("rpc", "rpc.py.tmpl", **values), source, names))
+    block = render("rpc", values.get("handler", "rpc.py.tmpl"), **values)
+    plan.edit(source, lambda text: appended(text, block, source, names))
     return source
 
 
@@ -132,7 +133,9 @@ def in_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
     source = f"backend/{feature_name}/rpcs.py"
     values = {**values, "module": module, "alias": alias(module)}
     plan.ensure(home, render("rpc", "rpc_module.py.tmpl", **values))
-    factory = render("rpc", "rpc.py.tmpl", **values).lstrip("\n").split("\n", 1)[1]  # no @rpc: rpcs.py declares it
+    factory = (
+        render("rpc", values.get("handler", "rpc.py.tmpl"), **values).lstrip("\n").split("\n", 1)[1]
+    )  # no @rpc: rpcs.py declares it
     if f"def rpc_{values['rpc']}(" in plan.read(home):
         raise Failure(f"{home} defines rpc_{values['rpc']} already; nothing was written", "pick another RPC name")
     plan.edit(home, lambda text: text.rstrip("\n") + "\n\n\n" + factory)
@@ -141,6 +144,13 @@ def in_module(plan: Plan, feature_name: str, module: str, values: dict) -> str:
     declared = render("rpc", "rpc_declared.py.tmpl", **values)
     plan.edit(source, lambda text: appended(text, declared, source, [f"rpc_{values['rpc']}"], (alias(module),)))
     return home
+
+
+def needs_host(plan: Plan, source: str) -> None:
+    """A --game handler calls host._game_root: the module it went into imports host (rpcs.py's template does)."""
+    from .scaffold_tool import with_import  # scaffold_tool imports scaffold_backend, which imports this module
+
+    plan.edit(source, lambda text: with_import(text, "from ..hermes import host", ("host",)))
 
 
 def big_note(plan: Plan, feature_name: str, name: str) -> None:

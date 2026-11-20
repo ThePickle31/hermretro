@@ -5,8 +5,9 @@
 Fetches, then makes <worktree_root>/<topic> on a local <branch> that tracks <remote>/<branch> (made from it; a
 local branch of that name must not exist yet), runs start's setup (npm ci, the ruff setup) and records the branch
 as start does. It never needs the main checkout on dev: nothing there changes but git's worktree list. The next
-steps: the plan (plan new and plan approve, while the branch has no approved one), sync while HEAD lacks commits of
-the base branch, then check.
+steps: while HEAD lacks commits of the base, read its diff of the files both changed (before the plan: sync's merge
+empties it); the plan (plan new and plan approve, while the branch has no approved one); sync (the main checkout's
+retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes); then check.
 """
 
 from __future__ import annotations
@@ -88,16 +89,40 @@ def run(ctx, branch: str, setup: bool = True) -> int:
 
 def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
     steps = [cmd("cd", path)]
+    behind = status.behind(ctx, path)
+    both = status.overlap(ctx, path) if behind else []
     named = gates.plan_for(ctx, branch, record)
-    if named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok:
+    planned = named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok
+    if both:  # sync's merge empties this diff: read it while it still shows what dev did to the branch's files
+        steps.append(status.read_first(both, ctx.remote_base, "writing the plan" if planned else "sync merges it"))
+    if planned and named:
         if not plan.plan_file(ctx, named).is_file():
             steps.append(f"python tools/retrodev plan new {named} (say what the branch does and what is left)")
         steps.append(
             f"show the owner notes/plans/{named}.md; when they say start: python tools/retrodev plan approve {named} "
             '--words "<their exact words>" (it also writes the pull request body)'
         )
-    behind = status.behind(ctx, path)
     if behind:
-        steps.append(f"python tools/retrodev sync (HEAD lacks {behind} commit(s) of {ctx.remote_base})")
+        steps.append(
+            f"{sync_command(ctx, path)} (HEAD lacks {behind} commit(s) of {ctx.remote_base}{older(ctx, path)})"
+        )
     steps.append("python tools/retrodev check")
     return steps
+
+
+def older(ctx, path) -> str:
+    """Why sync runs from the main checkout: the branch's own tools/retrodev predates the base's (empty when not)."""
+    if not repo.git(["diff", "--name-only", f"HEAD...{ctx.remote_base}", "--", "tools/retrodev"], path, check=False):
+        return ""
+    return (
+        f"; this branch's own tools/retrodev is older than {ctx.remote_base}'s, so the main checkout's runs it, with "
+        "sync's conflict hints"
+    )
+
+
+def sync_command(ctx, path) -> str:
+    """sync for the taken-over worktree: the branch's own copy of retrodev when it is current, else the main
+    checkout's (the one running takeover), run inside the worktree: an older copy lacks newer sync fixes."""
+    if not older(ctx, path):
+        return "python tools/retrodev sync"
+    return cmd("python", ctx.main() / "tools" / "retrodev", "sync")

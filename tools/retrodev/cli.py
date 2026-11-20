@@ -205,17 +205,23 @@ def scaffolds(sub, common) -> None:
     kind("feature", "backend/<name>/: front door, README, tests, the registry lines", None, "name").add_argument(
         "--purpose", help="one line: what the feature does (the map and README say it)"
     )
-    kind(
+    rpc = kind(
         "rpc",
         "an @rpc stub, its test, its CONTRACT section, the generated names: new rpc <feature> <name> or "
         "<feature>.<name> (RPC names are global and flat: the page calls plugin.hermretro.<name>)",
         "feature",
         "name",
         optional=True,
-    ).add_argument(
+    )
+    rpc.add_argument(
         "--module",
         help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
         "declaration that calls it (suggested when rpcs.py is over 350 lines)",
+    )
+    rpc.add_argument(
+        "--game",
+        action="store_true",
+        help="an RPC about one library game: a `game` param, NO_GAME unless host._game_root finds it",
     )
     tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
     tool.add_argument(
@@ -264,7 +270,7 @@ def scaffolds(sub, common) -> None:
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc"):
+        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc", "game"):
             setattr(args, missing, getattr(args, missing, None))
         if isinstance(args.payload, list):  # --payload repeated: one comma-separated line
             args.payload = ", ".join(part.strip() for part in args.payload if part.strip()) or None

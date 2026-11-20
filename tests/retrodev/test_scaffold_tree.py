@@ -13,7 +13,7 @@ reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/chec
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
 the stubs are unfilled), and it is the guard against tests that pin the real tree's content: it first runs the copy's
 unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
-reports as such), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
+reports as such), notes every real feature README's RPCs/Tools/Listens lines (hand_edits.py), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
 contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
 the same on a copy where setup has tabs and history listens to library.game_presented already (made only where the copy
 lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
@@ -44,6 +44,7 @@ from retrodev.scaffold_imports import binding
 from retrodev.scaffold_page import own_page
 
 from tests.retrodev.fixture import parallel
+from tests.retrodev.hand_edits import note_feature_readmes
 from tests.retrodev.scaffold_moves import moved_pages_bundle
 
 load_tests = parallel
@@ -303,6 +304,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
                 self.fail(f"the grown copy fails unit:\n{base.stdout[-6000:]}")
             if base.returncode:
                 self.skipTest(f"{UNIT_FIRST}:\n{base.stdout[-2000:]}")
+            self.assertTrue(note_feature_readmes(tree))  # hand edits a branch makes: pins of those lines fail here
         for step in steps:  # several in a row: the generated files are rebuilt once, after the last
             last = step is steps[-1]
             done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)

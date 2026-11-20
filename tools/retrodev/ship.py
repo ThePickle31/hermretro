@@ -112,11 +112,12 @@ def default_body(ctx, branch: str | None, record: dict) -> Path:
     return repo.main_checkout(ctx.top) / "notes" / "pr" / f"{topic}.md"
 
 
-def owner(ctx) -> str:
+def made_by(ctx) -> str:
+    """The attribution: agent (RETRODEV_AGENT, else Hermes) and GitHub account; no GitHub remote: neither."""
     url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
     found = re.search(r"github\.com[:/]([^/]+)/", url)
-    account = found.group(1) if found else ctx.get("github_account")
-    return f"@{account}" if account else "the owner"
+    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
+    return f"Made by an agent ({agent}) for @{found.group(1)}." if found else "Made by an agent for the owner."
 
 
 def plan_sections(ctx, branch: str, record: dict) -> dict[str, list[str]]:
@@ -164,11 +165,10 @@ def skeleton(ctx, branch: str, record: dict) -> str:
             at = re.search(rf"^## {re.escape(heading)}[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
             if at:
                 text = text[: at.end()] + "\n".join(lines) + "\n" + text[at.end() :]
-    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
-    line = f"Made by an agent ({agent}) for {owner(ctx)}."
+    line = made_by(ctx)
     made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
-    if made:  # the template's own section for it (after its comments)
-        return text[: made.end()] + line + "\n" + text[made.end() :]
+    if made:  # the template's own section for it, its comment (who to name) replaced by the line itself
+        return text[: made.start()] + "## Made by\n" + line + "\n" + text[made.end() :]
     return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
 
 
@@ -228,12 +228,19 @@ def body_step(ctx, branch: str | None, record: dict) -> str | None:
         return None
     chosen = record.get("body")
     path = Path(chosen) if chosen else default_body(ctx, branch, record)
-    if not path.is_file() or not gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"]):
+    problems = (
+        gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"]) if path.is_file() else []
+    )
+    unfilled = [
+        found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
+    ]
+    if not problems:
         return None
     title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
     custom = path if path != default_body(ctx, branch, record) else None
     # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
-    return f"next: fill in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
+    unfilled += ["the Made by line"] if len(unfilled) < len(problems) else []  # names the agent: section-less
+    return f"next: fill in {', '.join(unfilled)} in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
 
 
 def again(record: dict, dry_run: bool = False) -> str:

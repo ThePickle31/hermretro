@@ -46,15 +46,18 @@ def next_step(facts: dict) -> str:
     if facts.get("behind"):
         lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
         after = planned or "python tools/retrodev check"
+        first = ""  # a taken-over branch without a plan: what dev changed in its files, read before sync merges it
+        if facts.get("overlap") and planned and facts.get("plan_exists") is False:
+            first = read_first(facts["overlap"], facts.get("base") or "origin/dev") + ", then "
         if facts.get("dirty"):
             return (
                 "next: "
                 + cmd("git", "add", "-A")
                 + " && "
                 + cmd("git", "commit", "-m", "<what changed>")
-                + f", then python tools/retrodev sync ({lacks}; sync merges only a committed tree), then {after}"
+                + f", then {first}python tools/retrodev sync ({lacks}; sync merges only a committed tree), then {after}"
             )
-        return f"next: python tools/retrodev sync ({lacks}), then {after}"
+        return f"next: {first}python tools/retrodev sync ({lacks}), then {after}"
     if planned and facts.get("plan_exists") is False:
         return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
     if planned:
@@ -127,6 +130,22 @@ def next_step(facts: dict) -> str:
     )
 
 
+def overlap(ctx, path) -> list[str]:
+    """The files this branch changes that the base branch also changed since they parted (none when not behind)."""
+    base = ctx.remote_base
+    if not repo.head(path, base):
+        return []
+    ours = repo.git(["diff", "--name-only", f"{base}...HEAD"], path, check=False).splitlines()
+    theirs = set(repo.git(["diff", "--name-only", f"HEAD...{base}"], path, check=False).splitlines())
+    return [name for name in ours if name in theirs]
+
+
+def read_first(files: list[str], base: str, before: str = "writing the plan") -> str:
+    """Read what the base changed in the branch's files before planning: sync's merge makes that diff empty."""
+    shown = cmd("git", "diff", f"HEAD...{base}", "--", *files)
+    return f"read `{shown}` before {before} ({base} changed these files of the branch too)"
+
+
 def behind(ctx, path) -> int:
     """Commits of the base branch this branch lacks, from the cached remote ref (no fetch: status stays offline)."""
     if not repo.head(path, ctx.remote_base):
@@ -183,6 +202,7 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
         "behind": behind(ctx, path),
+        "overlap": overlap(ctx, path) if record.get("taken_over") and behind(ctx, path) else [],
         "base": ctx.remote_base,
         "branch": branch,
         "path": str(path),
