@@ -33,10 +33,11 @@ def is_path(word: str) -> bool:
     return bool(PATH.match(word)) and ("/" in word or word.lower().endswith(SUFFIXES)) and not word.startswith("/")
 
 
-# Where a citation clause starts: words that cite what follows as evidence rather than claim a change to it.
+# Where a citation clause starts: words that cite what follows as evidence rather than claim a change to it. A
+# hyphenated modifier is not one: 'per-game' or 'see-through' describes the change, it cites nothing.
 CITATION = re.compile(
-    r"\b(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|"
-    r"as in|cited|based on)(?!\w)",
+    r"(?<![\w-])(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|"
+    r"as in|cited|based on)(?![\w-])",
     re.I,
 )
 # Where a new change clause starts, ending a citation clause: a semicolon, or `and` with a past-tense verb.

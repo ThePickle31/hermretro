@@ -228,6 +228,15 @@ class BodyCitedPaths(RepoCase):
                 self.assertIn("names the file(s) `backend/hermes/glue.py`, which the", said)
                 self.assertNotIn("`tools/layout.toml`", said)
 
+    def test_a_hyphenated_modifier_is_no_citation(self):  # review 3, 0
+        for claim in (
+            "- Fixed per-game handling in `backend/hermes/glue.py`.",
+            "- Made a see-through overlay in `backend/hermes/glue.py`.",
+        ):
+            with self.subTest(claim=claim):
+                self.assertIn("names the file(s) `backend/hermes/glue.py`, which the", self.warning(claim))
+        self.assertEqual(self.warning("- Changed `backend/library/core.py`, per `backend/hermes/glue.py`."), "")
+
 
 class QuickPath(RepoCase):
     def test_step_three_starts_with_the_agent_named(self):
