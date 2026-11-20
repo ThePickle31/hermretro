@@ -1,7 +1,7 @@
 # Games
 
 **Shows:** the shelf of cartridges from the `games` RPC (`games-page.js`), one card each with its split
-action and menu (`game-card.js`), the games folder, and the hardware chip. `model.js` is the library model.
+action and menu (`game-card.js`; the cartridge itself is `cartridge.js`, exported for Build's New Game shelf), the games folder, and the hardware chip. `model.js` is the library model.
 
 **Tabs:** none.
 

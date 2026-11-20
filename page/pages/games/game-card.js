@@ -4,6 +4,7 @@ import { openGameChat, sendToGameChat } from '#app/chat-insert.js'
 import { buildPrompt } from '#app/game-prompts.js'
 import { AGENT } from '#app/ids.js'
 import { Slot } from '#app/slots.js'
+import { Cartridge } from './cartridge.js'
 import { fixPrompt, gameMeta, installPrompt } from './model.js'
 
 export const COVER_PROMPT =
@@ -167,22 +168,14 @@ export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   return jsxs('article', {
     className: 'cs-gcard',
     children: [
-      jsxs('button', {
-        'aria-label': playable ? `Play ${title}` : title,
-        className: 'cs-cart',
+      jsx(Cartridge, {
         disabled: !playable,
+        game,
+        label: playable ? `Play ${title}` : title,
+        note: playable ? 'Title screen after first play' : 'No build yet',
         onClick: () => onPlay(game.id),
-        type: 'button',
-        children: [
-          jsx('span', {
-            className: 'slot',
-            children: game.thumb
-              ? jsx('img', { alt: game.cover ? `${title} cover art` : `${title} title screen`, src: game.thumb })
-              : jsxs('span', { className: 'ph', children: [title, jsx('small', { children: playable ? 'Title screen after first play' : 'No build yet' })] })
-          }),
-          game.thumb && !game.cover ? jsxs('span', { className: 'nocover', children: [jsx(Codicon, { name: 'sparkle', size: 9 }), 'No cover'] }) : null,
-          playable ? jsx('span', { className: 'hov', children: jsx('span', { children: jsx(Codicon, { name: 'play', size: 22 }) }) }) : null
-        ]
+        play: playable,
+        title
       }),
       jsxs('div', {
         className: 'info',

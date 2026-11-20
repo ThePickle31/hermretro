@@ -4,6 +4,7 @@ import { ASSETS_CSS } from './assets/assets.css.js'
 import { ATTRACT_CSS } from './attract/attract.css.js'
 import { BUILD_RESPONSIVE_CSS } from './build-responsive.css.js'
 import { BUILD_CSS } from './build.css.js'
+import { CART_SHELF_CSS } from './cart-shelf.css.js'
 import { Build } from './build-entry.js'
 import { watchBuildChats } from './chat/events.js'
 import { injectBuildDraft, notePresented } from './chat/store.js'
@@ -57,6 +58,7 @@ export const BUILD_PAGE = {
     WORKED_MODE_CSS,
     MENTIONS_CSS,
     ATTRACT_CSS,
+    CART_SHELF_CSS,
     BUILD_RESPONSIVE_CSS
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.

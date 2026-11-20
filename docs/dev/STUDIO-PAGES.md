@@ -191,6 +191,11 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 - **New Game** keeps its two choices over a game the page draws behind them: the Nous Girl plays a
   Game Boy Color style level by herself, behind the frosted message box and choices, which take no
   part in it (`page/pages/build/attract/`, described in the Build page's README).
+  Under the form, the games being worked on (those with a Build conversation, and New Game chats
+  still being set up) stand as cartridges on the level's floor: waiting for an answer first, then the
+  newest; each opens its chat, and a last "+N · All games" tile opens the games menu
+  (`page/pages/build/cart-shelf.js`). The shelf hides in a short window; the level only keeps the
+  ground under it flat.
 - **Assets as they land.** Images a step made or looked at (`image_path`, result images,
   `assetPath`/`outputPath`, `vision_analyze`'s `image_url`; project-relative paths joined to the
   game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets
