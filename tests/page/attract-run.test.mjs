@@ -73,6 +73,32 @@ test('scrolling the form rebuilds the level at the boxes\' new places', () => {
   assert.equal(t.motion.listeners.length, 0, 'reduced-motion listener removed')
 })
 
+test('scrolls that move no platform (the idea box, a menu list) leave the game running', () => {
+  const t = setup()
+  const ta = t.doc.querySelector('textarea')
+  ta.scrollTop = 40
+  ta.dispatchEvent(new t.dom.window.Event('scroll'))
+  t.fireTimers()
+  assert.equal(t.worlds.length, 1, 'the same world: she is not sent back to the start')
+  t.form.scrollTop = 30
+  t.form.dispatchEvent(new t.dom.window.Event('scroll'))
+  t.fireTimers()
+  assert.equal(t.worlds.length, 2, 'the form scrolling does rebuild')
+  t.stop()
+})
+
+test('the page colour is set on the area, where the title (in the form) and the spotlight (in the layer) both inherit it', () => {
+  const t = setup()
+  const style = t.doc.createElement('style')
+  style.textContent = ATTRACT_CSS
+  t.doc.head.append(style)
+  const get = sel => t.dom.window.getComputedStyle(t.doc.querySelector(sel)).getPropertyValue('--cs-at-bg').trim()
+  assert.equal(get('h1'), NIGHT, 'the title inherits it')
+  assert.equal(get('.cs-at'), NIGHT, 'the spotlight layer inherits it')
+  t.stop()
+  assert.equal(t.host.style.getPropertyValue('--cs-at-bg'), '', 'removed on stop')
+})
+
 test('under reduced motion it draws one still frame and repaints it when the theme changes', () => {
   const t = setup({ still: true })
   const w = t.worlds[0]
@@ -85,7 +111,7 @@ test('under reduced motion it draws one still frame and repaints it when the the
   t.tick(31)
   assert.deepEqual(w.palettes, ['night', 'day'])
   assert.ok(w.renders > renders, 'the still frame repainted in the day palette')
-  assert.equal(t.layer.style.getPropertyValue('--cs-at-bg'), DAY, 'the spotlight follows the theme')
+  assert.equal(t.host.style.getPropertyValue('--cs-at-bg'), DAY, 'the spotlight and the title halo follow the theme')
   t.stop()
 })
 

@@ -37,13 +37,14 @@ export function platforms(root, canvasEl) {
  *  `makeWorld(seed)` returns a world (build, attach, setPalette, step, render, typingCoin). Returns a stop function. */
 export function runAttract({ host, layer, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env
-  let world = null, sky = '', bgCss = '', frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true
+  let world = null, placed = '', sky = '', bgCss = '', frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true
   const still = () => !!motion?.matches
 
   // the theme: the palette and the spotlight colour follow the page background; true when either changed
   const look = () => {
     const bg = backgroundOf(host, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss
-    layer.style.setProperty('--cs-at-bg', bg.css)
+    // on the area, so both the spotlight (in the layer) and the title's halo (in the form) inherit it
+    host.style.setProperty('--cs-at-bg', bg.css)
     if (world && name !== sky) world.setPalette(name)
     sky = name; bgCss = bg.css
     return changed
@@ -58,8 +59,10 @@ export function runAttract({ host, layer, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null
     look()
+    const boxes = platforms(host, canvasEl)
+    placed = JSON.stringify(boxes)
     world = makeWorld(seed)
-    world.build(W, H, platforms(host, canvasEl))
+    world.build(W, H, boxes)
     if (keep) Object.assign(world, keep)
     world.attach(canvasEl, sky)
     const composer = host.querySelector('[data-plat="composer"]')?.getBoundingClientRect()
@@ -86,8 +89,11 @@ export function runAttract({ host, layer, canvasEl, makeWorld, env, seed }) {
   }
 
   const unobserve = observe([host, ...host.querySelectorAll('[data-plat]')], later)
-  // the form scrolls inside the area (short windows, a tall idea): its boxes move without changing size
-  const onScroll = () => later()
+  // the form scrolls inside the area (short windows, a tall idea): its boxes move without changing size. Other
+  // scrolls (the idea box, a menu's list) move no box: the game carries on.
+  let moved = 0
+  const recheck = () => { moved = 0; if (alive && JSON.stringify(platforms(host, canvasEl)) !== placed) later() }
+  const onScroll = () => { if (!moved) moved = setTimer(recheck, 100) }
   const onInput = event => { if (event.target?.tagName === 'TEXTAREA' && world && ++typed % 4 === 0) world.typingCoin() }
   host.addEventListener('scroll', onScroll, true)
   host.addEventListener('input', onInput)
@@ -99,7 +105,9 @@ export function runAttract({ host, layer, canvasEl, makeWorld, env, seed }) {
     alive = false
     caf(frameId)
     clearTimer(timer)
+    clearTimer(moved)
     unobserve()
+    host.style.removeProperty('--cs-at-bg')
     host.removeEventListener('scroll', onScroll, true)
     host.removeEventListener('input', onInput)
     motion?.removeEventListener?.('change', later)

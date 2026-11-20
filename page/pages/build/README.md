@@ -38,7 +38,7 @@ readers, stops drawing while the window is hidden, and shows one still frame und
 | File | What it is |
 |---|---|
 | `index.js` | `AttractLevel`: the canvas and its overlay, started with the browser's functions |
-| `run.js` | Running it: measuring the platforms, the 60 Hz loop, theme, rebuilding on resize and on the form's scroll |
+| `run.js` | Running it: measuring the platforms, the 60 Hz loop, theme, rebuilding on resize and when a scroll moves a platform |
 | `world.js` | `World`: the game without drawing (build, step); pilot, actors and drawing are mixed in |
 | `physics.js` | Units (24-px tiles), her box and jump, the collider grid, one physics step, the seeded random |
 | `level.js` | The level builder: ground, pits and movers, pipes, stairs, the lattice of rows, cannons, flag |

@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 79c6ae4264c85c1ef5981a28cab72198fafe66b6c2d2a9f81d6d85821b51695a
- * body: sha256 dfde1ed8f05954e3f87c00f604fa58d5b4713378a6b9c18a9787595beb354e34
+ * sources: sha256 4c51a55ff3d61c899e1b0828907caeb1999bbdda887f039e4aebaa9d5f9ff151
+ * body: sha256 7e7751d9370a618cabbb6f3c922fb6aa4bba346d8985845a140acb7dbee632a6
  */
 // page/sdk.js
 import {
@@ -3330,7 +3330,8 @@ var ASSETS_CSS = `
 // page/pages/build/attract/attract.css.js
 var ATTRACT_CSS = `
 /* New Game attract mode: the level behind the form, dimmed, with a pool of the page colour behind the composer */
-.cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; --cs-at-bg: var(--ui-bg-editor); }
+.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); }
+.cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
 .cs-at canvas { bottom: 0; image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .5; position: absolute; }
 .cs-at-spot { background: radial-gradient(ellipse 560px 300px at var(--cs-at-sx, 50%) var(--cs-at-sy, 50%), color-mix(in srgb, var(--cs-at-bg) 92%, transparent) 0%, color-mix(in srgb, var(--cs-at-bg) 70%, transparent) 50%, transparent 80%); inset: 0; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
@@ -11737,11 +11738,11 @@ function platforms(root, canvasEl) {
 }
 function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
-  let world = null, sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true;
+  let world = null, placed = "", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true;
   const still = () => !!motion?.matches;
   const look = () => {
     const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss;
-    layer.style.setProperty("--cs-at-bg", bg.css);
+    host2.style.setProperty("--cs-at-bg", bg.css);
     if (world && name !== sky) world.setPalette(name);
     sky = name;
     bgCss = bg.css;
@@ -11757,8 +11758,10 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`;
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
     look();
+    const boxes = platforms(host2, canvasEl);
+    placed = JSON.stringify(boxes);
     world = makeWorld(seed);
-    world.build(W, H, platforms(host2, canvasEl));
+    world.build(W, H, boxes);
     if (keep) Object.assign(world, keep);
     world.attach(canvasEl, sky);
     const composer = host2.querySelector('[data-plat="composer"]')?.getBoundingClientRect();
@@ -11794,7 +11797,14 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     if (n) world.render();
   };
   const unobserve = observe([host2, ...host2.querySelectorAll("[data-plat]")], later2);
-  const onScroll = () => later2();
+  let moved = 0;
+  const recheck = () => {
+    moved = 0;
+    if (alive && JSON.stringify(platforms(host2, canvasEl)) !== placed) later2();
+  };
+  const onScroll = () => {
+    if (!moved) moved = setTimer(recheck, 100);
+  };
   const onInput = (event) => {
     if (event.target?.tagName === "TEXTAREA" && world && ++typed % 4 === 0) world.typingCoin();
   };
@@ -11807,7 +11817,9 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     alive = false;
     caf(frameId);
     clearTimer(timer);
+    clearTimer(moved);
     unobserve();
+    host2.style.removeProperty("--cs-at-bg");
     host2.removeEventListener("scroll", onScroll, true);
     host2.removeEventListener("input", onInput);
     motion?.removeEventListener?.("change", later2);
