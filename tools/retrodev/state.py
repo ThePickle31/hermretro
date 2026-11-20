@@ -99,7 +99,33 @@ def save_branch(cwd: Path | str, record: dict) -> dict:
     return _write(branch_path(cwd, record["branch"]), record)
 
 
-def drop_branch(cwd: Path | str, branch: str) -> None:
+def plan_named(record: dict, branch: str, no_plan: list[str] | tuple[str, ...]) -> str | None:
+    """The plan a branch record works under (gates.plan_for): the one it names, else (feat, fix: every kind not in
+    policy.toml's no_plan) the one its topic names; None when started with --no-plan."""
+    kind, _, topic = branch.partition("/")
+    named = record.get("plan")
+    if named is None and (record.get("kind") or kind) not in no_plan:
+        named = record.get("topic") or topic
+    return named
+
+
+def keep_plan_branch(cwd: Path | str, branch: str, no_plan: list[str] | tuple[str, ...]) -> None:
+    """Before a branch record is forgotten or replaced: the plan it names keeps the branch in its branches map. A
+    record from before plans kept that map is otherwise lost with it, and the plan's next branch would take the
+    whole plan's Goal, Not in scope and Title as its own. Its time is kept ('' when it had none: started first)."""
+    path = branch_path(cwd, branch)
+    try:
+        record = _read(path) if path.is_file() else None
+    except Failure:  # an unreadable record names nothing; drop_branch still removes it
+        record = None
+    named = plan_named(record, branch, no_plan) if record else None
+    if named and NAME.match(named) and load_plan(cwd, named) is not None:
+        remember_plan_branch(cwd, named, branch, record.get("created") or "")
+
+
+def drop_branch(cwd: Path | str, branch: str, no_plan: list[str] | tuple[str, ...]) -> None:
+    """The only way a branch record goes (land and gc): its plan keeps the branch first (keep_plan_branch)."""
+    keep_plan_branch(cwd, branch, no_plan)
     branch_path(cwd, branch).unlink(missing_ok=True)
 
 

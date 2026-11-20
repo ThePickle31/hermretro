@@ -1,5 +1,6 @@
 """Review findings on the tenth round's fixes: a plan forgot it was shared once its first branch landed and land or
-gc forgot that branch's record; the page-test helper scan read six lines past each declaration, so a short helper
+gc forgot that branch's record (also one from before plans kept their branches, forgotten or replaced before
+anything asked whether its plan is shared); the page-test helper scan read six lines past each declaration, so a short helper
 swallowed the next one and took the credit for its selector. Each test failed before its fix.
 
 Run alone: python -m unittest tests.retrodev.test_trial_round_ten_review
@@ -37,7 +38,7 @@ class SharedAfterLanding(RepoCase):
         record = state.load_branch(self.main, name)
         git(self.main, "worktree", "remove", "--force", record["worktree"])
         git(self.main, "branch", "-D", name)
-        state.drop_branch(self.main, name)
+        state.drop_branch(self.main, name, self.ctx().policy["branches"]["no_plan"])
         self.assertFalse(any(r.get("branch") == name for r in state.branches(self.main)))
 
     def test_a_branch_started_after_the_first_landed_still_shares_the_plan(self):
@@ -63,6 +64,58 @@ class SharedAfterLanding(RepoCase):
         # The first branch alone is still not shared: nothing started before it.
         first = {"branch": "feat/duo-one", "topic": "duo-one", "plan": "duo", "created": "0000"}
         self.assertFalse(ship.plan.shared(self.ctx(), "feat/duo-one", first))
+
+    def before_the_update(self) -> None:
+        """What a record from before plans kept their branches leaves: the plan record has no branches map."""
+        record = state.load_plan(self.main, "duo") or {}
+        record.pop("branches", None)
+        state.save_plan(self.main, record)
+
+    def assert_second_shares(self) -> None:
+        second = self.started("feat/duo-two")
+        self.assertNotIn("Make duo work.", second)
+        self.assertNotIn("Nothing else.", second, "the whole plan's Not in scope is not this branch's Not done")
+        record = state.load_branch(self.main, "feat/duo-two")
+        self.assertIsNone(ship.plan_title(self.ctx(), "feat/duo-two", record))
+
+    def test_gc_forgetting_a_record_from_before_the_update_keeps_the_plan_shared(self):
+        self.approved()
+        self.started("feat/duo-one")
+        self.before_the_update()
+        tree = state.load_branch(self.main, "feat/duo-one")["worktree"]
+        git(self.main, "worktree", "remove", "--force", tree)
+        git(self.main, "branch", "-D", "feat/duo-one")
+        code, out = self.run_cli("gc")  # the first command after the update: it forgets the record (no shared())
+        self.assertEqual(code, 0, out)
+        self.assertIn("forget  record of feat/duo-one", out)
+        self.assertIn("feat/duo-one", (state.load_plan(self.main, "duo") or {}).get("branches", {}))
+        self.assert_second_shares()
+
+    def test_land_s_gc_forgetting_a_record_from_before_the_update_keeps_the_plan_shared(self):
+        from retrodev import gc
+
+        self.approved()
+        self.started("feat/duo-one")
+        self.before_the_update()
+        tree = state.load_branch(self.main, "feat/duo-one")["worktree"]
+        git(self.main, "worktree", "remove", "--force", tree)
+        git(self.main, "branch", "-D", "feat/duo-one")
+        self.assertEqual(gc.run(self.ctx(), only="feat/duo-one"), 0)  # what land runs after the merge
+        self.assertFalse(any(r.get("branch") == "feat/duo-one" for r in state.branches(self.main)))
+        self.assert_second_shares()
+
+    def test_start_replacing_a_stale_record_from_before_the_update_keeps_its_time_in_the_plan(self):
+        self.approved()
+        self.started("feat/duo-one")
+        self.before_the_update()
+        old = state.load_branch(self.main, "feat/duo-one")
+        state.save_branch(self.main, old | {"created": "2000-01-01T00:00:00+0000"})  # an older second than now()
+        git(self.main, "worktree", "remove", "--force", old["worktree"])
+        git(self.main, "branch", "-D", "feat/duo-one")  # by hand: the record stays behind
+        self.started("feat/duo-one")
+        self.assertEqual(
+            (state.load_plan(self.main, "duo") or {})["branches"]["feat/duo-one"], "2000-01-01T00:00:00+0000"
+        )
 
     def test_plan_link_moves_a_branch_off_its_old_plan(self):
         self.approved()

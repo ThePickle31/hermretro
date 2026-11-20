@@ -80,11 +80,7 @@ def plan_for(ctx, branch: str, record: dict) -> str | None:
     A record from start or plan link names its plan (None: started with --no-plan); a branch made by hand, or
     one whose record only check wrote, follows its kind: feat and fix need the plan named by their topic.
     """
-    kind, _, topic = branch.partition("/")
-    named = record.get("plan")
-    if named is None and (record.get("kind") or kind) not in ctx.policy["branches"]["no_plan"]:
-        named = record.get("topic") or topic  # only docs and chore may go without a plan
-    return named
+    return state.plan_named(record, branch, ctx.policy["branches"]["no_plan"])  # only docs and chore go without
 
 
 def plan_gate(ctx, branch: str, record: dict) -> Gate:

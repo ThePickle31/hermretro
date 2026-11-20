@@ -102,6 +102,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
     repo.git(["worktree", "add", "--quiet", "--no-track", "-b", name, str(path), base], main)
     ctx.out.say(f"worktree {path} on {name} from {base} ({repo.head(path)[:9]})")
     setup_results = run_setup(ctx, path) if setup else []
+    state.keep_plan_branch(main, name, ctx.policy["branches"]["no_plan"])  # a stale record it replaces
     record = state.load_branch(main, name)
     record.update(
         branch=name,
