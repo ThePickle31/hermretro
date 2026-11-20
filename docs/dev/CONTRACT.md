@@ -21,12 +21,12 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 
 | Event | Payload | Emitted when | Heard by |
 |---|---|---|---|
-| `library.build_reported` | `game` (the game's id, `null` without a project), `assets` | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
-| `library.game_presented` | `game`, `root` | `chromatic_present_game` showed a game | — |
-| `setup.tools_removed` | `root` | `remove_tools` emptied the download folder | — |
-| `setup.studio_profile_ready` | `profile` | `studio_profile` finished the profile | — |
-| `assets.image_restored` | `path` | `asset_restore` put a kept version back | — |
-| `history.build_kept` | `game`, `root` | a successful build was kept as a snapshot | — |
+| `library.build_reported` | `game` (library id, str; `null` without a project), `assets` (absolute image paths, list of str) | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
+| `library.game_presented` | `game` (library id, str), `root` (project folder, str) | `chromatic_present_game` showed a game | — |
+| `setup.tools_removed` | `root` (the emptied download folder, str) | `remove_tools` emptied the download folder | — |
+| `setup.studio_profile_ready` | `profile` (profile name, str) | `studio_profile` finished the profile | — |
+| `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
+| `history.build_kept` | `game` (library id, str), `root` (the real project folder, `pathlib.Path`) | a successful build was kept as a snapshot | — |
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
@@ -44,6 +44,10 @@ not `history.builds`). One name is declared once across all features: the page-n
 (`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second, and `python tools/retrodev
 new rpc <feature> <name>` refuses a taken one.
 A disabled or missing backend answers JSON-RPC error `-32601`.
+Which profile the page asks is chosen by what the handler reads, not by its feature: one reading the Build
+conversations or the plugin data folder (`host._data_dir()`, one per profile: history snapshots, asset versions) is
+called with `callStudioOnly` (the hermretro profile only: `build`, `builds`, `build_restore`, `asset`, `asset_info`,
+`asset_restore`, `assets`); the others with `callStudio` or `callBackend` (`page/app/backend.js`).
 The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generated from the `@rpc` declarations into
 `page/app/rpc-names.js` by `tools/bundle/rpc_names.py` (`node tools/bundle/bundle.mjs` runs it; the bundle check
 fails when it is stale); the agent tool names it reacts to are in
@@ -92,6 +96,15 @@ Off by default. Setting `hardware_enabled` (plugin settings, `config_schema`) tu
 tools on: `chromatic_device`, `chromatic_setup`, `chromatic_play`, `chromatic_flash`,
 `chromatic_device_capture`. While off they return a denial explaining how to enable them.
 Developer Mode activation always stays in the official ModRetro Updater.
+The engine's `device` tool (`engine/modretro-chromatic/dist/chromatic.js`, `ChromaticService`): `status` answers at
+once without touching USB (`{success, sessionId, platform, arch, backend: {supported, target | reason}, drivers,
+acceptingOperations, operations, ...}`); `list_devices` starts a scan and answers `{operationId, state: "running", ...}`;
+`operation_status` with that `operationId` answers, once `state` is `succeeded`, a `result` of `{devices: [{player,
+location, ..., deviceToken, expiresAt}], conflicts, unmatched, diagnostics, selection, identityScope}`.
+A page read that needs the engine is a broker control op (`backend/broker/control.py`) running
+`engine = self.new_engine("<name>")`, `engine.call_tool(...)`, `engine.close()`, as `doctor` does, called from an
+RPC through `host.ensure_broker()`; `doctor` reads no hardware, so a device read must also refuse unless the RPC's
+`ctx.get_config("hardware_enabled")` is on (the gate `Broker.call` applies to the hardware tools).
 
 ### `studio_profile` — no params
 
@@ -157,8 +170,8 @@ match. Served from the broker's memory: no engine call, never starts the broker 
 
 ## Studio pages (desktop) and their RPCs
 
-The page at `/hermretro` has one segmented control with five pages: **Home** (hero, Continue,
-quick starts, studio status), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
+The page at `/hermretro` has one segmented control over its pages (`PAGES` in `page/pages/index.js`): **Home** (hero,
+Continue, quick starts, studio status), **Build** (one game, one conversation), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
 **Prompts** (the prompt Reader; prompts go into a chat composer, never sent), **Games** (the library shelf)
 and **Emulator** (ModRetro's real player in a `SandboxedFrame`). Full contract, result shapes and the
 page ↔ frame messages: `docs/dev/STUDIO-PAGES.md`. All RPCs answer `{ ok: false, error }` on failure
@@ -166,7 +179,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `docs/dev/STUDIO-PAGES.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
@@ -174,6 +187,11 @@ instead of throwing.
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
 | `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
+
+`captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
+Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
+(`engine/modretro-chromatic/dist/web-preview-states.js`), at most 8 kept per build; no RPC reads them
+(`backend/library/README.md`, "Save states", has the fields).
 
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
 web export (else `BUILD_FIRST`) and a complete game card (else `GAME_INFO_INCOMPLETE` with `missing`,
@@ -235,8 +253,9 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 - **Required to present:** title (1–60), tagline (8–90), description (40–400), 1–3 genres from `Action,
   Adventure, Arcade, Exploration, Platformer, Puzzle, Racing, Role-playing, Rhythm, Shooter, Simulation,
   Sports, Strategy, Story, Other`, and a cover. Placeholder words (TODO, TBD, lorem ipsum, …) do not count.
-  Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12).
-- **Cover:** a PNG, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
+  Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12, button ≤20 chars, action ≤60 chars).
+  `game.json` is at most 64 KB.
+- **Cover:** a PNG of at most 512 KB, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
   Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_card.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
@@ -245,3 +264,24 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   file, complete, missing, problems, nextStep }`.
 - `games[].card` = `{ title, tagline, description, about, genres, tags, controls, complete, missing,
   hasCover, coverForBuild }`; with a valid cover, `thumb` is the cover (else the captured title screen).
+
+## The game object
+
+One entry of the `games` RPC's `games[]` (`Registry.describe` in `backend/library/games.py`, then `rpc_games` in
+`backend/library/rpcs.py`, which reshapes `chat` and `session` and drops `updatedAt`):
+
+| Field | What it holds |
+|---|---|
+| id, title, displayTitle | The game's id, its project's title, and the card's title when set (else `title`) |
+| projectRoot, kind | The project folder; `gbstudio` (it has a `.gbsproj`) or `gbdk` |
+| state, error | `ready`, `changed` (sources newer than the ROM), `unbuilt` or `failed`; `error` only when `failed` |
+| rom | `{ path, sha256, size, builtAt }` of the last build's ROM (else the web export's, else the newest in `build/`), or null |
+| webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
+| thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
+| card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
+| chat | `{ sessionId, title, conversationId, profile, thisProfile }` of the chat working on it (the last to select it), or null |
+| session | The Build conversation bound to it: `{ storedId, createdAt, thisProfile, profileName, exists }`, or null |
+
+The Build page's rail gets the same objects (`shell.gameList`, `page/app/studio-page.js`), with `title` replaced by
+`displayTitle`, `session` null once the page released it, and `buildSession` (the bound stored session id) added
+(`build-page.js`).

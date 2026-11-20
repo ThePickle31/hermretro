@@ -1,7 +1,8 @@
 """retrodev's records, kept in <git common dir>/retrodev/ so every worktree shares them and nothing is committed.
 
     branches/<branch>.json   one per branch: plan, checks and the tree they passed on, the PR and its head
-    plans/<topic>.json       one per plan: where it is, and the owner's approval (time and exact words)
+    plans/<topic>.json       one per plan: where it is, the owner's approval (time and exact words) and the branches
+                             that started under it (kept when land or gc forgets their branch records)
     releases/<version>.json  one per release: the owner's words, its pull request, commit and steps done
     config.toml              personal settings (config.py)
 
@@ -98,7 +99,33 @@ def save_branch(cwd: Path | str, record: dict) -> dict:
     return _write(branch_path(cwd, record["branch"]), record)
 
 
-def drop_branch(cwd: Path | str, branch: str) -> None:
+def plan_named(record: dict, branch: str, no_plan: list[str] | tuple[str, ...]) -> str | None:
+    """The plan a branch record works under (gates.plan_for): the one it names, else (feat, fix: every kind not in
+    policy.toml's no_plan) the one its topic names; None when started with --no-plan."""
+    kind, _, topic = branch.partition("/")
+    named = record.get("plan")
+    if named is None and (record.get("kind") or kind) not in no_plan:
+        named = record.get("topic") or topic
+    return named
+
+
+def keep_plan_branch(cwd: Path | str, branch: str, no_plan: list[str] | tuple[str, ...]) -> None:
+    """Before a branch record is forgotten or replaced: the plan it names keeps the branch in its branches map. A
+    record from before plans kept that map is otherwise lost with it, and the plan's next branch would take the
+    whole plan's Goal, Not in scope and Title as its own. Its time is kept ('' when it had none: started first)."""
+    path = branch_path(cwd, branch)
+    try:
+        record = _read(path) if path.is_file() else None
+    except Failure:  # an unreadable record names nothing; drop_branch still removes it
+        record = None
+    named = plan_named(record, branch, no_plan) if record else None
+    if named and NAME.match(named) and load_plan(cwd, named) is not None:
+        remember_plan_branch(cwd, named, branch, record.get("created") or "")
+
+
+def drop_branch(cwd: Path | str, branch: str, no_plan: list[str] | tuple[str, ...]) -> None:
+    """The only way a branch record goes (land and gc): its plan keeps the branch first (keep_plan_branch)."""
+    keep_plan_branch(cwd, branch, no_plan)
     branch_path(cwd, branch).unlink(missing_ok=True)
 
 
@@ -118,6 +145,25 @@ def load_plan(cwd: Path | str, topic: str) -> dict | None:
 
 def save_plan(cwd: Path | str, record: dict) -> dict:
     return _write(plan_path(cwd, record["topic"]), record)
+
+
+def remember_plan_branch(cwd: Path | str, topic: str, branch: str, at: str) -> dict:
+    """Note in the plan's record that a branch started under it (the earliest time seen wins). Nothing removes it:
+    a plan stays shared after its first branch lands and land or gc forgets that branch's record."""
+    record = load_plan(cwd, topic) or {"topic": topic, "created": now()}
+    started = record.setdefault("branches", {})
+    if branch in started and started[branch] <= at:
+        return record
+    started[branch] = at
+    return save_plan(cwd, record)
+
+
+def forget_plan_branch(cwd: Path | str, topic: str, branch: str) -> None:
+    """Only for plan link moving a branch to another plan: the old plan no longer counts it."""
+    record = load_plan(cwd, topic)
+    if record and branch in (record.get("branches") or {}):
+        del record["branches"][branch]
+        save_plan(cwd, record)
 
 
 def release_path(cwd: Path | str, version: str) -> Path:

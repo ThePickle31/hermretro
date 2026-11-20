@@ -56,20 +56,51 @@ acceptance = ["backend/*", "engine/*", "player/*", "tools/ci/prepare_toolchain.p
 # files whose structure it parses. Not docs/dev/ARCHITECTURE.md or CONTRACT.md: `new` itself adds their rows, so
 # every branch that used it would pay for the scaffold check.
 scaffold = ["tools/retrodev/scaffold*", "tools/retrodev/templates/*", "tests/retrodev/test_scaffold_tree.py",
-            "tests/retrodev/scaffold_moves.py",
+            "tests/retrodev/scaffold_moves.py", "tests/retrodev/scaffold_steps.py",
             "backend/features.py", "tools/layout.toml", "page/pages/index.js",
             "page/pages/build/transcript/step-words.js"]
 clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]
 
+[checks.nested_triggers]
+# Tests the nested scaffold run also runs in its grown copy (CI's page job, RD_SCAFFOLD_FULL=nested: the full unit and
+# page suites in a copy of the tree grown by `new` of every kind): the repository-wide tests, their temp-folder helpers
+# and the page test harness. A change to one adds scaffold in that nested mode (108 s on an idle machine; the fast
+# mode 48 s), as a test there that reads the surrounding tree passes here and fails only in CI's grown copy. Test
+# sources only: a [generated] file here (tests/repo/registration.json, which `new tool` and `new rpc` rewrite) never
+# adds it, and no other file `new` writes matches (its tests go in tests/backend/, its pins in registry.test.mjs). Not
+# tests/page/games-fixture.mjs: data its scenarios start from, reading nothing of the tree (the fast page check runs
+# it). A change to one of these made only of comments, docstrings or blank lines adds nothing either.
+scaffold = ["tests/repo/*", "tests/support.py", "tests/page/harness.mjs", "tests/page/shells.mjs",
+            "tests/page/sdk-stub.mjs", "tests/page/aliases.mjs", "tests/page/preview/*"]
+
+[checks.trigger_ignore]
+# Files a trigger's patterns match that still do not add its check: a backend README changes no code the real-engine
+# run exercises.
+acceptance = ["backend/*.md"]
+
+[checks.new_lines]
+# Lines `new` itself writes in files the scaffold trigger lists (a regular expression for each whole line): a
+# branch whose change to such a file is only these lines (added, or the one-line PAGES list rewritten) does not
+# add the scaffold check, as the docs rows `new` writes do not.
+"page/pages/build/transcript/step-words.js" = ['''^  \w+: \['.*', '.*'\],$''']
+"page/pages/index.js" = ['''^import \{ \w+_PAGE \} from '\./[\w-]+/index\.js'$''', '^export const PAGES = \[[\w, ]*\]$']
+
 [checks.budgets]
 # Seconds, from measured cold runs on a loaded machine (the fresh-agent trials: unit took up to about 40 s, the
-# fast checks together up to about 55 s, scaffold up to about 25 s). A check over its budget twice in a row on the
-# branch is named in a warning that it was slower than usual (never a failure: machines and load differ).
+# fast checks together up to about 55 s; scaffold's passing runs in the eleventh round 41.6-49.5 s, and on an idle
+# machine 45.7-48.3 s: its slowest test runs `new` with its own checks, the full unit suite among them, after the
+# page baseline).
+# Only passing runs count. A check over its budget twice in a row on the branch is named in a warning that it was
+# slower than usual (never a failure: machines and load differ).
 fast_total = 60
-unit = 45
+# unit: 1105 tests ran 26.4-27.7 s on an idle machine (round 17, alone or with the other fast checks) but 47-58 s
+# twice in a row while several agents checked at once (about double, as AGENTS.md says): 60 is that loaded run's
+# median (about 52 s) plus ~15%, about 2.2x the idle median, so only a real slowdown warns.
+unit = 60
 lint = 15
 scan = 30
-scaffold = 30
+scaffold = 58           # retrodev new on a copy of the tree: the idle measure (48.3 s) plus 20%
+scaffold_nested = 130   # the same run nested ([checks.nested_triggers]): the idle measure (108 s) plus 20%
 default = 15
 acceptance = 240
 clean_install = 120

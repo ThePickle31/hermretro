@@ -4,17 +4,15 @@ it delivered, and the viewer's ``asset`` call answers that version for a reply's
 import base64
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_library_game  # noqa: E402 - the repository root goes on sys.path first
 
 PNG_A = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"A" * 20
 PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"B" * 20
@@ -22,27 +20,14 @@ PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") 
 
 class AssetVersions(unittest.TestCase):
     def setUp(self):
-        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
-        self.tmp = tempfile.TemporaryDirectory()
-        base = Path(self.tmp.name)
-        self.data = base / "data"
-        self.game = base / "games" / "Cat Field"
-        self.game.mkdir(parents=True)
+        # A real library game, not a mocked registry: the emitter reaches every feature's listeners.py, and a
+        # listener reading the library from a Mock would fail silently.
+        home = isolated_home(self)
+        self.outside = home.base / "outside"
+        self.outside.mkdir()
+        _game, self.game = make_library_game(home, "Cat Field")
         self.cover = self.game / "cover.png"
-        registry = mock.Mock()
-        registry.library.return_value = [{"projectRoot": str(self.game)}]
-        self.patches = [
-            mock.patch.object(hermes_host, "_data_dir", return_value=self.data),
-            mock.patch.object(hermes_host, "_registry", return_value=registry),
-        ]
-        for patch in self.patches:
-            patch.start()
         self.asset = assets_rpcs.rpc_asset(None)
-
-    def tearDown(self):
-        for patch in self.patches:
-            patch.stop()
-        self.tmp.cleanup()
 
     def write(self, data, seconds):
         self.cover.write_bytes(data)
@@ -87,7 +72,7 @@ class AssetVersions(unittest.TestCase):
         self.shown()
         folder = assets_versions._versions_dir(self.cover.resolve())
         self.assertEqual(len(list(folder.iterdir())), 1)
-        outside = Path(self.tmp.name) / "elsewhere.png"
+        outside = self.outside / "elsewhere.png"
         outside.write_bytes(PNG_A)
         assets_versions.keep_delivered_images(assistant_response=f"MEDIA:{outside}")
         self.assertFalse(assets_versions._versions_dir(outside.resolve()).exists())
@@ -229,7 +214,7 @@ class AssetVersions(unittest.TestCase):
         (sprites / "bird.png.gbsres").write_text('{"id": "bird", "name": "Robin"}')
         (sprites / "notes.txt").write_text("not a picture")
         self.write(PNG_B, 1000)
-        outside = Path(self.tmp.name) / "secret.png"
+        outside = self.outside / "secret.png"
         outside.write_bytes(PNG_A)
         (sprites / "link.png").symlink_to(outside)
 
@@ -239,8 +224,28 @@ class AssetVersions(unittest.TestCase):
             [(item["kind"], item["name"]) for item in listed["assets"]], [("cover", "Cover"), ("sprite", "Robin")]
         )
         self.assertEqual(listed["assets"][1]["relative"], "assets/sprites/bird.png")
-        self.assertFalse(assets_rpcs.rpc_assets(None)({"root": self.tmp.name})["ok"])  # not a library game
+        self.assertFalse(assets_rpcs.rpc_assets(None)({"root": str(self.outside)})["ok"])  # not a library game
         self.assertFalse(assets_rpcs.rpc_assets(None)({})["ok"])
+
+    def test_older_versions_counts_the_kept_versions_but_not_the_current_one(self):
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # no file yet
+        self.write(PNG_A, 1000)
+        self.shown()
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # only the current one
+        self.write(PNG_B, 2000)
+        self.shown()
+        self.write(PNG_A, 3000)
+        self.shown()
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 2)
+
+    def test_a_too_large_image_names_the_limit(self):
+        self.assertEqual(assets_versions.size_text(6 * 1024 * 1024), "6 MB")
+        self.assertEqual(assets_versions.size_text(512 * 1024), "512 KB")
+        self.write(PNG_A, 1000)
+        with mock.patch.object(assets_rpcs, "ASSET_MAX_BYTES", 16):
+            answer = self.asset({"path": str(self.cover)})
+        self.assertEqual(answer["code"], "TOO_LARGE")
+        self.assertEqual(answer["error"], "The image is larger than 16 bytes, too large to preview.")
 
 
 if __name__ == "__main__":

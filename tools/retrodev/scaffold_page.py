@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import re
 
-from .output import Failure
+from . import scaffold_page_tests as page_tests
+from .output import Failure, cmd
 from .scaffold import (
     CAMEL,
     KEBAB,
@@ -26,6 +27,16 @@ from .scaffold import (
 from .scaffold import camel as to_camel
 from .scaffold_imports import PAGE_FIELD, binding, drop_page, statements
 from .scaffold_move import move_out
+from .scaffold_readme import (
+    DESIGN_DOC,
+    code_spans,
+    declares_line,
+    design_heading,
+    first_tab_step,
+    slots_block,
+    taken_readme,
+    with_block,
+)
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"
@@ -39,7 +50,7 @@ def page(plan: Plan, page_id: str, page_label: str | None) -> str:
     check_name(page_id, KEBAB, "page", "games")
     page_label = js_label(page_label, label(page_id))
     folder = f"page/pages/{page_id}"
-    if plan.exists(folder) or f"'./{page_id}/index.js'" in plan.read(REGISTRY):
+    if plan.exists(folder) or re.search(rf"""['"]\./{re.escape(page_id)}/index\.js['"]""", plan.read(REGISTRY)):
         raise Failure(f"{folder} exists or the registry lists it", "pick another page id")
     values = {"id": page_id, "Label": page_label, "Component": pascal(page_id) + "Page", "CONST": const(page_id)}
     unique_exports(plan, [values["Component"], f"{const(page_id)}_PAGE"])
@@ -65,6 +76,10 @@ def page(plan: Plan, page_id: str, page_label: str | None) -> str:
         f"it shows in {folder}/README.md",
         f"it is last in the nav: move it in PAGES ({REGISTRY}) and in {REGISTRY_TEST} together",
         f"python tools/retrodev new tab {page_id} <tab> | new slot {page_id} <name>",
+        f"name {page_label} wherever the pages are listed or counted: README.md 'What works today' (the page list), "
+        "docs/dev/CONTRACT.md 'Studio pages (desktop) and their RPCs' (its first sentence) and docs/dev/STUDIO-PAGES.md: "
+        f"a row in its Pages table (cells of at most 160 characters) plus a new `### {page_label}` subsection under "
+        "`## Pages`, with 'not designed yet' in the design columns",
     ]
     return f"page {page_id}"
 
@@ -73,7 +88,7 @@ def _append_to(text: str, pattern: re.Pattern, item: str, what: str, sort: bool 
     found = pattern.search(text)
     if not found:
         raise Failure(f"{REGISTRY_TEST}: the list of {what} is not where it was", f"add '{item}' to it by hand")
-    items = re.findall(r"'([^']*)'", found.group(2)) + [item]
+    items = [entry for _quote, entry in re.findall(r"""(['"])(.*?)\1""", found.group(2))] + [item]  # either quote
     items = sorted(items) if sort else items
     return text[: found.start(2)] + ", ".join(f"'{entry}'" for entry in items) + text[found.end(2) :]
 
@@ -111,6 +126,13 @@ def add_to_descriptor(text: str, field_name: str, opening: str, closing: str, en
     lines = text.split("\n")
     body = lines[first + 1 : end]
     start = next((i for i, line in enumerate(body) if line.startswith(f"  {field_name}: {opening}")), None)
+    named = re.compile(rf"""^  (?:{field_name}|'{field_name}'|"{field_name}")\s*:""")
+    if start is None and any(named.match(line) for line in body):  # quoted, or not a literal: a second would win
+        raise Failure(
+            f"the descriptor has {field_name} in a shape new cannot extend (it extends only '  {field_name}: "
+            f"{opening}...'); nothing was written",
+            f"add {entry} to its {field_name} by hand",
+        )
     if start is None:
         if body and not body[-1].rstrip().endswith((",", "{")):
             body[-1] += ","
@@ -131,6 +153,14 @@ def add_to_descriptor(text: str, field_name: str, opening: str, closing: str, en
     return "\n".join(lines[: first + 1] + body + lines[end:])
 
 
+def folder_is(plan: Plan, folder: str) -> str:
+    """What an existing folder is: the first line of its index.js's opening comment, else 'an existing folder'."""
+    door = f"{folder}/index.js"
+    first = plan.read(door).lstrip().split("\n", 1)[0] if plan.exists(door) else ""
+    said = re.sub(r"^(//+|/\*+)\s*|\s*\*/$", "", first).strip() if first.startswith(("//", "/*")) else ""
+    return said or "an existing folder"
+
+
 def known_page(plan: Plan, page_id: str) -> str:
     check_name(page_id, KEBAB, "page", "games")
     if not plan.exists(f"page/pages/{page_id}/index.js"):
@@ -146,7 +176,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     tab_label = js_label(tab_label, label(tab_id))
     name = f"{const(page_id)}_{const(tab_id)}_TAB"  # one bundle: every exported name is unique across pages
     if plan.exists(f"page/pages/{page_id}/{tab_id}"):
-        raise Failure(f"page/pages/{page_id}/{tab_id} exists", "pick another tab id")
+        other = f"{tab_id}-tab" if not plan.exists(f"page/pages/{page_id}/{tab_id}-tab") else f"{tab_id}-view"
+        raise Failure(
+            f"page/pages/{page_id}/{tab_id} exists: {folder_is(plan, f'page/pages/{page_id}/{tab_id}')}; a tab needs a "
+            "folder of its own, and its id names that folder (the label is what the tab bar shows)",
+            f"pick another id and keep the label: python tools/retrodev new tab {page_id} {other} --label "
+            + cmd(tab_label),
+        )
     unique_exports(plan, [name])
     values = {"page": page_id, "tab": tab_id, "Label": tab_label, "Component": pascal(tab_id) + "Tab"}
     values["CONST"] = f"{const(page_id)}_{const(tab_id)}"
@@ -172,6 +208,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
 
     plan.edit(door, wire)
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
+    taken_readme(plan, page_id, tab_id)
     plan.regenerate = True
     still_page, tabs = own_page(plan.read(door))[1], tab_count(plan.read(door))
     if from_page:
@@ -181,6 +218,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
         )
     else:
         if tabless and component:
+            plan.next_steps.insert(0, first_tab_step(page_id, tab_id, component, door, name))  # before anything
             plan.skip_checks.append("page")
             plan.notes.append(
                 f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), "
@@ -197,19 +235,28 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             "{ tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
             f"descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)"
         )
+    shown = design_heading(page_tests.read(plan, DESIGN_DOC), page_tests.page_label(plan, page_id) or label(page_id))
     plan.next_steps.append(
-        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and in the page's row of docs/dev/STUDIO-PAGES.md"
+        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and as a bullet in {shown} (the table row "
+        "stays short)"
     )
     if from_page and values.get("moved") and page_in_index(plan, page_id):
         plan.next_steps.append(
             f"remove '{page_id}' from PAGE_IN_INDEX in {REGISTRY_TEST}: its Page is no longer defined in index.js "
             "(new leaves tests/page to you)"
         )
+    under = shell_below(plan.read(door))
+    if under:
+        plan.next_steps.append(
+            f"the shell's player and BelowPlayer stay under every tab: page/app/studio-page.js draws them after the "
+            f"page's body (tab bar and tab), as {page_id}'s descriptor asks ({under})"
+        )
     if tabs == 1:
         plan.next_steps.append(
             f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
             "or keep a page without tabs"
         )
+    plan.next_steps.append(page_tests.tab_step(plan, page_id, tab_id, tab_label))
     for test in rendering_tests(plan, page_id):
         plan.next_steps.append(
             f"{test} renders pageOf('{page_id}').Page"
@@ -220,6 +267,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             )
         )
     return f"tab {page_id}/{tab_id}" + (" (from the page's Page)" if from_page else "")
+
+
+def shell_below(text: str) -> str:
+    """The descriptor's fields that make the shell draw something below the page's body ('pad', 'BelowPlayer')."""
+    _name, first, end = descriptor(text)
+    body = text.split("\n")[first + 1 : end]
+    return ", ".join(f for f in ("pad", "BelowPlayer") if any(re.match(rf"^  {f}\b", line) for line in body))
 
 
 def page_in_index(plan: Plan, page_id: str) -> bool:
@@ -307,16 +361,27 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
     full = f"{page_id}.{name}"
     doc = js_label(doc, "Where it is on the page. Props: { ... }", "doc")
     for index in plan.top.glob("page/pages/**/index.js"):
-        if f"'{full}'" in plan.read(str(index.relative_to(plan.top))):
+        if re.search(rf"""['"]{re.escape(full)}['"]""", plan.read(str(index.relative_to(plan.top)))):
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
-    _readme(plan, page_id, "Slots:", f"declares `{full}`: {doc[:1].lower() + doc[1:].rstrip('.')}", "declares none")
+    said = f"declares `{full}`: {code_spans(doc[:1].lower() + doc[1:].rstrip('.'))}"  # as emulator's README writes it
+    rel = f"page/pages/{page_id}/README.md"
+    before = plan.read(rel) if plan.exists(rel) else None
+    if before is not None:
+        plan.edit(rel, lambda text: declares_line(text, said))
+        plan.edit(rel, lambda text: with_block(text, found.group(0)) if (found := slots_block(text)) else text)
+    if before is None or plan.read(rel) == before:
+        plan.notes.append(f"mention {said} under **Slots:** in {rel}")
     plan.regenerate = True
     plan.next_steps += [
         f"render it where the contributions go: import {{ Slot }} from '#app/slots.js'; "
         f"jsx(Slot, {{ name: '{full}', props: {{ ... }} }})",
-        f"another page fills it from its index.js: contributes: {{ '{full}': [Component] }}",
+        f"render it in the tests: add a HOSTS recipe for '{full}' in tests/page/slots.test.mjs (it checks the host "
+        "passes exactly the props the doc names)",
+        f"another page fills it from its index.js: contributes: {{ '{full}': [Component] }}; a contribution changes "
+        "the `filled` assertion in tests/page/registry.test.mjs, the contributing page's README **Slots:** line "
+        "(Contributes ...) and the 'Events and slots today' line of docs/dev/STUDIO-PAGES.md",
     ]
     return f"slot {full}"
 

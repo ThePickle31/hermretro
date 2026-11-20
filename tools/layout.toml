@@ -114,11 +114,14 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "profile/SOUL.md" = "The studio profile's personality"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
-"tools/retrodev/README.md" = "The development CLI: every command, the flow from plan to merge, state, config, exit codes"
+"tools/retrodev/README.md" = "The development CLI: what it is, the quick path, the flow from plan to merge, exit codes"
+"tools/retrodev/REFERENCE.md" = "The development CLI in full: every command, new by kind, land, releases, state, config"
 "tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]
-# Python and page source files: a warning above `warn` lines, a failure above `fail`.
+# The one per-file size rule. Python and page source files: a warning above `warn` lines (check.py's unit row names
+# them), a failure above `fail` (tests/repo/test_layout.py). `retrodev new rpc` suggests --module 50 lines before
+# `warn` (tools/retrodev/scaffold_rpc.py big_rpcs reads it here), so a new handler lands before rpcs.py reaches `warn`.
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]

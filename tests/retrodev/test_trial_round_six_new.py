@@ -19,7 +19,7 @@ from pathlib import Path
 import retrodev
 
 from tests.repo.test_placeholders import PLACEHOLDERS
-from tests.retrodev.fixture import git, parallel, write
+from tests.retrodev.fixture import git, parallel, retrodev_docs, write
 from tests.retrodev.scaffold_moves import needs_acorn
 from tests.retrodev.test_scaffold import ScaffoldCase
 from tests.retrodev.test_trial_round_five import OWN, inline_page
@@ -46,13 +46,14 @@ class Event(ScaffoldCase):
         door = self.read("backend/history/__init__.py")
         self.assertIn('"history.rdprobe_three": "it counted; game=<...>, root=<project>, count=<...>",', door)
         self.assertIn(
-            "| `history.rdprobe_three` | `game`, `root`, `count` | it counted |", self.read("docs/dev/CONTRACT.md")
+            "| `history.rdprobe_three` | `game` (<...>), `root` (project), `count` (<...>) | it counted |",
+            self.read("docs/dev/CONTRACT.md"),
         )
         self.assertIn("(game, root=<project>, count)", self.read("backend/history/emits.py"))
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        row = next(line for line in readme.splitlines() if line.startswith("| `new event "))
+        reference = retrodev_docs("REFERENCE.md")
+        row = reference[reference.index("### `new event ") :].split("\n\n")[1]  # its section's paragraph
         self.assertIn("either way: comma-separated", row)
-        self.assertIn("or repeated (`--payload game --payload root`)", row)
+        self.assertIn("or repeated (`--payload 'game=<id>' --payload 'root=<project>'`)", row)
 
 
 class Tab(ScaffoldCase):
@@ -60,8 +61,8 @@ class Tab(ScaffoldCase):
         self.new("page", "rdprobe-notes")
         steps = self.new("tab", "rdprobe-notes", "extra")["next"]
         self.assertIn(
-            "describe the tab in page/pages/rdprobe-notes/README.md **Shows:** and in the page's row of "
-            "docs/dev/STUDIO-PAGES.md",
+            "describe the tab in page/pages/rdprobe-notes/README.md **Shows:** and as a bullet in its `### <Page>` "
+            "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
             steps,
         )
 
@@ -226,6 +227,8 @@ class ToolProject(ScaffoldCase):
     def test_root_is_narrowed_and_the_codes_in_use_are_listed(self):
         self.new("feature", "rdprobe_lib")
         write(self.tree, "backend/rdprobe_lib/tool_args.py", (ROOT / "backend/library/tool_args.py").read_text())
+        # what it re-exports, where tool_project's own codes are written (as the real tree has it)
+        write(self.tree, "backend/hermes/tool_args.py", (ROOT / "backend/hermes/tool_args.py").read_text())
         write(self.tree, "tests/support.py", "def isolated_home(test):\n    pass\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "A feature with tool_args")

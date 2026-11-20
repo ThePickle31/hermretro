@@ -9,9 +9,11 @@ which ``HERMRETRO_HOME`` alone does not move. ``throwaway_profile`` patches only
 Import these as ``from tests.support import ...``: putting tests/ itself on sys.path makes tests/backend shadow
 the real backend package (tests/repo/test_test_imports.py refuses it)."""
 
+import json
 import os
 import shutil
 import tempfile
+import time
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -76,6 +78,35 @@ def throwaway_deps(base: Path):
         yield cache
 
 
+class FakeBrokerClient:
+    """A connected broker client (``backend/broker/client.py``) stand-in: a context manager whose ``request(message)``
+    and ``call(owner, tool, args, **options)`` record what they were sent (``asked``, ``calls``) and answer ``answer``
+    (a dict, or a function given what was sent). Patch it in with ``mock.patch.object(hermes_host, "try_connect",
+    lambda _dir: (client, None))`` or ``mock.patch.object(hermes_host, "ensure_broker", lambda: client)``."""
+
+    hello = {"pid": -1}  # the broker's handshake; -1 is no real process
+
+    def __init__(self, answer=None):
+        self.answer, self.asked, self.calls = answer, [], []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def _reply(self, *sent, **options):
+        return self.answer(*sent, **options) if callable(self.answer) else self.answer
+
+    def request(self, message):
+        self.asked.append(message)
+        return self._reply(message)
+
+    def call(self, *args, **options):
+        self.calls.append(args)
+        return self._reply(*args, **options)
+
+
 def registered_hook(name: str, ctx=None):
     """The callback the plugin registers for the Hermes hook ``name``: one feature's, or the chain of every
     feature that hooks it (backend/hermes/declare.py), built from the ``backend`` modules tests patch."""
@@ -83,3 +114,87 @@ def registered_hook(name: str, ctx=None):
     from backend.hermes import declare
 
     return declare.collect("backend", FEATURES).hook(name, ctx)
+
+
+def encode_png(width, height, pixel):
+    """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
+    import struct
+    import zlib
+
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+    rows = b"".join(b"\0" + bytes(value for x in range(width) for value in pixel(x, y)) for y in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )
+
+
+# A 160x144 pixel-art cover: four colours in bands.
+COVER = encode_png(
+    160,
+    144,
+    lambda x, y: ((40, 120, 60, 255), (230, 160, 60, 255), (60, 90, 200, 255), (250, 250, 240, 255))[
+        (x // 40 + y // 36) % 4
+    ],
+)
+
+
+def complete_card(root: Path) -> None:
+    """Give a test project a finished game card (game.json + cover.png)."""
+    (root / "cover.png").write_bytes(COVER)
+    (root / "game.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "title": "Space Game",
+                "tagline": "Fly a tiny ship through a meteor field.",
+                "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
+                "genres": ["Arcade"],
+                "cover": "cover.png",
+            }
+        )
+    )
+
+
+def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
+    root = base / name.lower().replace(" ", "-")
+    (root / "project").mkdir(parents=True)
+    (root / f"{root.name}.gbsproj").write_text(json.dumps({"_resourceType": "project", "name": name}))
+    (root / "project" / "scene.gbsres").write_text("{}")
+    if built:
+        (root / "build").mkdir()
+        (root / "build" / "project.gb").write_bytes(b"\0" * 512)
+    if web:
+        web_dir = root / "build" / "web"
+        (web_dir / "js").mkdir(parents=True)
+        (web_dir / "rom").mkdir()
+        (web_dir / "rom" / "game.gbc").write_bytes(b"\1" * 512)
+        (web_dir / "js" / "binjgb.wasm").write_bytes(b"\0asm-test")
+        (web_dir / "index.html").write_text("<html><head></head><body></body></html>")
+        (web_dir / "gbstudio.json").write_text(json.dumps({"rom": "rom/game.gbc", "project": {"name": name}}))
+    if card:
+        complete_card(root)
+    old = time.time() - 600
+    for path in root.rglob("*"):
+        os.utime(path, (old, old))
+    for rom in root.glob("build/**/*.gb*"):
+        os.utime(rom, (old + 300, old + 300))
+    return root
+
+
+def make_library_game(home: SimpleNamespace, name: str = "Game") -> tuple[str, Path]:
+    """A game in the library, as the gateway records one: ``make_project(paths.games_dir(), name)`` (a
+    ``.gbsproj``, a scene, a built ROM and web export, a finished card) registered with ``host._registry().upsert``.
+    ``home`` is what ``isolated_home(self)`` returns. Returns ``(game id, project root)``; ``host._game_root(id)``
+    answers the root. Registering never reaches the broker (and the isolated runtime folder has none), so nothing
+    else needs patching."""
+    for folder in (paths.library_dir(), paths.games_dir()):
+        assert Path(folder).is_relative_to(home.base), f"call isolated_home(self) first, unpatched: {folder}"
+    root = make_project(paths.games_dir(create=True), name)
+    entry = hermes_host._registry().upsert(str(root))
+    assert entry is not None and entry.get("id"), f"the library did not register {root}"
+    return entry["id"], root

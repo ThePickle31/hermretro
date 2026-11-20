@@ -17,7 +17,7 @@ from pathlib import Path
 import retrodev
 from retrodev import checks, config, output, repo, ship, state
 
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 
 load_tests = parallel
@@ -159,9 +159,9 @@ class Flow(RepoCase):
     def test_the_budgets_are_measured_cold_runs_and_the_readme_agrees(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
         budgets = ctx.policy["checks"]["budgets"]
-        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 30, 60))
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        self.assertIn("unit 45 s, scaffold 30 s, the fast checks together 60 s", readme)
+        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (60, 58, 60))
+        readme = retrodev_docs()
+        self.assertIn("unit 60 s, scaffold 58 s, the fast checks together 60 s", readme)
         self.assertIn("over its budget twice in a row", readme)
         self.assertNotIn("Over twice its budget", readme)
 
@@ -173,8 +173,8 @@ class Flow(RepoCase):
         self.assertEqual(ship.labels(ctx, [".github/actions/hermes/action.yml"]), ["ci"])
 
     def test_the_readme_flow_covers_taking_over_a_teammate_s_branch(self):
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        flow = " ".join(readme.split("## Commands")[0].split())
+        reference = retrodev_docs("REFERENCE.md")
+        flow = " ".join(reference.split("## Commands")[0].split())
         self.assertIn("Taking over a teammate's branch", flow)
         self.assertIn("`plan new <topic>` describing what the branch does", flow)
         self.assertIn(
@@ -195,7 +195,9 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn("from . import rdprobe_extra", index)
         tools = next(node for node in tree.body if isinstance(node, ast.Assign) and node.targets[0].id == "TOOLS")
         self.assertEqual([ast.unparse(elt) for elt in tools.value.elts], ["*rdprobe_extra.TOOLS"])
-        self.assertIn("`chromatic_rdprobe_mod` (`backend/history/rdprobe_extra.py`)", self.read("docs/dev/CONTRACT.md"))
+        self.assertIn(
+            "`chromatic_rdprobe_mod` (`backend/history/rdprobe_extra.py`: ", self.read("docs/dev/CONTRACT.md")
+        )
         self.new("tool", "history", "rdprobe_two", "--module", "rdprobe_extra")  # the same module again: once
         self.assertEqual(self.read("backend/history/tools.py").count("rdprobe_extra.TOOLS"), 1)
         self.assertEqual(self.read("backend/history/rdprobe_extra.py").count("Tool(RDPROBE_"), 2)
@@ -203,8 +205,10 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn("--module rpcs", out["error"]["message"])
 
     def test_module_refuses_a_name_tools_py_already_binds_and_nothing_changes(self):
-        for name in ("__init__.py", "tools.py", "README.md"):
+        for name in ("__init__.py", "README.md"):
             shutil.copyfile(ROOT / "backend/library" / name, self.tree / "backend/library" / name)
+        probe = "import json\n\nfrom ..hermes import host\nfrom . import games as library\n\nlogger = host.logger\nTOOLS = ()\n"
+        write(self.tree, "backend/library/tools.py", probe)  # a probe: these bindings, whatever the real file holds
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Library tools")
         for module in ("json", "logger", "library"):  # a stdlib import, an assignment, `games as library`
@@ -267,7 +271,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn(f'"library.rdprobe_moved": "a game moved folders; {payload}"', door)  # keys say what they hold
         self.assertNotIn("    # emits.", door, "no hint comment inside EVENTS")
         rows = [line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith("| `")]
-        mine = "| `library.rdprobe_moved` | `game`, `root` | a game moved folders | — |"
+        mine = "| `library.rdprobe_moved` | `game` (id; None without a project, or a list), `root` (project) | a game moved folders | — |"
         self.assertIn(mine, rows)
         before = rows[rows.index(mine) - 1]
         self.assertTrue(before.startswith("| `library."), before)
@@ -320,8 +324,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         out = self.new("rpc", "history", "rdprobe_recent")
         steps = " ".join(out["next"])
         self.assertIn(
-            "useQuery({ queryKey: [ID, 'rdprobe_recent', viaProfile], queryFn: () => "
-            "callStudio(RPC_RDPROBE_RECENT), enabled })",
+            "useQuery({ queryKey: [ID, 'rdprobe_recent'], queryFn: () => callStudioOnly(RPC_RDPROBE_RECENT) })",
             steps,
         )
         self.assertIn("scenario.rdprobe_recent = answered(", steps)

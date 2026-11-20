@@ -6,12 +6,12 @@ Front door: what other features may use. Standard library only (the broker impor
 hooks.py and studio_profile.py are never imported from here.
 """
 
-from .progress import directory_bytes, progress as install_progress
-from .provision import seed_toolchain_cache
+from .progress import download_bytes, progress as install_progress
+from .provision import folder_bytes, seed_toolchain_cache
 
-__all__ = ["directory_bytes", "install_progress", "seed_toolchain_cache"]
+__all__ = ["download_bytes", "folder_bytes", "install_progress", "seed_toolchain_cache"]
 
 EVENTS = {
-    "setup.tools_removed": "Setup removed the downloaded tools; root=<the emptied folder>",
-    "setup.studio_profile_ready": "The hermretro studio profile was finished; profile=<its name>",
+    "setup.tools_removed": "Setup removed the downloaded tools; root=<the emptied download folder, str>",
+    "setup.studio_profile_ready": "The hermretro studio profile was finished; profile=<the profile name, str>",
 }

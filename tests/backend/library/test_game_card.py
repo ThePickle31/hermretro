@@ -15,7 +15,7 @@ from backend.library import game_card  # noqa: E402 - the repository root goes o
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_games import COVER, encode_png, make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import COVER, encode_png, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
@@ -124,8 +124,26 @@ class CardFile(unittest.TestCase):
         )
         self.assertTrue(good["ok"], good)
         self.assertTrue(good["status"]["complete"])
+        self.assertFalse(good["was_complete"], "the card became complete with this update")
+        again = game_card.update(self.root, {"tags": ["space"]})
+        self.assertTrue(again["was_complete"] and again["status"]["complete"], "already complete: no transition")
         stored = game_card.load(self.root)
         self.assertEqual((stored["rating"], stored["cover"], stored["coverForBuild"]), ("E", "cover.png", "abc"))
+        self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
+
+    def test_a_damaged_cover_is_a_problem_and_a_new_cover_replaces_it(self):
+        game_card.scaffold(self.root, "Space Game")
+        damaged = COVER[:16] + b"\x00\x00\x00\x0dIHDR\x00\x00"  # IHDR says 13 bytes, holds 2
+        (self.root / "cover.png").write_bytes(damaged)
+        state = game_card.status(self.root, strict=True)
+        self.assertIn("cover", state["missing"])
+        self.assertIn("damaged", state["problems"][-1])
+        cover = self.base / "drawn.png"
+        cover.write_bytes(COVER)
+        result = game_card.update(self.root, GOOD, cover_source=str(cover))
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(result["was_complete"])
+        self.assertTrue(result["status"]["complete"], result)
         self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
 
     def test_placeholders_and_bad_lists_do_not_count(self):

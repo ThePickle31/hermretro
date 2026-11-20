@@ -32,7 +32,11 @@ class Check(RepoCase):
         self.assertEqual(
             sorted(data),
             sorted(
-                ["branch", "checks", "code", "command", "fast_wall", "ok", "status", "tree", "tree_passed", "warnings"]
+                # next: the body to fill in (missing here), then ship (round eight: also before the body exists)
+                [
+                    *["branch", "checks", "code", "command", "fast_wall", "next", "ok", "status", "tree"],
+                    *["tree_passed", "warnings"],
+                ]
             ),
         )
         self.clear_log()
@@ -151,18 +155,21 @@ class Check(RepoCase):
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        rows = [{"name": "lint", "seconds": 3.0, "cached": False}, {"name": "unit", "seconds": 40.0, "cached": False}]
+        rows = [
+            {"name": "lint", "state": "ok", "seconds": 3.0, "cached": False},
+            {"name": "unit", "state": "ok", "seconds": 40.0, "cached": False},
+        ]
         self.assertEqual(checks.budget_warnings(ctx, rows, 55.0, True, {}), [], "a cold unit run of 40 s is in budget")
-        rows[1]["seconds"] = 50.0
+        rows[1]["seconds"] = 65.0
         self.assertEqual(checks.budget_warnings(ctx, rows, 70.0, True, {}), [], "one slow run says nothing")
         last = checks.durations(rows, 70.0, {})
-        self.assertEqual((last["unit"], last["fast_total"]), (50.0, 70.0))
+        self.assertEqual((last["unit"], last["fast_total"]), (65.0, 70.0))
         warnings = checks.budget_warnings(ctx, rows, 70.0, True, last)
         self.assertEqual(len(warnings), 2, warnings)
-        self.assertIn("unit took 50.0 s, over its 45 s budget twice in a row: slower than usual", warnings[0])
+        self.assertIn("unit took 65.0 s, over its 60 s budget twice in a row: slower than usual", warnings[0])
         self.assertIn("machines and load differ", warnings[0])
         self.assertIn("fast checks took 70.0 s together, over their 60 s budget twice in a row", warnings[1])
-        cached = [{"name": "unit", "seconds": 0.0, "cached": True}]
+        cached = [{"name": "unit", "state": "ok", "seconds": 0.0, "cached": True}]
         self.assertEqual(checks.durations(cached, None, last), last, "a cached row keeps the last run's time")
 
     def test_watch_sees_a_change(self):

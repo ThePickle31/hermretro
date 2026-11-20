@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import ast
 import re
+import textwrap
 
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
-from .scaffold_backend import ARCHITECTURE, CONTRACT, known_feature
+from .scaffold_backend import ARCHITECTURE, CONTRACT, PAYLOAD_GUIDE, known_feature
+from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, typed_sample, undescribed
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -36,6 +38,147 @@ def declared_events(plan: Plan) -> dict[str, str]:
 
 
 SUPPORT = "tests/support.py"
+MOCKED = re.compile(r"mock\.patch\.object\(hermes_host,\s*[\"'](\w+)[\"']")
+
+
+def payload_of(plan: Plan, event: str, doc: str) -> list[str]:
+    """The event's payload keys: the leading backticked name of each top-level entry of its CONTRACT row's Payload
+    cell ('`game` (the game's id, `null` without a project), `assets`' -> game, assets: a name inside an entry's
+    description is not a key), else its EVENTS doc after '; '."""
+    for line in plan.read(CONTRACT).splitlines() if plan.exists(CONTRACT) else []:
+        if line.startswith(f"| `{event}` |"):
+            cells = line.strip().strip("|").split(" | ")
+            parts = split_parts(cells[1]) if len(cells) > 1 else []
+            keys = [found.group(1) for part in parts if (found := re.match(r"\s*`([A-Za-z_]\w*)`", part))]
+            if keys:
+                return list(dict.fromkeys(keys))
+    return payload_keys(doc.partition("; ")[2]) if "; " in doc else []
+
+
+def _emits(call: ast.Call, event: str, emitters: set[str]) -> bool:
+    """Whether the call is ``emit("<event>", ...)`` or a call of one of the feature's emitter functions."""
+    func = call.func
+    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    if name == "emit":
+        first = call.args[0] if call.args else None
+        return isinstance(first, ast.Constant) and first.value == event
+    return name in emitters
+
+
+def _callers(tree: ast.AST, event: str, emitters: set[str]) -> set[str]:
+    """The functions (every enclosing one, nested handlers too) whose body emits the event."""
+    found: set[str] = set()
+
+    def visit(node: ast.AST, chain: tuple[str, ...]) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            chain = (*chain, node.name)
+        if isinstance(node, ast.Call) and _emits(node, event, emitters):
+            found.update(chain)
+        for child in ast.iter_child_nodes(node):
+            visit(child, chain)
+
+    visit(tree, ())
+    return found
+
+
+def emitting_names(plan: Plan, owner: str, event: str) -> set[str]:
+    """The names a test that emits ``event`` calls: the owner's emitter functions (emits.py) and every function
+    that calls one of them or ``emit("<event>")`` directly."""
+    trees = {}
+    for path in sorted(plan.top.glob(f"backend/{owner}/**/*.py")):
+        try:
+            trees[path.relative_to(plan.top).as_posix()] = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+    emits = f"backend/{owner}/emits.py"
+    emitters = _callers(trees[emits], event, set()) if emits in trees else set()
+    names = set(emitters)
+    for rel, tree in trees.items():
+        if rel != emits:
+            names |= _callers(tree, event, emitters)
+    return names
+
+
+def mocked_helpers(plan: Plan, owner: str, event: str) -> list[str]:
+    """The emitting feature's tests that patch backend.hermes.host helpers and emit the event ('file (helper,
+    ...)': they call a function that emits it, or name the event): the new listener now runs against those mocks."""
+    names = emitting_names(plan, owner, event)
+    calls = re.compile(r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")\b") if names else None
+    found = []
+    for path in sorted(plan.top.glob(f"tests/backend/{owner}/*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if f'"{event}"' not in text and f"'{event}'" not in text and not (calls and calls.search(text)):
+            continue
+        helpers = list(dict.fromkeys(MOCKED.findall(text)))
+        if helpers:
+            found.append(f"{path.relative_to(plan.top)} ({', '.join(helpers)})")
+    return found
+
+
+def _isolated(cls: ast.ClassDef, known: dict[str, bool]) -> bool:
+    """The class's setUp calls isolated_home (its own, else the one it inherits from a class of the same file)."""
+    setup = next((n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "setUp"), None)
+    if setup is None:
+        return any(known.get(getattr(base, "id", "")) for base in cls.bases)
+    for node in ast.walk(setup):
+        func = node.func if isinstance(node, ast.Call) else None
+        if func is not None and (getattr(func, "id", "") or getattr(func, "attr", "")) == "isolated_home":
+            return True
+    return False
+
+
+def emitting_classes(plan: Plan, owner: str, event: str) -> tuple[list[str], list[str]]:
+    """(test classes that emit ``event`` without isolated_home in setUp, those already isolated), as
+    'file::Class', from tests/backend/: a class emits it when its source names the event or calls the owner's
+    function that emits it."""
+    names = emitting_names(plan, owner, event)
+    calls = re.compile(r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")\(") if names else None
+    bare, isolated = [], []
+    for path in sorted(plan.top.glob("tests/backend/**/test_*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if f'"{event}"' not in text and f"'{event}'" not in text and not (calls and calls.search(text)):
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        known: dict[str, bool] = {}
+        for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
+            known[cls.name] = _isolated(cls, known)
+            body = ast.get_source_segment(text, cls) or ""
+            if f'"{event}"' in body or f"'{event}'" in body or (calls and calls.search(body)):
+                (isolated if known[cls.name] else bare).append(f"{path.relative_to(plan.top).as_posix()}::{cls.name}")
+    return bare, isolated
+
+
+def isolation_step(plan: Plan, owner: str, event: str) -> str:
+    """The next step about the tests that emit ``event``: they now run the listener, so each needs isolated_home."""
+    bare, isolated = emitting_classes(plan, owner, event)
+    done = f"; already isolated: {', '.join(isolated)}" if isolated else ""
+    if bare:
+        return (
+            f"these tests emit {event} and now run your listener: give each isolated_home(self) (tests/support.py) "
+            f"in setUp, so it never touches the real home: {', '.join(bare)}{done}"
+        )
+    if isolated:
+        return (
+            f"the tests that emit {event} now run your listener; they are all already isolated: {', '.join(isolated)}"
+        )
+    return (
+        f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
+        "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home"
+    )
+
+
+def docstring_head(event: str, payload: str, feature: str) -> str:
+    """The listener docstring's first paragraph, wrapped within 120 characters at the function's indent: it copies
+    the EVENTS description, which may be long. The placeholder is a line of its own (the placeholder gate reads
+    it), so the sentence that replaces it has the whole line."""
+    text = f"When {event} happens ({payload}), backend/{feature} does this (a listener that raises is logged):"
+    lines = textwrap.wrap(
+        text, 120, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
+    )
+    return "\n".join([*lines, f"    {LISTENS}."]).removeprefix('    """')
 
 
 def test_template(plan: Plan) -> str:
@@ -108,6 +251,15 @@ def agent_half(text: str, event: str, feature: str) -> str:
     return in_section(text, "## The agent half", change)
 
 
+def catch_all(keys: list[str]) -> str:
+    """The listener's **name for keys the event gains later: _payload, else _rest, _rest2, ... (the first that is
+    not a payload key, so the signature never names one argument twice)."""
+    for name in ("_payload", "_rest", *(f"_rest{n}" for n in range(2, len(keys) + 3))):
+        if name not in keys:
+            return name
+    raise AssertionError("unreachable: more candidate names than keys")
+
+
 def listener(plan: Plan, feature_name: str, event: str) -> str:
     known_feature(plan, feature_name, "listener")
     declared = declared_events(plan)
@@ -122,6 +274,12 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     source = f"backend/{feature_name}/listeners.py"
     values = {"name": feature_name, "Name": label(feature_name), "event": event, "func": func, "Func": pascal(func)}
     values["payload"] = declared[event] or "its payload"
+    keys = payload_of(plan, event, declared[event])
+    values["call"] = typed_sample(keys, declared[event].partition("; ")[2])  # the declared keys, typed as hinted
+    values["doc"] = docstring_head(event, values["payload"], feature_name)
+    named = emitter_values(keys)["params"]  # keyword-only, one per payload key; later keys still arrive in **_payload
+    rest = catch_all(keys)  # never one of the keys: a key named _payload would be bound twice
+    values["params"] = f"**{rest}" if named == "**payload" else f"{named}, **{rest}"
     plan.ensure(source, render("listener", "listeners.py.tmpl", **values))
     text = plan.read(source)
     if f'@on("{event}")' in text or func in module_names(text):
@@ -157,13 +315,36 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         else "; say it on the README's 'Listens to' line too"
     )
     plan.next_steps += [
-        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']})",
+        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); log with "
+        "host.logger (from ..hermes import host)",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
-        f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
-        "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home",
+        isolation_step(plan, event.partition(".")[0], event),
         f"if other code reads what the listener keeps, export the reader in backend/{feature_name}/__init__.py "
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
+        f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
+        "assert what it changed; a listener that only logs: wrap the call in `with self.assertLogs(listeners.host."
+        'logger, "INFO"):` (listeners.py imports host: from ..hermes import host)',
+        f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
+    entry = declared[event] or ""
+    bare = [key for key in undescribed(entry.partition("; ")[2]) if f"{key}=<...>" in entry]
+    if bare:
+        owner = event.partition(".")[0]
+        plan.next_steps.append(
+            f"{func}'s docstring copies {event}'s EVENTS entry, whose placeholders {placeholders(bare)} say nothing "
+            f"yet: replace them there and in backend/{owner}/__init__.py EVENTS with what each key holds"
+        )
+    if {"path", "root"} & set(keys) and "game" not in keys:
+        plan.next_steps.append(
+            "find the library game with host.library_game_for([path]); in tests register one with "
+            "tests.support.make_library_game(home, name) -> (game_id, root)"
+        )
+    mocked = mocked_helpers(plan, event.partition(".")[0], event)
+    if mocked:
+        plan.next_steps.append(
+            f"these tests emit {event} and mock backend.hermes.host helpers, so the listener now runs against "
+            "those mocks: " + "; ".join(mocked)
+        )
     return f"listener {feature_name} <- {event}"

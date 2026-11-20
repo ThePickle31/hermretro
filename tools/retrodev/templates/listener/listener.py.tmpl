@@ -1,9 +1,9 @@
 @on("{event}")
-def {func}(**_payload) -> None:
-    """When {event} happens ({payload}): say what this listener does (backend/{name}). A listener that raises is logged.
+def {func}({params}) -> None:
+    """{doc}
 
-    log with host.logger (from ..hermes import host). A listener runs synchronously in the process and thread that
-    emits the event, on the Hermes side (the gateway, the plugin host or a turn process), never in the broker; state
-    kept at module level is that process's own: state other processes must read goes in a file under
-    backend.system.paths.hermretro_home(), written atomically, not module state.
+    A listener runs synchronously in the process and thread that emits the event, on the Hermes side (the gateway,
+    the plugin host or a turn process), never in the broker; state kept at module level is that process's own: state
+    other processes must read goes in a file under backend.system.paths.hermretro_home(), written atomically, not
+    module state.
     """

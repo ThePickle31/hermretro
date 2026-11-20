@@ -11,15 +11,13 @@ plan's Goal as the Why (with --no-plan or an empty Goal, a visible '<!-- no plan
 saying an agent made it (RETRODEV_AGENT names the agent, default Hermes; under the template's '## Made by' when it
 has one, else after a closing '---', so it fills no section), and its body gate stops: fill it in, then ship
 again. Every gate runs in every ship, a missing title included, so one run reports every refusal. A --dry-run
-writes the same skeleton (a git-ignored note, not a push) and reports the body gate as 'NO  body: fill in <path>',
-its FIX the same ship --dry-run with this title and body. Every ship command printed during or after a dry run
-(a FIX here, status's next step) is a dry run too: they are all built by command(), and the dry run is recorded
-before anything (the title included) can stop it.
+writes the same skeleton and reports the body gate as 'NO  body: fill in <path>'. Every ship command printed during
+or after a dry run is a dry run too (all built by command(); the dry run is recorded before any gate can stop it).
 
 Gates (all reported at once): a work branch; the owner approved its plan (docs and chore may go without one);
-a one-line title without a trailing period; a branch that changes at least one file; a body with every section of the pull request template filled in
-and a line saying an agent made it; everything committed;
-`check` passed on exactly this tree; the branch has commits; the remote branch has not moved away from it.
+a one-line title without a trailing period; a branch that changes at least one file; a body with every section of
+the pull request template filled in and a line saying an agent made it; everything committed; `check` passed on
+exactly this tree; the branch has commits; the remote branch has not moved away from it.
 Then `git push -u <remote> <branch>` (a plain push, never anything that rewrites the remote) and
 `gh pr create --draft` with labels from the areas the change touches, or `gh pr edit` on the open one (refused
 when that one goes into another branch than the base: the FIX retargets it, ship never does).
@@ -28,18 +26,17 @@ when that one goes into another branch than the base: the FIX retargets it, ship
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from pathlib import Path
 
-from . import gates, github, plan, repo, reviews, state
+from . import body_names, gates, github, plan, repo, reviews, state
 from .gates import Gate
 from .output import Failure, cmd
-
 from .review import records
 
 TEMPLATE = ".github/pull_request_template.md"
 NO_GOAL = "<!-- no plan: say why -->"
+SHARED = "<!-- the plan covers several branches: say why this one -->"
 
 
 def labels(ctx, files: list[str]) -> list[str]:
@@ -112,11 +109,7 @@ def default_body(ctx, branch: str | None, record: dict) -> Path:
     return repo.main_checkout(ctx.top) / "notes" / "pr" / f"{topic}.md"
 
 
-def owner(ctx) -> str:
-    url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
-    found = re.search(r"github\.com[:/]([^/]+)/", url)
-    account = found.group(1) if found else ctx.get("github_account")
-    return f"@{account}" if account else "the owner"
+made_by = gates.made_by  # the attribution line (gates.py, beside the body gate that looks for it)
 
 
 def plan_sections(ctx, branch: str, record: dict) -> dict[str, list[str]]:
@@ -137,15 +130,8 @@ def plan_goal(ctx, branch: str, record: dict) -> list[str]:
 PREFILL = {"What changed": ("What changes",), "Not done": ("Not in scope",)}
 
 
-def plan_title(ctx, branch: str, record: dict) -> str | None:
-    """The plan's own title line ('# Plan: <words>'), when it says more than the topic."""
-    named = gates.plan_for(ctx, branch, record)
-    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
-    if not path or not path.is_file():
-        return None
-    first = next((line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("# ")), "")
-    words = first[2:].strip().removeprefix("Plan:").strip()
-    return words if words and words != named and not gates.title_problems(words) else None
+plan_title = plan.branch_title  # the plan's Title: line (plan.py), as ship and status offer it
+title_note = plan.title_note
 
 
 def skeleton(ctx, branch: str, record: dict) -> str:
@@ -154,21 +140,23 @@ def skeleton(ctx, branch: str, record: dict) -> str:
     source = ctx.top / TEMPLATE
     sections = ctx.policy["ship"]["sections"]
     text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
-    goal = plan_goal(ctx, branch, record)
-    why = "\n".join(goal) if goal else NO_GOAL  # a visible placeholder: the body gate still finds the Why empty
+    several = plan.shared(ctx, branch, record)  # the Goal and Not in scope are the whole plan's, not this PR's
+    goal = plan.branch_section(ctx, branch, record) if several else plan_goal(ctx, branch, record)
+    why = "\n".join(goal) if goal else SHARED if several else NO_GOAL  # the body gate still finds a placeholder empty
     text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + why + "\n", text, count=1, flags=re.M)
     found = plan_sections(ctx, branch, record)
     for heading, sources in PREFILL.items():
+        if several and heading == "Not done":
+            continue
         lines = next((found[name] for name in sources if found.get(name)), [])
         if lines:  # after the heading and its template comments
             at = re.search(rf"^## {re.escape(heading)}[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
             if at:
                 text = text[: at.end()] + "\n".join(lines) + "\n" + text[at.end() :]
-    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
-    line = f"Made by an agent ({agent}) for {owner(ctx)}."
+    line = made_by(ctx, record=record)
     made = re.search(r"^## Made by[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
-    if made:  # the template's own section for it (after its comments)
-        return text[: made.end()] + line + "\n" + text[made.end() :]
+    if made:  # the template's own section for it, its comment (who to name) replaced by the line itself
+        return text[: made.start()] + "## Made by\n" + line + "\n" + text[made.end() :]
     return text.rstrip("\n") + f"\n\n---\n\n{line}\n"  # after a separator: counted in no section
 
 
@@ -203,8 +191,13 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
         ctx.out.say(f"kept: {path} exists (nothing was overwritten)")
     else:
         named = gates.plan_for(ctx, branch, record)
+        several = plan.shared(ctx, branch, record)
         why = (
-            "the plan's Goal is its Why"
+            "the plan covers several branches: write this one's Why and Not done"
+            if several and not plan.branch_section(ctx, branch, record)
+            else "the plan's section for this branch is its Why"
+            if several
+            else "the plan's Goal is its Why"
             if plan_goal(ctx, branch, record)
             else f"the plan {named} has no Goal to copy: write the Why"
             if named
@@ -223,17 +216,30 @@ def fill_in(path: Path, title: str, dry_run: bool = False) -> str:
 
 def body_step(ctx, branch: str | None, record: dict) -> str | None:
     """check's last line once the tree passes: before the first ship, while the branch's body (the recorded one,
-    else notes/pr/<topic>.md) exists and still fails the body gate, fill it in, then ship."""
+    else notes/pr/<topic>.md) is missing or fails the body gate, fill it in, then ship."""
     if not branch or branch in ctx.policy["branches"]["protected"] or record.get("pr"):
         return None
     chosen = record.get("body")
     path = Path(chosen) if chosen else default_body(ctx, branch, record)
-    if not path.is_file() or not gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"]):
-        return None
-    title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
+    title = record.get("title") or plan_title(ctx, branch, record)
     custom = path if path != default_body(ctx, branch, record) else None
     # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
-    return f"next: fill in {path}, then {command(title, custom, bool(record.get('last_ship_dry_run')))}"
+    then = command(title or "<one plain sentence>", custom, bool(record.get("last_ship_dry_run")))
+    then += "" if title else title_note(ctx, branch, record)
+    if not path.is_file():  # ship writes it from the template and stops: name it all the same
+        missing = f"missing: {path}; ship writes it from the template"
+        return f"next: fill in the pull request body ({missing}), then {then}{agent_hint(None, record=record)}"
+    text = path.read_text(encoding="utf-8")
+    problems = gates.body_problems(text, ctx.policy["ship"]["sections"])
+    unfilled = [
+        found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
+    ]
+    unfilled += ["the Made by line"] if len(unfilled) < len(problems) else []  # names the agent: section-less
+    hint = agent_hint(text, record=record)
+    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}{hint}" if problems else None
+
+
+agent_hint = gates.agent_hint
 
 
 def again(record: dict, dry_run: bool = False) -> str:
@@ -248,10 +254,11 @@ def recorded_title(ctx, branch, record: dict, dry_run: bool = False) -> str:
     title = (record.get("pr") or {}).get("title") or record.get("title")
     if title:
         return title
-    shown = (plan_title(ctx, branch, record) if branch else None) or "<one plain sentence>"
+    shown = plan_title(ctx, branch, record) if branch else None
     raise Failure(
-        "no title: this branch has none recorded yet (the first ship names it)",
-        command(shown, dry_run=dry_run),
+        "no title: this branch has none recorded yet (the first ship names it)"
+        + ("" if shown else title_note(ctx, branch, record)),
+        command(shown or "<one plain sentence>", dry_run=dry_run),
     )
 
 
@@ -311,6 +318,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if written:  # the dry run wrote the skeleton just now: every section is still to write
             body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
         body_gate.fix = fill_in(body_path, title, dry_run)
+    body_names.say(ctx, body_names.warning(ctx, text) if body_gate.ok else None)  # a warning, never a gate
     found = [
         gates.on_work_branch(ctx, branch),
         no_title or gates.title_gate(title),
@@ -349,8 +357,8 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         gh_args = github.edit_args(existing["number"], title, str(body_path))
     else:
         gh_args = github.create_args(ctx.base, branch, title, str(body_path), chosen)
-    plan = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
-    ctx.out.set(**plan, dry_run=dry_run)
+    steps = {"push": push, "gh": ["gh", *gh_args], "labels": chosen, "head": sha, "existing_pr": existing}
+    ctx.out.set(**steps, dry_run=dry_run)
     if dry_run:
         if noted:  # the last gate passed: only now does this dry run count
             note_dry_run(ctx, record, body_path, True)

@@ -6,9 +6,8 @@ Run alone: python -m unittest tests.retrodev.test_release
 import json
 import shlex
 import unittest
-from unittest import mock
 
-from retrodev import release, release_verify, state
+from retrodev import release_verify, state
 
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
@@ -94,17 +93,6 @@ class Prepare(ReleaseCase):
         ran = [entry.get("names", entry.get("script")) for entry in self.check_log()]
         self.assertIn([], ran)  # plugin.yaml changed: the clean install (its stand-in, no arguments)
         self.assertNotIn(["acceptance"], ran)  # only its version line: no real-engine run (checks_triggers)
-
-    def test_the_release_body_ticks_the_system_the_checks_ran_on(self):
-        with mock.patch("platform.system", return_value="Darwin"), mock.patch("platform.machine", return_value="arm64"):
-            text = release.body(NEXT, "0.0.1", WORDS, False)
-        self.assertIn("- [x] macOS (Apple Silicon / Intel): arm64", text)
-        self.assertIn("- [ ] Linux", text)
-        self.assertNotIn("- [x] Linux", text)
-        with mock.patch("platform.system", return_value="Linux"), mock.patch("platform.machine", return_value="x86_64"):
-            text = release.body(NEXT, "0.0.1", WORDS, False)
-        self.assertIn("- [x] Linux", text)
-        self.assertIn("- [ ] macOS (Apple Silicon / Intel)", text)
 
     def test_a_reused_release_worktree_that_is_dirty_off_branch_or_carries_more_is_refused(self):
         self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")

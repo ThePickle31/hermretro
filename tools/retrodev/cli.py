@@ -4,7 +4,8 @@
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
-  build: new feature|rpc|tool|event|listener|page|tab|slot (code, tests, docs, registry line); stats; engine update <v>
+  build: new feature|rpc|tool|event|listener|page|tab|slot|contribution (code, tests, docs, registry line); stats;
+  engine update <v>
   releases, only when the owner says 'make a release': release run (prepare, approve, land, publish up to the
   draft), or each step: release prepare, release publish, release verify
 
@@ -36,6 +37,7 @@ from . import (
     release_verify,
     report,
     scaffold,
+    scaffold_rpc,
     ship,
     start,
     stats,
@@ -71,9 +73,9 @@ def parser() -> argparse.ArgumentParser:
     plans.add_parser("show", help="a plan and its approval (none: all)", parents=[common]).add_argument(
         "topic", nargs="?"
     )
-    approve = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
-    approve.add_argument("topic")
-    approve.add_argument("--words", required=True, help="the owner's exact words")
+    approving = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
+    approving.add_argument("topic")
+    approving.add_argument("--words", required=True, help="the owner's exact words")
     plans.add_parser(
         "link", help="this branch works under a plan (one plan may cover several branches)", parents=[common]
     ).add_argument("topic")
@@ -162,7 +164,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="the output folder (default: <state>/preview)")
     p.add_argument("--desktop", help="a built Hermes Desktop source (default: $HERMES_SOURCE/apps/desktop)")
     p = add("config", "personal settings (never committed)")
-    p.add_argument("action", choices=["get", "set", "list"])
+    p.add_argument("action", nargs="?", default="list", choices=["get", "set", "list"], help="list (the default)")
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
     return top
@@ -199,7 +201,8 @@ def releases(sub, common) -> None:
 
 def scaffolds(sub, common) -> None:
     help_text = (
-        "add a feature, rpc, tool, event, listener, page, tab or slot: code, its test, docs and the registry line"
+        "add a feature, rpc, tool, event, listener, page, tab, slot or contribution: code, its test, docs and the "
+        "registry line"
     )
     p = sub.add_parser("new", help=help_text, description=help_text, parents=[common])
     kinds = p.add_subparsers(dest="kind", required=True, metavar="<kind>")
@@ -220,17 +223,26 @@ def scaffolds(sub, common) -> None:
     kind("feature", "backend/<name>/: front door, README, tests, the registry lines", None, "name").add_argument(
         "--purpose", help="one line: what the feature does (the map and README say it)"
     )
-    kind(
+    rpc = kind(
         "rpc",
         "an @rpc stub, its test, its CONTRACT section, the generated names: new rpc <feature> <name> or "
         "<feature>.<name> (RPC names are global and flat: the page calls plugin.hermretro.<name>)",
         "feature",
         "name",
         optional=True,
-    ).add_argument(
+    )
+    rpc.add_argument(
         "--module",
         help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
-        "declaration that calls it (suggested when rpcs.py is over 350 lines)",
+        f"declaration that calls it (suggested when rpcs.py is over {scaffold_rpc.big_rpcs()} lines)",
+    )
+    rpc.add_argument(
+        "--game",
+        action="store_true",
+        help="an RPC about one library game: a `game` param (the rule: a game's library id is `game`, as builds, "
+        "build_restore, build, assets and the events' payloads take it; `id` names the RPC's own object, as "
+        "build_restore's snapshot; the older player, captures, game_thumb and capture_image keep `id`), NO_GAME "
+        "unless host._game_root finds it",
     )
     tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
     tool.add_argument(
@@ -246,14 +258,15 @@ def scaffolds(sub, common) -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="a tool that acts on the game's project: a `project` schema property, tool_args.tool_project and "
-        "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does)",
+        "tool_error, a test with isolated_home (default: on when the feature has tool_args.py, as library does; "
+        "elsewhere it imports them from backend/hermes/tool_args.py)",
     )
     event = kind("event", "an EVENTS entry in the front door and its CONTRACT row", "feature", "name")
     event.add_argument(
         "--payload",
         action="append",
-        help="the keyword arguments it carries: comma-separated ('game=<id>, root') or repeated (--payload game "
-        "--payload root), or both",
+        help="the keyword arguments it carries, each with what it holds: comma-separated ('game=<id>, root=<project>') "
+        "or repeated (--payload 'game=<id>' --payload 'root=<project>'); a bare key is written key=<...> to fill in",
     )
     event.add_argument(
         "--when",
@@ -274,12 +287,31 @@ def scaffolds(sub, common) -> None:
     kind("slot", "a slot the page declares for other pages to fill", "page", "name").add_argument(
         "--doc", help="one line: where it is, and the props it passes"
     )
+    kind(
+        "contribution",
+        "a component of <page> in another page's declared slot: its stub, contributes in index.js, the README and the "
+        "registry test's filled assertion",
+        "page",
+        "slot",
+    ).add_argument("component", metavar="Component", help="the component's name, PascalCase (e.g. InstallButton)")
 
 
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc"):
+        for missing in (
+            "target",
+            "purpose",
+            "step",
+            "payload",
+            "when",
+            "module",
+            "project",
+            "label",
+            "doc",
+            "game",
+            "component",
+        ):
             setattr(args, missing, getattr(args, missing, None))
         if isinstance(args.payload, list):  # --payload repeated: one comma-separated line
             args.payload = ", ".join(part.strip() for part in args.payload if part.strip()) or None

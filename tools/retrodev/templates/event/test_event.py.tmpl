@@ -17,8 +17,8 @@ class Event{Event}(unittest.TestCase):
         heard = []
         listener = events.on("{full}")(lambda **payload: heard.append(payload))
         self.addCleanup(events._listeners["{full}"].remove, listener)
-        emits.{event}(example=1)
-        self.assertEqual(heard, [{{"example": 1}}])
+        emits.{event}({sample})
+        self.assertEqual(heard, [{heard}])
 
 
 if __name__ == "__main__":

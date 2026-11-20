@@ -5,7 +5,7 @@
 ## What changed
 
 ## How verified
-<!-- Commands and their results (python tools/check.py ...), and the systems you tried it on. -->
+<!-- Commands and their results (python tools/check.py ...). Tick each system you tried it on; leave a system unchecked and say why when it was not tried. -->
 - [ ] Linux
 - [ ] macOS (Apple Silicon / Intel)
 

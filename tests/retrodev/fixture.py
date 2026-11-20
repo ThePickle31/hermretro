@@ -10,7 +10,8 @@ Speed: every test has its own folders and passes its own working folder, output 
 they share set once around them. Under discovery the package's load_tests (`one_pool`) puts every module's tests
 in ONE pool (a module without `parallel` joins it class by class; `alone` keeps a module out of it). The threads
 share one interpreter lock, so the per-test copy and removal run as cp and rm. Never patch a module's global in
-a test (mock.patch.object): another thread may be using it; set up the real state instead. Run alone (python -m
+a test (mock.patch.object), os.environ, sys.stdout, sys.path or the working folder: another thread may be using it;
+set up the real state instead, or mark the module alone (tests/repo/test_pool_guard.py checks). Run alone (python -m
 unittest tests.retrodev.test_x.Case.test_y), a test sets that environment itself.
 """
 
@@ -18,11 +19,14 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tomllib
 import unittest
 from pathlib import Path
@@ -34,6 +38,7 @@ from retrodev import cli, state
 from tests.retrodev.pool import SHARED, alone, one_pool, parallel  # noqa: F401 - the modules import them from here
 
 POLICY = Path(retrodev.__file__).with_name("policy.toml")
+NO_MAINTENANCE = "[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n\tautoDetach = false\n"
 
 # The stand-ins find their test's folder (the one holding origin.git) above the checkout they run in.
 FIND_BASE = """from pathlib import Path
@@ -44,8 +49,10 @@ FAKE_CHECK = (
     + FIND_BASE
     + '''names = sys.argv[1:]
 with open(base / "checks.log", "a") as handle:
+    base_ok = {"base": os.environ["RD_SCAFFOLD_BASE"]} if "RD_SCAFFOLD_BASE" in os.environ else {}
+    mode = {"mode": os.environ["RD_SCAFFOLD_FULL"]} if os.environ.get("RD_SCAFFOLD_FULL") else {}
     handle.write(json.dumps({"names": names, "tmpdir": os.environ.get("TMPDIR"),
-                             "deps": os.environ.get("HERMRETRO_DEPS_ROOT")}) + "\\n")
+                             "deps": os.environ.get("HERMRETRO_DEPS_ROOT"), **base_ok, **mode}) + "\\n")
 failing = (base / "fail-checks").read_text().split() if (base / "fail-checks").is_file() else []
 skipping = (base / "skip-checks").read_text().split() if (base / "skip-checks").is_file() else []
 detail = (base / "skip-detail").read_text() if (base / "skip-detail").is_file() else "the toolchain is not installed"
@@ -147,8 +154,8 @@ Nothing else.
 """
 
 
-def git(cwd: Path, *args: str, check: bool = True) -> str:
-    done = subprocess.run(["git", *args], cwd=str(cwd), text=True, capture_output=True)
+def git(cwd: Path, *args: str, check: bool = True, env: dict | None = None) -> str:
+    done = subprocess.run(["git", *args], cwd=str(cwd), text=True, capture_output=True, env=env)
     if check and done.returncode:
         raise AssertionError(f"git {' '.join(args)}: {done.stderr}")
     return done.stdout
@@ -191,19 +198,19 @@ class Template:
         if cls.path is None:
             cls._keep = tempfile.TemporaryDirectory(prefix="retrodev-template-")
             base = Path(cls._keep.name)
-            with mock.patch.dict(os.environ, git_env(base)):
-                git(base, "init", "-q", "--bare", "-b", "dev", "origin.git")
-                main = base / "hermretro"
-                main.mkdir()
-                git(main, "init", "-q", "-b", "dev")
-                for name, text in FILES.items():
-                    write(main, name, text)
-                write(main, "tools/retrodev/policy.toml", policy_text())
-                git(main, "add", "-A")
-                git(main, "commit", "-q", "-m", "Start")
-                git(main, "remote", "add", "origin", str(base / "origin.git"))
-                git(main, "push", "-q", "origin", "dev")
-                git(main, "fetch", "-q", "origin")
+            env = {**os.environ, **git_env(base)}  # passed to each git: the process environment stays as it is
+            git(base, "init", "-q", "--bare", "-b", "dev", "origin.git", env=env)
+            main = base / "hermretro"
+            main.mkdir()
+            git(main, "init", "-q", "-b", "dev", env=env)
+            for name, text in FILES.items():
+                write(main, name, text)
+            write(main, "tools/retrodev/policy.toml", policy_text())
+            git(main, "add", "-A", env=env)
+            git(main, "commit", "-q", "-m", "Start", env=env)
+            git(main, "remote", "add", "origin", str(base / "origin.git"), env=env)
+            git(main, "push", "-q", "origin", "dev", env=env)
+            git(main, "fetch", "-q", "origin", env=env)
             cls.path = base
         return cls.path
 
@@ -212,7 +219,11 @@ def git_env(base: Path) -> dict:
     config = base / "gitconfig"
     if not config.exists():
         # No template: new repositories get no sample hooks, so each test's copy is small.
-        config.write_text("[init]\n\tdefaultBranch = dev\n\ttemplateDir =\n[advice]\n\tdetachedHead = false\n")
+        # No automatic maintenance either: git commit starts `git maintenance run --auto --detach`, which goes on
+        # writing in .git after the test ended, and macOS's rm -rf then says "Directory not empty" (CI on Intel).
+        config.write_text(
+            "[init]\n\tdefaultBranch = dev\n\ttemplateDir =\n[advice]\n\tdetachedHead = false\n" + NO_MAINTENANCE
+        )
     return {
         "GIT_CONFIG_GLOBAL": str(config),
         "GIT_CONFIG_NOSYSTEM": "1",
@@ -253,6 +264,17 @@ class FakeGH:
         return [call for call in self.calls if tuple(call[: len(prefix)]) == prefix]
 
 
+def remove_tree(path: Path, tries: int = 5) -> None:
+    """rm -rf ``path`` (outside this process: see RepoCase.setUp), again a few times when something still wrote
+    into it (macOS's rm says "Directory not empty"; ENOTEMPTY/EBUSY), finally with shutil.rmtree, whose error then
+    names what was left."""
+    for attempt in range(tries):
+        if subprocess.run(["rm", "-rf", str(path)], capture_output=True).returncode == 0 or not path.exists():
+            return
+        time.sleep(0.1 * (attempt + 1))
+    shutil.rmtree(path)
+
+
 class RepoCase(unittest.TestCase):
     """Each test gets its own copy of the template (main checkout, origin, worktree root beside them)."""
 
@@ -262,9 +284,10 @@ class RepoCase(unittest.TestCase):
         self.base = Path(tempfile.mkdtemp(prefix=self.prefix)).resolve()
         # Copied and removed by cp and rm, outside this process: the threads share one interpreter lock, and
         # Python's own copy and removal of a test's folders were most of what they waited for.
-        self.addCleanup(subprocess.run, ["rm", "-rf", str(self.base)], check=True)
+        self.addCleanup(remove_tree, self.base)
         if not SHARED["on"]:  # run alone, not through parallel(): set the shared environment here
-            patch = mock.patch.dict(os.environ, shared_env(), clear=True)
+            env = shared_env()
+            patch = mock.patch.dict(os.environ, env, clear=True)  # retrodev: allow pool — not run in the pool
             patch.start()
             self.addCleanup(patch.stop)
         template = Template.get()
@@ -333,3 +356,11 @@ class RepoCase(unittest.TestCase):
 
 
 PYTHON = sys.executable
+
+
+def retrodev_docs(*names: str) -> str:
+    """tools/retrodev's README.md and REFERENCE.md (or the ones named), each paragraph on one line: their pins
+    match text whatever the wrapping and whichever file holds it."""
+    folder = Path(__file__).resolve().parents[2] / "tools" / "retrodev"
+    texts = [(folder / name).read_text(encoding="utf-8") for name in names or ("README.md", "REFERENCE.md")]
+    return "\n\n".join(re.sub(r"(?<!\n)\n(?!\n)", " ", text) for text in texts)

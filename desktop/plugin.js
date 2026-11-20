@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 4c51a55ff3d61c899e1b0828907caeb1999bbdda887f039e4aebaa9d5f9ff151
- * body: sha256 7e7751d9370a618cabbb6f3c922fb6aa4bba346d8985845a140acb7dbee632a6
+ * sources: sha256 460c88755201887b3bc575e0126070904c73dc39e238e715174ab040acab91bb
+ * body: sha256 5f31e1db4ceb077af63b3b8ef6078868ac8a6725e68565bdaee4e154cb7a7e06
  */
 // page/sdk.js
 import {
@@ -747,6 +747,50 @@ function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
   return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
 }
 
+// page/pages/games/cartridge.js
+function Cartridge({ game, title, note = null, label, disabled = false, play = false, onClick, className = "" }) {
+  const thumb = game?.thumb ?? null;
+  return jsxs("button", {
+    "aria-label": label ?? title,
+    className: className ? `cs-cart ${className}` : "cs-cart",
+    disabled,
+    onClick,
+    type: "button",
+    children: [
+      jsx(
+        "span",
+        {
+          className: "slot",
+          children: thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, draggable: false, src: thumb }) : jsxs("span", { className: "ph", children: [title, note ? jsx("small", { children: note }, "note") : null] })
+        },
+        "slot"
+      ),
+      thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }, "nocover") : null,
+      play ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }, "hov") : null
+    ]
+  });
+}
+
+// page/app/format.js
+function formatBytes(bytes, { approx = false, unit = null } = {}) {
+  if (unit === "MB") {
+    bytes = bytes || 0;
+  }
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "";
+  }
+  const mb = bytes / 1e6;
+  const text2 = unit === "MB" ? `${Math.round(mb).toLocaleString()} MB` : unit === "KB" ? `${Math.max(1, Math.round(bytes / 1024))} KB` : mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+  return approx ? `≈ ${text2}` : text2;
+}
+function shortPath(path, keep = 4) {
+  if (!path) {
+    return null;
+  }
+  const parts = String(path).split(/[\\/]/).filter(Boolean);
+  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
+}
+
 // page/shared/ui/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
@@ -1180,7 +1224,7 @@ var GAME_STATES = {
 function gameMeta(game, { kind = true, now = Date.now() } = {}) {
   return [
     kind ? KIND_LABELS[game.kind] ?? game.kind ?? null : null,
-    game.rom?.size ? `${Math.max(1, Math.round(game.rom.size / 1024))} KB` : null,
+    game.rom?.size ? formatBytes(game.rom.size, { unit: "KB" }) : null,
     game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : "never built"
   ].filter(Boolean);
 }
@@ -1332,20 +1376,14 @@ function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   return jsxs("article", {
     className: "cs-gcard",
     children: [
-      jsxs("button", {
-        "aria-label": playable ? `Play ${title}` : title,
-        className: "cs-cart",
+      jsx(Cartridge, {
         disabled: !playable,
+        game,
+        label: playable ? `Play ${title}` : title,
+        note: playable ? "Title screen after first play" : "No build yet",
         onClick: () => onPlay(game.id),
-        type: "button",
-        children: [
-          jsx("span", {
-            className: "slot",
-            children: game.thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, src: game.thumb }) : jsxs("span", { className: "ph", children: [title, jsx("small", { children: playable ? "Title screen after first play" : "No build yet" })] })
-          }),
-          game.thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }) : null,
-          playable ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }) : null
-        ]
+        play: playable,
+        title
       }),
       jsxs("div", {
         className: "info",
@@ -1534,7 +1572,7 @@ var GAMES_PAGE = {
     "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent."
   },
   slots: {
-    "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button."
+    "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
   },
   contributes: {
     "emulator.barActions": [InstallButton]
@@ -1544,8 +1582,6 @@ var GAMES_PAGE = {
 // page/pages/setup/onboarding/onboarding.css.js
 var ONBOARDING_CSS = `
 /* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
-.cs-bad { color: var(--ui-red); }
-.cs-good { color: var(--ui-green); }
 .cs-onb { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: min(78vh, 900px); }
 .cs-onb[data-screen='install'] { justify-content: flex-start; padding-top: clamp(8px, 2cqi, 32px); }
 .cs-onb-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) minmax(200px, 30cqi); }
@@ -2257,23 +2293,6 @@ function ProfileBody({ status }) {
   });
 }
 
-// page/app/format.js
-function formatBytes(bytes, approx = false) {
-  if (!Number.isFinite(bytes) || bytes < 0) {
-    return "";
-  }
-  const mb = bytes / 1e6;
-  const text2 = mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
-  return approx ? `≈ ${text2}` : text2;
-}
-function shortPath(path, keep = 4) {
-  if (!path) {
-    return null;
-  }
-  const parts = String(path).split(/[\\/]/).filter(Boolean);
-  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
-}
-
 // page/pages/setup/install/install-panel.js
 var ROW_LABEL = { done: "verified", running: "installing", failed: "failed", pending: "" };
 function DownloadTable({ manifest, install, phase, profileRow }) {
@@ -2295,7 +2314,7 @@ function DownloadTable({ manifest, install, phase, profileRow }) {
         jsx("td", { className: "s", children: item.source }),
         jsx("td", {
           className: `z ${item.state ?? ""}`,
-          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, item.approx) : "no download"
+          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, { approx: item.approx }) : "no download"
         })
       ]
     },
@@ -2367,9 +2386,9 @@ function InstallFacts({ manifest, status, root }) {
     className: "cs-onb-facts",
     children: [
       jsx("dt", { children: "Download" }),
-      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, true) }),
+      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, { approx: true }) }),
       jsx("dt", { children: "On disk" }),
-      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, true) }),
+      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, { approx: true }) }),
       jsx("dt", { children: "Installs to" }),
       jsx("dd", { className: "path", title: root ?? "", children: shortPath(root) ?? "the plugin's deps folder" }),
       jsx("dt", { children: "Already here" }),
@@ -2495,7 +2514,6 @@ function InstallPanel({ ctx, status, install, step, profileStep }) {
 }
 
 // page/pages/setup/remove-tools.js
-var megabytes = (bytes) => `${Math.round((bytes || 0) / 1e6).toLocaleString()} MB`;
 function RemoveTools({ status, doctor }) {
   const [state, setState] = useState("idle");
   const [failure, setFailure] = useState(null);
@@ -2507,7 +2525,7 @@ function RemoveTools({ status, doctor }) {
       if (!data?.ok) {
         throw new Error(data?.error || "The tools could not be removed.");
       }
-      host.notify({ kind: "success", message: `Downloaded tools removed (${megabytes(data.removed_bytes)}). Your games are untouched.` });
+      host.notify({ kind: "success", message: `Downloaded tools removed (${formatBytes(data.removed_bytes, { unit: "MB" })}). Your games are untouched.` });
       status.refetch?.();
       doctor.refetch?.();
       setState("idle");
@@ -2860,7 +2878,7 @@ function OnboardWelcome({ manifest, onStart }) {
             style: { gap: 16 },
             children: [
               jsxs(Button, { onClick: onStart, size: "lg", variant: "default", children: ["Get started", jsx(Codicon, { name: "arrow-right", size: 14 })] }),
-              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, true)} download · ${formatBytes(manifest.disk_bytes, true)} on disk` }) : null
+              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, { approx: true })} download · ${formatBytes(manifest.disk_bytes, { approx: true })} on disk` }) : null
             ]
           })
         ]
@@ -3329,18 +3347,18 @@ var ASSETS_CSS = `
 
 // page/pages/build/attract/attract.css.js
 var ATTRACT_CSS = `
-/* New Game attract mode: the level behind the form, dimmed, with a pool of the page colour behind the composer */
-.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); }
+/* New Game attract mode: the level behind the form, dimmed; the form floats over it as frosted glass, apart from the game */
+.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); --cs-at-glass: color-mix(in srgb, var(--cs-at-bg) 60%, transparent); }
 .cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
-.cs-at canvas { bottom: 0; image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .5; position: absolute; }
-.cs-at-spot { background: radial-gradient(ellipse 560px 300px at var(--cs-at-sx, 50%) var(--cs-at-sy, 50%), color-mix(in srgb, var(--cs-at-bg) 92%, transparent) 0%, color-mix(in srgb, var(--cs-at-bg) 70%, transparent) 50%, transparent 80%); inset: 0; position: absolute; }
+.cs-at canvas { bottom: 0; filter: saturate(.78); image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .4; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
-/* the header above the form, so the game switcher's menu opens over it */
+/* the header above the form, so the game switcher's menu opens over it; the composer above the choice cards, so its
+   model picker opens over them (the glass's backdrop-filter makes each a stacking context that would trap it) */
 .cs-b-attract > .cs-b-head { z-index: 2; }
-.cs-b-attract .cs-b-new .cs-title { align-self: center; -webkit-text-stroke: 7px var(--cs-at-bg, transparent); paint-order: stroke fill; }
-.cs-b-attract .cs-b-new .cs-b-comp { background: var(--ui-bg-editor); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
-.cs-b-attract .cs-b-opt { background: var(--ui-bg-editor); }
-.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-bg-editor)); }
+.cs-b-attract .cs-b-new .cs-title { align-self: center; text-shadow: 0 2px 0 color-mix(in srgb, var(--cs-at-bg) 70%, black), 0 0 18px var(--cs-at-bg), 0 0 6px var(--cs-at-bg); }
+.cs-b-attract .cs-b-new .cs-b-comp { position: relative; z-index: 2; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-b-attract .cs-b-opt { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); }
+.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass)); }
 `;
 
 // page/pages/build/build-responsive.css.js
@@ -3381,6 +3399,36 @@ var BUILD_CSS = `
 .cs-b-game .dot.wait { animation: cs-b-pulse-y 1.6s infinite; background: var(--ui-yellow); height: 7px; width: 7px; }
 .cs-b-spin { animation: cs-b-spin .9s linear infinite; border: 2px solid var(--ui-accent); border-radius: 50%; border-right-color: transparent; display: inline-block; flex: none; height: 10px; width: 10px; }
 @keyframes cs-b-spin { to { transform: rotate(360deg); } }
+`;
+
+// page/pages/build/cart-shelf.css.js
+var CART_SHELF_CSS = `
+/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
+.cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
+.cs-b-shelf-probe { height: 0; width: 0; }
+.cs-b-attract { --cs-b-cap: 38px; }
+/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
+.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
+.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
+/* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
+   cartridges stay clickable the rest of the time */
+.cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
+.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
+.cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
+.cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
+.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
+.cs-b-shelf-cart b, .cs-b-shelf-cart small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
+.cs-b-shelf-cart:has(.cs-cart:hover) b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) b { color: var(--ui-accent); }
+.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
+.cs-b-shelf-cart.wait small { color: var(--ui-yellow); }
+.cs-b-shelf-cart small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
+.cs-b-shelf-cart small .dot.wait { background: var(--ui-yellow); }
+.cs-b-shelf-cart small .dot.new { background: var(--ui-accent); }
+.cs-b-shelf-cart small .cs-b-spin { height: 8px; width: 8px; }
+.cs-b-shelf-more { align-items: center; aspect-ratio: 299 / 340; background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 55%, transparent); border: 2px dashed var(--ui-text-quaternary, var(--ui-text-tertiary)); border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: grid; font: 700 18px ${MONO}; justify-content: center; width: 100px; }
+.cs-b-shelf-more:hover, .cs-b-shelf-more:focus-visible { border-color: var(--ui-accent); color: var(--ui-accent); }
+.cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
 `;
 
 // page/pages/build/chat/attachments.js
@@ -8879,10 +8927,9 @@ function BuildNewGame({ onStart, picker = null }) {
   return jsxs("section", {
     className: "cs-b-new",
     children: [
-      jsxs("h1", { className: "cs-word cs-title", "data-plat": "title", children: ["What are we ", jsx("span", { className: "cs-accent", children: "making?" })] }),
+      jsxs("h1", { className: "cs-word cs-title", children: ["What are we ", jsx("span", { className: "cs-accent", children: "making?" })] }),
       jsxs("div", {
         className: "cs-b-comp",
-        "data-plat": "composer",
         children: [
           jsx("textarea", {
             "aria-label": "Your game idea",
@@ -8927,7 +8974,6 @@ function BuildNewGame({ onStart, picker = null }) {
             {
               "aria-checked": mode === item.id,
               className: mode === item.id ? "cs-b-opt on" : "cs-b-opt",
-              "data-plat": "opt",
               "data-mode": item.id,
               onClick: () => setMode(item.id),
               onKeyDown: onModeKey,
@@ -9078,20 +9124,10 @@ function buildSurfaces(L) {
       } else c++;
     }
   }
-  for (const d of L.dom) if (d.y >= GH + 4) S2.push({ x0: d.x, x1: d.x + d.w, y: d.y, dom: d.kind });
   const out = [];
   for (const s of S2) {
-    let parts = [[s.x0, s.x1]];
-    for (const d of L.dom) {
-      if (d.y < s.y && d.y + d.h > s.y - GH - 2) {
-        parts = parts.flatMap(([a, b]) => d.x + d.w <= a || d.x >= b ? [[a, b]] : [[a, d.x], [d.x + d.w, b]].filter(([p, q]) => q - p >= 12));
-      }
-    }
-    for (let [a, b] of parts) {
-      a = Math.max(0, a);
-      b = Math.min(L.W, b);
-      if (b - a >= 12) out.push({ ...s, x0: a, x1: b });
-    }
+    const a = Math.max(0, s.x0), b = Math.min(L.W, s.x1);
+    if (b - a >= 12) out.push({ ...s, x0: a, x1: b });
   }
   const kept = [];
   for (const s of out) for (const part of standRuns(L, s)) {
@@ -9204,7 +9240,7 @@ function edgesFor(L, A) {
   const txs = /* @__PURE__ */ new Set([Math.round(A.l), Math.round(A.r)]);
   const stepX = Math.max(16, (A.r - A.l) / 9);
   for (let x = A.l + stepX; x < A.r - 6; x += stepX) txs.add(Math.round(x));
-  const isOneway = !A.dom && L.oneways.some((o) => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1);
+  const isOneway = L.oneways.some((o) => !o.mover && Math.abs(o.y - A.y) < 0.5 && o.x <= A.x0 + 1 && o.x + o.w >= A.x1 - 1);
   for (const tx of txs) {
     for (const d of OFFS) keep(simulate(L, tx, A.y, "jump", tx + d), tx, tx + d, "jump");
     for (const d of OFFS) keep(simulate(L, tx, A.y, "djump", tx + d), tx, tx + d, "djump");
@@ -9232,7 +9268,7 @@ function buildEdges(L) {
   });
 }
 function connect(L, free) {
-  const ground = L.surfaces.filter((s) => !s.dom && Math.abs(s.y - L.groundY) < 1);
+  const ground = L.surfaces.filter((s) => Math.abs(s.y - L.groundY) < 1);
   const reach = () => {
     const all = /* @__PURE__ */ new Set();
     for (const g of ground) if (!all.has(g.id)) for (const k of shortest(L, g.id).dist.keys()) all.add(k);
@@ -9243,7 +9279,7 @@ function connect(L, free) {
   let added = 0;
   for (let it = 0; it < 90; it++) {
     const ok = reach();
-    const lost = L.surfaces.filter((s) => !ok.has(s.id) && !skip.has(s.id) && !s.dom).sort((a, b) => b.y - a.y);
+    const lost = L.surfaces.filter((s) => !ok.has(s.id) && !skip.has(s.id)).sort((a, b) => b.y - a.y);
     if (!lost.length) break;
     const U = lost[0], rU = rowOf(U.y);
     const c0U = Math.floor(U.x0 / T), c1U = Math.ceil(U.x1 / T) - 1;
@@ -9319,15 +9355,13 @@ function firstEdge(paths, fromId, toId) {
 }
 
 // page/pages/build/attract/coins.js
-function placeCoins(L, dom, rng) {
+function placeCoins(L, rng) {
   const W = L.W, H = L.H, cols = L.cols;
   L.coinSpots = [];
   L.arcs = [];
-  const pad = 10;
   const blocked = (box) => {
     for (const r of L.solids) if (overlap({ x: box.x - 2, y: box.y - 2, w: box.w + 4, h: box.h + 4 }, r)) return true;
     for (const o of L.oneways) if (!o.mover && overlap({ x: box.x - 1, y: box.y, w: box.w + 2, h: box.h + 3 }, o)) return true;
-    for (const d of dom) if (overlap(box, { x: d.x - pad, y: d.y - pad - 14, w: d.w + 2 * pad, h: d.h + 2 * pad + 14 })) return true;
     return box.x < 2 || box.x + box.w > W - 2 || box.y < 14;
   };
   const apart = W * H > 38e4 ? 56 : 42;
@@ -9351,8 +9385,7 @@ function placeCoins(L, dom, rng) {
     for (const id of ids) {
       if (L.arcs.length >= wantArcs) break;
       const A = L.surfaces[id];
-      if (A.dom) continue;
-      const es = (L.edges.get(id) || []).filter((e) => e.mode === "jump" && !L.surfaces[e.to].dom && Math.abs(e.lx - e.tx) >= 40 && L.surfaces[e.to].y <= A.y + 4).sort(() => rng() - 0.5);
+      const es = (L.edges.get(id) || []).filter((e) => e.mode === "jump" && Math.abs(e.lx - e.tx) >= 40 && L.surfaces[e.to].y <= A.y + 4).sort(() => rng() - 0.5);
       for (const e of es) {
         const pts = trail(L, e.tx, A.y, e.lx);
         if (!pts) continue;
@@ -9377,7 +9410,7 @@ function placeCoins(L, dom, rng) {
   });
   const wantCoins = Math.max(30, Math.round(W * H / 9e3));
   const bands = [[], [], [], []];
-  for (const s of L.surfaces) if (!s.dom && s.r - s.l >= 34) bands[Math.min(3, Math.floor(s.y / (L.groundY / 4 + 0.01)))].push(s);
+  for (const s of L.surfaces) if (s.r - s.l >= 34) bands[Math.min(3, Math.floor(s.y / (L.groundY / 4 + 0.01)))].push(s);
   for (const b of bands) b.sort(() => rng() - 0.5);
   const order = [];
   for (let k = 0; bands.some((b) => b.length); k++) {
@@ -9415,7 +9448,7 @@ function placeCoins(L, dom, rng) {
 }
 
 // page/pages/build/attract/level.js
-function buildLevel(W, H, dom, seed) {
+function buildLevel(W, H, seed, { flat = [] } = {}) {
   const rng = rngOf(seed);
   const cols = Math.ceil(W / T), rows = Math.max(4, Math.floor(H / T)), oy = H - rows * T;
   const grid = new Uint8Array(cols * rows);
@@ -9424,27 +9457,18 @@ function buildLevel(W, H, dom, seed) {
     if (c >= 0 && c < cols && r >= 0 && r < rows) grid[r * cols + c] = v;
   };
   const cellY = (r) => oy + r * T;
-  const ex = dom.length ? dom.reduce((u, d) => ({ x0: Math.min(u.x0, d.x), y0: Math.min(u.y0, d.y), x1: Math.max(u.x1, d.x + d.w), y1: Math.max(u.y1, d.y + d.h) }), { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }) : null;
-  const free = (c, r) => {
-    if (r < 1) return false;
-    if (!ex) return true;
-    const x0 = c * T, y0 = cellY(r);
-    return !(x0 + T > ex.x0 - 10 && x0 < ex.x1 + 10 && y0 + T > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6);
-  };
+  const free = (c, r) => r >= 1;
   const gTop = rows - 2;
   for (let c = 0; c < cols; c++) {
     set(c, gTop, 1);
     set(c, gTop + 1, 2);
   }
-  const exL = ex ? Math.floor((ex.x0 - 12) / T) : Math.floor(cols * 0.45), exR = ex ? Math.ceil((ex.x1 + 12) / T) : Math.ceil(cols * 0.55);
-  const roomy = ex && ex.y1 < cellY(gTop) - 96;
-  const underPage = (c) => !roomy && c >= exL - 1 && c <= exR;
   const taken = new Uint8Array(cols);
   const claim = (c0, c1) => {
     for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[c] = 1;
   };
   const open = (c0, c1) => {
-    for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c] || underPage(c)) return false;
+    for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c]) return false;
     return true;
   };
   const pipes = [];
@@ -9456,11 +9480,16 @@ function buildLevel(W, H, dom, seed) {
     pipes.push({ c, dir, h, x: c * T, y: cellY(gTop - h), timer: 60 + Math.floor(rng() * 300) });
     claim(c - 1, c + 2);
   };
+  for (const [x0, x1] of flat) claim(Math.floor(x0 / T) - 1, Math.ceil(x1 / T));
   if (cols >= 10 && rows >= 6) {
-    pipe(1, 1, 2);
-    claim(0, 4);
-    pipe(cols - 3, -1, 2);
-    claim(cols - 5, cols - 1);
+    if (!taken[1] && !taken[2]) {
+      pipe(1, 1, 2);
+      claim(0, 4);
+    }
+    if (!taken[cols - 3] && !taken[cols - 2]) {
+      pipe(cols - 3, -1, 2);
+      claim(cols - 5, cols - 1);
+    }
     const extra = Math.floor(cols / 26);
     for (let i = 0; i < extra * 3 && pipes.length < 2 + extra; i++) {
       const c = 4 + Math.floor(rng() * (cols - 8));
@@ -9473,7 +9502,6 @@ function buildLevel(W, H, dom, seed) {
     for (let i = 0; i < want * 6 && pits.length < want; i++) {
       const w = 2, c0 = 3 + Math.floor(rng() * (cols - 6 - w));
       if (!open(c0 - 2, c0 + w + 1)) continue;
-      if (ex && (c0 + w + 2) * T > ex.x0 - 12 && (c0 - 3) * T < ex.x1 + 12) continue;
       for (let c = c0; c < c0 + w; c++) {
         set(c, gTop, 0);
         set(c, gTop + 1, 0);
@@ -9517,12 +9545,6 @@ function buildLevel(W, H, dom, seed) {
     for (let k = 0; k <= h; k++) if (at(c, r + k) !== 0 && k > 0) return false;
     return at(c, r) === 0;
   };
-  const freeLedge = (c, r) => {
-    if (r < 1) return false;
-    if (!ex) return true;
-    const x0 = c * T, y0 = cellY(r);
-    return !(x0 + T > ex.x0 - 12 && x0 < ex.x1 + 12 && y0 + 8 > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6);
-  };
   {
     const latRows = [];
     for (let r = gTop - 3; r >= 1; r -= 3) latRows.push(r);
@@ -9536,7 +9558,7 @@ function buildLevel(W, H, dom, seed) {
         const cells = [];
         for (let k = c; k < Math.min(cols, c + w); k++) cells.push(k);
         const head = (k) => at(k, r - 1) === 0 && (r < 2 || at(k, r - 2) === 0);
-        const okL = cells.filter((k) => freeLedge(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
+        const okL = cells.filter((k) => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
         const okS = cells.filter((k) => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2));
         let kind = rng();
         if (top || i === 0) kind = 0;
@@ -9570,18 +9592,6 @@ function buildLevel(W, H, dom, seed) {
       }
     });
   }
-  for (const d of dom) {
-    if (d.kind !== "composer" && d.kind !== "title" && d.kind !== "panel") continue;
-    const r = Math.round((d.y + 30 - oy) / T);
-    if (r < 2 || r >= gTop - 1) continue;
-    for (const side of [-1, 1]) {
-      const c = side < 0 ? Math.floor((d.x - 14) / T) : Math.ceil((d.x + d.w + 14) / T) - 1;
-      for (let k = 0; k < 2; k++) {
-        const cc = c + side * k;
-        if (free(cc, r) && at(cc, r) === 0 && at(cc, r - 1) === 0) set(cc, r, 5);
-      }
-    }
-  }
   const cannons = [];
   if (W >= 300 && rows >= 8) {
     for (const side of [1, -1]) {
@@ -9599,7 +9609,7 @@ function buildLevel(W, H, dom, seed) {
   }
   let flag = null;
   if (cols >= 18) {
-    for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0 && !underPage(c)) {
+    for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0) {
       flag = { x: c * T + 11, y: cellY(gTop), h: Math.min(5, gTop - 2) * T };
       break;
     }
@@ -9607,6 +9617,7 @@ function buildLevel(W, H, dom, seed) {
   for (const p of pits) {
     const r = gTop - 3, x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8 + 48;
     for (let c = Math.floor(x0 / T) - 1; c <= Math.ceil(x1 / T); c++) for (const rr of [r, r - 1]) if (at(c, rr) === 5) set(c, rr, 0);
+    for (let c = Math.floor(x0 / T) - 2; c <= Math.ceil(x1 / T) + 1; c++) for (const rr of [r - 2, r - 3]) if (at(c, rr) === 3 || at(c, rr) === 4) set(c, rr, 5);
   }
   const solids = [], oneways = [];
   for (let r = 0; r < rows; r++) {
@@ -9631,26 +9642,21 @@ function buildLevel(W, H, dom, seed) {
       } else c++;
     }
   }
-  for (const d of dom) solids.push({ x: d.x, y: d.y, w: d.w, h: d.h, kind: "dom", name: d.kind });
   const movers = [];
   for (const p of pits) {
     const y = cellY(gTop - 3);
     if (y < T * 2) continue;
     const x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8;
-    let clash = false;
-    for (const d of dom) if (y > d.y - 30 && y < d.y + d.h + GH + 60 && x1 + 48 > d.x && x0 < d.x + d.w) clash = true;
-    if (clash) continue;
     const m = { x: x0, y, w: 48, h: 8, x0, x1, vx: 0.5, dx: 0, dy: 0, mover: true, kind: "mover" };
     movers.push(m);
     oneways.push(m);
   }
-  const tunnel = ex && !roomy ? { x0: ex.x0 - 6, x1: ex.x1 + 6 } : null;
-  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: /* @__PURE__ */ new Map(), blocks, pipes, pits, movers, cannons, flag, dom, rng, groundY: cellY(gTop), tunnel };
+  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: /* @__PURE__ */ new Map(), blocks, pipes, pits, movers, cannons, flag, rng, groundY: cellY(gTop) };
   indexColliders(L);
   buildSurfaces(L);
   buildEdges(L);
   L.steps = connect(L, free);
-  placeCoins(L, dom, rng);
+  placeCoins(L, rng);
   L.decos = [];
   for (let c = 0; c < cols; c++) {
     if (at(c, gTop) !== 1 || at(c, gTop - 1) !== 0) continue;
@@ -9707,8 +9713,8 @@ var PILOT = {
     for (const t of sx) {
       const ago2 = this.frame - (g.seen.get(t.id) ?? -1e9), stale = Math.min(1, ago2 / 2400);
       if (stale < 0.25) continue;
-      const ground = !t.dom && Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY;
-      cands.push({ kind: "wander", s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height) * (t.dom ? 1.15 : 1), cost: paths.dist.get(t.id), far: true });
+      const ground = Math.abs(t.y - L.groundY) < 1, height = (L.groundY - t.y) / L.groundY;
+      cands.push({ kind: "wander", s: t, x: t.l + this.rng() * (t.r - t.l), jump: false, w: stale * (ground ? 1.5 : 1 + 0.35 * height), cost: paths.dist.get(t.id), far: true });
     }
     let best = null, bestScore = -1;
     for (const c of cands) {
@@ -9903,6 +9909,7 @@ var PILOT = {
       g.stun--;
       input = 0;
       g.vx *= 0.92;
+      if (g.stun === 0 && !g.ground) this.replanAir();
     } else if (g.exec) {
       const e = g.exec;
       e.t++;
@@ -10053,7 +10060,6 @@ var PILOT = {
     if (--g.blinkT <= 0 || g.blinkT === void 0 || isNaN(g.blinkT)) g.blinkT = 150 + Math.floor(this.rng() * 200);
     if (res.ground && wasAir && !g.exec) this.dust(g.x + GW / 2, g.y + GH);
     if (res.bumped && res.bumped.kind === "block") this.bumpBlock(res.bumped.ref);
-    if (res.bumped && res.bumped.kind === "dom") this.sparkle(g.x + GW / 2 - 3, g.y - 4);
     g.anim = g.ground ? input ? g.anim + 1 : 0 : g.anim;
     for (const c of this.coins) if (c.on && overlap(g, c)) {
       c.on = false;
@@ -10206,9 +10212,9 @@ var ACTORS = {
         this.enemies.push({ kind, x: p.x + 24 - sz[0] / 2, y: p.y + 6, w: sz[0], h: sz[1], vx: (kind === "spiny" ? 0.4 : 0.5) * p.dir, vy: 0, state: "emerge", t: 0, edgeTurn: kind === "blob" || rng() < 0.55, ground: null, pipeY: p.y, hopT: 40 + Math.floor(rng() * 60), dir: p.dir });
       }
     }
-    const top = L.surfaces.find((s) => s.dom === "composer" || s.dom === "panel");
-    if (this.frame % 600 === 300 && this.enemies.length < maxE && top && !this.enemies.some((e) => e.dropped)) {
-      const d = { x: top.x0, w: top.x1 - top.x0 };
+    const wide = L.surfaces.filter((s) => s.x1 - s.x0 >= 72 && s.y < L.groundY - 1);
+    if (this.frame % 600 === 300 && this.enemies.length < maxE && wide.length && !this.enemies.some((e) => e.dropped)) {
+      const top = wide[Math.floor(rng() * wide.length)], d = { x: top.x0, w: top.x1 - top.x0 };
       this.enemies.push({ kind: "bug", x: d.x + 24 + rng() * (d.w - 48), y: -18, w: 20, h: 15, vx: rng() < 0.5 ? -0.5 : 0.5, vy: 0, state: "walk", t: 0, edgeTurn: true, ground: null, dropped: true });
     }
     for (const e of this.enemies) {
@@ -10334,13 +10340,6 @@ var ACTORS = {
       if (b.x < -20 || b.x > this.W + 20) b.dead = true;
     }
     this.bullets = this.bullets.filter((b) => !b.dead);
-  },
-  typingCoin() {
-    const d = this.L.dom.find((x2) => x2.kind === "composer" || x2.kind === "panel");
-    if (!d || this.coins.filter((c) => c.loose).length > 8) return;
-    const x = d.x + 16 + this.rng() * (d.w - 32);
-    this.coins.push({ x, y: d.y - 18, w: 12, h: 16, vx: (this.rng() - 0.5) * 1.2, vy: -2.4, on: true, loose: true, rest: false, life: 1100 });
-    this.sparkle(x, d.y - 8);
   },
   addScore(n, x, y) {
     this.score += n;
@@ -11586,11 +11585,11 @@ var World = class {
     this.rng = rngOf(seed * 7 + 1);
     this.stats = { hits: {}, falls: 0, unsticks: 0, waves: 0, waves90: 0 };
   }
-  /** Build the level for a W x H screen (native pixels) around the page's boxes ({ x, y, w, h, kind }). */
-  build(W, H, dom) {
+  /** Build the level for a W x H screen (native pixels); `opts.flat` keeps ground spans flat (level.js). */
+  build(W, H, opts = {}) {
     this.W = W;
     this.H = H;
-    this.L = buildLevel(W, H, dom, this.seed);
+    this.L = buildLevel(W, H, this.seed, opts);
     const L = this.L;
     this.coins = L.coinSpots.map((s) => ({ x: s.x, y: s.y, w: 12, h: 16, on: true, t: 0, loose: false, arc: s.arc || null }));
     for (const a of L.arcs) a.live = this.coins.filter((c) => c.arc === a);
@@ -11605,7 +11604,7 @@ var World = class {
     this.clouds = [];
     const n = Math.max(3, Math.round(W / 90));
     for (let i = 0; i < n; i++) this.clouds.push(this.makeCloud(this.rng() * W, 12 + this.rng() * H * 0.45, 0.04 + this.rng() * 0.08));
-    const g0 = L.surfaces.filter((s) => !s.dom && Math.abs(s.y - L.groundY) < 1).sort((a, b) => b.x1 - b.x0 - (a.x1 - a.x0))[0] || L.surfaces[0];
+    const g0 = L.surfaces.filter((s) => Math.abs(s.y - L.groundY) < 1).sort((a, b) => b.x1 - b.x0 - (a.x1 - a.x0))[0] || L.surfaces[0];
     this.spawnSurface = g0;
     const reach = shortest(L, g0.id).dist;
     for (const c of this.coins) {
@@ -11724,21 +11723,17 @@ function backgroundOf(el, getStyle) {
   return { css: "rgb(16 18 24)", rgb: [16, 18, 24] };
 }
 var skyFor = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? "day" : "night";
-function platforms(root, canvasEl) {
+function flatSpans(root, canvasEl) {
   const origin = canvasEl.getBoundingClientRect(), out = [];
-  for (const el of root.querySelectorAll("[data-plat]")) {
+  for (const el of root.querySelectorAll("[data-at-flat]")) {
     const r = el.getBoundingClientRect();
-    if (r.width < 4) continue;
-    const x = Math.floor((r.left - origin.left) / SCALE), y = Math.round((r.top - origin.top) / SCALE);
-    const w = Math.ceil((r.right - origin.left) / SCALE) - x, h = Math.ceil((r.bottom - origin.top) / SCALE) - y;
-    if (y + h < 0 || y > origin.height / SCALE) continue;
-    out.push({ x, y, w, h, kind: el.dataset.plat });
+    if (r.width >= 4) out.push([Math.floor((r.left - origin.left) / SCALE), Math.ceil((r.right - origin.left) / SCALE)]);
   }
   return out;
 }
-function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
+function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
-  let world = null, placed = "", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, typed = 0, ticks = 0, alive = true;
+  let world = null, flat = "[]", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true;
   const still = () => !!motion?.matches;
   const look = () => {
     const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed = name !== sky || bg.css !== bgCss;
@@ -11758,17 +11753,13 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     canvasEl.style.height = `${H * SCALE}px`;
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
     look();
-    const boxes = platforms(host2, canvasEl);
-    placed = JSON.stringify(boxes);
+    const spans = flatSpans(host2, canvasEl);
+    flat = JSON.stringify(spans);
     world = makeWorld(seed);
-    world.build(W, H, boxes);
+    world.build(W, H, { flat: spans });
+    if (world.L) host2.style.setProperty("--cs-at-ground", `${(H - world.L.groundY) * SCALE}px`);
     if (keep) Object.assign(world, keep);
     world.attach(canvasEl, sky);
-    const composer = host2.querySelector('[data-plat="composer"]')?.getBoundingClientRect();
-    if (composer) {
-      layer.style.setProperty("--cs-at-sx", `${Math.round(composer.left + composer.width / 2 - area.left)}px`);
-      layer.style.setProperty("--cs-at-sy", `${Math.round(composer.top + composer.height / 2 - area.top)}px`);
-    }
     if (still()) for (let i = 0; i < 90; i++) world.step();
     world.render();
   };
@@ -11781,7 +11772,10 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
       last = now;
       return;
     }
-    if (++ticks % LOOK_EVERY === 0 && look() && still()) world.render();
+    if (++ticks % LOOK_EVERY === 0) {
+      if (look() && still()) world.render();
+      if (JSON.stringify(flatSpans(host2, canvasEl)) !== flat) later2();
+    }
     if (still()) {
       last = now;
       return;
@@ -11796,20 +11790,7 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     }
     if (n) world.render();
   };
-  const unobserve = observe([host2, ...host2.querySelectorAll("[data-plat]")], later2);
-  let moved = 0;
-  const recheck = () => {
-    moved = 0;
-    if (alive && JSON.stringify(platforms(host2, canvasEl)) !== placed) later2();
-  };
-  const onScroll = () => {
-    if (!moved) moved = setTimer(recheck, 100);
-  };
-  const onInput = (event) => {
-    if (event.target?.tagName === "TEXTAREA" && world && ++typed % 4 === 0) world.typingCoin();
-  };
-  host2.addEventListener("scroll", onScroll, true);
-  host2.addEventListener("input", onInput);
+  const unobserve = observe([host2], later2);
   motion?.addEventListener?.("change", later2);
   build();
   frameId = raf(frame);
@@ -11817,11 +11798,9 @@ function runAttract({ host: host2, layer, canvasEl, makeWorld, env, seed }) {
     alive = false;
     caf(frameId);
     clearTimer(timer);
-    clearTimer(moved);
     unobserve();
     host2.style.removeProperty("--cs-at-bg");
-    host2.removeEventListener("scroll", onScroll, true);
-    host2.removeEventListener("input", onInput);
+    host2.style.removeProperty("--cs-at-ground");
     motion?.removeEventListener?.("change", later2);
   };
 }
@@ -11847,23 +11826,17 @@ function browserEnv() {
 function AttractLevel() {
   const box = useRef(null), cv = useRef(null);
   useEffect(() => {
-    const layer = box.current, canvasEl = cv.current, host2 = layer?.parentElement;
+    const canvasEl = cv.current, host2 = box.current?.parentElement;
     if (!host2 || !canvasEl || !canDraw()) return void 0;
     return runAttract({
       host: host2,
-      layer,
       canvasEl,
       makeWorld: (seed) => new World(seed),
       env: browserEnv(),
       seed: 1 + Math.floor(Math.random() * 1e6)
     });
   }, []);
-  return jsxs("div", {
-    "aria-hidden": true,
-    className: "cs-at",
-    ref: box,
-    children: [jsx("canvas", { ref: cv }, "level"), jsx("div", { className: "cs-at-spot" }, "spot")]
-  });
+  return jsx("div", { "aria-hidden": true, className: "cs-at", ref: box, children: jsx("canvas", { ref: cv }) });
 }
 
 // page/pages/build/switcher.js
@@ -11888,10 +11861,19 @@ function switcherEntries(games, pending, states, selected) {
     })
   ];
 }
+var statusMark = (state) => state?.waiting ? jsx("i", { "aria-label": "Needs your answer", className: "dot wait" }) : state?.busy ? jsx("i", { "aria-label": `${AGENT} is working`, className: "cs-b-spin" }) : state?.unread ? jsx("i", { "aria-label": "New reply", className: "dot new" }) : null;
 var libraryWhen = (game) => (GAME_STATES[game.state] ?? GAME_STATES.unbuilt)[1];
-function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard }) {
+function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null, onRequestSeen = () => {
+} }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState("menu");
+  useEffect(() => {
+    if (request) {
+      setView(request.view === "library" && library.length ? "library" : "menu");
+      setOpen(true);
+      onRequestSeen();
+    }
+  }, [request?.seq]);
   const [query, setQuery] = useState("");
   const [ctxMenu, setCtxMenu] = useState(null);
   const box = useRef(null);
@@ -11970,7 +11952,6 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
     const frame = pop.current?.getBoundingClientRect?.();
     setCtxMenu({ key: entry.key, x: frame ? x - frame.left : 16, y: frame ? y - frame.top : 16 });
   };
-  const mark = (state) => state?.waiting ? jsx("i", { "aria-label": "Needs your answer", className: "dot wait" }) : state?.busy ? jsx("i", { "aria-label": `${AGENT} is working`, className: "cs-b-spin" }) : state?.unread ? jsx("i", { "aria-label": "New reply", className: "dot new" }) : null;
   const thumb = (game) => game?.thumb ? jsx("img", { alt: "", className: "cs-b-sw-thumb", draggable: false, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: "cs-b-sw-thumb ph", children: jsx(Codicon, { name: game ? "game" : "sparkle", size: 12 }) });
   const ctxEntry = ctxMenu ? entries.find((entry) => entry.key === ctxMenu.key) : null;
   const ctx = ctxEntry ? jsxs("div", {
@@ -12065,7 +12046,7 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
               children: [
                 thumb(entry.game),
                 jsxs("span", { className: "nm", children: [jsx("b", { children: entry.title }), jsx("small", { children: entry.sub })] }),
-                mark(entry.state),
+                statusMark(entry.state),
                 index < 9 ? jsxs("span", { className: "cs-b-sw-key", children: ["Ctrl ", index + 1] }) : null
               ]
             },
@@ -12167,6 +12148,84 @@ function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat
         role: "menu",
         children: [...view === "library" ? libraryView : menuView, ctx]
       }) : null
+    ]
+  });
+}
+
+// page/pages/build/cart-shelf.js
+var SLOT = 126;
+var MIN_HEIGHT = 560;
+function shelfOrder(entries) {
+  const rank = (entry) => entry.state?.waiting ? 0 : entry.pending ? 1 : 2;
+  const started2 = (entry) => entry.pending ? entry.pending.createdAt ?? Infinity : 0;
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || started2(b.entry) - started2(a.entry) || a.index - b.index).map((item) => item.entry);
+}
+function shelfFit(width, count, more) {
+  const slots = Math.max(1, Math.floor((width + 26) / SLOT));
+  return count + (more ? 1 : 0) <= slots ? count : Math.max(0, slots - 1);
+}
+function CartShelf({ entries, others, onSelect, onAll }) {
+  const box = useRef(null);
+  const [room, setRoom] = useState({ width: 5 * SLOT, height: MIN_HEIGHT });
+  useEffect(() => {
+    const area = box.current?.parentElement;
+    if (!area || typeof ResizeObserver !== "function") {
+      return void 0;
+    }
+    const measure = () => setRoom({ width: Math.min(area.clientWidth - 48, 8 * SLOT), height: area.clientHeight });
+    const watch = new ResizeObserver(measure);
+    watch.observe(area);
+    measure();
+    return () => watch.disconnect();
+  }, []);
+  const order = shelfOrder(entries);
+  if (!order.length || room.height < MIN_HEIGHT) {
+    return jsx("div", { "aria-hidden": true, className: "cs-b-shelf-probe", ref: box });
+  }
+  const shown = order.slice(0, shelfFit(room.width, order.length, others.length > 0));
+  const left = order.length - shown.length + others.length;
+  return jsxs("nav", {
+    "aria-label": "Your games",
+    className: "cs-b-shelf",
+    "data-at-flat": "",
+    ref: box,
+    children: [
+      ...shown.map(
+        (entry) => jsxs(
+          "div",
+          {
+            className: `cs-b-shelf-cart${entry.state?.waiting ? " wait" : ""}`,
+            children: [
+              jsx(Cartridge, {
+                game: entry.game,
+                label: `${entry.title}, ${entry.sub}`,
+                note: entry.game ? null : "Being set up",
+                onClick: () => onSelect(entry.key),
+                title: entry.title
+              }),
+              jsxs("span", { className: "cap", children: [jsx("b", { title: entry.title, children: entry.title }), jsxs("small", { children: [statusMark(entry.state), entry.sub] })] })
+            ]
+          },
+          entry.key
+        )
+      ),
+      left ? jsxs(
+        "div",
+        {
+          className: "cs-b-shelf-cart all",
+          children: [
+            jsx("button", {
+              "aria-label": `All games: ${left} more`,
+              className: "cs-b-shelf-more",
+              onClick: () => onAll(order.length > shown.length ? "menu" : "library"),
+              type: "button",
+              children: `+${left}`
+            }),
+            jsxs("span", { className: "cap", children: [jsx("b", { children: "All games" }), jsx("small", { children: others.length ? "With your library" : "Being worked on" })] })
+          ]
+        },
+        "all"
+      ) : null
     ]
   });
 }
@@ -12274,7 +12333,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
-      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null }] }));
+      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 }] }));
       select(`pending:${id}`);
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim());
       onLibraryChanged();
@@ -12303,6 +12362,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
   const [focusTurn, setFocusTurn] = useState(null);
+  const [switcherRequest, setSwitcherRequest] = useState(null);
   const settledItems = useRef(null);
   if (!shownChat?.busy) {
     settledItems.current = shownItems;
@@ -12421,6 +12481,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const switcher = jsx(BuildSwitcher, {
     entries,
     library,
+    onRequestSeen: () => setSwitcherRequest(null),
+    request: switcherRequest,
     onDiscard: (item) => discard(item),
     onOpenChat: openInFullChat,
     onSelect: select,
@@ -12511,7 +12573,12 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   }
   const main = selected === "new" ? jsxs("div", {
     className: "cs-b-chat cs-b-attract",
-    children: [jsx(AttractLevel, {}, "level"), header, jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new")]
+    children: [
+      jsx(AttractLevel, {}, "level"),
+      header,
+      jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
+    ]
   }) : jsxs("div", {
     className: "cs-b-chat",
     children: [
@@ -12755,7 +12822,42 @@ var MODEL_PICKER_CSS = `
 
 // page/pages/build/header.css.js
 var HEADER_CSS = `
-/* the header: status pill and Builds */
+/* the header: the game title and switcher (switcher.js), status pill and Builds menu (builds-menu.js) */
+.cs-b-swwrap { align-items: center; display: flex; gap: 10px; min-width: 0; position: relative; }
+.cs-b-sw { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-primary); cursor: pointer; display: inline-flex; gap: 8px; margin-left: -8px; min-width: 0; padding: 3px 8px; transition: background .12s ease; }
+.cs-b-sw:hover, .cs-b-sw.open { background: var(--ui-bg-quaternary); }
+.cs-b-sw h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-sw > i { color: var(--ui-text-tertiary); }
+.cs-b-sw-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 2px; left: -8px; max-width: calc(100vw - 24px); padding: 6px; position: absolute; top: calc(100% + 6px); width: 340px; z-index: 30; }
+.cs-b-sw-pop > .cs-eyebrow { padding: 8px 8px 2px; }
+.cs-b-sw-list { display: flex; flex-direction: column; gap: 2px; max-height: min(60svh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+.cs-b-sw-pop .cs-b-game { outline: none; width: 100%; }
+.cs-b-sw-new { color: var(--ui-accent); }
+.cs-b-sw-thumb { align-items: center; aspect-ratio: 160 / 144; background: var(--ui-bg-quaternary); border-radius: 4px; color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 0; height: 28px; image-rendering: pixelated; justify-content: center; object-fit: cover; overflow: hidden; width: auto; }
+.cs-b-sw-thumb.add { background: transparent; border: 1px dashed var(--ui-stroke-secondary); color: var(--ui-accent); }
+.cs-b-sw-key { color: var(--ui-text-quaternary); flex: none; font: 600 10px var(--dt-font-mono, ui-monospace, monospace); margin-left: 4px; }
+.cs-b-sw-empty { margin: 0; padding: 8px; }
+.cs-b-sw-pop.lib { width: 400px; }
+.cs-b-sw-thumb.edit { background: transparent; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-accent); }
+.cs-b-sw-go { color: var(--ui-text-tertiary); flex: none; }
+.cs-b-sw-back { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-weight: 600; gap: 8px; outline: none; padding: 6px 8px; text-align: left; }
+.cs-b-sw-back > i { color: var(--ui-text-tertiary); }
+.cs-b-sw-back:hover, .cs-b-sw-back:focus-visible { background: var(--ui-bg-quaternary); }
+.cs-b-sw-search { align-items: center; background: var(--ui-bg-editor); border-radius: 7px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin: 2px 2px 4px; padding: 6px 9px; }
+.cs-b-sw-search:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent); }
+.cs-b-sw-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 12.5px; min-width: 0; outline: none; }
+.cs-b-sw-pop .cs-b-game .go { color: var(--ui-accent); flex: none; font-size: 11.5px; opacity: 0; }
+.cs-b-sw-pop .cs-b-game:hover .go, .cs-b-sw-pop .cs-b-game:focus-visible .go { opacity: 1; }
+.cs-b-sw-foot { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); font-size: 11px; margin: 4px 0 0; padding: 7px 8px 3px; }
+.cs-b-needs { appearance: none; background: var(--ui-yellow); border: 0; border-radius: 999px; color: var(--ui-bg-editor); cursor: pointer; flex: none; font: 700 11px/18px inherit; padding: 0 9px; white-space: nowrap; }
+.cs-b-others { align-items: center; color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 11.5px; gap: 6px; white-space: nowrap; }
+.cs-b-otherdot { background: var(--ui-accent); border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); flex: none; height: 7px; width: 7px; }
+.cs-b-ctx { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; min-width: 180px; padding: 4px; position: absolute; z-index: 40; }
+.cs-b-ctx button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12px; gap: 8px; outline: none; padding: 6px 9px; text-align: left; }
+.cs-b-ctx button:hover:not(:disabled), .cs-b-ctx button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-ctx button.danger { color: var(--ui-red); }
+.cs-b-ctx button:disabled { cursor: default; opacity: .45; }
+.cs-b-ctx hr { border: 0; border-top: 1px solid var(--ui-stroke-tertiary); margin: 3px 2px; }
 .cs-b-pill { align-items: center; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 11.5px; gap: 6px; padding: 2px 10px; white-space: nowrap; }
 .cs-b-pill-dot { background: currentColor; border-radius: 50%; flex: none; height: 7px; width: 7px; }
 .cs-b-pill.good { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-green) 35%, transparent); color: var(--ui-green); }
@@ -12774,8 +12876,9 @@ var HEADER_CSS = `
 
 // page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
-/* New Game: the Build page's composer, centred, with the two ways to start under it */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+/* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-new .cs-title { margin: 0; text-align: center; }
 .cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }
@@ -12976,41 +13079,6 @@ var TRANSCRIPT_CSS = `
 .cs-b-head { align-items: center; align-self: center; box-sizing: border-box; display: flex; gap: 10px; max-width: var(--cs-b-width); min-height: 46px; padding: 8px clamp(14px, 3cqi, 28px) 2px; width: 100%; }
 .cs-b-head .cs-word { font-size: 22px; }
 .cs-top-profile { align-items: center; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); cursor: default; display: inline-flex; font-size: 11px; gap: 5px; margin-left: 10px; padding: 1px 9px 1px 7px; white-space: nowrap; }
-.cs-b-swwrap { align-items: center; display: flex; gap: 10px; min-width: 0; position: relative; }
-.cs-b-sw { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-primary); cursor: pointer; display: inline-flex; gap: 8px; margin-left: -8px; min-width: 0; padding: 3px 8px; transition: background .12s ease; }
-.cs-b-sw:hover, .cs-b-sw.open { background: var(--ui-bg-quaternary); }
-.cs-b-sw h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-sw > i { color: var(--ui-text-tertiary); }
-.cs-b-needs { appearance: none; background: var(--ui-yellow); border: 0; border-radius: 999px; color: var(--ui-bg-editor); cursor: pointer; flex: none; font: 700 11px/18px inherit; padding: 0 9px; white-space: nowrap; }
-.cs-b-others { align-items: center; color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 11.5px; gap: 6px; white-space: nowrap; }
-.cs-b-otherdot { background: var(--ui-accent); border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); flex: none; height: 7px; width: 7px; }
-.cs-b-sw-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 2px; left: -8px; max-width: calc(100vw - 24px); padding: 6px; position: absolute; top: calc(100% + 6px); width: 340px; z-index: 30; }
-.cs-b-sw-pop > .cs-eyebrow { padding: 8px 8px 2px; }
-.cs-b-sw-list { display: flex; flex-direction: column; gap: 2px; max-height: min(60svh, 460px); overflow-y: auto; overscroll-behavior: contain; }
-.cs-b-sw-pop .cs-b-game { outline: none; width: 100%; }
-.cs-b-sw-new { color: var(--ui-accent); }
-.cs-b-sw-thumb { align-items: center; aspect-ratio: 160 / 144; background: var(--ui-bg-quaternary); border-radius: 4px; color: var(--ui-text-tertiary); display: inline-flex; flex: none; font-size: 0; height: 28px; image-rendering: pixelated; justify-content: center; object-fit: cover; overflow: hidden; width: auto; }
-.cs-b-sw-thumb.add { background: transparent; border: 1px dashed var(--ui-stroke-secondary); color: var(--ui-accent); }
-.cs-b-sw-key { color: var(--ui-text-quaternary); flex: none; font: 600 10px var(--dt-font-mono, ui-monospace, monospace); margin-left: 4px; }
-.cs-b-sw-empty { margin: 0; padding: 8px; }
-.cs-b-sw-pop.lib { width: 400px; }
-.cs-b-sw-thumb.edit { background: transparent; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-accent); }
-.cs-b-sw-go { color: var(--ui-text-tertiary); flex: none; }
-.cs-b-sw-back { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-weight: 600; gap: 8px; outline: none; padding: 6px 8px; text-align: left; }
-.cs-b-sw-back > i { color: var(--ui-text-tertiary); }
-.cs-b-sw-back:hover, .cs-b-sw-back:focus-visible { background: var(--ui-bg-quaternary); }
-.cs-b-sw-search { align-items: center; background: var(--ui-bg-editor); border-radius: 7px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin: 2px 2px 4px; padding: 6px 9px; }
-.cs-b-sw-search:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-b-sw-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 12.5px; min-width: 0; outline: none; }
-.cs-b-sw-pop .cs-b-game .go { color: var(--ui-accent); flex: none; font-size: 11.5px; opacity: 0; }
-.cs-b-sw-pop .cs-b-game:hover .go, .cs-b-sw-pop .cs-b-game:focus-visible .go { opacity: 1; }
-.cs-b-sw-foot { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); font-size: 11px; margin: 4px 0 0; padding: 7px 8px 3px; }
-.cs-b-ctx { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; min-width: 180px; padding: 4px; position: absolute; z-index: 40; }
-.cs-b-ctx button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12px; gap: 8px; outline: none; padding: 6px 9px; text-align: left; }
-.cs-b-ctx button:hover:not(:disabled), .cs-b-ctx button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-b-ctx button.danger { color: var(--ui-red); }
-.cs-b-ctx button:disabled { cursor: default; opacity: .45; }
-.cs-b-ctx hr { border: 0; border-top: 1px solid var(--ui-stroke-tertiary); margin: 3px 2px; }
 .cs-b-txwrap { display: flex; flex: 1; flex-direction: column; min-height: 0; position: relative; }
 .cs-b-tx { flex: 1; -webkit-mask-image: linear-gradient(transparent, black 18px); mask-image: linear-gradient(transparent, black 18px); min-height: 0; overflow-anchor: none; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .cs-b-chat { --cs-b-width: clamp(720px, 62cqi, 1280px); }
@@ -13255,6 +13323,7 @@ var BUILD_PAGE = {
     WORKED_MODE_CSS,
     MENTIONS_CSS,
     ATTRACT_CSS,
+    CART_SHELF_CSS,
     BUILD_RESPONSIVE_CSS
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.
@@ -13373,6 +13442,8 @@ var BASE_CSS = `
 .cs-grow { flex: 1; }
 .cs-error { color: var(--ui-red); font: 12px/1.5 ${MONO}; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .cs-warn { color: var(--ui-yellow); }
+.cs-bad { color: var(--ui-red); }
+.cs-good { color: var(--ui-green); }
 .cs-draft { color: var(--ui-yellow); font: 700 9.5px ${MONO}; letter-spacing: .1em; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }

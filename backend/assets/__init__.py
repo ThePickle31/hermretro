@@ -7,5 +7,7 @@ Front door: nothing is exported; other features reach assets through events.
 __all__: list[str] = []
 
 EVENTS = {
-    "assets.image_restored": "The asset viewer put a kept version of an image back; path=<the image>",
+    "assets.image_restored": (
+        "The asset viewer put a kept version of an image back; path=<the image's absolute path, str>"
+    ),
 }

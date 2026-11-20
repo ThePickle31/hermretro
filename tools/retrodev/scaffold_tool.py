@@ -28,6 +28,7 @@ from .scaffold_source import (
     add_tool,
     check_front_door_name,
     check_sibling_name,
+    files_line,
     is_aggregator,
     js_str,
     module_names,
@@ -66,18 +67,27 @@ def tool_module(plan: Plan, feature_name: str, module: str) -> str:
 
 
 TOOL_ARGS = "tool_args"  # backend/<feature>/tool_args.py: tool_error and tool_project (backend/library has it)
-PROJECT_IMPORT = f"from .{TOOL_ARGS} import tool_error, tool_project"
+SHARED_ARGS = f"backend/hermes/{TOOL_ARGS}.py"  # the shared home of both, for any feature (library re-exports them)
+
+
+def project_import(plan: Plan, feature_name: str) -> str:
+    """Where a --project tool imports tool_error and tool_project from: its feature's tool_args.py, else the
+    shared backend/hermes/tool_args.py."""
+    if plan.exists(f"backend/{feature_name}/{TOOL_ARGS}.py"):
+        return f"from .{TOOL_ARGS} import tool_error, tool_project"
+    return f"from ..hermes.{TOOL_ARGS} import tool_error, tool_project"
 
 
 def wants_project(plan: Plan, feature_name: str, project: bool | None) -> bool:
-    """--project (default: on when the feature has tool_args.py, as library does; --no-project turns it off)."""
+    """--project (default: on when the feature has tool_args.py, as library does; --no-project turns it off).
+    Elsewhere --project imports the helpers from backend/hermes/tool_args.py, refused while that file is missing."""
     has = plan.exists(f"backend/{feature_name}/{TOOL_ARGS}.py")
-    if project and not has:
+    if project and not has and not plan.exists(SHARED_ARGS):
         raise Failure(
-            f"--project needs backend/{feature_name}/{TOOL_ARGS}.py (tool_error, tool_project), which "
-            f"{feature_name} does not have; nothing was written",
-            f"declare the tool in library (it has them), or copy backend/library/{TOOL_ARGS}.py's helpers into "
-            f"backend/{feature_name}/{TOOL_ARGS}.py first, or leave out --project",
+            f"--project needs tool_error and tool_project, from backend/{feature_name}/{TOOL_ARGS}.py or {SHARED_ARGS}, "
+            "and this tree has neither; nothing was written",
+            f"bring {SHARED_ARGS} from dev (python tools/retrodev sync; it is there since #60), declare the tool in "
+            "library (it has them), or leave out --project",
         )
     return has if project is None else project
 
@@ -95,15 +105,7 @@ def with_import(text: str, line: str, names: tuple[str, ...]) -> str:
 
 def tools_line(text: str, module: str) -> str:
     """The README's Tools line names the sibling module the tool went into: 'Tools (`tools.py`, `<module>.py`)'."""
-    lines = text.split("\n")
-    for index, line in enumerate(lines):
-        found = re.match(r"^(\s*[-*]\s*Tools)(?: \(([^)]*)\))?:", line)
-        if not found or f"`{module}.py`" in (found.group(2) or ""):
-            continue
-        files = (found.group(2) or "`tools.py`") + f", `{module}.py`"
-        lines[index] = f"{found.group(1)} ({files}):" + line[found.end() :]
-        return "\n".join(lines)
-    return text
+    return files_line(text, "Tools", "tools.py", module)
 
 
 def tool(
@@ -147,6 +149,7 @@ def tool(
             f"tools.py's TOOLS takes in (*{module}.TOOLS); --module <name> picks another name"
         )
     home = source if module is None else f"backend/{feature_name}/{tool_module(plan, feature_name, module)}.py"
+    values["module"] = module or "tools"  # the test imports the handler from there: a plain function to call
     plan.ensure(home, render("tool", "tools.py.tmpl", **values))
     for where in dict.fromkeys(rel for rel in (source, home) if plan.exists(rel)):  # one name per tool, feature-wide
         taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(where)))
@@ -158,7 +161,8 @@ def tool(
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
     block = render("tool", "tool_project.py.tmpl" if project else "tool.py.tmpl", **values)
     if project:
-        plan.edit(home, lambda text: with_import(text, PROJECT_IMPORT, ("tool_error", "tool_project")))
+        line = project_import(plan, feature_name)
+        plan.edit(home, lambda text: with_import(text, line, ("tool_error", "tool_project")))
     plan.edit(home, lambda text: add_tool(text, home, block, entry))
     if module is not None:
         plan.ensure(source, render("tool", "tools_index.py.tmpl", **values))
@@ -178,13 +182,15 @@ def tool(
         plan.edit(f"backend/{feature_name}/README.md", lambda text: tools_line(text, module))
     plan.regenerate = True
     plan.next_steps += [
-        f"write the schema and handler in {home}; describe {full} in {CONTRACT} (its line says what it does)"
+        f"write the schema and handler in {home}; in {contract_at(plan, full)} replace '{TOOL_LINE}' after `{full}` "
+        "with what it does and when the agent calls it"
         + (
             f"; it acts on a project: tool_project gives the `project` argument's folder, else this chat's ({TOOL_ARGS}.py)"
             if project
             else ""
         ),
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
+        f"tests/backend/{feature_name}/test_tool_{short}.py pins the stub's answer: change it with the real answer",
     ]
     codes = error_codes(plan)
     if codes:
@@ -196,6 +202,27 @@ def tool(
     if project and feature_name == "library":
         plan.next_steps.append(
             'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
+        )
+        plan.next_steps.append(
+            "the game card (from . import game_card): game_card.public(root) (None without a game.json); "
+            "game_card.status(root, strict=True) for what is missing (its missing and problems)"
+        )
+        plan.next_steps.append(
+            "a test that needs the game's last build: seed it after isolated_home(self) with "
+            'host._registry().upsert(str(project), build={"t": time.time(), "ok": True, "rom": None, "sha256": '
+            '"abc", "error": None}) (from backend.hermes import host; the fields Registry.upsert stores as lastBuild, '
+            "backend/library/games.py); the tool reads it back with host._registry().get(library.game_id(root))"
+            '["lastBuild"]'
+        )
+    if project:
+        plan.next_steps.append(
+            "the selected game is this chat's project (or the `project` argument): tool_project, as the stub does; "
+            "call host.library_game_for([root]) -> (game id, root) or None (from ..hermes import host) only when you "
+            "need the game's library id or entry (e.g. the id player.list_captures(root, game_id) takes)"
+        )
+        plan.next_steps.append(
+            "a test that needs a library game: `game, root = make_library_game(self.home, name)` from tests.support "
+            "(self.home = isolated_home(self), as the test's setUp has it)"
         )
     return f"tool {full}"
 
@@ -236,5 +263,42 @@ def _contract_tool(text: str, full: str, feature_name: str, home: str | None = N
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):
         raise Failure(f"{CONTRACT}: the tool counts are not where they were", "update them by hand, then run check")
-    line = f"- `{full}` (`{home or f'backend/{feature_name}/tools.py'}`): say what it does and when the agent calls it."
-    return insert_after(text, re.compile(r"in total\.$"), line, CONTRACT, last=False)
+    what = f"`{home or f'backend/{feature_name}/tools.py'}`: {TOOL_LINE}"
+    named = owned_sentence(text, full, what)
+    if named == text:
+        raise Failure(
+            f"{CONTRACT}: the 'plus <count> plugin-owned tools' sentence names no tool to add {full} after",
+            f"name {full} ({what}) at the end of that sentence by hand, then run check",
+        )
+    return named
+
+
+TOOL_LINE = "say what it does and when the agent calls it"  # tests/repo/test_placeholders.py refuses it unfilled
+
+
+def contract_at(plan: Plan, full: str) -> str:
+    """CONTRACT.md:<line> of the placeholder new wrote after the tool's name (just CONTRACT.md when it is not there)."""
+    text = plan.read(CONTRACT) if plan.exists(CONTRACT) else ""
+    at = text.find(f"`{full}` (")
+    at = text.find(TOOL_LINE, at) if at >= 0 else -1
+    return f"{CONTRACT}:{text[:at].count(chr(10)) + 1}" if at >= 0 else CONTRACT
+
+
+def owned_sentence(text: str, full: str, what: str = "") -> str:
+    """The sentence the 'plus N' count opens names every plugin-owned tool ('`a`, `b` (what) and `c`.'): the new
+    one goes last, with what it does in brackets ('`a`, `b` (what), `c` and `<full>` (<what>).'), the only place
+    CONTRACT lists it (tests/repo/test_lockstep.py counts the names in that sentence). Unchanged when that
+    sentence lists no backticked name or names it already."""
+    plus, total = re.search(r"\d+ tools, plus\s+\w+", text), re.search(r"\d+ in total", text)
+    if not plus or not total or total.start() < plus.end():
+        return text
+    region = text[plus.end() : total.start()]
+    end = region.rstrip().rfind(".")
+    if end < 0 or "`" not in region[:end] or f"`{full}`" in region:
+        return text
+    head = region[:end]
+    joins = [m for m in re.finditer(r"\s+and\s+", head) if head[: m.start()].count("(") == head[: m.start()].count(")")]
+    if joins:
+        head = head[: joins[-1].start()] + ", " + head[joins[-1].end() :]
+    said = f" ({what})" if what else ""
+    return text[: plus.end()] + head + f" and `{full}`{said}" + region[end:] + text[total.start() :]

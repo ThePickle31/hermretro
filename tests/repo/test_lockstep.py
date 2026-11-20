@@ -66,6 +66,14 @@ def collect():
     return declare.collect("backend", FEATURES)
 
 
+def contract_tool_list(text):
+    """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence
+    (`retrodev new tool` names a new tool at its end); nothing after the sentence counts."""
+    sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.", text, re.S)
+    assert sentence is not None, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence"
+    return sentence.group(1), re.findall(r"`(chromatic_\w+)`", sentence.group(2))
+
+
 def plugin_owned_tools(registered: set[str]) -> set[str]:
     engine = {f"chromatic_{tool['name']}" for tool in json.loads(paths.PINNED_TOOLS.read_text())["tools"]}
     return registered - engine
@@ -154,6 +162,28 @@ class LockStep(unittest.TestCase):
         self.assertIn(
             f"the {len(self.tools)} tools, {len(self.calls['skill'])} skills, {len(self.calls['hook'])} hooks", contract
         )
+
+    def test_the_contract_lists_exactly_the_plugin_owned_tools_it_counts(self):
+        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once (`retrodev new
+        tool` adds the new name at its end); a line after the sentence does not count."""
+        count, listed = contract_tool_list(read("docs/dev/CONTRACT.md"))
+        owned = plugin_owned_tools(self.tools)
+        fix = (
+            "\nFIX: in docs/dev/CONTRACT.md's 'plus <count> plugin-owned tools' sentence, name each tool in "
+            f"{sorted(owned)} once and write the count as {count_words().count_text(len(owned))!r}"
+        )
+        self.assertEqual(count_words().count_value(count), len(listed), "count word vs names listed" + fix)
+        self.assertEqual(
+            sorted(listed), sorted(owned), "names listed vs plugin.yaml tools that are not engine tools" + fix
+        )
+
+    def test_the_tool_list_is_the_sentence_alone(self):
+        text = (
+            "2 tools, plus two plugin-owned tools: `chromatic_a` and\n`chromatic_b` (`backend/x/tools.py`: new). "
+            "5 in total.\n- `chromatic_b` (library): a bullet right after it.\n\n## Game card\n\n"
+            "- `chromatic_a` (library): the card.\n"
+        )
+        self.assertEqual(contract_tool_list(text), ("two", ["chromatic_a", "chromatic_b"]))
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")
@@ -271,6 +301,55 @@ class LockStep(unittest.TestCase):
             "STUDIO-PAGES",
             next(line for line in read("backend/library/README.md").splitlines() if "- `pending`:" in line),
         )
+
+    def test_the_image_size_limit_agrees_with_its_docs(self):
+        """The largest image the asset viewer shows (versions.ASSET_MAX_BYTES) is the size its docs state."""
+        from backend.assets import versions
+
+        units = {"MB": 1024 * 1024, "KB": 1024}
+        for rel, pattern in (
+            ("docs/dev/STUDIO-PAGES.md", r"PNG, GIF, JPEG or WebP up to (\d+) (MB|KB)"),
+            ("backend/assets/README.md", r"`ASSET_MAX_BYTES` \((\d+) (MB|KB)\)"),
+        ):
+            found = re.findall(pattern, flat(read(rel)))
+            self.assertEqual(
+                [int(number) * units[unit] for number, unit in found],
+                [versions.ASSET_MAX_BYTES],
+                f"{rel} states {found or 'no'} image size limit; backend/assets/versions.py ASSET_MAX_BYTES is "
+                f"{versions.ASSET_MAX_BYTES} bytes ({versions.size_text(versions.ASSET_MAX_BYTES)})\nFIX: write "
+                f"{versions.size_text(versions.ASSET_MAX_BYTES)} there, or change ASSET_MAX_BYTES and the docs together",
+            )
+
+    def test_a_stated_page_count_is_the_real_one(self):
+        """A doc that counts the studio's pages ('six pages') counts PAGES in page/pages/index.js (better: no count)."""
+        found = re.search(r"PAGES = \[([^\]]*)\]", read("page/pages/index.js"))
+        assert found is not None, "page/pages/index.js: export const PAGES = [...]"
+        real = len([name for name in found.group(1).split(",") if name.strip()])
+        words = [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ]
+        for rel in ("README.md", "docs/dev/CONTRACT.md", "docs/dev/STUDIO-PAGES.md"):
+            for line, text in enumerate(read(rel).splitlines(), 1):
+                for count in re.findall(r"\b(\d+|" + "|".join(words) + r") (?:studio )?pages\b", text, re.I):
+                    stated = int(count) if count.isdigit() else words.index(count.lower())
+                    self.assertEqual(
+                        stated,
+                        real,
+                        f"{rel}:{line} says {count} pages; page/pages/index.js PAGES has {real}\n"
+                        "FIX: drop the count (say 'its pages'), or write the real one",
+                    )
 
 
 if __name__ == "__main__":

@@ -65,19 +65,23 @@ def resolution_lines(ctx, tree: Path, reviewed: str, head: str, generated: list[
     base = repo.git(["merge-base", reviewed, point], tree).strip()
     total = 0
     for name in (name for added, removed, name in stat if added or removed):
+        texts = {rev: blob(tree, rev, name) for rev in (reviewed, base, point, merged, head)}
+        if any(text is None for text in texts.values()):
+            return None  # a version git counted in lines but that is not UTF-8 text: no line count, so reviewed
         before = None
         if name in conflicted:  # both sides' code, merged without their comments
-            before = code_lines.merge_code(tree, name, *(blob(tree, rev, name) for rev in (reviewed, base, point)))
+            before = code_lines.merge_code(tree, name, *(texts[rev] or "" for rev in (reviewed, base, point)))
         if before is None:
-            before = code_lines.code(name, blob(tree, merged, name))
-        total += code_lines.count(before, code_lines.code(name, blob(tree, head, name)))
+            before = code_lines.code(name, texts[merged] or "")
+        total += code_lines.count(before, code_lines.code(name, texts[head] or ""))
     return total
 
 
-def blob(tree: Path, rev: str, name: str) -> str:
-    """The file ``name`` at ``rev`` ("" when it is not there: added or deleted on one side)."""
-    code, out, _err = repo.run(["git", "cat-file", "blob", f"{rev}:{name}"], tree)
-    return out if code == 0 else ""
+def blob(tree: Path, rev: str, name: str) -> str | None:
+    """The file ``name`` at ``rev`` ("" when it is not there: added or deleted on one side; None when it is binary,
+    a NUL byte or bytes that are not UTF-8: read as bytes, never decoded as text)."""
+    data = repo.blob(tree, f"{rev}:{name}")
+    return "" if data is None else repo.text(data)
 
 
 def merge_tree_output(code: int, out: str) -> tuple[str, list[str]] | None:

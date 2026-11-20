@@ -73,7 +73,7 @@ function OnboardWelcome({ manifest, onStart }) {
             children: [
               jsxs(Button, { onClick: onStart, size: 'lg', variant: 'default', children: ['Get started', jsx(Codicon, { name: 'arrow-right', size: 14 })] }),
               manifest
-                ? jsx('span', { className: 'cs-faint cs-mono', children: `${formatBytes(manifest.bytes, true)} download · ${formatBytes(manifest.disk_bytes, true)} on disk` })
+                ? jsx('span', { className: 'cs-faint cs-mono', children: `${formatBytes(manifest.bytes, { approx: true })} download · ${formatBytes(manifest.disk_bytes, { approx: true })} on disk` })
                 : null
             ]
           })

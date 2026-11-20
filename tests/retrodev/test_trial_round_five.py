@@ -6,9 +6,10 @@ test template, status behind dev without a plan, and ship's gates without a titl
 Run alone: python -m unittest tests.retrodev.test_trial_round_five
 """
 
+import argparse
+import functools
 import importlib.util
 import io
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,7 +19,7 @@ import retrodev
 from retrodev import cli, config, output, scaffold
 
 from tests.retrodev import test_scaffold_tree as tree_test
-from tests.retrodev.fixture import RepoCase, git, parallel, write
+from tests.retrodev.fixture import RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.scaffold_moves import needs_acorn
 from tests.retrodev.test_scaffold import ScaffoldCase
 
@@ -46,19 +47,31 @@ def inline_page(case, page_id: str = "rdprobe-own", exported: bool = False) -> N
 
 
 def event_help() -> str:
-    """`new event --help`, as argparse prints it."""
-    stream = io.StringIO()
-    with mock.patch("sys.stdout", stream), unittest.TestCase().assertRaises(SystemExit):
-        cli.parser().parse_args(["new", "event", "--help"])
-    return stream.getvalue()
+    """`new event --help`, as argparse prints it (format_help is what print_help writes; read from the parser itself
+    so no test swaps sys.stdout, which every thread of the pool writes to). An uncached parser of its own: cli.parser()
+    is cached and shared by every test."""
+    parser = event_parser(cli.parser.__wrapped__())
+    parser.color = False  # as print_help into a stream that is not a terminal
+    return parser.format_help()
+
+
+def event_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    for name in ("new", "event"):
+        parser = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction)).choices[name]
+    return parser
 
 
 class Guard(unittest.TestCase):
+    def test_event_help_leaves_the_cached_parser_unchanged(self):  # review 1, 1
+        event_help()
+        cached, fresh = event_parser(cli.parser()), event_parser(cli.parser.__wrapped__())
+        self.assertEqual(getattr(cached, "color", None), getattr(fresh, "color", None))
+
     def test_the_guard_runs_every_kind_and_the_real_steps_name_real_features_and_pages(self):
         kinds = {step[0] for step in tree_test.STEPS + tree_test.REAL_STEPS}
-        self.assertEqual(kinds, {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot"})
+        self.assertEqual(kinds, {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot", "contribution"})
         for step in tree_test.REAL_STEPS:
-            where = "page/pages" if step[0] in ("tab", "slot") else "backend"
+            where = "page/pages" if step[0] in ("tab", "slot", "contribution") else "backend"
             self.assertTrue((ROOT / where / step[1]).is_dir(), step)
         self.assertIn(["slot", "home"], [step[:2] for step in tree_test.REAL_STEPS])
 
@@ -85,7 +98,8 @@ class Guard(unittest.TestCase):
             steps = tree_test.real_steps(tree)
             listener = next(step for step in steps if step[0] == "listener")
             self.assertFalse(tree_test.listens(tree, listener[1], listener[2]), listener)
-        self.assertEqual(steps[3:5], [["tab", "setup", "rdreal-setup-first"], ["tab", "setup", "rdreal-setup-second"]])
+        setup = [step for step in steps if step[:2] == ["tab", "setup"]]
+        self.assertEqual(setup, [["tab", "setup", "rdreal-setup-first"], ["tab", "setup", "rdreal-setup-second"]])
         self.assertNotEqual(listener[1], "history", listener)
         names = [step[2] for step in steps if step[0] in ("event", "tab")]
         self.assertEqual(len(set(names)), len(names), "unique probe names")
@@ -102,19 +116,27 @@ class Guard(unittest.TestCase):
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        said = f"test_new ... skipped '{tree_test.UNIT_FIRST}:\nFAILED (failures=1)'\n\nOK (skipped=1)\n"
-        done = subprocess.CompletedProcess([], 0, "", said)
+        ran = []
+        failing = mock.Mock(side_effect=AssertionError("FAILED (failures=1)"))  # nested: unit, checked once first
         with (
-            mock.patch.object(module, "run", lambda *_a, **_k: done),
+            mock.patch.object(module, "run", lambda *a, **_k: ran.append(a)),
             mock.patch.object(module, "ruff_missing", lambda: None),
             mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.object(module, "scaffold_mode", lambda: "nested"),
+            # as on a developer's machine: in GitHub Actions the page job leaves unit to the unit job
+            mock.patch.object(module, "scaffold_baseline", functools.partial(module.scaffold_baseline, environ={})),
+            mock.patch.dict(module.CHECKS, {"unit": failing, "page": lambda _args: "fine"}),
             mock.patch.object(module, "ROOT", ROOT if (ROOT / "tools/npm/node_modules").is_dir() else Path("/")),
         ):
             if not (module.ROOT / "tools/npm/node_modules").is_dir():
                 self.skipTest("the npm tools are not set up here")
             with self.assertRaises(module.Skip) as raised:
                 module.check_scaffold(None)
-        self.assertEqual(str(raised.exception), "skipped: the tree fails unit (fix unit first)")
+        said = str(raised.exception).splitlines()
+        self.assertEqual(said[0], "skipped: the tree fails unit (fix unit first)")
+        self.assertIn("FAILED (failures=1)", said, "the failure itself shows")
+        self.assertTrue(said[-1].startswith("FIX: python tools/check.py unit"), said)
+        self.assertEqual((failing.call_count, ran), (1, []), "unit ran once; the scaffold module not at all")
 
 
 class Check(RepoCase):
@@ -258,14 +280,15 @@ class New(ScaffoldCase):
         steps = " ".join(out["next"])
         self.assertIn("'say what this listener does' in backend/rdprobe_ears/README.md's 'Listens to' entry", steps)
         source = self.read("backend/rdprobe_ears/listeners.py")
-        self.assertIn("log with host.logger (from ..hermes import host). A listener runs synchronously", source)
+        self.assertIn("A listener runs synchronously", source)  # round 15: host.logger is a next step, not prose
+        self.assertIn("log with host.logger (from ..hermes import host)", steps)
         said = " ".join(source.split())
         self.assertIn(
             "in the process and thread that emits the event, on the Hermes side (the gateway, the plugin host", said
         )
         self.assertIn("never in the broker; state kept at module level is that process's own", said)
         self.assertNotIn("only in the gateway", said)
-        self.assertNotIn("only in the gateway", (ROOT / "tools/retrodev/README.md").read_text())
+        self.assertNotIn("only in the gateway", retrodev_docs())
 
     def test_an_event_s_payload_reads_as_the_existing_entries(self):
         self.new("event", "history", "rdprobe_pruned", "--payload", "game, root=<project>", "--when", "it pruned")
@@ -278,7 +301,9 @@ class New(ScaffoldCase):
         self.new("page", "rdprobe-notes")
         self.new("slot", "rdprobe-notes", "more", "--doc", "Buttons after the lede. Props: { ctx }")
         readme = self.read("page/pages/rdprobe-notes/README.md")
-        self.assertIn("declares `rdprobe-notes.more`: buttons after the lede. Props: { ctx }", readme)
+        self.assertIn(
+            "**Slots:** declares `rdprobe-notes.more`: buttons after the lede. Props: `{ ctx }`. Contributes", readme
+        )
 
     def test_the_rpc_test_uses_isolated_home_and_the_next_steps_name_the_page_docs(self):
         out = self.new("rpc", "history", "rdprobe_ping")
@@ -286,11 +311,11 @@ class New(ScaffoldCase):
         self.assertIn("from tests.support import isolated_home", test)
         self.assertNotIn('HERMRETRO_HOME": home.name', test)
         self.assertIn(
-            "if a page shows it, describe it in that page's README **Shows:** line and its row in "
-            "docs/dev/STUDIO-PAGES.md",
+            "if a page shows it, describe it in that page's README **Shows:** line and as a bullet in its `### <Page>` "
+            "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
             out["next"],
         )
-        self.assertIn("calls `isolated_home(self)`", (ROOT / "tools/retrodev/README.md").read_text())
+        self.assertIn("calls `isolated_home(self)`", retrodev_docs())
 
 
 class Status(RepoCase):

@@ -1,36 +1,26 @@
-// The attract-mode level: one fixed screen built around the page's boxes. Ground with water pits and moving platforms,
+// The attract-mode level: one fixed screen, drawn behind the page and independent of it. Ground with water pits and moving platforms,
 // pipes, stone stairs, a lattice of planks and brick rows up to the top (rows three tiles apart, offset so there is
-// always a diagonal way up), open air around the headline, cannons, the goal flag, coins and decorations.
-import { GH, T, indexColliders, rngOf } from './physics.js'
+// always a diagonal way up), cannons, the goal flag, coins and decorations.
+import { T, indexColliders, rngOf } from './physics.js'
 import { buildEdges, buildSurfaces, connect } from './paths.js'
 import { placeCoins } from './coins.js'
 
-export function buildLevel(W, H, dom, seed) {
+/** `flat`: spans [x0, x1] (game px) of ground kept flat and whole, with no pit, pipe, stairs or tower: the New Game
+ *  shelf's cartridges stand there. A layout rule only: nothing there is solid or different for her. */
+export function buildLevel(W, H, seed, { flat = [] } = {}) {
   const rng = rngOf(seed)
   const cols = Math.ceil(W / T), rows = Math.max(4, Math.floor(H / T)), oy = H - rows * T
   const grid = new Uint8Array(cols * rows)
   const at = (c, r) => (c < 0 || c >= cols || r < 0 || r >= rows) ? 0 : grid[r * cols + c]
   const set = (c, r, v) => { if (c >= 0 && c < cols && r >= 0 && r < rows) grid[r * cols + c] = v }
   const cellY = r => oy + r * T
-  // the page's boxes, and a no-build zone around them
-  const ex = dom.length ? dom.reduce((u, d) => ({ x0: Math.min(u.x0, d.x), y0: Math.min(u.y0, d.y), x1: Math.max(u.x1, d.x + d.w), y1: Math.max(u.y1, d.y + d.h) }), { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }) : null
-  const free = (c, r) => {
-    if (r < 1) return false
-    if (!ex) return true
-    const x0 = c * T, y0 = cellY(r)
-    // open air over the page (she stands on the title and jumps from it); below it, room to stand on what is there
-    return !(x0 + T > ex.x0 - 10 && x0 < ex.x1 + 10 && y0 + T > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6)
-  }
+  // the page plays no part in the level: everywhere below the top row may be built on
+  const free = (c, r) => r >= 1
   const gTop = rows - 2
   for (let c = 0; c < cols; c++) { set(c, gTop, 1); set(c, gTop + 1, 2) }
-  // the page's columns (nothing is dug or stacked under the page)
-  const exL = ex ? Math.floor((ex.x0 - 12) / T) : Math.floor(cols * 0.45), exR = ex ? Math.ceil((ex.x1 + 12) / T) : Math.ceil(cols * 0.55)
-  // under the page only when there is room above the ground to jump a pit
-  const roomy = ex && ex.y1 < cellY(gTop) - 96
-  const underPage = c => !roomy && c >= exL - 1 && c <= exR
   const taken = new Uint8Array(cols) // ground columns already used by a pit, pipe or stairs
   const claim = (c0, c1) => { for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[c] = 1 }
-  const open = (c0, c1) => { for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c] || underPage(c)) return false; return true }
+  const open = (c0, c1) => { for (let c = c0; c <= c1; c++) if (c < 2 || c > cols - 3 || taken[c]) return false; return true }
   // pipes: one at each end, more along a wide level
   const pipes = []
   const pipe = (c, dir, h) => {
@@ -38,24 +28,23 @@ export function buildLevel(W, H, dom, seed) {
     pipes.push({ c, dir, h, x: c * T, y: cellY(gTop - h), timer: 60 + Math.floor(rng() * 300) })
     claim(c - 1, c + 2)
   }
+  for (const [x0, x1] of flat) claim(Math.floor(x0 / T) - 1, Math.ceil(x1 / T))
   if (cols >= 10 && rows >= 6) {
-    pipe(1, 1, 2); claim(0, 4)
-    pipe(cols - 3, -1, 2); claim(cols - 5, cols - 1)
+    if (!taken[1] && !taken[2]) { pipe(1, 1, 2); claim(0, 4) }
+    if (!taken[cols - 3] && !taken[cols - 2]) { pipe(cols - 3, -1, 2); claim(cols - 5, cols - 1) }
     const extra = Math.floor(cols / 26)
     for (let i = 0; i < extra * 3 && pipes.length < 2 + extra; i++) {
       const c = 4 + Math.floor(rng() * (cols - 8))
       if (open(c - 1, c + 2)) pipe(c, rng() < 0.5 ? -1 : 1, 2)
     }
   }
-  // pits of water: about one every 16 columns, never under the page
+  // pits of water: about one every 16 columns
   const pits = []
   if (cols >= 14) {
     const want = Math.max(1, Math.round(cols / 18))
     for (let i = 0; i < want * 6 && pits.length < want; i++) {
       const w = 2, c0 = 3 + Math.floor(rng() * (cols - 6 - w))
       if (!open(c0 - 2, c0 + w + 1)) continue
-      // never under the page, even when it is high: the moving platform would ride under a low ceiling
-      if (ex && (c0 + w + 2) * T > ex.x0 - 12 && (c0 - 3) * T < ex.x1 + 12) continue
       for (let c = c0; c < c0 + w; c++) { set(c, gTop, 0); set(c, gTop + 1, 0) }
       pits.push({ c0, c1: c0 + w - 1 }); claim(c0 - 2, c0 + w + 1)
     }
@@ -85,18 +74,9 @@ export function buildLevel(W, H, dom, seed) {
   }
   // The sky: a designed lattice of platforms. Rows sit three tiles apart (a single jump), from just above the
   // ground to the top of the screen; on each row, platforms alternate with gaps and every row is shifted half a
-  // step from the one below, so there is always a diagonal way up. Over the page only the top row is built: a
-  // bridge of planks above the title joining the two sides.
+  // step from the one below, so there is always a diagonal way up.
   const blocks = []
   const clear = (c, r, h = 3) => { for (let k = 0; k <= h; k++) if (at(c, r + k) !== 0 && k > 0) return false; return at(c, r) === 0 }
-  // planks may sit closer above the page than solid tiles: they are thin and she can jump up through them
-  const freeLedge = (c, r) => {
-    if (r < 1) return false
-    if (!ex) return true
-    const x0 = c * T, y0 = cellY(r)
-    // keep a pocket of open air over the title: she can stand on it and jump, and nothing crowds the headline
-    return !(x0 + T > ex.x0 - 12 && x0 < ex.x1 + 12 && y0 + 8 > ex.y0 - (GH + 26) && y0 < ex.y1 + GH + 6)
-  }
   {
     const latRows = []
     for (let r = gTop - 3; r >= 1; r -= 3) latRows.push(r)
@@ -110,7 +90,7 @@ export function buildLevel(W, H, dom, seed) {
         const cells = []
         for (let k = c; k < Math.min(cols, c + w); k++) cells.push(k)
         const head = k => at(k, r - 1) === 0 && (r < 2 || at(k, r - 2) === 0)
-        const okL = cells.filter(k => freeLedge(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2))
+        const okL = cells.filter(k => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2))
         const okS = cells.filter(k => free(k, r) && at(k, r) === 0 && head(k) && clear(k, r, 2))
         // pick a kind: planks most often; brick rows with ? blocks; a grass island; a line of ? blocks
         let kind = rng()
@@ -137,16 +117,6 @@ export function buildLevel(W, H, dom, seed) {
       }
     })
   }
-  // bridge ledges beside the composer and the title so the page is reachable from the sides
-  for (const d of dom) {
-    if (d.kind !== 'composer' && d.kind !== 'title' && d.kind !== 'panel') continue
-    const r = Math.round((d.y + 30 - oy) / T)
-    if (r < 2 || r >= gTop - 1) continue
-    for (const side of [-1, 1]) {
-      const c = side < 0 ? Math.floor((d.x - 14) / T) : Math.ceil((d.x + d.w + 14) / T) - 1
-      for (let k = 0; k < 2; k++) { const cc = c + side * k; if (free(cc, r) && at(cc, r) === 0 && at(cc, r - 1) === 0) set(cc, r, 5) }
-    }
-  }
   // cannons near both edges, aimed at the middle
   const cannons = []
   if (W >= 300 && rows >= 8) {
@@ -165,12 +135,15 @@ export function buildLevel(W, H, dom, seed) {
   }
   // the goal flag near the right end
   let flag = null
-  if (cols >= 18) { for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0 && !underPage(c)) { flag = { x: c * T + 11, y: cellY(gTop), h: Math.min(5, gTop - 2) * T }; break } }
+  if (cols >= 18) { for (let c = cols - 5; c > cols - 11; c--) if (at(c, gTop) === 1 && at(c, gTop - 1) === 0 && at(c + 1, gTop - 1) === 0) { flag = { x: c * T + 11, y: cellY(gTop), h: Math.min(5, gTop - 2) * T }; break } }
   // the moving platforms ride in their own lane: nothing static in their row (or the row above) along the track,
   // so the platform never slides into a plank and she never stands half on one, half on the other
   for (const p of pits) {
     const r = gTop - 3, x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8 + 48
     for (let c = Math.floor(x0 / T) - 1; c <= Math.ceil(x1 / T); c++) for (const rr of [r, r - 1]) if (at(c, rr) === 5) set(c, rr, 0)
+    // and no solid row just over the lane: bricks there would box her in on the platform (she could neither jump up
+    // nor clear them to either side), so they become planks she can jump up through
+    for (let c = Math.floor(x0 / T) - 2; c <= Math.ceil(x1 / T) + 1; c++) for (const rr of [r - 2, r - 3]) if (at(c, rr) === 3 || at(c, rr) === 4) set(c, rr, 5)
   }
   // colliders
   const solids = [], oneways = []
@@ -196,27 +169,21 @@ export function buildLevel(W, H, dom, seed) {
       } else c++
     }
   }
-  for (const d of dom) solids.push({ x: d.x, y: d.y, w: d.w, h: d.h, kind: 'dom', name: d.kind })
   // moving platforms over the pits
   const movers = []
   for (const p of pits) {
     const y = cellY(gTop - 3)
     if (y < T * 2) continue
     const x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8
-    let clash = false
-    for (const d of dom) if (y > d.y - 30 && y < d.y + d.h + GH + 60 && x1 + 48 > d.x && x0 < d.x + d.w) clash = true
-    if (clash) continue
     const m = { x: x0, y, w: 48, h: 8, x0, x1, vx: 0.5, dx: 0, dy: 0, mover: true, kind: 'mover' }
     movers.push(m); oneways.push(m)
   }
-  // a page too low to jump under: bugs on the ground turn back at its edges
-  const tunnel = ex && !roomy ? { x0: ex.x0 - 6, x1: ex.x1 + 6 } : null
-  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: new Map(), blocks, pipes, pits, movers, cannons, flag, dom, rng, groundY: cellY(gTop), tunnel }
+  const L = { W, H, cols, rows, oy, gTop, grid, at, solids, oneways, surfaces: [], edges: new Map(), blocks, pipes, pits, movers, cannons, flag, rng, groundY: cellY(gTop) }
   indexColliders(L)
   buildSurfaces(L)
   buildEdges(L)
   L.steps = connect(L, free)
-  placeCoins(L, dom, rng)
+  placeCoins(L, rng)
   // decorations on the ground
   L.decos = []
   for (let c = 0; c < cols; c++) {

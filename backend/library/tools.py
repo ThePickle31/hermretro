@@ -1,5 +1,5 @@
-"""The library's plugin-owned tools: chromatic_present_game, chromatic_game_info and chromatic_build_report,
-with their schemas and handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
+"""The library's plugin-owned tools (named on the Tools line of backend/library/README.md), with their schemas and
+handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
 
 from __future__ import annotations
 
@@ -188,7 +188,7 @@ GAME_INFO_TOOL = {
                 "type": "array",
                 "maxItems": game_card.MAX_GENRES,
                 "items": {"type": "string", "enum": list(game_card.GENRES)},
-                "description": "1 to 3 genres.",
+                "description": f"1 to {game_card.MAX_GENRES} genres.",
             },
             "tags": {
                 "type": "array",
@@ -198,7 +198,8 @@ GAME_INFO_TOOL = {
             },
             "controls": {
                 "type": "object",
-                "additionalProperties": {"type": "string"},
+                "maxProperties": game_card.MAX_CONTROLS,
+                "additionalProperties": {"type": "string", "maxLength": game_card.MAX_CONTROL_CHARS},
                 "description": "Optional button to action, e.g. {\"D-pad\": \"walk\", \"A\": \"pounce\"}.",
             },
             "cover": {

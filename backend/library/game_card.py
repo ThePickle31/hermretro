@@ -61,6 +61,7 @@ MAX_GENRES = 3
 MAX_TAGS = 12
 MAX_TAG_CHARS = 24
 MAX_CONTROLS = 12
+MAX_BUTTON_CHARS = 20
 MAX_CONTROL_CHARS = 60
 TEXT_FIELDS = ("title", "tagline", "description", "about")
 REQUIRED = ("title", "tagline", "description", "genres", "cover")
@@ -144,7 +145,16 @@ def _paeth(a: int, b: int, c: int) -> int:
 
 
 def decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
-    """Width, height and RGBA pixels of a non-interlaced 8-bit (or palette) PNG."""
+    """Width, height and RGBA pixels of a non-interlaced 8-bit (or palette) PNG; any damage is a PngError."""
+    try:
+        return _decode_png(data)
+    except PngError:
+        raise
+    except (struct.error, IndexError, ValueError, zlib.error) as error:
+        raise PngError(f"the PNG data is damaged ({error})") from error
+
+
+def _decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]:
     if data[:8] != b"\x89PNG\r\n\x1a\n":
         raise PngError("not a PNG file")
     position, header, palette, transparency, chunks = 8, None, None, None, []
@@ -357,8 +367,14 @@ def _controls_problem(value) -> str | None:
         return "controls must map a button to what it does, e.g. {\"A\": \"jump\"}."
     if len(value) > MAX_CONTROLS:
         return f"At most {MAX_CONTROLS} controls."
-    if any(not k.strip() or not v.strip() or len(k) > 20 or len(v) > MAX_CONTROL_CHARS for k, v in value.items()):
-        return f"Each control is a button name and what it does (up to {MAX_CONTROL_CHARS} characters)."
+    if any(
+        not k.strip() or not v.strip() or len(k) > MAX_BUTTON_CHARS or len(v) > MAX_CONTROL_CHARS
+        for k, v in value.items()
+    ):
+        return (
+            f"Each control is a button name (up to {MAX_BUTTON_CHARS} characters) and what it does "
+            f"(up to {MAX_CONTROL_CHARS} characters)."
+        )
     return None
 
 
@@ -417,7 +433,9 @@ def update(
     build_sha: str | None = None,
     default_title: str | None = None,
 ) -> dict:
-    """Check and store the given fields (all or nothing). ``{ok, problems?, card, status}``."""
+    """Check and store the given fields (all or nothing). ``{ok, problems?, card, status, was_complete}``:
+    ``was_complete`` is the strict completeness before this change, so ``result["status"]["complete"] and not
+    result["was_complete"]`` is the moment the card became complete."""
     root = Path(root)
     problems = []
     for field in TEXT_FIELDS:
@@ -449,6 +467,10 @@ def update(
                 problems.append(_copy_problem(copied))
     if problems:
         return {"ok": False, "problems": problems}
+    try:  # a damaged old card or cover must never block the update that repairs it
+        was_complete = status(root, load(root) or {}, strict=True)["complete"]
+    except Exception:
+        was_complete = False
     data = load(root) or {"version": VERSION, "createdAt": int(time.time())}
     data.setdefault("title", (default_title or root.name)[: LIMITS["title"][1]])
     for field in TEXT_FIELDS:
@@ -481,7 +503,7 @@ def update(
         data["version"] = VERSION
     data["updatedAt"] = int(time.time())
     _write(root, data)
-    return {"ok": True, "card": data, "status": status(root, data, strict=True)}
+    return {"ok": True, "card": data, "status": status(root, data, strict=True), "was_complete": was_complete}
 
 
 # -- for the desktop ---------------------------------------------------------------------

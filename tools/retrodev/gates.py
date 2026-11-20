@@ -6,7 +6,9 @@ Failure for the ones that did not pass, with the strictest exit code among them 
 
 from __future__ import annotations
 
+import os
 import re
+import shlex
 from dataclasses import asdict, dataclass
 
 from . import checks, repo, state
@@ -79,11 +81,7 @@ def plan_for(ctx, branch: str, record: dict) -> str | None:
     A record from start or plan link names its plan (None: started with --no-plan); a branch made by hand, or
     one whose record only check wrote, follows its kind: feat and fix need the plan named by their topic.
     """
-    kind, _, topic = branch.partition("/")
-    named = record.get("plan")
-    if named is None and (record.get("kind") or kind) not in ctx.policy["branches"]["no_plan"]:
-        named = record.get("topic") or topic  # only docs and chore may go without a plan
-    return named
+    return state.plan_named(record, branch, ctx.policy["branches"]["no_plan"])  # only docs and chore go without
 
 
 def plan_gate(ctx, branch: str, record: dict) -> Gate:
@@ -148,27 +146,43 @@ def checks_on_tree(ctx, record: dict, digest: str) -> Gate:
     )
 
 
+TITLE_LIMIT = 100  # characters: GitHub's list views and the release notes cut longer titles
+
+
 def title_problems(title: str) -> list[str]:
-    problems = []
-    if not title or not title.strip():
-        problems.append("the title is empty")
-    elif "\n" in title.strip():
-        problems.append("the title has more than one line")
-    elif title.strip().endswith("."):
+    """Each thing wrong with a pull request title, naming its length when that is the problem."""
+    said = (title or "").strip()
+    if not said:
+        return ["the title is empty"]
+    problems = ["the title has more than one line"] if "\n" in said else []
+    if said.endswith("."):
         problems.append("the title ends with a period")
-    elif len(title) > 100:
-        problems.append("the title is over 100 characters")
+    if len(said) > TITLE_LIMIT:
+        problems.append(f"the title is {len(said)} characters; the limit is {TITLE_LIMIT}")
     return problems
 
 
-def title_gate(title: str) -> Gate:
+def title_fixes(title: str) -> list[str]:
+    """What to do about each of title_problems(title), in its order."""
+    said = (title or "").strip()
+    if not said:
+        return ["give one plain sentence saying what the change does"]
+    fixes = ["put it on one line"] if "\n" in said else []
+    if said.endswith("."):
+        fixes.append("drop the trailing period")
+    if len(said) > TITLE_LIMIT:
+        fixes.append(f"shorten it to {TITLE_LIMIT} characters or fewer (yours is {len(said)})")
+    return fixes
+
+
+def title_gate(title: str, where: str = "--title") -> Gate:
     problems = title_problems(title)
     if problems:
         return Gate(
             "title",
             False,
             "; ".join(problems) + " (it becomes the commit and the release-note line)",
-            "--title 'One plain sentence saying what the change does' (no trailing period)",
+            f"{where}: " + ", and ".join(title_fixes(title)),
         )
     return passed("title", title)
 
@@ -228,3 +242,49 @@ def body_gate(text: str | None, sections: list[str]) -> Gate:
             "fill in every section of .github/pull_request_template.md in the body file",
         )
     return passed("body", "every section filled in")
+
+
+def agent_name(env=None, record: dict | None = None) -> str | None:
+    """The agent RETRODEV_AGENT names now, else the one start or takeover recorded for the branch (a later plan
+    approve or ship is a new process that may not have the variable)."""
+    return (os.environ if env is None else env).get("RETRODEV_AGENT") or (record or {}).get("agent") or None
+
+
+def environment(ctx) -> dict:
+    """The environment retrodev reads RETRODEV_AGENT from (a test passes its own as ctx.fakes['env'])."""
+    return (getattr(ctx, "fakes", None) or {}).get("env", os.environ)
+
+
+def made_by(ctx, env=None, record: dict | None = None) -> str:
+    """The attribution: the agent (RETRODEV_AGENT, else the branch's recorded one, else Hermes) and the GitHub account
+    (no GitHub remote: 'the owner'). The agent is always named, so the line agrees with agent_hint and the body gate
+    takes it as written."""
+    url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
+    found = re.search(r"github\.com[:/]([^/]+)/", url)
+    agent = agent_name(environment(ctx) if env is None else env, record) or "Hermes"
+    return f"Made by an agent ({agent}) for {'@' + found.group(1) if found else 'the owner'}."
+
+
+def agent_prefix(env=None, record: dict | None = None) -> str:
+    """What goes before a printed command that writes the body (plan approve after takeover), so its Made by line
+    names the agent: RETRODEV_AGENT='<the agent named or recorded>' (a placeholder while neither is), as start's step
+    3 in the README says."""
+    agent = agent_name(env, record)
+    return f"RETRODEV_AGENT={shlex.quote(agent)} " if agent else "RETRODEV_AGENT='<agent, model>' "
+
+
+GENERIC = ("Made by an agent (Hermes)", "Made by an agent for the owner")  # made_by's default; an older body's
+
+
+def agent_hint(text: str | None, env=None, record: dict | None = None) -> str:
+    """While the body's Made by line names the default agent (or none, in a body an older retrodev wrote), or the
+    body is still to be written without RETRODEV_AGENT (or an agent start or takeover recorded): how to name it."""
+    if agent_name(env, record):
+        return ""
+    if text is not None and not any(line in text for line in GENERIC):
+        return ""
+    said = "no agent" if text is not None and GENERIC[0] not in text else "no agent but Hermes"
+    return (
+        f"; its Made by line names {said}: name your agent and model there "
+        "(RETRODEV_AGENT='<agent, model>' names it in a body start or ship writes)"
+    )

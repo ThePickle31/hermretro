@@ -47,7 +47,7 @@ class Flow(RepoCase):
         code, out = self.run_cli("plan", "approve", "empty", "--words", "start")
         self.assertEqual(code, 1, out)
         self.assertIn("'## Goal'", out)
-        self.assertTrue(line_with(out, "FIX:").startswith("FIX: fill in notes/plans/empty.md first"), out)
+        self.assertTrue(line_with(out, "FIX:").startswith(f"FIX: fill in {self.main}/notes/plans/empty.md first"), out)
         self.assertIsNone(state.load_plan(self.main, "empty").get("approved"))
         self.new_plan("empty")  # written: now it may be approved
         self.assertEqual(self.run_cli("plan", "approve", "empty", "--words", "start")[0], 0)
@@ -83,7 +83,9 @@ class Flow(RepoCase):
         self.assertFalse((tree / "notes").exists(), "never in the worktree: gc would keep it")
         text = path.read_text()
         self.assertIn("## Why\nMake goalie work.\n", text)
-        self.assertIn("Made by an agent (Hermes) for the owner.", text)
+        self.assertIn(
+            "Made by an agent (Hermes) for the owner.", text
+        )  # no GitHub remote: the owner (round ten: agent named)
         fix = line_with(out, "FIX:").strip()  # the body gate's FIX (every gate runs and prints its own)
         self.assertTrue(fix.startswith(f"FIX: fill in {path}, then python tools/retrodev ship --title"), fix)
         self.assertEqual(shlex.split(fix.split(", then ")[1])[-2:], ["--body", str(path)])
@@ -114,7 +116,9 @@ class Flow(RepoCase):
             text = path.read_text()
             self.assertEqual(text.count("Made by an agent (Hermes) for the owner."), 1, text)
             if template == real:
-                self.assertIn(made_by.group(0) + "Made by an agent (Hermes) for the owner.\n", text)
+                # flipped (round seven): the line replaces the template's comment instead of following it
+                self.assertIn("## Made by\nMade by an agent (Hermes) for the owner.\n", text)
+                self.assertNotIn(made_by.group(0), text)
                 self.assertNotIn("\n---\n", text)
             else:
                 self.assertTrue(text.endswith("\n---\n\nMade by an agent (Hermes) for the owner.\n"), text)

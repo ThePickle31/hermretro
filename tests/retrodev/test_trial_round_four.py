@@ -7,6 +7,8 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_four
 """
 
 import shutil
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -14,7 +16,7 @@ import retrodev
 from retrodev import checks_triggers
 
 from tests.retrodev import test_trial_round_two as two
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 from tests.retrodev.test_trial_round_two import TITLE, line_with
 
@@ -299,11 +301,12 @@ class New(ScaffoldCase):
         self.new("feature", "rdprobe_ears")
         self.new("listener", "rdprobe_ears", "library.build_reported")
         listeners = self.read("backend/rdprobe_ears/listeners.py")
-        self.assertIn("def on_library_build_reported(**_payload) -> None:", listeners)
+        self.assertIn("def on_library_build_reported(*, game, assets, **_payload) -> None:", listeners)
 
     def test_rpc_next_steps_name_shell_via_profile(self):
-        steps = " ".join(self.new("rpc", "history", "rdprobe_recent")["next"])
-        self.assertIn("use shell.viaProfile for the queryKey's third part", steps)
+        self.new("feature", "rdprobe")  # not history or assets, whose RPCs go through callStudioOnly (round nine)
+        steps = " ".join(self.new("rpc", "rdprobe", "rdprobe_recent")["next"])
+        self.assertIn("queryKey: [ID, 'rdprobe_recent', shell.viaProfile]", steps)
 
     def test_a_library_project_tool_s_next_steps_name_project_files_and_the_title(self):
         for name in ("__init__.py", "tool_args.py"):
@@ -316,27 +319,39 @@ class New(ScaffoldCase):
         )
 
 
+WALK = """
+import sys, unittest
+
+
+def flat(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from flat(item)
+        else:
+            yield item
+
+
+found = unittest.TestLoader().discover(sys.argv[1] + "/tests", top_level_dir=sys.argv[1])  # as check.py unit
+print("\\n".join(test.id() for test in flat(found)))
+"""
+
+
 class Pool(unittest.TestCase):
     def test_walking_the_discovered_suite_reaches_every_test_id(self):
-        def flat(suite):
-            for item in suite:
-                if isinstance(item, unittest.TestSuite):
-                    yield from flat(item)
-                else:
-                    yield item
-
-        found = unittest.TestLoader().discover(str(ROOT / "tests"), top_level_dir=str(ROOT))  # as check.py unit
-        ids = [test.id() for test in flat(found)]
+        # In a process of its own: discovery imports every test module, whose first import changes sys.path.
+        ids = subprocess.run(
+            [sys.executable, "-c", WALK, str(ROOT)], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.split()
         self.assertIn(f"{__name__}.Pool.test_walking_the_discovered_suite_reaches_every_test_id", ids)
         self.assertIn("tests.retrodev.test_trial_round_four.Check.test_the_body_hash_is_read_from_the_banner_only", ids)
 
 
 class Readme(unittest.TestCase):
     def test_taking_over_a_branch_already_checked_out_skips_the_worktree(self):
-        text = (ROOT / "tools/retrodev/README.md").read_text()
+        text = retrodev_docs("REFERENCE.md")
         part = text[text.index("**Taking over a teammate's branch**") :].split("\n\n", 1)[0]
         self.assertIn("When the branch is checked out already", part)
-        self.assertIn("skip the worktree: run `plan new`, `plan approve`, `sync`, `check` and `ship` there", part)
+        self.assertIn("skip the worktree: run `sync`, `plan new`, `plan approve`, `check` and `ship` there", part)
 
 
 if __name__ == "__main__":

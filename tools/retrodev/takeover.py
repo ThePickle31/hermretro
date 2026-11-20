@@ -5,13 +5,17 @@
 Fetches, then makes <worktree_root>/<topic> on a local <branch> that tracks <remote>/<branch> (made from it; a
 local branch of that name must not exist yet), runs start's setup (npm ci, the ruff setup) and records the branch
 as start does. It never needs the main checkout on dev: nothing there changes but git's worktree list. The next
-steps: the plan (plan new and plan approve, while the branch has no approved one), sync while HEAD lacks commits of
-the base branch, then check.
+steps: while HEAD lacks commits of the base, read its diff of the files both changed (sync's merge empties it), then
+sync (the main checkout's retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes);
+then the plan, written knowing what the base rewrote (plan new and plan approve, while the branch has no approved
+one; else the pull request body notes/pr/<topic>.md, written from the template as start writes it, to fill in); then
+check. While the
+branch's copy is older, every one of these retrodev commands is the main checkout's, run in the worktree.
 """
 
 from __future__ import annotations
 
-from . import gates, plan, repo, start, state, status
+from . import gates, plan, repo, ship, start, state, status, sync
 from .gates import Gate
 from .output import Failure, cmd
 
@@ -66,6 +70,7 @@ def run(ctx, branch: str, setup: bool = True) -> int:
     repo.git(["worktree", "add", "--quiet", "--track", "-b", branch, str(path), remote], main)
     ctx.out.say(f"worktree {path} on {branch}, tracking {remote} ({(repo.head(path) or '')[:9]})")
     setup_results = start.run_setup(ctx, path) if setup else []
+    state.keep_plan_branch(main, branch, ctx.policy["branches"]["no_plan"])  # a stale record it replaces
     record = state.load_branch(main, branch)
     kind = branch.partition("/")[0] if "/" in branch else ""
     record.update(
@@ -78,26 +83,72 @@ def run(ctx, branch: str, setup: bool = True) -> int:
         start_sha=repo.head(path),
         taken_over=remote,
     )
+    agent = gates.agent_name(gates.environment(ctx))
+    if agent:  # the plan approve it prints is a new process, maybe without the variable: it reads this
+        record["agent"] = agent
     state.save_branch(main, record)
+    plan.remember(ctx, branch, record)  # a plan its topic names keeps it after land or gc forgets this record
+    named = gates.plan_for(ctx, branch, record)
+    if not pending_plan(ctx, named):  # else plan approve writes it, from the plan, once the owner approved
+        start.body_note(ctx, branch, record, no_plan=named is None)
     steps = next_steps(ctx, branch, path, record, topic)
+    kinds = ctx.policy["branches"]["kinds"]
+    if kind not in kinds:  # ship, land and CI read no branch kind (release notes group by labels): it keeps its name
+        ctx.out.say(
+            f"note: '{kind or branch}' is not one of this repository's kinds ({', '.join(kinds)}); {branch} keeps its "
+            "name: ship, land and CI accept any work branch (the pull request's title and labels are what the "
+            "release notes use), so keep it: retrodev's record follows this name"
+        )
+        ctx.out.set(kind_note=True)
     for step in steps:
         ctx.out.say("next: " + step)
     ctx.out.set(path=str(path), branch=branch, topic=topic, tracking=remote, setup=setup_results, next=steps)
     return 0
 
 
+def pending_plan(ctx, named: str | None) -> bool:
+    """The branch needs a plan the owner has not approved yet (its body is written when they do)."""
+    return bool(named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok)
+
+
 def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
+    """Every retrodev command in them is run by sync.runner: the main checkout's while the branch's own copy is older
+    (its plan approve and status would print the older sync step), until sync brings the branch's copy up to date."""
+    run = sync.runner(ctx, path)
+    return [sync.newer(step, run) for step in _next_steps(ctx, branch, path, record)]
+
+
+def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
+    """sync comes before the plan: the plan is then written knowing what the base rewrote of the branch's files
+    (and sync's conflict hints say where); what the base changed in them is read before sync's merge empties it."""
     steps = [cmd("cd", path)]
-    named = gates.plan_for(ctx, branch, record)
-    if named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok:
-        if not plan.plan_file(ctx, named).is_file():
-            steps.append(f"python tools/retrodev plan new {named} (say what the branch does and what is left)")
-        steps.append(
-            f"show the owner notes/plans/{named}.md; when they say start: python tools/retrodev plan approve {named} "
-            '--words "<their exact words>" (it also writes the pull request body)'
-        )
     behind = status.behind(ctx, path)
+    both = status.overlap(ctx, path) if behind else []
+    named = gates.plan_for(ctx, branch, record)
+    planned = pending_plan(ctx, named)
+    body = ship.default_body(ctx, branch, record)
+    if both:  # sync's merge empties this diff: read it while it still shows what dev did to the branch's files
+        steps.append(status.read_first(both, ctx.remote_base, "sync merges it"))
     if behind:
-        steps.append(f"python tools/retrodev sync (HEAD lacks {behind} commit(s) of {ctx.remote_base})")
+        steps.append(
+            f"{sync.sync_command(ctx, path)} (HEAD lacks {behind} commit(s) of {ctx.remote_base}{sync.older(ctx, path)})"
+        )
+    if planned and named:
+        if not plan.plan_file(ctx, named).is_file():
+            steps.append(
+                f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
+                "does and what is left)"
+            )
+        # the body plan approve writes names the agent in its Made by line (the recorded one, printed here too)
+        agent = gates.agent_prefix(gates.environment(ctx), record)
+        steps.append(
+            f"show the owner {plan.plan_file(ctx, named)}; when they say start: {agent}python tools/retrodev plan "
+            f'approve {named} --words "<their exact words>" (it also writes the pull request body {body})'
+        )
+    else:
+        steps.append(
+            f"fill in {body} as you work: the pull request body ship reads (notes/ is in the main checkout, shared by "
+            "every worktree)"
+        )
     steps.append("python tools/retrodev check")
     return steps

@@ -35,10 +35,11 @@ One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-i
 current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
 
 ```sh
-python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 18 s on an idle machine)
+python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 28 s on an idle machine)
 python tools/check.py full       # plus the real-engine acceptance run (python tools/ci/prepare_toolchain.py first)
 python tools/check.py unit page  # just these
 python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest; pytest is not used)
+node tests/page/<name>.test.mjs    # one page test (rebuild the bundle first after editing page/)
 python tools/check.py fix        # apply every automatic lint fix and the Python formatting (ruff), then lint
 node tools/bundle/bundle.mjs            # rebuild the generated page files after editing page/
 node tools/bundle/bundle.mjs --watch    # rebuild on every save
@@ -50,7 +51,7 @@ since their last pass on the branch (a cached pass prints `ok (cached)`; `--agai
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
 `engine/`, `player/`, the toolchain or `plugin.yaml` beyond its `version:` line (about 1 minute), the clean install
 (about 40 s; with the update check when files moved or were deleted) when it changed the registration side, and the
-`scaffold` check (`retrodev new` run on a throwaway copy of the tree, about 20 s) when it changed the scaffolds or the
+`scaffold` check (`retrodev new` run on a throwaway copy of the tree, about 50 s) when it changed the scaffolds or the
 files whose structure they parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the
 docs do not count). A
 branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
@@ -94,8 +95,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
    `isolated_home(self)` from `tests/support.py`: it moves both, plus its own short broker folder (`throwaway_deps`
    for downloads). A test that calls a real event emitter reaches every feature's listeners, so it needs this too.
    Import helpers as `from tests.support import ...`, never with `tests/` on `sys.path`. `python tools/check.py unit`
-   runs the suite with an empty home folder and fails if anything is written there, naming the test module that
-   wrote it. The unit tests must pass on a machine without Hermes.
+   runs the suite with an empty home folder and an empty `TMPDIR` and fails if anything is written to the home or
+   left in `TMPDIR`, naming the test module. The unit tests must pass on a machine without Hermes.
 8. **Notes stay local.** Plans, reports, logs, summaries and evidence written while working go in `notes/`, which
    git ignores. Committed documents are only those listed in `tools/layout.toml` `[docs]`; `tests/repo/test_docs.py`
    fails on any other.
@@ -107,8 +108,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   `plan approve <topic> --words "..."` records the owner's go in their words; `start <kind>/<topic>` makes the
   worktree from a fresh `dev`, sets it up and writes the pull request body `notes/pr/<topic>.md` from the plan to
   fill in (docs and chore branches may skip the plan with `--no-plan`; `takeover <branch>` does the same for a
-  teammate's pushed branch); `new feature|rpc|tool|event|listener|page|tab|slot ...` writes a piece with every
-  registry line it needs (`--dry-run` shows the diff first); `check`; `ship --title ...` stops until the body is
+  teammate's pushed branch); `new feature|rpc|tool|event|listener|page|tab|slot|contribution ...` writes a piece
+  with every registry line it needs (`--dry-run` shows the diff first, also on `dev`); `check`; `ship --title ...` stops until the body is
   filled in (writing it when missing; a dry run too), then pushes and
   opens the draft pull request only for a committed tree that passed `check`; after that a bare `ship` reuses the
   recorded title and body; `report` gives the facts for the report to the owner; `approve <n> --words
@@ -121,7 +122,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - `dev` takes changes only through pull requests, squash-merged. `main` moves only when the owner
   releases: a fast-forward to a green `dev` commit, a tag and generated release notes.
 - Work in a worktree on its own branch from `dev`, named `feat/…` (a new ability), `fix/…` (a bug), `docs/…`
-  (documentation only) or `chore/…` (refactors of tests, tools and CI that change no behaviour). A checkout that a
+  (documentation only) or `chore/…` (refactors that change no behaviour). A checkout that a
   Hermes profile loads as its live plugin stays on `dev`.
 - One concern per pull request, opened with `python tools/retrodev ship` (into `dev`, after `check`). The title is a
   plain sentence; it becomes the commit and the release-note line.
@@ -133,7 +134,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   request needs its own approval. GitHub auto-merge stays off.
 - When `dev` moved on, `python tools/retrodev sync` merges it in. On a conflict in a source file, edit the
   conflicting hunks (never take one side of a whole file with `git checkout --ours/--theirs`: its other hunks were
-  merged), `git add` them and run `sync` again; it rebuilds the generated files and makes the merge commit.
+  merged), `git add` them and run `sync` again; it rebuilds the generated files and makes the merge commit. Resolve only the
+  conflict there; new work goes in its own commit after `sync`.
 - Backend features declare their RPCs, tools, hooks and events in their own folder and connect only through
   front doors and events (`docs/dev/ARCHITECTURE.md`, "The agent half"; checked by `tests/repo/test_boundaries.py`,
   registrations pinned by `tests/repo/test_registration_snapshot.py`). Names that must still change together

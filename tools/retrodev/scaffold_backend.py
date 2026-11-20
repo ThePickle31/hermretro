@@ -8,8 +8,8 @@ snapshot) prove the generated code is in step.
 from __future__ import annotations
 
 import ast
-import json
 import re
+import textwrap
 
 from . import scaffold_rpc
 from .output import Failure
@@ -27,9 +27,16 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import (
-    add_event,
+from .scaffold_payload import (
+    contract_cell,
+    emitter_values,
+    events_payload,
+    payload_keys,
+    placeholders,
+    refuse_reserved_keys,
+    undescribed,
 )
+from .scaffold_source import add_event, event_entry, files_line
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -37,7 +44,6 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
-STUDIO_PAGE = "page/app/studio-page.js"  # where the shell asks for its RPCs (the games query is the model)
 BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
@@ -199,42 +205,36 @@ def rpc_names(plan: Plan) -> set[str]:
     return found
 
 
-def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) -> str:
+def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, game: bool = False) -> str:
     known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
     if name in rpc_names(plan) or name in {a or b for a, b in documented}:
         raise Failure(f"an RPC named {name} exists (or CONTRACT.md documents one)", "pick another RPC name")
+    scaffold_rpc.refuse_reserved(plan, name)
     values = {"name": feature_name, "Name": label(feature_name), "rpc": name, "Rpc": pascal(name), "RPC": const(name)}
+    if game:  # about one library game: host._game_root finds it, else NO_GAME (as history's builds answers)
+        values["handler"] = "rpc_game.py.tmpl"
     source = f"backend/{feature_name}/rpcs.py"
     if module:  # the handler in its own module; rpcs.py keeps the @rpc declaration (scaffold_rpc.py)
         source = scaffold_rpc.in_module(plan, feature_name, module, values)
     else:
         scaffold_rpc.big_note(plan, feature_name, name)
         source = scaffold_rpc.inline(plan, feature_name, values)
+    if game:
+        scaffold_rpc.needs_host(plan, source)
+    scaffold_rpc.listed_in_docstring(plan, f"backend/{feature_name}/rpcs.py", name)
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
-    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", "test_rpc.py.tmpl", **values))
-    block = render("rpc", "contract.md.tmpl", **values)
+    test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
+    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
+    block = render("rpc", "contract_game.md.tmpl" if game else "contract.md.tmpl", **values)
     plan.edit(CONTRACT, lambda text: _before_heading(text, "## Studio pages", block))
     readme(plan, feature_name, "RPCs", f"`{name}`")
+    if module and plan.exists(f"backend/{feature_name}/README.md"):  # as new tool --module names its module
+        plan.edit(f"backend/{feature_name}/README.md", lambda text: files_line(text, "RPCs", "rpcs.py", module))
     agent_half(plan, feature_name, lambda row: declares(row, "RPC", name))
     plan.regenerate = True
-    plan.next_steps += [
-        f"write the handler in {source} and its section in {CONTRACT} (params, result)",
-        f"call it from the page: import {{ RPC_{const(name)} }} from '#app/rpc.js' (re-exports the generated "
-        "rpc-names.js)",
-        f"ask for it as {STUDIO_PAGE} asks for games: useQuery({{ queryKey: [ID, '{name}', viaProfile], queryFn: () "
-        f"=> callStudio(RPC_{const(name)}), enabled }}) (useQuery from '#sdk', ID from '#app/ids.js', callStudio "
-        "from '#app/backend.js'; viaProfile and enabled: running, as there). Inside a page leave out enabled (a "
-        f"page renders only while the backend runs), use shell.viaProfile for the queryKey's third part, and keep "
-        f"that queryKey: its second word '{name}' is what the page tests answer",
-        "callStudio resolves to the RPC's answer itself (data.ok, ...); callBackend resolves to { data } (read "
-        ".data): page/app/backend.js",
-        f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
-        "(tests/page/harness.mjs), set before the page renders: the stub's useQuery reads it at render time",
-        f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
-        "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
-    ]
+    plan.next_steps += scaffold_rpc.page_steps(plan, feature_name, name, source, game)
     return f"RPC {name}"
 
 
@@ -255,38 +255,7 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
 
 
-def events_payload(payload: str) -> str:
-    """The payload as the EVENTS entries write it, ``key=<...>`` for each keyword ('game=<id>, root' -> 'game=<id>,
-    root=<...>'): a part that says what its key holds keeps it."""
-    parts = []
-    for part in split_parts(payload):
-        part = part.strip()
-        found = re.match(r"([A-Za-z_]\w*)\b(.*)$", part)
-        if found and not found.group(2).strip():
-            part = f"{found.group(1)}=<...>"
-        parts.append(part)
-    return ", ".join(part for part in parts if part)
-
-
-def split_parts(payload: str) -> list[str]:
-    """The comma-separated parts of a --payload line, a comma inside brackets kept in its part."""
-    parts, depth, current = [], 0, ""
-    for char in payload:
-        depth += char in "([{<"
-        depth -= char in ")]}>"
-        if char == "," and depth <= 0:
-            parts.append(current)
-            current = ""
-        else:
-            current += char
-    return [*parts, current]
-
-
-def payload_keys(payload: str) -> list[str]:
-    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
-    the leading name of each comma-separated part outside brackets."""
-    keys = [found.group(1) for part in split_parts(payload) if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
-    return list(dict.fromkeys(keys))
+PAYLOAD_GUIDE = "tools/retrodev/REFERENCE.md \"Changing an event's payload or name\" lists every place"
 
 
 def event_row(body: str, feature_name: str, row: str) -> str:
@@ -294,6 +263,14 @@ def event_row(body: str, feature_name: str, row: str) -> str:
     owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
     anchor = owned if any(owned.search(line) for line in body.split("\n")) else re.compile(r"^\| `")
     return insert_after(body, anchor, row, CONTRACT)
+
+
+def emit_docstring(text: str) -> str:
+    """The emits.py function's docstring, wrapped within 120 characters as its EVENTS entry is (a long payload)."""
+    lines = textwrap.wrap(
+        text, 117, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
+    )
+    return "\n".join(lines) + '"""'
 
 
 def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: str | None = None) -> str:
@@ -309,9 +286,11 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
     keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
-    doc = f"{when or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
-    plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
-    cell = ", ".join(f"`{key}`" for key in keys) or payload
+    refuse_reserved_keys(plan, keys)
+    plain = when.replace("`", "") if when else None  # backticks are Markdown: the CONTRACT row keeps them
+    doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
+    plan.edit(door, lambda text: add_event(text, event_entry(full, doc)))
+    cell = contract_cell(payload) if keys else payload
     row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
     plan.edit(
         CONTRACT,
@@ -321,7 +300,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     )
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
     values = {"name": feature_name, "Name": label(feature_name), "event": name, "Event": pascal(name)}
-    values |= {"full": full, "payload": payload}
+    values |= {"full": full, "payload": payload, **emitter_values(keys)}
+    values["docstring"] = emit_docstring(f"Tell other features that {full} happened ({payload}).")
     emits = f"backend/{feature_name}/emits.py"
     if re.search(rf"^def {name}\(", plan.read(emits) if plan.exists(emits) else "", re.M):
         raise Failure(f"{emits} has a function named {name} already", "pick another event name")
@@ -334,8 +314,23 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     plan.next_steps += [
         f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}; it runs "
         f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),
+        "the broker process never emits (backend/system/events.py): call it from Hermes-side code (an RPC, tool "
+        "or hook) that sees it happen",
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
+        f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
+        f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",
+        f"changing {full}'s payload later: {PAYLOAD_GUIDE} ({emits}'s function {name}, its callers: grep -rn "
+        f"'{name}(' backend/{feature_name}; the EVENTS entry in {door}, its {CONTRACT} row, "
+        f"tests/backend/{feature_name}/test_event_{name}.py, and the tests that assert it: grep -rln '{full}' "
+        f"tests/backend/{feature_name})",
     ]
+    bare = undescribed(payload) if keys else []
+    if bare:
+        plan.next_steps.append(
+            f"replace the <...> placeholders in {door} EVENTS ({placeholders(bare)}) and in its {CONTRACT} row "
+            "with what each key holds "
+            "(game=<id>, root=<project>); new listener copies that entry into its listener's docstring"
+        )
     return f"event {full}"
 
 

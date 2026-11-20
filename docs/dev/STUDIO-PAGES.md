@@ -8,13 +8,60 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 
 `Home · Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them).
 
-| Page | Approved design | Mockup file (source template) |
+| Page | Approved design (details below) | Mockup file (source template) |
 |---|---|---|
-| Home | E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio). While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does). | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
-| Setup | Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion. Setup tab shows a small dot while incomplete. | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
-| Prompts | **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right. Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic). | `src/prompts-page.template.html` variant 2 |
-| Games | **Shelf**: grid of the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border). Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control. Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built. Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder. A game showing its title screen rather than a cover gets a small "No cover" tag on the label. The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library. The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen. A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent. A faded "Blank cartridge" slot = New game. Empty library page (with the Chromatic status strip). | `src/games-page.template.html` (`.mcart.real`) |
-| Emulator | ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install). A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins). Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game). Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark). "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded. Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below). Default device finish **Hermes Edition · Midnight**. | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+| Home | E · Segmented nav, home variant 1 "Hero + band" | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
+| Setup | Atelier wizard with the flying Chromatic | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
+| Prompts | **Reader** | `src/prompts-page.template.html` variant 2 |
+| Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
+| Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+
+Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
+(`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
+approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps
+means both.
+
+### Home
+
+- E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio).
+- While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does).
+
+### Setup
+
+- Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion.
+- Setup tab shows a small dot while incomplete.
+
+### Prompts
+
+- **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right.
+- **Search** filters by title, text and group (`prompts-page.js`): the chosen prompt stays shown while it still
+  matches, even when it is not first; otherwise the first visible match is shown, and with no match at all the
+  chosen prompt stays. Typing never changes the choice itself (only a click or ↑/↓ does), so clearing the query
+  shows the chosen prompt again. Checked by `tests/page/page-prompts.test.mjs`.
+- Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic).
+
+### Games
+
+- **Shelf**: grid of the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
+- Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control.
+- Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built.
+- Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder.
+- A game showing its title screen rather than a cover gets a small "No cover" tag on the label.
+- The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library.
+- The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen.
+- A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent.
+- A faded "Blank cartridge" slot = New game.
+- Empty library page (with the Chromatic status strip).
+
+### Emulator
+
+- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
+- A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
+- Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game).
+- Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
+- "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
+- Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below).
+- Default device finish **Hermes Edition · Midnight**.
 
 ## Build: one game, one conversation
 
@@ -189,8 +236,13 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   Enter/Tab pick, Esc closes. The pick leaves the text and is attached as an `@name` chip (sent as
   "About <path>:" like any attachment); the user's bubble shows it as `@name`.
 - **New Game** keeps its two choices over a game the page draws behind them: the Nous Girl plays a
-  Game Boy Color style level by herself, with the title, the message box and the choices as platforms
-  (`page/pages/build/attract/`, described in the Build page's README).
+  Game Boy Color style level by herself, behind the frosted message box and choices, which take no
+  part in it (`page/pages/build/attract/`, described in the Build page's README).
+  Under the form, the games being worked on (those with a Build conversation, and New Game chats
+  still being set up) stand as cartridges on the level's floor: waiting for an answer first, then the
+  newest; each opens its chat, and a last "+N · All games" tile opens the games menu
+  (`page/pages/build/cart-shelf.js`). The shelf hides in a short window; the level only keeps the
+  ground under it flat.
 - **Assets as they land.** Images a step made or looked at (`image_path`, result images,
   `assetPath`/`outputPath`, `vision_analyze`'s `image_url`; project-relative paths joined to the
   game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets
@@ -353,7 +405,7 @@ when the agent is ready to present the game after making it, never for the whole
 ### `games` → library
 Params: none. Result:
 ```json
-{ "games": [ {
+{ "ok": true, "games": [ {
     "id": "<sha1 of projectRoot, 12 hex>",
     "title": "Comet Drift",
     "projectRoot": "/abs/path",
@@ -363,9 +415,15 @@ Params: none. Result:
     "webExport": true,
     "web": { "sha256": "…", "builtAt": 1731400000 } | null,
     "thumb": "data:image/png;base64,…" | null,
-    "chat": { "sessionId": "…", "title": "…" } | null,
+    "cover": false,
+    "card": { "title": "…", … } | null,
+    "displayTitle": "Comet Drift",
+    "chat": { "sessionId": "…", "title": "…", "conversationId": "…", "profile": "…", "thisProfile": true } | null,
+    "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,
     "error": "<last build error, ≤240 chars>" | null
   } ],
+  "pending": [ … ],
+  "gamesDir": "/abs/…/games",
   "demo": { "id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example" },
   "device": { "hardwareEnabled": false, "skipped": false }
 }
@@ -389,6 +447,7 @@ The backend runs one loopback HTTP server (stdlib `ThreadingHTTPServer`, `127.0.
 - `codex-annotations/<file>.js` from the prepared engine (`<hermretro home>/.cache/engine-<version>/dist/web-annotations`, falling back to `engine/modretro-chromatic/dist/web-annotations`), with **one text patch in `view.js`**: prepend the four Hermes Edition entries to `DEVICE_COLORS` (`hermes-midnight` "Hermes Edition · Midnight" `#15171c`/`#e6edf3`, `hermes-blue` "Hermes Edition · Nous Blue" `#0053fd`/`#ffffff`, `hermes-white` "Hermes Edition · White" `#f2f5fc`/`#1f2328`, `hermes-clear` "Hermes Edition · Clear Blue" `#cfdcff`/`#1f2328`). If the anchor text is missing, serve unpatched and log it.
 - `codex-annotations/chromatic-<color>.(webp|png)` from the prepared engine's `assets/devices/`, and `chromatic-hermes-*.webp` from the plugin's `player/devices/`.
 - `codex-captures` POST (multipart: `kind`, `metadata`, `media`): save to `<projectRoot>/captures/<iso>-<kind>.<png|webm|mp4>` + `.json`; reply exactly `{id, kind, bytes, path, metadataPath, sha256, createdAt, url: "./codex-captures/<id>/media", metadataUrl: "./codex-captures/<id>/metadata"}`; GET those two URLs back.
+  The engine's `metadata` (`engine/modretro-chromatic/dist/web-annotations/recording.js`): a screenshot's `{schemaVersion, source, status, mimeType, bytes, width, height, captureRequested, encodedAt}`; a video's `{schemaVersion, source, mimeType, status (complete or partial), error, bytes, width, height}` plus timing (`startRequested`, `stopEvent`, `elapsedMs`, `chunks`…) and audio fields; both get `game` (the build identity). A recording the agent started also carries `managed: {recordingId, requestedDurationMs, observedDurationMs, stopReason}` (`recording-controller.js` `metadata()`) and `x-codex-recording-*` headers, which this server ignores; the plugin stores `metadata` as sent.
 - `codex-states` GET → `{ "states": [] }` (not wired yet).
 - `codex-device` POST → `{generation, devices: [], rom:{sha256}, available:false, blocked:false, detecting:false}`. Installing from inside the player stays off: the Studio's own Install button sends the flash prompt to chat, where Hermes's approval gate applies. Do not proxy flashing here.
 - Every response: `Access-Control-Allow-Origin: *` (the frame's origin is `null`), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, correct MIME (`.wasm` → `application/wasm`, `.js` → `text/javascript`). Default device colour: the shim seeds `localStorage['codex-gb-studio:device-color:v1'] = 'hermes-midnight'` unless the page passes a valid `?color=`.
@@ -419,7 +478,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 ## The page's source (`page/`)
 
 - `index.js` is the entry: the default export and the one `register()`, which calls `startPages(ctx)` (every page's own start-up work and event listeners). `sdk.js` is the only module that imports packages.
-- `app/`: the shell and what every page uses. The shell: `studio-page.js` (the page shown, the data every page shares as `shell`), `nav.js`, `page-view.js` (a page's body or its tabs), `not-running.js`, `shell.css.js`, `registry.js` (checks the pages and wires them), `player/` (the one player, kept across pages). Hubs pages use: `events.js`, `slots.js`, `style.js`. Plumbing: routing, ids, RPC names, backend queries, the chat composer insert and prompt buttons, formatting, paths, the prompts several pages send, agent tool names.
+- `app/`: the shell and what every page uses. The shell: `studio-page.js` (the page shown, the data every page shares as `shell`), `nav.js`, `page-view.js` (a page's body or its tabs), `not-running.js`, `shell.css.js`, `registry.js` (checks the pages and wires them), `player/` (the one player, kept across pages). Hubs pages use: `events.js`, `slots.js`, `style.js`. Plumbing: routing, ids, RPC names, backend queries, the chat composer insert and prompt buttons, formatting (`format.js`: `formatBytes`, the one bytes formatter every page uses, and `shortPath`), paths, the prompts several pages send, agent tool names.
 - `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `home/`, `build/`, `setup/` (with `onboarding/` and `install/`), `prompts/`, `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`HOME_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
 - `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (the PNGs), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
 - `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
@@ -447,7 +506,10 @@ a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
 `README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
-`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. Or:
+`contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
+player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after
+`Page` and before `BelowPlayer`: a page puts its content above the player (`Page`) or below it (`BelowPlayer`,
+which needs `pad`); content beside the player needs a change to that shell. Or:
 `python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
 nav list (it goes last; move it in both).
 
@@ -455,7 +517,10 @@ nav list (it goes last; move it in both).
 
 Reference content (how something works, rather than something to do) goes on the page it is about, not on a
 page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
-setup explanations to Setup; prompts to Prompts.
+setup explanations to Setup; prompts to Prompts. The keys a game answers to are the `customControls` of its web
+export's `gbstudio.json` (read by `player/web/js/script.js` inside the frame; `player/web/gbstudio.json` is the demo
+cartridge's); `GAME_KEYS` in `page/shared/player/bridge.js` are the keys forwarded to the frame while focus is on
+the page outside it (arrows, Z, X, Enter, Shift, P: not all of the default map, and P is not in it).
 
 ### A tab
 
@@ -464,9 +529,16 @@ On a page without tabs, first make a tab whose `Page` is the page's old `Page` c
 Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
-tab bar (of one). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
+tab bar (of one). Switching tabs remounts the chosen tab's `Page` (`page-view.js` keys it by `tab.id`), so its
+`useState` starts over each time: state shared between tabs, or kept across a switch, goes in `shell.ctx.storage`
+(`get(key, fallback)` / `set(key, value)`, saved) or in the shell (`app/studio-page.js`). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
 one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
-content into a tab, or drop `Page` when the tabs are the whole page. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
+content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
+drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
+page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator
+(`onEmulator`) and `BelowPlayer` whenever the page has `pad`, whichever tab is chosen (`page-view.js` draws only
+the tab bar and the tab's body, and the shell does not know the chosen tab, which `page-view.js` keeps in
+`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 
@@ -495,16 +567,39 @@ In the contributing page's `index.js`: `contributes: { '<page>.<name>':
 [Component] }`. It lives in the contributing page's folder. `Component` gets the host's props: read the slot's
 doc string in the host page's `index.js` (`slots: { ... }`) for what they are and what to return. For example
 `games.cardMenu` passes `{ ctx, game, hardwareOn, item }`, where `item(icon, label, run, { disabled, why })` makes a
-menu button, so a contribution returns `item(...)` (or `null` for no button); `emulator.barActions` passes
+menu button (`icon` is a Codicon name, e.g. `folder-opened`, `copy`), so a contribution returns `item(...)` (or `null`
+for no button); `emulator.barActions` passes
 `{ ctx, game, hardwareOn }` (plus `go` on the Emulator page only: the slot is also drawn in the emulator tab beside
 the chat, which has no shell) and its contribution renders a button. A contribution cannot reach the host's
 `shell`: when it needs `go(id)` or another shell action, the host adds it to the slot's props and says so in the
 slot's doc string (and the host's README Slots line).
 
+Every place to edit for a new contribution: `contributes` in the contributing page's `index.js`; that page's README
+**Slots** line ("Contributes `X` to `<page>.<name>`"); the host page's README **Slots** line (who fills it: "Games
+fills it with Install"); the "Events and slots today" line below; the `filled`
+assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
+its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
+Or: `python tools/retrodev new contribution <page> <slot> <Component>` writes the stub, `contributes` with its import,
+the README Slots line and the registry `filled` assertion; the docs and HOSTS stay yours.
+
+Test what the item does in the host page's scenario test, where the slot is drawn with the real page around it: for
+`games.cardMenu`, `tests/page/page-games.test.mjs` (`openGameMenu(card)` opens a card's arrow menu, then
+`click('<label>', menu)`). The harness records what the page does: `scenario.clipboard` the text given to
+`ctx.os.writeClipboard`, `scenario.notices` each `host.notify({ kind, message })`, `scenario.revealed` the last
+`ctx.os.revealPath`, `scenario.inserted` what went into a chat's composer (`tests/page/sdk-stub.mjs`,
+`tests/page/harness.mjs`; "Show in folder on a remote Hermes" in `page-games.test.mjs` is one). For
+`emulator.barActions`, `tests/page/page-emulator.test.mjs`. For a slot on Home, two scenario tests draw it:
+`tests/page/page-studio.test.mjs` reaches a ready Home (onboarded, Chromatic set up, tools verified: its opening
+`scenario.storage`), and `tests/page/page-setup.test.mjs` shows Home while setup is incomplete and in emulator-only mode.
+
 ### Calling the backend from a page
 
 `page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the
-hermretro profile only) resolves to the RPC's answer itself; `callBackend(method, params)` resolves to
+hermretro profile only) resolves to the RPC's answer itself. Pick `callStudioOnly` by what the RPC's handler reads,
+not by its feature or page: an answer that depends on the Build conversations or the plugin data folder
+(`host._data_dir()`, one per profile: history snapshots, asset versions) needs the hermretro profile; one that is the
+same from any profile with the plugin (`games`, `player`, `captures`: the shared hermretro home) uses `callStudio`.
+`callBackend(method, params)` resolves to
 `{ data, profile }`, so read `(await callBackend(...)).data`. The method names are the generated `RPC_*` constants
 in `page/app/rpc.js`.
 

@@ -7,7 +7,9 @@
 // own process with its own copy; a file sets every precondition it relies on itself.
 // What a query shows is read at render time: the stub's useQuery returns scenario[<query key>] (scenario.games,
 // scenario.player, ...) while the page renders, so set that value before render() (or rerender after changing it);
-// a value set afterwards is not seen. scenario.byMethod[<rpc>] is what a direct host.request call answers.
+// a value set afterwards is not seen. A function there gets the query's whole key and answers for it (a per-game
+// query: scenario.captures = key => answered({ captures: byGame[key[2]] })).
+// scenario.byMethod[<rpc>] is what a direct host.request call answers.
 // A slot's contributions render in PAGES order (page/pages/index.js), not in the order pages were written.
 // Assert DOM presence and identity as booleans so failures do not inspect React's object graph, and the page's text
 // with shows(expected) / hides(expected) (a string or a RegExp), whose failures print only the part of the page
@@ -22,6 +24,7 @@ import { staleReasons } from '../../tools/bundle/bundle.mjs'
 import { findModules, MISSING_HINT } from '../../tools/bundle/node-modules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+const realSetTimeout = globalThis.setTimeout  // settle() waits on the real clock, even while holdTimers() holds timers
 
 /** The optional node_modules folder after the file's name, absolute: the temp folder links to it, and a relative
  *  link target would be read from inside that folder (so `node tests/page/<file> tools/npm/node_modules` works). */
@@ -96,7 +99,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     registerMany: list => registrations.push(...list),
     setTimeout: (fn, ms) => { const id = setTimeout(fn, 0); return () => clearTimeout(id) },
     setInterval: (fn, ms) => { intervals.push({ fn, ms }); return () => { intervals.splice(intervals.findIndex(i => i.fn === fn), 1) } },
-    os: { writeClipboard: async () => true, openExternal: async () => true, revealPath: async path => { scenario.revealed = path; return true } },
+    os: { writeClipboard: async value => { scenario.clipboard.push(value); return true }, openExternal: async () => true, revealPath: async path => { scenario.revealed = path; return true } },
     storage: { get: (key, fallback) => scenario.storage[key] ?? fallback, set: (key, value) => { scenario.storage[key] = value } }
   }
   plugin.register(ctx)
@@ -125,7 +128,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   }
   const currentTab = () => nav()?.querySelector('[aria-current="page"]')?.firstChild?.textContent ?? null
-  const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => setTimeout(resolve, ms)) }) }
+  const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => realSetTimeout(resolve, ms)) }) }
   const button = label => [...dom.window.document.querySelectorAll('button')].find(node => node.textContent.includes(label))
   const typeInto = async (input, value) => {
     const proto = input.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype
@@ -145,12 +148,48 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
   const shows = (expected, message) => assertShows(text(), expected, message)
   const hides = (expected, message) => assertHides(text(), expected, message)
   const checks = []
-  const check = (name, fn) => { fn(); checks.push(name) }
+  // A failing check names itself on stderr first: tools/check.py page shows a failing file's own output.
+  const check = (name, fn) => {
+    try { fn() } catch (error) { console.error(`check failed: ${name}`); throw error }
+    checks.push(name)
+  }
+  // The page's long timers (the Build page's open-request poll, 1.2 to 4 s), held instead of run by the real
+  // clock: a fixed wait for one raced it on a loaded machine (the poll came late, or early with an old answer).
+  // Call holdTimers() before the page schedules them; clock.fire() then runs every timer held so far, once.
+  const holdTimers = (atLeast = 1_000) => {
+    const held = new Map()
+    const realSet = realSetTimeout
+    const realClear = globalThis.clearTimeout
+    let next = 1_000_000
+    globalThis.setTimeout = (fn, ms = 0, ...args) => {
+      if (!(ms >= atLeast)) return realSet(fn, ms, ...args)
+      next += 1; held.set(next, () => fn(...args)); return next
+    }
+    globalThis.clearTimeout = id => (held.delete(id) ? undefined : realClear(id))
+    return {
+      held: () => held.size,
+      fire: async () => {
+        const due = [...held.values()]
+        held.clear()
+        await act(async () => { for (const run of due) run() })
+        await settle()
+      }
+    }
+  }
+
+  // The Build page's starting point (page-build*.test.mjs): setup finished in this profile (hardware off and skipped),
+  // the Build page open; `selected` is the game (or 'new') it remembers as storage.buildSelected.
+  const buildScenario = ({ selected } = {}) => {
+    const complete = completeStatus()
+    scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
+    scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build', ...(selected ? { buildSelected: selected } : {}) }
+    scenario.ambient = complete; scenario.routes = []; scenario.byProfile = {}
+  }
 
   return {
-    act, createRoot, dom, emit, host, plugin, scenario,
+    act, createRoot, dom, emit, host, plugin, scenario, buildScenario,
     registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
-    settle, button, typeInto, key, mount, checks, check,
+    settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }
 }

@@ -21,82 +21,12 @@ from backend.broker.broker import Broker, Lane  # noqa: E402 - the repository ro
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import tools as setup_tools  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
-
-
-def encode_png(width, height, pixel):
-    """A plain 8-bit RGBA PNG whose pixel at (x, y) is ``pixel(x, y)``."""
-    import struct
-    import zlib
-
-    def chunk(kind, body):
-        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
-
-    rows = b"".join(b"\0" + bytes(value for x in range(width) for value in pixel(x, y)) for y in range(height))
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(rows))
-        + chunk(b"IEND", b"")
-    )
-
-
-# A 160x144 pixel-art cover: four colours in bands.
-COVER = encode_png(
-    160,
-    144,
-    lambda x, y: ((40, 120, 60, 255), (230, 160, 60, 255), (60, 90, 200, 255), (250, 250, 240, 255))[
-        (x // 40 + y // 36) % 4
-    ],
-)
-
-
-def complete_card(root: Path) -> None:
-    """Give a test project a finished game card (game.json + cover.png)."""
-    (root / "cover.png").write_bytes(COVER)
-    (root / "game.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "title": "Space Game",
-                "tagline": "Fly a tiny ship through a meteor field.",
-                "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
-                "genres": ["Arcade"],
-                "cover": "cover.png",
-            }
-        )
-    )
+from tests.support import FakeBrokerClient, isolated_home, make_library_game, make_project, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
-
-
-def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
-    root = base / name.lower().replace(" ", "-")
-    (root / "project").mkdir(parents=True)
-    (root / f"{root.name}.gbsproj").write_text(json.dumps({"_resourceType": "project", "name": name}))
-    (root / "project" / "scene.gbsres").write_text("{}")
-    if built:
-        (root / "build").mkdir()
-        (root / "build" / "project.gb").write_bytes(b"\0" * 512)
-    if web:
-        web_dir = root / "build" / "web"
-        (web_dir / "js").mkdir(parents=True)
-        (web_dir / "rom").mkdir()
-        (web_dir / "rom" / "game.gbc").write_bytes(b"\1" * 512)
-        (web_dir / "js" / "binjgb.wasm").write_bytes(b"\0asm-test")
-        (web_dir / "index.html").write_text("<html><head></head><body></body></html>")
-        (web_dir / "gbstudio.json").write_text(json.dumps({"rom": "rom/game.gbc", "project": {"name": name}}))
-    if card:
-        complete_card(root)
-    old = time.time() - 600
-    for path in root.rglob("*"):
-        os.utime(path, (old, old))
-    for rom in root.glob("build/**/*.gb*"):
-        os.utime(rom, (old + 300, old + 300))
-    return root
 
 
 class Registry(unittest.TestCase):
@@ -265,6 +195,21 @@ class BrokerHook(unittest.TestCase):
         [game] = broker.games.library()
         self.assertEqual((game["state"], game["error"]), ("failed", "boom"))
 
+    def test_a_failed_builds_error_reaches_the_page_whole_up_to_its_limit(self):
+        broker = Broker.__new__(Broker)
+        broker.lanes, broker.table_lock = {}, threading.RLock()
+        broker.games = games.Registry(self.base / "lib")
+        broker.trace = lambda **record: None
+        lane = broker.lane_for(("profile", "conv"), create=True)
+        lane.selected_root = str(make_project(self.base))
+        for message, expected in (("e" * 200, "e" * 200), ("x" * (games.ERROR_CHARS + 60), "x" * games.ERROR_CHARS)):
+            lane.remember(
+                "rom_build", "project-write", {"isError": True, "structuredContent": {"error": message}}, 1.0, {}
+            )
+            [game] = broker.games.library()
+            self.assertEqual(game["error"], expected)
+        self.assertEqual(games.ERROR_CHARS, 240)
+
     def test_a_failing_library_never_breaks_a_call(self):
         lane = Lane(("p", "c"))
         lane.observer = mock.Mock(side_effect=OSError("disk full"))
@@ -282,33 +227,19 @@ class BrokerHook(unittest.TestCase):
 
 class GamesRpc(unittest.TestCase):
     def setUp(self):
-        isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
-        home = self.base / "hermes" / "profiles" / "studio"
-        (home / "plugin-data" / "hermretro").mkdir(parents=True)
-        self.patches = [
-            mock.patch.dict(
-                os.environ,
-                {
-                    "HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                    "HERMRETRO_GAMES_DIR": str(self.base / "games"),
-                    "HERMRETRO_RUNTIME_DIR": str(self.base / "run"),
-                },
-            ),
-            mock.patch.object(hermes_host, "_data_dir", lambda: home / "plugin-data" / "hermretro"),
+        self.home = isolated_home(self)  # it calls a real emitter, which reaches every feature's listeners.py
+        self.base = self.home.base
+        data = self.base / "hermes" / "profiles" / "studio" / "plugin-data" / "hermretro"  # a profile named studio
+        data.mkdir(parents=True)
+        for patch in (
+            mock.patch.object(hermes_host, "_data_dir", lambda: data),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-        ]
-        for patch in self.patches:
+        ):
             patch.start()
-        self.identity = str((home / "plugin-data" / "hermretro").resolve())
+            self.addCleanup(patch.stop)
+        self.identity = str(data)
         self.ctx = mock.Mock()
         self.ctx.get_config = lambda key, default=None: {"hardware_enabled": True}.get(key, default)
-
-    def tearDown(self):
-        for patch in reversed(self.patches):
-            patch.stop()
-        self.tmp.cleanup()
 
     def test_games_lists_the_library_in_the_contract_shape(self):
         root = make_project(self.base)
@@ -344,6 +275,9 @@ class GamesRpc(unittest.TestCase):
                 "card",
                 "displayTitle",
             },
+            "the games RPC's keys changed: change Registry.describe (backend/library/games.py), this set, the "
+            "docs/dev/CONTRACT.md games row and the docs/dev/STUDIO-PAGES.md games JSON together "
+            "(backend/library/README.md, 'Adding here')",
         )
         self.assertTrue(game["cover"])
         self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
@@ -367,22 +301,12 @@ class GamesRpc(unittest.TestCase):
         return response
 
     def test_the_tool_handler_adds_no_studio_player_to_a_build_result(self):
-        root = make_project(self.base)
-        games.Registry(paths.library_dir()).upsert(str(root))
+        _game, root = make_library_game(self.home)
         response = self.build_response(root)
 
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def call(self, *_args, **_kwargs):
-                return response
-
+        client = FakeBrokerClient(response)
         with (
-            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             handler = hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})
@@ -393,23 +317,11 @@ class GamesRpc(unittest.TestCase):
         self.assertIn("chromatic_present_game", payload["nextStep"])
 
     def test_new_games_default_to_the_plugin_games_folder(self):
-        seen = []
-
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def call(self, _owner, tool, args, **_kwargs):
-                seen.append((tool, args))
-                return {"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}}
-
+        client = FakeBrokerClient({"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}})
         folder = self.base / "studio-games"
         with (
             mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(folder)}),
-            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             for tool in ("project_create", "project_create_blank"):
@@ -424,7 +336,7 @@ class GamesRpc(unittest.TestCase):
             schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_project_create")
         self.assertTrue(folder.is_dir(), "the games folder is created for the engine")
         self.assertEqual(
-            [args["destinationPath"] for _tool, args in seen],
+            [args["destinationPath"] for _owner, _tool, args in client.calls],
             [str(folder / "Star Garden II")] * 2 + ["/elsewhere/Mine"],
         )
         self.assertNotIn("destinationPath", schema["parameters"]["required"])
@@ -438,20 +350,8 @@ class GamesRpc(unittest.TestCase):
 
     def lane_client(self, root, matched="chat"):
         """A running broker that knows this chat's lane; records every request it gets."""
-        seen = []
-
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def request(self, message):
-                seen.append(message)
-                return {"ok": True, "matched": matched, "lane": {"project_root": str(root)}}
-
-        return seen, (lambda _dir: (Client(), None))
+        client = FakeBrokerClient({"ok": True, "matched": matched, "lane": {"project_root": str(root)}})
+        return client.asked, (lambda _dir: (client, None))
 
     def test_present_shows_the_chats_project_and_records_it(self):
         root = make_project(self.base)
@@ -632,9 +532,14 @@ class GamesRpc(unittest.TestCase):
         registry.upsert(str(root))  # other writes keep the presentations
         self.assertEqual(len(registry.presentations()), 2)
 
+    def test_make_library_game_registers_a_game_the_host_finds(self):
+        identifier, root = make_library_game(self.home, "Frog Post")
+        self.assertEqual(hermes_host._game_root(identifier), root)
+        self.assertEqual(hermes_host._registry().get(identifier)["title"], "Frog Post")
+        self.assertTrue(root.is_relative_to(self.base))
+
     def test_thumb_rpc_stores_and_refuses(self):
-        root = make_project(self.base)
-        identifier = games.Registry(paths.library_dir()).upsert(str(root))["id"]
+        identifier, _root = make_library_game(self.home)
         thumb = library_rpcs.rpc_game_thumb(self.ctx)
         self.assertEqual(
             thumb({"id": identifier, "png": "data:image/png;base64," + base64.b64encode(PNG).decode()}), {"ok": True}

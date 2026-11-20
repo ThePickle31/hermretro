@@ -2,8 +2,6 @@ import { MONO } from '#shared/styles/tokens.js'
 
 export const ONBOARDING_CSS = `
 /* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
-.cs-bad { color: var(--ui-red); }
-.cs-good { color: var(--ui-green); }
 .cs-onb { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: min(78vh, 900px); }
 .cs-onb[data-screen='install'] { justify-content: flex-start; padding-top: clamp(8px, 2cqi, 32px); }
 .cs-onb-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) minmax(200px, 30cqi); }

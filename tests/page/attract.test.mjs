@@ -1,6 +1,6 @@
 // The New Game attract mode (page/pages/build/attract/): the real game run headless, without a canvas. For a few
 // window sizes and layouts, minutes of play each: she never falls or stays stuck, uses the whole level, coins come
-// back only when 90% are taken and are all reachable, nothing crowds the form, and the sprites keep their rules.
+// back only when 90% are taken and are all reachable, the form takes no part in it, and the sprites keep their rules.
 // Run alone: node tests/page/attract.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -9,22 +9,11 @@ const { World } = await import('../../page/pages/build/attract/world.js')
 const { NG_H, NG_W, ngFrames } = await import('../../page/pages/build/attract/girl.js')
 const { GH } = await import('../../page/pages/build/attract/physics.js')
 
-// The New Game form as the page lays it out (game pixels): the title, the composer and the two choice cards, centred.
-function form(W, H) {
-  const cx = Math.round(W / 2), col = Math.min(340, W - 40), top = Math.round(H * 0.38)
-  return [
-    { x: cx - 98, y: top - 70, w: 196, h: 60, kind: 'title' },
-    { x: cx - col / 2, y: top, w: col, h: 62, kind: 'composer' },
-    { x: cx - col / 2, y: top + 72, w: col / 2 - 5, h: 52, kind: 'opt' },
-    { x: cx + 5, y: top + 72, w: col / 2 - 5, h: 52, kind: 'opt' }
-  ]
-}
-const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 
 /** Play `minutes` of the game; what the tests look at. */
 function play(W, H, seed, minutes) {
   const world = new World(seed)
-  world.build(W, H, form(W, H))
+  world.build(W, H)
   const bands = [0, 0, 0, 0], frames = 3600 * minutes
   let box = null, since = 0, stuck = 0
   for (let i = 0; i < frames; i++) {
@@ -68,18 +57,21 @@ test('coins come back only when 90% are collected, and every coin counts', () =>
   }
 })
 
-test('nothing crowds the form: no coin by a page box, open air over the title', () => {
+test('the form takes no part in the level: nothing of the page is solid, walkable or measured', async () => {
   for (const r of runs) {
-    const { L, coins } = r.world, dom = form(r.W, r.H), title = dom[0]
-    for (const c of coins) for (const d of dom) assert.ok(!overlap({ x: c.x, y: c.y, w: 12, h: 16 }, { x: d.x - 8, y: d.y - 8, w: d.w + 16, h: d.h + 16 }), `${name(r)}: a coin by the ${d.kind}`)
-    const air = { x: title.x - 10, y: title.y - GH - 20, w: title.w + 20, h: GH + 20 }
-    for (const p of [...L.solids, ...L.oneways]) if (p.kind !== 'dom' && !p.mover) assert.ok(!overlap(p, air), `${name(r)}: a platform just over the title`)
+    const { L } = r.world
+    assert.ok(!('dom' in L), `${name(r)}: the level still holds page boxes`)
+    for (const p of L.solids) assert.ok(p.kind === 'tile' || p.kind === 'block', `${name(r)}: a ${p.kind} collider`)
+    for (const s of L.surfaces) assert.ok(!('dom' in s), `${name(r)}: a surface on the page`)
   }
+  const { readFile } = await import('node:fs/promises')
+  const source = await readFile(new URL('../../page/pages/build/new-game.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /data-plat/, 'new-game.js marks nothing for the level')
 })
 
 test('the same seed builds the same level', () => {
   const a = new World(7), b = new World(7)
-  a.build(856, 579, form(856, 579)); b.build(856, 579, form(856, 579))
+  a.build(856, 579); b.build(856, 579)
   assert.deepEqual(a.L.surfaces.map(s => [s.x0, s.x1, s.y]), b.L.surfaces.map(s => [s.x0, s.x1, s.y]))
   assert.deepEqual(a.coins.map(c => [c.x, c.y]), b.coins.map(c => [c.x, c.y]))
 })

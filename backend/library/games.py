@@ -23,11 +23,15 @@ VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
 # Folders under a project that hold build output, recordings or tooling, never game source.
 NOT_SOURCE = frozenset({"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs"})
+# How many source files sources_newer_than looks at before it stops and calls the ROM current. Its own bound, not the
+# snapshot cap (backend/history/snapshots.py MAX_FILES, which skips the copy): the two only happen to share a number.
 MAX_SOURCE_FILES = 20000
 MAX_THUMB_BYTES = 64 * 1024
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 MAX_PRESENTATIONS = 100
 MAX_NOTE_CHARS = 300
+# A failed build's error, as recorded in lastBuild and answered by the games RPC.
+ERROR_CHARS = 240
 # File times of a build and the web export made right after it can differ by a little.
 FRESH_SLACK_SECONDS = 2.0
 
@@ -616,7 +620,7 @@ class Registry:
             }
             if failed:
                 message = structured.get("error") or structured.get("message") or "The build failed."
-                build["error"] = (message if isinstance(message, str) else json.dumps(message))[:240]
+                build["error"] = (message if isinstance(message, str) else json.dumps(message))[:ERROR_CHARS]
             return self.upsert(root, chat=chat, build=build)
         if tool == "web_preview" and not failed and lane_root and arguments.get("action") in (None, "open"):
             # The engine reuses an export whose sources did not change without rewriting its files, so
@@ -677,7 +681,9 @@ class Registry:
             "displayTitle": (card or {}).get("title") or title,
             "chat": entry.get("chat") if isinstance(entry.get("chat"), dict) else None,
             "session": public_session(entry.get("session")),
-            "error": (str((last or {}).get("error") or "The build failed."))[:240] if state == "failed" else None,
+            "error": (str((last or {}).get("error") or "The build failed."))[:ERROR_CHARS]
+            if state == "failed"
+            else None,
             "updatedAt": entry.get("updatedAt"),
         }
 

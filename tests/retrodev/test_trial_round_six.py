@@ -12,8 +12,9 @@ from pathlib import Path
 
 import retrodev
 from retrodev import status
+from retrodev.gates import agent_hint  # the Made by hint after check's body line (round nine)
 
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 
 load_tests = parallel
 ROOT = Path(retrodev.__file__).resolve().parents[2]
@@ -38,7 +39,9 @@ class Body(RepoCase):
         self.assertIn("## Why\nMake goalie work.\n", body)
         self.assertIn("## What changed\nThe code of goalie.\n", body)
         self.assertIn("## Not done\nNothing else.\n", body)
-        self.assertIn("Made by an agent (Hermes) for", body)
+        self.assertIn(
+            "Made by an agent (Hermes) for the owner.", body
+        )  # no GitHub remote (flipped in rounds seven, ten)
         write(self.main, "notes/pr/keeper.md", "## Why\nMine.\n")
         self.started("keeper")
         self.assertEqual((self.main / "notes" / "pr" / "keeper.md").read_text(), "## Why\nMine.\n")
@@ -63,7 +66,13 @@ class Body(RepoCase):
         self.assertEqual(code, 0, out)
         last = out.strip().splitlines()[-1]
         path = self.main / "notes" / "pr" / "goalie.md"
-        self.assertEqual(last, f"next: fill in {path}, then python tools/retrodev ship --title '<one plain sentence>'")
+        # flipped in round seven: it names the sections still empty
+        unfilled = "How verified, Risk and rollback"
+        self.assertEqual(
+            last,
+            f"next: fill in {unfilled} in {path}, then python tools/retrodev ship --title '<one plain sentence>'"
+            + agent_hint(None),
+        )
         path.write_text(GOOD_BODY)
         _code, out = self.run_cli("check", cwd=tree)
         self.assertNotIn("next: fill in", out)
@@ -78,7 +87,8 @@ class Body(RepoCase):
         path = self.main / "notes" / "pr" / "goalie.md"
         self.assertEqual(
             out.strip().splitlines()[-1],
-            f"next: fill in {path}, then python tools/retrodev ship --title 'Keep the goalie in goal' --dry-run",
+            f"next: fill in How verified, Risk and rollback in {path}, then python tools/retrodev ship --title 'Keep the "
+            "goalie in goal' --dry-run" + agent_hint(None),
         )
 
     def test_plan_approve_inside_its_branch_writes_the_body_too(self):
@@ -141,9 +151,9 @@ class Takeover(RepoCase):
         self.assertIn("ok  ", out)  # start's setup ran there (the fixture's stand-in prints 'set up')
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         self.assertEqual(steps[0], f"cd {tree}")
-        self.assertTrue(steps[1].startswith("python tools/retrodev plan new mate"), steps)
-        self.assertIn("python tools/retrodev plan approve mate", steps[2])
-        self.assertEqual(steps[3], "python tools/retrodev sync (HEAD lacks 1 commit(s) of origin/dev)")
+        self.assertEqual(steps[1], "python tools/retrodev sync (HEAD lacks 1 commit(s) of origin/dev)")  # round 14
+        self.assertTrue(steps[2].startswith("python tools/retrodev plan new mate"), steps)
+        self.assertIn("python tools/retrodev plan approve mate", steps[3])
         self.assertEqual(steps[4], "python tools/retrodev check")
         code, out = self.run_cli("takeover", "feat/mate")
         self.assertEqual(code, 1, out)
@@ -165,7 +175,7 @@ class Takeover(RepoCase):
         self.assertIn("origin/feat/nobody does not exist after the fetch", out)
 
     def test_the_readme_takes_over_with_the_command(self):
-        text = (ROOT / "tools/retrodev/README.md").read_text()
+        text = retrodev_docs("REFERENCE.md")
         section = text[text.index("**Taking over a teammate's branch**") :].split("\n\n")[0]
         self.assertIn("python tools/retrodev takeover", section)
         self.assertNotIn("<root>", section)
@@ -181,9 +191,10 @@ class Sync(RepoCase):
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
         self.assertIn(
-            "backend/library/moving.py: dev removed this block; if it moved, `git log -p origin/dev -Smoving_block "
-            "-- page backend` finds where; apply your change there and drop this side",
-            out["error"]["fix"],
+            "backend/library/moving.py:5-11: dev deleted this block (no other file on origin/dev has its lines; if it "
+            "moved and changed, `git log -p origin/dev '-Sdef moving_block():'` finds where); delete the HEAD side of "
+            "this hunk, git add, sync again",
+            out["error"]["message"],
         )
 
 

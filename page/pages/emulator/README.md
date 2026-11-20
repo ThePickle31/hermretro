@@ -3,6 +3,9 @@
 **Shows:** ModRetro's real player. The player itself is the shell's (it stays loaded while other pages are
 shown); this page's `Page` (`emulator-page.js`) adds the bar above it with the rebuilt banner and captures
 (`emulator-bar.js`) and the notice;
+the captures strip there (`Captures` in `emulator-bar.js`, shown while the bar's captures toggle is open, refetched
+every 5 s) lists the `captures` RPC (`backend/library/rpcs.py`, which reads `list_captures` in
+`backend/player/server.py`: the game's `captures/` folder, newest first by `createdAt`);
 the descriptor adds the row under it (`beside-chat/row.js`). `beside-chat/` is the emulator tab beside the chat that opens when
 the agent presents a game. The nav segment carries a live dot while a game is loaded elsewhere (`Badge`).
 Padding `flush`, no footer.
@@ -23,9 +26,19 @@ presentation and refreshes open players after builds.
 **Uses from other pages:** `#pages/build/index.js` (is a session a Build conversation, which game Build shows,
 tool results).
 
-**Tests:** `tests/page/page-games.test.mjs` (the Emulator page and the tab beside the chat),
-`tests/page/registry.test.mjs` (also: a `emulator.barActions` contribution gets `go` on the page, not beside the
+**Tests:** `tests/page/page-emulator.test.mjs` (the Emulator page), `tests/page/page-emulator-side.test.mjs` (the tab beside the chat),
+`tests/page/registry.test.mjs` (also: an `emulator.barActions` contribution gets `go` on the page, not beside the
 chat).
+
+## When the player stays black
+
+Errors inside the player frame reach the app's developer console as `[Chromatic player] <text>` warnings
+(`page/shared/player/bridge.js`, forwarded by `page/frame/sandbox.js`). The stage (`page/app/player/stage.js`)
+says what it is waiting for: "Starting the player for <game>…" while the `player` RPC runs, "The player could not
+start" with Refresh when that RPC failed, and with Build it in chat when the game has no web export. A frame that
+loads but stays black: compare the game's `webExport` and `web.sha256` (the `games` RPC) with the `player` RPC's
+`romSha256`; when they differ the bar offers "Load the new build" (`emulator-bar.js`). More in
+`docs/dev/DEBUGGING.md`, "Common symptoms".
 
 ## Adding a tab here
 

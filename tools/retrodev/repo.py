@@ -26,12 +26,21 @@ class GitError(Failure):
 
 
 def run(
-    command: list[str], cwd: Path | str, timeout: float | None = None, env: dict | None = None
+    command: list[str], cwd: Path | str, timeout: float | None = None, env: dict | None = None, feed: str | None = None
 ) -> tuple[int, str, str]:
-    """Run a command (every git and tool call retrodev makes, except gh and the checks' live output)."""
+    """Run a command (every git and tool call retrodev makes, except gh and the checks' live output), ``feed`` on its
+    stdin (else none). Output that is not UTF-8 (a binary blob, a file name in another encoding) reads with U+FFFD in
+    place of the bytes, never an exception: read file contents with blob() instead."""
     try:
         done = subprocess.run(
-            command, cwd=str(cwd), text=True, capture_output=True, stdin=subprocess.DEVNULL, timeout=timeout, env=env
+            command,
+            cwd=str(cwd),
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            **({"input": feed} if feed is not None else {"stdin": subprocess.DEVNULL}),
+            timeout=timeout,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         return 124, "", f"{command[0]} did not finish in {timeout:g} s"
@@ -49,6 +58,28 @@ def git(args: list[str], cwd: Path | str, check: bool = True) -> str:
             "read git's message above; run the same git command yourself to see the whole state",
         )
     return out
+
+
+def blob(cwd: Path | str, spec: str) -> bytes | None:
+    """The bytes of the blob ``spec`` (``<rev>:<path>``, ``:<path>`` for the index); None when it is not there."""
+    try:
+        done = subprocess.run(
+            ["git", "cat-file", "blob", spec], cwd=str(cwd), capture_output=True, stdin=subprocess.DEVNULL
+        )
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def text(data: bytes) -> str | None:
+    """``data`` as text, or None for a binary file (a NUL byte anywhere, or bytes that are not UTF-8):
+    nothing that counts lines may read it."""
+    if b"\0" in data:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def ok(args: list[str], cwd: Path | str) -> bool:
@@ -144,11 +175,13 @@ def merge_base(cwd: Path | str, base: str) -> str | None:
 
 
 def changed_files(cwd: Path | str, base: str) -> list[str] | None:
-    """Files this branch changed since it left ``base`` (committed, uncommitted and new); None without ``base``."""
+    """Files this branch changed since it left ``base`` (committed, uncommitted and new); None without ``base``. A
+    renamed file counts at both paths (git's rename detection would list only the new one, so a trigger file moved
+    away, or a body naming the old path, would go unseen)."""
     point = merge_base(cwd, base)
     if not point:
         return None
-    names = set(git(["diff", "--name-only", "-z", point], cwd).split("\0"))
+    names = set(git(["diff", "--no-renames", "--name-only", "-z", point], cwd).split("\0"))
     names |= set(git(["ls-files", "-z", "--others", "--exclude-standard"], cwd).split("\0"))
     return sorted(name for name in names if name)
 
@@ -158,8 +191,8 @@ def moved_or_deleted(cwd: Path | str, base: str) -> list[str]:
     point = merge_base(cwd, base)
     if not point:
         return []
-    out = git(["diff", "--name-status", "--diff-filter=DR", point], cwd)
-    return [line.split("\t", 1)[1] for line in out.splitlines() if "\t" in line]
+    out = git(["diff", "--name-status", "--diff-filter=DR", point], cwd)  # R: "R100<TAB>old<TAB>new"
+    return [line.split("\t")[1] for line in out.splitlines() if "\t" in line]
 
 
 def _blob_id(path: Path) -> str:

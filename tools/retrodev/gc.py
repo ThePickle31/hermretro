@@ -147,7 +147,7 @@ def run(ctx, dry_run: bool = False, only: str | None = None) -> int:
                     moved.append(str(tree.path))
                     ctx.out.say(f"your shell may still be in {tree.path} (removed): {cmd('cd', main)}")
             repo.git(["branch", "-D", tree.branch], main)
-            state.drop_branch(main, tree.branch)
+            state.drop_branch(main, tree.branch, ctx.policy["branches"]["no_plan"])
 
     for tree in repo.worktrees(main):
         if not tree.main and (only is None or tree.branch == only):
@@ -168,7 +168,7 @@ def run(ctx, dry_run: bool = False, only: str | None = None) -> int:
     for name in stale:
         ctx.out.say(f"{'forget':>6}  record of {name} (the branch no longer exists)")
         if not dry_run:
-            state.drop_branch(main, name)
+            state.drop_branch(main, name, ctx.policy["branches"]["no_plan"])
     folders = leftover_folders(main) if only is None else []
     for folder in folders:
         ctx.out.say(f"{'remove':>6}  {folder}/ (only bytecode caches left)")

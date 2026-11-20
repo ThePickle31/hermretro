@@ -2,16 +2,16 @@
 
 `python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
 
-One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says).
+One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says). A scenario tests the built bundle, so after editing `page/` run `node tools/bundle/bundle.mjs` first: otherwise it stops with `desktop/plugin.js is stale (...)` and `Run: node tools/bundle/bundle.mjs`.
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
-| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
+| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
 | lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | ~6 s | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
-| scaffold | `python tools/check.py scaffold` | ~4 s | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
+| scaffold | `python tools/check.py scaffold` | ~48 s | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker |
 | clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | ~55 s | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
@@ -19,7 +19,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
 pass there (`ok (cached)` for the rest; inputs per check in `tools/retrodev/policy.toml`), adds acceptance and the
 clean install when the branch touched what they cover, and prints each time against its budget (`[checks.budgets]` in
-`tools/retrodev/policy.toml`, measured on a loaded machine: fast checks 60 s together, unit 45 s, scaffold 30 s; a
+`tools/retrodev/policy.toml`, measured on a loaded machine: fast checks 60 s together, unit 45 s, scaffold 58 s (idle about 48 s); only passing runs count; a
 check over its budget twice in a row on the branch gets a warning, never a failure).
 `python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
 on the current tree is what `python tools/retrodev ship` requires.
@@ -76,6 +76,22 @@ and `.dev/` are not linted.
 
 The single required check is **All checks pass**.
 
+## The Hermes names check
+
+`tools/ci/hermes_api_check.py` checks that a Hermes still has every name in `backend/hermes/api.py` `USED`. CI runs
+it with Hermes's own Python (`$HERMES_RUNTIME_PY`, built from a hermes-agent checkout by `tools/ci/hermes_runtime.py`
+in `.github/actions/hermes`): on every pull request at `HERMES_REF` (`ci.yml`, the oldest supported Hermes) and
+nightly on Hermes `main`. Locally it needs the Python of your Hermes install, which has Hermes's dependencies:
+
+```sh
+hermes --run-module site | grep site-packages   # the .../venv/lib/python3.X/site-packages line: <venv>/bin/python
+<venv>/bin/python -c 'import hermes_cli.config'  # no output: this Python imports Hermes
+<venv>/bin/python tools/ci/hermes_api_check.py
+```
+
+Another Python fails first with each module's import error and a `FIX:` saying to use this Python, never with a
+rename `FIX:`.
+
 ## Where tests live
 
 Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feature, `tests/page/` for the page
@@ -84,7 +100,9 @@ Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feat
 bundle, the install scan) and
 `tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
 bare origin and a fake `gh`; under discovery the whole package runs in one thread pool, about 1.3 s; a test there
-never patches a module's global, since other threads use it: `tests/retrodev/pool.py`). Each folder is a package, so discovery runs from the root:
+never patches a module's global, the environment, the working folder, sys.path or sys.stdout, since other threads
+use them: `tests/retrodev/pool.py`; a module that must is marked `load_tests = alone` and runs after the pool, and
+`tests/repo/test_pool_guard.py` names any that is not). The other packages run one test at a time on the main thread. Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`;
 one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
 folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
@@ -94,18 +112,30 @@ helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/
 repository root): `tests/backend` would then shadow the real `backend` package, and two test modules run together
 (`python -B -m unittest tests.backend.setup.test_remove_tools tests.backend.library.test_games`) fail with an
 ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses it).
+A test that needs a library game calls `make_library_game(home, name="Game") -> (game id, project root)` from
+`tests/support.py` (`home` is what `isolated_home(self)` returns): a real project, registered as the gateway does.
+A test that needs a running broker patches in a `FakeBrokerClient(answer)` from there (it records `asked` and `calls`).
 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
 page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
-`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A unit
+`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A Build
+page scenario starts with `buildScenario({ selected })` (setup finished, the Build page open, `selected` as
+`storage.buildSelected`), then sets its own `scenario.games`. A unit
 test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
 the module with `import()` after `registerAliases()` from `./aliases.mjs` (the page's `#app/`… aliases, React and
 the SDK stand-in; it uses `module.registerHooks`, or `register('./aliases.mjs', import.meta.url)` on a Node without
-it), like `tests/page/build-player.test.mjs`. A pure helper in `page/shared/`: add `tests/page/<name>.test.mjs`
-(`node:test`), call `registerAliases()` from `./aliases.mjs`, then `await import('#shared/...')`; `check.py page`
-runs every `tests/page/**/*test*.mjs`, so the name must contain `test`.
+it), like `tests/page/build-player.test.mjs`.
+
+**Test a plain page helper** (a page test of a pure function, e.g. in `page/shared/`): add
+`tests/page/<name>.test.mjs` (`node:test`), call `registerAliases()` from `./aliases.mjs`, then
+`await import('#shared/...')`, as `tests/page/time.test.mjs` does; `check.py page` runs every
+`tests/page/**/*test*.mjs`, so the name must contain `test`.
+The SDK stand-in's react-query (`tests/page/sdk-stub.mjs`, listed in its header): `useQuery` (answers
+`scenario[queryKey[1]]`, or, when that is a function, what it returns for the whole `queryKey`: a per-game query
+such as `[ID, 'captures', gameId]` then answers each game differently) and `useQueryClient()` with `invalidateQueries` (a no-op), `setQueryData` and `getQueryData`
+(one cache, `scenario.queryData`); add what else a page starts to use.
 
 ## Adding a test
 
@@ -168,6 +198,9 @@ it.
   reaches every feature's `listeners.py`, including ones added later: give it `isolated_home(self)` even when
   today's listeners write nothing. A clean-install or Hermes-CLI test must use a folder outside
   `~/.hermes` (Hermes treats a home inside its real root as the real root).
+- Clean up every temp file and folder: `tempfile.TemporaryDirectory()` with its cleanup, or
+  `self.addCleanup(shutil.rmtree, folder, ignore_errors=True)` right after `tempfile.mkdtemp()`. `check.py unit` gives
+  the run an empty `TMPDIR`, fails on anything left in it, and names the leaking module.
 - Never the hardware tools (`flash`, `play`, `setup`, capture); `device` with `command: "status"` is the only
   hardware call allowed, and only in acceptance.
 - Unix sockets: keep `TMPDIR` short (`$XDG_RUNTIME_DIR` on Linux, `/tmp` on macOS); macOS caps socket paths at

@@ -108,7 +108,7 @@ class Approve(RepoCase):
         self.assertIn("start <kind>/alone", line)
         for kind in ("feat", "fix", "docs", "chore"):
             self.assertIn(kind, line)
-        self.assertIn("chore (refactors of tests, tools and CI that change no behaviour)", line)
+        self.assertIn("chore (refactors that change no behaviour)", line)
         self.assertNotIn("start feat/alone", line)
 
 
@@ -201,8 +201,8 @@ class New(ScaffoldCase):
     def test_rpc_next_steps_say_when_to_set_the_scenario_and_what_each_call_resolves_to(self):
         steps = " ".join(self.new("rpc", "history", "rdprobe_recent")["next"])
         self.assertIn("set before the page renders", steps)
-        self.assertIn("Inside a page leave out enabled", steps)
-        self.assertIn("callStudio resolves to the RPC's answer itself", steps)
+        self.assertNotIn("enabled", steps)  # round nine: a page's query, as a page writes it (no enabled)
+        self.assertIn("callStudio and callStudioOnly resolve to the RPC's answer itself", steps)
         self.assertIn("callBackend resolves to { data }", steps)
         backend = (ROOT / "page/app/backend.js").read_text()  # what the hint claims, in the real page
         self.assertIn("return { data: await host.requestProfile(", backend)

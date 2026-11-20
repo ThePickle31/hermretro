@@ -10,9 +10,7 @@ import unittest
 from pathlib import Path
 
 from backend.hermes import host
-from backend.library import games
-from tests.backend.library.test_games import make_project
-from tests.support import isolated_home
+from tests.support import isolated_home, make_library_game
 
 
 class ToolResultPayload(unittest.TestCase):
@@ -30,10 +28,7 @@ class ToolResultPayload(unittest.TestCase):
 
 class LibraryGameFor(unittest.TestCase):
     def setUp(self):
-        home = isolated_home(self)
-        self.root = make_project(home.base / "games")
-        games.Registry(host.paths.library_dir()).upsert(str(self.root))
-        self.game = games.game_id(self.root)
+        self.game, self.root = make_library_game(isolated_home(self))
 
     def test_the_project_or_a_path_inside_it_finds_the_game(self):
         real = Path(os.path.realpath(self.root))

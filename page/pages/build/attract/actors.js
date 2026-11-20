@@ -1,6 +1,5 @@
 // Everything else that moves: beetles, spinies and hopping blobs out of the pipes (and a beetle now and then dropped
-// onto the composer), bats on a wave, cannon shots, ? blocks and the power-up they give, coins popped out of the
-// composer while the user types, and the particles. Mixed into World (world.js).
+// from the sky), bats on a wave, cannon shots, ? blocks and the power-up they give, and the particles. Mixed into World (world.js).
 import { GH, GRAV, T, overlap, physStep, solidAt } from './physics.js'
 
 export const ACTORS = {
@@ -86,9 +85,10 @@ export const ACTORS = {
         this.enemies.push({ kind, x: p.x + 24 - sz[0] / 2, y: p.y + 6, w: sz[0], h: sz[1], vx: (kind === 'spiny' ? 0.4 : 0.5) * p.dir, vy: 0, state: 'emerge', t: 0, edgeTurn: kind === 'blob' || rng() < 0.55, ground: null, pipeY: p.y, hopT: 40 + Math.floor(rng() * 60), dir: p.dir })
       }
     }
-    const top = L.surfaces.find(s => s.dom === 'composer' || s.dom === 'panel')
-    if (this.frame % 600 === 300 && this.enemies.length < maxE && top && !this.enemies.some(e => e.dropped)) {
-      const d = { x: top.x0, w: top.x1 - top.x0 }
+    // now and then a beetle drops in from the sky over one of the wider platforms
+    const wide = L.surfaces.filter(s => s.x1 - s.x0 >= 72 && s.y < L.groundY - 1)
+    if (this.frame % 600 === 300 && this.enemies.length < maxE && wide.length && !this.enemies.some(e => e.dropped)) {
+      const top = wide[Math.floor(rng() * wide.length)], d = { x: top.x0, w: top.x1 - top.x0 }
       this.enemies.push({ kind: 'bug', x: d.x + 24 + rng() * (d.w - 48), y: -18, w: 20, h: 15, vx: rng() < 0.5 ? -0.5 : 0.5, vy: 0, state: 'walk', t: 0, edgeTurn: true, ground: null, dropped: true })
     }
     for (const e of this.enemies) {
@@ -151,14 +151,6 @@ export const ACTORS = {
       if (b.x < -20 || b.x > this.W + 20) b.dead = true
     }
     this.bullets = this.bullets.filter(b => !b.dead)
-  },
-
-  typingCoin() {
-    const d = this.L.dom.find(x => x.kind === 'composer' || x.kind === 'panel')
-    if (!d || this.coins.filter(c => c.loose).length > 8) return
-    const x = d.x + 16 + this.rng() * (d.w - 32)
-    this.coins.push({ x, y: d.y - 18, w: 12, h: 16, vx: (this.rng() - 0.5) * 1.2, vy: -2.4, on: true, loose: true, rest: false, life: 1100 })
-    this.sparkle(x, d.y - 8)
   },
 
   addScore(n, x, y) { this.score += n; this.parts.push({ type: 'text', s: String(n), x, y, vy: -0.5, t: 0, life: 45 }) },

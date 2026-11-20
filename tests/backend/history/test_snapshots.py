@@ -16,9 +16,10 @@ from backend.hermes import host as hermes_host  # noqa: E402 - the repository ro
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import hooks as history_hooks  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:
@@ -92,6 +93,13 @@ class Snapshots(unittest.TestCase):
             self.assertIn("skipped", snapshots.take(self.store, "g", self.root, "build", now_ms=1000))
         self.assertEqual(snapshots.list_snapshots(self.store, "g"), [])
 
+    def test_a_project_over_the_file_cap_is_skipped(self):
+        count = len(snapshots.walk(self.root))
+        with mock.patch.object(snapshots, "MAX_FILES", count - 1):
+            answer = snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        self.assertEqual(answer, {"skipped": f"more than {count - 1} files"})
+        self.assertEqual(snapshots.list_snapshots(self.store, "g"), [])
+
     def test_restore_brings_back_changed_files_removes_new_ones_and_keeps_a_backup(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-2")
@@ -161,10 +169,8 @@ class BuildHistoryHost(unittest.TestCase):
         connect.start()
         self.addCleanup(connect.stop)
         self.store = isolated.data / "snapshots"
-        self.root = make_project(self.base)
+        self.game, self.root = make_library_game(isolated)
         self.outsider = make_project(self.base, name="Not Listed")
-        hermes_host._registry().upsert(str(self.root))
-        self.game = games.game_id(self.root)
 
     def hook(self, **kwargs):
         registered_hook("post_tool_call")(
@@ -189,6 +195,15 @@ class BuildHistoryHost(unittest.TestCase):
         self.assertEqual(len(builds), 1)
         self.assertEqual(builds[0]["reason"], "build")
         self.assertEqual(builds[0]["builds"], [int(builds[0]["id"])])
+
+    def test_a_kept_build_announces_history_build_kept_once(self):
+        heard = []
+        listener = events.on("history.build_kept")(lambda **payload: heard.append(payload))
+        self.addCleanup(events._listeners["history.build_kept"].remove, listener)
+        self.hook(result=json.dumps({"structuredContent": {"success": False}}))
+        self.assertEqual(heard, [])
+        self.hook()
+        self.assertEqual(heard, [{"game": self.game, "root": self.root}])
 
     def test_the_project_comes_from_the_chat_when_the_result_does_not_name_it(self):
         bare = json.dumps({"structuredContent": {"success": True}})

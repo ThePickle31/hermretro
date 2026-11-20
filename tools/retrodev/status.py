@@ -18,48 +18,64 @@ NOTHING_NEXT = "next: python tools/retrodev plan new <topic> (docs/chore: start 
 
 
 def plan_steps(facts: dict) -> str | None:
-    """The exact plan commands a branch that needs a plan still lacks (None once it is approved, or for docs/chore)."""
+    """The exact plan commands a branch that needs a plan still lacks (None once it is approved, or for docs/chore),
+    each run by the branch's runner (sync.runner: the newer retrodev while the branch's own copy is older)."""
+    steps = _plan_steps(facts)
+    return sync.newer(steps, facts.get("runner") or sync.RUNNER) if steps else steps
+
+
+def _plan_steps(facts: dict) -> str | None:
     if not facts.get("needs_plan") or facts.get("plan_approved"):
         return None
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
     approve = f'python tools/retrodev plan approve {topic} --words "<the owner\'s exact words>"'
     if facts.get("plan_exists") is False:
         return f"python tools/retrodev plan new {topic}, fill it in, show the owner, then {approve}"
-    return f"show the owner notes/plans/{topic}.md; when they say start: {approve}"
+    return f"show the owner {facts.get('plan_path') or f'notes/plans/{topic}.md'}; when they say start: {approve}"
 
 
 def next_step(facts: dict) -> str:
+    """The one next command for a branch (_next_step), each retrodev command in it run by the branch's runner."""
+    return sync.newer(_next_step(facts), facts.get("runner") or sync.RUNNER)
+
+
+def _next_step(facts: dict) -> str:
     """The one next command for a branch, from its facts (pure: the tests drive it directly). A branch behind the
     base syncs first, before any plan step (the plan step follows it in the same line)."""
     topic = facts.get("plan") or facts.get("topic") or "<topic>"
     if facts.get("protected"):
         return "next: python tools/retrodev start <kind>/<topic> (work happens in a worktree on its own branch)"
+    syncing = facts.get("sync") or "python tools/retrodev sync"  # sync.sync_command: the newer retrodev
     if facts.get("merging"):  # an open sync merge: only sync finishes it (rebuilds generated files, commits)
         if facts.get("merge_unresolved"):
             return (
                 f"next: resolve the conflict hunks in {', '.join(facts['merge_unresolved'])} ({sync.HUNKS}), "
                 + cmd("git", "add", *facts["merge_unresolved"])
-                + ", then python tools/retrodev sync (it rebuilds the generated files and makes the merge commit)"
+                + f", then {syncing} (it rebuilds the generated files and makes the merge commit)"
             )
-        return "next: python tools/retrodev sync (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
+        return f"next: {syncing} (the merge's sources are resolved: it rebuilds the generated files and makes the merge commit)"
     planned = plan_steps(facts)
     if facts.get("behind"):
         lacks = f"HEAD lacks {facts['behind']} commit(s) of {facts.get('base') or 'origin/dev'}"
         after = planned or "python tools/retrodev check"
+        first = ""  # a taken-over branch without a plan: what dev changed in its files, read before sync merges it
+        if facts.get("overlap") and planned and facts.get("plan_exists") is False:
+            first = read_first(facts["overlap"], facts.get("base") or "origin/dev") + ", then "
         if facts.get("dirty"):
             return (
                 "next: "
                 + cmd("git", "add", "-A")
                 + " && "
                 + cmd("git", "commit", "-m", "<what changed>")
-                + f", then python tools/retrodev sync ({lacks}; sync merges only a committed tree), then {after}"
+                + f", then {first}{syncing} ({lacks}; sync merges only a committed tree), then {after}"
             )
-        return f"next: python tools/retrodev sync ({lacks}), then {after}"
+        return f"next: {first}{syncing} ({lacks}), then {after}"
     if planned and facts.get("plan_exists") is False:
         return f"next: python tools/retrodev plan new {topic} (no plan is written yet; the owner approves one first)"
     if planned:
         return (
-            f"next: show the owner notes/plans/{topic}.md; when they say start: python tools/retrodev plan "
+            f"next: show the owner {facts.get('plan_path') or f'notes/plans/{topic}.md'}; when they say start: "
+            "python tools/retrodev plan "
             f'approve {topic} --words "<their exact words>"'
         )
     if not facts.get("checks_passed"):
@@ -83,13 +99,15 @@ def next_step(facts: dict) -> str:
         dry = bool(facts.get("last_ship_dry_run"))  # a dry run's next step stays one: status never makes it a push
         if dry:
             why += "; the last ship was a dry run: without --dry-run the same command pushes and opens the pull request"
-        return "next: " + ship.command(title, facts["body"], dry) + why
+        return "next: " + ship.command(title, facts["body"], dry) + why + no_title(facts)
     if not facts.get("pr"):
         dry = bool(facts.get("last_ship_dry_run"))
+        written = facts.get("body_path") or f"notes/pr/{facts.get('topic') or '<topic>'}.md"
         return (
             "next: "
             + ship.command(facts.get("title") or "<one plain sentence>", dry_run=dry)
-            + f" (no body yet: ship writes notes/pr/{facts.get('topic') or '<topic>'}.md from the template when it is "
+            + no_title(facts)
+            + f" (no body yet: ship writes {written} from the template when it is "
             + "missing, then stops for it to be filled in"
             + ("; the last ship was a dry run: without --dry-run the same command pushes" if dry else "")
             + ")"
@@ -125,6 +143,28 @@ def next_step(facts: dict) -> str:
         f"next: python tools/retrodev report, and give the owner the step-5 report; when they approve: "
         f'python tools/retrodev approve {pr} --words "<their exact words>"'
     )
+
+
+def no_title(facts: dict) -> str:
+    """Why the plan's Title: line is not the title offered (too long, a period), while no title is."""
+    return "" if facts.get("title") else facts.get("title_note") or ""
+
+
+def overlap(ctx, path) -> list[str]:
+    """The files this branch changes that the base branch also changed since they parted (none when not behind)."""
+    base = ctx.remote_base
+    if not repo.head(path, base):
+        return []
+    ours = repo.git(["diff", "--name-only", f"{base}...HEAD"], path, check=False).splitlines()
+    theirs = set(repo.git(["diff", "--name-only", f"HEAD...{base}"], path, check=False).splitlines())
+    return [name for name in ours if name in theirs]
+
+
+def read_first(files: list[str], base: str, before: str = "writing the plan") -> str:
+    """Read what the base changed in the branch's files before planning: sync's merge makes that diff empty."""
+    shown = cmd("git", "diff", f"HEAD...{base}", "--", *files)
+    log = cmd("git", "log", "--oneline", f"HEAD..{base}", "--", *files)  # which commits, and why
+    return f"read `{shown}` and `{log}` before {before} ({base} changed these files of the branch too)"
 
 
 def behind(ctx, path) -> int:
@@ -178,11 +218,17 @@ def branch_facts(ctx, branch: str, path, record: dict, with_ci: bool = True) -> 
         "merging": merging,
         "merge_unresolved": merge_unresolved,
         "body": shown,
+        "body_path": body,  # absolute: notes/ is in the main checkout, not the worktree
+        "plan_path": plan_row["path"] if plan_row else None,
         "body_ok": body_ok(ctx, shown),
         "dry_run_passed": dry_run_passed(record, tree, shown) if shown else None,
         "last_ship_dry_run": bool(record.get("last_ship_dry_run")),
         "title": (record.get("pr") or {}).get("title") or record.get("title") or ship.plan_title(ctx, branch, record),
+        "title_note": ship.title_note(ctx, branch, record),
         "behind": behind(ctx, path),
+        "sync": sync.sync_command(ctx, path) if behind(ctx, path) or merging else None,
+        "runner": sync.runner(ctx, path),
+        "overlap": overlap(ctx, path) if record.get("taken_over") and behind(ctx, path) else [],
         "base": ctx.remote_base,
         "branch": branch,
         "path": str(path),
@@ -231,7 +277,7 @@ def show_branch(ctx, facts: dict) -> None:
     if facts.get("merging"):
         say("  merge:  open (a sync stopped on conflicts)")
     if facts.get("behind"):
-        say(f"  behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
+        say(f"  behind {ctx.remote_base}: {facts['behind']} commits ({facts['sync']})")
     if facts["pr"]:
         pushed = "pushed" if facts["pushed"] == facts["head"] else "NOT pushed"
         say(f"  pr:     #{facts['pr']} {facts['pr_url'] or ''} (head {pushed}); CI {facts['ci']}")
@@ -278,7 +324,7 @@ def run(ctx) -> int:
         rows.append(facts)
         ctx.out.say(f"  {name:<34} {facts['path'] or '-'}")
         if facts.get("behind"):
-            ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits (python tools/retrodev sync)")
+            ctx.out.say(f"    behind {ctx.remote_base}: {facts['behind']} commits ({facts['sync']})")
         ctx.out.say(f"    {facts['next']}")
     if not rows:
         ctx.out.say("  no work in progress")

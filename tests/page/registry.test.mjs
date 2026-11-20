@@ -169,14 +169,44 @@ test('pages listen for their whole life: a cover request and a presentation reac
   assert.deepEqual(BUILD_PRESENTED.get().frog, { seq: 3, note: 'try it', t: 5 })
 })
 
-// Filling a real slot changes only the `filled` assertion below (a new, empty slot only the declared list); the
+// Filling a real slot changes only `expected` in the `filled` assertion below (a new, empty slot only the declared list); the
 // empty case renders on a table of its own. A slot's contributions are listed in PAGES order
 // (page/pages/index.js), whatever order the contributing pages were written in.
 test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual([...PAGE_SLOTS.declared().keys()].sort(), ['emulator.barActions', 'games.cardMenu'])
   const filled = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]).filter(([, list]) => list.length))
 
-  assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
+  const expected = { 'emulator.barActions': [InstallButton] }
+  const named = slots => JSON.stringify(Object.fromEntries(Object.entries(slots).map(([slot, list]) => [slot, list.map(item => item.name || '(anonymous)')])))
+
+  assert.deepEqual(filled, expected, `slots filled: ${named(filled)}, expected ${named(expected)}\nFIX: when a page's contributes changed on purpose, change \`expected\` here (STUDIO-PAGES.md, "A contribution to a slot")`)
+})
+
+// The one bar both hosts draw (emulator-bar.js): with the shell's go (the Emulator page) and without (the tab beside
+// the chat). A probe beside the real contribution records what it gets; Install renders either way.
+test('an emulator.barActions contribution gets go on the Emulator page, not beside the chat', async () => {
+  const { EmulatorBar } = await import('../../page/pages/emulator/emulator-bar.js')
+  const list = PAGE_SLOTS.contributions('emulator.barActions')
+  const got = []
+  const Probe = props => { got.push(Object.keys(props).sort()); return null }
+  const game = { id: 'abc123abc123', title: 'Probe', rom: { path: '/x.gb' } }
+  const bar = extra => jsx(EmulatorBar, { ctx: { storage: { get: (key, fallback) => fallback, set() {} }, os: {} }, game, hardwareOn: true, player: { data: null }, ...extra })
+
+  list.push(Probe)
+  try {
+    for (const extra of [{ go() {} }, {}]) {
+      const { node, root } = await render(bar(extra))
+
+      assert.ok([...node.querySelectorAll('button')].some(button => button.textContent.includes('Install')), 'Install is in the bar')
+      await act(async () => root.unmount())
+    }
+  } finally {
+    list.splice(list.indexOf(Probe), 1)
+  }
+  assert.deepEqual(got, [['ctx', 'game', 'go', 'hardwareOn'], ['ctx', 'game', 'hardwareOn']])
+  const sources = ['emulator-page.js', 'beside-chat/tab.js'].map(file => readFileSync(path.join(ROOT, 'page', 'pages', 'emulator', file), 'utf8'))
+
+  assert.deepEqual(sources.map(text => /jsx\(\s*EmulatorBar,\s*\{[^}]*\bgo\b/.test(text)), [true, false], 'the Emulator page passes go to the bar, the tab beside the chat does not')
 })
 
 test('an empty slot renders nothing', async () => {

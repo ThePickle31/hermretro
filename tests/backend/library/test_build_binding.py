@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Broker, Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
@@ -295,33 +295,14 @@ class AutoSelect(unittest.TestCase):
 
 class RpcAndContext(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
-        home = self.base / "hermes" / "profiles" / "studio" / "plugin-data" / "hermretro"
-        home.mkdir(parents=True)
-        self.patches = [
-            mock.patch.dict(
-                os.environ,
-                {
-                    "HERMRETRO_LIBRARY_DIR": str(self.base / "lib"),
-                    "HERMRETRO_GAMES_DIR": str(self.base / "games"),
-                    "HERMRETRO_RUNTIME_DIR": str(self.base / "run"),
-                },
-            ),
-            mock.patch.object(hermes_host, "_data_dir", lambda: home),
-            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
-        ]
-        for patch in self.patches:
-            patch.start()
+        self.base = isolated_home(self).base  # the library, the plugin data folder and the profile home
+        patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
+        patch.start()
+        self.addCleanup(patch.stop)
         self.rpc = library_rpcs.rpc_build(mock.Mock())
         self.frog = make_project(self.base, "Frog Post")
         hermes_host._registry().upsert(str(self.frog))
         self.game = games.game_id(self.frog)
-
-    def tearDown(self):
-        for patch in reversed(self.patches):
-            patch.stop()
-        self.tmp.cleanup()
 
     def test_start_bind_and_the_games_list(self):
         self.assertTrue(self.rpc({"action": "start", "stored": "st-new", "name": "Lamplight"})["ok"])
@@ -368,27 +349,12 @@ PNG_1x1 = bytes.fromhex(
 
 class AssetRpc(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
-        self.home = self.base / "plugin-data"
+        isolated = isolated_home(self)
+        self.base, self.home = isolated.base, isolated.data  # self.home: the plugin data folder
         (self.home / "frames").mkdir(parents=True)
-        self.patches = [
-            mock.patch.dict(
-                os.environ,
-                {"HERMRETRO_LIBRARY_DIR": str(self.base / "lib"), "HERMRETRO_RUNTIME_DIR": str(self.base / "run")},
-            ),
-            mock.patch.object(hermes_host, "_data_dir", lambda: self.home),
-        ]
-        for patch in self.patches:
-            patch.start()
         self.frog = make_project(self.base, "Frog Post")
         hermes_host._registry().upsert(str(self.frog))
         self.asset = assets_rpcs.rpc_asset(mock.Mock())
-
-    def tearDown(self):
-        for patch in reversed(self.patches):
-            patch.stop()
-        self.tmp.cleanup()
 
     def test_a_sprite_in_a_game_comes_with_its_size_and_frames(self):
         sprite = self.frog / "assets" / "sprites" / "frog.png"

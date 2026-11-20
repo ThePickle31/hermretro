@@ -1,8 +1,9 @@
 """`new`: add a feature, page, tab, tool, RPC, event, listener or slot in the repository's shape, in one command.
 
     new feature <name> [--purpose TEXT]        backend/<name>/ (front door, README), its tests, the registry lines
-    new rpc <feature> <name> | <feature>.<name> [--module M]  an @rpc stub (its handler in backend/<feature>/<M>.py
-                                               with --module), its test, its CONTRACT section, the generated names
+    new rpc <feature> <name> | <feature>.<name> [--module M] [--game]  an @rpc stub (its handler in
+                                               backend/<feature>/<M>.py with --module; a `game` param that answers
+                                               NO_GAME with --game), its test, its CONTRACT section, the generated names
     new tool <feature> <name> [--step R D] [--module M] [--[no-]project]   a Tool stub (in backend/<feature>/<M>.py with its own
                                                TOOLS with --module, or when tools.py is over 400 lines), its test,
                                                plugin.yaml, the page's step words, CONTRACT
@@ -12,13 +13,15 @@
     new tab <page> <id> [--label L] [--from-page]   page/pages/<page>/<id>/index.js, listed in the page's tabs
                                                (--from-page: a tabless page's own Page becomes this tab)
     new slot <page> <name> [--doc TEXT]        a slot the page declares for others to fill
+    new contribution <page> <slot> <Component> a component of <page> filling another page's declared slot
 
 Each writes code, its test, the docs and the one registry line from the templates in templates/<kind>/ ({key}
 replaced; {{ and }} are literal braces), prints every file it created or changed, rebuilds the generated files
 when the change needs it (policy.toml [generated] regenerate), runs the checks those files feed (not the install
 scan: `check` runs it before ship; the page kinds run only lint, bundle and page, `check` runs unit) and prints the next step. --dry-run lists the files, prints the unified diff of each and writes nothing;
 --no-check skips the checks, --no-build the rebuild (for several `new` in a row: the last one rebuilds). It
-refuses a name that exists or breaks the naming rules, and works only on a work branch (never dev or main).
+refuses a name that exists or breaks the naming rules, and writes only on a work branch (never dev or main; a
+--dry-run, which writes nothing, runs anywhere).
 """
 
 from __future__ import annotations
@@ -26,14 +29,14 @@ from __future__ import annotations
 import ast
 import difflib
 import keyword
-import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import checks, repo, state
+from . import repo
 from .output import Failure, cmd
+from .scaffold_checks import PAGE_CHECKS, validate
 
 TEMPLATES = Path(__file__).resolve().with_name("templates")
 SNAKE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -127,6 +130,8 @@ class Plan:
     stdlib_only: tuple[str, ...] = ()  # policy.toml [new]: features new adds no rpc, tool or event to
     notes: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
+    done: list[str] = field(default_factory=list)  # edits new made that a reader might take for steps left
+    dry_run: bool = False
     skip_checks: list[str] = field(default_factory=list)  # affected checks not to run now (a note says why)
     only_checks: tuple[str, ...] = ()  # when set, the affected checks new may run (the page kinds: PAGE_CHECKS)
 
@@ -164,6 +169,17 @@ class Plan:
 
     def paths(self) -> list[str]:
         return sorted({*self.created, *self.changed})
+
+    def format_python(self, ruff: Path) -> None:
+        """Every Python file the plan writes, as ruff formats it with the repository's settings (tools/check.py fix
+        does the same): the --dry-run diff then shows exactly what the write produces. A text ruff cannot read (a
+        syntax error) stays as written."""
+        for files in (self.created, self.changed):
+            for rel, text in files.items():
+                if rel.endswith(".py"):
+                    command = [str(ruff), "format", "--config", "tools/py/ruff.toml", "--stdin-filename", rel, "-"]
+                    code, formatted, _err = repo.run(command, self.top, timeout=120, feed=text)
+                    files[rel] = formatted if code == 0 and formatted else text
 
     def diff(self) -> str:
         """The unified diff of every file the plan creates or changes, from its in-memory edits."""
@@ -218,9 +234,9 @@ def in_section(text: str, heading: str, change) -> str:
 
 
 def readme_item(text: str, label_text: str, item: str, only_none: bool = False) -> str:
-    """Add ``item`` to a README line such as '- RPCs: none.' or '**Tabs:** none.' (its first sentence: 'none'
-    becomes the item, else it is appended). Unchanged when there is no such line, or (``only_none``) when the
-    sentence already lists something: the caller then reminds the author."""
+    """Add ``item`` to a README line such as '- RPCs: none.' or '**Tabs:** none.' (its first sentence: 'none',
+    with a parenthetical that explains it, becomes the item, else it is appended). Unchanged when there is no such
+    line, or (``only_none``) when the sentence already lists something: the caller then reminds the author."""
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if not line.lstrip("-* ").startswith(label_text):
@@ -228,8 +244,8 @@ def readme_item(text: str, label_text: str, item: str, only_none: bool = False) 
         head, sep, rest = line.partition(label_text)
         end = re.search(r"\.(?=\s|$)", rest)
         segment, tail = (rest[: end.start()], rest[end.start() :]) if end else (rest, "")
-        if re.search(r"\bnone\b", segment):
-            segment = re.sub(r"\bnone\b", lambda _match: item, segment, count=1)
+        if re.search(r"\bnone\b", segment):  # with the parenthetical that explains it: '**Tabs:** none (its ...)'
+            segment = re.sub(r"\bnone\b(?:\s*\([^()]*\))?", lambda _match: item, segment, count=1)
         elif only_none:
             return text
         else:
@@ -242,10 +258,11 @@ def readme_item(text: str, label_text: str, item: str, only_none: bool = False) 
 def guard(ctx) -> str:
     branch = repo.branch(ctx.top)
     policy = ctx.policy["branches"]
-    if not branch or branch in policy["protected"] or branch.split("/")[0] not in policy["kinds"]:
+    if not branch or branch in policy["protected"]:  # any work branch: ship and land take any name (a takeover's)
         raise Failure(
             f"new writes code only on a work branch, and this checkout is on {branch or 'a detached HEAD'}",
-            "python tools/retrodev start feat/<topic> (a worktree on its own branch), then run new there",
+            "python tools/retrodev start feat/<topic> (a worktree on its own branch), then run new there (--dry-run "
+            "lists the files from here)",
         )
     return branch
 
@@ -264,32 +281,12 @@ def shown(command: list[str]) -> str:
     return cmd(*["python" if word == sys.executable else word for word in command])
 
 
-# The page kinds touch no Python the unit tests import (page/, tests/page/registry.test.mjs, the generated bundle):
-# their own checks are these, and `check` runs unit before ship. The backend kinds keep unit.
-PAGE_CHECKS = ("lint", "bundle", "page")
-SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py skips its gate while it is set
-
-
-def validate(ctx, names: list[str]) -> None:
-    """The checks right after writing the stubs: without the placeholder gate (the stubs are not filled in yet), so
-    their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship)."""
-    branch = repo.branch(ctx.top)
-    kept = state.load_branch(ctx.top, branch)
-    before = os.environ.get(SCAFFOLD_CHECK)
-    os.environ[SCAFFOLD_CHECK] = "1"
-    try:
-        checks.run(ctx, names)
-    finally:
-        if before is None:
-            os.environ.pop(SCAFFOLD_CHECK, None)
-        else:
-            os.environ[SCAFFOLD_CHECK] = before
-        state.save_branch(ctx.top, kept)
-
-
 def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bool = True) -> int:
     out = ctx.out
     verb = "would " if dry_run else ""
+    ruff = ctx.top / ".dev" / "py" / "bin" / "ruff"
+    if ruff.is_file():  # the one formatting, before the diff and the write alike; without ruff, as written
+        plan.format_python(ruff)
     for rel in sorted(plan.created):
         out.say(f"{verb}create  {rel}")
     for rel in sorted(plan.changed):
@@ -303,7 +300,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     for note in plan.notes:
         out.say("note: " + note)
     out.set(what=what, created=sorted(plan.created), changed=sorted(plan.changed), dry_run=dry_run)
-    out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps)
+    out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps, done=plan.done)
     if dry_run:
         diff = plan.diff()
         out.set(diff=diff)
@@ -314,10 +311,6 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         path = ctx.top / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    python = [rel for rel in plan.paths() if rel.endswith(".py")]
-    ruff = ctx.top / ".dev" / "py" / "bin" / "ruff"
-    if python and ruff.is_file():  # the one formatting (tools/check.py fix does the same); without ruff, as written
-        repo.run([str(ruff), "format", "--config", "tools/py/ruff.toml", "-q", *python], ctx.top, timeout=120)
     for command in regenerate:
         code, stdout, stderr = repo.run(command, ctx.top, timeout=300)
         if code:
@@ -329,7 +322,10 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     names = [name for name in names if name in plan.only_checks] if plan.only_checks else names
     if names:
         out.say("checks: " + " ".join(names))
-        validate(ctx, names)
+        generated = set(ctx.policy["generated"]["files"]) if plan.regenerate else set()
+        validate(ctx, names, set(plan.paths()) | generated)
+    for item in plan.done:
+        out.say("done: " + item)
     for step in plan.next_steps:
         out.say("next: " + step)
     out.say("then: " + then(ctx, plan.paths()))
@@ -350,15 +346,17 @@ def then(ctx, paths: list[str]) -> str:
 
 
 def run(ctx, args) -> int:
-    from . import (
+    from . import (  # the kinds; they import this module
         scaffold_backend,
+        scaffold_contribution,
         scaffold_listener,
         scaffold_page,
         scaffold_tool,
-    )  # the kinds; they import this module
+    )
 
-    guard(ctx)
-    plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
+    if not args.dry_run:  # a dry run writes nothing, so a planner may list the files from dev or main
+        guard(ctx)
+    plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())), dry_run=args.dry_run)
     kind = args.kind
     if kind == "feature":
         what = scaffold_backend.feature(plan, args.name, args.purpose)
@@ -371,7 +369,7 @@ def run(ctx, args) -> int:
                     f"new rpc needs a feature and a name, as two words or <feature>.<name>; got '{args.target}'",
                     "python tools/retrodev new rpc library recent (or: new rpc library.recent)",
                 )
-        what = scaffold_backend.rpc_(plan, target, name, args.module)
+        what = scaffold_backend.rpc_(plan, target, name, args.module, bool(getattr(args, "game", False)))
     elif kind == "listener":
         what = scaffold_listener.listener(plan, args.target, args.name)
     elif kind == "tool":
@@ -382,8 +380,10 @@ def run(ctx, args) -> int:
         what = scaffold_page.page(plan, args.name, args.label)
     elif kind == "tab":
         what = scaffold_page.tab(plan, args.target, args.name, args.label, getattr(args, "from_page", False))
+    elif kind == "contribution":
+        what = scaffold_contribution.contribution(plan, args.target, args.name, args.component)
     else:
         what = scaffold_page.slot(plan, args.target, args.name, args.doc)
-    if kind in ("page", "tab", "slot"):
+    if kind in ("page", "tab", "slot", "contribution"):
         plan.only_checks = PAGE_CHECKS
     return apply(ctx, plan, what, args.dry_run, not args.no_check, not getattr(args, "no_build", False))

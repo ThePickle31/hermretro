@@ -1,12 +1,21 @@
 // Stand-in for @hermes/plugin-sdk, enough to drive the hermretro page in jsdom.
+// Its react-query surface: useQuery(options) records the query (scenario.queries, scenario.fns[key]) and answers
+// scenario[queryKey[1]] (pending until a test sets it; queryFn never runs; a function there is called with the whole
+// queryKey, so a per-game query answers per game: scenario.player = key => answered(...key[3])); useQueryClient() gives
+// invalidateQueries (a no-op) and setQueryData(queryKey, value or updater) / getQueryData(queryKey) over one cache,
+// scenario.queryData (a Map keyed by JSON.stringify(queryKey)). Anything else from react-query is not here: add it.
 import { useSyncExternalStore } from 'react'
 import { jsx } from 'react/jsx-runtime'
 
 export const scenario = {
   status: null, doctor: null, activity: null, queries: [], notices: [], navigations: [], storage: {},
   fns: {}, byMethod: {}, inserted: [], paramsByMethod: {}, ambient: null, routes: [], byProfile: {}, calls: [],
+  // What the page copied (ctx.os.writeClipboard, in order) and showed (host.notify: { kind, message }).
+  clipboard: [],
   // Gateway event listeners (host.onEvent) and the workspace tabs a plugin opened (host.openWorkspace).
-  events: {}, workspaces: []
+  events: {}, workspaces: [],
+  // The query client's cache (setQueryData / getQueryData), keyed by JSON.stringify(queryKey).
+  queryData: new Map()
 }
 
 // Deliver a gateway event the way the app's tap does (contrib/events.ts): by type, then '*'.
@@ -82,10 +91,22 @@ export const useQuery = options => {
   scenario.queries.push({ key, queryKey: options.queryKey, enabled: options.enabled, refetchInterval: options.refetchInterval })
   scenario.fns[key] = options.queryFn
 
-  return scenario[key] ?? { isPending: true, isFetching: false, data: undefined }
+  const answer = typeof scenario[key] === 'function' ? scenario[key](options.queryKey) : scenario[key]
+
+  return answer ?? { isPending: true, isFetching: false, data: undefined }
 }
 
-export const useQueryClient = () => ({ invalidateQueries: () => {} })
+export const useQueryClient = () => ({
+  invalidateQueries: () => {},
+  getQueryData: queryKey => scenario.queryData.get(JSON.stringify(queryKey)),
+  setQueryData: (queryKey, value) => {
+    const key = JSON.stringify(queryKey)
+    const next = typeof value === 'function' ? value(scenario.queryData.get(key)) : value
+
+    scenario.queryData.set(key, next)
+    return next
+  }
+})
 
 const el = (tag, extra = {}) => props =>
   jsx(tag, { ...extra, 'aria-label': props['aria-label'], onClick: props.onClick, disabled: props.disabled, 'data-variant': props.variant, children: props.children ?? props.text ?? props.label })
