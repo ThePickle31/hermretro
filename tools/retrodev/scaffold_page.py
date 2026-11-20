@@ -237,8 +237,8 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
         )
     shown = design_heading(page_tests.read(plan, DESIGN_DOC), page_tests.page_label(plan, page_id) or label(page_id))
     plan.next_steps.append(
-        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and as a bullet in {shown} (the Pages "
-        "table row stays short)"
+        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and as a bullet in {shown} (the table row "
+        "stays short)"
     )
     if from_page and values.get("moved") and page_in_index(plan, page_id):
         plan.next_steps.append(

@@ -141,7 +141,10 @@ DESIGN_DOC = "docs/dev/STUDIO-PAGES.md"
 def design_heading(doc: str, label: str) -> str:
     """Where docs/dev/STUDIO-PAGES.md describes the page labelled ``label``: its `### <Label>` subsection under
     `## Pages`, else a top `## <Label>...` section of its own (Build's `## Build: one game, one conversation`, with
-    the design in its `### Page` subsection when it has one), else none yet: a subsection to add under `## Pages`."""
+    the design in its `### Page` subsection when it has one), else none yet: a subsection to add under `## Pages`.
+    Without the doc (a partial tree), the usual place: its `### <Page>` subsection under `## Pages`."""
+    if not doc.strip():
+        return f"its `### <Page>` subsection under `## Pages` of {DESIGN_DOC}"
     sections: list[tuple[str, list[str]]] = []  # each `## ` heading and the `### ` headings under it
     for line in doc.split("\n"):
         if line.startswith("## "):
