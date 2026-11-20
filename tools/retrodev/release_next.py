@@ -15,7 +15,7 @@ run stopped) is resumed, never opened twice. The pull request is kept in the rel
 
 from __future__ import annotations
 
-from . import approve, checks, gates, github, land, release, repo, reviews, ship, start, state
+from . import approve, checks, gates, github, land, land_merge, release, repo, reviews, ship, start, state
 from .output import Failure, cmd
 
 
@@ -84,6 +84,30 @@ def recorded(ctx, released: str, version: str) -> dict | None:
     return {"number": int(kept["pr"]), "state": found} if found in ("OPEN", "MERGED") else None
 
 
+def finish_landing(ctx, released: str) -> None:
+    """A next-version pull request that merged while its landing stopped after the merge (the main checkout's pull,
+    the worktree cleanup): land finishes those steps (never merging again) and the record says merged."""
+    kept = (state.load_release(ctx.top, released) or {}).get("next") or {}
+    if not kept.get("pr") or kept.get("merged") or kept.get("closed"):
+        return
+    if github.pr_state(ctx, int(kept["pr"])) != "MERGED":
+        return
+    land.run(ctx, int(kept["pr"]))
+    landed(ctx, released, int(kept["pr"]))
+
+
+def landed(ctx, released: str, number: int) -> None:
+    """The record says merged only once land finished every step after the merge (the main checkout's pull, the
+    cleanup); otherwise it says what is left, and the next run (finish_landing) finishes it."""
+    left = land_merge.unfinished(reviews.load(ctx, number))
+    if left:
+        raise Failure(
+            f"#{number} merged, but its landing did not finish (the main checkout's pull or the worktree cleanup)",
+            f"read land's output above; python tools/retrodev land {number} finishes it",
+        )
+    remember(ctx, released, {"merged": state.now()})
+
+
 def open_it(ctx, released: str, version: str, words: str) -> int:
     """The version pull request, made the way release prepare makes one (a worktree left over is reused)."""
     branch = f"chore/release-{version}"
@@ -122,6 +146,8 @@ def run(ctx, words: str | None, dry_run: bool = False) -> int:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     released, current, version = target(ctx)
     ctx.out.set(released=released, dev_version=current, next=version, dry_run=dry_run)
+    if released and not dry_run:
+        finish_landing(ctx, released)
     if not released:
         ctx.out.say("no stable release is tagged yet: nothing to move on from")
         return 0
@@ -158,6 +184,6 @@ def run(ctx, words: str | None, dry_run: bool = False) -> int:
         land.run(ctx, number)
     except Failure as failure:
         raise Failure(failure.message, f"{failure.fix}; then {again} (it resumes)", failure.code, failure.data)
-    remember(ctx, released, {"merged": state.now()})
+    landed(ctx, released, number)
     ctx.out.say(f"{ctx.remote_base} now says {version}: the next release needs no version pull request")
     return 0

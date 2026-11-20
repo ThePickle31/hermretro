@@ -77,7 +77,8 @@ class Publishes(RunCase):
     def drafted(self, args) -> None:
         """The draft exists now: verify reads it (a draft until gh release edit --draft=false)."""
         tag = args[2]
-        view = {"tagName": tag, "isDraft": True, "isPrerelease": False, "body": "## Changes\n- A thing", "url": URL}
+        body = "## Changes\n- Update the release checklist's wording (#3)"  # a mention, not a result
+        view = {"tagName": tag, "isDraft": True, "isPrerelease": False, "body": body, "url": URL}
         self.gh.answers[("release", "view", tag, "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
         self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
         self.gh.answers[("release", "view", tag, "--json", "body")] = (0, view["body"] + "\n", "")
@@ -102,6 +103,7 @@ class Publishes(RunCase):
             [["release", "edit", f"v{NEXT}", "--draft=false"]],
         )
         notes = self.gh.called("release", "edit", f"v{NEXT}", "--notes")
+        self.assertNotIn("Update the release checklist", notes[0][-1].split("Real-machine")[1])
         self.assertEqual(len(notes), 1, "the notes say the checklist was not run, before publishing")
         self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not run", notes[0][-1])
         order = [i for i, c in enumerate(self.gh.calls) if c[:2] == ["release", "edit"]]
@@ -169,6 +171,25 @@ class Publishes(RunCase):
         self.ci(git(self.main, "rev-parse", "origin/dev").strip(), runs("success"))
         code, data = self.release_run("--draft", "--dry-run")
         self.assertEqual(data["version"], AFTER, "the next release, not the old one again")
+
+    def test_a_next_version_landing_that_stopped_after_its_merge_is_finished_on_resume(self):
+        real = self.squash_next
+
+        def merge_then_block_the_pull(args):
+            real(args)
+            (self.main / "plugin.yaml").write_text("version: local edit\n")  # the main checkout's pull now fails
+
+        self.gh.effects[("pr", "merge", NEXT_PR)] = merge_then_block_the_pull
+        code, data = self.release_run()
+        self.assertEqual(code, 1, data)
+        self.assertIn("released, but dev did not move to the next version", data["error"]["message"])
+        git(self.main, "checkout", "--", "plugin.yaml")
+        code, data = self.release_run("--version", NEXT)
+        self.assertEqual(code, 0, data)
+        self.assertEqual((self.main / "plugin.yaml").read_text().strip(), f"version: {AFTER}", "pulled")
+        self.assertFalse((self.base / "hermretro-wt" / f"release-{AFTER}").exists(), "the worktree is cleaned up")
+        self.assertTrue(state.load_release(self.main, NEXT)["next"]["merged"])
+        self.assertEqual(len(self.gh.called("pr", "merge", NEXT_PR)), 1, "merged once")
 
     def test_an_open_next_version_pull_request_is_used_or_closed_when_another_version_is_named(self):
         self.gh.answers[("pr", "checks", NEXT_PR)] = (0, json.dumps(RED), "")

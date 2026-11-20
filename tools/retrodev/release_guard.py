@@ -4,6 +4,7 @@ release, a next-version pull request in the way, and one rerun of a failed push 
 from __future__ import annotations
 
 import json
+import re
 
 from . import checks_triggers, github, release, repo, state
 
@@ -96,6 +97,7 @@ def rerun(ctx, rec: dict, sha: str, why: str) -> bool:
 
 
 CHECKLIST = "docs/dev/RELEASE-CHECKLIST.md"
+RESULT = re.compile(r"^[\s>*_-]*real-machine checklist\b[^\n]*:\s*\S", re.I | re.M)
 
 
 def disclose_checklist(ctx, version: str) -> None:
@@ -105,7 +107,7 @@ def disclose_checklist(ctx, version: str) -> None:
     code, out, err = github.gh(ctx, ["release", "view", tag, "--json", "body", "--jq", ".body"], check=False)
     if code:
         raise github.failed(["release", "view", tag], err or out)
-    if "checklist" in out.lower():
+    if RESULT.search(out):  # a stated result ("Real-machine checklist ...: <result>"), not any mention of a checklist
         return
     body = out.rstrip() + f"\n\nReal-machine checklist ({CHECKLIST}): not run for this release.\n"
     github.gh(ctx, ["release", "edit", tag, "--notes", body])
