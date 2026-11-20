@@ -195,7 +195,9 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn("from . import rdprobe_extra", index)
         tools = next(node for node in tree.body if isinstance(node, ast.Assign) and node.targets[0].id == "TOOLS")
         self.assertEqual([ast.unparse(elt) for elt in tools.value.elts], ["*rdprobe_extra.TOOLS"])
-        self.assertIn("`chromatic_rdprobe_mod` (`backend/history/rdprobe_extra.py`)", self.read("docs/dev/CONTRACT.md"))
+        self.assertIn(
+            "`chromatic_rdprobe_mod` (`backend/history/rdprobe_extra.py`: ", self.read("docs/dev/CONTRACT.md")
+        )
         self.new("tool", "history", "rdprobe_two", "--module", "rdprobe_extra")  # the same module again: once
         self.assertEqual(self.read("backend/history/tools.py").count("rdprobe_extra.TOOLS"), 1)
         self.assertEqual(self.read("backend/history/rdprobe_extra.py").count("Tool(RDPROBE_"), 2)
@@ -203,8 +205,10 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn("--module rpcs", out["error"]["message"])
 
     def test_module_refuses_a_name_tools_py_already_binds_and_nothing_changes(self):
-        for name in ("__init__.py", "tools.py", "README.md"):
+        for name in ("__init__.py", "README.md"):
             shutil.copyfile(ROOT / "backend/library" / name, self.tree / "backend/library" / name)
+        probe = "import json\n\nfrom ..hermes import host\nfrom . import games as library\n\nlogger = host.logger\nTOOLS = ()\n"
+        write(self.tree, "backend/library/tools.py", probe)  # a probe: these bindings, whatever the real file holds
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Library tools")
         for module in ("json", "logger", "library"):  # a stdlib import, an assignment, `games as library`

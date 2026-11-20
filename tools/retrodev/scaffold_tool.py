@@ -28,6 +28,7 @@ from .scaffold_source import (
     add_tool,
     check_front_door_name,
     check_sibling_name,
+    files_line,
     is_aggregator,
     js_str,
     module_names,
@@ -95,15 +96,7 @@ def with_import(text: str, line: str, names: tuple[str, ...]) -> str:
 
 def tools_line(text: str, module: str) -> str:
     """The README's Tools line names the sibling module the tool went into: 'Tools (`tools.py`, `<module>.py`)'."""
-    lines = text.split("\n")
-    for index, line in enumerate(lines):
-        found = re.match(r"^(\s*[-*]\s*Tools)(?: \(([^)]*)\))?:", line)
-        if not found or f"`{module}.py`" in (found.group(2) or ""):
-            continue
-        files = (found.group(2) or "`tools.py`") + f", `{module}.py`"
-        lines[index] = f"{found.group(1)} ({files}):" + line[found.end() :]
-        return "\n".join(lines)
-    return text
+    return files_line(text, "Tools", "tools.py", module)
 
 
 def tool(
@@ -236,5 +229,34 @@ def _contract_tool(text: str, full: str, feature_name: str, home: str | None = N
     text, extra = re.subn(r"(\d+ tools, plus\s+)(\w+)", plus, text, count=1)
     if not (total and sum_ and extra):
         raise Failure(f"{CONTRACT}: the tool counts are not where they were", "update them by hand, then run check")
-    line = f"- `{full}` (`{home or f'backend/{feature_name}/tools.py'}`): say what it does and when the agent calls it."
-    return insert_after(text, re.compile(r"in total\.$"), line, CONTRACT, last=False)
+    what = f"`{home or f'backend/{feature_name}/tools.py'}`: {TOOL_LINE}"
+    named = owned_sentence(text, full, what)
+    if named == text:
+        raise Failure(
+            f"{CONTRACT}: the 'plus <count> plugin-owned tools' sentence names no tool to add {full} after",
+            f"name {full} ({what}) at the end of that sentence by hand, then run check",
+        )
+    return named
+
+
+TOOL_LINE = "say what it does and when the agent calls it"  # tests/repo/test_placeholders.py refuses it unfilled
+
+
+def owned_sentence(text: str, full: str, what: str = "") -> str:
+    """The sentence the 'plus N' count opens names every plugin-owned tool ('`a`, `b` (what) and `c`.'): the new
+    one goes last, with what it does in brackets ('`a`, `b` (what), `c` and `<full>` (<what>).'), the only place
+    CONTRACT lists it (tests/repo/test_lockstep.py counts the names in that sentence). Unchanged when that
+    sentence lists no backticked name or names it already."""
+    plus, total = re.search(r"\d+ tools, plus\s+\w+", text), re.search(r"\d+ in total", text)
+    if not plus or not total or total.start() < plus.end():
+        return text
+    region = text[plus.end() : total.start()]
+    end = region.rstrip().rfind(".")
+    if end < 0 or "`" not in region[:end] or f"`{full}`" in region:
+        return text
+    head = region[:end]
+    joins = [m for m in re.finditer(r"\s+and\s+", head) if head[: m.start()].count("(") == head[: m.start()].count(")")]
+    if joins:
+        head = head[: joins[-1].start()] + ", " + head[joins[-1].end() :]
+    said = f" ({what})" if what else ""
+    return text[: plus.end()] + head + f" and `{full}`{said}" + region[end:] + text[total.start() :]

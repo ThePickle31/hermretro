@@ -79,7 +79,7 @@ class NewKinds(ScaffoldCase):
         self.assertEqual(self.changed(), "")
 
     def test_tool_counts_past_six_are_words(self):
-        text = "the 87 tools, and 81 tools, plus six plugin-owned ones. 87 in total.\n"
+        text = "the 87 tools, and 81 tools, plus six plugin-owned ones: `chromatic_a` and `chromatic_b`. 87 in total.\n"
         changed = scaffold_backend._contract_tool(text, "chromatic_seventh", "history")
         self.assertIn("81 tools, plus seven", changed)
         self.assertIn("88 in total", changed)

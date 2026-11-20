@@ -155,13 +155,16 @@ class GrownTree(unittest.TestCase):
             own = "// Setup.\nimport { SetupPage } from './setup-page.js'\n\nexport const SETUP_PAGE = {\n  Page: SetupPage\n}\n"
             write(tree, "page/pages/setup/index.js", own)
             write(tree, "backend/history/listeners.py", "")
+            write(tree, "backend/history/README.md", "# history\n\n- RPCs (`rpcs.py`): `builds`.\n")
             steps = tree_test.grown_steps(tree)
+            self.assertIn(["rpc", "history", "rdgrown_pong", "--module", "rdgrown_pong_rpcs"], steps)  # review 1, 2
             self.assertIn(["tab", "setup", "rdgrown-first", "--from-page"], steps)
             self.assertIn(["listener", "history", "library.game_presented"], steps)
             tabbed = "// Setup.\nimport { SETUP_MAIN_TAB } from './main/index.js'\n\nexport const SETUP_PAGE = {\n  tabs: [SETUP_MAIN_TAB]\n}\n"
             write(tree, "page/pages/setup/index.js", tabbed)  # a branch gave setup tabs and history the listener
             heard = '@on("library.game_presented")\ndef on_library_game_presented(**_payload):\n    pass\n'
             write(tree, "backend/history/listeners.py", heard)
+            write(tree, "backend/history/README.md", "# history\n\n- RPCs (`rpcs.py`, `x_rpcs.py`): `builds`, `x`.\n")
             self.assertEqual(tree_test.grown_steps(tree), [], "nothing is made twice")
 
 

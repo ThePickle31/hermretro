@@ -5,13 +5,15 @@
 Fetches, then makes <worktree_root>/<topic> on a local <branch> that tracks <remote>/<branch> (made from it; a
 local branch of that name must not exist yet), runs start's setup (npm ci, the ruff setup) and records the branch
 as start does. It never needs the main checkout on dev: nothing there changes but git's worktree list. The next
-steps: the plan (plan new and plan approve, while the branch has no approved one), sync while HEAD lacks commits of
-the base branch, then check.
+steps: while HEAD lacks commits of the base, read its diff of the files both changed (before the plan: sync's merge
+empties it); the plan (plan new and plan approve, while the branch has no approved one); sync (the main checkout's
+retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes); then check. While the
+branch's copy is older, every one of these retrodev commands is the main checkout's, run in the worktree.
 """
 
 from __future__ import annotations
 
-from . import gates, plan, repo, start, state, status
+from . import gates, plan, repo, start, state, status, sync
 from .gates import Gate
 from .output import Failure, cmd
 
@@ -87,17 +89,30 @@ def run(ctx, branch: str, setup: bool = True) -> int:
 
 
 def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
+    """Every retrodev command in them is run by sync.runner: the main checkout's while the branch's own copy is older
+    (its plan approve and status would print the older sync step), until sync brings the branch's copy up to date."""
+    run = sync.runner(ctx, path)
+    return [sync.newer(step, run) for step in _next_steps(ctx, branch, path, record)]
+
+
+def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
     steps = [cmd("cd", path)]
+    behind = status.behind(ctx, path)
+    both = status.overlap(ctx, path) if behind else []
     named = gates.plan_for(ctx, branch, record)
-    if named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok:
+    planned = named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok
+    if both:  # sync's merge empties this diff: read it while it still shows what dev did to the branch's files
+        steps.append(status.read_first(both, ctx.remote_base, "writing the plan" if planned else "sync merges it"))
+    if planned and named:
         if not plan.plan_file(ctx, named).is_file():
             steps.append(f"python tools/retrodev plan new {named} (say what the branch does and what is left)")
         steps.append(
             f"show the owner notes/plans/{named}.md; when they say start: python tools/retrodev plan approve {named} "
             '--words "<their exact words>" (it also writes the pull request body)'
         )
-    behind = status.behind(ctx, path)
     if behind:
-        steps.append(f"python tools/retrodev sync (HEAD lacks {behind} commit(s) of {ctx.remote_base})")
+        steps.append(
+            f"{sync.sync_command(ctx, path)} (HEAD lacks {behind} commit(s) of {ctx.remote_base}{sync.older(ctx, path)})"
+        )
     steps.append("python tools/retrodev check")
     return steps

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from .output import Failure
+from .output import Failure, cmd
 from .scaffold import (
     CAMEL,
     KEBAB,
@@ -131,6 +131,14 @@ def add_to_descriptor(text: str, field_name: str, opening: str, closing: str, en
     return "\n".join(lines[: first + 1] + body + lines[end:])
 
 
+def folder_is(plan: Plan, folder: str) -> str:
+    """What an existing folder is: the first line of its index.js's opening comment, else 'an existing folder'."""
+    door = f"{folder}/index.js"
+    first = plan.read(door).lstrip().split("\n", 1)[0] if plan.exists(door) else ""
+    said = re.sub(r"^(//+|/\*+)\s*|\s*\*/$", "", first).strip() if first.startswith(("//", "/*")) else ""
+    return said or "an existing folder"
+
+
 def known_page(plan: Plan, page_id: str) -> str:
     check_name(page_id, KEBAB, "page", "games")
     if not plan.exists(f"page/pages/{page_id}/index.js"):
@@ -146,7 +154,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     tab_label = js_label(tab_label, label(tab_id))
     name = f"{const(page_id)}_{const(tab_id)}_TAB"  # one bundle: every exported name is unique across pages
     if plan.exists(f"page/pages/{page_id}/{tab_id}"):
-        raise Failure(f"page/pages/{page_id}/{tab_id} exists", "pick another tab id")
+        other = f"{tab_id}-tab" if not plan.exists(f"page/pages/{page_id}/{tab_id}-tab") else f"{tab_id}-view"
+        raise Failure(
+            f"page/pages/{page_id}/{tab_id} exists: {folder_is(plan, f'page/pages/{page_id}/{tab_id}')}; a tab needs a "
+            "folder of its own, and its id names that folder (the label is what the tab bar shows)",
+            f"pick another id and keep the label: python tools/retrodev new tab {page_id} {other} --label "
+            + cmd(tab_label),
+        )
     unique_exports(plan, [name])
     values = {"page": page_id, "tab": tab_id, "Label": tab_label, "Component": pascal(tab_id) + "Tab"}
     values["CONST"] = f"{const(page_id)}_{const(tab_id)}"

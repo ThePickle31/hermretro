@@ -83,7 +83,7 @@ class Flow(RepoCase):
         self.assertFalse((tree / "notes").exists(), "never in the worktree: gc would keep it")
         text = path.read_text()
         self.assertIn("## Why\nMake goalie work.\n", text)
-        self.assertIn("Made by an agent (Hermes) for the owner.", text)
+        self.assertIn("Made by an agent for the owner.", text)  # no GitHub remote: no agent named (round seven)
         fix = line_with(out, "FIX:").strip()  # the body gate's FIX (every gate runs and prints its own)
         self.assertTrue(fix.startswith(f"FIX: fill in {path}, then python tools/retrodev ship --title"), fix)
         self.assertEqual(shlex.split(fix.split(", then ")[1])[-2:], ["--body", str(path)])
@@ -112,12 +112,14 @@ class Flow(RepoCase):
             path.unlink(missing_ok=True)
             self.assertEqual(self.run_cli("ship", "--title", "Credit", cwd=tree)[0], 1)
             text = path.read_text()
-            self.assertEqual(text.count("Made by an agent (Hermes) for the owner."), 1, text)
+            self.assertEqual(text.count("Made by an agent for the owner."), 1, text)
             if template == real:
-                self.assertIn(made_by.group(0) + "Made by an agent (Hermes) for the owner.\n", text)
+                # flipped (round seven): the line replaces the template's comment instead of following it
+                self.assertIn("## Made by\nMade by an agent for the owner.\n", text)
+                self.assertNotIn(made_by.group(0), text)
                 self.assertNotIn("\n---\n", text)
             else:
-                self.assertTrue(text.endswith("\n---\n\nMade by an agent (Hermes) for the owner.\n"), text)
+                self.assertTrue(text.endswith("\n---\n\nMade by an agent for the owner.\n"), text)
             text = text.replace("## Not done\nNothing else.\n", "## Not done\n")  # the plan's Not in scope, out again
             filled = re.sub(
                 r"^## (Why|What changed|How verified|Risk and rollback)\n", r"\g<0>Filled.\n", text, flags=re.M
