@@ -145,9 +145,22 @@ class BodyBareNames(RepoCase):
     def test_only_paths_under_the_repository_s_top_folders_count(self):
         self.assertTrue(body_names.is_repo_path("backend/x/y.py"))
         self.assertTrue(body_names.is_repo_path(".github/workflows/ci.yml"))
+        self.assertTrue(body_names.is_repo_path("desktop/plugin.js"))  # review 3, 0
         for word in ("games.json", "tools.py", "foo/bar.py", "/abs/path.py", "engine-ish"):
             with self.subTest(word=word):
                 self.assertFalse(body_names.is_repo_path(word))
+
+    def test_a_claim_about_an_untouched_bundle_warns_and_a_changed_one_does_not(self):  # review 3, 0
+        tree = self.worktree("fix/bundle")
+        self.commit(tree, "desktop/plugin.js", "// rebuilt\n")
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        quiet = (
+            body_names.warning(ctx, GOOD_BODY.replace("Things.", "- Rebuilt `desktop/plugin.js`; `plugin.js` too."))
+            or ""
+        )
+        self.assertEqual(quiet, "")
+        said = body_names.warning(ctx, GOOD_BODY.replace("Things.", "- Rebuilt `desktop/other.js`.")) or ""
+        self.assertIn("names the file(s) `desktop/other.js`, which the", said)
 
 
 class ConfigDefault(RepoCase):

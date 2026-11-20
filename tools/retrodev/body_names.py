@@ -32,7 +32,7 @@ PATH = re.compile(r"^[\w.@-]+(?:/[\w.@-]+)*/?$")
 
 
 # The repository's top folders a quoted path must start with to be checked against the diff (it must exist too).
-TOPS = ("backend", "page", "tools", "tests", "docs", "player", "skills", "profile", ".github")
+TOPS = ("backend", "page", "tools", "tests", "docs", "player", "desktop", "skills", "profile", ".github")
 
 
 def is_repo_path(word: str, top: Path | None = None) -> bool:

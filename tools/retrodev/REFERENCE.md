@@ -155,9 +155,11 @@ prints `note: no GitHub remote; the open pull request lookup was skipped` instea
 is shell-quoted (a title with an apostrophe pastes as it is). When the body passes its gate, ship (and `check`'s last
 line) warns, never fails, about each backtick-quoted identifier of its What changed (`games.rom_path`: an underscore,
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
-files: a name renamed while building (`games.built_rom`); and about each backtick-quoted file path there (a slash in
-it, or a known suffix: `tools/retrodev/sync.py`, `sync.py`, `backend/library/`) that the branch's changes do not
-touch (a renamed file counts at both its old and its new path). The next step it prints is `report`, or, when the owner
+files: a name renamed while building (`games.built_rom`); and about each backtick-quoted repository path there (a slash in it, under
+one of the repository's top folders: `tools/retrodev/sync.py`, `backend/library/`, `desktop/plugin.js`) that the
+branch's changes do not touch (a renamed file counts at both its old and its new path). A bare file name (`sync.py`,
+`games.json`), a path under `engine/` and a path a citation clause holds (`checked against`, `see`, `comes from` ...)
+never warn. The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
 
 ### `report`
