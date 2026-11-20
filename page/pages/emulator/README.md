@@ -27,6 +27,16 @@ tool results).
 `tests/page/registry.test.mjs` (also: an `emulator.barActions` contribution gets `go` on the page, not beside the
 chat).
 
+## When the player stays black
+
+Errors inside the player frame reach the app's developer console as `[Chromatic player] <text>` warnings
+(`page/shared/player/bridge.js`, forwarded by `page/frame/sandbox.js`). The stage (`page/app/player/stage.js`)
+says what it is waiting for: "Starting the player for <game>…" while the `player` RPC runs, "The player could not
+start" with Refresh when that RPC failed, and with Build it in chat when the game has no web export. A frame that
+loads but stays black: compare the game's `webExport` and `web.sha256` (the `games` RPC) with the `player` RPC's
+`romSha256`; when they differ the bar offers "Load the new build" (`emulator-bar.js`). More in
+`docs/dev/DEBUGGING.md`, "Common symptoms".
+
 ## Adding a tab here
 
 Make a folder `page/pages/emulator/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,

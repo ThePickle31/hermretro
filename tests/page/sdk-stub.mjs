@@ -1,6 +1,7 @@
 // Stand-in for @hermes/plugin-sdk, enough to drive the hermretro page in jsdom.
 // Its react-query surface: useQuery(options) records the query (scenario.queries, scenario.fns[key]) and answers
-// scenario[queryKey[1]] (pending until a test sets it; queryFn never runs); useQueryClient() gives
+// scenario[queryKey[1]] (pending until a test sets it; queryFn never runs; a function there is called with the whole
+// queryKey, so a per-game query answers per game: scenario.player = key => answered(...key[3])); useQueryClient() gives
 // invalidateQueries (a no-op) and setQueryData(queryKey, value or updater) / getQueryData(queryKey) over one cache,
 // scenario.queryData (a Map keyed by JSON.stringify(queryKey)). Anything else from react-query is not here: add it.
 import { useSyncExternalStore } from 'react'
@@ -90,7 +91,9 @@ export const useQuery = options => {
   scenario.queries.push({ key, queryKey: options.queryKey, enabled: options.enabled, refetchInterval: options.refetchInterval })
   scenario.fns[key] = options.queryFn
 
-  return scenario[key] ?? { isPending: true, isFetching: false, data: undefined }
+  const answer = typeof scenario[key] === 'function' ? scenario[key](options.queryKey) : scenario[key]
+
+  return answer ?? { isPending: true, isFetching: false, data: undefined }
 }
 
 export const useQueryClient = () => ({

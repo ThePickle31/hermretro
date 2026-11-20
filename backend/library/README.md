@@ -36,6 +36,12 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
 
 Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
+Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`games.project_title`: the `.gbsproj` name, else the web export's, else the folder name).
+
+## Captures
+
+Screenshots and videos saved from the player live in `<project>/captures/` (the demo cartridge's in `<library>/captures/demo`): `captures_dir(root, game_id)` in `backend/player/server.py` (not in the player's front door) names the folder, and `player.list_captures(root, game_id)` (`from ..player import list_captures`) lists its media files newest first as `{id, path, kind, createdAt, file}` (`kind` from the `.json` sidecar, else `screenshot` for a PNG and `video` otherwise; `createdAt` an ISO time; there is no size field: `stat` the `path`). The `captures` RPC (`rpcs.py`) reads them through `list_captures` and answers `{path, kind, createdAt, url}` for each. Writes go through `save_capture`: the `capture_image` RPC saves a page-sent game-screen PNG there as an `annotation` capture, and the player server's `codex-captures` POST saves the player's own.
+
 ## Project files
 
 What the plugin reads from a GB Studio project (the engine writes them; `backend/assets/sprites.py` `_project_index` reads them for the Build page's assets):

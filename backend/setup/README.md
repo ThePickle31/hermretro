@@ -15,7 +15,7 @@ Preparing the machine and the studio profile: the page's toolchain install and i
 
 ## Tests
 
-`tests/backend/setup/`.
+`tests/backend/setup/`. They reach into `provision.py` by these private names, so a split of `provision.py` keeps them on `provision` (imported back into it) or updates the tests in the same change: `provision._node_platform` (patched with `mock.patch.object(provision, "_node_platform", ...)` in `test_status_and_first_run.py` and `tests/backend/system/test_host_os.py`, and called), `provision.subprocess` (its `run` patched, so `provision.py` must keep calling `subprocess.run` through its own `subprocess` import), `provision._node`, `provision._platform_of` (its `cache_clear()`), `provision._pins` and `provision._RUST_TARGETS` (`test_provision.py`). `grep -rn "provision\._\|provision\.subprocess" tests/` lists them.
 
 ## Adding here
 

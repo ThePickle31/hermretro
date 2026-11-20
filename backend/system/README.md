@@ -8,7 +8,7 @@ even `backend.hermes`).
 ## What it adds
 
 No RPCs, tools, hooks or events of its own. `events.py` is how features connect: `emit(name, **payload)` in the
-owner, `@on(name)` in another feature's `listeners.py`; listener errors are logged and never reach the emitter.
+owner, `@on(name)` in another feature's `backend/<feature>/listeners.py`; listener errors are logged and never reach the emitter.
 
 ## Front door
 

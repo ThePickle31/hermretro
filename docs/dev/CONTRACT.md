@@ -179,7 +179,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`); each game also has `card` (below, or null), `cover` (whether `thumb` is the cover art) and `displayTitle` |
+| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `docs/dev/STUDIO-PAGES.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
