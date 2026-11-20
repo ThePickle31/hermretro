@@ -29,7 +29,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from . import gates, github, plan, repo, reviews, state
+from . import body_names, gates, github, plan, repo, reviews, state
 from .gates import Gate
 from .output import Failure, cmd
 from .review import records
@@ -317,6 +317,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         if written:  # the dry run wrote the skeleton just now: every section is still to write
             body_gate.message = f"fill in {body_path} (written now from {TEMPLATE})"
         body_gate.fix = fill_in(body_path, title, dry_run)
+    body_names.say(ctx, body_names.warning(ctx, text) if body_gate.ok else None)  # a warning, never a gate
     found = [
         gates.on_work_branch(ctx, branch),
         no_title or gates.title_gate(title),

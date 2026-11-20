@@ -24,6 +24,25 @@ def events_payload(payload: str) -> str:
     return ", ".join(part for part in parts if part)
 
 
+def contract_cell(payload: str) -> str:
+    """The CONTRACT events row's Payload cell, as its rows write it: `` `key` (what it holds)`` per part
+    ('game=<library id, str>, root' -> `` `game` (library id, str), `root` (<...>)``); a part that says nothing of
+    what its key holds keeps the ``<...>`` placeholder the EVENTS entry has."""
+    cells = []
+    for part in split_parts(payload):
+        found = re.match(r"\s*([A-Za-z_]\w*)\b\s*(.*?)\s*$", part)
+        if not found:
+            continue
+        held = found.group(2).removeprefix("=").strip()
+        if held.startswith("(") and held.endswith(")"):
+            held = held[1:-1].strip()
+        if held != "<...>":
+            held = re.sub(r"^<([^<>]*)>\s*\((.*)\)$", r"\1; \2", held)
+            held = re.sub(r"<([^<>]*)>", r"\1", held).strip()
+        cells.append(f"`{found.group(1)}` ({held or '<...>'})")
+    return ", ".join(cells)
+
+
 def undescribed(payload: str) -> list[str]:
     """The keys of a payload (a --payload line or an EVENTS entry's) that say nothing of what they hold: bare
     ('root') or still the placeholder ('root=<...>'), which events_payload writes as `key=<...>`."""

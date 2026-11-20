@@ -202,12 +202,15 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         + ("; this tree may ship" if good else "")
     )
     if good:
-        from . import ship  # ship imports gates, which imports this module
+        from . import body_names, ship  # ship imports gates, which imports this module
 
         step = ship.body_step(ctx, None if branch == "detached" else branch, record)
         if step:
             ctx.out.say(step)
             ctx.out.set(next=step)
+        body_names.say(
+            ctx, None if step else body_names.body_warning(ctx, None if branch == "detached" else branch, record)
+        )
     return 0
 
 

@@ -10,7 +10,7 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 
 1. `python tools/retrodev plan new <topic>`, then fill in `notes/plans/<topic>.md` (its `Title:` line too: one plain sentence, at most 100 characters, no trailing period)
 2. `python tools/retrodev plan approve <topic> --words "<the owner's exact words>"`
-3. `python tools/retrodev start <kind>/<topic>`, then `cd` into the worktree it prints: `<worktree_root>/<topic>`, by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it)
+3. `python tools/retrodev start <kind>/<topic>` (it writes the pull request body `notes/pr/<topic>.md`, from the plan or, with `--no-plan`, the template), then `cd` into the worktree it prints: `<worktree_root>/<topic>`, by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it)
 4. `python tools/retrodev new <kind> ...` for each piece (`--dry-run` lists its files first, also from `dev`), then edit
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
 6. `python tools/retrodev check`

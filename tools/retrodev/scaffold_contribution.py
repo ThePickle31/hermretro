@@ -70,6 +70,16 @@ def file_of(component: str) -> str:
 def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
     door = known_page(plan, page_id)
     declared = declared_slots(plan)
+    host_page = (slot or "").partition(".")[0]
+    if (
+        plan.dry_run
+        and SLOT.match(slot or "")
+        and slot not in declared
+        and plan.exists(f"page/pages/{host_page}/index.js")
+    ):
+        # a plan that adds the slot and fills it previews both; the real run still needs the slot declared
+        declared[slot] = host_page
+        plan.notes.append(f"slot not declared yet: run new slot {host_page} {slot.partition('.')[2]} first")
     if not SLOT.match(slot or "") or slot not in declared:
         listed = ", ".join(sorted(declared)) or "none yet"
         raise Failure(
@@ -104,13 +114,6 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
         "returns what the slot shows (null shows nothing)",
         f"docs/dev/STUDIO-PAGES.md 'Events and slots today': name {component} ({page_id}) under `{slot}`",
         f"page/pages/{host}/README.md **Slots:** line: say {page_id} fills `{slot}` with {component}",
-        (
-            f"{REGISTRY_TEST}: new added {component} to the `filled` assertion's `expected` (and its import)"
-            + (f", as {expected}: the test names {component} already" if expected != component else "")
-            if expected
-            else f"{REGISTRY_TEST}: add {component} under '{slot}' to the `filled` assertion's `expected`, in PAGES "
-            f"order ({REGISTRY}), imported from {rel}"
-        ),
         page_tests.contribution_step(plan, host, slot, component),
         f"tests/page/slots.test.mjs HOSTS: the recipe that renders `{slot}`'s host"
         + (
@@ -119,6 +122,16 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
             else " (add one once the host renders it)"
         ),
     ]
+    if expected:
+        plan.done.append(
+            f"{REGISTRY_TEST}: added {component} to the `filled` assertion's `expected` (and its import)"
+            + (f", as {expected}: the test names {component} already" if expected != component else "")
+        )
+    else:
+        plan.next_steps.append(
+            f"{REGISTRY_TEST}: add {component} under '{slot}' to the `filled` assertion's `expected`, in PAGES "
+            f"order ({REGISTRY}), imported from {rel}"
+        )
     return f"contribution {page_id} -> {slot}"
 
 

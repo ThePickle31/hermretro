@@ -129,6 +129,8 @@ class Plan:
     stdlib_only: tuple[str, ...] = ()  # policy.toml [new]: features new adds no rpc, tool or event to
     notes: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
+    done: list[str] = field(default_factory=list)  # edits new made that a reader might take for steps left
+    dry_run: bool = False
     skip_checks: list[str] = field(default_factory=list)  # affected checks not to run now (a note says why)
     only_checks: tuple[str, ...] = ()  # when set, the affected checks new may run (the page kinds: PAGE_CHECKS)
 
@@ -300,7 +302,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     for note in plan.notes:
         out.say("note: " + note)
     out.set(what=what, created=sorted(plan.created), changed=sorted(plan.changed), dry_run=dry_run)
-    out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps)
+    out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps, done=plan.done)
     if dry_run:
         diff = plan.diff()
         out.set(diff=diff)
@@ -327,6 +329,8 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     if names:
         out.say("checks: " + " ".join(names))
         validate(ctx, names)
+    for item in plan.done:
+        out.say("done: " + item)
     for step in plan.next_steps:
         out.say("next: " + step)
     out.say("then: " + then(ctx, plan.paths()))
@@ -357,7 +361,7 @@ def run(ctx, args) -> int:
 
     if not args.dry_run:  # a dry run writes nothing, so a planner may list the files from dev or main
         guard(ctx)
-    plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())))
+    plan = Plan(ctx.top, stdlib_only=tuple(ctx.policy.get("new", {}).get("stdlib_only", ())), dry_run=args.dry_run)
     kind = args.kind
     if kind == "feature":
         what = scaffold_backend.feature(plan, args.name, args.purpose)

@@ -135,11 +135,13 @@ class Budgets(RepoCase):
         last = checks.durations(failed, None, {"scaffold": 30.0})
         self.assertEqual(last["scaffold"], 30.0, "a failed run measures nothing")
         self.assertEqual(checks.budget_warnings(ctx, failed, None, False, {"scaffold": 90.0}), [])
-        slow = [{"name": "scaffold", "state": "ok", "seconds": 50.0, "cached": False}]
-        self.assertEqual(len(checks.budget_warnings(ctx, slow, None, False, {"scaffold": 45.0})), 1)
-        self.assertEqual(ctx.policy["checks"]["budgets"]["scaffold"], 40)
+        slow = [{"name": "scaffold", "state": "ok", "seconds": 65.0, "cached": False}]
+        self.assertEqual(len(checks.budget_warnings(ctx, slow, None, False, {"scaffold": 60.0})), 1)
+        self.assertEqual(ctx.policy["checks"]["budgets"]["scaffold"], 58)  # round eleven: idle 48.3 s plus 20%
         policy = (ROOT / "tools/retrodev/policy.toml").read_text()
-        self.assertIn("scaffold = 40           # retrodev new on a copy of the tree: the ninth round's norm", policy)
+        self.assertIn(
+            "scaffold = 58           # retrodev new on a copy of the tree: the idle measure (48.3 s) plus 20%", policy
+        )
 
 
 class PageFirst(RepoCase):
