@@ -17,6 +17,8 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 **Uses from other pages:** `#pages/prompts/index.js` (setup and device prompts).
 
+**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `setup`.
+
 **Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-studio.test.mjs`.
 
 ## Adding a tab here

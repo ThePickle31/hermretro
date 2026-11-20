@@ -15,19 +15,23 @@ await runScenario(async helpers => {
     assert.match(text(), /Chat: Comet Drift — first level/)
   })
   await tab('Games')
-  check('Games shows each game as the real cartridge with its title screen, state and meta, plus a blank cartridge', () => {
-    const cards = [...dom.window.document.querySelectorAll('.cs-gcard')]
-    assert.equal(cards.length, 4)
-    assert.equal(cards[0].querySelector('.cs-cart .slot img').getAttribute('src'), 'data:image/png;base64,AAAA')
-    assert.match(cards[0].textContent, /Ready/); assert.doesNotMatch(cards[0].textContent, /GB Studio/)
-    assert.match(cards[0].querySelector('.cs-gline').getAttribute('title'), /256 KB/)
-    assert.match(cards[0].querySelector('.cs-split .main').textContent, /^Play$/)
-    assert.match(cards[1].textContent, /Build failed/); assert.match(cards[1].querySelector('.cs-split .main').textContent, /Fix in chat/)
-    assert.match(cards[1].textContent, /212 tiles/)
-    assert.equal(cards[0].querySelectorAll('.cs-split > button, .cs-split > span > button').length, 2, 'one split control per card')
+  // A game's card by its title (games-fixture.mjs: the fixture's orders differ, so never by position).
+  const cards = () => [...dom.window.document.querySelectorAll('.cs-gcard')]
+  const cardFor = title => cards().find(card => card.textContent.includes(title)) ?? assert.fail(`no card for ${title}`)
+  check('Games shows each game as the real cartridge with its title screen, state and meta, plus a blank cartridge last', () => {
+    assert.equal(cards().length, 5, 'four games and the blank cartridge')
+    const comet = cardFor('Comet Drift'), robo = cardFor('Robo Run')
+    assert.equal(comet.querySelector('.cs-cart .slot img').getAttribute('src'), 'data:image/png;base64,AAAA')
+    assert.match(comet.textContent, /Ready/); assert.doesNotMatch(comet.textContent, /GB Studio/)
+    assert.match(comet.querySelector('.cs-gline').getAttribute('title'), /256 KB/)
+    assert.match(comet.querySelector('.cs-split .main').textContent, /^Play$/)
+    assert.match(robo.textContent, /Build failed/); assert.match(robo.querySelector('.cs-split .main').textContent, /Fix in chat/)
+    assert.match(robo.textContent, /212 tiles/)
+    assert.equal(comet.querySelectorAll('.cs-split > button, .cs-split > span > button').length, 2, 'one split control per card')
     assert.ok(!dom.window.document.querySelector('.cs-dev'), 'no hardware strip above a full shelf')
-    assert.match(cards[2].textContent, /Old Orbit/)
-    assert.match(cards[3].textContent, /Blank cartridge/)
+    assert.match(cardFor('Ace Arena').textContent, /never built/)
+    assert.ok(cardFor('Old Orbit'))
+    assert.match(cards().at(-1).textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
   })
   scenario.revealed = null
@@ -40,10 +44,10 @@ await runScenario(async helpers => {
     await act(async () => { card.querySelector('.cs-split .caret').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
     return card.querySelector('.cs-gmenu')
   }
-  const firstCard = () => dom.window.document.querySelectorAll('.cs-gcard')[0]
-  check('the split arrow is closed until pressed', () => { assert.ok(!firstCard().querySelector('.cs-gmenu')) })
+  const cometCard = () => cardFor('Comet Drift')
+  check('the split arrow is closed until pressed', () => { assert.ok(!cometCard().querySelector('.cs-gmenu')) })
   {
-    const menu = await openGameMenu(firstCard())
+    const menu = await openGameMenu(cometCard())
     check('without hardware tools Install is locked in the menu and the header chip offers to set up the Chromatic', () => {
       const install = [...menu.querySelectorAll('button')].find(node => /Install on Chromatic/.test(node.textContent))
       assert.ok(install.disabled); assert.match(install.textContent, /Needs your Chromatic/)
@@ -51,7 +55,7 @@ await runScenario(async helpers => {
       assert.match(text(), /Emulator only · Set up my Chromatic/)
     })
     await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' })) })
-    check('Escape closes the game menu', () => { assert.ok(!firstCard().querySelector('.cs-gmenu')) })
+    check('Escape closes the game menu', () => { assert.ok(!cometCard().querySelector('.cs-gmenu')) })
   }
   {
     // A menu item's effect is checked here, in the host page's scenario: scenario.clipboard and scenario.notices
@@ -59,7 +63,7 @@ await runScenario(async helpers => {
     const reveal = ctx.os.revealPath
     ctx.os.revealPath = async () => false
     scenario.clipboard.length = 0; scenario.notices.length = 0
-    await click('Show in folder', await openGameMenu(firstCard()))
+    await click('Show in folder', await openGameMenu(cometCard()))
     await settle()
     ctx.os.revealPath = reveal
     check('Show in folder on a remote Hermes copies the folder path and says so', () => {
@@ -77,7 +81,7 @@ await runScenario(async helpers => {
   scenario.status = answered({ ...complete, hardware_enabled: true })
   await studio.rerender()
   scenario.calls.length = 0; scenario.inserted.length = 0
-  await click('Install on Chromatic', await openGameMenu(firstCard()))
+  await click('Install on Chromatic', await openGameMenu(cometCard()))
   await settle()
   check("Install sends the flash prompt, naming the game, to that game's own chat (the chat's approval gate applies)", () => {
     assert.deepEqual(scenario.calls[0], ['openSession', 'stored-comet', null])

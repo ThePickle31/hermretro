@@ -24,7 +24,9 @@ streaming while the page is closed.
 **Uses from other pages:** `#pages/games/index.js` (game states, and the `Cartridge` of the New Game shelf), `#pages/setup/index.js` (creating the studio
 profile).
 
-**Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`,
+**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `buildSelected`, `buildModel`, `inlinePlayer` and `playtest`.
+
+**Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
 `tests/page/build-player.test.mjs`, `tests/page/registry.test.mjs` (its listeners), `tests/page/attract.test.mjs`
 (the New Game level, run headless), `tests/page/attract-run.test.mjs` (running it in the page),
 `tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf).
@@ -43,6 +45,11 @@ Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-mot
 `build-responsive.css.js`); the header row itself, `.cs-b-head`, is in `transcript/transcript.css.js`.
 `build-page.js` is near the size limit (`tests/repo/test_layout.py`: a warning above 400 lines, a failure above 600),
 so a new header part goes in its own file in `page/pages/build/`, with a row in the table above.
+
+A build's `startAt`/`endAt` (`buildHistory`, `transcript/turns.js`) are milliseconds: a message's `timestamp` (Unix
+seconds) × 1000 (`chat/history.js`), or `Date.now()` for a live turn. The `builds` RPC's snapshot `at` and `builds` times
+are milliseconds too, and `snapshotFor` (`builds-menu.js`) gives a build the latest one from 2 s before its turn started
+(an hour before its end when the start is unknown) to 5 s after it ended; without one, Restore stays disabled.
 
 ## The New Game level (`attract/`)
 
