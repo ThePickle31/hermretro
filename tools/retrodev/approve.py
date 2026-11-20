@@ -19,7 +19,9 @@ from .output import OWNER, Failure, cmd
 from .review import records
 
 
-def approve(ctx, number: int, words: str | None) -> int:
+def approve(ctx, number: int, words: str | None, scope: dict | None = None) -> int:
+    """``scope`` (release run's: scope release, the version) is part of the approval from the moment it is saved,
+    before any GitHub call that can fail; an ordinary approval has none."""
     if not words or not words.strip():
         raise Failure(
             "an approval records the owner's exact words, so anyone can see who approved the merge and what they said",
@@ -39,6 +41,7 @@ def approve(ctx, number: int, words: str | None) -> int:
         "head": info["headRefOid"],
         "pr": number,
         "url": info.get("url"),
+        **(scope or {}),
     }
     record = reviews.branch_record(ctx, branch)
     reviews.record_pr(record, number, info.get("url"), info["headRefOid"], info.get("title"))

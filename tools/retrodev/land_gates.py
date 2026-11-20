@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import gates, github, repo, reviews, ship, sync
+from . import checks_triggers, gates, github, release, repo, reviews, ship, sync
 from .gates import Gate
 from .output import OWNER, Failure, cmd
 
@@ -50,6 +50,32 @@ def approval_gate(ctx, number: int) -> Gate:
     )
 
 
+def release_scope_gate(ctx, info: dict) -> Gate | None:
+    """An approval given by release run (the owner's release words, scope release) covers only a pull request that
+    changes plugin.yaml's version line, to that release's version: checked on the head land is about to take, so a
+    change pushed after release run stopped is never merged on those words. None for an ordinary approval."""
+    approval = approval_for(ctx, info["number"]) or {}
+    if approval.get("scope") != "release":
+        return None
+    number, sha, name = info["number"], info.get("headRefOid") or "", "release approval covers this head"
+    point = repo.git(["merge-base", f"{ctx.remote}/{ctx.base}", sha], ctx.top, check=False).strip()
+    extra = checks_triggers.beyond_version(ctx.top, point, sha) if point else "a head not here (git fetch)"
+    found = release.version_at(ctx, sha)
+    if not extra and found == approval.get("version"):
+        return gates.passed(name, f"version {found} only")
+    return Gate(
+        name,
+        False,
+        f"#{number} was approved with the owner's release words, which cover only plugin.yaml's version line set to "
+        f"{approval.get('version')}; at {sha[:9]} it "
+        + (f"changes more ({extra[:300]})" if extra else f"sets version {found}")
+        + ": nothing is merged on those words",
+        f"ask the owner: move the rest to its own pull request, or have them approve #{number} as it is now "
+        f'(python tools/retrodev approve {number} --words "<their exact words>")',
+        OWNER,
+    )
+
+
 def base_gate(ctx, info: dict) -> Gate:
     number = info["number"]
     if info.get("baseRefName") == ctx.base:
@@ -65,6 +91,8 @@ def base_gate(ctx, info: dict) -> Gate:
 def collect_gates(ctx, info: dict, record: dict, tree: Path | None) -> list[Gate]:
     number, branch = info["number"], info["headRefName"]
     found = [approval_gate(ctx, number)]
+    scoped = release_scope_gate(ctx, info)
+    found += [scoped] if scoped else []
     found.append(
         gates.passed("pull request open")
         if info.get("state") == "OPEN"

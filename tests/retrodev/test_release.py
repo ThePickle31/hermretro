@@ -90,8 +90,9 @@ class Prepare(ReleaseCase):
         self.assertEqual(create[create.index("--base") + 1], "dev")
         record = state.load_release(self.main, NEXT)
         self.assertEqual((record["words"], record["pr"]), (WORDS, int(PR)))
-        ran = [entry.get("names") or entry.get("script") for entry in self.check_log()]
-        self.assertIn(["acceptance"], ran)  # plugin.yaml changed: the real-engine run and the clean install too
+        ran = [entry.get("names", entry.get("script")) for entry in self.check_log()]
+        self.assertIn([], ran)  # plugin.yaml changed: the clean install (its stand-in, no arguments)
+        self.assertNotIn(["acceptance"], ran)  # only its version line: no real-engine run (checks_triggers)
 
     def test_a_reused_release_worktree_that_is_dirty_off_branch_or_carries_more_is_refused(self):
         self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
