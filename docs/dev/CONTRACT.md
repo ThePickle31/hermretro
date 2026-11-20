@@ -264,3 +264,24 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   file, complete, missing, problems, nextStep }`.
 - `games[].card` = `{ title, tagline, description, about, genres, tags, controls, complete, missing,
   hasCover, coverForBuild }`; with a valid cover, `thumb` is the cover (else the captured title screen).
+
+## The game object
+
+One entry of the `games` RPC's `games[]` (`Registry.describe` in `backend/library/games.py`, then `rpc_games` in
+`backend/library/rpcs.py`, which reshapes `chat` and `session` and drops `updatedAt`):
+
+| Field | What it holds |
+|---|---|
+| id, title, displayTitle | The game's id, its project's title, and the card's title when set (else `title`) |
+| projectRoot, kind | The project folder; `gbstudio` (it has a `.gbsproj`) or `gbdk` |
+| state, error | `ready`, `changed` (sources newer than the ROM), `unbuilt` or `failed`; `error` only when `failed` |
+| rom | `{ path, sha256, size, builtAt }` of the last build's ROM (else the web export's, else the newest in `build/`), or null |
+| webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
+| thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
+| card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
+| chat | `{ sessionId, title, conversationId, profile, thisProfile }` of the chat working on it (the last to select it), or null |
+| session | The Build conversation bound to it: `{ storedId, createdAt, thisProfile, profileName, exists }`, or null |
+
+The Build page's rail gets the same objects (`shell.gameList`, `page/app/studio-page.js`), with `title` replaced by
+`displayTitle`, `session` null once the page released it, and `buildSession` (the bound stored session id) added
+(`build-page.js`).

@@ -302,6 +302,24 @@ class LockStep(unittest.TestCase):
             next(line for line in read("backend/library/README.md").splitlines() if "- `pending`:" in line),
         )
 
+    def test_the_image_size_limit_agrees_with_its_docs(self):
+        """The largest image the asset viewer shows (versions.ASSET_MAX_BYTES) is the size its docs state."""
+        from backend.assets import versions
+
+        units = {"MB": 1024 * 1024, "KB": 1024}
+        for rel, pattern in (
+            ("docs/dev/STUDIO-PAGES.md", r"PNG, GIF, JPEG or WebP up to (\d+) (MB|KB)"),
+            ("backend/assets/README.md", r"`ASSET_MAX_BYTES` \((\d+) (MB|KB)\)"),
+        ):
+            found = re.findall(pattern, flat(read(rel)))
+            self.assertEqual(
+                [int(number) * units[unit] for number, unit in found],
+                [versions.ASSET_MAX_BYTES],
+                f"{rel} states {found or 'no'} image size limit; backend/assets/versions.py ASSET_MAX_BYTES is "
+                f"{versions.ASSET_MAX_BYTES} bytes ({versions.size_text(versions.ASSET_MAX_BYTES)})\nFIX: write "
+                f"{versions.size_text(versions.ASSET_MAX_BYTES)} there, or change ASSET_MAX_BYTES and the docs together",
+            )
+
     def test_a_stated_page_count_is_the_real_one(self):
         """A doc that counts the studio's pages ('six pages') counts PAGES in page/pages/index.js (better: no count)."""
         found = re.search(r"PAGES = \[([^\]]*)\]", read("page/pages/index.js"))

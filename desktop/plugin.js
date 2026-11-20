@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 c7948e72bac1de9ef57ee72ac4f68de15e1021727444b13cb9c0ca377ae7c2a2
- * body: sha256 0a2dcae81e6a77de51f2c1eae2d6b0e02da64e90d24a01fcab9621fa85db8159
+ * sources: sha256 098faf839a27cd9cf9037958855fc9001439afd3b14d9f80592b4e639b892afd
+ * body: sha256 06d99625d37ce05ed912f825c7cb8c5386f2293cfaf440c9671b040b961fb220
  */
 // page/sdk.js
 import {
@@ -1562,8 +1562,6 @@ var GAMES_PAGE = {
 // page/pages/setup/onboarding/onboarding.css.js
 var ONBOARDING_CSS = `
 /* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
-.cs-bad { color: var(--ui-red); }
-.cs-good { color: var(--ui-green); }
 .cs-onb { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: min(78vh, 900px); }
 .cs-onb[data-screen='install'] { justify-content: flex-start; padding-top: clamp(8px, 2cqi, 32px); }
 .cs-onb-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) minmax(200px, 30cqi); }
@@ -13442,6 +13440,8 @@ var BASE_CSS = `
 .cs-grow { flex: 1; }
 .cs-error { color: var(--ui-red); font: 12px/1.5 ${MONO}; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .cs-warn { color: var(--ui-yellow); }
+.cs-bad { color: var(--ui-red); }
+.cs-good { color: var(--ui-green); }
 .cs-draft { color: var(--ui-yellow); font: 700 9.5px ${MONO}; letter-spacing: .1em; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }

@@ -15,6 +15,18 @@
 When the user's home is long, the run folder may be the short fallback `/tmp/hermretro-<uid>` (socket paths are
 capped at 104 bytes on macOS).
 
+## Calling a page RPC by hand
+
+`node tools/debug/gateway_rpc.mjs <profile|default> <method> [params-json]` calls one gateway JSON-RPC method the
+way the page does (`hermes [-p <profile>] gateway attach --json`, then one request over its WebSocket), e.g.
+`node tools/debug/gateway_rpc.mjs hermretro plugin.hermretro.games`. It needs Node 22 or newer and a running gateway
+for that profile: `hermes -p <profile> gateway ensure` starts a local one without installing a service (`hermes
+gateway start` only starts an installed systemd/launchd service). `params-json` defaults to `{}`. It prints one JSON
+line, never the attach ticket: `{ profile, method, result, error }` cut to 1800 characters (all of it with
+`GATEWAY_RPC_FULL=1`), exit 0; or exit 1 with `{ profile, error: "no gateway: <what hermes said>" }`,
+`{ profile, error: "timeout" }` (no answer in 60 s), `{ profile, error: "socket error ..." }` or
+`{ profile, closed, reason }`.
+
 ## A build hangs or the broker seems stuck
 
 1. `python tools/debug/broker_stats.py` prints the broker's `stats` answer (each lane's `engine_pid`, `alive`,

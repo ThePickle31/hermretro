@@ -21,7 +21,7 @@ from backend.broker.broker import Broker, Lane  # noqa: E402 - the repository ro
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import tools as setup_tools  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, make_library_game, make_project, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home, make_library_game, make_project, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 PNG = base64.b64decode(
@@ -304,18 +304,9 @@ class GamesRpc(unittest.TestCase):
         _game, root = make_library_game(self.home)
         response = self.build_response(root)
 
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def call(self, *_args, **_kwargs):
-                return response
-
+        client = FakeBrokerClient(response)
         with (
-            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             handler = hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})
@@ -326,23 +317,11 @@ class GamesRpc(unittest.TestCase):
         self.assertIn("chromatic_present_game", payload["nextStep"])
 
     def test_new_games_default_to_the_plugin_games_folder(self):
-        seen = []
-
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def call(self, _owner, tool, args, **_kwargs):
-                seen.append((tool, args))
-                return {"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}}
-
+        client = FakeBrokerClient({"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}})
         folder = self.base / "studio-games"
         with (
             mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(folder)}),
-            mock.patch.object(hermes_host, "ensure_broker", lambda: Client()),
+            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             for tool in ("project_create", "project_create_blank"):
@@ -357,7 +336,7 @@ class GamesRpc(unittest.TestCase):
             schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_project_create")
         self.assertTrue(folder.is_dir(), "the games folder is created for the engine")
         self.assertEqual(
-            [args["destinationPath"] for _tool, args in seen],
+            [args["destinationPath"] for _owner, _tool, args in client.calls],
             [str(folder / "Star Garden II")] * 2 + ["/elsewhere/Mine"],
         )
         self.assertNotIn("destinationPath", schema["parameters"]["required"])
@@ -371,20 +350,8 @@ class GamesRpc(unittest.TestCase):
 
     def lane_client(self, root, matched="chat"):
         """A running broker that knows this chat's lane; records every request it gets."""
-        seen = []
-
-        class Client:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_exc):
-                return False
-
-            def request(self, message):
-                seen.append(message)
-                return {"ok": True, "matched": matched, "lane": {"project_root": str(root)}}
-
-        return seen, (lambda _dir: (Client(), None))
+        client = FakeBrokerClient({"ok": True, "matched": matched, "lane": {"project_root": str(root)}})
+        return client.asked, (lambda _dir: (client, None))
 
     def test_present_shows_the_chats_project_and_records_it(self):
         root = make_project(self.base)

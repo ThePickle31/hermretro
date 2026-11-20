@@ -2,7 +2,7 @@
 
 **Shows:** the shelf of cartridges from the `games` RPC (`games-page.js`), one card each with its split
 action and menu (`game-card.js`; the cartridge itself is `cartridge.js`, exported for Build's New Game shelf), the games folder, and the hardware chip. `model.js` is the library model.
-The cards read these fields of each game as the `games` RPC returns it (the `games` row of [CONTRACT.md](../../../docs/dev/CONTRACT.md)):
+The cards read these fields of each game as the `games` RPC returns it (every field: [CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game-object)):
 `id`, `title`, `displayTitle`, `state` (the status and the split action), `error`, `thumb` (the label art),
 `cover` (whether `thumb` is the cover art), `card` (`tagline`, `description`, `genres`, `complete`), `rom`,
 `webExport`, `chat` and `projectRoot`. A game whose `thumb` is the title screen (`cover` false) gets the

@@ -96,12 +96,15 @@ repository root): `tests/backend` would then shadow the real `backend` package, 
 ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses it).
 A test that needs a library game calls `make_library_game(home, name="Game") -> (game id, project root)` from
 `tests/support.py` (`home` is what `isolated_home(self)` returns): a real project, registered as the gateway does.
+A test that needs a running broker patches in a `FakeBrokerClient(answer)` from there (it records `asked` and `calls`).
 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
 page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
-`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A unit
+`app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up. A Build
+page scenario starts with `buildScenario({ selected })` (setup finished, the Build page open, `selected` as
+`storage.buildSelected`), then sets its own `scenario.games`. A unit
 test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
 the module with `import()` after `registerAliases()` from `./aliases.mjs` (the page's `#app/`… aliases, React and
 the SDK stand-in; it uses `module.registerHooks`, or `register('./aliases.mjs', import.meta.url)` on a Node without
