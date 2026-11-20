@@ -118,6 +118,28 @@ class UnitCheckHomeTests(unittest.TestCase):
         self.assertIn("calls a real emitter", message)
         self.assertGreater(len(calls), 2, "each module was rerun on its own")
 
+    def test_the_row_names_the_files_behind_layout_warnings(self):
+        warned = (
+            "layout warning: tests/page/big.test.mjs has 437 lines (warning above 400, failure above 600)\n"
+            "layout warning: allowance backend/x.py:3 front-door: a reason\n" + OK
+        )
+        with mock.patch.object(check, "run", lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, "", warned)):
+            row = check.check_unit(None)
+        self.assertIn("2 layout warnings; over the size warning: tests/page/big.test.mjs (all: python -m unittest", row)
+
+    def test_a_temp_folder_left_behind_fails_the_run_and_names_its_module(self):
+        def fake_run(cmd, **kwargs):  # a tempfile.mkdtemp() without a cleanup, in the TMPDIR the run gets
+            if "discover" in cmd or cmd[-1] == "tests.backend.setup.test_onboarding":
+                tempfile.mkdtemp(prefix="leaked-", dir=kwargs["env"]["TMPDIR"])
+            return subprocess.CompletedProcess(cmd, 0, "", OK)
+
+        with mock.patch.object(check, "run", fake_run), self.assertRaises(AssertionError) as caught:
+            check.check_unit(None)
+        message = str(caught.exception)
+        self.assertRegex(message, r"left files in the temp folder: \S*hermretro-tmp-\w+/leaked-", "names the path")
+        self.assertIn("left by: tests.backend.setup.test_onboarding (leaked-", message)
+        self.assertIn("FIX: clean up with addCleanup / TemporaryDirectory", message)
+
 
 if __name__ == "__main__":
     unittest.main()

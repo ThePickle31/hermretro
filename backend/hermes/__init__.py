@@ -5,12 +5,13 @@
 - host.py: the helpers shared by every feature's Hermes side (data folder, profile, library, broker client,
   the engine tool handler).
 - contracts.py, results.py: the engine's pinned tool contracts and result shaping.
+- tool_args.py: tool_error and tool_project, for any feature's plugin-owned tools.
 - tools.py, hooks.py, prompt.py: what this layer itself declares (the engine tools, the approval and
   subagent hooks, the skills and the prompt section).
 
 Importing this package hands Hermes's own answer for the Hermes home to backend.system (system never imports
-Hermes), before anything reads a location. Front door for features: ``backend.hermes.host`` and
-``backend.hermes.declare``.
+Hermes), before anything reads a location. Front door for features: ``backend.hermes.host``,
+``backend.hermes.declare`` and ``backend.hermes.tool_args``.
 """
 
 from ..system import hermes_home as _hermes_home

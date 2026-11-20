@@ -78,7 +78,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
   checksums (run by the page, not a chat), whether you have a Chromatic, and your first game idea. After that,
-  one segmented control for its six pages:
+  one segmented control for its pages:
   - **Home**: what to do next (continue setup or your last game), quick starts and studio status.
   - **Setup**: one step per page, advancing by itself as the backend verifies each step; a physical
     Chromatic is optional. A step that breaks later shows a Repair banner on the other pages.

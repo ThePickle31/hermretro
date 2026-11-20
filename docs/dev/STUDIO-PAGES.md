@@ -501,6 +501,11 @@ the chat, which has no shell) and its contribution renders a button. A contribut
 `shell`: when it needs `go(id)` or another shell action, the host adds it to the slot's props and says so in the
 slot's doc string (and the host's README Slots line).
 
+Every place to edit for a new contribution: `contributes` in the contributing page's `index.js`; that page's README
+**Slots** line ("Contributes `X` to `<page>.<name>`"); the "Events and slots today" line below; the `filled`
+assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
+its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
+
 ### Calling the backend from a page
 
 `page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the

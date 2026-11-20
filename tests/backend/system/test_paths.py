@@ -22,6 +22,30 @@ CLEAN = {
 }
 
 
+class WriteJsonAtomic(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.folder = Path(tmp.name)
+
+    def test_writes_replaces_and_leaves_no_temp_file(self):
+        path = self.folder / "state.json"
+        paths.write_json_atomic(path, {"a": 1})
+        paths.write_json_atomic(path, {"a": 2, "b": [1]})
+        self.assertEqual(path.read_text(encoding="utf-8"), json.dumps({"a": 2, "b": [1]}, indent=2) + "\n")
+        self.assertEqual([p.name for p in self.folder.iterdir()], ["state.json"])
+
+    def test_a_failed_write_keeps_the_old_file_whole(self):
+        path = self.folder / "state.json"
+        paths.write_json_atomic(path, {"a": 1})
+        with self.assertRaises(TypeError):
+            paths.write_json_atomic(path, {"a": object()})
+        with mock.patch.object(os, "replace", side_effect=OSError("disk")), self.assertRaises(OSError):
+            paths.write_json_atomic(path, {"a": 3})
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"a": 1})
+        self.assertEqual([p.name for p in self.folder.iterdir()], ["state.json"], "the temp file is removed")
+
+
 class HermretroHome(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
