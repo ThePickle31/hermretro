@@ -130,3 +130,39 @@ def emitter_values(keys: list[str]) -> dict:
         "sample": ", ".join(f"{key}={value!r}" for key, value in samples.items()).replace("'", '"'),
         "heard": "{" + ", ".join(f'"{key}": "{value}"' for key, value in samples.items()) + "}",
     }
+
+
+# A test's sample value for the type an EVENTS entry hints after the last comma of `key=<what it holds, type>`.
+SAMPLES = {
+    "int": "1",
+    "float": "1.0",
+    "str": '"probe"',
+    "bool": "True",
+    "pathlib.path": 'Path("/games/probe")',
+    "path": 'Path("/games/probe")',
+    "list of str": '["probe"]',
+    "list": "[]",
+    "dict": "{}",
+}
+
+
+SAMPLE = '"sample {}"'  # a key whose type the entry does not hint
+
+
+def hinted_type(part: str) -> str | None:
+    """The type a payload part hints ('game=<library id, str; None without one>' -> 'str'), None without one."""
+    found = re.match(r"\s*[A-Za-z_]\w*\s*=\s*[<\[](.*)[>\]]", part.strip())
+    inner = found.group(1).split(";")[0] if found else ""
+    return inner.rsplit(",", 1)[1].strip().lower() if "," in inner else None
+
+
+def typed_sample(keys: list[str], entry: str) -> str:
+    """The call a listener's test makes: each key with a sample of the type its EVENTS entry hints (int 1, str
+    "probe", pathlib.Path Path("/games/probe"), bool True), else "sample <key>"."""
+    if not keyword_names(keys):
+        return "example=1"
+    hints = {}
+    for part in split_parts(entry):
+        if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part)) and found.group(1) not in hints:
+            hints[found.group(1)] = SAMPLES.get(hinted_type(part) or "")
+    return ", ".join(f"{key}={hints.get(key) or SAMPLE.format(key)}" for key in keys)

@@ -6,14 +6,15 @@ Fetches, then makes <worktree_root>/<topic> on a local <branch> that tracks <rem
 local branch of that name must not exist yet), runs start's setup (npm ci, the ruff setup) and records the branch
 as start does. It never needs the main checkout on dev: nothing there changes but git's worktree list. The next
 steps: while HEAD lacks commits of the base, read its diff of the files both changed (before the plan: sync's merge
-empties it); the plan (plan new and plan approve, while the branch has no approved one); sync (the main checkout's
+empties it); the plan (plan new and plan approve, while the branch has no approved one; else the pull request body
+notes/pr/<topic>.md, written from the template as start writes it, to fill in); sync (the main checkout's
 retrodev when the branch's own copy is older than the base's: it lacks newer sync fixes); then check. While the
 branch's copy is older, every one of these retrodev commands is the main checkout's, run in the worktree.
 """
 
 from __future__ import annotations
 
-from . import gates, plan, repo, start, state, status, sync
+from . import gates, plan, repo, ship, start, state, status, sync
 from .gates import Gate
 from .output import Failure, cmd
 
@@ -83,6 +84,9 @@ def run(ctx, branch: str, setup: bool = True) -> int:
     )
     state.save_branch(main, record)
     plan.remember(ctx, branch, record)  # a plan its topic names keeps it after land or gc forgets this record
+    named = gates.plan_for(ctx, branch, record)
+    if not pending_plan(ctx, named):  # else plan approve writes it, from the plan, once the owner approved
+        start.body_note(ctx, branch, record, no_plan=named is None)
     steps = next_steps(ctx, branch, path, record, topic)
     kinds = ctx.policy["branches"]["kinds"]
     if kind not in kinds:  # ship, land and CI read no branch kind (release notes group by labels): it keeps its name
@@ -98,6 +102,11 @@ def run(ctx, branch: str, setup: bool = True) -> int:
     return 0
 
 
+def pending_plan(ctx, named: str | None) -> bool:
+    """The branch needs a plan the owner has not approved yet (its body is written when they do)."""
+    return bool(named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok)
+
+
 def next_steps(ctx, branch: str, path, record: dict, topic: str) -> list[str]:
     """Every retrodev command in them is run by sync.runner: the main checkout's while the branch's own copy is older
     (its plan approve and status would print the older sync step), until sync brings the branch's copy up to date."""
@@ -110,7 +119,8 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
     behind = status.behind(ctx, path)
     both = status.overlap(ctx, path) if behind else []
     named = gates.plan_for(ctx, branch, record)
-    planned = named and state.NAME.match(named) and not gates.plan_approved(ctx, named).ok
+    planned = pending_plan(ctx, named)
+    body = ship.default_body(ctx, branch, record)
     if both:  # sync's merge empties this diff: read it while it still shows what dev did to the branch's files
         steps.append(status.read_first(both, ctx.remote_base, "writing the plan" if planned else "sync merges it"))
     if planned and named:
@@ -121,7 +131,12 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
             )
         steps.append(
             f"show the owner {plan.plan_file(ctx, named)}; when they say start: python tools/retrodev plan approve {named} "
-            '--words "<their exact words>" (it also writes the pull request body)'
+            f'--words "<their exact words>" (it also writes the pull request body {body})'
+        )
+    else:
+        steps.append(
+            f"fill in {body} as you work: the pull request body ship reads (notes/ is in the main checkout, shared by "
+            "every worktree)"
         )
     if behind:
         steps.append(

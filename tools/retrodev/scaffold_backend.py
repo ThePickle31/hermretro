@@ -252,6 +252,9 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
 
 
+PAYLOAD_GUIDE = "tools/retrodev/REFERENCE.md \"Changing an event's payload\" lists every place"
+
+
 def event_row(body: str, feature_name: str, row: str) -> str:
     """The CONTRACT events row after the owner feature's last row (after the table's last row when it has none)."""
     owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
@@ -302,8 +305,10 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
         f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
         f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",
-        f"changing {full}'s payload later: edit {emits}'s function {name}, the EVENTS description in {door}, its "
-        f"{CONTRACT} row and tests/backend/{feature_name}/test_event_{name}.py",
+        f"changing {full}'s payload later: {PAYLOAD_GUIDE} ({emits}'s function {name}, its callers: grep -rn "
+        f"'{name}(' backend/{feature_name}; the EVENTS entry in {door}, its {CONTRACT} row, "
+        f"tests/backend/{feature_name}/test_event_{name}.py, and the tests that assert it: grep -rln '{full}' "
+        f"tests/backend/{feature_name})",
     ]
     bare = undescribed(payload) if keys else []
     if bare:
