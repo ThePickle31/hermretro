@@ -121,7 +121,10 @@ same run or its recorded pass); once lint passes, scaffold runs beside the other
 generated bundle (`player/frame-shim.js`, `desktop/plugin.js`) whose banner's `body: sha256` is unchanged (only its
 `sources:` line moved) adds no check. A pass of everything the branch needs records the tree's digest (contents and
 file modes) and which checks those were; ship accepts it only while they cover what the policy requires now; a failed
-rerun takes it back
+rerun takes it back. `check <names>` counts toward that gate too: each named check's pass is kept against its inputs,
+and any run (named or not) after which every check the branch needs has a pass on the current inputs records the tree
+as passed, so `check unit` after the others passed on the same tree is enough; while one still lacks a pass, ship's
+`checks passed on this tree` gate refuses
 
 ### `ship [--title "..."] [--body <file>] [--new-body] [--dry-run]`
 
@@ -212,7 +215,8 @@ lookup prints the same note as ship (also in `report`)
 
 `git fetch`, then merges `origin/dev` (never a rebase). Conflicts only in generated files: takes dev's side, rebuilds
 them, finishes the merge. Any other conflict: stops with the source files and leaves the merge open (for a hunk whose
-`dev` side is empty, the FIX adds `<file>:<lines>: dev moved this block to <file> (or deleted it); delete the HEAD side
+`dev` side is empty, the FIX adds `<file>:<lines>: dev moved this block to <file> (or deleted it); first check whether
+dev's version there already does what your lines did; if it does, add only a test that pins it; delete the HEAD side
 of this hunk, git add, sync again, then add your lines in <file> in a new commit`, the file found by `git grep -l -F`
 on `origin/dev` for the longest distinctive line (one it holds once, of 8 characters or more; never a `[generated]`
 file such as `desktop/plugin.js`: the source it moved to) of the merge base's version of the lines dev removed (the

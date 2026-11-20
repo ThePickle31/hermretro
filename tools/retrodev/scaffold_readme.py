@@ -186,3 +186,31 @@ def design_heading(doc: str, label: str) -> str:
                 return f"its `### Page` subsection under `## {top}` of {DESIGN_DOC}"
             return f"its `## {top}` section of {DESIGN_DOC}"
     return f"a `### {label}` subsection under `## Pages` of {DESIGN_DOC} (it has none yet: add one)"
+
+
+TEST_FILE = re.compile(r"`(?:[\w./-]*/)?test_\w+\.py`")
+
+
+def tests_line(text: str, test: str, what: str) -> str:
+    """A feature README's '## Tests' paragraph with the new test file added last, when it names test files already
+    (history's '`tests/backend/history/`: `test_snapshots.py` (...), `test_event_build_kept.py` (the event).'):
+    ``, `<file>` (<what>)`` before its final period, the file bare or as a path as the others are; unchanged when
+    the paragraph names only the folder."""
+    found = re.search(r"^## Tests[ \t]*\n\n?((?:[^\n#][^\n]*\n?)+)", text, re.M)
+    if not found or not TEST_FILE.search(found.group(1)):
+        return text
+    block = found.group(1).rstrip("\n")
+    named = TEST_FILE.findall(block)[-1]
+    shown = test if "/" in named else test.rsplit("/", 1)[-1]
+    if f"`{shown}`" in block:
+        return text
+    entry = f", `{shown}` ({what})"
+    grown = block[:-1] + entry + "." if block.endswith(".") else block + entry
+    return text[: found.start(1)] + grown + text[found.start(1) + len(block) :]  # its lines as they were
+
+
+def add_test(plan, feature_name: str, test: str, what: str) -> None:
+    """new event, listener and rpc: the feature README's Tests line names their test file when it names files."""
+    rel = f"backend/{feature_name}/README.md"
+    if plan.exists(rel):
+        plan.edit(rel, lambda text: tests_line(text, test, what))

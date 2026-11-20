@@ -43,6 +43,7 @@ SNAKE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 KEBAB = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 CAMEL = re.compile(r"^[a-z][a-zA-Z0-9]{0,39}$")
 KEY = re.compile(r"\{(\w+)\}")
+TOKEN = re.compile(r"\{\{|\}\}|\{(\w+)\}")  # render's one pass: an escaped brace, or a {key}
 
 
 def words(name: str) -> list[str]:
@@ -99,10 +100,17 @@ def js_label(text: str | None, fallback: str, what: str = "label") -> str:
 
 
 def render(kind: str, file: str, **values: str) -> str:
-    """A template with each {key} of ``values`` replaced; other {...} stay, then {{ and }} become braces."""
+    """A template with each {key} of ``values`` replaced, other {...} kept, and {{ and }} made braces, in ONE pass:
+    a value is never unescaped again, so a sample such as {} in a payload survives as written."""
     text = (TEMPLATES / kind / file).read_text(encoding="utf-8")
-    text = KEY.sub(lambda match: str(values[match.group(1)]) if match.group(1) in values else match.group(0), text)
-    return text.replace("{{", "{").replace("}}", "}")
+
+    def one(match: re.Match) -> str:
+        token, key = match.group(0), match.group(1)
+        if key is None:
+            return token[0]
+        return str(values[key]) if key in values else token
+
+    return TOKEN.sub(one, text)
 
 
 def parses(rel: str, text: str) -> str:

@@ -263,6 +263,17 @@ def is_aggregator(text: str) -> bool:
     return all(isinstance(elt, ast.Starred) for elt in value.elts)
 
 
+def sorted_at(imports: list, module: str) -> int:
+    """The line index ``from . import <module>`` goes at among the top-level imports, where isort (ruff's I rules)
+    puts it: before the first same-package import (``from . ...`` / ``from .x ...``) that sorts after it, else after
+    the last of those, else after the last import (``from ..`` and absolute imports come first)."""
+    own = [node for node in imports if isinstance(node, ast.ImportFrom) and node.level == 1]
+    later = [node for node in own if (node.module or "", node.names[0].name) > ("", module)]
+    if later:
+        return later[0].lineno - 1
+    return (own or imports)[-1].end_lineno
+
+
 def take_in_module(text: str, rel: str, module: str) -> str:
     """tools.py's TOOLS takes in a sibling module's: ``from . import <module>`` after its last top-level import
     and ``*<module>.TOOLS,`` last in TOOLS (unchanged when it does both already)."""
@@ -272,7 +283,7 @@ def take_in_module(text: str, rel: str, module: str) -> str:
         tree = ast.parse(text)
         imports = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
         lines = text.split("\n")
-        at = imports[-1].end_lineno if imports else (tree.body[0].end_lineno if tree.body else 0)
+        at = sorted_at(imports, module) if imports else (tree.body[0].end_lineno if tree.body else 0)
         lines[at:at] = [f"from . import {module}"] if imports else ["", f"from . import {module}"]
         text = "\n".join(lines)
     if f"*{module}.TOOLS" in text:
