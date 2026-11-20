@@ -8,6 +8,7 @@ only when its shape is known, and every other shape is refused before anything i
     is_aggregator(text)                 tools.py only takes in sibling modules (no Tool of its own)
     add_event(text, entry)              a "feature.event": "doc" entry at the end of EVENTS
     module_names(text)                  every top-level name a module binds
+    files_line(text, label, default, m) a README line ('- Tools: ...') names the sibling module m.py too
     py_str(text), js_str(text)          string literals for Python and for the page's JavaScript
 """
 
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 
 from .output import Failure
 
@@ -22,6 +24,20 @@ HANDLER_NEEDS = ("json", "logger", "Tool")  # what templates/tool/tool.py.tmpl u
 
 
 MODULE_TAKEN = ("tools", "rpcs", "hooks", "prompt", "listeners", "emits")  # names a feature's own parts use
+
+
+def files_line(text: str, label: str, default: str, module: str) -> str:
+    """The README's ``label`` line names the sibling module new wrote into, after the feature's own file:
+    '- Tools (`tools.py`, `<module>.py`): ...', '- RPCs (`rpcs.py`, `<module>.py`): ...'."""
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        found = re.match(rf"^(\s*[-*]\s*{re.escape(label)})(?: \(([^)]*)\))?:", line)
+        if not found or f"`{module}.py`" in (found.group(2) or ""):
+            continue
+        files = (found.group(2) or f"`{default}`") + f", `{module}.py`"
+        lines[index] = f"{found.group(1)} ({files}):" + line[found.end() :]
+        return "\n".join(lines)
+    return text
 
 
 def py_str(text: str) -> str:

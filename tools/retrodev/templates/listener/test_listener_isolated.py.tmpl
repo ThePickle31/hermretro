@@ -23,7 +23,7 @@ class Listener{Func}(unittest.TestCase):
         self.assertIn(listeners.{func}, events._listeners.get("{event}", []))
 
     def test_it_takes_a_payload_without_raising(self):
-        self.assertIsNone(listeners.{func}(example=1))
+        self.assertIsNone(listeners.{func}({call}))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 
 
-def {event}(**payload) -> None:
+def {event}({params}) -> None:
     """Tell other features that {full} happened ({payload})."""
-    emit("{full}", **payload)
+    emit("{full}", {args})

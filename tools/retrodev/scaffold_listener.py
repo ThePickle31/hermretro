@@ -15,6 +15,7 @@ import re
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
 from .scaffold_backend import ARCHITECTURE, CONTRACT, known_feature
+from .scaffold_payload import emitter_values, payload_keys, split_parts
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -36,6 +37,32 @@ def declared_events(plan: Plan) -> dict[str, str]:
 
 
 SUPPORT = "tests/support.py"
+MOCKED = re.compile(r"mock\.patch\.object\(hermes_host,\s*[\"'](\w+)[\"']")
+
+
+def payload_of(plan: Plan, event: str, doc: str) -> list[str]:
+    """The event's payload keys: the leading backticked name of each top-level entry of its CONTRACT row's Payload
+    cell ('`game` (the game's id, `null` without a project), `assets`' -> game, assets: a name inside an entry's
+    description is not a key), else its EVENTS doc after '; '."""
+    for line in plan.read(CONTRACT).splitlines() if plan.exists(CONTRACT) else []:
+        if line.startswith(f"| `{event}` |"):
+            cells = line.strip().strip("|").split(" | ")
+            parts = split_parts(cells[1]) if len(cells) > 1 else []
+            keys = [found.group(1) for part in parts if (found := re.match(r"\s*`([A-Za-z_]\w*)`", part))]
+            if keys:
+                return list(dict.fromkeys(keys))
+    return payload_keys(doc.partition("; ")[2]) if "; " in doc else []
+
+
+def mocked_helpers(plan: Plan, owner: str) -> list[str]:
+    """The emitting feature's tests that patch backend.hermes.host helpers ('file (helper, ...)'): an emitter they
+    call now runs the new listener against those mocks."""
+    found = []
+    for path in sorted(plan.top.glob(f"tests/backend/{owner}/*.py")):
+        names = list(dict.fromkeys(MOCKED.findall(path.read_text(encoding="utf-8", errors="replace"))))
+        if names:
+            found.append(f"{path.relative_to(plan.top)} ({', '.join(names)})")
+    return found
 
 
 def test_template(plan: Plan) -> str:
@@ -122,6 +149,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     source = f"backend/{feature_name}/listeners.py"
     values = {"name": feature_name, "Name": label(feature_name), "event": event, "func": func, "Func": pascal(func)}
     values["payload"] = declared[event] or "its payload"
+    keys = payload_of(plan, event, declared[event])
+    values["call"] = emitter_values(keys)["sample"]  # the test calls it with the declared payload's keys
     plan.ensure(source, render("listener", "listeners.py.tmpl", **values))
     text = plan.read(source)
     if f'@on("{event}")' in text or func in module_names(text):
@@ -165,5 +194,18 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"if other code reads what the listener keeps, export the reader in backend/{feature_name}/__init__.py "
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
+        f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
+        "assert what it changed",
     ]
+    if {"path", "root"} & set(keys) and "game" not in keys:
+        plan.next_steps.append(
+            "find the library game with host.library_game_for([path]); in tests register one with "
+            "tests.support.make_library_game(home, name) -> (game_id, root)"
+        )
+    mocked = mocked_helpers(plan, event.partition(".")[0])
+    if mocked:
+        plan.next_steps.append(
+            "these emitter tests mock backend.hermes.host helpers, and the listener now runs against those mocks "
+            "when they emit: " + "; ".join(mocked)
+        )
     return f"listener {feature_name} <- {event}"

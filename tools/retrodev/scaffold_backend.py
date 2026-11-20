@@ -27,9 +27,8 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_source import (
-    add_event,
-)
+from .scaffold_payload import emitter_values, events_payload, payload_keys, refuse_reserved_keys
+from .scaffold_source import add_event, files_line
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -199,24 +198,31 @@ def rpc_names(plan: Plan) -> set[str]:
     return found
 
 
-def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) -> str:
+def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, game: bool = False) -> str:
     known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
     documented = set(re.findall(r"^(?:### `(\w+)`|\| `(\w+)` \|)", plan.read(CONTRACT), re.M))
     if name in rpc_names(plan) or name in {a or b for a, b in documented}:
         raise Failure(f"an RPC named {name} exists (or CONTRACT.md documents one)", "pick another RPC name")
     values = {"name": feature_name, "Name": label(feature_name), "rpc": name, "Rpc": pascal(name), "RPC": const(name)}
+    if game:  # about one library game: host._game_root finds it, else NO_GAME (as history's builds answers)
+        values["handler"] = "rpc_game.py.tmpl"
     source = f"backend/{feature_name}/rpcs.py"
     if module:  # the handler in its own module; rpcs.py keeps the @rpc declaration (scaffold_rpc.py)
         source = scaffold_rpc.in_module(plan, feature_name, module, values)
     else:
         scaffold_rpc.big_note(plan, feature_name, name)
         source = scaffold_rpc.inline(plan, feature_name, values)
+    if game:
+        scaffold_rpc.needs_host(plan, source)
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
-    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", "test_rpc.py.tmpl", **values))
-    block = render("rpc", "contract.md.tmpl", **values)
+    test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
+    plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
+    block = render("rpc", "contract_game.md.tmpl" if game else "contract.md.tmpl", **values)
     plan.edit(CONTRACT, lambda text: _before_heading(text, "## Studio pages", block))
     readme(plan, feature_name, "RPCs", f"`{name}`")
+    if module and plan.exists(f"backend/{feature_name}/README.md"):  # as new tool --module names its module
+        plan.edit(f"backend/{feature_name}/README.md", lambda text: files_line(text, "RPCs", "rpcs.py", module))
     agent_half(plan, feature_name, lambda row: declares(row, "RPC", name))
     plan.regenerate = True
     plan.next_steps += [
@@ -233,8 +239,15 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None) ->
         f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
         "(tests/page/harness.mjs), set before the page renders: the stub's useQuery reads it at render time",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
+        "in a page: put the useQuery in the page's own Page component (e.g. Games in page/pages/games/games-page.js) "
+        "and pass the result down as a prop; extend tests/page/page-<page>.test.mjs",
         "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
     ]
+    if game:
+        plan.next_steps.append(
+            "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
+            "home being what isolated_home(self) returns; host._game_root(game) gives the project root"
+        )
     return f"RPC {name}"
 
 
@@ -253,40 +266,6 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
     plan.edit(rel, lambda text: readme_item(text, what, item, only_none))
     if plan.read(rel) == before:
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
-
-
-def events_payload(payload: str) -> str:
-    """The payload as the EVENTS entries write it, ``key=<...>`` for each keyword ('game=<id>, root' -> 'game=<id>,
-    root=<...>'): a part that says what its key holds keeps it."""
-    parts = []
-    for part in split_parts(payload):
-        part = part.strip()
-        found = re.match(r"([A-Za-z_]\w*)\b(.*)$", part)
-        if found and not found.group(2).strip():
-            part = f"{found.group(1)}=<...>"
-        parts.append(part)
-    return ", ".join(part for part in parts if part)
-
-
-def split_parts(payload: str) -> list[str]:
-    """The comma-separated parts of a --payload line, a comma inside brackets kept in its part."""
-    parts, depth, current = [], 0, ""
-    for char in payload:
-        depth += char in "([{<"
-        depth -= char in ")]}>"
-        if char == "," and depth <= 0:
-            parts.append(current)
-            current = ""
-        else:
-            current += char
-    return [*parts, current]
-
-
-def payload_keys(payload: str) -> list[str]:
-    """The keyword names a --payload line gives ('game=<id> (None without one), root=<project>' -> game, root):
-    the leading name of each comma-separated part outside brackets."""
-    keys = [found.group(1) for part in split_parts(payload) if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part))]
-    return list(dict.fromkeys(keys))
 
 
 def event_row(body: str, feature_name: str, row: str) -> str:
@@ -309,7 +288,9 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
             raise Failure(f"the event {full} is declared already ({door.relative_to(plan.top)})", "pick another name")
     door = f"backend/{feature_name}/__init__.py"
     keys = payload_keys(payload) if payload != "key=<value> for each keyword argument" else []
-    doc = f"{when or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
+    refuse_reserved_keys(plan, keys)
+    plain = when.replace("`", "") if when else None  # backticks are Markdown: the CONTRACT row keeps them
+    doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
     plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
     cell = ", ".join(f"`{key}`" for key in keys) or payload
     row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
@@ -321,7 +302,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     )
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
     values = {"name": feature_name, "Name": label(feature_name), "event": name, "Event": pascal(name)}
-    values |= {"full": full, "payload": payload}
+    values |= {"full": full, "payload": payload, **emitter_values(keys)}
     emits = f"backend/{feature_name}/emits.py"
     if re.search(rf"^def {name}\(", plan.read(emits) if plan.exists(emits) else "", re.M):
         raise Failure(f"{emits} has a function named {name} already", "pick another event name")

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import gates, github, repo, reviews, ship
+from . import gates, github, repo, reviews, ship, sync
 from .gates import Gate
 from .output import OWNER, Failure, cmd
 
@@ -163,7 +163,7 @@ def conflict_failure(ctx, info: dict, tree: Path | None) -> Failure:
     again = ship.again({**record, "pr": pr})  # the recorded title and body (no body recorded: ship's default)
     return Failure(
         f"#{number} has merge conflicts with {ctx.base}: GitHub cannot merge it (nothing was merged)",
-        f"{where} && python tools/retrodev sync (it lists the files to resolve; git add them and sync again), then "
+        f"{where} && {sync.sync_command(ctx, tree) if tree else 'python tools/retrodev sync'} (it lists the files to resolve; git add them and sync again), then "
         f"python tools/retrodev check, {again}, then {cmd('cd', ctx.main())} && python tools/retrodev land {number}",
         data={"action": "sync", "worktree": str(tree) if tree else None},
     )

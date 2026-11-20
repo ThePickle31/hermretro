@@ -1,6 +1,6 @@
 """No placeholder text from `python tools/retrodev new` is left in what ships.
 
-`retrodev new` writes stubs whose prose asks the author to fill it in (a CONTRACT section, a tool's line, an event
+`retrodev new` writes stubs whose prose asks the author to fill it in (a CONTRACT section, a tool's entry, an event
 row, a feature's purpose, a page's README and component). The stubs pass every other check on purpose, so a
 pull request can still ship them unfilled; this test is what notices. It is not one of the structure tests the
 scaffold check runs on its fresh, unfilled copy (tests/retrodev/test_scaffold_tree.py), and it skips itself in the
@@ -20,7 +20,7 @@ SCAFFOLD = ROOT / "tools" / "retrodev"
 # Each placeholder, as tools/retrodev/templates/ and scaffold_*.py write it, and what the author writes instead.
 PLACEHOLDERS = {
     "Describe what it does, its params and its result here.": "the RPC's section: what it does, params, result",
-    "say what it does and when the agent calls it.": "the tool's line: what it does and when the agent calls it",
+    "say what it does and when the agent calls it": "the tool's entry in CONTRACT: what it does, when the agent calls it",
     "| say when |": "the event row's 'when' column: when it is emitted",
     "key=<value> for each keyword argument": "the event's payload: the keyword arguments it carries",
     "(say what it does here)": "the feature's purpose line",

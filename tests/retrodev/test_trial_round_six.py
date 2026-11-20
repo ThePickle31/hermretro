@@ -38,7 +38,7 @@ class Body(RepoCase):
         self.assertIn("## Why\nMake goalie work.\n", body)
         self.assertIn("## What changed\nThe code of goalie.\n", body)
         self.assertIn("## Not done\nNothing else.\n", body)
-        self.assertIn("Made by an agent (Hermes) for", body)
+        self.assertIn("Made by an agent for the owner.", body)  # no GitHub remote (flipped in round seven)
         write(self.main, "notes/pr/keeper.md", "## Why\nMine.\n")
         self.started("keeper")
         self.assertEqual((self.main / "notes" / "pr" / "keeper.md").read_text(), "## Why\nMine.\n")
@@ -63,7 +63,11 @@ class Body(RepoCase):
         self.assertEqual(code, 0, out)
         last = out.strip().splitlines()[-1]
         path = self.main / "notes" / "pr" / "goalie.md"
-        self.assertEqual(last, f"next: fill in {path}, then python tools/retrodev ship --title '<one plain sentence>'")
+        # flipped in round seven: it names the sections still empty
+        unfilled = "How verified, Risk and rollback"
+        self.assertEqual(
+            last, f"next: fill in {unfilled} in {path}, then python tools/retrodev ship --title '<one plain sentence>'"
+        )
         path.write_text(GOOD_BODY)
         _code, out = self.run_cli("check", cwd=tree)
         self.assertNotIn("next: fill in", out)
@@ -78,7 +82,8 @@ class Body(RepoCase):
         path = self.main / "notes" / "pr" / "goalie.md"
         self.assertEqual(
             out.strip().splitlines()[-1],
-            f"next: fill in {path}, then python tools/retrodev ship --title 'Keep the goalie in goal' --dry-run",
+            f"next: fill in How verified, Risk and rollback in {path}, then python tools/retrodev ship --title 'Keep the "
+            "goalie in goal' --dry-run",
         )
 
     def test_plan_approve_inside_its_branch_writes_the_body_too(self):

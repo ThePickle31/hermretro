@@ -69,9 +69,9 @@ def parser() -> argparse.ArgumentParser:
     plans.add_parser("show", help="a plan and its approval (none: all)", parents=[common]).add_argument(
         "topic", nargs="?"
     )
-    approve = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
-    approve.add_argument("topic")
-    approve.add_argument("--words", required=True, help="the owner's exact words")
+    approving = plans.add_parser("approve", help="record the owner's go with their exact words", parents=[common])
+    approving.add_argument("topic")
+    approving.add_argument("--words", required=True, help="the owner's exact words")
     plans.add_parser(
         "link", help="this branch works under a plan (one plan may cover several branches)", parents=[common]
     ).add_argument("topic")
@@ -205,17 +205,23 @@ def scaffolds(sub, common) -> None:
     kind("feature", "backend/<name>/: front door, README, tests, the registry lines", None, "name").add_argument(
         "--purpose", help="one line: what the feature does (the map and README say it)"
     )
-    kind(
+    rpc = kind(
         "rpc",
         "an @rpc stub, its test, its CONTRACT section, the generated names: new rpc <feature> <name> or "
         "<feature>.<name> (RPC names are global and flat: the page calls plugin.hermretro.<name>)",
         "feature",
         "name",
         optional=True,
-    ).add_argument(
+    )
+    rpc.add_argument(
         "--module",
         help="put the handler in backend/<feature>/<module>.py (e.g. <name>_rpcs); rpcs.py keeps a short @rpc "
         "declaration that calls it (suggested when rpcs.py is over 350 lines)",
+    )
+    rpc.add_argument(
+        "--game",
+        action="store_true",
+        help="an RPC about one library game: a `game` param, NO_GAME unless host._game_root finds it",
     )
     tool = kind("tool", "a Tool stub, its test, plugin.yaml, the step words, CONTRACT", "feature", "name")
     tool.add_argument(
@@ -264,7 +270,7 @@ def scaffolds(sub, common) -> None:
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc"):
+        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc", "game"):
             setattr(args, missing, getattr(args, missing, None))
         if isinstance(args.payload, list):  # --payload repeated: one comma-separated line
             args.payload = ", ".join(part.strip() for part in args.payload if part.strip()) or None

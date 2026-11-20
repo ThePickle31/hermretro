@@ -16,6 +16,7 @@ from retrodev import count_words, repo, scaffold, scaffold_listener
 
 from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
+from tests.retrodev.hand_edits import line_of, one_line_events
 
 load_tests = parallel
 
@@ -140,14 +141,13 @@ class New(ScaffoldCase):
         self.assertIn("FIX: python tools/retrodev start feat/<topic>", out)
 
     def test_an_rpc_lands_in_the_feature_with_a_test_and_its_contract_section(self):
+        before = line_of(self.read("backend/history/README.md"), "- RPCs")  # whatever the real README says now
         out = self.new("rpc", "history", "rdprobe_ping")
         self.assertEqual(out["created"], ["tests/backend/history/test_rpc_rdprobe_ping.py"])
         self.assertIn('@rpc("rdprobe_ping")\ndef rpc_rdprobe_ping(ctx):', self.read("backend/history/rpcs.py"))
         self.assertIn("### `rdprobe_ping` — params `{ echo? }`", self.read("docs/dev/CONTRACT.md"))
-        self.assertRegex(  # appended after the RPCs already there (a branch's own `new rpc history` may add one)
-            self.read("backend/history/README.md"),
-            r"\n- RPCs \(`rpcs.py`\): `builds`, `build_restore`(, `\w+`)*, `rdprobe_ping`\.\n",
-        )
+        head, tail = re.split(r"(?=\.(?:\s|$))", before, maxsplit=1)  # its list, then the sentence's end and after
+        self.assertEqual(line_of(self.read("backend/history/README.md"), "- RPCs"), f"{head}, `rdprobe_ping`{tail}")
         self.new("rpc", "history", "rdprobe_ping", code=1)
 
     def test_a_tool_moves_the_manifest_the_step_words_and_the_counts_together(self):
@@ -174,8 +174,8 @@ class New(ScaffoldCase):
         self.assertIn(f"{total + 2} in total", contract)
 
     def test_a_tool_on_a_feature_whose_tools_are_not_a_plain_tuple_is_refused_and_nothing_changes(self):
-        for name in ("backend/hermes/__init__.py", "backend/hermes/tools.py"):  # TOOLS is a function there
-            write(self.tree, name, (ROOT / name).read_text())
+        write(self.tree, "backend/hermes/__init__.py", (ROOT / "backend/hermes/__init__.py").read_text())
+        write(self.tree, "backend/hermes/tools.py", "def TOOLS():\n    return ()\n")  # a probe: TOOLS a function
         annotated = "from ..hermes.declare import Tool\n\nTOOLS: tuple[Tool, ...] = ()\n"
         write(self.tree, "backend/history/tools.py", annotated)
         git(self.tree, "add", "-A")
@@ -235,15 +235,9 @@ class New(ScaffoldCase):
     def test_an_event_keeps_the_entries_of_a_one_line_events_dict(self):
         door = self.read("backend/history/__init__.py")
         declared_now = scaffold_listener.declared_events(scaffold.Plan(self.tree))
-        kept = sorted(name for name in declared_now if name.startswith("history."))  # whatever history declares now
-        door = re.sub(
-            r"EVENTS = \{\n(.*?)\n\}",
-            lambda m: "EVENTS = {" + " ".join(line.strip() for line in m.group(1).splitlines()).rstrip(",") + "}",
-            door,
-            flags=re.S,
-        )
-        self.assertRegex(door, r'\nEVENTS = \{"history\.[^\n]*\}\n')
-        write(self.tree, "backend/history/__init__.py", door)
+        entries = {n: d for n, d in declared_now.items() if n.startswith("history.")} or {"history.rdprobe_was": "x"}
+        kept = sorted(entries)  # whatever history declares now (a probe entry when it declares none)
+        write(self.tree, "backend/history/__init__.py", one_line_events(door, entries))
         self.new("event", "history", "pruned", "--payload", "game")
         declared = next(
             n.value
@@ -257,21 +251,21 @@ class New(ScaffoldCase):
         self.new("event", "history", "pruned", "--payload", "game")
         door = self.read("backend/history/__init__.py")
         self.assertRegex(  # the hint goes in the next steps, never as a comment inside EVENTS; last, after the others
-            door, r'"history\.\w+": [^\n]*,\n    "history.pruned": "say when it is emitted; game=<...>",\n}'
+            door, r'\n    "history.pruned": "say when it is emitted; game=<...>",\n}'
         )
-        self.assertIn('emit("history.pruned", **payload)', self.read("backend/history/emits.py"))
+        self.assertIn('emit("history.pruned", game=game)', self.read("backend/history/emits.py"))  # round seven
         self.assertIn("| `history.pruned` | `game` | say when |", self.read("docs/dev/CONTRACT.md"))
         before = re.search(r"Events emitted: (.*?)\.(?=\s|$)", emitted).group(1)  # as the real README lists them
         self.assertIn(f"Events emitted: {before}, `history.pruned`.", self.read("backend/history/README.md"))
         self.new("event", "history", "pruned", code=1)
 
     def test_a_page_a_tab_and_a_slot(self):
-        self.new("page", "rdprobe-notes", "--label", "Notes")
+        pages = re.search(r"export const PAGES = \[([^\]]*)\]", self.read("page/pages/index.js")).group(1)
+        ids = re.search(r"page => page\.id\), \[([^\]]*)\]", self.read("tests/page/registry.test.mjs")).group(1)
+        self.new("page", "rdprobe-notes", "--label", "Notes")  # last in both lists, whatever pages are there now
         self.assertIn("import { RDPROBE_NOTES_PAGE } from './rdprobe-notes/index.js'", self.read("page/pages/index.js"))
-        self.assertRegex(
-            self.read("page/pages/index.js"), r"export const PAGES = \[[^\]]*EMULATOR_PAGE, [^\]]*RDPROBE_NOTES_PAGE\]"
-        )
-        self.assertRegex(self.read("tests/page/registry.test.mjs"), r"'emulator', [^\]]*'rdprobe-notes'\]")
+        self.assertIn(f"export const PAGES = [{pages}, RDPROBE_NOTES_PAGE]", self.read("page/pages/index.js"))
+        self.assertIn(f"page => page.id), [{ids}, 'rdprobe-notes']", self.read("tests/page/registry.test.mjs"))
         self.new("tab", "rdprobe-notes", "extra")
         self.new("tab", "rdprobe-notes", "more")
         index = self.read("page/pages/rdprobe-notes/index.js")
@@ -290,12 +284,13 @@ class New(ScaffoldCase):
         self.new("page", "rdprobe-two", code=1)  # the bundle needs unique export names
 
     def test_a_tool_whose_schema_or_handler_name_is_bound_already_is_refused_and_nothing_changes(self):
-        for name in ("backend/library/__init__.py", "backend/library/README.md", "backend/library/tools.py"):
+        for name in ("backend/library/__init__.py", "backend/library/README.md"):
             write(self.tree, name, (ROOT / name).read_text())
+        write(self.tree, "backend/library/tools.py", "PRESENT_TOOL = {}\nTOOLS = ()\n")  # a probe binding the schema
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Library")
         before = self.read("backend/library/tools.py")
-        out = self.new("tool", "library", "present", code=1)  # PRESENT_TOOL is chromatic_present_game's schema
+        out = self.new("tool", "library", "present", code=1)  # PRESENT_TOOL is bound already
         self.assertIn("binds PRESENT_TOOL already", out["error"]["message"])
         self.assertIn("pick another tool name", out["error"]["fix"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), "")

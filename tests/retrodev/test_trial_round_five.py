@@ -85,7 +85,8 @@ class Guard(unittest.TestCase):
             steps = tree_test.real_steps(tree)
             listener = next(step for step in steps if step[0] == "listener")
             self.assertFalse(tree_test.listens(tree, listener[1], listener[2]), listener)
-        self.assertEqual(steps[3:5], [["tab", "setup", "rdreal-setup-first"], ["tab", "setup", "rdreal-setup-second"]])
+        setup = [step for step in steps if step[:2] == ["tab", "setup"]]
+        self.assertEqual(setup, [["tab", "setup", "rdreal-setup-first"], ["tab", "setup", "rdreal-setup-second"]])
         self.assertNotEqual(listener[1], "history", listener)
         names = [step[2] for step in steps if step[0] in ("event", "tab")]
         self.assertEqual(len(set(names)), len(names), "unique probe names")

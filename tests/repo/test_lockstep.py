@@ -67,14 +67,11 @@ def collect():
 
 
 def contract_tool_list(text):
-    """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence,
-    plus the one-line bullets ('- `chromatic_x` (...): ...') `retrodev new tool` adds right after it."""
-    sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.\n((?:- `chromatic_\w+`[^\n]*\n)*)", text, re.S)
+    """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence
+    (`retrodev new tool` names a new tool at its end); nothing after the sentence counts."""
+    sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.", text, re.S)
     assert sentence is not None, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence"
-    listed = re.findall(r"`(chromatic_\w+)`", sentence.group(2)) + re.findall(
-        r"^- `(chromatic_\w+)`", sentence.group(3), re.M
-    )
-    return sentence.group(1), listed
+    return sentence.group(1), re.findall(r"`(chromatic_\w+)`", sentence.group(2))
 
 
 def plugin_owned_tools(registered: set[str]) -> set[str]:
@@ -167,8 +164,8 @@ class LockStep(unittest.TestCase):
         )
 
     def test_the_contract_lists_exactly_the_plugin_owned_tools_it_counts(self):
-        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once, and the bullet
-        lines `retrodev new tool` adds right after that sentence ('- `chromatic_x` (...): ...') count as listed."""
+        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once (`retrodev new
+        tool` adds the new name at its end); a line after the sentence does not count."""
         count, listed = contract_tool_list(read("docs/dev/CONTRACT.md"))
         owned = plugin_owned_tools(self.tools)
         fix = (
@@ -180,12 +177,13 @@ class LockStep(unittest.TestCase):
             sorted(listed), sorted(owned), "names listed vs plugin.yaml tools that are not engine tools" + fix
         )
 
-    def test_the_tool_list_stops_at_the_bullets_right_after_the_sentence(self):
+    def test_the_tool_list_is_the_sentence_alone(self):
         text = (
-            "2 tools, plus two plugin-owned tools: `chromatic_a` and\n`chromatic_b`. 5 in total.\n"
-            "- `chromatic_c` (library): new.\n\n## Game card\n\n- `chromatic_a` (library): the card.\n"
+            "2 tools, plus two plugin-owned tools: `chromatic_a` and\n`chromatic_b` (`backend/x/tools.py`: new). "
+            "5 in total.\n- `chromatic_b` (library): a bullet right after it.\n\n## Game card\n\n"
+            "- `chromatic_a` (library): the card.\n"
         )
-        self.assertEqual(contract_tool_list(text), ("two", ["chromatic_a", "chromatic_b", "chromatic_c"]))
+        self.assertEqual(contract_tool_list(text), ("two", ["chromatic_a", "chromatic_b"]))
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")
