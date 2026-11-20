@@ -310,8 +310,8 @@ class New(ScaffoldCase):
         self.assertIn("from tests.support import isolated_home", test)
         self.assertNotIn('HERMRETRO_HOME": home.name', test)
         self.assertIn(
-            "if a page shows it, describe it in that page's README **Shows:** line and its row in "
-            "docs/dev/STUDIO-PAGES.md",
+            "if a page shows it, describe it in that page's README **Shows:** line and as a bullet in its `### <Page>` "
+            "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
             out["next"],
         )
         self.assertIn("calls `isolated_home(self)`", retrodev_docs())

@@ -61,8 +61,8 @@ class Tab(ScaffoldCase):
         self.new("page", "rdprobe-notes")
         steps = self.new("tab", "rdprobe-notes", "extra")["next"]
         self.assertIn(
-            "describe the tab in page/pages/rdprobe-notes/README.md **Shows:** and in the page's row of "
-            "docs/dev/STUDIO-PAGES.md",
+            "describe the tab in page/pages/rdprobe-notes/README.md **Shows:** and as a bullet in its `### <Page>` "
+            "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
             steps,
         )
 
