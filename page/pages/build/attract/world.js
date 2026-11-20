@@ -19,9 +19,9 @@ export class World {
   }
 
   /** Build the level for a W x H screen (native pixels) around the page's boxes ({ x, y, w, h, kind }). */
-  build(W, H, dom) {
+  build(W, H) {
     this.W = W; this.H = H
-    this.L = buildLevel(W, H, dom, this.seed)
+    this.L = buildLevel(W, H, this.seed)
     const L = this.L
     this.coins = L.coinSpots.map(s => ({ x: s.x, y: s.y, w: 12, h: 16, on: true, t: 0, loose: false, arc: s.arc || null }))
     for (const a of L.arcs) a.live = this.coins.filter(c => c.arc === a)
@@ -32,7 +32,7 @@ export class World {
     this.clouds = []
     const n = Math.max(3, Math.round(W / 90))
     for (let i = 0; i < n; i++) this.clouds.push(this.makeCloud(this.rng() * W, 12 + this.rng() * H * 0.45, 0.04 + this.rng() * 0.08))
-    const g0 = L.surfaces.filter(s => !s.dom && Math.abs(s.y - L.groundY) < 1).sort((a, b) => (b.x1 - b.x0) - (a.x1 - a.x0))[0] || L.surfaces[0]
+    const g0 = L.surfaces.filter(s => Math.abs(s.y - L.groundY) < 1).sort((a, b) => (b.x1 - b.x0) - (a.x1 - a.x0))[0] || L.surfaces[0]
     this.spawnSurface = g0
     // the coins that count toward the next wave: those she can reach
     const reach = shortest(L, g0.id).dist
