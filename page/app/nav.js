@@ -1,9 +1,11 @@
 // The header: wordmark and the one segmented control.
 import { Button, Codicon, jsx, jsxs, Tip } from '#sdk'
+import { UpdateChip } from './update/chip.js'
 
-/** Wordmark, one segmented control (always in the same place) and Refresh. `pages` are the registry's, in nav
- *  order; `nav` ({ page, setupPending, playing }) is what their badges read. */
-export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null }) {
+/** Wordmark, one segmented control (always in the same place), the update chip (only while an update is ready or
+ *  running) and Refresh. `pages` are the registry's, in nav order; `nav` ({ page, setupPending, playing }) is what
+ *  their badges read; `update` is shell.pluginUpdate. */
+export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
   const page = nav.page
 
   return jsxs('header', {
@@ -49,9 +51,11 @@ export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile 
           )
         )
       }),
-      jsx('div', {
+      jsxs('div', {
         className: 'cs-top-end',
-        children: jsx(Tip, {
+        children: [
+          update ? jsx(UpdateChip, { update }, 'update') : null,
+          jsx(Tip, {
           label: 'Check the setup and reload the studio',
           children: jsx('span', {
             style: { display: 'inline-flex' },
@@ -64,7 +68,8 @@ export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile 
               children: [jsx(Codicon, { name: 'refresh', size: 14, spinning: refreshing }), jsx('span', { className: 'cs-lbl', children: 'Refresh' })]
             })
           })
-        })
+          }, 'refresh')
+        ]
       })
     ]
   })

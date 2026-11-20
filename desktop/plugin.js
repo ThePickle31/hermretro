@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 fa4b4e82e0654e64b8e9837921b17223c7b1f4a74992595e08b7d1b7751cdd69
- * body: sha256 6e1dd545441effa2d5e7c52ef2ec1f33c5f6e3a729ac7aa77a7dc658643eb0db
+ * sources: sha256 bd92009b01eb487ee0acfdecd22fc1aa27f6d701a28f82016e9799833e094546
+ * body: sha256 6f703c7eb184c9141e60da3f940643add83f348ad886cd2c8a8201d0cd2904a9
  */
 // page/sdk.js
 import {
@@ -562,7 +562,8 @@ function Flyer() {
 var LINKS = {
   node: "https://nodejs.org/",
   firmware: "https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx",
-  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg"
+  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg",
+  releases: "https://github.com/ThePickle31/hermretro/releases"
 };
 function ExternalLink({ ctx, href, children, variant = "link" }) {
   return jsxs(Button, {
@@ -2087,7 +2088,27 @@ function HardwareChoice({ steps, update }) {
 }
 
 // page/pages/setup/setup-complete.js
-function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
+function versionFact(data, update) {
+  const version = data.plugin?.version ?? "?";
+  if (!update) {
+    return version;
+  }
+  if (update.ready && update.phase === "idle") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · a new version is ready`,
+        jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Update" }),
+        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] })
+      ]
+    });
+  }
+  if (update.phase === "updating") {
+    return `${version} · updating…`;
+  }
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked ? `${version} · up to date` : version;
+}
+function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
   const data = status.data ?? {};
   const report = doctor.data?.ok ? doctor.data : null;
   const tools = (report?.components ?? []).filter((component) => component.status === "ready" && !component.optional && component.id !== "node" && component.id !== "runtime").map((component) => `${component.label ?? component.id} ${component.detected ?? ""}`.trim());
@@ -2114,6 +2135,7 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
       }),
       jsx(Facts, {
         rows: [
+          ["hermretro", versionFact(data, pluginUpdate)],
           ["Profile", data.profile?.name ?? data.via_profile ?? "this profile"],
           ["Toolchain", [tools.join(" · "), data.engine?.version ? `engine ${data.engine.version}` : ""].filter(Boolean).join(" · ") || "Ready"],
           [
@@ -2822,6 +2844,7 @@ function SetupPage({ shell }) {
           onGo: shell.go,
           onRecheck: shell.refresh,
           onSetUpDevice: shell.setUpDevice,
+          pluginUpdate: shell.pluginUpdate,
           rechecking: shell.refreshing,
           status,
           steps
@@ -3065,19 +3088,19 @@ function OnboardMake({ ctx, onDone }) {
 function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice }) {
   const toolchain = steps.find((step) => step.id === "toolchain");
   const profileStep = steps.find((step) => step.id === "profile");
-  let body;
+  let body2;
   if (screen2 === "checking") {
-    body = jsx(Working, { children: "Checking what is already installed…" });
+    body2 = jsx(Working, { children: "Checking what is already installed…" });
   } else if (screen2 === "welcome") {
-    body = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
+    body2 = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
   } else if (screen2 === "install") {
-    body = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
+    body2 = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
   } else if (screen2 === "chromatic") {
-    body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
+    body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
   } else {
-    body = jsx(OnboardMake, { ctx, onDone: onFinish });
+    body2 = jsx(OnboardMake, { ctx, onDone: onFinish });
   }
-  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body });
+  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body2 });
 }
 
 // page/pages/setup/index.js
@@ -11490,15 +11513,15 @@ var DRAW = {
     }
   },
   drawPipe(t, x, y, h = 2) {
-    const p = this.p, w = 2 * T, cap = 12, body = h * T - cap;
+    const p = this.p, w = 2 * T, cap = 12, body2 = h * T - cap;
     this.px(t, p.pipe[3], x, y, w, cap);
     this.px(t, p.pipe[0], x + 1, y + 1, w - 2, cap - 2);
     this.px(t, p.pipe[2], x + 5, y + 1, 4, cap - 2);
     this.px(t, p.pipe[1], x + w - 9, y + 1, 7, cap - 2);
-    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body);
-    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body);
-    this.px(t, p.pipe[2], x + 8, y + cap, 4, body);
-    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body);
+    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body2);
+    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body2);
+    this.px(t, p.pipe[2], x + 8, y + cap, 4, body2);
+    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body2);
   },
   drawCannon(t, x, y, dir = -1) {
     t.drawImage(this.spr.cannon[dir < 0 ? 0 : 1], dir < 0 ? x - 2 : x, y);
@@ -12524,9 +12547,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     })
   });
-  let body;
+  let body2;
   if (elsewhere) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-empty",
       children: jsx("p", {
         className: "cs-small",
@@ -12534,7 +12557,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else if (shownChat?.missing) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
@@ -12542,7 +12565,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (shownChat?.failure) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-error", children: `Could not open this conversation: ${shownChat.failure}` }),
@@ -12550,7 +12573,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (!shownChat?.items?.length && !shownChat?.busy) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-tx",
       children: jsxs("div", {
         className: "cs-b-col",
@@ -12564,7 +12587,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else {
-    body = jsx(Transcript, {
+    body2 = jsx(Transcript, {
       chat: shownChat,
       ctx,
       empty: emptyState,
@@ -12589,7 +12612,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     className: "cs-b-chat",
     children: [
       header,
-      body,
+      body2,
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
@@ -13587,6 +13610,37 @@ var SHELL_CSS = `
 .cs-tab-body { display: contents; }
 `;
 
+// page/app/update/update.css.js
+var UPDATE_CSS = `
+.cs-top-end { align-items: center; gap: 10px; }
+.cs-upd { position: relative; }
+.cs-upd-chip { appearance: none; border: 0; color: var(--ui-text-primary); cursor: pointer; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.cs-upd-chip.accent { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-upd-chip.accent > i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); }
+.cs-upd-chip.good { background: color-mix(in srgb, var(--ui-green) 13%, transparent); }
+.cs-upd-chip.warn { background: color-mix(in srgb, var(--ui-yellow) 12%, transparent); }
+.cs-upd-chip.bad { background: color-mix(in srgb, var(--ui-red) 12%, transparent); }
+.cs-upd-chip:hover { filter: brightness(1.15); }
+.cs-upd-chip:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-upd-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 14px 36px color-mix(in srgb, black 40%, transparent); display: flex; flex-direction: column;
+  gap: 8px; padding: 14px 16px; position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); z-index: 30; }
+.cs-upd-pop h3 { font-size: 17px; }
+.cs-upd-pop p { color: var(--ui-text-secondary); font-size: 13px; line-height: 1.45; margin: 0; }
+.cs-upd-pop .cs-eyebrow { color: var(--ui-text-tertiary); }
+.cs-upd-kv { align-items: baseline; display: flex; gap: 10px; }
+.cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.cs-upd-fill { flex: 1; }
+.cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
+.cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
+.cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
+.cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
+.cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
+.cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
+`;
+
 // page/app/style.js
 var stylesheet = "";
 function composeStyles(pages) {
@@ -13594,6 +13648,7 @@ function composeStyles(pages) {
   return [
     BASE_CSS,
     SHELL_CSS,
+    UPDATE_CSS,
     FLYER_CSS,
     ...pages.filter((page) => !page.cssLast).flatMap(chunks),
     RESPONSIVE_CSS,
@@ -15205,8 +15260,240 @@ function shrinkFrame(dataUrl) {
   });
 }
 
+// page/app/update/flow.js
+var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
+var UPDATE_MARKER = "update";
+var UPDATE_TIMEOUT_MS = 3e5;
+function requestOn(target, method, params, timeoutMs) {
+  return target.route ? host.requestProfile(target.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function installTarget(installedIn) {
+  const profile = installedIn?.linked ? null : installedIn?.profile ?? null;
+  if (!profile) {
+    return null;
+  }
+  let active = null;
+  try {
+    active = host.state.profile?.get?.() ?? null;
+  } catch {
+    active = null;
+  }
+  if (profile === active) {
+    return { route: null, profile };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    return null;
+  }
+  const routes = await host.profileRoutes().catch(() => []) ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === profile);
+  return route ? { route, profile } : null;
+}
+function pluginRow(list) {
+  const rows = Array.isArray(list?.plugins) ? list.plugins : [];
+  return rows.find((row) => row?.name === ID || row?.key === ID) ?? null;
+}
+async function refreshDesktopHalf() {
+  const reconcile = globalThis.window?.hermesDesktop?.reconcileDesktopPlugins;
+  if (typeof reconcile !== "function") {
+    return false;
+  }
+  try {
+    await reconcile();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function reloadStudio(studio) {
+  const toggle = (enable) => requestOn(studio, "plugins.manage", { action: "toggle", name: ID, enable }, 6e4);
+  await toggle(false);
+  let answer = null;
+  for (let attempt = 0; attempt < 2 && !answer?.ok; attempt += 1) {
+    answer = await toggle(true).catch(() => null);
+  }
+  if (!answer?.ok) {
+    throw new Error("hermretro could not be switched back on in the hermretro profile. Open Setup and press Repair.");
+  }
+  return Boolean(answer.gateway_reloaded) && !answer.restart_required;
+}
+async function runUpdate({ install, studio, options = {}, onStep = () => {
+}, remember: remember3 = () => {
+} }) {
+  onStep(0);
+  let result;
+  try {
+    result = await requestOn(install, "plugins.manage", { action: "update", name: ID, ...options }, UPDATE_TIMEOUT_MS);
+  } catch (error) {
+    return { kind: "failed", error: String(error?.message ?? error ?? "The update did not finish.") };
+  }
+  if (result?.scan_blocked) {
+    const findings = Array.isArray(result.scan_findings) ? result.scan_findings : [];
+    return result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}). Nothing was changed.` };
+  }
+  if (result?.consent_required) {
+    return options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : { kind: "review", findings: [], lines: Array.isArray(result.delta_lines) ? result.delta_lines : [], retry: { accept_capabilities: true } };
+  }
+  if (!result?.ok) {
+    return { kind: "failed", error: result?.error ?? "The update did not finish." };
+  }
+  if (result.unchanged) {
+    return { kind: "current" };
+  }
+  let restart = Boolean(result.restart_required);
+  onStep(1);
+  if (studio && studio.profile !== install.profile) {
+    await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4).catch(() => null);
+    try {
+      restart = !await reloadStudio(studio) || restart;
+    } catch (error) {
+      return { kind: "failed", error: String(error?.message ?? error) };
+    }
+  }
+  onStep(2);
+  remember3({ result: "updated", restart, at: Date.now() });
+  return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
+}
+
+// page/app/update/chip.js
+var CHIP = {
+  idle: ["accent", "Update ready"],
+  updating: ["accent", "Updating"],
+  review: ["warn", "Needs a look"],
+  failed: ["bad", "Update failed"],
+  restart: ["warn", "Restart to finish"],
+  done: ["good", "Updated"]
+};
+function Steps({ step }) {
+  return jsx("ol", {
+    className: "cs-upd-steps",
+    children: UPDATE_STEPS.map(
+      (label, index) => jsxs(
+        "li",
+        {
+          "data-state": index < step ? "done" : index === step ? "now" : "todo",
+          children: [
+            index < step ? jsx(Codicon, { name: "check", size: 12 }) : index === step ? jsx(Codicon, { name: "loading", size: 12, spinning: true }) : jsx("i", {}),
+            label
+          ]
+        },
+        label
+      )
+    )
+  });
+}
+function Findings({ review }) {
+  const lines = review.findings.length ? review.findings.slice(0, 6).map((f) => `${String(f.severity ?? "").toUpperCase()}  ${f.file ?? ""}:${f.line ?? ""}  ${f.description || f.category || ""}`) : review.lines.slice(0, 8);
+  return lines.length ? jsx("pre", { className: "cs-upd-pre", children: lines.join("\n") }) : null;
+}
+function body(update) {
+  const actions = (...children) => jsx("div", { className: "cs-upd-acts", children });
+  const whatsNew = jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new");
+  switch (update.phase) {
+    case "updating":
+      return ["Updating…", jsx(Steps, { step: update.step }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
+    case "review":
+      return [
+        "Review the new version",
+        jsx(
+          "p",
+          {
+            children: update.review?.findings?.length ? "Hermes's security check found something to look at before installing it. Nothing has changed yet." : "The new version adds to what hermretro can do in Hermes. Nothing has changed yet."
+          },
+          "p"
+        ),
+        update.review ? jsx(Findings, { review: update.review }, "f") : null,
+        actions(
+          jsx(Button, { onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
+          jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no")
+        )
+      ];
+    case "failed":
+      return [
+        "Couldn't update",
+        jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
+        actions(
+          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "restart":
+      return [
+        "Almost done",
+        jsx("p", { children: "The new version is installed. Quit and reopen Hermes to finish loading it; until then hermretro keeps working." }, "p"),
+        actions(jsx(Button, { onClick: () => update.setOpen(false), size: "sm", variant: "outline", children: "Got it" }, "ok"))
+      ];
+    case "done":
+      return ["Up to date", jsx("p", { children: "Your games, library and chats are kept. New chats use the new version." }, "p"), actions(whatsNew)];
+    default:
+      return [
+        "A new version is ready",
+        jsx("p", { children: "Your games, library and chats are kept. It takes about a minute." }, "p"),
+        update.version ? jsxs("p", { className: "cs-upd-kv", children: [jsx("b", { children: "Installed" }), update.version] }, "kv") : null,
+        actions(
+          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
+          whatsNew,
+          jsx("span", { className: "cs-upd-fill" }, "fill"),
+          jsx(Button, { onClick: update.later, size: "sm", variant: "ghost", children: "Later" }, "later")
+        )
+      ];
+  }
+}
+function UpdateChip({ update }) {
+  const root = useRef(null);
+  const { open, phase, setOpen } = update;
+  useEffect(() => {
+    if (!open || phase === "updating") {
+      return void 0;
+    }
+    const away = (event) => {
+      if (!root.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", escape, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("keydown", escape, true);
+    };
+  }, [open, phase]);
+  if (!update.visible) {
+    return null;
+  }
+  const [tone, label] = CHIP[phase] ?? CHIP.idle;
+  const [title, ...rest] = body(update);
+  return jsxs("span", {
+    className: "cs-upd",
+    ref: root,
+    children: [
+      jsxs("button", {
+        "aria-expanded": open,
+        "aria-haspopup": "dialog",
+        "aria-label": `hermretro: ${label}`,
+        className: `cs-chip cs-upd-chip ${tone}`,
+        "data-phase": phase,
+        onClick: () => setOpen(!open),
+        title: label,
+        type: "button",
+        children: [phase === "updating" ? jsx(Codicon, { name: "loading", size: 11, spinning: true }) : jsx("i", {}), jsx("span", { className: "cs-lbl", children: label })]
+      }),
+      open ? jsxs("div", {
+        "aria-label": "hermretro update",
+        className: "cs-upd-pop",
+        role: "dialog",
+        children: [jsx("p", { className: "cs-eyebrow", children: "hermretro" }), jsx("h3", { className: "cs-word", children: title }), ...rest]
+      }) : null
+    ]
+  });
+}
+
 // page/app/nav.js
-function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null }) {
+function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
   const page = nav.page;
   return jsxs("header", {
     className: "cs-top",
@@ -15249,22 +15536,25 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
           )
         )
       }),
-      jsx("div", {
+      jsxs("div", {
         className: "cs-top-end",
-        children: jsx(Tip, {
-          label: "Check the setup and reload the studio",
-          children: jsx("span", {
-            style: { display: "inline-flex" },
-            children: jsxs(Button, {
-              "aria-label": "Refresh",
-              disabled: refreshing,
-              onClick: onRefresh,
-              size: "sm",
-              variant: "ghost",
-              children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+        children: [
+          update ? jsx(UpdateChip, { update }, "update") : null,
+          jsx(Tip, {
+            label: "Check the setup and reload the studio",
+            children: jsx("span", {
+              style: { display: "inline-flex" },
+              children: jsxs(Button, {
+                "aria-label": "Refresh",
+                disabled: refreshing,
+                onClick: onRefresh,
+                size: "sm",
+                variant: "ghost",
+                children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+              })
             })
-          })
-        })
+          }, "refresh")
+        ]
       })
     ]
   });
@@ -15273,16 +15563,16 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
 // page/app/not-running.js
 function NotRunning({ backend, status, gateway }) {
   let title = "Checking hermretro…";
-  let body = jsx(Working, { children: "Asking the plugin for its status." });
+  let body2 = jsx(Working, { children: "Asking the plugin for its status." });
   if (backend === "offline") {
     title = "Waiting for Hermes";
-    body = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
+    body2 = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
   } else if (backend === "error") {
     title = "hermretro reported a problem";
-    body = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
+    body2 = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
   } else if (backend === "failed") {
     title = "Could not read hermretro's status";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
@@ -15292,7 +15582,7 @@ function NotRunning({ backend, status, gateway }) {
   } else if (backend === "unavailable") {
     const { message, notLoaded } = describeRequestError(status.error);
     title = "hermretro is not switched on in any profile";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, {
@@ -15328,7 +15618,7 @@ function NotRunning({ backend, status, gateway }) {
           className: "cs-stage-head",
           children: [jsx("p", { className: "cs-eyebrow", children: "Status" }), jsx("h2", { className: "cs-word cs-title", children: title })]
         }),
-        body
+        body2
       ]
     })
   });
@@ -15374,6 +15664,134 @@ function PageView({ page, shell }) {
   return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
 }
 
+// page/app/update/use-update.js
+var CHECK_EVERY_MS = 30 * 6e4;
+var MARKER_FRESH_MS = 15 * 6e4;
+var DONE_SHOWN_MS = 1e4;
+function takeMarker(ctx) {
+  try {
+    const marker = ctx.storage.get(UPDATE_MARKER, null);
+    if (marker) {
+      ctx.storage.set(UPDATE_MARKER, null);
+    }
+    return marker && Date.now() - Number(marker.at ?? 0) < MARKER_FRESH_MS ? marker : null;
+  } catch {
+    return null;
+  }
+}
+function remember2(ctx, key, value) {
+  try {
+    ctx.storage.set(key, value);
+  } catch {
+  }
+}
+function usePluginUpdate({ ctx, status, running }) {
+  const queryClient = useQueryClient();
+  const installedIn = status.data?.plugin?.installed_in ?? null;
+  const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
+  const check = useQuery({
+    queryKey: [ID, "plugin-update", profile],
+    queryFn: async () => {
+      const target2 = await installTarget(installedIn);
+      return target2 ? { target: target2, row: pluginRow(await requestOn(target2, "plugins.manage", { action: "list" }, 6e4)) } : { target: null, row: null };
+    },
+    enabled: running && Boolean(profile),
+    refetchInterval: CHECK_EVERY_MS,
+    staleTime: CHECK_EVERY_MS / 2,
+    refetchOnWindowFocus: false,
+    retry: false
+  });
+  const [state, setState] = useState(() => {
+    const marker = takeMarker(ctx);
+    return marker ? { phase: marker.restart ? "restart" : "done", step: 0, announce: true } : { phase: "idle", step: 0 };
+  });
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return ctx.storage.get("updateLater", null);
+    } catch {
+      return null;
+    }
+  });
+  const busy = useRef(false);
+  useEffect(() => {
+    if (!state.announce) {
+      return void 0;
+    }
+    host.notify(
+      state.phase === "restart" ? { kind: "warning", message: "hermretro was updated. Quit and reopen Hermes to finish loading it." } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
+    );
+    if (state.phase !== "done") {
+      return void 0;
+    }
+    ctx.setTimeout?.(() => setState((current) => current.phase === "done" ? { phase: "idle", step: 0 } : current), DONE_SHOWN_MS);
+    return void 0;
+  }, []);
+  const row = check.data?.row ?? null;
+  const target = check.data?.target ?? null;
+  const ready = row?.update_available === true && Boolean(target);
+  const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
+  const start = async (options = {}) => {
+    if (busy.current || !target) {
+      return;
+    }
+    busy.current = true;
+    setOpen(true);
+    setState({ phase: "updating", step: 0 });
+    const studio = studioTarget();
+    const outcome = await runUpdate({
+      install: target,
+      studio: studio ? { route: studio.route, profile: studio.profile ?? STUDIO_PROFILE } : null,
+      options,
+      onStep: (step) => setState((current) => ({ ...current, step })),
+      remember: (marker) => remember2(ctx, UPDATE_MARKER, marker)
+    });
+    busy.current = false;
+    void queryClient.invalidateQueries({ queryKey: [ID] });
+    if (outcome.kind === "updated") {
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2 });
+    } else if (outcome.kind === "current") {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+      host.notify({ kind: "success", message: "hermretro is already up to date." });
+    } else if (outcome.kind === "review") {
+      setState({ phase: "review", step: 0, review: outcome });
+    } else {
+      setState({ phase: "failed", step: 0, error: outcome.error });
+    }
+  };
+  const phase = state.phase;
+  const visible = phase !== "idle" || ready && !later2;
+  return {
+    visible,
+    ready,
+    // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
+    checked: Boolean(row),
+    linked: Boolean(installedIn?.linked),
+    phase,
+    step: state.step,
+    error: state.error ?? null,
+    review: state.review ?? null,
+    version: status.data?.plugin?.version ?? null,
+    open,
+    setOpen,
+    start: () => void start(),
+    agree: () => void start(state.review?.retry ?? {}),
+    cancel: () => {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+    },
+    later: () => {
+      const key = row?.update_target ?? "ready";
+      setDismissed(key);
+      remember2(ctx, "updateLater", key);
+      setOpen(false);
+    },
+    whatsNew: () => void ctx.os?.openExternal?.(LINKS.releases),
+    openPlugins: () => host.navigate(PLUGINS_HREF)
+  };
+}
+
 // page/app/studio-page.js
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
@@ -15402,6 +15820,7 @@ function StudioPage({ ctx }) {
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio);
   }
+  const pluginUpdate = usePluginUpdate({ ctx, running, status });
   const hardwareOn = Boolean(status.data?.hardware_enabled);
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn;
   const gameReady = running && steps.filter((step) => !step.hardware).every((step) => step.complete);
@@ -15579,6 +15998,8 @@ function StudioPage({ ctx }) {
     pick,
     unpin: () => setPinned(null),
     install,
+    // Hermes's update of hermretro: the header chip, and the version row on the Setup page
+    pluginUpdate,
     gameReady,
     hardwareOn,
     emulatorOnly,
@@ -15620,11 +16041,11 @@ function StudioPage({ ctx }) {
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
   };
-  let body;
+  let body2;
   if (!running) {
-    body = [jsx(NotRunning, { backend, gateway, status }, "off")];
+    body2 = [jsx(NotRunning, { backend, gateway, status }, "off")];
   } else if (onboardScreen) {
-    body = [
+    body2 = [
       jsx(
         Onboarding,
         { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
@@ -15632,7 +16053,7 @@ function StudioPage({ ctx }) {
       )
     ];
   } else {
-    body = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
+    body2 = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
   }
   const pad = running && !onboardScreen ? currentPage.pad ?? null : null;
   const broken = running && settled && !onboardScreen && page !== "setup" ? steps.find((step) => !step.hardware && !step.complete) : null;
@@ -15659,6 +16080,7 @@ function StudioPage({ ctx }) {
             onRefresh: refresh,
             pages: NAV_PAGES,
             refreshing,
+            update: pluginUpdate,
             viaProfile
           },
           "nav"
@@ -15668,14 +16090,15 @@ function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
-              running && status.data?.restart_needed ? jsxs(
+              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
+              running && status.data?.restart_needed && pluginUpdate.phase !== "restart" ? jsxs(
                 "div",
                 {
                   className: "cs-repair",
                   role: "status",
                   children: [
                     jsx(Codicon, { name: "refresh", size: 14 }),
-                    jsx("span", { children: "hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart)." })
+                    jsx("span", { children: "hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish." })
                   ]
                 },
                 "restart"
@@ -15693,7 +16116,7 @@ function StudioPage({ ctx }) {
                 },
                 "repair"
               ) : null,
-              ...body,
+              ...body2,
               stage,
               pad && currentPage.BelowPlayer ? jsx(currentPage.BelowPlayer, { shell }, "side") : null,
               pad ? null : jsx(Footer, { ctx }, "foot")

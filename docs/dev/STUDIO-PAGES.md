@@ -16,6 +16,17 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 | Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
 | Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
 
+Beside Refresh, the header shows an update chip (`page/app/update/`, mockup round "one-click update", A + C) only
+while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
+`plugin.installed_in`), while an update runs, or just after one. Its popover runs the update: Hermes's
+`plugins.manage update` in that profile (a caution scan or a widened plugin is shown and needs "Install anyway"; a
+dangerous verdict is never offered), then the `studio_profile` RPC there, then `plugins.manage toggle` off and on in
+the hermretro profile (Hermes reloads only the profile that ran the update), then the app's
+`hermesDesktop.reconcileDesktopPlugins` (the call Capabilities > Plugins makes; not in the plugin SDK, used only when
+present) so the app copies and reloads the new page. A storage marker (`update`) lets the reloaded page say how it
+went. "Later" hides the chip until a newer target. The Setup page's complete screen has a hermretro row with the
+version and, when one is ready, Update.
+
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
 (`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
 approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps

@@ -3,7 +3,33 @@ import { Button, Codicon, jsx, jsxs } from '#sdk'
 import { Facts, Lede } from '#shared/ui/text.js'
 
 /** Everything is verified (or the Chromatic part was skipped). */
-export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
+/** The hermretro row: the installed version and whether Hermes has a newer one (the header chip runs the update). */
+function versionFact(data, update) {
+  const version = data.plugin?.version ?? '?'
+
+  if (!update) {
+    return version
+  }
+
+  if (update.ready && update.phase === 'idle') {
+    return jsxs('span', {
+      className: 'cs-note',
+      children: [
+        `${version} · a new version is ready`,
+        jsx(Button, { onClick: update.start, size: 'sm', variant: 'default', children: 'Update' }),
+        jsxs(Button, { onClick: update.whatsNew, size: 'sm', variant: 'link', children: ["What's new", jsx(Codicon, { name: 'link-external', size: 12 })] })
+      ]
+    })
+  }
+
+  if (update.phase === 'updating') {
+    return `${version} · updating…`
+  }
+
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked ? `${version} · up to date` : version
+}
+
+export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
   const data = status.data ?? {}
   const report = doctor.data?.ok ? doctor.data : null
   const tools = (report?.components ?? [])
@@ -35,6 +61,7 @@ export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, 
       }),
       jsx(Facts, {
         rows: [
+          ['hermretro', versionFact(data, pluginUpdate)],
           ['Profile', data.profile?.name ?? data.via_profile ?? 'this profile'],
           ['Toolchain', [tools.join(' · '), data.engine?.version ? `engine ${data.engine.version}` : ''].filter(Boolean).join(' · ') || 'Ready'],
           [
