@@ -66,6 +66,17 @@ def collect():
     return declare.collect("backend", FEATURES)
 
 
+def contract_tool_list(text):
+    """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence,
+    plus the one-line bullets ('- `chromatic_x` (...): ...') `retrodev new tool` adds right after it."""
+    sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.\n((?:- `chromatic_\w+`[^\n]*\n)*)", text, re.S)
+    assert sentence is not None, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence"
+    listed = re.findall(r"`(chromatic_\w+)`", sentence.group(2)) + re.findall(
+        r"^- `(chromatic_\w+)`", sentence.group(3), re.M
+    )
+    return sentence.group(1), listed
+
+
 def plugin_owned_tools(registered: set[str]) -> set[str]:
     engine = {f"chromatic_{tool['name']}" for tool in json.loads(paths.PINNED_TOOLS.read_text())["tools"]}
     return registered - engine
@@ -158,21 +169,23 @@ class LockStep(unittest.TestCase):
     def test_the_contract_lists_exactly_the_plugin_owned_tools_it_counts(self):
         """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once, and the bullet
         lines `retrodev new tool` adds right after that sentence ('- `chromatic_x` (...): ...') count as listed."""
-        text = read("docs/dev/CONTRACT.md")
-        sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.\n((?:- `chromatic_\w+`.*\n)*)", text, re.S)
-        self.assertIsNotNone(sentence, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence")
-        listed = re.findall(r"`(chromatic_\w+)`", sentence.group(2)) + re.findall(
-            r"^- `(chromatic_\w+)`", sentence.group(3), re.M
-        )
+        count, listed = contract_tool_list(read("docs/dev/CONTRACT.md"))
         owned = plugin_owned_tools(self.tools)
         fix = (
             "\nFIX: in docs/dev/CONTRACT.md's 'plus <count> plugin-owned tools' sentence, name each tool in "
             f"{sorted(owned)} once and write the count as {count_words().count_text(len(owned))!r}"
         )
-        self.assertEqual(count_words().count_value(sentence.group(1)), len(listed), "count word vs names listed" + fix)
+        self.assertEqual(count_words().count_value(count), len(listed), "count word vs names listed" + fix)
         self.assertEqual(
             sorted(listed), sorted(owned), "names listed vs plugin.yaml tools that are not engine tools" + fix
         )
+
+    def test_the_tool_list_stops_at_the_bullets_right_after_the_sentence(self):
+        text = (
+            "2 tools, plus two plugin-owned tools: `chromatic_a` and\n`chromatic_b`. 5 in total.\n"
+            "- `chromatic_c` (library): new.\n\n## Game card\n\n- `chromatic_a` (library): the card.\n"
+        )
+        self.assertEqual(contract_tool_list(text), ("two", ["chromatic_a", "chromatic_b", "chromatic_c"]))
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")
