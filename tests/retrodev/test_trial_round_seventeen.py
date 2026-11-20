@@ -193,7 +193,7 @@ class SyncHintNoGuess(RepoCase):
         self.assertEqual(code, 1, out)
         hint = next(line for line in out["error"]["message"].splitlines() if line.startswith(SIZE + ":"))
         self.assertNotIn(FORMAT, hint)
-        self.assertIn(f"removed these lines in {moved[:7]}", hint)
+        self.assertIn(f"dev removed these lines in {moved[:7]}", hint)
         self.assertIn("redo your change where it belongs now", hint)
 
 

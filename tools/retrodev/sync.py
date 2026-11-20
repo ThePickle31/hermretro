@@ -192,12 +192,11 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
                 )
             else:
                 hints.append(
-                    f"{name}:{first}-{last}: {ctx.base} "
-                    + (f"removed these lines in {commit} (" if commit else "deleted this block (")
-                    + f"no other file on {ctx.remote_base} has its lines"
+                    f"{name}:{first}-{last}: {ctx.base} deleted this block (no other file on {ctx.remote_base} has its "
+                    "lines"
                     + (f"; if it moved and changed, `{log}` finds where" if log else "")
                     + "); delete the HEAD side of this hunk, git add, sync again, then redo your change where it "
-                    "belongs now in a new commit"
+                    "belongs now in a new commit" + (f" ({ctx.base} removed these lines in {commit})" if commit else "")
                 )
     return list(dict.fromkeys(hints))
 
