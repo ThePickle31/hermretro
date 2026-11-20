@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import ast
 import re
+import textwrap
 
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
-from .scaffold_backend import ARCHITECTURE, CONTRACT, known_feature
-from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, undescribed
+from .scaffold_backend import ARCHITECTURE, CONTRACT, PAYLOAD_GUIDE, known_feature
+from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, typed_sample, undescribed
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -114,6 +115,72 @@ def mocked_helpers(plan: Plan, owner: str, event: str) -> list[str]:
     return found
 
 
+def _isolated(cls: ast.ClassDef, known: dict[str, bool]) -> bool:
+    """The class's setUp calls isolated_home (its own, else the one it inherits from a class of the same file)."""
+    setup = next((n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "setUp"), None)
+    if setup is None:
+        return any(known.get(getattr(base, "id", "")) for base in cls.bases)
+    for node in ast.walk(setup):
+        func = node.func if isinstance(node, ast.Call) else None
+        if func is not None and (getattr(func, "id", "") or getattr(func, "attr", "")) == "isolated_home":
+            return True
+    return False
+
+
+def emitting_classes(plan: Plan, owner: str, event: str) -> tuple[list[str], list[str]]:
+    """(test classes that emit ``event`` without isolated_home in setUp, those already isolated), as
+    'file::Class', from tests/backend/: a class emits it when its source names the event or calls the owner's
+    function that emits it."""
+    names = emitting_names(plan, owner, event)
+    calls = re.compile(r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")\(") if names else None
+    bare, isolated = [], []
+    for path in sorted(plan.top.glob("tests/backend/**/test_*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if f'"{event}"' not in text and f"'{event}'" not in text and not (calls and calls.search(text)):
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        known: dict[str, bool] = {}
+        for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
+            known[cls.name] = _isolated(cls, known)
+            body = ast.get_source_segment(text, cls) or ""
+            if f'"{event}"' in body or f"'{event}'" in body or (calls and calls.search(body)):
+                (isolated if known[cls.name] else bare).append(f"{path.relative_to(plan.top).as_posix()}::{cls.name}")
+    return bare, isolated
+
+
+def isolation_step(plan: Plan, owner: str, event: str) -> str:
+    """The next step about the tests that emit ``event``: they now run the listener, so each needs isolated_home."""
+    bare, isolated = emitting_classes(plan, owner, event)
+    done = f"; already isolated: {', '.join(isolated)}" if isolated else ""
+    if bare:
+        return (
+            f"these tests emit {event} and now run your listener: give each isolated_home(self) (tests/support.py) "
+            f"in setUp, so it never touches the real home: {', '.join(bare)}{done}"
+        )
+    if isolated:
+        return (
+            f"the tests that emit {event} now run your listener; they are all already isolated: {', '.join(isolated)}"
+        )
+    return (
+        f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
+        "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home"
+    )
+
+
+def docstring_head(event: str, payload: str, feature: str) -> str:
+    """The listener docstring's first paragraph, wrapped within 120 characters at the function's indent: it copies
+    the EVENTS description, which may be long. The placeholder stays on one line (the placeholder gate reads it)."""
+    glue = "\u00a0"
+    text = f"When {event} happens ({payload}): {LISTENS.replace(' ', glue)} (backend/{feature}). A listener that raises is logged."
+    lines = textwrap.wrap(
+        text, 120, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
+    )
+    return "\n".join(lines).removeprefix('    """').replace(glue, " ")
+
+
 def test_template(plan: Plan) -> str:
     """The listener test calls tests/support.py's isolated_home(self) where that helper exists; otherwise it makes
     the same temp HERMRETRO_HOME and plugin data folder itself."""
@@ -208,7 +275,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     values = {"name": feature_name, "Name": label(feature_name), "event": event, "func": func, "Func": pascal(func)}
     values["payload"] = declared[event] or "its payload"
     keys = payload_of(plan, event, declared[event])
-    values["call"] = emitter_values(keys)["sample"]  # the test calls it with the declared payload's keys
+    values["call"] = typed_sample(keys, declared[event].partition("; ")[2])  # the declared keys, typed as hinted
+    values["doc"] = docstring_head(event, values["payload"], feature_name)
     named = emitter_values(keys)["params"]  # keyword-only, one per payload key; later keys still arrive in **_payload
     rest = catch_all(keys)  # never one of the keys: a key named _payload would be bound twice
     values["params"] = f"**{rest}" if named == "**payload" else f"{named}, **{rest}"
@@ -250,13 +318,13 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']})",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,
-        f'tests that call the emitter (grep -rn \'emit("{event}"\' backend tests) now run your listener: give them '
-        "isolated_home(self) (tests/support.py) in setUp, so it never touches the real home",
+        isolation_step(plan, event.partition(".")[0], event),
         f"if other code reads what the listener keeps, export the reader in backend/{feature_name}/__init__.py "
         f"__all__ and name it on the README Front door line ({readme}); state other processes must read goes in a "
         "file under backend.system.paths.hermretro_home(), written atomically, not module state",
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
         "assert what it changed",
+        f"when {event}'s payload changes: {PAYLOAD_GUIDE}, this listener among them",
     ]
     entry = declared[event] or ""
     bare = [key for key in undescribed(entry.partition("; ")[2]) if f"{key}=<...>" in entry]

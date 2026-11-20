@@ -26,11 +26,11 @@ class GitError(Failure):
 
 
 def run(
-    command: list[str], cwd: Path | str, timeout: float | None = None, env: dict | None = None
+    command: list[str], cwd: Path | str, timeout: float | None = None, env: dict | None = None, feed: str | None = None
 ) -> tuple[int, str, str]:
-    """Run a command (every git and tool call retrodev makes, except gh and the checks' live output). Output that is
-    not UTF-8 (a binary blob, a file name in another encoding) reads with U+FFFD in place of the bytes, never an
-    exception: read file contents with blob() instead."""
+    """Run a command (every git and tool call retrodev makes, except gh and the checks' live output), ``feed`` on its
+    stdin (else none). Output that is not UTF-8 (a binary blob, a file name in another encoding) reads with U+FFFD in
+    place of the bytes, never an exception: read file contents with blob() instead."""
     try:
         done = subprocess.run(
             command,
@@ -38,7 +38,7 @@ def run(
             encoding="utf-8",
             errors="replace",
             capture_output=True,
-            stdin=subprocess.DEVNULL,
+            **({"input": feed} if feed is not None else {"stdin": subprocess.DEVNULL}),
             timeout=timeout,
             env=env,
         )

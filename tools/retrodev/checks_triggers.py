@@ -1,6 +1,8 @@
 """Which checks a branch's changes call for beyond the fast ones (policy.toml [checks.triggers]), and which a
 `check` run selects. A generated bundle whose banner says its body is unchanged (``body: sha256``) changed in its
-header alone (``sources:``, after an edit that did not change what it bundles): that calls for nothing.
+header alone (``sources:``, after an edit that did not change what it bundles): that calls for nothing. Nor does a
+file [checks.trigger_ignore] lists for that check, or a change to a scaffold-parsed file made only of the lines `new`
+itself writes there ([checks.new_lines]).
 """
 
 from __future__ import annotations
@@ -31,6 +33,23 @@ def banner_only(top, base: str, path: str) -> bool:
     return bool(now) and not code and body_hash(before) == now
 
 
+def changed_lines(top, base: str, path: str) -> list[str] | None:
+    """The lines the branch added or removed in ``path`` since it left ``base`` (None when git cannot say)."""
+    point = repo.merge_base(top, base)
+    if not point:
+        return None
+    code, out, _err = repo.run(["git", "diff", "-U0", "--no-color", "--no-ext-diff", point, "--", path], top)
+    if code:
+        return None
+    return [line[1:] for line in out.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+
+
+def only_new_lines(top, base: str, path: str, patterns: list[str]) -> bool:
+    """The branch's change to ``path`` is only lines `new` writes (each matches one of ``patterns``)."""
+    lines = changed_lines(top, base, path) if patterns else None
+    return bool(lines) and all(any(re.fullmatch(p, line) for p in patterns) for line in lines)
+
+
 def known(ctx) -> list[str]:
     return list(ctx.policy["checks"]["inputs"])
 
@@ -43,8 +62,14 @@ def triggered(ctx) -> dict[str, str]:
     generated = set(ctx.policy["generated"]["files"])
     changed = [p for p in changed if p not in generated or not banner_only(ctx.top, ctx.remote_base, p)]
     found = {}
+    ignore = ctx.policy["checks"].get("trigger_ignore", {})
+    new_lines = ctx.policy["checks"].get("new_lines", {})
     for name, patterns in ctx.policy["checks"]["triggers"].items():
-        hits = [path for path in changed if repo.matches(path, patterns)]
+        hits = [
+            path for path in changed if repo.matches(path, patterns) and not repo.matches(path, ignore.get(name, []))
+        ]
+        if name == "scaffold":
+            hits = [p for p in hits if not only_new_lines(ctx.top, ctx.remote_base, p, new_lines.get(p, []))]
         if hits:
             found[name] = f"changed {hits[0]}" + (f" and {len(hits) - 1} more" if len(hits) > 1 else "")
     if "clean_install" in found:

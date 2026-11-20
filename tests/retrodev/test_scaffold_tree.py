@@ -146,7 +146,8 @@ def judges(mode: str, env: dict) -> list[tuple[list[str], dict]]:
     the nested mode's full unit suite runs with the placeholder gate off (RETRODEV_SCAFFOLD_CHECK, for that
     subprocess only); the fast mode's unit tests do not include the gate."""
     if mode == "nested":
-        gate_off = {**env, "RETRODEV_SCAFFOLD_CHECK": "1"}  # as tools/retrodev/scaffold.py sets for its own checks
+        # as tools/retrodev/scaffold_checks.py sets for new's own checks
+        gate_off = {**env, "RETRODEV_SCAFFOLD_CHECK": "1"}
         return [([sys.executable, "tools/check.py", "lint", "bundle", "unit", "page"], gate_off)]
     # the same judges, faster: the page tests the new names reach, and the structure tests, side by side
     return [

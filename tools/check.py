@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -221,12 +222,83 @@ def check_page(args) -> str:
     if "were not found" in output and result.returncode and not args.strict:
         raise Skip("react, react-dom and jsdom were not found (npm ci --prefix tools/npm --ignore-scripts)")
     if result.returncode:
-        raise AssertionError(
-            tail(output, 40) + "\nFIX: run the failing file alone for its full output (node "
-            "tests/page/page-<name>.test.mjs, named in the failure above); after editing "
-            "page/ run node tools/bundle/bundle.mjs first"
-        )
+        raise AssertionError(page_failure(output))
     return page_summary.summary(output, len(list(ROOT.glob(PAGE_TESTS))))
+
+
+FAILING_AT = re.compile(r"^test at (tests/page/\S+?\.mjs):\d+:\d+$")  # each entry of the reporter's failing list
+FAILED_ROW = re.compile(r"^✖ (.+) \([\d.]+ms\)$")
+REPORTER_ROW = re.compile(r"^\s*[✔✖﹣ℹ] ")  # any row of the reporter itself (a test, a file, the totals)
+ACT_NOISE = (
+    "An update to ",
+    "When testing, code that",
+    "act(() => {",
+    "  /* fire events",
+    "});",
+    "/* assert on",
+    "This ens",
+)
+
+
+def own_output(lines: list[str], name: str) -> list[str]:
+    """What the scenario file ``name`` printed itself (its assertion and stderr): the lines above its ✖ row up to the
+    reporter's previous row (node prints a file's output just before its row), without React's act() warnings."""
+    at = next((i for i, line in enumerate(lines) if line.startswith(f"✖ {name} (")), None)
+    if at is None:
+        return []
+    start = at
+    while start > 0 and not REPORTER_ROW.match(lines[start - 1]):
+        start -= 1
+    return [line for line in lines[start:at] if line.strip() and not line.startswith(ACT_NOISE)][-25:]
+
+
+def page_failures(output: str) -> list[tuple[str, str, list[str]]]:
+    """(file, test, what it said) for each entry of node --test's failing list. A scenario file on harness.mjs is one
+    test named after the file, whose reason is only 'test failed': what it said is then its own output."""
+    lines = output.splitlines()
+    summary_at = next((i for i, line in enumerate(lines) if line.startswith("✖ failing tests")), len(lines))
+    found = []
+    for i, line in enumerate(lines[summary_at:], summary_at):
+        if not (at := FAILING_AT.match(line)) or i + 1 >= len(lines) or not (row := FAILED_ROW.match(lines[i + 1])):
+            continue
+        reason = []
+        for more in lines[i + 2 : i + 14]:
+            if not more.startswith(" "):
+                break
+            reason.append(more.strip())
+        if row[1] == at[1]:  # the whole file
+            reason = own_output(lines[:summary_at], at[1]) + [r for r in reason if r != "'test failed'"]
+        found.append((at[1], row[1], reason))
+    return found
+
+
+def page_failure(output: str) -> str:
+    """check.py page's failure: node --test's summary says only 'test failed' for a scenario file, so each failing
+    file's own output comes first (its assertion, name and message, and stderr), and the FIX names the file, and says
+    when the test was stopped for taking too long."""
+    failures = page_failures(output)
+    if not failures:
+        return tail(output, 40) + (
+            "\nFIX: run the failing file alone for its full output (node tests/page/page-<name>.test.mjs, named in "
+            "the failure above); after editing page/ run node tools/bundle/bundle.mjs first"
+        )
+    parts = []
+    for file, test, said in failures:
+        head = f"{file} failed:" if test == file else f"{file}: {test!r} failed:"
+        parts.append(head + "\n" + ("\n".join("  " + line for line in said) or "  (it printed nothing)"))
+    slow = [test for _file, test, said in failures if any("timed out" in line for line in said)]
+    timed = (
+        f"{', '.join(slow)} timed out (stopped for taking too long, not an assertion): find the wait that "
+        if slow
+        else ""
+    )
+    files = list(dict.fromkeys(file for file, _test, _said in failures))
+    return (
+        "\n".join(parts)
+        + f"\nFIX: {timed + 'never ends; ' if slow else ''}run it alone: "
+        + "; ".join(f"node {file}" for file in files)
+        + " (after editing page/ run node tools/bundle/bundle.mjs first)"
+    )
 
 
 def shipped_files() -> list[str]:
@@ -335,6 +407,19 @@ def base_skip(name: str, message: str, failure: str) -> Skip:
     )
 
 
+PAGE_FAILED = re.compile(r"^\s*(?:FAILED\s+page\s+[\d.]+ s\s+)?tests/page/\S+\.mjs(?:: '.*')? failed:$")
+
+
+def scaffold_said(stderr: str) -> str:
+    """The scaffold test's failure: its last 40 lines, after the failing page file's own output (page_failure) when
+    a page check inside the copy failed and that output is above them (new's checks print more after it)."""
+    lines = stderr.strip().splitlines()
+    at = next((i for i, line in enumerate(lines) if PAGE_FAILED.match(line)), None)
+    if at is None or at >= len(lines) - 40:
+        return tail(stderr, 40)
+    return "\n".join([*lines[at : at + 30], "...", *lines[-40:]])
+
+
 def check_scaffold(args) -> str:
     # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
     if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
@@ -353,7 +438,7 @@ def check_scaffold(args) -> str:
     test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
     result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first + covered)})
     if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
+        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"
 
 
