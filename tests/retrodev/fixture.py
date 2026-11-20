@@ -10,7 +10,8 @@ Speed: every test has its own folders and passes its own working folder, output 
 they share set once around them. Under discovery the package's load_tests (`one_pool`) puts every module's tests
 in ONE pool (a module without `parallel` joins it class by class; `alone` keeps a module out of it). The threads
 share one interpreter lock, so the per-test copy and removal run as cp and rm. Never patch a module's global in
-a test (mock.patch.object): another thread may be using it; set up the real state instead. Run alone (python -m
+a test (mock.patch.object), os.environ, sys.stdout, sys.path or the working folder: another thread may be using it;
+set up the real state instead, or mark the module alone (tests/repo/test_pool_guard.py checks). Run alone (python -m
 unittest tests.retrodev.test_x.Case.test_y), a test sets that environment itself.
 """
 
@@ -147,8 +148,8 @@ Nothing else.
 """
 
 
-def git(cwd: Path, *args: str, check: bool = True) -> str:
-    done = subprocess.run(["git", *args], cwd=str(cwd), text=True, capture_output=True)
+def git(cwd: Path, *args: str, check: bool = True, env: dict | None = None) -> str:
+    done = subprocess.run(["git", *args], cwd=str(cwd), text=True, capture_output=True, env=env)
     if check and done.returncode:
         raise AssertionError(f"git {' '.join(args)}: {done.stderr}")
     return done.stdout
@@ -191,19 +192,19 @@ class Template:
         if cls.path is None:
             cls._keep = tempfile.TemporaryDirectory(prefix="retrodev-template-")
             base = Path(cls._keep.name)
-            with mock.patch.dict(os.environ, git_env(base)):
-                git(base, "init", "-q", "--bare", "-b", "dev", "origin.git")
-                main = base / "hermretro"
-                main.mkdir()
-                git(main, "init", "-q", "-b", "dev")
-                for name, text in FILES.items():
-                    write(main, name, text)
-                write(main, "tools/retrodev/policy.toml", policy_text())
-                git(main, "add", "-A")
-                git(main, "commit", "-q", "-m", "Start")
-                git(main, "remote", "add", "origin", str(base / "origin.git"))
-                git(main, "push", "-q", "origin", "dev")
-                git(main, "fetch", "-q", "origin")
+            env = {**os.environ, **git_env(base)}  # passed to each git: the process environment stays as it is
+            git(base, "init", "-q", "--bare", "-b", "dev", "origin.git", env=env)
+            main = base / "hermretro"
+            main.mkdir()
+            git(main, "init", "-q", "-b", "dev", env=env)
+            for name, text in FILES.items():
+                write(main, name, text)
+            write(main, "tools/retrodev/policy.toml", policy_text())
+            git(main, "add", "-A", env=env)
+            git(main, "commit", "-q", "-m", "Start", env=env)
+            git(main, "remote", "add", "origin", str(base / "origin.git"), env=env)
+            git(main, "push", "-q", "origin", "dev", env=env)
+            git(main, "fetch", "-q", "origin", env=env)
             cls.path = base
         return cls.path
 
@@ -264,7 +265,8 @@ class RepoCase(unittest.TestCase):
         # Python's own copy and removal of a test's folders were most of what they waited for.
         self.addCleanup(subprocess.run, ["rm", "-rf", str(self.base)], check=True)
         if not SHARED["on"]:  # run alone, not through parallel(): set the shared environment here
-            patch = mock.patch.dict(os.environ, shared_env(), clear=True)
+            env = shared_env()
+            patch = mock.patch.dict(os.environ, env, clear=True)  # retrodev: allow pool — not run in the pool
             patch.start()
             self.addCleanup(patch.stop)
         template = Template.get()

@@ -6,6 +6,7 @@ test template, status behind dev without a plan, and ship's gates without a titl
 Run alone: python -m unittest tests.retrodev.test_trial_round_five
 """
 
+import argparse
 import importlib.util
 import io
 import subprocess
@@ -46,11 +47,13 @@ def inline_page(case, page_id: str = "rdprobe-own", exported: bool = False) -> N
 
 
 def event_help() -> str:
-    """`new event --help`, as argparse prints it."""
-    stream = io.StringIO()
-    with mock.patch("sys.stdout", stream), unittest.TestCase().assertRaises(SystemExit):
-        cli.parser().parse_args(["new", "event", "--help"])
-    return stream.getvalue()
+    """`new event --help`, as argparse prints it (format_help is what print_help writes; read from the parser itself
+    so no test swaps sys.stdout, which every thread of the pool writes to)."""
+    parser = cli.parser()
+    for name in ("new", "event"):
+        parser = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction)).choices[name]
+    parser.color = False  # as print_help into a stream that is not a terminal
+    return parser.format_help()
 
 
 class Guard(unittest.TestCase):
