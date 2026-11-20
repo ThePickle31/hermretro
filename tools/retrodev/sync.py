@@ -187,6 +187,8 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
                 hints.append(
                     f"{name}:{first}-{last}: {ctx.base} moved this block to {where}"
                     + (f" in {commit}" if commit else " (or deleted it)")
+                    + f"; first check whether {ctx.base}'s version there already does what your lines did; if it "
+                    "does, add only a test that pins it"
                     + f"; delete the HEAD side of this hunk, git add, sync again, then add your lines in {where} in a "
                     "new commit" + (f" (`{log}` shows the move)" if log else "")
                 )

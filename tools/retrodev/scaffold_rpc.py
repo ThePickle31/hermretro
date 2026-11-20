@@ -195,8 +195,19 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
     """new rpc's next steps for the handler and the page: one rule for the call, the query key and where it runs."""
     constant, only = f"RPC_{name.upper()}", feature_name in STUDIO_ONLY
     call = "callStudioOnly" if only else "callStudio"
+    rowed = contract_row(plan, name)
+    rpcs = f"backend/{feature_name}/rpcs.py"
+    others = (
+        [rpc for rpc in re.findall(r'@rpc\("(\w+)"\)', plan.read(rpcs)) if rpc != name] if plan.exists(rpcs) else []
+    )
+    where = (
+        f"its row in {CONTRACT} (new put it after {feature_name}'s other RPCs in the table: params, result), and "
+        f"describe it where they are described (grep -n '`{others[-1]}' {CONTRACT})"
+        if rowed and others
+        else f"its section in {CONTRACT} (params, result)"
+    )
     steps = [
-        f"write the handler in {source} and its section in {CONTRACT} (params, result)",
+        f"write the handler in {source} and {where}",
         f"call it from the page: import {{ {constant} }} from '#app/rpc.js' (re-exports the generated rpc-names.js)",
         "callStudioOnly (page/app/backend.js; the hermretro profile only) if the handler reads or binds a "
         "profile's Build conversations or its plugin data folder (host._data_dir(): snapshots, asset versions); "
@@ -231,6 +242,13 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
             "does for the Setup page), and pass the result down as a prop"
             + ("" if only else " (viaProfile only with callStudio: the answer depends on the profile)")
         )
+    steps.append(
+        f"for an action (a button that changes something, run once) instead of a read: no useQuery; call "
+        f"`await {call}({constant}, {{ ... }})` from the click handler (as page/pages/build/build-page.js calls "
+        f"RPC_BUILD_RESTORE), and in its page test answer it with scenario.byMethod['plugin.hermretro.{name}'] = "
+        "params => ({ ok: true }) (tests/page/sdk-stub.mjs; tests/page/page-build.test.mjs answers "
+        "plugin.hermretro.build so), reading what it sent from scenario.paramsByMethod"
+    )
     steps += [
         f"keep the queryKey's second word '{name}': page tests answer by it, scenario.{name} = answered({{ ok: "
         "true, ... }) (tests/page/harness.mjs), set before the page renders; extend tests/page/page-<page>.test.mjs",
@@ -242,7 +260,7 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
         "subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)",
     ]
     listed = page_rpcs(plan.read(CONTRACT) if plan.exists(CONTRACT) else "")
-    if listed:
+    if listed and not rowed:
         steps.append(
             f"a page calls it: add its row to the RPC table under {CONTRACT} '{PAGE_RPCS[3:]}' (it lists "
             f"{', '.join(listed)}): | `{name}` | <params> | <result> |"
@@ -330,3 +348,35 @@ def refuse_reserved(plan: Plan, name: str) -> None:
             f"query by its RPC name (scenario.<rpc>); nothing was written",
             f"pick another RPC name (for example {name}_info, or a more specific one such as disk_usage)",
         )
+
+
+DESCRIBE = "Describe what it does, its params and its result here."  # tests/repo/test_placeholders.py knows it
+
+
+def contract_placed(text: str, mine: list[str], name: str, block: str, game: bool) -> str:
+    """CONTRACT.md with the new RPC beside the feature's own (``mine``, the RPCs its rpcs.py declares): its section
+    after the last `### <rpc>` section of theirs (setup's), else its row after the last table row of theirs (the
+    'Studio pages' table holds history's and library's, whose prose sits in their feature's section), else today's
+    place: the section before '## Studio pages'."""
+    lines = text.split("\n")
+    heads = [i for i, line in enumerate(lines) if any(line.startswith(f"### `{rpc}`") for rpc in mine)]
+    if heads:
+        end = next((i for i in range(heads[-1] + 1, len(lines)) if re.match(r"#{2,3} ", lines[i])), len(lines))
+        while end > 0 and not lines[end - 1].strip():
+            end -= 1
+        return "\n".join(lines[:end] + ["", *block.rstrip("\n").split("\n")] + lines[end:])
+    rows = [i for i, line in enumerate(lines) if any(line.startswith(f"| `{rpc}` |") for rpc in mine)]
+    if rows:
+        params, result = ("`{ game }`", "`{ ok, game }`, or `NO_GAME`") if game else ("`{ echo? }`", "`{ ok, echo }`")
+        row = f"| `{name}` | {params} | {result}: {DESCRIBE} |"
+        return "\n".join(lines[: rows[-1] + 1] + [row] + lines[rows[-1] + 1 :])
+    heading = re.compile(r"^## Studio pages", re.M)
+    if heading.search(text):
+        at = heading.search(text).start()
+        return text[:at] + block.rstrip("\n") + "\n\n" + text[at:]
+    return text.rstrip("\n") + "\n\n" + block
+
+
+def contract_row(plan: Plan, name: str) -> bool:
+    """new rpc put a table row for ``name`` in CONTRACT.md (contract_placed), not a section."""
+    return plan.exists(CONTRACT) and f"| `{name}` |" in plan.read(CONTRACT)

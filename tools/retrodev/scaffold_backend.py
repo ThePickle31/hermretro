@@ -20,7 +20,6 @@ from .scaffold import (
     const,
     in_section,
     insert_after,
-    insert_before,
     label,
     one_line,
     pascal,
@@ -36,6 +35,7 @@ from .scaffold_payload import (
     refuse_reserved_keys,
     undescribed,
 )
+from .scaffold_readme import add_test
 from .scaffold_source import add_event, event_entry, files_line
 
 FEATURES = "backend/features.py"
@@ -205,6 +205,12 @@ def rpc_names(plan: Plan) -> set[str]:
     return found
 
 
+def rpc_names_of(plan: Plan, feature_name: str) -> set[str]:
+    """The RPCs backend/<feature>/rpcs.py declares now."""
+    source = f"backend/{feature_name}/rpcs.py"
+    return set(re.findall(r'@rpc\("(\w+)"\)', plan.read(source))) if plan.exists(source) else set()
+
+
 def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, game: bool = False) -> str:
     known_feature(plan, feature_name, "rpc")
     check_name(name, SNAKE, "RPC", "build_restore")
@@ -227,8 +233,10 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
     plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
+    add_test(plan, feature_name, f"tests/backend/{feature_name}/test_rpc_{name}.py", f"the `{name}` RPC")
     block = render("rpc", "contract_game.md.tmpl" if game else "contract.md.tmpl", **values)
-    plan.edit(CONTRACT, lambda text: _before_heading(text, "## Studio pages", block))
+    mine = sorted(rpc_names_of(plan, feature_name))
+    plan.edit(CONTRACT, lambda text: scaffold_rpc.contract_placed(text, mine, name, block, game))
     readme(plan, feature_name, "RPCs", f"`{name}`")
     if module and plan.exists(f"backend/{feature_name}/README.md"):  # as new tool --module names its module
         plan.edit(f"backend/{feature_name}/README.md", lambda text: files_line(text, "RPCs", "rpcs.py", module))
@@ -236,12 +244,6 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
     plan.regenerate = True
     plan.next_steps += scaffold_rpc.page_steps(plan, feature_name, name, source, game)
     return f"RPC {name}"
-
-
-def _before_heading(text: str, heading: str, block: str) -> str:
-    if re.search(rf"^{re.escape(heading)}", text, re.M):
-        return insert_before(text, re.compile(rf"^{re.escape(heading)}"), block.rstrip("\n") + "\n", CONTRACT)
-    return text.rstrip("\n") + "\n\n" + block
 
 
 def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool = False) -> None:
@@ -263,6 +265,16 @@ def event_row(body: str, feature_name: str, row: str) -> str:
     owned = re.compile(rf"^\| `{re.escape(feature_name)}\.")
     anchor = owned if any(owned.search(line) for line in body.split("\n")) else re.compile(r"^\| `")
     return insert_after(body, anchor, row, CONTRACT)
+
+
+def when_cell(when: str) -> str:
+    """The CONTRACT row's 'Emitted when' cell as its neighbours write it: no leading 'When' (the heading says it) and
+    a lower-case first word ('A build was kept' -> 'a build was kept'); a code name or an acronym keeps its case."""
+    text = re.sub(r"^when\s+", "", when, flags=re.I) or when
+    first = text.split(" ", 1)[0]
+    if first[:1].isupper() and (not first[1:] or first[1:].islower()):
+        text = text[0].lower() + text[1:]
+    return text
 
 
 def emit_docstring(text: str) -> str:
@@ -291,7 +303,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
     plan.edit(door, lambda text: add_event(text, event_entry(full, doc)))
     cell = contract_cell(payload) if keys else payload
-    row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
+    row = f"| `{full}` | {cell} | {when_cell(when)} | — |" if when else f"| `{full}` | {cell} | say when | — |"
     plan.edit(
         CONTRACT,
         lambda text: in_section(
@@ -300,7 +312,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     )
     # tests/repo/test_boundaries.py fails on an event nothing emits: the feature gets the one function that does.
     values = {"name": feature_name, "Name": label(feature_name), "event": name, "Event": pascal(name)}
-    values |= {"full": full, "payload": payload, **emitter_values(keys)}
+    values |= {"full": full, "payload": payload, **emitter_values(keys, payload)}
     values["docstring"] = emit_docstring(f"Tell other features that {full} happened ({payload}).")
     emits = f"backend/{feature_name}/emits.py"
     if re.search(rf"^def {name}\(", plan.read(emits) if plan.exists(emits) else "", re.M):
@@ -309,6 +321,7 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     plan.edit(emits, lambda text: text.rstrip("\n") + "\n" + render("event", "emit.py.tmpl", **values))
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     plan.create(f"tests/backend/{feature_name}/test_event_{name}.py", render("event", "test_event.py.tmpl", **values))
+    add_test(plan, feature_name, f"tests/backend/{feature_name}/test_event_{name}.py", f"the `{full}` event")
     readme(plan, feature_name, "Events emitted", f"`{full}`")
     agent_half(plan, feature_name, lambda row: emits_cell(row, full))
     plan.next_steps += [

@@ -38,9 +38,20 @@ def contract_cell(payload: str) -> str:
             held = held[1:-1].strip()
         if held != "<...>":
             held = re.sub(r"^<([^<>]*)>\s*\((.*)\)$", r"\1; \2", held)
-            held = re.sub(r"<([^<>]*)>", r"\1", held).strip()
+            held = code_type(re.sub(r"<([^<>]*)>", r"\1", held).strip())
         cells.append(f"`{found.group(1)}` ({held or '<...>'})")
     return ", ".join(cells)
+
+
+def code_type(held: str) -> str:
+    """What a key holds with its type in backticks when the type is a code name, as the CONTRACT rows write it ('the
+    real project folder, pathlib.Path' -> 'the real project folder, `pathlib.Path`'): a dotted or capitalised name
+    after the last comma (or the whole text); plain types (str, int, list of str) stay plain, as theirs do."""
+    head, comma, kind = held.rpartition(",")
+    found = re.fullmatch(r"(\s*)([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(\s*)", kind)
+    if not found or not ("." in found.group(2) or re.search(r"[A-Z]", found.group(2))):
+        return held
+    return f"{head}{comma}{found.group(1)}`{found.group(2)}`{found.group(3)}"
 
 
 def undescribed(payload: str) -> list[str]:
@@ -117,18 +128,19 @@ def refuse_reserved_keys(plan: Plan, keys: list[str]) -> None:
         )
 
 
-def emitter_values(keys: list[str]) -> dict:
+def emitter_values(keys: list[str], payload: str = "") -> dict:
     """The emitter's parameters and emit arguments (keyword-only, one per payload key: a missing or misspelled key
-    fails where it is called), and its test's call with sample values and what a listener hears; **payload when
-    --payload names no keys new can use."""
+    fails where it is called), and its test's call with sample values of the types ``payload`` hints (typed_values,
+    as new listener's test samples them) and what a listener hears; **payload when --payload names no keys new can
+    use."""
     if not keyword_names(keys):
         return {"params": "**payload", "args": "**payload", "sample": "example=1", "heard": '{"example": 1}'}
-    samples = {key: f"sample {key}" for key in keys}
+    samples = typed_values(keys, payload)
     return {
         "params": "*, " + ", ".join(keys),
         "args": ", ".join(f"{key}={key}" for key in keys),
-        "sample": ", ".join(f"{key}={value!r}" for key, value in samples.items()).replace("'", '"'),
-        "heard": "{" + ", ".join(f'"{key}": "{value}"' for key, value in samples.items()) + "}",
+        "sample": ", ".join(f"{key}={value}" for key, value in samples.items()),
+        "heard": "{" + ", ".join(f'"{key}": {value}' for key, value in samples.items()) + "}",
     }
 
 
@@ -156,13 +168,18 @@ def hinted_type(part: str) -> str | None:
     return inner.rsplit(",", 1)[1].strip().lower() if "," in inner else None
 
 
-def typed_sample(keys: list[str], entry: str) -> str:
-    """The call a listener's test makes: each key with a sample of the type its EVENTS entry hints (int 1, str
-    "probe", pathlib.Path Path("/games/probe"), bool True), else "sample <key>"."""
-    if not keyword_names(keys):
-        return "example=1"
+def typed_values(keys: list[str], entry: str) -> dict[str, str]:
+    """{key: the sample expression of the type its payload part hints (int 1, str "probe", pathlib.Path
+    Path("/games/probe"), bool True), else "sample <key>"}, from a --payload line or an EVENTS entry's payload."""
     hints = {}
     for part in split_parts(entry):
         if (found := re.match(r"\s*([A-Za-z_]\w*)\b", part)) and found.group(1) not in hints:
             hints[found.group(1)] = SAMPLES.get(hinted_type(part) or "")
-    return ", ".join(f"{key}={hints.get(key) or SAMPLE.format(key)}" for key in keys)
+    return {key: hints.get(key) or SAMPLE.format(key) for key in keys}
+
+
+def typed_sample(keys: list[str], entry: str) -> str:
+    """The call a listener's test makes: each key with the sample typed_values gives it."""
+    if not keyword_names(keys):
+        return "example=1"
+    return ", ".join(f"{key}={value}" for key, value in typed_values(keys, entry).items())

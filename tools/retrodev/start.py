@@ -148,11 +148,22 @@ def body_note(ctx, branch: str, record: dict, no_plan: bool = False) -> str | No
             else "What changed from the plan; it covers several branches, so Why, Not done and the title are yours "
             "to write"
             if several
-            else "Why, What changed and Not done from the plan"
+            else "Why, What changed, Risk and rollback and Not done from the plan"
         )
+        text = written.read_text(encoding="utf-8")
+        empty = empty_sections(text, ctx.policy["ship"]["sections"])
+        left = f" (still empty: {', '.join(empty)})" if empty else ""
         ctx.out.say(
             f"wrote {written}: the pull request body ({copied}); fill in the "
-            "rest while you build, ship refuses it until every section says something"
-            + gates.agent_hint(written.read_text(encoding="utf-8"), gates.environment(ctx), record)
+            f"rest{left} while you build, ship refuses it until every section says something"
+            + gates.agent_hint(text, gates.environment(ctx), record)
         )
+        ctx.out.set(body_empty=empty)
     return str(written or ship.default_body(ctx, branch, record))
+
+
+def empty_sections(text: str, sections: list[str]) -> list[str]:
+    """The body sections ship's gate still finds empty or missing (only comments: the template's, or the
+    skeleton's placeholder for a Why no plan gave), in the policy's order."""
+    found = gates.section_lines(gates.COMMENT.sub("", text))
+    return [name for name in sections if not found.get(name)]
