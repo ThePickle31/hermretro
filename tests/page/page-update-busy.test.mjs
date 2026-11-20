@@ -95,6 +95,27 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.equal(chip().textContent, 'Updated')
   })
 
+  // First-time setup: an update started first keeps the toolchain install (and the profile setup) from starting.
+  sessions = () => []
+  let release
+  updateAnswer = () => new Promise(resolve => { release = resolve })
+  await act(async () => { root.render(null) })
+  scenario.storage = { setup: { onboardStarted: true } }
+  scenario.status = answered(base()); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
+  scenario['update-busy'] = answered([])
+  const installs = []
+  scenario.byMethod['plugin.hermretro.install'] = params => { installs.push(params.action); return { ok: true, install: { state: 'idle' } } }
+  await render()
+  const download = () => button('Download and install')
+  check('the install screen offers Download and install before an update', () => { assert.ok(download()); assert.equal(download().disabled, false) })
+  await openChip(); await click('Update now'); await settle(40)
+  check('while the update runs, Download and install is disabled', () => { assert.equal(download().disabled, true) })
+  download().click(); await settle(40)
+  check('and pressing it starts no install', () => { assert.ok(!installs.includes('start')) })
+  await act(async () => { release({ ok: true, unchanged: true }) }); await settle(40)
+  check('after the update the install can start again', () => { assert.equal(download().disabled, false) })
+  updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })
+
   // Nothing new starts from the Build page while an update runs.
   sessions = () => []
   let finish

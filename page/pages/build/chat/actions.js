@@ -209,6 +209,13 @@ export async function resumeBuildChat(stored) {
     return
   }
 
+  // Dropping the lost turn releases the messages waiting behind it: not while an update reloads the plugin.
+  if (isUpdating()) {
+    host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+    return
+  }
+
   patchChat(stored, current => ({ ...current, resuming: true, lostFailure: null }))
 
   try {

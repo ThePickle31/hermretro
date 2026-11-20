@@ -43,8 +43,10 @@ export const host = {
     if (!scenario.ambient) throw notLoaded()
     return scenario.ambient
   },
+  // scenario.routesError, when set, makes the lookup fail (the app could not list its profiles).
   profileRoutes: async () => {
     scenario.calls.push(['profileRoutes'])
+    if (scenario.routesError) throw scenario.routesError
     return scenario.routes
   },
   // Another profile, without switching the app to it.

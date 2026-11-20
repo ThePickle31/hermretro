@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 4a0bdca2fb9f149976c46b3e93555b62085cca8a6016d8a76db0f5b1b8a18d86
- * body: sha256 dd4376eb7cc3fa867db9217d656845aecafcf6067508ae22a4056b8a706b38c6
+ * sources: sha256 b95e3a0554dbadef859a6b5a04e1f5f6b2910d930e759b0f412cc0cb94d0a96b
+ * body: sha256 e384936bf13c216b64971ae3c437e385ad900e5e8c854b9ffc18adf099866cab
  */
 // page/sdk.js
 import {
@@ -2173,6 +2173,19 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
   });
 }
 
+// page/app/update/lock.js
+var UPDATE_LOCK = atom(false);
+function isUpdating() {
+  return Boolean(UPDATE_LOCK.get());
+}
+function useUpdating() {
+  return Boolean(useValue(UPDATE_LOCK));
+}
+function setUpdating(active) {
+  UPDATE_LOCK.set(Boolean(active));
+}
+var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
+
 // page/pages/setup/install/installer.js
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
@@ -2189,6 +2202,9 @@ function useInstall({ enabled }) {
   });
 }
 async function createStudioProfile(profile) {
+  if (isUpdating()) {
+    throw new Error(UPDATING_MESSAGE);
+  }
   if (!profile.studio?.exists) {
     await host.request("profiles.create", profile.create);
   }
@@ -2215,6 +2231,7 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
   const profile = status.data?.profile;
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
   const node = nodeState(status.data?.node);
+  const updating = useUpdating();
   const makeProfile = () => {
     if (!needsProfile) {
       return;
@@ -2230,6 +2247,10 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
   };
   const start = async () => {
     if (starting) {
+      return;
+    }
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
       return;
     }
     setStarting(true);
@@ -2262,7 +2283,23 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   );
   const verifying = (state === "done" || elsewhere) && !toolchainDone;
   const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
-  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
+  return {
+    ask,
+    data,
+    elsewhere,
+    failure: failure ?? data?.install?.error ?? null,
+    makeProfile,
+    needsProfile,
+    node,
+    phase,
+    profileWork,
+    start,
+    starting,
+    state,
+    unsupported,
+    updating,
+    verifying
+  };
 }
 
 // page/pages/setup/profile-step.js
@@ -2276,6 +2313,7 @@ function ProfileBody({ status }) {
   const profile = status.data?.profile;
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
   if (!status.data?.ok || !profile) {
     return jsx(Small, { children: "Checked once the plugin is on." });
   }
@@ -2311,13 +2349,13 @@ function ProfileBody({ status }) {
         children: [
           jsx(Working, { children: "The profile is created. Waiting for Hermes to start it…" }),
           jsx("div", {
-            children: jsx(Button, { disabled: working, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
+            children: jsx(Button, { disabled: working || updating, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
           })
         ]
       }) : working ? jsx(Working, { children: "Creating the profile…" }) : jsxs("div", {
         className: "cs-actions",
         children: [
-          jsx(Button, { onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
+          jsx(Button, { disabled: updating, onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
           jsx("span", { className: "cs-faint", children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
         ]
       }),
@@ -2475,7 +2513,7 @@ function InstallActions({ installer, compact = false }) {
   if (phase === "done" && installer.needsProfile) {
     return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
       className: "cs-actions",
-      children: jsx(Button, { onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
+      children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
     });
   }
   if (phase === "done" && installer.profileWork.state !== "failed") {
@@ -2485,7 +2523,7 @@ function InstallActions({ installer, compact = false }) {
     return jsx("div", {
       className: "cs-actions",
       children: jsxs(Button, {
-        disabled: starting,
+        disabled: starting || installer.updating,
         onClick: () => void start(),
         size: compact ? "sm" : "lg",
         variant: "default",
@@ -2498,7 +2536,7 @@ function InstallActions({ installer, compact = false }) {
       className: "cs-actions",
       children: [
         jsxs(Button, {
-          disabled: starting,
+          disabled: starting || installer.updating,
           onClick: () => void start(),
           size: compact ? "sm" : "lg",
           variant: "default",
@@ -2550,7 +2588,13 @@ function InstallPanel({ ctx, status, install, step, profileStep }) {
 function RemoveTools({ status, doctor }) {
   const [state, setState] = useState("idle");
   const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
   const remove = async () => {
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
+      setState("idle");
+      return;
+    }
     setState("working");
     setFailure(null);
     try {
@@ -2576,12 +2620,12 @@ function RemoveTools({ status, doctor }) {
         className: "cs-actions",
         children: [
           jsx("span", { children: "Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute)." }),
-          jsx(Button, { onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
+          jsx(Button, { disabled: updating, onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
           jsx(Button, { onClick: () => setState("idle"), size: "sm", variant: "ghost", children: "Cancel" })
         ]
       }) : jsx("div", {
         children: jsx(Button, {
-          disabled: state === "working",
+          disabled: state === "working" || updating,
           onClick: () => setState("confirm"),
           size: "sm",
           variant: "ghost",
@@ -3466,16 +3510,6 @@ var CART_SHELF_CSS = `
 .cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
 `;
 
-// page/app/update/lock.js
-var lock = { active: false };
-function isUpdating() {
-  return lock.active;
-}
-function setUpdating(active) {
-  lock.active = Boolean(active);
-}
-var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
-
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
 function mergeAttachments(current, more) {
@@ -4225,6 +4259,10 @@ async function stopBuildChat(stored) {
 async function resumeBuildChat(stored) {
   const chat = BUILD_CHATS.get()[stored];
   if (!chat?.runtime || chat.resuming) {
+    return;
+  }
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return;
   }
   patchChat(stored, (current) => ({ ...current, resuming: true, lostFailure: null }));
@@ -8717,6 +8755,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
 }
 function LostTurnCard({ chat, stored }) {
   const waiting = chat.queued?.length ?? 0;
+  const updating = useUpdating();
   return jsxs("div", {
     className: "cs-b-card warn",
     children: [
@@ -8728,7 +8767,7 @@ function LostTurnCard({ chat, stored }) {
       chat.lostFailure ? jsx("p", { className: "cs-small", children: chat.lostFailure }) : null,
       jsx("div", {
         className: "cs-row",
-        children: jsx(Button, { disabled: Boolean(chat.resuming), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
+        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
       })
     ]
   });
@@ -15329,17 +15368,26 @@ async function installTarget(installedIn) {
   const route = routes.find((candidate) => routeProfile(candidate) === profile);
   return route ? { route, profile } : null;
 }
-async function studioReloadTarget() {
+async function studioReloadTarget(exists = false) {
   const known = studioTarget();
   if (known) {
     return { route: known.route, profile: STUDIO_PROFILE };
   }
   if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    if (exists) {
+      throw new Error("this Hermes cannot reach the hermretro profile from here");
+    }
     return null;
   }
-  const routes = await host.profileRoutes().catch(() => []) ?? [];
+  const routes = await host.profileRoutes() ?? [];
   const route = routes.find((candidate) => routeProfile(candidate) === STUDIO_PROFILE);
-  return route ? { route, profile: STUDIO_PROFILE } : null;
+  if (route) {
+    return { route, profile: STUDIO_PROFILE };
+  }
+  if (exists) {
+    throw new Error("the hermretro profile is not reachable right now");
+  }
+  return null;
 }
 var BUSY_STATUSES = /* @__PURE__ */ new Set(["starting", "working", "waiting", "streaming"]);
 async function busyChats(studio) {
@@ -15439,7 +15487,15 @@ async function runUpdate({
   let restart = Boolean(result.restart_required);
   onStep(1);
   if (studio && studio.profile !== install.profile) {
-    await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4).catch(() => null);
+    let finished;
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) };
+    }
+    if (!finished?.ok) {
+      return { kind: "partial", error: `the hermretro profile's settings were not updated (${finished?.error ?? "no answer"})` };
+    }
     for (let failures = 0; ; ) {
       let chats;
       try {
@@ -15541,7 +15597,7 @@ function body(update) {
         "Almost there",
         jsx(
           "p",
-          { children: `The new version is installed, but ${update.error ?? "its last steps did not finish"}. Finish the update to load it everywhere.` },
+          { children: `The new version is installed, but ${String(update.error ?? "its last steps did not finish").replace(/\.$/, "")}. Finish the update to load it everywhere.` },
           "p"
         ),
         update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
@@ -15864,6 +15920,9 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
   });
   const busy = useRef(false);
+  const installingNow = useRef(installing);
+  installingNow.current = installing;
+  const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
   useEffect(() => {
     if (!state.announce) {
       return void 0;
@@ -15883,7 +15942,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
   const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
   const building = useQuery({
     queryKey: [ID, "update-busy"],
-    queryFn: async () => busyChats(await studioReloadTarget()),
+    queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
     enabled: running && (ready && state.phase === "idle" || state.phase === "partial"),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
@@ -15911,13 +15970,18 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     const resume = Boolean(pendingUpdate(ctx));
     let outcome;
     try {
-      const studio = await studioReloadTarget();
-      outcome = await runUpdate({
+      let studio = null;
+      try {
+        studio = await studioReloadTarget(studioExists);
+      } catch (error) {
+        outcome = { kind: "failed", error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` };
+      }
+      outcome ??= await runUpdate({
         install: target,
         studio,
         options,
         resume,
-        busy: () => busyChats(studio),
+        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
         onStep: (step) => setState((current) => ({ ...current, step })),
         onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
         installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),

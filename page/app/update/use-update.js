@@ -92,6 +92,12 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
   })
   const busy = useRef(false)
+  // The install's latest state, read by a running update before it reloads (an install started meanwhile is waited for).
+  const installingNow = useRef(installing)
+
+  installingNow.current = installing
+  // The status says the hermretro profile was made: not finding it is then an error, never "there is none".
+  const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists)
 
   // The page that loads after an update says how it went, once.
   useEffect(() => {
@@ -121,7 +127,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
   const later = ready && dismissed && dismissed === (row.update_target ?? 'ready')
   const building = useQuery({
     queryKey: [ID, 'update-busy'],
-    queryFn: async () => busyChats(await studioReloadTarget()),
+    queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
     enabled: running && ((ready && state.phase === 'idle') || state.phase === 'partial'),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
@@ -156,14 +162,20 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     let outcome
 
     try {
-      const studio = await studioReloadTarget()
+      let studio = null
 
-      outcome = await runUpdate({
+      try {
+        studio = await studioReloadTarget(studioExists)
+      } catch (error) {
+        outcome = { kind: 'failed', error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` }
+      }
+
+      outcome ??= await runUpdate({
         install: target,
         studio,
         options,
         resume,
-        busy: () => busyChats(studio),
+        busy: () => (installingNow.current ? Promise.resolve(['the game tools install']) : busyChats(studio)),
         onStep: step => setState(current => ({ ...current, step })),
         onWaiting: waiting => setState(current => ({ ...current, waiting })),
         installed: () => remember(ctx, PENDING, { at: Date.now(), error: null }),

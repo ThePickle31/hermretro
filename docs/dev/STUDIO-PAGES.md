@@ -28,8 +28,12 @@ went. "Later" hides the chip until a newer target. No update while something is 
 hermretro profile has a turn under way (`session.active_list` there: `working`, `waiting`, `streaming` or `starting`;
 checked every 5 s while an update is ready, and again right before anything changes) or the page's toolchain install
 runs, Update is disabled with the reason; a turn started while Hermes updates is waited for before the hermretro
-profile reloads (only after a successful check: five failed checks in a row stop there); the Build page's sends,
-New Game and Restore start nothing while an update runs (`app/update/lock.js`). Each yes given to Hermes (caution scan,
+profile reloads (only after a successful check: five failed checks in a row stop there); everything that starts
+work (Build sends, Continue after a lost turn, New Game, Restore, the toolchain install, removing the tools, setting up
+the hermretro profile) checks the update lock in its handler and greys its control out while an update runs
+(`app/update/lock.js`); a toolchain install already running is waited for before the reload. A failed profile lookup,
+or a hermretro profile the status reports but the app cannot reach, stops the update before anything changes, and a
+failed profile-settings step leaves it unfinished. Each yes given to Hermes (caution scan,
 widened plugin) is kept for the next try. An update Hermes installed whose later steps failed is remembered
 (`updatePending`) and shown as "Finish update", which runs the remaining steps even though Hermes then answers
 "unchanged"; it never says "nothing was changed". The Setup page's complete screen has a hermretro row with the

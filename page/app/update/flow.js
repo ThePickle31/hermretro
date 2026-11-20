@@ -49,10 +49,12 @@ export async function installTarget(installedIn) {
   return route ? { route, profile } : null
 }
 
-/** The hermretro profile, to reload after the update: the page's own route to it when it has one (or the app
- *  itself when the app is on it), else that profile's route from the app, whether or not the page adopted it yet.
- *  Null when there is no such profile. */
-export async function studioReloadTarget() {
+/** The hermretro profile, to check for builds and reload after the update: the page's own route to it when it has
+ *  one (or the app itself when the app is on it), else that profile's route from the app, whether or not the page
+ *  adopted it yet. Null only when there is no such profile; `exists` (the status says the profile was made) turns a
+ *  profile that cannot be found into an error, and a failed lookup always rejects: neither is read as "no profile",
+ *  which would skip the build check and the reload. */
+export async function studioReloadTarget(exists = false) {
   const known = studioTarget()
 
   if (known) {
@@ -60,13 +62,25 @@ export async function studioReloadTarget() {
   }
 
   if (typeof host.profileRoutes !== 'function' || typeof host.requestProfile !== 'function') {
+    if (exists) {
+      throw new Error('this Hermes cannot reach the hermretro profile from here')
+    }
+
     return null
   }
 
-  const routes = (await host.profileRoutes().catch(() => [])) ?? []
+  const routes = (await host.profileRoutes()) ?? []
   const route = routes.find(candidate => routeProfile(candidate) === STUDIO_PROFILE)
 
-  return route ? { route, profile: STUDIO_PROFILE } : null
+  if (route) {
+    return { route, profile: STUDIO_PROFILE }
+  }
+
+  if (exists) {
+    throw new Error('the hermretro profile is not reachable right now')
+  }
+
+  return null
 }
 
 // A chat whose turn is under way (running, asking the user something, or starting): the agent may be building a game,
@@ -224,8 +238,18 @@ export async function runUpdate({
   onStep(1)
 
   if (studio && studio.profile !== install.profile) {
-    // Settings the new version ships for the hermretro profile (its SOUL, toolsets): best effort, a Repair redoes it.
-    await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000).catch(() => null)
+    // Settings the new version ships for the hermretro profile (its SOUL, toolsets). Not done is not finished.
+    let finished
+
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000)
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) }
+    }
+
+    if (!finished?.ok) {
+      return { kind: 'partial', error: `the hermretro profile's settings were not updated (${finished?.error ?? 'no answer'})` }
+    }
 
     // A turn started while Hermes was updating finishes on the code it started with, then the profile reloads. Only a
     // successful answer with nothing building allows the reload: a failed check is never read as "idle".

@@ -403,6 +403,25 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.deepEqual([...build14l.node.querySelectorAll('.cs-b-user.queued')].map(node => node.lastChild.textContent), ['continue', 'and add clouds'])
     assert.ok(!build14l.node.querySelector('.cs-b-comp button[aria-label="Stop"]'))
   })
+  // While hermretro updates, Continue (which would release the waiting messages) starts nothing.
+  scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
+  scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
+  scenario['update-busy'] = answered([])
+  scenario.byMethod['session.active_list'] = () => ({ sessions: [] })
+  let finishUpdate
+  scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finishUpdate = resolve }) : { ok: true })
+  await build14l.rerender()
+  await click('Update ready', build14l.node); await click('Update now', build14l.node); await settle()
+  const lostContinue = () => [...build14l.node.querySelector('.cs-b-card.warn').querySelectorAll('button')].find(node => node.textContent === 'Continue')
+  const submitsUpdating = submits.length
+  check('while hermretro updates, Continue is disabled', () => { assert.equal(lostContinue().disabled, true) })
+  lostContinue().click(); await settle()
+  check('and pressing it releases nothing: no lost turn dropped, no message sent', () => {
+    assert.deepEqual(resolved, []); assert.equal(submits.length, submitsUpdating)
+  })
+  await act(async () => { finishUpdate({ ok: true, unchanged: true }) }); await settle()
+  scenario['plugin-update'] = undefined
+  await build14l.rerender()
   await click('Continue', build14l.node.querySelector('.cs-b-card.warn'))
   await settle()
   check('Continue drops the lost turn (not run again) and sends nothing new when messages wait', () => {

@@ -74,6 +74,50 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.equal(chip().textContent, 'Updated'); assert.equal(scenario.storage.updatePending, null)
   })
 
+  // The profile settings step fails, by an error or by its answer: installed, not finished; Finish update redoes it.
+  updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
+  for (const [form, answer] of [['an error', () => { throw new Error('backend gone') }], ['ok: false', () => ({ ok: false, error: 'profile locked' })]]) {
+    scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return answer() }
+    await fresh()
+    await openChip(); await click('Update now'); await settle(40)
+    check(`a profile settings step that fails with ${form} leaves the update unfinished and reloads nothing`, () => {
+      assert.equal(chip().textContent, 'Finish update'); assert.match(popover(), /the hermretro profile's settings were not updated/)
+      assert.ok(!log.includes('toggle:false')); assert.ok(scenario.storage.updatePending)
+    })
+  }
+  scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return { ok: true } }
+  updateAnswer = () => ({ ok: true, unchanged: true })
+  if (!document.querySelector('.cs-upd-pop')) await openChip()
+  log.length = 0
+  await click('Finish update', document.querySelector('.cs-upd-pop')); await settle(40)
+  check('Finish update redoes the profile settings step, then reloads', () => {
+    assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true']); assert.equal(chip().textContent, 'Updated')
+  })
+
+  // The app cannot list its profiles while the status says the hermretro profile exists: not read as "no profile".
+  updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
+  await fresh()
+  scenario.status = answered({ ...status(), plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } },
+    profile: { name: 'default', is_studio: false, studio: { name: 'hermretro', exists: true, installed: true, ours: true } } })
+  scenario.ambient = null
+  scenario.routesError = new Error('connection registry unavailable')
+  await act(async () => { root.render(null) }); await render()
+  await openChip(); await click('Update now'); await settle(40)
+  check('a failed profile lookup stops the update before anything changes', () => {
+    assert.ok(!log.includes('update'), log.join(', ')); assert.equal(chip().textContent, 'Update failed')
+    assert.match(popover(), /Could not reach the hermretro profile \(connection registry unavailable\)/)
+  })
+  scenario.routesError = null
+  // The lookup works but lists no hermretro profile although the status says there is one.
+  scenario.routes = [{ profile: 'default', connectionId: 'local' }]
+  log.length = 0
+  await act(async () => { root.render(null) }); await render()
+  await openChip(); await click('Update now'); await settle(40)
+  check('a hermretro profile the status reports but the app does not list stops the update too', () => {
+    assert.ok(!log.includes('update'), log.join(', ')); assert.match(popover(), /the hermretro profile is not reachable right now/)
+  })
+  scenario.routes = []
+
   // A build starts during the download, then the check fails: never read as idle, so no reload.
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
   let looks = 0

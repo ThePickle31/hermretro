@@ -83,7 +83,7 @@ function body(update) {
         'Almost there',
         jsx(
           'p',
-          { children: `The new version is installed, but ${update.error ?? 'its last steps did not finish'}. Finish the update to load it everywhere.` },
+          { children: `The new version is installed, but ${String(update.error ?? 'its last steps did not finish').replace(/\.$/, '')}. Finish the update to load it everywhere.` },
           'p'
         ),
         update.blocked ? jsxs('p', { className: 'cs-upd-wait', role: 'status', children: [jsx(Codicon, { name: 'clock', size: 12 }), update.blocked] }, 'wait') : null,
