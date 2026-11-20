@@ -26,7 +26,6 @@ when that one goes into another branch than the base: the FIX retargets it, ship
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from pathlib import Path
 
@@ -109,12 +108,7 @@ def default_body(ctx, branch: str | None, record: dict) -> Path:
     return repo.main_checkout(ctx.top) / "notes" / "pr" / f"{topic}.md"
 
 
-def made_by(ctx) -> str:
-    """The attribution: agent (RETRODEV_AGENT, else Hermes) and GitHub account; no GitHub remote: neither."""
-    url = repo.git(["remote", "get-url", ctx.remote], ctx.top, check=False).strip()
-    found = re.search(r"github\.com[:/]([^/]+)/", url)
-    agent = os.environ.get("RETRODEV_AGENT") or "Hermes"
-    return f"Made by an agent ({agent}) for @{found.group(1)}." if found else "Made by an agent for the owner."
+made_by = gates.made_by  # the attribution line (gates.py, beside the body gate that looks for it)
 
 
 def plan_sections(ctx, branch: str, record: dict) -> dict[str, list[str]]:
@@ -135,20 +129,8 @@ def plan_goal(ctx, branch: str, record: dict) -> list[str]:
 PREFILL = {"What changed": ("What changes",), "Not done": ("Not in scope",)}
 
 
-def plan_title(ctx, branch: str, record: dict) -> str | None:
-    """The plan's 'Title:' line (the template asks for one plain sentence), else its own title line ('# Plan:
-    <words>') when it says more than the topic."""
-    named = gates.plan_for(ctx, branch, record)
-    path = plan.plan_file(ctx, named) if named and state.NAME.match(named) else None
-    if not path or not path.is_file():
-        return None
-    lines = gates.COMMENT.sub("", path.read_text(encoding="utf-8")).splitlines()
-    said = next((line[6:].strip() for line in lines if line.startswith("Title:")), "")
-    if said and not gates.title_problems(said):
-        return said
-    first = next((line for line in lines if line.startswith("# ")), "")
-    words = first[2:].strip().removeprefix("Plan:").strip()
-    return words if words and words != named and not gates.title_problems(words) else None
+plan_title = plan.branch_title  # the plan's Title: line (plan.py), as ship and status offer it
+title_note = plan.title_note
 
 
 def skeleton(ctx, branch: str, record: dict) -> str:
@@ -230,18 +212,24 @@ def body_step(ctx, branch: str | None, record: dict) -> str | None:
         return None
     chosen = record.get("body")
     path = Path(chosen) if chosen else default_body(ctx, branch, record)
-    title = record.get("title") or plan_title(ctx, branch, record) or "<one plain sentence>"
+    title = record.get("title") or plan_title(ctx, branch, record)
     custom = path if path != default_body(ctx, branch, record) else None
     # after a refused ship --dry-run the step stays a dry run: filling the body never turns it into a push
-    then = command(title, custom, bool(record.get("last_ship_dry_run")))
+    then = command(title or "<one plain sentence>", custom, bool(record.get("last_ship_dry_run")))
+    then += "" if title else title_note(ctx, branch, record)
     if not path.is_file():  # ship writes it from the template and stops: name it all the same
-        return f"next: fill in the pull request body (missing: {path}; ship writes it from the template), then {then}"
-    problems = gates.body_problems(path.read_text(encoding="utf-8"), ctx.policy["ship"]["sections"])
+        missing = f"missing: {path}; ship writes it from the template"
+        return f"next: fill in the pull request body ({missing}), then {then}{agent_hint(None)}"
+    text = path.read_text(encoding="utf-8")
+    problems = gates.body_problems(text, ctx.policy["ship"]["sections"])
     unfilled = [
         found.group(1) for found in map(re.compile(r"'## (.+?)' is (?:empty|missing)").search, problems) if found
     ]
     unfilled += ["the Made by line"] if len(unfilled) < len(problems) else []  # names the agent: section-less
-    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}" if problems else None
+    return f"next: fill in {', '.join(unfilled)} in {path}, then {then}{agent_hint(text)}" if problems else None
+
+
+agent_hint = gates.agent_hint
 
 
 def again(record: dict, dry_run: bool = False) -> str:
@@ -256,10 +244,11 @@ def recorded_title(ctx, branch, record: dict, dry_run: bool = False) -> str:
     title = (record.get("pr") or {}).get("title") or record.get("title")
     if title:
         return title
-    shown = (plan_title(ctx, branch, record) if branch else None) or "<one plain sentence>"
+    shown = plan_title(ctx, branch, record) if branch else None
     raise Failure(
-        "no title: this branch has none recorded yet (the first ship names it)",
-        command(shown, dry_run=dry_run),
+        "no title: this branch has none recorded yet (the first ship names it)"
+        + ("" if shown else title_note(ctx, branch, record)),
+        command(shown or "<one plain sentence>", dry_run=dry_run),
     )
 
 

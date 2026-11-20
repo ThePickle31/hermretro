@@ -18,6 +18,7 @@ class Tool{Short}(unittest.TestCase):
         self.tool = next(tool for tool in tools.TOOLS if tool.name == "{tool}")
 
     def test_it_answers_ok_json(self):
+        # Pins the stub's answer: change it with the real answer once the handler does its work.
         self.assertEqual(json.loads({short}_handler({}))["ok"], True)
 
     def test_it_names_its_steps_for_the_build_page(self):

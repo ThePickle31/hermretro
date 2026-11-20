@@ -12,8 +12,9 @@ from pathlib import Path
 
 import retrodev
 from retrodev import status
+from retrodev.gates import agent_hint  # the Made by hint after check's body line (round nine)
 
-from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 
 load_tests = parallel
 ROOT = Path(retrodev.__file__).resolve().parents[2]
@@ -66,7 +67,9 @@ class Body(RepoCase):
         # flipped in round seven: it names the sections still empty
         unfilled = "How verified, Risk and rollback"
         self.assertEqual(
-            last, f"next: fill in {unfilled} in {path}, then python tools/retrodev ship --title '<one plain sentence>'"
+            last,
+            f"next: fill in {unfilled} in {path}, then python tools/retrodev ship --title '<one plain sentence>'"
+            + agent_hint(None),
         )
         path.write_text(GOOD_BODY)
         _code, out = self.run_cli("check", cwd=tree)
@@ -83,7 +86,7 @@ class Body(RepoCase):
         self.assertEqual(
             out.strip().splitlines()[-1],
             f"next: fill in How verified, Risk and rollback in {path}, then python tools/retrodev ship --title 'Keep the "
-            "goalie in goal' --dry-run",
+            "goalie in goal' --dry-run" + agent_hint(None),
         )
 
     def test_plan_approve_inside_its_branch_writes_the_body_too(self):
@@ -170,7 +173,7 @@ class Takeover(RepoCase):
         self.assertIn("origin/feat/nobody does not exist after the fetch", out)
 
     def test_the_readme_takes_over_with_the_command(self):
-        text = (ROOT / "tools/retrodev/README.md").read_text()
+        text = retrodev_docs("REFERENCE.md")
         section = text[text.index("**Taking over a teammate's branch**") :].split("\n\n")[0]
         self.assertIn("python tools/retrodev takeover", section)
         self.assertNotIn("<root>", section)

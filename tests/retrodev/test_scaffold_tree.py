@@ -8,17 +8,21 @@ installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature 
 --module, --game, --game with --module: their generated tests register a game with make_library_game), `new tool` (twice: once in its own module; twice more in history, --module first, then a plain one,
 which goes in its own module too; once in library, a --project tool; once in rdtree, a --project tool importing
 backend/hermes/tool_args.py),
-`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra` and `new slot rdtree extraActions`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
+`new event`, `new listener`, `new page rdtree`, `new tab rdtree extra`, `new slot rdtree extraActions` and `new
+contribution rdtree rdtree.extraActions RdtreeExtra` (then Text, which the registry test binds itself), then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
-the stubs are unfilled), and it is the guard against tests that pin the real tree's content: it first runs the copy's
-unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
-reports as such), notes every real feature README's RPCs/Tools/Listens lines (hand_edits.py), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
-contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
-the same on a copy where setup has tabs, history listens to library.game_presented and history's README names an RPC
+the stubs are unfilled), and it is the guard against tests that pin the real tree's content: it notes every real feature README's
+RPCs/Tools/Listens lines (hand_edits.py), then runs real_steps(copy) after STEPS, each kind once more on a real
+feature or page as a contributor's branch would (chosen from what the copy declares), before the full suites; a
+second guard run does the same on a copy where setup has tabs (a page failure the growing brings fails), history
+listens to library.game_presented and history's README names an RPC
 module beside rpcs.py already (made only where the copy lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
-here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
+here (check.py scaffold then says so). Before any of it, once for the whole module: the tree's page suite (nested: and
+unit) as it is; a failure skips every slow test, "the tree fails page (fix page first)" ("unit", likewise), which
+check.py scaffold reports as such; check.py runs that first itself (reusing its own page row) and passes
+RD_SCAFFOLD_BASE so it is not run twice, and a page failure only new brings fails (scaffold_inherited.py). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
 Two more run `new page rdtabs` (its Page imported under another name; then imported on several lines), then `new tab rdtabs first --from-page` and `new
 tab rdtabs second` with their own checks (the page suite among them), then `tools/check.py lint bundle` (the tab
@@ -33,23 +37,21 @@ Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tr
 
 from __future__ import annotations
 
-import ast
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
-from retrodev.scaffold_imports import binding
-from retrodev.scaffold_page import own_page
 
 from tests.retrodev.fixture import parallel
 from tests.retrodev.hand_edits import note_feature_readmes
+from tests.retrodev.scaffold_inherited import INNER, inherited_page_failure_skips_the_whole_check
 from tests.retrodev.scaffold_moves import moved_pages_bundle
-from tests.retrodev.tree_copy import copy_base, copy_tree, git_ok, run
+from tests.retrodev.tree_copy import NO_MAINTENANCE, copy_base, copy_tree, git_ok, run
 
 load_tests = parallel
 
@@ -79,81 +81,20 @@ STEPS = [
     ["page", "rdtree"],
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
+    ["contribution", "rdtree", "rdtree.extraActions", "RdtreeExtra"],  # fills it: the registry's filled assertion
+    ["contribution", "rdtree", "rdtree.extraActions", "Text"],  # a name the registry test binds: an alias there
 ]
 STEPS += [["tool", "rdtree", "rdtree_proj", "--project"]]  # outside library: imports backend/hermes/tool_args.py
-# The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
-# contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
-# listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
-# library tool are in STEPS already. The steps follow what the copy holds (real_steps), so a branch that gives
-# setup or prompts tabs, or history a listener, still passes: the tabless-page conversions have their own probe
-# fixtures (tab_from_page below, tests/retrodev/test_trial_round_five.py).
-REAL_PAGES = ("setup", "prompts")
-REAL_LISTENERS = ("history", "assets", "library", "setup", "hermes")  # the first that can take one more
-
-
-def declared_events(tree: Path) -> dict[str, str]:
-    """{event: owning feature} from every front door's EVENTS dict literal."""
-    found = {}
-    for door in sorted(tree.glob("backend/*/__init__.py")):
-        for node in ast.parse(door.read_text()).body:
-            target = node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None
-            target = node.target if isinstance(node, ast.AnnAssign) else target
-            if getattr(target, "id", "") == "EVENTS" and isinstance(getattr(node, "value", None), ast.Dict):
-                for key in node.value.keys:
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                        found[key.value] = door.parent.name
-    return found
-
-
-def listens(tree: Path, feature: str, event: str) -> bool:
-    source = tree / "backend" / feature / "listeners.py"
-    text = source.read_text() if source.is_file() else ""
-    func = "on_" + event.replace(".", "_")
-    return f'@on("{event}")' in text or re.search(rf"^(?:async\s+)?def {func}\b|^{func}\s*=", text, re.M) is not None
-
-
-def page_steps(tree: Path, page: str, prefix: str) -> list[list[str]]:
-    """Two tabs on a real page: the first --from-page when the page has no tabs and imports its Page by name from a
-    file of its own (as setup does), else a plain one (a page with tabs, or one that defines its Page in index.js)."""
-    text = (tree / "page" / "pages" / page / "index.js").read_text()
-    tabless, component = own_page(text)
-    kind, _exported, module = binding(text, component) if component else (None, None, None)
-    convert = tabless and kind == "named" and (module or "").startswith("./")
-    return [["tab", page, f"{prefix}-first", *(["--from-page"] if convert else [])], ["tab", page, f"{prefix}-second"]]
-
-
-def real_steps(tree: Path) -> list[list[str]]:
-    """The guard's steps, chosen from the copy's current declarations (before STEPS run): an event name history does
-    not declare, a (feature, event) pair no listener takes yet, the tab kind each real page can take."""
-    declared = declared_events(tree)
-    pruned = next(f"rdreal_pruned{n or ''}" for n in range(100) if f"history.rdreal_pruned{n or ''}" not in declared)
-    pairs = [(f, e) for f in REAL_LISTENERS for e, owner in declared.items() if owner != f and not listens(tree, f, e)]
-    feature, event = pairs[0] if pairs else ("library", f"history.{pruned}")  # the new event: nobody hears it yet
-    steps = [
-        ["rpc", "library", "rdreal_ping"],
-        ["rpc", "library", "rdreal_info", "--game"],  # its generated test runs make_library_game on the real tree
-        ["event", "history", pruned, "--payload", "game", "--when", "the probe pruned a snapshot"],
-        ["listener", feature, event],
-    ]
-    for page in REAL_PAGES:
-        steps += page_steps(tree, page, f"rdreal-{page}")
-    return steps + [["slot", "home", "rdrealSlot", "--doc", "After the hero. Props: { ctx }"]]
-
-
-def grown_steps(tree: Path) -> list[list[str]]:
-    """What makes the copy a grown tree (setup with tabs, history listening to library.game_presented, history's
-    README naming an RPC module beside rpcs.py), only where it lacks that already: a branch that added any of them
-    keeps it, and nothing is made twice."""
-    tabless, _component = own_page((tree / "page/pages/setup/index.js").read_text())
-    steps = page_steps(tree, "setup", "rdgrown") if tabless else []
-    rpcs = next(
-        (row for row in (tree / "backend/history/README.md").read_text().splitlines() if row.startswith("- RPCs")), ""
-    )
-    if not re.match(r"- RPCs \(`rpcs\.py`, `", rpcs):  # review 1, 2: a test pinning the module list fails here
-        steps.append(["rpc", "history", "rdgrown_pong", "--module", "rdgrown_pong_rpcs"])
-    event = "library.game_presented"
-    heard = listens(tree, "history", event) or event not in declared_events(tree)
-    return steps + ([] if heard else [["listener", "history", event]])
+# The guard's steps on REAL features and pages (nested mode): scaffold_steps.py chooses them from the copy.
+from tests.retrodev.scaffold_steps import (  # noqa: E402, F401 - other tests read them from here too
+    REAL_LISTENERS,
+    REAL_PAGES,
+    declared_events,
+    grown_steps,
+    listens,
+    page_steps,
+    real_steps,
+)
 
 
 FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_placeholders.py), filled in
@@ -164,6 +105,10 @@ FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_place
 )
 REAL_STEPS = real_steps(ROOT)  # this tree's, for the fast checks; the guard computes them again on its copy
 UNIT_FIRST = "the tree fails unit (fix unit first)"  # tools/check.py scaffold reports this skip as such
+PAGE_FIRST = "the tree fails page (fix page first)"  # likewise, when the copy's page suite fails before new runs
+BASE = "RD_SCAFFOLD_BASE"  # suites tools/check.py scaffold found passing on this tree: not run again here
+FIRST = {}  # mode: why every slow test skips ("" when the copy passes), found once per process (first_failure)
+FIRST_LOCK = threading.Lock()
 PAGE_TESTS = ["tests/page/registry.test.mjs", "tests/page/page-setup.test.mjs", "tests/page/slots.test.mjs"]
 STRUCTURE = [
     "tests.repo.test_layout",
@@ -232,6 +177,37 @@ class NestedModeSkipsOnlyThePlaceholderGate(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("RD_SCAFFOLD_FULL"), "slow: python tools/check.py scaffold runs it")
 class GeneratedCodePassesTheRealChecks(unittest.TestCase):
     def make_tree(self) -> tuple[Path, Path, dict]:
+        """A copy of this tree (copy()), once the module's setup found the tree passing what it must (first)."""
+        self.first()
+        return self.copy()
+
+    def first(self, mode: str | None = None, known: str | None = None, cache: dict = FIRST) -> None:
+        """The module's setup, once per process on whichever slow test comes first (the tests run on threads, so not
+        setUpModule): the copy's page suite (nested: and unit) as it is, before any new runs, except the suites
+        check.py scaffold found passing (``known``, RD_SCAFFOLD_BASE). A failure skips every slow test ("fix page
+        first"): new's own checks and the judges would all fail on it, and it says nothing of new. A failure only
+        new (or a test's own preparation) brings still fails its test."""
+        mode = os.environ.get("RD_SCAFFOLD_FULL", "") if mode is None else mode
+        known = os.environ.get(BASE, "") if known is None else known
+        with FIRST_LOCK:
+            if mode not in cache:
+                suites = ["unit", "page"] if mode == "nested" else ["page"]
+                cache[mode] = self.first_failure([name for name in suites if name not in known.split(",")])
+        if cache[mode]:
+            self.skipTest(cache[mode])
+
+    def first_failure(self, suites: list[str]) -> str:
+        if not suites:
+            return ""
+        _, tree, env = self.copy()
+        for name in suites:
+            done = self.suite([sys.executable, "tools/check.py", name], tree, env)
+            if done.returncode:
+                said = (done.stdout + (done.stderr or ""))[-2000:]
+                return f"{UNIT_FIRST if name == 'unit' else PAGE_FIRST}:\n{said}"
+        return ""
+
+    def copy(self) -> tuple[Path, Path, dict]:
         """A copy of this tree in a fresh git repository on a work branch, its tools borrowed: (base, tree, env)."""
         if not shutil.which("node") or not shutil.which("tar"):
             self.skipTest("node and tar are needed")
@@ -246,13 +222,14 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.addCleanup(shutil.rmtree, base, ignore_errors=True)
         else:
             print(f"keeping {base}", file=sys.stderr)
-        env = {key: value for key, value in os.environ.items() if not key.startswith(("RETRODEV_", "GIT_DIR"))}
+        env = {key: value for key, value in os.environ.items() if not key.startswith(("RETRODEV_", "GIT_DIR", BASE))}
         env |= {
             NESTED: "1",
             "RD_SCAFFOLD_FULL": "",
             "RETRODEV_STATE_DIR": str(base / "state"),
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
+            **NO_MAINTENANCE,  # git commit's detached maintenance would still write in .git as the copy is removed
             "GIT_AUTHOR_NAME": "t",
             "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t",
@@ -291,27 +268,20 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertNotIn(["listener", "history", "library.game_presented"], steps)
             self.assertEqual(grown_steps(tree), [], "the grown copy has everything grown_steps makes")
 
-        if (
-            os.environ.get("RD_SCAFFOLD_FULL", "") != "nested"
-        ):  # the guard's real steps run only nested: here, the choice
+        if os.environ.get("RD_SCAFFOLD_FULL", "") != "nested":  # the guard's real steps run only nested: the choice
             _, tree, env = self.make_tree()
             grown(tree, env)
             return
         self.guard(grown)
 
-    def guard(self, prepare=None) -> None:
-        _, tree, env = self.make_tree()
-        if prepare:
+    def guard(self, prepare=None, mode: str | None = None) -> None:
+        _, tree, env = self.make_tree()  # the tree passes page (nested: and unit) as it is, or this skipped
+        mode = os.environ.get("RD_SCAFFOLD_FULL", "") if mode is None else mode
+        if prepare:  # a failure the preparation brings fails in the judges below, as one new brings does
             prepare(tree, env)
-        mode = os.environ.get("RD_SCAFFOLD_FULL", "")
+        if mode == "nested":  # hand edits a branch makes: pins of those lines fail here
+            self.assertTrue(note_feature_readmes(tree))
         steps = STEPS + (real_steps(tree) if mode == "nested" else [])
-        if mode == "nested":  # the full suites judge the copy: a tree that fails them already says nothing of new
-            base = run([sys.executable, "tools/check.py", "unit"], tree, env)
-            if base.returncode and prepare:  # the grown copy is this test's own: it must pass unit
-                self.fail(f"the grown copy fails unit:\n{base.stdout[-6000:]}")
-            if base.returncode:
-                self.skipTest(f"{UNIT_FIRST}:\n{base.stdout[-2000:]}")
-            self.assertTrue(note_feature_readmes(tree))  # hand edits a branch makes: pins of those lines fail here
         for step in steps:  # several in a row: the generated files are rebuilt once, after the last
             last = step is steps[-1]
             done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
@@ -325,6 +295,9 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
+
+    def suite(self, command: list[str], tree: Path, env: dict) -> subprocess.CompletedProcess:
+        return run(command, tree, env)
 
     def test_rpcs_named_after_what_their_handler_uses_pass_their_generated_tests(self):  # review 2, 2
         """RPCs named host, logger or a builtin, in every variant (host both inline and --module, so in two rounds:
@@ -353,6 +326,10 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
 
     def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
         moved_pages_bundle(self, RETRODEV)
+
+    @unittest.skipIf(os.environ.get(INNER), "inside the scaffold check this test runs")
+    def test_an_inherited_page_failure_skips_the_whole_check_and_one_new_brings_fails(self):  # review round 2, 0
+        inherited_page_failure_skips_the_whole_check(self, "skipped: " + PAGE_FIRST, (NESTED, BASE))
 
     def test_tab_from_page_passes_its_own_checks_lint_and_bundle(self):
         self.tab_from_page("{ RdtabsPage as TabsPanel }", "TabsPanel")  # aliased: the tab imports the exported name

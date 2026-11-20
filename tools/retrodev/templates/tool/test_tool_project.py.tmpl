@@ -24,6 +24,8 @@ class Tool{Short}(unittest.TestCase):
         self.tool = next(tool for tool in tools.TOOLS if tool.name == "{tool}")
 
     def test_it_acts_on_the_project_it_is_given(self):
+        # Pins the stub's answer ({{"ok": True, "project": root}}): change it with the real answer once the handler
+        # does its work.
         project = self.home.base / "game"
         project.mkdir()
         answer = json.loads({short}_handler({{"project": str(project)}}))
