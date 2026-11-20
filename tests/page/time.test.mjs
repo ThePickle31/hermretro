@@ -1,4 +1,4 @@
-// A plain page helper's test, the recipe in docs/dev/TESTING.md: page/shared/ui/time.js's clock() and spanWords().
+// A plain page helper's test, the recipe in docs/dev/TESTING.md: page/shared/ui/time.js's clock(), spanWords() and ago().
 // Run alone: node tests/page/time.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
@@ -7,7 +7,7 @@ import test from 'node:test'
 // The page's aliases (#shared/, #sdk…) resolve only after this; then import() the module.
 registerAliases()
 
-const { clock, spanWords } = await import('#shared/ui/time.js')
+const { ago, clock, spanWords } = await import('#shared/ui/time.js')
 
 test('clock() is minutes:seconds, never negative, minutes past an hour kept', () => {
   assert.equal(clock(0), '0:00')
@@ -23,4 +23,14 @@ test('spanWords() says seconds, then minutes and padded seconds, then hours and 
   assert.equal(spanWords(125_000), '2m 05s')
   assert.equal(spanWords(65 * 60_000), '1h 5m', 'minutes are not padded after hours')
   assert.equal(spanWords(60 * 60_000), '1h 0m')
+})
+
+test('ago() takes the moment in seconds and now in milliseconds', () => {
+  const now = 1_800_000_000_000
+
+  assert.equal(ago(now / 1000 - 2, now), 'just now')
+  assert.equal(ago(now / 1000 - 30, now), '30s ago')
+  assert.equal(ago(now / 1000 - 180, now), '3 min ago')
+  assert.equal(ago(now / 1000 - 7200, now), '2 h ago')
+  assert.equal(ago(now / 1000 + 60, now), 'just now', 'a moment ahead of the clock is not in the future')
 })

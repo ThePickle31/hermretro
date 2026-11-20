@@ -1,6 +1,11 @@
 // Times and durations in words.
 import { useEffect, useState } from '#sdk'
 
+/**
+ * How long ago a moment was, in words ('just now', '12s ago', '3 min ago', '2 h ago'; never in the future).
+ * `seconds` is in Unix SECONDS (the library's `rom.builtAt` / `web.builtAt`); `now` is in MILLISECONDS
+ * (`Date.now()`, useNow()). History snapshot times (`at`, `builds`) are milliseconds: divide by 1000 first.
+ */
 export function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1000 - seconds))
 
