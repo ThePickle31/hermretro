@@ -516,6 +516,8 @@ Every place to edit for a new contribution: `contributes` in the contributing pa
 fills it with Install"); the "Events and slots today" line below; the `filled`
 assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
 its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
+Or: `python tools/retrodev new contribution <page> <slot> <Component>` writes the stub, `contributes` with its import,
+the README Slots line and the registry `filled` assertion; the docs and HOSTS stay yours.
 
 ### Calling the backend from a page
 

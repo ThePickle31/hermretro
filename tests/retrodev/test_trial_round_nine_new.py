@@ -37,12 +37,16 @@ class Rpc(ScaffoldCase):
     def test_history_and_assets_rpcs_go_through_call_studio_only_others_through_call_studio(self):
         steps = joined(self.new("rpc", "history", "rdprobe_list"))
         self.assertIn("backend/history reads that folder: use callStudioOnly", steps)
-        self.assertIn("host._data_dir(): history's snapshots, assets' versions", steps)
+        self.assertIn("or its plugin data folder (snapshots, asset versions; host._data_dir())", steps)
         self.assertIn(SHELLS, steps)
         self.new("feature", "rdprobe")
         steps = joined(self.new("rpc", "rdprobe", "rdprobe_count", "--game"))
         self.assertIn("callStudio(RPC_RDPROBE_COUNT, { game: game.id })", steps)
-        self.assertIn("shell.viaProfile goes after game.id", steps)
+        self.assertIn("useQuery({ queryKey: [ID, 'rdprobe_count', game.id], queryFn: () => callStudio(", steps)
+        self.assertNotIn("shell.viaProfile", steps, "a per-game key leaves viaProfile out, as captures and player do")
+        studio = (ROOT / "page/app/studio-page.js").read_text()  # the real per-game callStudio query and games'
+        self.assertIn("queryKey: [ID, 'player', game?.id ?? null, emu.reload]", studio)
+        self.assertIn("queryKey: [ID, 'games', viaProfile]", studio)
         self.assertEqual(scaffold_rpc.STUDIO_ONLY, ("history", "assets"))
         for feature in scaffold_rpc.STUDIO_ONLY:  # each reads the plugin data folder, as the step says
             self.assertIn("host._data_dir()", (ROOT / f"backend/{feature}/rpcs.py").read_text(), feature)
