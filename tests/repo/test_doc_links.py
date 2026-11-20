@@ -163,6 +163,10 @@ class DocLinks(unittest.TestCase):
         self.assertEqual(slugs(text), {"real-heading"})
         self.assertEqual(headings("# ``a`b`` and `c` d\n"), ["a`b and c d"])
 
+    def test_a_code_span_drops_one_padding_space_and_an_escaped_backtick_opens_none(self):
+        self.assertEqual(headings("# `` `x` `` tips\n"), ["`x` tips"])
+        self.assertEqual(headings("# A \\`not_code\\` b\n"), ["A \\`not_code\\` b"])
+
 
 if __name__ == "__main__":
     unittest.main()

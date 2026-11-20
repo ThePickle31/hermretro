@@ -2,12 +2,18 @@
 
 A fenced block opens on a line of three or more backticks or tildes (at most three spaces in) and closes only on a
 fence of the same character, at least as long, with nothing but whitespace after it: a four-backtick block can show
-a three-backtick example. An inline code span opened by N backticks closes on the next run of exactly N.
+a three-backtick example. An inline code span opened by N backticks closes on the next run of exactly N, which may
+be on a later line of the same paragraph; in prose a backtick after an odd run of backslashes is literal and opens
+none, while inside a span a backslash is literal and escapes nothing.
 """
 
 import re
 
 OPENING = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# A line that starts a block of its own (ATX heading, block quote, list item, table row), so a span does not run
+# into it from the line before.
+BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:\s|$)|>|[-+*](?:\s|$)|\d{1,9}[.)](?:\s|$)|\|)")
+ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")
 
 
 def _closes(line: str, fence: str) -> bool:
@@ -40,45 +46,106 @@ def without_fences(text: str) -> str:
     return "\n".join("" if fenced else line for line, fenced in zip(lines, fenced_lines(text), strict=True))
 
 
-def split_code_spans(line: str) -> list[tuple[str, bool]]:
-    """``line`` cut into ``(piece, is_code)``; a code piece is a span's content without its backticks."""
-    pieces: list[tuple[str, bool]] = []
-    plain, index = [], 0
-    while index < len(line):
-        if line[index] != "`":
-            plain.append(line[index])
+def _spans(text: str) -> list[tuple[int, int, int]]:
+    """Each code span in ``text`` as ``(start, end, width)``: ``text[start:end]`` is the span with its backticks."""
+    spans: list[tuple[int, int, int]] = []
+    index, prose_from = 0, 0
+    while index < len(text):
+        if text[index] != "`":
             index += 1
             continue
+        slashes = index
+        while slashes > prose_from and text[slashes - 1] == "\\":
+            slashes -= 1
+        if (index - slashes) % 2:
+            index += 1  # an escaped backtick is literal; any backticks after it start their own run
+            continue
         end = index
-        while end < len(line) and line[end] == "`":
+        while end < len(text) and text[end] == "`":
             end += 1
-        width, close = end - index, None
-        search = end
-        while search < len(line):
-            if line[search] != "`":
+        width, close, search = end - index, None, end
+        while search < len(text):
+            if text[search] != "`":
                 search += 1
                 continue
             run_end = search
-            while run_end < len(line) and line[run_end] == "`":
+            while run_end < len(text) and text[run_end] == "`":
                 run_end += 1
             if run_end - search == width:
                 close = search
                 break
             search = run_end
         if close is None:
-            plain.append(line[index:end])  # no closing run of the same length: literal backticks
-            index = end
+            index = end  # no closing run of the same length: literal backticks
             continue
-        if plain:
-            pieces.append(("".join(plain), False))
-            plain = []
-        pieces.append((line[end:close], True))
-        index = close + width
-    if plain:
-        pieces.append(("".join(plain), False))
+        spans.append((index, close + width, width))
+        index = prose_from = close + width
+    return spans
+
+
+def _content(raw: str) -> str:
+    """A span's content as rendered: line endings become spaces, and one space is dropped from each end when both ends
+    have one and it is not all spaces."""
+    raw = raw.replace("\n", " ")
+    if len(raw) >= 2 and raw[0] == " " and raw[-1] == " " and raw.strip(" "):
+        raw = raw[1:-1]
+    return raw
+
+
+def split_code_spans(text: str) -> list[tuple[str, bool]]:
+    """``text`` (one line, or one paragraph's lines) cut into ``(piece, is_code)``; a code piece is a span's content
+    as rendered, without its backticks."""
+    pieces: list[tuple[str, bool]] = []
+    at = 0
+    for start, end, width in _spans(text):
+        if start > at:
+            pieces.append((text[at:start], False))
+        pieces.append((_content(text[start + width : end - width]), True))
+        at = end
+    if at < len(text):
+        pieces.append((text[at:], False))
     return pieces
 
 
-def without_code_spans(line: str) -> str:
-    """``line`` with its inline code spans removed."""
-    return "".join(piece for piece, code in split_code_spans(line) if not code)
+def without_code_spans(text: str) -> str:
+    """``text`` with its inline code spans removed."""
+    return "".join(piece for piece, code in split_code_spans(text) if not code)
+
+
+def _paragraphs(text: str) -> list[list[int]]:
+    """Indexes of ``text``'s lines grouped into the runs a code span can cross: not fenced, not blank, a new group at a
+    line that starts a block, and an ATX heading alone."""
+    groups: list[list[int]] = []
+    current: list[int] = []
+    for number, (line, fenced) in enumerate(zip(text.splitlines(), fenced_lines(text), strict=True)):
+        if fenced or not line.strip() or BLOCK_START.match(line):
+            if current:
+                groups.append(current)
+            current = []
+            if fenced or not line.strip():
+                continue
+        current.append(number)
+        if ATX_HEADING.match(line):
+            groups.append(current)
+            current = []
+    if current:
+        groups.append(current)
+    return groups
+
+
+def prose_lines(text: str) -> list[str]:
+    """For each line of ``text``, its prose: empty for a fenced line, code spans removed (a span may cross a line
+    break within a paragraph), so line numbers stay the same."""
+    lines = text.splitlines()
+    prose = [""] * len(lines)
+    for group in _paragraphs(text):
+        joined = "\n".join(lines[number] for number in group)
+        kept, at = [], 0
+        for start, end, _width in _spans(joined):
+            kept.append(joined[at:start])
+            kept.append("\n" * joined.count("\n", start, end))
+            at = end
+        kept.append(joined[at:])
+        for number, line in zip(group, "".join(kept).split("\n"), strict=True):
+            prose[number] = line
+    return prose

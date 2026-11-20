@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tests.repo.markdown import fenced_lines, without_code_spans  # noqa: E402 - the repository root goes on the path first
+from tests.repo.markdown import prose_lines  # noqa: E402 - the repository root goes on the path first
 
 ESCAPED_QUOTE = re.compile(r"\\[\"']")
 NOT_OURS = ("engine/",)
@@ -22,12 +22,7 @@ NOT_OURS = ("engine/",)
 
 def stray_escapes(text: str) -> list[int]:
     """Line numbers (1-based) with a backslash-escaped quote outside code spans and fenced blocks."""
-    lines = text.splitlines()
-    return [
-        number
-        for number, (line, fenced) in enumerate(zip(lines, fenced_lines(text), strict=True), 1)
-        if not fenced and ESCAPED_QUOTE.search(without_code_spans(line))
-    ]
+    return [number for number, line in enumerate(prose_lines(text), 1) if ESCAPED_QUOTE.search(line)]
 
 
 def committed_markdown() -> list[str]:
@@ -86,6 +81,27 @@ class DocEscapes(unittest.TestCase):
             'A run ``` \\"a\\" `` is no span.\n'  # three opens, nothing closes it: prose
         )
         self.assertEqual(stray_escapes(text), [2])
+
+    def test_an_escaped_backtick_in_prose_opens_no_span(self):
+        text = (
+            'Use \\`the \\"quoted\\" text\\` here.\n'  # 1: literal backticks, no span: flagged
+            'Even \\\\`say(\\"hi\\")` is code.\n'  # 2: an even run of backslashes escapes itself, not the backtick
+            'One \\``say(\\"hi\\")` escaped, then a span.\n'  # 3: the backslash escapes only the first backtick
+            'Inside `a\\` span \\"b\\" closes.\n'  # 4: no escapes inside a span, so it closes before the quote
+        )
+        self.assertEqual(stray_escapes(text), [1, 4])
+
+    def test_a_code_span_crosses_a_line_break_inside_a_paragraph(self):
+        text = (
+            'Run `say(\n\\"hi\\")` here.\n'  # 1-2: one span over two lines
+            "\n"
+            'x `foo\nbar` \\"q\\" `baz`\n'  # 4-5: the first backtick closes on line 5, so the quote is prose
+            "\n"
+            '- a `x\n- b \\"q\\" `c\n'  # 7-8: a new list item ends the paragraph: no span across it
+            "\n"
+            'Blank `x\n\n\\"q\\" `\n'  # 10-12: nor across a blank line
+        )
+        self.assertEqual(stray_escapes(text), [5, 8, 12])
 
 
 if __name__ == "__main__":
