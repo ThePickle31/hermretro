@@ -368,7 +368,7 @@ def run(ctx, title: str | None, body: str | None, dry_run: bool = False, new_bod
         return 0
     repo.git(push[1:], ctx.top)
     ctx.out.say(f"pushed {branch} ({sha[:9]})")
-    _code, out, _err = github.gh(ctx, gh_args)
+    out = github.gh(ctx, gh_args)[1] if existing else github.create_or_find(ctx, gh_args, branch)
     if existing:
         number, url = existing["number"], existing.get("url", "")
         ctx.out.say(f"updated pull request #{number} {url}")
