@@ -15,7 +15,8 @@ while it has no plan); `plan new <topic>` describing what the branch does and wh
 name: `plan link <topic>` in its checkout), `sync` when it lacks commits of `origin/dev`, then `check` (while the
 branch's own `tools/retrodev` is older than `origin/dev`'s, each of these is the main checkout's, `python
 <main>/tools/retrodev ...`, run in the worktree, until `sync` brings the branch's copy up to date); then `ship` as for
-your own. When the branch is checked out already (for instance in the only checkout, a clone made for it), skip the
+your own; its plan and pull request body stay in the main checkout's `notes/` (`notes/plans/<topic>.md`,
+`notes/pr/<topic>.md`), shared by every worktree, never in the worktree. When the branch is checked out already (for instance in the only checkout, a clone made for it), skip the
 worktree: run `plan new`, `plan approve`, `sync`, `check` and `ship` there. `sync`, `check` and `ship` work in any
 checkout of the branch; only `start` and `land` need the main checkout on `dev`.
 
@@ -68,9 +69,10 @@ kind: feat (a new ability), fix (a bug), docs (documentation only), chore (refac
 `--plan` names the plan when one plan covers several branches (default: the branch's topic). Needs an approved plan
 (docs and chore may say `--no-plan`), the main checkout on `dev` and clean. Fetches, makes the worktree at
 `<worktree_root>/<topic>` on a new branch from `origin/dev` (no upstream: it can never push to `dev`), runs `npm ci
---prefix tools/npm` and `python tools/py/setup.py` there, prints the path. Under a plan it writes the pull request
+--prefix tools/npm` and `python tools/py/setup.py` there, prints the path. It writes the pull request
 body `notes/pr/<topic>.md` in the main checkout (the file `ship` reads; never over an existing one) from
-`.github/pull_request_template.md`: Why from the plan's Goal, What changed from its "What changes", Not done from its
+`.github/pull_request_template.md` (with `--no-plan` too: the template with the `Made by` line and the `<!-- no plan:
+say why -->` Why, its absolute path printed in the next step, so a docs change needs one ship dry run): Why from the plan's Goal, What changed from its "What changes", Not done from its
 "Not in scope" (each only when the plan says something there; under a plan shared by several branches, one whose
 `## Branches` (or `## PRs`) list names more than one or that a branch started earlier works under, landed or not, Why comes only
 from a section whose heading names this branch or its topic, Not done stays the template's, and the plan's `Title:`
@@ -101,7 +103,7 @@ clean/dirty change, so committing lets the waiting install checks run, and reads
 (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run,
 later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or
 were deleted) when the branch changed what they cover; prints times against budgets (`policy.toml` `[checks.budgets]`,
-from measured cold runs on a loaded machine: unit 45 s, scaffold 40 s, the fast checks together 60 s). A check over
+from measured cold runs on a loaded machine: unit 45 s, scaffold 58 s, the fast checks together 60 s). A check over
 its budget twice in a row on the branch (each check's last passing time is recorded in the branch record's
 `durations`: a failed run measures nothing) gets a warning that it was slower than usual (machines and load differ),
 never a failure; one slow run (a cold cache, a busy machine) warns nothing. The clean install and update check install
@@ -147,7 +149,10 @@ git-ignored note, not a push), reports the body gate as `NO body: fill in <path>
 (a dry run's FIX never turns it into a push), and exits 1; `status` keeps `--dry-run` in the next ship it names while
 the last ship was a dry run and no pull request exists. With no GitHub remote (a sandbox, another host) the dry run
 prints `note: no GitHub remote; the open pull request lookup was skipped` instead of gh's error. Every printed command
-is shell-quoted (a title with an apostrophe pastes as it is). The next step it prints is `report`, or, when the owner
+is shell-quoted (a title with an apostrophe pastes as it is). When the body passes its gate, ship (and `check`'s last
+line) warns, never fails, about each backtick-quoted identifier of its What changed (`games.rom_path`: an underscore,
+a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
+files: a name renamed while building (`games.built_rom`). The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
 
 ### `report`
@@ -198,9 +203,11 @@ lookup prints the same note as ship (also in `report`)
 
 `git fetch`, then merges `origin/dev` (never a rebase). Conflicts only in generated files: takes dev's side, rebuilds
 them, finishes the merge. Any other conflict: stops with the source files and leaves the merge open (for a hunk whose
-`dev` side is empty, the FIX adds `dev removed this block; if it moved, \`git log -p origin/dev -S<the hunk's first
-identifier>\` finds where; apply your change there and drop this side`; the whole tree, since blocks move into tests
-too); resolve only the conflict in the merge (never the generated ones), `git add` those files and run `sync` again:
+`dev` side is empty, the FIX adds `<file>:<lines>: dev moved this block to <file> (or deleted it); delete the HEAD side
+of this hunk, git add, sync again, then add your lines in <file> in a new commit`, the file found by `git grep -l -F`
+on `origin/dev` for the hunk's longest distinctive line (one it holds once, of 8 characters or more), with \`git log -p
+origin/dev -S<that line>\` to show the move; the whole tree, since blocks move into tests too; when no other file has
+any of its lines: `dev deleted this block`, the same steps); resolve only the conflict in the merge (never the generated ones), `git add` those files and run `sync` again:
 it rebuilds the generated files and makes the merge commit (no `git commit` by hand). If `dev` rewrote the code your
 side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync.
 When the resolved conflicts hold lines neither side had (only the files that were in conflict count; binary files are
@@ -397,8 +404,11 @@ error codes the tool modules answer with (read from `backend/*/tools.py`, `*_too
 'game=<id>' --payload 'root=<project>'`), the parts joined in order. The `"<feature>.<name>": "<when>; key=<...>,
 ..."` entry in the front door's `EVENTS` (each `--payload` key written `key=<...>` as the existing entries are, a part
 that says what it holds kept as given; `--when` names tools and RPCs in backticks) (no comment inside it: the hint is
-in the printed next steps), its CONTRACT events row after the owner feature's last one (Payload: the key names of
-`--payload`, backticked; Emitted when: `--when`), a function in `backend/<feature>/emits.py` that emits it (the
+in the printed next steps; a description too long for one line is wrapped as the front doors wrap theirs, a
+parenthesised string per line within ruff's 120 characters, and the comma after the entry before it goes after that
+entry's closing parenthesis, found from the parse), its CONTRACT events row after the owner feature's last one
+(Payload: `` `key` (what it holds) `` per `--payload` part, as the other rows write it, `` `root` (<...>) `` for a key
+given without; Emitted when: `--when`), a function in `backend/<feature>/emits.py` that emits it (the
 boundary test refuses an event nothing emits), `def <name>(*, key1, key2)` with a keyword-only parameter per
 `--payload` key (`**payload` when it names none, or a key is not a Python name; a key that is a parameter of
 `backend/system/events.py`'s `emit` itself, `name`, is refused before anything is written), with its test emitting
@@ -421,8 +431,9 @@ an event already listed, ``; `<event>` — say what this listener does``: the pl
 written), the CONTRACT events row's "Heard by" cell and the feature's row in ARCHITECTURE.md "The agent half". The
 test calls it with the event's payload keys (its CONTRACT row, else its `EVENTS` entry); the next steps say to test
 what it does, name `host.library_game_for([path])` and `tests.support.make_library_game` for a payload with a path or
-root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers (the listener now runs
-against those mocks). The docstring says to log with `host.logger` (`from ..hermes import host`) and that a listener
+root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers and emit this event
+(they name it, or call its emitter in `emits.py` or a function that calls that or `emit("<event>")`, found by parsing
+the feature's code): the listener now runs against those mocks. The docstring says to log with `host.logger` (`from ..hermes import host`) and that a listener
 runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
 process), never in the broker, so module-level state is per process: state other processes must read goes in a file
 under `backend.system.paths.hermretro_home()`, written atomically. The next steps add: export a reader other code
@@ -471,13 +482,16 @@ the page's README **Shows:** line and its row in `docs/dev/STUDIO-PAGES.md`; a P
 ### `new slot <page> <name> [--doc "..."]`
 
 `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the
-README's **Slots:** line (``declares `<page>.<name>` (<doc, its first letter lowercased>). Contributes none.``); then
+README's **Slots:** line (``declares `<page>.<name>`: <doc, its first letter lowercased>. Contributes none.``, as
+`page/pages/emulator/README.md` writes it); then
 the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's; the next steps add the `HOSTS` recipe in
 `tests/page/slots.test.mjs`, and `new contribution` fills it from another page
 
 ### `new contribution <page> <slot> <Component>`
 
-A component of `<page>` in another page's declared slot (an undeclared slot is refused, naming the declared ones): the
+A component of `<page>` in another page's declared slot (an undeclared slot is refused, naming the declared ones;
+with `--dry-run` only, a slot of an existing host page that is not declared yet is previewed with the note `slot not
+declared yet: run new slot <page> <name> first`, so a plan that adds a slot and fills it can list both): the
 stub `page/pages/<page>/<component-file>.js` (`InstallButton` -> `install-button.js`, returning `null`), its import
 and `contributes: { '<slot>': [Component] }` in `page/pages/<page>/index.js` (after the slot's list when the page
 fills it already), the page README's **Slots:** line (`contributes none` becomes ``contributes `<Component>` to
@@ -486,7 +500,8 @@ order; imported as `<Component>From<Page>` when the test names `<Component>` alr
 names that too; when its shape is not the usual one, a note says to add it and the page check is skipped). A slot key
 already in `contributes`, in any quote style, is extended only when its value is a one-line array, else refused before
 anything is written (as `new slot` refuses a slot declared in either quotes); then the bundle and
-lint, bundle and page. Its next steps name what it leaves to the author: the component itself,
+lint, bundle and page. The edits it made that read like steps (the `filled` assertion) print as `done: ...` lines,
+apart from the `next:` ones. Its next steps name what it leaves to the author: the component itself,
 docs/dev/STUDIO-PAGES.md's "Events and slots today", the host page's README **Slots:** line and the `HOSTS` recipe in
 `tests/page/slots.test.mjs`
 

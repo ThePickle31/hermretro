@@ -212,7 +212,8 @@ def tool(
     if project:
         plan.next_steps.append(
             "a tool about the selected game: host.library_game_for([root]) -> (game id, root) or None "
-            "(from ..hermes import host)"
+            "(from ..hermes import host); a test for the selected game: `game, root = make_library_game(self.home, "
+            "name)` from tests.support (self.home = isolated_home(self), as the test's setUp has it)"
         )
     return f"tool {full}"
 

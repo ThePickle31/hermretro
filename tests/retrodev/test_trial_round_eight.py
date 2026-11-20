@@ -64,8 +64,10 @@ class Sync(RepoCase):
         self.on_dev(TESTS, test.format(helper="", value=2).replace("\n\n\n\n\n", "\n\n\n"))  # dev's side: empty
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
-        hint = "`git log -p origin/dev -Smoving_helper` finds where"
-        self.assertIn(f"{TESTS}: dev removed this block; if it moved, {hint}", out["error"]["fix"])
+        moved = (
+            "dev moved this block to tests/support.py (or deleted it); delete the HEAD side of this hunk"  # round 11
+        )
+        self.assertIn(f"{TESTS}:4-10: {moved}", out["error"]["fix"])
         self.assertIn("+++ b/tests/support.py", git(tree, "log", "-p", "origin/dev", "-Smoving_helper"))
         before = git(tree, "log", "-p", "origin/dev", "-Smoving_helper", "--", "page", "backend")
         self.assertNotIn("tests/support.py", before, "the old hint's pathspec missed it")

@@ -55,10 +55,10 @@ class Sync(RepoCase):
             git(self.main, "config", "merge.conflictStyle", style)
             code, out = self.run_cli("sync", cwd=tree, as_json=True)
             self.assertEqual(code, 1, (style, out))
-            self.assertIn(
-                "backend/history/hooks.py: dev removed this block; if it moved, `git log -p origin/dev "
-                "-S_result_payload` finds where",
+            self.assertRegex(  # round eleven: the hunk's lines, and no other file has them
                 out["error"]["fix"],
+                r"backend/history/hooks\.py:\d+-\d+: dev deleted this block \(no other file on origin/dev has its "
+                r"lines; .*\); delete the HEAD side of this hunk, git add, sync again",
                 style,
             )
             markers = (tree / "backend/history/hooks.py").read_text()

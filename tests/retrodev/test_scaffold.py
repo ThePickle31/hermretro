@@ -254,7 +254,7 @@ class New(ScaffoldCase):
             door, r'\n    "history.pruned": "say when it is emitted; game=<...>",\n}'
         )
         self.assertIn('emit("history.pruned", game=game)', self.read("backend/history/emits.py"))  # round seven
-        self.assertIn("| `history.pruned` | `game` | say when |", self.read("docs/dev/CONTRACT.md"))
+        self.assertIn("| `history.pruned` | `game` (<...>) | say when |", self.read("docs/dev/CONTRACT.md"))
         before = re.search(r"Events emitted: (.*?)\.(?=\s|$)", emitted).group(1)  # as the real README lists them
         self.assertIn(f"Events emitted: {before}, `history.pruned`.", self.read("backend/history/README.md"))
         self.new("event", "history", "pruned", code=1)

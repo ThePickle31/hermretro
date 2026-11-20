@@ -159,9 +159,9 @@ class Flow(RepoCase):
     def test_the_budgets_are_measured_cold_runs_and_the_readme_agrees(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
         budgets = ctx.policy["checks"]["budgets"]
-        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 40, 60))
+        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 58, 60))
         readme = retrodev_docs()
-        self.assertIn("unit 45 s, scaffold 40 s, the fast checks together 60 s", readme)
+        self.assertIn("unit 45 s, scaffold 58 s, the fast checks together 60 s", readme)
         self.assertIn("over its budget twice in a row", readme)
         self.assertNotIn("Over twice its budget", readme)
 
@@ -271,7 +271,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn(f'"library.rdprobe_moved": "a game moved folders; {payload}"', door)  # keys say what they hold
         self.assertNotIn("    # emits.", door, "no hint comment inside EVENTS")
         rows = [line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith("| `")]
-        mine = "| `library.rdprobe_moved` | `game`, `root` | a game moved folders | — |"
+        mine = "| `library.rdprobe_moved` | `game` (id; None without a project, or a list), `root` (project) | a game moved folders | — |"
         self.assertIn(mine, rows)
         before = rows[rows.index(mine) - 1]
         self.assertTrue(before.startswith("| `library."), before)

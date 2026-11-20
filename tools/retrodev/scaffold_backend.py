@@ -8,7 +8,6 @@ snapshot) prove the generated code is in step.
 from __future__ import annotations
 
 import ast
-import json
 import re
 
 from . import scaffold_rpc
@@ -28,6 +27,7 @@ from .scaffold import (
     render,
 )
 from .scaffold_payload import (
+    contract_cell,
     emitter_values,
     events_payload,
     payload_keys,
@@ -35,7 +35,7 @@ from .scaffold_payload import (
     refuse_reserved_keys,
     undescribed,
 )
-from .scaffold_source import add_event, files_line
+from .scaffold_source import add_event, event_entry, files_line
 
 FEATURES = "backend/features.py"
 CONTRACT = "docs/dev/CONTRACT.md"
@@ -275,8 +275,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     refuse_reserved_keys(plan, keys)
     plain = when.replace("`", "") if when else None  # backticks are Markdown: the CONTRACT row keeps them
     doc = f"{plain or 'say when it is emitted'}; {events_payload(payload) if keys else payload}"
-    plan.edit(door, lambda text: add_event(text, f"    {json.dumps(full)}: {json.dumps(doc)},"))
-    cell = ", ".join(f"`{key}`" for key in keys) or payload
+    plan.edit(door, lambda text: add_event(text, event_entry(full, doc)))
+    cell = contract_cell(payload) if keys else payload
     row = f"| `{full}` | {cell} | {when} | — |" if when else f"| `{full}` | {cell} | say when | — |"
     plan.edit(
         CONTRACT,
@@ -308,7 +308,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     bare = undescribed(payload) if keys else []
     if bare:
         plan.next_steps.append(
-            f"replace the <...> placeholders in {door} EVENTS ({placeholders(bare)}) with what each key holds "
+            f"replace the <...> placeholders in {door} EVENTS ({placeholders(bare)}) and in its {CONTRACT} row "
+            "with what each key holds "
             "(game=<id>, root=<project>); new listener copies that entry into its listener's docstring"
         )
     return f"event {full}"
