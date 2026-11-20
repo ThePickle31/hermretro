@@ -496,6 +496,11 @@ Each of these touches one folder plus at most one registry line. `tests/page/reg
 registry, and every descriptor is checked when the bundle loads (`app/registry.js`): a mistake fails the page
 tests with the exact problem.
 
+**Page state.** A setting a page keeps across visits (a choice, the last folder) goes in
+`shell.ctx.storage.get(key, fallback)` / `shell.ctx.storage.set(key, value)`; every page shares one set of keys, so
+pick one no other page uses (`buildSelected`, `promptFolder`). Page tests seed and read them as `scenario.storage`
+(`tests/page/harness.mjs`).
+
 ### A page
 
 Make `page/pages/<page>/` with `index.js` exporting `export const <PAGE>_PAGE = { id: '<page>',

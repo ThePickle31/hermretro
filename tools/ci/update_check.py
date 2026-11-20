@@ -1,4 +1,5 @@
 """`python tools/ci/clean_install_check.py --update-from [REF]`: an installed release updated to this commit.
+How to run it and what it needs: docs/dev/TESTING.md, "The clean install and update checks".
 
 Installs REF (default: the newest v* release tag on origin/main, the version users have) from a local copy of this
 repository into a throwaway Hermes home and uses it the way the page does: the studio profile linked to the

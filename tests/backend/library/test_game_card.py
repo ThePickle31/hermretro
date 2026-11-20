@@ -146,6 +146,19 @@ class CardFile(unittest.TestCase):
         self.assertTrue(result["status"]["complete"], result)
         self.assertEqual((self.root / "cover.png").read_bytes(), COVER)
 
+    def test_cover_problem_names_only_what_is_wrong_with_the_cover_by_the_present_rules(self):
+        self.assertIn("no cover.png", game_card.cover_problem(self.root))
+        (self.root / "cover.png").write_bytes(COVER)
+        self.assertIsNone(game_card.cover_problem(self.root))
+        (self.root / "assets" / "backgrounds").mkdir(parents=True)
+        (self.root / "assets" / "backgrounds" / "field.png").write_bytes(COVER)
+        problem = game_card.cover_problem(self.root)
+        self.assertIn("unchanged copy of assets/backgrounds/field.png", problem)
+        self.assertIsNone(game_card.cover_problem(self.root, strict=False))
+        self.assertEqual(game_card.status(self.root, strict=True)["problems"], [problem])
+        (self.root / "cover.png").write_bytes(encode_png(80, 72, lambda x, y: (x, y, 0, 255)))
+        self.assertIn("must be exactly 160x144", game_card.cover_problem(self.root, strict=False))
+
     def test_placeholders_and_bad_lists_do_not_count(self):
         for problem in (
             game_card._text_problem("description", "Lorem ipsum " * 5),

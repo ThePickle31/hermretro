@@ -1,12 +1,15 @@
 // The shared starting state of the Games, Prompts and Emulator scenarios (page-games, page-prompts, page-emulator,
-// page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of three games
+// page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of four games
 // fed by the games RPC, the studio page mounted and Refresh pressed. Each file navigates to its own page from here.
 //   const { games, now2, studio } = await gamesStudio(helpers)   // helpers: what runScenario hands the scenario
 // Comet Drift and Old Orbit carry a `card` in the real shape (docs/dev/CONTRACT.md, "The game object";
 // game_card.public()): Comet Drift's is complete with genres and controls, Old Orbit's is still missing its cover.
+// The RPC order (Comet Drift, Robo Run, Ace Arena, Old Orbit), the most recently built order (Comet Drift, Old Orbit,
+// then the unbuilt ones) and A-Z (Ace Arena first) all differ, so a test can tell which order a page uses: find a
+// game's card by its title, not its position.
 
-/** The three library games the scenarios use (Comet Drift ready with a chat and a full card, Robo Run failed with no
- *  card, Old Orbit older with an unfinished card). */
+/** The four library games the scenarios use (Comet Drift ready with a chat and a full card, Robo Run failed with no
+ *  card, Ace Arena never built, Old Orbit older with an unfinished card). */
 export function libraryGames(now2) {
   return [
     { id: 'aaa111aaa111', title: 'Comet Drift', projectRoot: '/home/u/ChromaticGames/CometDrift', kind: 'gbstudio', state: 'ready',
@@ -17,6 +20,8 @@ export function libraryGames(now2) {
         complete: true, missing: [], hasCover: true, coverForBuild: 'sha-one' } },
     { id: 'bbb222bbb222', title: 'Robo Run', projectRoot: '/home/u/ChromaticGames/RoboRun', kind: 'gbdk', state: 'failed', rom: null,
       webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' },
+    { id: 'ddd444ddd444', title: 'Ace Arena', projectRoot: '/home/u/ChromaticGames/AceArena', kind: 'gbstudio', state: 'unbuilt', rom: null,
+      webExport: false, thumb: null, chat: null, error: null },
     { id: 'ccc333ccc333', title: 'Old Orbit', projectRoot: '/home/u/ChromaticGames/OldOrbit', kind: 'gbstudio', state: 'ready', // built first:
       rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null, // Home skips it
       card: { title: 'Old Orbit', tagline: null, description: null, about: null, genres: ['Puzzle'], tags: [], controls: {},
