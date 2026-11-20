@@ -164,9 +164,12 @@ export async function callStudio(method, params = {}, timeoutMs) {
 
 /** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*), or read its plugin
  *  data folder (host._data_dir(), one per profile: the history snapshots builds/build_restore list and restore,
- *  the asset versions asset* keep): the hermretro profile only (studioTarget(): its route, or the app itself when
- *  the app is on that profile), like the Build chats themselves, never whichever profile answered `status`;
- *  StudioProfileMissing otherwise. Resolves to the RPC's answer itself, like callStudio. */
+ *  the asset versions and saved frames asset* read). Chosen by what the handler reads, not by the feature or page
+ *  the RPC belongs to: one that answers the same from any profile with the plugin (games, player, captures: the
+ *  shared hermretro home; games' chat titles are best effort) uses callStudio. Goes to the hermretro profile only
+ *  (studioTarget(): its route, or the app itself when the app is on that profile), like the Build chats
+ *  themselves, never whichever profile answered `status`; StudioProfileMissing otherwise. Resolves to the RPC's
+ *  answer itself, like callStudio. */
 export async function callStudioOnly(method, params = {}, timeoutMs) {
   const target = studioTarget()
 

@@ -1,5 +1,6 @@
 """Game images for the Build page: the asset, asset_info, asset_restore and assets RPCs. Kept versions
-live in versions.py, sprite and scene reading in sprites.py. Declared with @rpc."""
+live in versions.py, sprite and scene reading in sprites.py, the project image walk in project_files.py. Declared
+with @rpc."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..library import cover_path
 from ..system.events import emit
+from .project_files import project_images
 from .sprites import (
     _ASSET_INFO_SCENES,
     _actor_palette,
@@ -229,7 +231,6 @@ def rpc_asset_restore(ctx):
     return asset_restore
 
 
-_ASSET_LIST_FOLDERS = (("sprites", "sprite"), ("backgrounds", "background"), ("ui", "ui"), ("fonts", "ui"))
 ASSET_LIST_LIMIT = 400
 
 
@@ -273,34 +274,22 @@ def rpc_assets(ctx):
                         "bytes": stat.st_size,
                     }
                 )
-            for folder, kind in _ASSET_LIST_FOLDERS:
-                base = root / "assets" / folder
-                if not base.is_dir():
-                    continue
-                for image in sorted(base.rglob("*")):
-                    if len(items) >= ASSET_LIST_LIMIT:
-                        break
-                    if image.suffix.lower() not in ASSET_SUFFIXES or not image.is_file():
-                        continue
-                    try:
-                        real = image.resolve(strict=True)
-                    except (OSError, RuntimeError):
-                        continue
-                    if real != root and root not in real.parents:
-                        continue
-                    meta = _read_json(image.with_name(image.name + ".gbsres"), 2 * 1024 * 1024) or {}
-                    stat = real.stat()
-                    items.append(
-                        {
-                            "path": str(real),
-                            "relative": real.relative_to(root).as_posix(),
-                            "name": str(meta.get("name") or image.stem),
-                            "file": image.name,
-                            "kind": kind,
-                            "modifiedAt": stat.st_mtime,
-                            "bytes": stat.st_size,
-                        }
-                    )
+            for image, real, kind in project_images(root):
+                if len(items) >= ASSET_LIST_LIMIT:
+                    break
+                meta = _read_json(image.with_name(image.name + ".gbsres"), 2 * 1024 * 1024) or {}
+                stat = real.stat()
+                items.append(
+                    {
+                        "path": str(real),
+                        "relative": real.relative_to(root).as_posix(),
+                        "name": str(meta.get("name") or image.stem),
+                        "file": image.name,
+                        "kind": kind,
+                        "modifiedAt": stat.st_mtime,
+                        "bytes": stat.st_size,
+                    }
+                )
             return {"ok": True, "root": str(root), "assets": items, "truncated": len(items) >= ASSET_LIST_LIMIT}
         except Exception as error:
             logger.exception("hermretro assets failed")

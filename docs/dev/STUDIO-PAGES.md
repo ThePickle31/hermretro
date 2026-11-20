@@ -472,7 +472,9 @@ On a page without tabs, first make a tab whose `Page` is the page's old `Page` c
 Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
-tab bar (of one). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
+tab bar (of one). Switching tabs remounts the chosen tab's `Page` (`page-view.js` keys it by `tab.id`), so its
+`useState` starts over each time: state shared between tabs, or kept across a switch, goes in `shell.ctx.storage`
+(`get(key, fallback)` / `set(key, value)`, saved) or in the shell (`app/studio-page.js`). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
 one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
 content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
 drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
@@ -505,7 +507,8 @@ In the contributing page's `index.js`: `contributes: { '<page>.<name>':
 [Component] }`. It lives in the contributing page's folder. `Component` gets the host's props: read the slot's
 doc string in the host page's `index.js` (`slots: { ... }`) for what they are and what to return. For example
 `games.cardMenu` passes `{ ctx, game, hardwareOn, item }`, where `item(icon, label, run, { disabled, why })` makes a
-menu button, so a contribution returns `item(...)` (or `null` for no button); `emulator.barActions` passes
+menu button (`icon` is a Codicon name, e.g. `folder-opened`, `copy`), so a contribution returns `item(...)` (or `null`
+for no button); `emulator.barActions` passes
 `{ ctx, game, hardwareOn }` (plus `go` on the Emulator page only: the slot is also drawn in the emulator tab beside
 the chat, which has no shell) and its contribution renders a button. A contribution cannot reach the host's
 `shell`: when it needs `go(id)` or another shell action, the host adds it to the slot's props and says so in the
@@ -519,10 +522,22 @@ its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
 Or: `python tools/retrodev new contribution <page> <slot> <Component>` writes the stub, `contributes` with its import,
 the README Slots line and the registry `filled` assertion; the docs and HOSTS stay yours.
 
+Test what the item does in the host page's scenario test, where the slot is drawn with the real page around it: for
+`games.cardMenu`, `tests/page/page-games.test.mjs` (`openGameMenu(card)` opens a card's arrow menu, then
+`click('<label>', menu)`). The harness records what the page does: `scenario.clipboard` the text given to
+`ctx.os.writeClipboard`, `scenario.notices` each `host.notify({ kind, message })`, `scenario.revealed` the last
+`ctx.os.revealPath`, `scenario.inserted` what went into a chat's composer (`tests/page/sdk-stub.mjs`,
+`tests/page/harness.mjs`; "Show in folder on a remote Hermes" in `page-games.test.mjs` is one). For
+`emulator.barActions`, `tests/page/page-emulator.test.mjs`.
+
 ### Calling the backend from a page
 
 `page/app/backend.js`: `callStudio(method, params)` (and `callStudioOnly`, the
-hermretro profile only) resolves to the RPC's answer itself; `callBackend(method, params)` resolves to
+hermretro profile only) resolves to the RPC's answer itself. Pick `callStudioOnly` by what the RPC's handler reads,
+not by its feature or page: an answer that depends on the Build conversations or the plugin data folder
+(`host._data_dir()`, one per profile: history snapshots, asset versions) needs the hermretro profile; one that is the
+same from any profile with the plugin (`games`, `player`, `captures`: the shared hermretro home) uses `callStudio`.
+`callBackend(method, params)` resolves to
 `{ data, profile }`, so read `(await callBackend(...)).data`. The method names are the generated `RPC_*` constants
 in `page/app/rpc.js`.
 

@@ -27,6 +27,19 @@ profile).
 (the New Game level, run headless), `tests/page/attract-run.test.mjs` (running it in the page),
 `tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf).
 
+## The header
+
+`build-page.js` builds the header (`header.cs-b-head`) from these parts (and a Discard button for a game not made yet):
+
+| Part | File | Classes |
+|---|---|---|
+| The game's title and the game switcher (its menu of games, the library view, the right-click menu, and the "N needs you" / "N working" / new-reply marks for other games) | `switcher.js` `BuildSwitcher` (`switcherEntries` gives its rows) | `.cs-b-sw*`, `.cs-b-ctx`, `.cs-b-needs`, `.cs-b-others`, `.cs-b-otherdot` |
+| The status pill (working, up to date, edited since a build, failed, no builds yet) | `builds-menu.js` `BuildPill` | `.cs-b-pill*` |
+| The Builds menu (the conversation's builds, Show and Restore) | `builds-menu.js` `BuildsMenu` | `.cs-b-brow*`, `.cs-b-sw-pop.cs-b-builds` |
+
+Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-motion changes in
+`build-responsive.css.js`); the header row itself, `.cs-b-head`, is in `transcript/transcript.css.js`.
+
 ## The New Game level (`attract/`)
 
 Behind the New Game form the page draws a Game Boy Color style platformer where the Nous Girl plays one fixed level
