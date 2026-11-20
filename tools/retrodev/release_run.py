@@ -68,19 +68,6 @@ def version_only(ctx, old: str, new: str) -> str | None:
     return checks_triggers.beyond_version(ctx.top, old, new)
 
 
-def limit(ctx, branch: str, number: int, version: str, sha: str) -> None:
-    """Mark the approval just given as the release words' (scope release): land then merges this pull request only
-    while it changes nothing but the version line, to ``version`` (land_gates.release_scope_gate), also when land
-    is run on its own after release run stopped."""
-    scope = {"scope": "release", "version": version, "checked": sha}
-    record = state.load_branch(ctx.top, branch)
-    record["approval"] = {**(record.get("approval") or {}), **scope}
-    state.save_branch(ctx.top, record)
-    review = reviews.load(ctx, number)
-    review["approval"] = {**(review.get("approval") or {}), **scope}
-    reviews.save(ctx, review)
-
-
 def checked_head(ctx, info: dict, rec: dict, again: str) -> str:
     """The version pull request's head, once it is the recorded branch into the base and changes only the version."""
     number, branch, sha = info.get("number"), rec.get("branch"), info.get("headRefOid") or ""
@@ -197,8 +184,10 @@ class Run:
         elif self.dry_run:
             self.would("approve", f"approve #{number} with the owner's release words")
         else:
-            approve.approve(ctx, number, self.words)  # the release words; it records the head it saw
-            limit(ctx, branch, number, release.stable(rec["version"]), sha)
+            # the release words, recorded as a release approval (scope release, this version: land_gates
+            # release_scope_gate holds land to the version line, also when land runs on its own) before any GitHub call
+            scope = {"scope": "release", "version": release.stable(rec["version"]), "checked": sha}
+            approve.approve(ctx, number, self.words, scope=scope)  # it records the head it saw
             given = state.load_branch(ctx.top, branch).get("approval") or {}
             if given.get("head") != sha:
                 unapprove(ctx, branch, number)

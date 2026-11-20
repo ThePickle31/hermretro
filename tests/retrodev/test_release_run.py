@@ -169,6 +169,22 @@ class Flow(RunCase):
         self.assertIn("changes more", scope[0]["message"])
         self.assertEqual(self.gh.called("pr", "merge"), [], "nothing merged on the release words")
 
+    def test_the_release_approval_is_limited_even_when_marking_it_ready_fails(self):
+        self.gh.answers[("pr", "ready", PR)] = (1, "", "HTTP 502")  # GitHub fails right after the approval is saved
+        self.gh.effects.pop(("pr", "ready", PR), None)
+        code, data = self.release_run()
+        self.assertEqual(code, 1, data)
+        approval = json.loads((state.root(self.main) / "reviews" / f"{PR}.json").read_text())["approval"]
+        self.assertEqual((approval["scope"], approval["version"]), ("release", NEXT), "limited from the start")
+        tree = self.tree()
+        self.commit(tree, "docs/extra.md", "# Extra\n", "An unrelated change")
+        git(tree, "push", "-q", "origin", BRANCH)
+        self.view(headRefOid=git(tree, "rev-parse", "HEAD").strip(), isDraft=False)
+        self.run_cli("check", cwd=tree)
+        code, data = self.run_cli("land", PR, as_json=True)
+        self.assertEqual(code, 3, data)
+        self.assertEqual(self.gh.called("pr", "merge"), [], "nothing merged on the release words")
+
     def test_a_version_only_pull_request_passes_whatever_git_colours(self):
         git(self.main, "config", "color.ui", "always")  # diffs read for the version check must stay plain
         code, data = self.release_run()
