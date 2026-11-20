@@ -110,8 +110,8 @@ def own_commits_files(ctx) -> list[str]:
 
 
 def is_doc(name: str) -> bool:
-    """A documentation file: Markdown under docs/, or a README anywhere."""
-    return name.endswith(".md") and (name.startswith("docs/") or name.rsplit("/", 1)[-1].upper().startswith("README"))
+    """A documentation file: any Markdown file (docs/, READMEs, tools/retrodev/REFERENCE.md and the other guides)."""
+    return name.endswith(".md")
 
 
 def untouched(ctx, text: str | None) -> list[str]:

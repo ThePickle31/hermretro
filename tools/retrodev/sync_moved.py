@@ -102,8 +102,8 @@ def base_lines(
 
 def taken_over(ctx, name: str, line: str) -> tuple[str | None, str | None]:
     """(the other file dev's commit that removed ``line`` from ``name`` added the most similar line to, that commit
-    as '<sha> (<subject>)'); (None, the commit) when it added no such line elsewhere or MERGE_HEAD no longer has that
-    line in that file (renamed, deleted or changed later); (None, None) without one."""
+    as '<sha> (<subject>)'); (None, the commit) when it added no such line elsewhere, added equally close lines to
+    two files, or MERGE_HEAD no longer has that line in that file (renamed, deleted or changed later); (None, None) without one."""
     merge_base = repo.git(["merge-base", "HEAD", "MERGE_HEAD"], ctx.top, check=False).strip()
     span = f"{merge_base}..MERGE_HEAD" if merge_base else "MERGE_HEAD"
     found = repo.git(["log", "-1", "--format=%h%x00%s", f"-S{line}", span, "--", name], ctx.top, check=False).strip()
@@ -113,14 +113,19 @@ def taken_over(ctx, name: str, line: str) -> tuple[str | None, str | None]:
     commit = f"{sha} ({subject})"
     generated = set(ctx.policy["generated"]["files"])
     shown = repo.git(["show", "--format=", "--unified=0", "--no-color", sha], ctx.top, check=False)
-    best, where, current, added = COPY_RATIO, None, None, ""
+    best, where, current, added, tied = COPY_RATIO, None, None, "", False
     for row in shown.splitlines():
         if row.startswith("+++ "):
             current = row[6:] if row.startswith("+++ b/") else None
         elif row.startswith("+") and current and current != name and current not in generated:
             score = similarity(row[1:].strip(), line)
             if score > best:
-                best, where, added = score, current, row[1:]
+                best, where, added, tied = score, current, row[1:], False
+            elif score == best and where and current != where:
+                tied = True
+    # two files took an equally close line: no evidence says which one this hunk belongs in, so name neither
+    if tied:
+        where = None
     # a later dev commit may have renamed or deleted that file, or changed the line: name it only while dev has it
     if where and _norm(added) not in {_norm(held) for held in _lines(ctx, f"MERGE_HEAD:{where}")}:
         where = None

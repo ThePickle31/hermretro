@@ -196,6 +196,27 @@ class SyncHintNoGuess(RepoCase):
         self.assertIn(f"dev removed these lines in {moved[:7]}", hint)
         self.assertIn("redo your change where it belongs now", hint)
 
+    def test_two_files_taking_equally_close_lines_name_neither(self):  # review 3, 0
+        self.on_dev(SIZE, SIZE_TEXT, "Sizes")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/tied")
+        self.commit(tree, SIZE, SIZE_TEXT.replace("1048576", "1000000"))
+        other = self.base / "other"
+        moved_line = "  const megabytes = Math.round(bytes / 1024 / 1024);\n"
+        write(other, FORMAT, "export function formatBytes(bytes) {\n" + moved_line + "}\n")
+        write(other, RATE, "export function rate(bytes) {\n" + moved_line + "}\n")
+        write(other, SIZE, SIZE_TEXT.replace("  " + BASE_LINE + "\n", ""))
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "Two helpers take the sizes over")
+        moved = git(other, "rev-parse", "--short=9", "HEAD").strip()
+        git(other, "push", "-q", "origin", "dev")
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, out)
+        hint = next(line for line in out["error"]["message"].splitlines() if line.startswith(SIZE + ":"))
+        self.assertNotIn(FORMAT, hint)
+        self.assertNotIn(RATE, hint)
+        self.assertIn(f"dev removed these lines in {moved[:7]}", hint)
+
 
 class RealFiles(ScaffoldCase):
     def real(self, *patterns: str) -> None:
@@ -290,6 +311,9 @@ class DocsOnlyBody(RepoCase):
         self.commit(docs, "backend/library/README.md", "# Library\n")
         self.assertEqual(self.warning(docs, said), "")
         self.assertIn("`docs/dev/TESTING.md`", self.warning(docs, said + " Changed `docs/dev/TESTING.md`."))
+        reference = self.worktree("docs/reference")  # review 3, 1: the CLI's own reference is documentation too
+        self.commit(reference, "tools/retrodev/REFERENCE.md", "# Reference\n")
+        self.assertEqual(self.warning(reference, said), "")
         code = self.worktree("fix/code")
         self.commit(code, "docs/dev/DEBUGGING.md", "# Debugging\n")
         self.commit(code, "tools/kept.py", "VALUE = 1\n")
