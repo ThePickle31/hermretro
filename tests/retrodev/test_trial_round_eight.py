@@ -65,7 +65,9 @@ class Sync(RepoCase):
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
         moved = (
-            "dev moved this block to tests/support.py (or deleted it); delete the HEAD side of this hunk"  # round 11
+            "dev moved this block to tests/support.py (or deleted it); first check whether dev's version there "
+            "already does what your lines did; if it does, add only a test that pins it; delete the HEAD side of "
+            "this hunk"  # rounds 11 and 18
         )
         self.assertIn(f"{TESTS}:4-10: {moved}", out["error"]["message"])
         self.assertIn("+++ b/tests/support.py", git(tree, "log", "-p", "origin/dev", "-Smoving_helper"))

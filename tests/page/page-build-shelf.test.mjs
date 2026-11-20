@@ -29,7 +29,7 @@ await runScenario(async ({ buildScenario, act, dom, scenario, page, click, tab, 
     assert.deepEqual(carts.map(cart => cart.querySelector('b').textContent), ['Frog Post', 'Comet Drift'], 'games with a chat, in the library\'s newest-first order')
     assert.ok(!/Moon Courier/.test(shelf().textContent.replace('All games', '')), 'a game with no chat is not on the shelf')
     assert.equal(carts[1].querySelector('.cs-cart img').getAttribute('alt'), 'Comet Drift cover art', 'the cover is in the label')
-    assert.match(carts[0].querySelector('.cs-cart .ph').textContent, /Frog Post/, 'a placeholder label without a picture')
+    assert.equal(carts[0].querySelector('.cs-cart .ph').textContent, 'Frog PostTitle screen after first play', 'a placeholder label says why there is no picture')
     assert.match(carts[0].querySelector('.cs-cart').getAttribute('aria-label'), /^Frog Post, /, 'each cartridge is named by its game and status')
     assert.equal(shelf().getAttribute('data-at-flat'), '', 'the level keeps the ground under it flat')
     assert.ok(view.node.querySelector('.cs-b-new + .cs-b-shelf'), 'after the form: Tab reaches it after the composer')

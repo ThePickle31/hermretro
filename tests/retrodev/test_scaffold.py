@@ -145,7 +145,8 @@ class New(ScaffoldCase):
         out = self.new("rpc", "history", "rdprobe_ping")
         self.assertEqual(out["created"], ["tests/backend/history/test_rpc_rdprobe_ping.py"])
         self.assertIn('@rpc("rdprobe_ping")\ndef rpc_rdprobe_ping(ctx):', self.read("backend/history/rpcs.py"))
-        self.assertIn("### `rdprobe_ping` — params `{ echo? }`", self.read("docs/dev/CONTRACT.md"))
+        # history's RPCs are rows of the 'Studio pages' table: the new one is a row after them (round 18)
+        self.assertIn("| `rdprobe_ping` | `{ echo? }` | `{ ok, echo }`: ", self.read("docs/dev/CONTRACT.md"))
         head, tail = re.split(r"(?=\.(?:\s|$))", before, maxsplit=1)  # its list, then the sentence's end and after
         self.assertEqual(line_of(self.read("backend/history/README.md"), "- RPCs"), f"{head}, `rdprobe_ping`{tail}")
         self.new("rpc", "history", "rdprobe_ping", code=1)

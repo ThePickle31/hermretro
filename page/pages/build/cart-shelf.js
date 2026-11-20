@@ -21,6 +21,15 @@ export function shelfOrder(entries) {
     .map(item => item.entry)
 }
 
+/** The line under the name on a label with no picture, as on the Games shelf: why there is none yet. */
+export function labelNote(game) {
+  if (!game) {
+    return 'Being set up'
+  }
+
+  return game.state === 'unbuilt' || game.state === 'failed' ? 'No build yet' : 'Title screen after first play'
+}
+
 /** How many cartridges fit `width` px, keeping one place for the All games tile when anything is left over. */
 export function shelfFit(width, count, more) {
   const slots = Math.max(1, Math.floor((width + 26) / SLOT))
@@ -73,7 +82,7 @@ export function CartShelf({ entries, others, onSelect, onAll }) {
               jsx(Cartridge, {
                 game: entry.game,
                 label: `${entry.title}, ${entry.sub}`,
-                note: entry.game ? null : 'Being set up',
+                note: labelNote(entry.game),
                 onClick: () => onSelect(entry.key),
                 title: entry.title
               }),

@@ -41,6 +41,10 @@ README's Tests: line names the test file that covers it. -->
 ## How the owner and users use it
 <!-- Commands, pages or tools, and what they see. -->
 
+## Risk and rollback
+<!-- What could break for users, and how to undo it (revert the squash commit, a setting): start copies this
+section into the pull request body's Risk and rollback. -->
+
 ## Not in scope
 <!-- What this change deliberately leaves out. -->
 """

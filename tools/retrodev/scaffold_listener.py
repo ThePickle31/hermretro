@@ -17,6 +17,7 @@ from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
 from .scaffold_backend import ARCHITECTURE, CONTRACT, PAYLOAD_GUIDE, known_feature
 from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, typed_sample, undescribed
+from .scaffold_readme import add_test
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -263,6 +264,13 @@ def catch_all(keys: list[str]) -> str:
 def listener(plan: Plan, feature_name: str, event: str) -> str:
     known_feature(plan, feature_name, "listener")
     declared = declared_events(plan)
+    if plan.dry_run and EVENT.match(event or "") and event not in declared:  # a plan lists its files before the event
+        plan.notes.append(
+            f"no front door declares {event} yet: the real run refuses until it exists (python tools/retrodev new "
+            f"event {event.partition('.')[0]} {event.partition('.')[2]} first); this dry run shows the files it "
+            "would write for it"
+        )
+        declared = {**declared, event: ""}
     if not EVENT.match(event or "") or event not in declared:
         listed = ", ".join(sorted(declared)) or "none yet"
         raise Failure(
@@ -293,6 +301,7 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     test = f"tests/backend/{feature_name}/test_listener_{func}.py"
     plan.create(test, render("listener", test_template(plan), **values))
+    add_test(plan, feature_name, test, f"the `{event}` listener")
     readme = f"backend/{feature_name}/README.md"
     on_readme = False
     if plan.exists(readme):

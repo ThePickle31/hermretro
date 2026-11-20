@@ -11,7 +11,9 @@ there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citatio
 phrase (CITATION: `checked against`, `comes from`, `see`, `documents`, `describes`, `how to use`, ...) to the
 end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
 cited list (`checked against `a` and `b``) is cited. A path under engine/ never warns (never changed outside an engine
-update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
+update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x. On a
+branch with a sync merge of the base, a file or name the base changed in what that merge brought in never warns
+(synced_from_dev): a takeover's body explains code dev moved.
 """
 
 from __future__ import annotations
@@ -109,6 +111,23 @@ def own_commits_files(ctx) -> list[str]:
     return [line for line in out.splitlines() if line.strip()] if code == 0 else []
 
 
+def synced_from_dev(ctx) -> tuple[list[str], str]:
+    """(the files, the diff) dev changed that the branch's sync merges brought in: for each merge on the branch whose
+    second parent is on the base (a sync), what the base changed from where the two sides met to that parent. A
+    taken-over branch's body explains code dev moved meanwhile, which neither the branch's diff nor its tree has."""
+    code, out, _err = repo.run(["git", "rev-list", "--merges", f"{ctx.remote_base}..HEAD"], ctx.top)
+    files, diffs = [], []
+    for merge in out.split() if code == 0 else []:
+        theirs = f"{merge}^2"
+        if repo.run(["git", "merge-base", "--is-ancestor", theirs, ctx.remote_base], ctx.top)[0] != 0:
+            continue  # a merge of another branch, not of the base
+        span = f"{merge}^1...{theirs}"
+        names = repo.run(["git", "diff", "--no-renames", "--name-only", span], ctx.top)[1]
+        files += [line for line in names.splitlines() if line.strip()]
+        diffs.append(repo.run(["git", "diff", span], ctx.top)[1])
+    return list(dict.fromkeys(files)), "\n".join(diffs)
+
+
 def is_doc(name: str) -> bool:
     """A documentation file: any Markdown file (docs/, READMEs, tools/retrodev/REFERENCE.md and the other guides)."""
     return name.endswith(".md")
@@ -126,6 +145,7 @@ def untouched(ctx, text: str | None) -> list[str]:
     changed = [*changed, *own_commits_files(ctx)]
     if changed and all(is_doc(name) for name in changed):  # a docs PR describes code it does not change
         paths = [path for path in paths if is_doc(path)]
+    changed += synced_from_dev(ctx)[0] if paths else []  # what dev moved, which a synced body may explain
     return [
         path
         for path in paths
@@ -162,6 +182,7 @@ def missing(ctx, text: str | None) -> list[str]:
     if not names:
         return []
     diff = repo.run(["git", "diff", f"{ctx.remote_base}...HEAD"], ctx.top)[1]
+    diff += "\n" + synced_from_dev(ctx)[1]  # a name dev changed in what a sync brought in
     gone = []
     for name in names:
         word = last_part(name)

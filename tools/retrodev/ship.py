@@ -127,7 +127,8 @@ def plan_goal(ctx, branch: str, record: dict) -> list[str]:
 
 
 # The body sections the skeleton fills in from the plan (body heading: the plan's headings, first found wins).
-PREFILL = {"What changed": ("What changes",), "Not done": ("Not in scope",)}
+RISK = "Risk and rollback"  # the same heading in the plan and the body
+PREFILL = {"What changed": ("What changes",), RISK: (RISK,), "Not done": ("Not in scope",)}
 
 
 plan_title = plan.branch_title  # the plan's Title: line (plan.py), as ship and status offer it
@@ -135,8 +136,8 @@ title_note = plan.title_note
 
 
 def skeleton(ctx, branch: str, record: dict) -> str:
-    """The pull request template with the plan's Goal as the Why, its 'What changes' as What changed and its 'Not
-    in scope' as Not done (each only when the plan says something there), and the line saying an agent made it."""
+    """The template with the plan's Goal as the Why, its 'What changes', 'Risk and rollback' and 'Not in scope' as
+    What changed, Risk and rollback and Not done (each when the plan says something there), and the agent line."""
     source = ctx.top / TEMPLATE
     sections = ctx.policy["ship"]["sections"]
     text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
@@ -146,7 +147,7 @@ def skeleton(ctx, branch: str, record: dict) -> str:
     text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + why + "\n", text, count=1, flags=re.M)
     found = plan_sections(ctx, branch, record)
     for heading, sources in PREFILL.items():
-        if several and heading == "Not done":
+        if several and heading in ("Not done", RISK):  # the whole plan's, not this branch's
             continue
         lines = next((found[name] for name in sources if found.get(name)), [])
         if lines:  # after the heading and its template comments

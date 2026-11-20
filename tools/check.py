@@ -112,7 +112,7 @@ def check_unit(_args) -> str:
     timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
     # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
-    noted = unit_home.layout_note(lines)
+    noted = unit_home.layout_note(lines, unit_home.branch_files(run) if "layout warning: " in result.stderr else [])
     return (ran[-1] if ran else "ok") + noted + slow
 
 
