@@ -127,6 +127,14 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
             else " (add one once the host renders it)"
         ),
     ]
+    if host != page_id:
+        plan.next_steps.append(
+            f"if {component} reads the {page_id} page's own state (an atom, set by that page), test it in a "
+            "direct-import test like tests/page/slots.test.mjs rather than the scenario harness (which runs the "
+            "built bundle, whose atoms a test cannot reach): registerAliases() from tests/page/aliases.mjs, import "
+            f"{component} from {rel} and the atom from its module, render {component} with the slot's props, then "
+            "set the atom (<atom>.set(...)) and check what it shows"
+        )
     if hosted is None:  # its Slots line does not declare the slot in the usual words
         plan.next_steps.insert(2, f"{host_readme} **Slots:** line: say {giver} fills `{slot}` with `{component}`")
     else:

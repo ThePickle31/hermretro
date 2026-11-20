@@ -368,7 +368,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         changed = run(["git", "diff", "--name-only", "origin/dev"], tree, env).stdout.split()
         self.assertIn("tests/repo/registration.json", changed)  # what the trigger matched before the fix
         docs = tree / "tests/repo/test_docs.py"
-        docs.write_text(docs.read_text() + "\n# a hand edit\n")
+        docs.write_text(docs.read_text() + "\nHAND_EDIT = 1  # code: a comment alone adds nothing (round 16)\n")
         self.assertIn("changed tests/repo/test_docs.py; run nested", triggered(tree, env).get("scaffold", ""))
 
     def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3

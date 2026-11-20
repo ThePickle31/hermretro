@@ -3,8 +3,8 @@
 A body is often written from the plan before the code, and a name the code then changed (`games.rom_path`, renamed
 `games.built_rom` while building) stays in the body the owner reads. ship and check's last line name each
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
-and each backtick-quoted repository path the branch's diff does not touch: a slash in it and its top folder one of the
-repository's (TOPS: `backend/x/y.py`, `tools/`), never a bare file name (`tools.py`, a caller cited as unchanged, or
+and each backtick-quoted repository path neither the branch's diff nor its own (non-merge) commits touch: a slash
+in it and its top folder one of the repository's (TOPS: `backend/x/y.py`, `tools/`), never a bare file name (`tools.py`, a caller cited as unchanged, or
 `games.json`, a runtime data file, are no claim the diff can check). Any such path
 there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
 phrase (CITATION: `checked against`, `comes from`, `see`, `documents`, `describes`, `how to use`, ...) to the
@@ -98,13 +98,25 @@ def quoted_paths(text: str) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+def own_commits_files(ctx) -> list[str]:
+    """The files the branch's own commits touched (merges left out): a merge of the base can drop a branch's edit
+    (a taken-over branch), and the body still describes what the branch did. No rename detection: a rename counts
+    both paths, as repo.changed_files does."""
+    code, out, _err = repo.run(
+        ["git", "log", "--no-merges", "--no-renames", "--name-only", "--format=", f"{ctx.remote_base}..HEAD"], ctx.top
+    )
+    return [line for line in out.splitlines() if line.strip()] if code == 0 else []
+
+
 def untouched(ctx, text: str | None) -> list[str]:
-    """The quoted paths the branch's changes (committed, uncommitted and new files) do not touch: no changed file is
-    that path, ends with it (a bare file name), or lies under it (a folder)."""
+    """The quoted paths the branch's changes (committed, uncommitted and new files) do not touch, nor its own
+    commits before a merge dropped their edit (own_commits_files): no such file is that path, ends with it (a bare
+    file name), or lies under it (a folder)."""
     paths = [path for path in quoted_paths(text or "") if is_repo_path(path, Path(ctx.top))]
     changed = repo.changed_files(ctx.top, ctx.remote_base) if paths else []
     if not paths or changed is None:
         return []
+    changed = [*changed, *own_commits_files(ctx)]
     return [
         path
         for path in paths

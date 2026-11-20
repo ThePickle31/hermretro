@@ -63,10 +63,10 @@ def filled_by(text: str, slot: str, page: str, component: str) -> str | None:
     if not found:
         return None
     block = found.group(0)
-    start = re.search(rf"declares `{re.escape(slot)}`", block)
+    start = re.search(rf"declares\s+`{re.escape(slot)}`", block)
     if not start:
         return None
-    after = re.search(r"(?:,\s*|\.\s+|;\s*)(?:declares `|[cC]ontributes\b)", block[start.end() :])
+    after = re.search(r"(?:,\s*|\.\s+|;\s*)(?:(?:Also\s+)?declares\s+`|[cC]ontributes\b)", block[start.end() :])
     end = start.end() + after.start() if after else len(block.rstrip())
     said = block[start.end() : end].rstrip()
     sentence = f"{page} fills it with `{component}`."
@@ -88,6 +88,28 @@ def slots_line(text: str, said: str) -> str:
         return text
     rest = ". Contributes" if found.group(1) else ""
     return text[: found.start()] + f"**Slots:** {said}{rest}" + text[found.end() :]
+
+
+def also_declares(text: str, said: str) -> str:
+    """The README whose **Slots:** line declares a slot already with ``said`` ('declares `<page>.<name>`: <doc>')
+    as a sentence of its own after the slots it declares: 'Also declares `<page>.<name>`: <doc>.', before its
+    Contributes sentence (a lowercase ', contributes ...' becomes one); unchanged without such a line."""
+    found = slots_block(text)
+    if not found or "declares none" in found.group(0) or said.split(":")[0] in " ".join(found.group(0).split()):
+        return text
+    block = found.group(0).rstrip()
+    sentence = f"Also {said}."
+    tail = re.search(r"(?:[,;]\s*|\.\s+)([cC])ontributes\b", block)
+    if tail:
+        joined = block[: tail.start()].rstrip(".") + ". " + sentence + " Contributes" + block[tail.end() :]
+    else:
+        joined = block.rstrip(".") + ". " + sentence
+    return text[: found.start()] + joined + text[found.start() + len(block) :]
+
+
+def declares_line(text: str, said: str) -> str:
+    """`new slot`'s edit of the page README: slots_line for a page that declares none, else also_declares."""
+    return also_declares(slots_line(text, said), said)
 
 
 TAKEN = re.compile(r"\(((?:`[\w-]+`(?:, | and ))*`[\w-]+`) (?:is|are) taken")

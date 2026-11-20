@@ -227,12 +227,15 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
         key = f"[ID, '{name}']" if only else f"[ID, '{name}', shell.viaProfile]"
         steps.append(
             f"in a page, put useQuery({{ queryKey: {key}, queryFn: () => {call}({constant}) }}) {imports} in the "
-            "page's own Page component (e.g. Games in page/pages/games/games-page.js) and pass the result down as a "
-            "prop" + ("" if only else " (viaProfile only with callStudio: the answer depends on the profile)")
+            "page's own Page component, or a hook it calls (as page/pages/setup/install/installer.js's useInstall "
+            "does for the Setup page), and pass the result down as a prop"
+            + ("" if only else " (viaProfile only with callStudio: the answer depends on the profile)")
         )
     steps += [
         f"keep the queryKey's second word '{name}': page tests answer by it, scenario.{name} = answered({{ ok: "
         "true, ... }) (tests/page/harness.mjs), set before the page renders; extend tests/page/page-<page>.test.mjs",
+        f"a page test can assert the page asked for it: scenario.queries.some(q => q.key === '{name}') (the stub's "
+        "useQuery records each query, tests/page/sdk-stub.mjs)",
         "a page that reads a new shell field adds it to its fixture in tests/page/shells.mjs (homeShell())",
         f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
         "if a page shows it, describe it in that page's README **Shows:** line and as a bullet in its `### <Page>` "

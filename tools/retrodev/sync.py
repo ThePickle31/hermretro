@@ -124,12 +124,14 @@ def distinctive_lines(ours: str) -> list[str]:
 
 def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
     """(the file on the base branch that holds the hunk's most distinctive line, that line) by `git grep -l -F`,
-    trying the longest lines first; (None, the longest line) when no other file has any of them."""
+    trying the longest lines first; (None, the longest line) when no other file has any of them. A generated file
+    (policy.toml [generated]: the page bundle holds every page source's lines) is never the answer: nobody edits it."""
     lines = distinctive_lines(ours)
+    generated = set(ctx.policy["generated"]["files"])
     for line in lines[:TRIED_LINES]:
         code, stdout, _err = repo.run(["git", "grep", "-l", "-F", "-e", line, ctx.remote_base, "--"], ctx.top)
         files = [hit.partition(":")[2] for hit in stdout.splitlines() if hit.strip()] if code == 0 else []
-        files = [found for found in files if found and found != name]
+        files = [found for found in files if found and found != name and found not in generated]
         if files:
             return files[0], line
     return None, lines[0] if lines else None
@@ -354,5 +356,16 @@ def run(ctx) -> int:
 
 
 def _next(ctx) -> int:
-    ctx.out.say("next: python tools/retrodev check, then ship again")
+    """status's next step for this branch (a plan still to write or approve comes first); its bare check step
+    names the ship after it: `ship` before the branch has a pull request, `ship again` once it has one."""
+    from . import state, status  # status imports this module
+
+    branch = repo.branch(ctx.top)
+    record = state.load_branch(ctx.top, branch) if state.branch_path(ctx.top, branch).is_file() else {}
+    facts = status.branch_facts(ctx, branch, ctx.top, record, with_ci=False)
+    line = status.next_step(facts)
+    if line.endswith(" check"):
+        line += ", then ship again" if facts.get("pr") else ", then ship"
+    ctx.out.say(line)
+    ctx.out.set(next=line)
     return 0

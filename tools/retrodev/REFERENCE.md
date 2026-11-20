@@ -158,7 +158,8 @@ line) warns, never fails, about each backtick-quoted identifier of its What chan
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
 files: a name renamed while building (`games.built_rom`); and about each backtick-quoted repository path there (a slash in it, under
 one of the repository's top folders: `tools/retrodev/sync.py`, `backend/library/`, `desktop/plugin.js`) that the
-branch's changes do not touch (a renamed file counts at both its old and its new path). A bare file name (`sync.py`,
+branch's changes do not touch (a renamed file counts at both its old and its new path; so does a file the branch's own
+non-merge commits changed, even when a merge with `dev` dropped that edit). A bare file name (`sync.py`,
 `games.json`), a path under `engine/` and a path a citation clause holds (`checked against`, `see`, `comes from` ...)
 never warn. The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
@@ -213,13 +214,16 @@ lookup prints the same note as ship (also in `report`)
 them, finishes the merge. Any other conflict: stops with the source files and leaves the merge open (for a hunk whose
 `dev` side is empty, the FIX adds `<file>:<lines>: dev moved this block to <file> (or deleted it); delete the HEAD side
 of this hunk, git add, sync again, then add your lines in <file> in a new commit`, the file found by `git grep -l -F`
-on `origin/dev` for the hunk's longest distinctive line (one it holds once, of 8 characters or more), with \`git log -p
+on `origin/dev` for the hunk's longest distinctive line (one it holds once, of 8 characters or more; never a
+`[generated]` file such as `desktop/plugin.js`: the source it moved to), with \`git log -p
 origin/dev -S<that line>\` to show the move; the whole tree, since blocks move into tests too; when no other file has
 any of its lines: `dev deleted this block`, the same steps); resolve only the conflict in the merge (never the generated ones), `git add` those files and run `sync` again:
 it rebuilds the generated files and makes the merge commit (no `git commit` by hand). If `dev` rewrote the code your
 side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync,
 and where: for a table row of a markdown file, the subsection headed with the row's first cell (else the most alike
 heading and its lines, never a table row); when two places match about as well, `git diff HEAD...origin/dev -- <file>`.
+After the merge its `next:` line is `status`'s next step (a plan to write or approve first; `check, then ship` before the branch has a pull request,
+`check, then ship again` once it has one).
 When the resolved conflicts hold lines neither side had (only the files that were in conflict count; binary files are
 read as bytes and never counted; compared word by word with line breaks and spaces normalised, so a paragraph rewrapped
 around an edit from each side adds nothing), it warns `new work belongs in its own commit after sync (a resolution over N lines
@@ -355,7 +359,9 @@ that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFO
 runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
 copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
 (`policy.toml` `[checks.nested_triggers]`; never the generated `tests/repo/registration.json` that `new tool` and
-`new rpc` rewrite); a fast-mode pass never stands for a nested one.
+`new rpc` rewrite, nor a change to one of them made only of comments, docstrings or blank lines: the two sides'
+syntax trees without docstrings for Python, the text without its comments for `.js`/`.mjs`; a file it cannot read
+for sure counts as changed); a fast-mode pass never stands for a nested one.
 
 ### `new feature <name> [--purpose "..."]`
 
@@ -560,7 +566,8 @@ parenthetical dropped; a Page moved out of `index.js` whose page
 `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the
 README's **Slots:** line (``declares `<page>.<name>`: <doc, its first letter lowercased>. Contributes none.``, as
 `page/pages/emulator/README.md` writes it: the doc's `{ ... }` props objects and identifiers such as `hardwareOn` or
-`go(pageId)` in backticks, the paragraph wrapped at 120 columns); then
+`go(pageId)` in backticks, the paragraph wrapped at 120 columns; on a page whose line declares a slot already, the
+sentence ``Also declares `<page>.<name>`: <doc>.`` after the slots it declares, before its Contributes sentence); then
 the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's; the next steps add the `HOSTS` recipe in
 `tests/page/slots.test.mjs`, and `new contribution` fills it from another page
 
