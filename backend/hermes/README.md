@@ -1,6 +1,6 @@
 # backend/hermes
 
-The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in `USED`), how features declare what they add (`declare.py`), the helpers every feature's Hermes side shares and the engine tool handler (`host.py`), the engine's pinned tool contracts (`contracts.py`) and result shaping (`results.py`). Importing it hands Hermes's answer for its home to `backend.system` (`__init__.py`).
+The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in `USED`), how features declare what they add (`declare.py`), the helpers every feature's Hermes side shares and the engine tool handler (`host.py`), the engine's pinned tool contracts (`contracts.py`), result shaping (`results.py`) and the helpers any feature's tool uses (`tool_args.py`: `tool_error`, `tool_project`). Importing it hands Hermes's answer for its home to `backend.system` (`__init__.py`).
 
 ## What it adds
 
@@ -12,7 +12,7 @@ The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in 
 
 ## Front door
 
-A shared layer: features import `backend.hermes.host` (shared helpers, called as `host.<name>` so one test patch reaches every module) and `backend.hermes.declare`. The layer itself reaches features only through their front doors. Hermes is imported only in `api.py`.
+A shared layer: features import `backend.hermes.host` (shared helpers, called as `host.<name>` so one test patch reaches every module), `backend.hermes.declare` and `backend.hermes.tool_args`. The layer itself reaches features only through their front doors. Hermes is imported only in `api.py`.
 
 ## Tests
 

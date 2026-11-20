@@ -302,6 +302,37 @@ class LockStep(unittest.TestCase):
             next(line for line in read("backend/library/README.md").splitlines() if "- `pending`:" in line),
         )
 
+    def test_a_stated_page_count_is_the_real_one(self):
+        """A doc that counts the studio's pages ('six pages') counts PAGES in page/pages/index.js (better: no count)."""
+        found = re.search(r"PAGES = \[([^\]]*)\]", read("page/pages/index.js"))
+        assert found is not None, "page/pages/index.js: export const PAGES = [...]"
+        real = len([name for name in found.group(1).split(",") if name.strip()])
+        words = [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ]
+        for rel in ("README.md", "docs/dev/CONTRACT.md", "docs/dev/STUDIO-PAGES.md"):
+            for line, text in enumerate(read(rel).splitlines(), 1):
+                for count in re.findall(r"\b(\d+|" + "|".join(words) + r") (?:studio )?pages\b", text, re.I):
+                    stated = int(count) if count.isdigit() else words.index(count.lower())
+                    self.assertEqual(
+                        stated,
+                        real,
+                        f"{rel}:{line} says {count} pages; page/pages/index.js PAGES has {real}\n"
+                        "FIX: drop the count (say 'its pages'), or write the real one",
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
