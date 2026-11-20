@@ -7,5 +7,8 @@ Front door: nothing is exported.
 __all__: list[str] = []
 
 EVENTS = {
-    "history.build_kept": "A successful build of a library game was kept as a snapshot; game=<id>, root=<project>",
+    "history.build_kept": (
+        "A successful build of a library game was kept as a snapshot; game=<library id, str>, "
+        "root=<the real project folder, pathlib.Path>"
+    ),
 }

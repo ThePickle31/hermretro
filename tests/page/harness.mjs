@@ -96,7 +96,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     registerMany: list => registrations.push(...list),
     setTimeout: (fn, ms) => { const id = setTimeout(fn, 0); return () => clearTimeout(id) },
     setInterval: (fn, ms) => { intervals.push({ fn, ms }); return () => { intervals.splice(intervals.findIndex(i => i.fn === fn), 1) } },
-    os: { writeClipboard: async () => true, openExternal: async () => true, revealPath: async path => { scenario.revealed = path; return true } },
+    os: { writeClipboard: async value => { scenario.clipboard.push(value); return true }, openExternal: async () => true, revealPath: async path => { scenario.revealed = path; return true } },
     storage: { get: (key, fallback) => scenario.storage[key] ?? fallback, set: (key, value) => { scenario.storage[key] = value } }
   }
   plugin.register(ctx)

@@ -17,7 +17,7 @@ export const GAMES_PAGE = {
   },
   slots: {
     'games.cardMenu':
-      "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button."
+      "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
   },
   contributes: {
     'emulator.barActions': [InstallButton]

@@ -9,6 +9,8 @@ import { jsx } from 'react/jsx-runtime'
 export const scenario = {
   status: null, doctor: null, activity: null, queries: [], notices: [], navigations: [], storage: {},
   fns: {}, byMethod: {}, inserted: [], paramsByMethod: {}, ambient: null, routes: [], byProfile: {}, calls: [],
+  // What the page copied (ctx.os.writeClipboard, in order) and showed (host.notify: { kind, message }).
+  clipboard: [],
   // Gateway event listeners (host.onEvent) and the workspace tabs a plugin opened (host.openWorkspace).
   events: {}, workspaces: [],
   // The query client's cache (setQueryData / getQueryData), keyed by JSON.stringify(queryKey).
