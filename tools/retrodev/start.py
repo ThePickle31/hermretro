@@ -131,5 +131,6 @@ def body_note(ctx, branch: str, record: dict) -> str | None:
         ctx.out.say(
             f"wrote {written}: the pull request body (Why, What changed and Not done from the plan); fill in the "
             "rest while you build, ship refuses it until every section says something"
+            + gates.agent_hint(written.read_text(encoding="utf-8"))
         )
     return str(written or ship.default_body(ctx, branch, record))

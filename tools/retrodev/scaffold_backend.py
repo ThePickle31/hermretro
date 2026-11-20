@@ -27,7 +27,14 @@ from .scaffold import (
     readme_item,
     render,
 )
-from .scaffold_payload import emitter_values, events_payload, payload_keys, refuse_reserved_keys
+from .scaffold_payload import (
+    emitter_values,
+    events_payload,
+    payload_keys,
+    placeholders,
+    refuse_reserved_keys,
+    undescribed,
+)
 from .scaffold_source import add_event, files_line
 
 FEATURES = "backend/features.py"
@@ -36,7 +43,6 @@ ARCHITECTURE = "docs/dev/ARCHITECTURE.md"
 MANIFEST = "plugin.yaml"
 STEP_WORDS = "page/pages/build/transcript/step-words.js"
 TOOL_PREFIX = "chromatic_"
-STUDIO_PAGE = "page/app/studio-page.js"  # where the shell asks for its RPCs (the games query is the model)
 BIG_MODULE = 400  # lines: tests/repo/test_layout.py warns above it (and fails above 600)
 
 
@@ -225,35 +231,7 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
         plan.edit(f"backend/{feature_name}/README.md", lambda text: files_line(text, "RPCs", "rpcs.py", module))
     agent_half(plan, feature_name, lambda row: declares(row, "RPC", name))
     plan.regenerate = True
-    plan.next_steps += [
-        f"write the handler in {source} and its section in {CONTRACT} (params, result)",
-        f"call it from the page: import {{ RPC_{const(name)} }} from '#app/rpc.js' (re-exports the generated "
-        "rpc-names.js)",
-        f"ask for it as {STUDIO_PAGE} asks for games: useQuery({{ queryKey: [ID, '{name}', viaProfile], queryFn: () "
-        f"=> callStudio(RPC_{const(name)}), enabled }}) (useQuery from '#sdk', ID from '#app/ids.js', callStudio "
-        "from '#app/backend.js'; viaProfile and enabled: running, as there). Inside a page leave out enabled (a "
-        f"page renders only while the backend runs), use shell.viaProfile for the queryKey's third part, and keep "
-        f"that queryKey: its second word '{name}' is what the page tests answer",
-        "callStudio resolves to the RPC's answer itself (data.ok, ...); callBackend resolves to { data } (read "
-        ".data): page/app/backend.js",
-        f"page tests feed its answer by the query key's second word: scenario.{name} = answered({{ ok: true, ... }}) "
-        "(tests/page/harness.mjs), set before the page renders: the stub's useQuery reads it at render time",
-        f"RPC names are global and flat: the page calls plugin.hermretro.{name}, whatever feature declares it",
-        "in a page: put the useQuery in the page's own Page component (e.g. Games in page/pages/games/games-page.js) "
-        "and pass the result down as a prop; extend tests/page/page-<page>.test.mjs",
-        "if a page shows it, describe it in that page's README **Shows:** line and its row in docs/dev/STUDIO-PAGES.md",
-    ]
-    if game:
-        plan.next_steps += [
-            "its test registers a library game with tests.support.make_library_game(home, name) -> (game id, root), "
-            "home being what isolated_home(self) returns; host._game_root(game) gives the project root",
-            f"run the query in the component that has the game: queryKey: [ID, '{name}', viaProfile, game.id], "
-            f"queryFn: () => callStudio(RPC_{const(name)}, {{ game: game.id }}) (the game's id in the key, so each "
-            "game gets its own answer)",
-            "callStudio for an RPC about the library (player, captures: whichever profile answered status serves "
-            "it); callStudioOnly for one that reads or binds a profile's Build conversations (build, builds, "
-            "build_restore, asset*: the hermretro profile only), as page/app/backend.js says",
-        ]
+    plan.next_steps += scaffold_rpc.page_steps(plan, feature_name, name, source, game)
     return f"RPC {name}"
 
 
@@ -322,7 +300,15 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
         f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}; it runs "
         f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
+        f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
+        f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",
     ]
+    bare = undescribed(payload) if keys else []
+    if bare:
+        plan.next_steps.append(
+            f"replace the <...> placeholders in {door} EVENTS ({placeholders(bare)}) with what each key holds "
+            "(game=<id>, root=<project>); new listener copies that entry into its listener's docstring"
+        )
     return f"event {full}"
 
 

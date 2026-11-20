@@ -24,6 +24,21 @@ def events_payload(payload: str) -> str:
     return ", ".join(part for part in parts if part)
 
 
+def undescribed(payload: str) -> list[str]:
+    """The keys of a payload (a --payload line or an EVENTS entry's) that say nothing of what they hold: bare
+    ('root') or still the placeholder ('root=<...>'), which events_payload writes as `key=<...>`."""
+    keys = []
+    for part in split_parts(payload):
+        found = re.match(r"\s*([A-Za-z_]\w*)\b\s*(=\s*<\.\.\.>)?\s*$", part)
+        if found:
+            keys.append(found.group(1))
+    return list(dict.fromkeys(keys))
+
+
+def placeholders(keys: list[str]) -> str:
+    return ", ".join(f"{key}=<...>" for key in keys)
+
+
 def split_parts(payload: str) -> list[str]:
     """The comma-separated parts of a --payload line, a comma inside brackets kept in its part."""
     parts, depth, current = [], 0, ""

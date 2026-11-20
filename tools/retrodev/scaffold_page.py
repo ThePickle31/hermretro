@@ -221,6 +221,12 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             f"remove '{page_id}' from PAGE_IN_INDEX in {REGISTRY_TEST}: its Page is no longer defined in index.js "
             "(new leaves tests/page to you)"
         )
+    under = shell_below(plan.read(door))
+    if under:
+        plan.next_steps.append(
+            f"the shell's player and BelowPlayer stay under every tab: page/app/studio-page.js draws them after the "
+            f"page's body (tab bar and tab), as {page_id}'s descriptor asks ({under})"
+        )
     if tabs == 1:
         plan.next_steps.append(
             f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
@@ -236,6 +242,13 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             )
         )
     return f"tab {page_id}/{tab_id}" + (" (from the page's Page)" if from_page else "")
+
+
+def shell_below(text: str) -> str:
+    """The descriptor's fields that make the shell draw something below the page's body ('pad', 'BelowPlayer')."""
+    _name, first, end = descriptor(text)
+    body = text.split("\n")[first + 1 : end]
+    return ", ".join(f for f in ("pad", "BelowPlayer") if any(re.match(rf"^  {f}\b", line) for line in body))
 
 
 def page_in_index(plan: Plan, page_id: str) -> bool:

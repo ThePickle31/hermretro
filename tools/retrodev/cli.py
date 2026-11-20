@@ -4,7 +4,8 @@
   6 approve <pr>   7 land <pr> (reviews, CI, merge; answer <pr> ... between rounds)   8 summary <pr>
   any time: status (the next step), doctor, sync, gc, config
   reach: try <pr> (its full checks in a throwaway checkout), mac (the checks on a MacBook), preview (the page)
-  build: new feature|rpc|tool|event|listener|page|tab|slot (code, tests, docs, registry line); stats; engine update <v>
+  build: new feature|rpc|tool|event|listener|page|tab|slot|contribution (code, tests, docs, registry line); stats;
+  engine update <v>
   releases, only when the owner says 'make a release': release prepare, release publish, release verify
 
 Exit codes: 0 ok, 1 failed, 2 still waiting, 3 needs the owner. Every failure ends with a FIX: line.
@@ -185,7 +186,8 @@ def releases(sub, common) -> None:
 
 def scaffolds(sub, common) -> None:
     help_text = (
-        "add a feature, rpc, tool, event, listener, page, tab or slot: code, its test, docs and the registry line"
+        "add a feature, rpc, tool, event, listener, page, tab, slot or contribution: code, its test, docs and the "
+        "registry line"
     )
     p = sub.add_parser("new", help=help_text, description=help_text, parents=[common])
     kinds = p.add_subparsers(dest="kind", required=True, metavar="<kind>")
@@ -248,8 +250,8 @@ def scaffolds(sub, common) -> None:
     event.add_argument(
         "--payload",
         action="append",
-        help="the keyword arguments it carries: comma-separated ('game=<id>, root') or repeated (--payload game "
-        "--payload root), or both",
+        help="the keyword arguments it carries, each with what it holds: comma-separated ('game=<id>, root=<project>') "
+        "or repeated (--payload 'game=<id>' --payload 'root=<project>'); a bare key is written key=<...> to fill in",
     )
     event.add_argument(
         "--when",
@@ -270,12 +272,31 @@ def scaffolds(sub, common) -> None:
     kind("slot", "a slot the page declares for other pages to fill", "page", "name").add_argument(
         "--doc", help="one line: where it is, and the props it passes"
     )
+    kind(
+        "contribution",
+        "a component of <page> in another page's declared slot: its stub, contributes in index.js, the README and the "
+        "registry test's filled assertion",
+        "page",
+        "slot",
+    ).add_argument("component", metavar="Component", help="the component's name, PascalCase (e.g. InstallButton)")
 
 
 def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     command = args.command
     if command == "new":
-        for missing in ("target", "purpose", "step", "payload", "when", "module", "project", "label", "doc", "game"):
+        for missing in (
+            "target",
+            "purpose",
+            "step",
+            "payload",
+            "when",
+            "module",
+            "project",
+            "label",
+            "doc",
+            "game",
+            "component",
+        ):
             setattr(args, missing, getattr(args, missing, None))
         if isinstance(args.payload, list):  # --payload repeated: one comma-separated line
             args.payload = ", ".join(part.strip() for part in args.payload if part.strip()) or None

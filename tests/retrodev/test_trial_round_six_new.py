@@ -19,7 +19,7 @@ from pathlib import Path
 import retrodev
 
 from tests.repo.test_placeholders import PLACEHOLDERS
-from tests.retrodev.fixture import git, parallel, write
+from tests.retrodev.fixture import git, parallel, retrodev_docs, write
 from tests.retrodev.scaffold_moves import needs_acorn
 from tests.retrodev.test_scaffold import ScaffoldCase
 from tests.retrodev.test_trial_round_five import OWN, inline_page
@@ -49,10 +49,10 @@ class Event(ScaffoldCase):
             "| `history.rdprobe_three` | `game`, `root`, `count` | it counted |", self.read("docs/dev/CONTRACT.md")
         )
         self.assertIn("(game, root=<project>, count)", self.read("backend/history/emits.py"))
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
-        row = next(line for line in readme.splitlines() if line.startswith("| `new event "))
+        reference = retrodev_docs("REFERENCE.md")
+        row = reference[reference.index("### `new event ") :].split("\n\n")[1]  # its section's paragraph
         self.assertIn("either way: comma-separated", row)
-        self.assertIn("or repeated (`--payload game --payload root`)", row)
+        self.assertIn("or repeated (`--payload 'game=<id>' --payload 'root=<project>'`)", row)
 
 
 class Tab(ScaffoldCase):

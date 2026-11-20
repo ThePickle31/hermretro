@@ -10,8 +10,9 @@ Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept p
 and prints "ok (cached)" while nothing it reads changed. When every check the branch needs has passed on the
 current tree, that tree's digest is recorded with the names of those checks: ship pushes only a tree that passed
 everything the policy requires of it now. Times are printed against the budgets in policy.toml (measured cold
-runs); a check over its budget twice in a row on the branch (each run's time is recorded) gets a warning that it
-is slower than usual, never a failure: one slow run is load or a cold cache, not news.
+runs); a check over its budget twice in a row on the branch (each passing run's time is recorded: a failure stops
+early or late, so its time says nothing of speed) gets a warning that it is slower than usual, never a failure: one
+slow run is load or a cold cache, not news.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from . import repo, state
 from .checks_run import (  # noqa: F401 - the other modules and the tests use them from here
     CHECK_PY,
     LINT_FIRST,
+    PAGE_FIRST,
     UNIT_FIRST,
     ROW,
     SCRIPTS,
@@ -130,7 +132,8 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
                 "more": result["more"],
             }
         )
-    whole_fast = set(fast) >= set(ctx.policy["checks"]["fast"])
+    passing = all(results[name]["state"] == "ok" for name in fast)  # the wall of a run with a failure is no measure
+    whole_fast = set(fast) >= set(ctx.policy["checks"]["fast"]) and passing
     last = record.get("durations") or {}
     warnings = budget_warnings(ctx, rows, wall if fast else None, whole_fast, last)
     record["durations"] = durations(rows, wall if fast and whole_fast else None, last)
@@ -170,11 +173,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         for row in rows
         if row["state"] == "skipped" and row["name"] not in may_skip and row["name"] not in uncommitted
     ]
-    first = {
-        row["name"]: row["detail"]
-        for row in rows
-        if row["state"] == "skipped" and row.get("detail") in (LINT_FIRST, UNIT_FIRST)
-    }
+    first = {row["name"]: row["detail"] for row in rows if row["state"] == "skipped" and row.get("detail") in FIRST_FIX}
     blocked = list(first)
     skipped = [name for name in skipped if name not in blocked]
     if failed:
@@ -184,11 +183,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
             "python tools/retrodev check again (passing checks stay cached)",
         )
     if blocked:
-        fix = (
-            "python tools/check.py fix"
-            if first[blocked[0]] == LINT_FIRST
-            else "fix the unit failures (python tools/check.py unit)"
-        )
+        fix = FIRST_FIX[first[blocked[0]]]
         raise Failure(f"{blocked[0]}: {first[blocked[0]]}", f"{fix}, then python tools/retrodev check")
     if uncommitted:
         raise Failure(
@@ -217,6 +212,12 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
 
 
 FAST_TOTAL = "fast_total"
+# A check skipped because the tree already fails another (scaffold copies the tree): what to fix first.
+FIRST_FIX = {
+    LINT_FIRST: "python tools/check.py fix",
+    UNIT_FIRST: "fix the unit failures (python tools/check.py unit)",
+    PAGE_FIRST: "fix the page failures (python tools/check.py page)",
+}
 
 
 def over(ctx, name: str, seconds: float) -> bool:
@@ -225,11 +226,11 @@ def over(ctx, name: str, seconds: float) -> bool:
 
 
 def durations(rows: list[dict], wall: float | None, before: dict) -> dict:
-    """{check: seconds} of each check's latest run on the branch (fast_total: the fast checks together, when all
-    of them ran). A cached row or a check that did not run keeps its last run's time."""
+    """{check: seconds} of each check's latest passing run on the branch (fast_total: the fast checks together, when
+    all of them ran and passed). A cached, failed or skipped row keeps its last passing run's time."""
     found = dict(before)
     for row in rows:
-        if not row["cached"]:
+        if not row["cached"] and row["state"] == "ok":  # only a passing run measures the check
             found[row["name"]] = round(float(row["seconds"]), 1)
     if wall is not None:
         found[FAST_TOTAL] = round(wall, 1)
@@ -247,6 +248,7 @@ def budget_warnings(
         limit = budget(ctx, row["name"])
         if (
             not row["cached"]
+            and row["state"] == "ok"
             and over(ctx, row["name"], row["seconds"])
             and over(ctx, row["name"], before.get(row["name"], 0.0))
         ):

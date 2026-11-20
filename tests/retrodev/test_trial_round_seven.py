@@ -16,8 +16,9 @@ from types import SimpleNamespace
 
 import retrodev
 from retrodev import ship, state
+from retrodev.gates import agent_hint  # the Made by hint after check's body line (round nine)
 
-from tests.retrodev.fixture import FILLED_PLAN, RepoCase, git, parallel, write
+from tests.retrodev.fixture import FILLED_PLAN, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_trial_round_six import line_with
 
 load_tests = parallel
@@ -85,8 +86,8 @@ class Takeover(RepoCase):
         self.assertEqual(code, 0, out)
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         read = (
-            "read `git diff HEAD...origin/dev -- backend/library/core.py` before writing the plan (origin/dev changed "
-            "these files of the branch too)"
+            "read `git diff HEAD...origin/dev -- backend/library/core.py` and `git log --oneline HEAD..origin/dev -- "
+            "backend/library/core.py` before writing the plan (origin/dev changed these files of the branch too)"
         )
         self.assertEqual(steps[1], read)
         self.assertTrue(steps[2].startswith("python tools/retrodev plan new mate"), steps)
@@ -252,7 +253,7 @@ class Body(RepoCase):
         github = SimpleNamespace(remote="gh", top=self.main)
         git(self.main, "remote", "add", "gh", "git@github.com:someone/hermretro.git")
         self.assertEqual(ship.made_by(github), "Made by an agent (Hermes) for @someone.")
-        readme = (ROOT / "tools/retrodev/README.md").read_text()
+        readme = retrodev_docs()
         self.assertIn("`Made by an agent for the owner.`", readme)
         self.assertIn("add the agent and model if known", readme)
 
@@ -265,7 +266,7 @@ class Body(RepoCase):
         self.assertEqual(
             out.strip().splitlines()[-1],
             f"next: fill in How verified, Risk and rollback in {path}, then python tools/retrodev ship --title "
-            "'<one plain sentence>'",
+            "'<one plain sentence>'" + agent_hint(None),
         )
         path.write_text(path.read_text().replace("## Risk and rollback\n", "## Risk and rollback\nLow.\n"))
         _code, out = self.run_cli("check", cwd=tree)

@@ -284,6 +284,7 @@ def scaffold_fix(test: list[str]) -> str:
 
 
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
+PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # the scaffold test's base page tests failed
 
 
 def check_scaffold(_args) -> str:
@@ -294,8 +295,9 @@ def check_scaffold(_args) -> str:
     test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
     # RD_SCAFFOLD_FULL=nested (CI's page job) adds every kind on the real features and the full suites there
     result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": os.environ.get("RD_SCAFFOLD_FULL") or "1"})
-    if not result.returncode and "skipped 'the tree fails unit (fix unit first)" in result.stderr:
-        raise Skip(UNIT_FIRST)
+    for first in (UNIT_FIRST, PAGE_FIRST):  # the tree failed before new ran: that failure is the one to fix
+        if not result.returncode and f"skipped '{first.removeprefix('skipped: ')}" in result.stderr:
+            raise Skip(first)
     if result.returncode or " skipped " in result.stderr:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"

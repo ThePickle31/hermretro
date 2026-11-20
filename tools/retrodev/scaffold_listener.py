@@ -15,7 +15,7 @@ import re
 from .output import Failure
 from .scaffold import Plan, in_section, label, pascal, render
 from .scaffold_backend import ARCHITECTURE, CONTRACT, known_feature
-from .scaffold_payload import emitter_values, payload_keys, split_parts
+from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, undescribed
 from .scaffold_source import module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -209,6 +209,14 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         f"test what the listener does, not only that it runs: in {test}, call {func} with a real payload and "
         "assert what it changed",
     ]
+    entry = declared[event] or ""
+    bare = [key for key in undescribed(entry.partition("; ")[2]) if f"{key}=<...>" in entry]
+    if bare:
+        owner = event.partition(".")[0]
+        plan.next_steps.append(
+            f"{func}'s docstring copies {event}'s EVENTS entry, whose placeholders {placeholders(bare)} say nothing "
+            f"yet: replace them there and in backend/{owner}/__init__.py EVENTS with what each key holds"
+        )
     if {"path", "root"} & set(keys) and "game" not in keys:
         plan.next_steps.append(
             "find the library game with host.library_game_for([path]); in tests register one with "

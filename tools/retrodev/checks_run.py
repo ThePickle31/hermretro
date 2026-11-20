@@ -101,6 +101,7 @@ def run_check_py(ctx, names: list[str], env: dict, record: dict | None = None, i
 
 LINT_FIRST = "skipped: the tree fails lint (fix lint first)"
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # tools/check.py scaffold's skip in its nested mode
+PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # tools/check.py scaffold's skip: base page tests fail
 
 
 def fails_lint(ctx, results: dict, record: dict, ids: dict) -> bool:

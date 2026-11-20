@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import os
 import subprocess
 import sys
@@ -335,3 +336,11 @@ class RepoCase(unittest.TestCase):
 
 
 PYTHON = sys.executable
+
+
+def retrodev_docs(*names: str) -> str:
+    """tools/retrodev's README.md and REFERENCE.md (or the ones named), each paragraph on one line: their pins
+    match text whatever the wrapping and whichever file holds it."""
+    folder = Path(__file__).resolve().parents[2] / "tools" / "retrodev"
+    texts = [(folder / name).read_text(encoding="utf-8") for name in names or ("README.md", "REFERENCE.md")]
+    return "\n\n".join(re.sub(r"(?<!\n)\n(?!\n)", " ", text) for text in texts)

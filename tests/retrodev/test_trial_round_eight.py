@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from retrodev import doctor, plan
+from retrodev.gates import agent_hint  # the Made by hint after check's body line (round nine)
 
 from tests.retrodev.fixture import FILLED_PLAN, RepoCase, git, parallel, write
 from tests.retrodev.test_trial_round_six import line_with
@@ -152,7 +153,7 @@ class TitleAndBody(RepoCase):
         self.assertEqual(
             out.strip().splitlines()[-1],
             f"next: fill in the pull request body (missing: {body}; ship writes it from the template), then python "
-            "tools/retrodev ship --title 'Nobody gets a body'",
+            "tools/retrodev ship --title 'Nobody gets a body'" + agent_hint(None),
         )
         _code, out = self.run_cli("status", cwd=tree)
         self.assertIn("ship --title 'Nobody gets a body'", out)

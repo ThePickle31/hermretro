@@ -189,6 +189,7 @@ def tool(
             else ""
         ),
         f"the Build page shows it as '{running}' / '{done}' ({STEP_WORDS}; change both sides together)",
+        f"tests/backend/{feature_name}/test_tool_{short}.py pins the stub's answer: change it with the real answer",
     ]
     codes = error_codes(plan)
     if codes:
