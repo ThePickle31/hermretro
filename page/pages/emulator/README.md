@@ -23,7 +23,7 @@ presentation and refreshes open players after builds.
 **Uses from other pages:** `#pages/build/index.js` (is a session a Build conversation, which game Build shows,
 tool results).
 
-**Tests:** `tests/page/page-games.test.mjs` (the Emulator page and the tab beside the chat),
+**Tests:** `tests/page/page-emulator.test.mjs` (the Emulator page), `tests/page/page-emulator-side.test.mjs` (the tab beside the chat),
 `tests/page/registry.test.mjs` (also: an `emulator.barActions` contribution gets `go` on the page, not beside the
 chat).
 

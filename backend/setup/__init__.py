@@ -12,6 +12,6 @@ from .provision import seed_toolchain_cache
 __all__ = ["directory_bytes", "install_progress", "seed_toolchain_cache"]
 
 EVENTS = {
-    "setup.tools_removed": "Setup removed the downloaded tools; root=<the emptied folder>",
-    "setup.studio_profile_ready": "The hermretro studio profile was finished; profile=<its name>",
+    "setup.tools_removed": "Setup removed the downloaded tools; root=<the emptied download folder, str>",
+    "setup.studio_profile_ready": "The hermretro studio profile was finished; profile=<the profile name, str>",
 }
