@@ -61,6 +61,7 @@ MAX_GENRES = 3
 MAX_TAGS = 12
 MAX_TAG_CHARS = 24
 MAX_CONTROLS = 12
+MAX_BUTTON_CHARS = 20
 MAX_CONTROL_CHARS = 60
 TEXT_FIELDS = ("title", "tagline", "description", "about")
 REQUIRED = ("title", "tagline", "description", "genres", "cover")
@@ -357,8 +358,14 @@ def _controls_problem(value) -> str | None:
         return "controls must map a button to what it does, e.g. {\"A\": \"jump\"}."
     if len(value) > MAX_CONTROLS:
         return f"At most {MAX_CONTROLS} controls."
-    if any(not k.strip() or not v.strip() or len(k) > 20 or len(v) > MAX_CONTROL_CHARS for k, v in value.items()):
-        return f"Each control is a button name and what it does (up to {MAX_CONTROL_CHARS} characters)."
+    if any(
+        not k.strip() or not v.strip() or len(k) > MAX_BUTTON_CHARS or len(v) > MAX_CONTROL_CHARS
+        for k, v in value.items()
+    ):
+        return (
+            f"Each control is a button name (up to {MAX_BUTTON_CHARS} characters) and what it does "
+            f"(up to {MAX_CONTROL_CHARS} characters)."
+        )
     return None
 
 

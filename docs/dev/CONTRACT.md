@@ -253,8 +253,9 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 - **Required to present:** title (1–60), tagline (8–90), description (40–400), 1–3 genres from `Action,
   Adventure, Arcade, Exploration, Platformer, Puzzle, Racing, Role-playing, Rhythm, Shooter, Simulation,
   Sports, Strategy, Story, Other`, and a cover. Placeholder words (TODO, TBD, lorem ipsum, …) do not count.
-  Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12).
-- **Cover:** a PNG, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
+  Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12, button ≤20 chars, action ≤60 chars).
+  `game.json` is at most 64 KB.
+- **Cover:** a PNG of at most 512 KB, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
   Image Generation), not an unchanged copy of an image under `assets/`. Read by `backend/library/game_card.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
