@@ -82,9 +82,9 @@ class NestedScaffold(RepoCase):
         self.assertNotEqual(fast, deep)
         self.assertIn("scaffold_nested", ctx.policy["checks"]["budgets"])
         self.assertGreater(checks.budget(ctx, "scaffold_nested"), checks.budget(ctx, "scaffold"))
-        rows = [{"name": "scaffold", "state": "ok", "seconds": 150.0, "cached": False, "budget": "scaffold_nested"}]
-        self.assertEqual(checks.budget_warnings(ctx, rows, None, False, {"scaffold_nested": 150.0}), [])
-        self.assertEqual(checks.durations(rows, None, {}), {"scaffold_nested": 150.0})
+        rows = [{"name": "scaffold", "state": "ok", "seconds": 120.0, "cached": False, "budget": "scaffold_nested"}]
+        self.assertEqual(checks.budget_warnings(ctx, rows, None, False, {"scaffold_nested": 120.0}), [])
+        self.assertEqual(checks.durations(rows, None, {}), {"scaffold_nested": 120.0})
 
 
 class BodyBareNames(RepoCase):
