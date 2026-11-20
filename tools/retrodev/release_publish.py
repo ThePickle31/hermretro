@@ -12,7 +12,11 @@ pass is kept for that commit and starting release, so release verify does not ru
                                            which the local guard hooks require
     git tag -a v<version> <sha>            annotated
     git push <remote> refs/tags/v<version>
-    gh release create v<version> --verify-tag --generate-notes --notes-start-tag v<previous stable> --draft
+    gh release create v<version> --verify-tag --notes-file <notes> --draft
+
+The notes are written first (release_notes.py: New, Fixes and improvements, Behind the scenes from the pull requests
+since the previous stable tag; how to update; what was tested; the real-machine checklist, from the record's
+"checklist" when the owner ran it) into <state>/releases/<version>-notes.md.
 
 A release candidate (X.Y.Z-rc.M) is tagged on the base-branch commit with --prerelease; main does not move.
 --dry-run fetches nothing, runs nothing and changes nothing: it prints the gates and every command.
@@ -24,7 +28,7 @@ import json
 import os
 import shlex
 
-from . import gates, github, release, repo, state, trial
+from . import gates, github, release, release_notes, repo, state, trial
 from .gates import Gate
 from .output import OWNER, WAITING, Failure, cmd
 
@@ -143,11 +147,13 @@ def main_gate(ctx, sha: str, rc: bool) -> Gate:
     return gates.passed("main fast-forwards", f"{current[:9]} to {sha[:9]}")
 
 
+def notes_path(ctx, version: str):
+    return state.release_path(ctx.top, version).with_name(f"{version}-notes.md")
+
+
 def steps(ctx, version: str, sha: str, rc: bool, tag_now: str) -> list[dict]:
     tag = f"v{version}"
-    previous = release.previous_stable(ctx, version)
-    create = ["gh", "release", "create", tag, "--verify-tag", "--generate-notes"]
-    create += ["--notes-start-tag", f"v{previous}"] if previous else []
+    create = ["gh", "release", "create", tag, "--verify-tag", "--notes-file", str(notes_path(ctx, version))]
     create += ["--draft"] + (["--prerelease"] if rc else [])
     found = []
     if not rc:
@@ -201,9 +207,12 @@ def install_gate(ctx, rec: dict, sha: str, dry_run: bool, version: str) -> Gate:
     return gates.passed(name, result["detail"])
 
 
-def run(ctx, version: str, dry_run: bool = False) -> int:
+def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) -> int:
     rc = release.parse(version)[3] is not None
     rec = state.load_release(ctx.top, version)
+    if rec and checklist and checklist.strip() and not dry_run:
+        rec["checklist"] = checklist.strip()  # the owner's real-machine result, for the notes
+        state.save_release(ctx.top, rec)
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     found = []
@@ -254,12 +263,18 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
     if not dry_run:  # release verify --publish publishes only a tag at this commit
         rec["approved"] = {"sha": sha, "at": state.now(), "gates": [gate.name for gate in found]}
         state.save_release(ctx.top, rec)
+    if not dry_run and not todo[-1]["done"]:  # the notes, for gh release create (dry run: written by the real run)
+        previous = release.previous_stable(ctx, version)
+        text = release_notes.write(ctx, version, sha, previous, rec.get("checklist"), rc)
+        state.write_atomic(notes_path(ctx, version), text)
+        ctx.out.set(notes=str(notes_path(ctx, version)))
     if dry_run:
         ctx.out.say("would run:")
         for step in todo:
             ctx.out.say(("  (done) " if step["done"] else "  ") + shown(step))
         ctx.out.say("dry run: nothing was pushed, tagged or created")
         return 0
+    drafted = todo[-1]["done"]  # the draft existed before this run
     url = ""
     for step in todo:
         if step["done"]:
@@ -278,6 +293,14 @@ def run(ctx, version: str, dry_run: bool = False) -> int:
                 "read git's message; nothing later ran. Fix it, then python tools/retrodev release publish "
                 f"{version} again (it skips the steps that are done)",
             )
+    result = (checklist or "").strip() or rec.get("checklist")  # given now, or kept from an earlier run
+    if drafted and result:  # the draft was made before the result: its notes get it (each run, until they have it)
+        tag = f"v{version}"
+        body = github.gh(ctx, ["release", "view", tag, "--json", "body", "--jq", ".body"])[1]
+        new = release_notes.with_result(body, result)
+        if new.strip() != body.strip():
+            github.gh(ctx, ["release", "edit", tag, "--notes", new])
+            ctx.out.say(f"the draft's notes now give the real-machine checklist's result: {result}")
     if not url:
         url = github.gh(ctx, ["release", "view", f"v{version}", "--json", "url", "--jq", ".url"])[1].strip()
     rec.update(published_draft={"at": state.now(), "sha": sha, "url": url})

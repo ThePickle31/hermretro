@@ -295,14 +295,20 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
     if command == "release":
         if args.action == "run":
             return release_run.run(
-                ctx, args.owner_words, rc=args.rc, named=args.version, dry_run=args.dry_run, draft=args.draft
+                ctx,
+                args.owner_words,
+                rc=args.rc,
+                named=args.version,
+                dry_run=args.dry_run,
+                draft=args.draft,
+                checklist=args.checklist,
             )
         if args.action == "next":
             return release_next.run(ctx, args.owner_words, dry_run=args.dry_run)
         if args.action == "prepare":
             return release.prepare(ctx, args.owner_words, rc=args.rc, named=args.version)
         if args.action == "publish":
-            return release_publish.run(ctx, args.version, dry_run=args.dry_run)
+            return release_publish.run(ctx, args.version, dry_run=args.dry_run, checklist=args.checklist)
         return release_verify.run(ctx, args.version, publish=args.publish)
     if command == "try":
         return trial.run(ctx, args.pr, keep=args.keep, setup=not args.no_setup)

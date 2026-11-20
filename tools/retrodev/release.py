@@ -275,6 +275,8 @@ def parser(sub, common) -> None:
     run.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
     run.add_argument("--version", help="the version the owner named (default: the next patch, or the one started)")
     run.add_argument("--draft", action="store_true", help="stop at the draft release (the owner reads it first)")
+    checklist = "the real-machine checklist's result, for the notes (e.g. 'passed on a MacBook Pro M3')"
+    run.add_argument("--checklist", metavar="RESULT", help=checklist)
     run.add_argument("--dry-run", action="store_true", help="print what is done and what it would run; change nothing")
     prepare = steps.add_parser("prepare", help="the chore/release-X.Y.Z pull request", parents=[common])
     prepare.add_argument("--owner-words", help="the owner's exact words asking for the release")
@@ -283,6 +285,7 @@ def parser(sub, common) -> None:
     publish = steps.add_parser("publish", help="main, the tag and the draft release, after the gates", parents=[common])
     publish.add_argument("version")
     publish.add_argument("--dry-run", action="store_true", help="print the gates and every command; change nothing")
+    publish.add_argument("--checklist", metavar="RESULT", help=checklist)
     verify = steps.add_parser("verify", help="read the draft, check it, then (--publish) publish", parents=[common])
     verify.add_argument("version")
     verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")

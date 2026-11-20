@@ -113,6 +113,7 @@ class Run:
     def __init__(self, ctx, words: str, rc: bool, version: str, dry_run: bool, draft: bool = False):
         self.ctx, self.words, self.rc, self.version, self.dry_run = ctx, words, rc, version, dry_run
         self.draft = draft
+        self.checklist: str | None = None  # the owner's real-machine checklist result, for the notes
         self.again = command(words, rc, version, dry_run, draft)
         self.steps: list[dict] = []
         self.waiting = False  # a dry run past a step that is not done: the rest is only what it would do
@@ -281,7 +282,7 @@ class Run:
             return 0
         ctx.out.say(f"running: {shlex.join(argv + (['--dry-run'] if self.dry_run else []))}")
         try:
-            release_publish.run(ctx, version, dry_run=self.dry_run)
+            release_publish.run(ctx, version, dry_run=self.dry_run, checklist=self.checklist)
         except Failure as failure:
             raise resumable(failure, self.again)
         if self.dry_run:
@@ -339,7 +340,13 @@ class Run:
 
 
 def run(
-    ctx, words: str | None, rc: bool = False, named: str | None = None, dry_run: bool = False, draft: bool = False
+    ctx,
+    words: str | None,
+    rc: bool = False,
+    named: str | None = None,
+    dry_run: bool = False,
+    draft: bool = False,
+    checklist: str | None = None,
 ) -> int:
     try:
         words = release.words_gate(words)
@@ -357,6 +364,7 @@ def run(
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     version = release_guard.choose(ctx, rc, named)
     flow = Run(ctx, words, rc, version, dry_run, draft)
+    flow.checklist = checklist
     rec = flow.record()
     ctx.out.set(version=version, dry_run=dry_run, resume=flow.again)
     ctx.out.say(f"release {version}" + (" (dry run)" if dry_run else "") + f": {flow.again}")
@@ -375,6 +383,9 @@ def run(
                 + ("" if moved else f" (to move dev on after v{previous}: {release_next.command(words)})"),
             )
         release_guard.stale_next(ctx, version, dry_run)
+    if checklist and checklist.strip() and not dry_run:  # kept before any step: a resumed run still has it
+        rec["checklist"] = checklist.strip()
+        state.save_release(ctx.top, rec)
     if not dry_run and not rec.get("run"):
         rec.update(run={"at": state.now()}, rc=rc)  # the release this command works on, before any step acts
         state.save_release(ctx.top, rec)
