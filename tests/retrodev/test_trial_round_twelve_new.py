@@ -187,6 +187,9 @@ class PreExisting(ScaffoldCase):
             {"name": "page", "state": "ok", "detail": "fine", "more": []},
         ]
         self.assertEqual(scaffold_checks.blame(ctx, rows, {"backend/history/rpcs.py"}), (["lint", "unit"], []))
+        page = {"name": "page", "state": "FAILED", "detail": "1 failed", "more": ["tests/page/registry.test.mjs"]}
+        write(self.tree, "tests/page/registry.test.mjs", "// a test new's code may break\n")
+        self.assertEqual(scaffold_checks.blame(ctx, [page], set()), (["page"], []), "a test failure is new's")
         rows[0]["more"] = ["backend/history/untidy.py", "FIX: python tools/check.py fix"]
         self.assertEqual(
             scaffold_checks.blame(ctx, rows[:1], {"backend/history/rpcs.py"}), ([], ["backend/history/untidy.py"])

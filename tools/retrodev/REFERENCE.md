@@ -312,8 +312,9 @@ prints every file it created (`create`) or changed (`change`), formats the Pytho
 (before the `--dry-run` diff too, so the diff is what the write produces),
 rebuilds the generated files when the change feeds them (`policy.toml` `[generated] regenerate`), runs the checks
 those files are inputs of (lint, bundle, unit, page; the page kinds, `page`, `tab`, `slot` and `contribution`, run
-only lint, bundle and page, leaving unit to `check`; the install scan waits for `check`; a failure only in files new
-did not write is reported as `pre-existing on this tree (not from new): <file>` and the scaffold stands, exit 0) and
+only lint, bundle and page, leaving unit to `check`; the install scan waits for `check`; a lint failure only in files new
+did not write is reported as `pre-existing on this tree (not from new): <file>` and the scaffold stands, exit 0; a
+unit or page failure is always new's, since new's code may break a test it did not write) and
 prints the next steps
 (for a change the clean install covers, such as `plugin.yaml` or `backend/features.py`: commit, then `check`, then
 `ship`, since that install takes only the committed tree). It refuses (`FIX:`) a name that exists or breaks the naming

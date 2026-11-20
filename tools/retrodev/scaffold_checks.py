@@ -18,12 +18,20 @@ SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py sk
 FILE_NAMED = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.-]+\.\w+)")  # a repository path a check's failure names
 
 
+# The checks whose failure names the files at fault (lint: each file not in ruff's format, each lint finding's file).
+# A unit or page failure names test files new's code may break, so it is always new's.
+BY_FILE = ("lint",)
+
+
 def blame(ctx, rows: list[dict], written: set[str]) -> tuple[list[str], list[str]]:
     """(the failed checks whose failure may be new's, the files the others name, none of which new wrote). A failure
-    that names no file of the tree counts as new's."""
+    of a check not in BY_FILE, or one that names no file of the tree, counts as new's."""
     mine, theirs = [], []
     for row in rows:
         if row.get("state") != "FAILED":
+            continue
+        if row.get("name") not in BY_FILE:
+            mine.append(row["name"])
             continue
         lines = [*str(row.get("detail", "")).splitlines(), *row.get("more", [])]
         said = "\n".join(line for line in lines if "FIX:" not in line)
