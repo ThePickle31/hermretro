@@ -133,3 +133,31 @@ def first_tab_step(page_id: str, tab_id: str, component: str, door: str, name: s
         f"{name} ] (and the comma it added to the line above them); in page/pages/{page_id}/README.md drop "
         f"`{tab_id}` from **Tabs:** and from the taken tab ids; then node tools/bundle/bundle.mjs"
     )
+
+
+DESIGN_DOC = "docs/dev/STUDIO-PAGES.md"
+
+
+def design_heading(doc: str, label: str) -> str:
+    """Where docs/dev/STUDIO-PAGES.md describes the page labelled ``label``: its `### <Label>` subsection under
+    `## Pages`, else a top `## <Label>...` section of its own (Build's `## Build: one game, one conversation`, with
+    the design in its `### Page` subsection when it has one), else none yet: a subsection to add under `## Pages`."""
+    sections: list[tuple[str, list[str]]] = []  # each `## ` heading and the `### ` headings under it
+    for line in doc.split("\n"):
+        if line.startswith("## "):
+            sections.append((line[3:].strip(), []))
+        elif line.startswith("### ") and sections:
+            sections[-1][1].append(line[4:].strip())
+    named = re.compile(rf"{re.escape(label)}(?!\w)")
+    for top, subs in sections:
+        if top.startswith("Pages") and not named.match(top):
+            pages = re.split(r"\W", top)[0]
+            for sub in subs:
+                if named.match(sub):
+                    return f"its `### {sub}` subsection under `## {pages}` of {DESIGN_DOC}"
+    for top, subs in sections:
+        if named.match(top):
+            if "Page" in subs:
+                return f"its `### Page` subsection under `## {top}` of {DESIGN_DOC}"
+            return f"its `## {top}` section of {DESIGN_DOC}"
+    return f"a `### {label}` subsection under `## Pages` of {DESIGN_DOC} (it has none yet: add one)"

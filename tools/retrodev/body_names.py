@@ -7,7 +7,7 @@ and each backtick-quoted repository path the branch's diff does not touch: a sla
 repository's (TOPS: `backend/x/y.py`, `tools/`), never a bare file name (`tools.py`, a caller cited as unchanged, or
 `games.json`, a runtime data file, are no claim the diff can check). Any such path
 there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
-phrase (CITATION: `checked against`, `verified in`, `comes from`, `source:`, `see`, `per`, `based on`, ...) to the
+phrase (CITATION: `checked against`, `comes from`, `see`, `documents`, `describes`, `how to use`, ...) to the
 end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
 cited list (`checked against `a` and `b``) is cited. A path under engine/ never warns (never changed outside an engine
 update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
@@ -52,7 +52,7 @@ def is_path(word: str) -> bool:
 # hyphenated modifier is not one: 'per-game' or 'see-through' describes the change, it cites nothing.
 CITATION = re.compile(
     r"(?<![\w-])(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|"
-    r"as in|cited|based on)(?![\w-])",
+    r"as in|cited|based on|documents|describes|explains|how to (?:use|run))(?![\w-])",
     re.I,
 )
 # Where a new change clause starts, ending a citation clause: a semicolon, or `and` with a past-tense verb.

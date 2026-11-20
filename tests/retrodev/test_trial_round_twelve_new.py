@@ -130,11 +130,11 @@ class Listener(ScaffoldCase):
         steps = joined(self.new("listener", "history", "library.rdprobe_typed"))
         self.assertIn(
             "when library.rdprobe_typed's payload changes: tools/retrodev/REFERENCE.md \"Changing an event's "
-            'payload" lists every place, this listener among them',
+            'payload or name" lists every place, this listener among them',
             steps,
         )
         event = joined(self.new("event", "history", "rdprobe_moved", "--payload", "game=<id, str>"))
-        self.assertIn("tools/retrodev/REFERENCE.md \"Changing an event's payload\" lists every place", event)
+        self.assertIn("tools/retrodev/REFERENCE.md \"Changing an event's payload or name\" lists every place", event)
         self.assertIn("grep -rln 'history.rdprobe_moved' tests/backend/history", event)
         reference = retrodev_docs("REFERENCE.md")
         for place in (

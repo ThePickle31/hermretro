@@ -103,14 +103,15 @@ class Tab(ScaffoldCase):
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "probe test")
         steps = joined(self.new("tab", "rdprobe-tabbed", "extra"))
-        self.assertIn(
-            f"the page's checks are in tests/page/page-rdprobe-tabbed.test.mjs: add the tab's there (tab('{label}') "
-            "opens the page, then pageTab('Extra') opens the tab)",
+        self.assertIn(  # round 15: the page's own files, or a new one for the tab
+            "add a check to the existing tests/page/page-rdprobe-tabbed*.test.mjs that covers this tab "
+            "(tests/page/page-rdprobe-tabbed.test.mjs), or a new tests/page/page-rdprobe-tabbed-extra.test.mjs",
             steps,
         )
+        self.assertIn(f"tab('{label}') opens the page, then pageTab('Extra') opens the tab", steps)
         self.new("page", "rdprobe-untested")
         steps = joined(self.new("tab", "rdprobe-untested", "extra"))
-        self.assertIn("the page's checks: no tests/page/*.test.mjs opens", steps)
+        self.assertIn("the tab's checks: add tests/page/page-rdprobe-untested-extra.test.mjs", steps)
 
 
 class Event(ScaffoldCase):
@@ -118,12 +119,12 @@ class Event(ScaffoldCase):
         steps = joined(self.new("event", "history", "rdprobe_moved", "--payload", "game=<id>"))
         self.assertIn(  # round 12: the steps point to the reference's list, which names the callers and tests too
             "changing history.rdprobe_moved's payload later: tools/retrodev/REFERENCE.md \"Changing an event's "
-            "payload\" lists every place (backend/history/emits.py's function rdprobe_moved, its callers: grep -rn "
-            "'rdprobe_moved(' backend/history; the EVENTS entry in backend/history/__init__.py, its "
+            "payload or name\" lists every place (backend/history/emits.py's function rdprobe_moved, its callers: "
+            "grep -rn 'rdprobe_moved(' backend/history; the EVENTS entry in backend/history/__init__.py, its "
             "docs/dev/CONTRACT.md row, tests/backend/history/test_event_rdprobe_moved.py",
             steps,
         )
-        self.assertIn("### Changing an event's payload", retrodev_docs("REFERENCE.md"))
+        self.assertIn("### Changing an event's payload or name", retrodev_docs("REFERENCE.md"))
 
 
 SEEDED = """

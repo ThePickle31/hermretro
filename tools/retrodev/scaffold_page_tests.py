@@ -208,15 +208,25 @@ def contribution_step(plan: Plan, host: str, slot: str, component: str) -> str:
     )
 
 
-def tab_step(plan: Plan, page_id: str, tab_label: str) -> str:
-    """new tab's step naming which tests/page file renders the page's checks."""
-    tests, label = scenario_tests(plan, page_id), page_label(plan, page_id)
+def tab_step(plan: Plan, page_id: str, tab_id: str, tab_label: str) -> str:
+    """new tab's step naming where the tab's checks go: the page's own test files (page-<page>*.test.mjs) or a new
+    one for the tab. Never another page's file, nor a sibling test of one corner of the page (the shelf's): only the
+    author knows which of the page's files covers this tab."""
+    label = page_label(plan, page_id) or page_id
     switch = f", then pageTab('{tab_label}') opens the tab" if "const pageTab" in read(plan, HARNESS) else ""
-    if not tests:
-        return (
-            f"the page's checks: no tests/page/*.test.mjs opens {label or page_id} yet; add a scenario test "
-            f"(runScenario, {HARNESS}) that opens it with tab('{label or page_id}'){switch}"
-        )
-    return f"the page's checks are in {tests[0]}: add the tab's there (tab('{label}') opens the page{switch})" + (
-        f" (also opening {label}: {', '.join(tests[1:])})" if tests[1:] else ""
+    own = sorted(
+        str(path.relative_to(plan.top))
+        for path in plan.top.glob(f"tests/page/page-{page_id}*.test.mjs")
+        if path.name.startswith((f"page-{page_id}.", f"page-{page_id}-"))
+    )
+    new = f"tests/page/page-{page_id}-{tab_id}.test.mjs"
+    where = (
+        f"add a check to the existing tests/page/page-{page_id}*.test.mjs that covers this tab ({', '.join(own)}), "
+        f"or a new {new}"
+        if own
+        else f"add {new} (a scenario test: runScenario, {HARNESS})"
+    )
+    return (
+        f"the tab's checks: {where} (tests/page/*.test.mjs are picked up automatically; name a new one on the "
+        f"**Tests:** line of page/pages/{page_id}/README.md); tab('{label}') opens the page{switch}"
     )

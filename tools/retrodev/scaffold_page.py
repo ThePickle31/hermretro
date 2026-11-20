@@ -27,7 +27,16 @@ from .scaffold import (
 from .scaffold import camel as to_camel
 from .scaffold_imports import PAGE_FIELD, binding, drop_page, statements
 from .scaffold_move import move_out
-from .scaffold_readme import code_spans, first_tab_step, slots_block, slots_line, taken_readme, with_block
+from .scaffold_readme import (
+    DESIGN_DOC,
+    code_spans,
+    design_heading,
+    first_tab_step,
+    slots_block,
+    slots_line,
+    taken_readme,
+    with_block,
+)
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"
@@ -226,9 +235,10 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             "{ tab } prop (app/page-view.js): keep only what every tab shares there, or drop Page from the "
             f"descriptor (new tab {page_id} <id> --from-page makes a tabless page's Page its first tab)"
         )
+    shown = design_heading(page_tests.read(plan, DESIGN_DOC), page_tests.page_label(plan, page_id) or label(page_id))
     plan.next_steps.append(
-        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and "
-        "as a bullet in its `### <Page>` subsection under `## Pages` of docs/dev/STUDIO-PAGES.md (the table row stays short)"
+        f"describe the tab in page/pages/{page_id}/README.md **Shows:** and as a bullet in {shown} (the Pages "
+        "table row stays short)"
     )
     if from_page and values.get("moved") and page_in_index(plan, page_id):
         plan.next_steps.append(
@@ -246,7 +256,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
             "or keep a page without tabs"
         )
-    plan.next_steps.append(page_tests.tab_step(plan, page_id, tab_label))
+    plan.next_steps.append(page_tests.tab_step(plan, page_id, tab_id, tab_label))
     for test in rendering_tests(plan, page_id):
         plan.next_steps.append(
             f"{test} renders pageOf('{page_id}').Page"

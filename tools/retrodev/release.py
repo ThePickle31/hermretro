@@ -19,11 +19,10 @@ from __future__ import annotations
 
 import platform
 import re
-import shlex
 from pathlib import Path
 
 from . import checks, gates, github, repo, ship, start, state
-from .output import OWNER, Failure
+from .output import OWNER, Failure, quote
 
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
 VERSION_LINE = re.compile(r"^version:[ \t]*[\"']?([^\"'\s#]+)[\"']?.*$", re.MULTILINE)
@@ -176,9 +175,7 @@ def release_only(ctx, path: Path, branch: str) -> None:
 def resume_command(version: str, words: str, rc: bool) -> str:
     """The command that finishes (or resumes) an interrupted prepare of this version."""
     flags = " --rc" if rc else ""
-    return (
-        f"python tools/retrodev release prepare{flags} --version {stable(version)} --owner-words {shlex.quote(words)}"
-    )
+    return f"python tools/retrodev release prepare{flags} --version {stable(version)} --owner-words {quote(words)}"
 
 
 def bind(ctx, record: dict, pr: dict) -> int:
