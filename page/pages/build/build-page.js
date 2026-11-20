@@ -336,8 +336,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       result[key] = {
         busy: Boolean(value?.busy),
         waiting: Boolean(value?.items?.some(item => (item.kind === 'clarify' || item.kind === 'approval') && !item.answered)),
-        unread: key !== stored && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0),
-        last: value?.lastCompleteAt ?? 0
+        unread: key !== stored && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0)
       }
     }
 
@@ -378,6 +377,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const switcher = jsx(BuildSwitcher, {
     entries,
     library,
+    onRequestSeen: () => setSwitcherRequest(null),
     request: switcherRequest,
     onDiscard: item => discard(item),
     onOpenChat: openInFullChat,

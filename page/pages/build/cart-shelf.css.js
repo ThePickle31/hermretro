@@ -4,18 +4,21 @@ export const CART_SHELF_CSS = `
 /* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
 .cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
 .cs-b-shelf-probe { height: 0; width: 0; }
-.cs-b-shelf { align-items: flex-end; bottom: var(--cs-at-ground, 48px); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
-.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 168px); }
+.cs-b-attract { --cs-b-cap: 38px; }
+/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
+.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
+.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
 /* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
    cartridges stay clickable the rest of the time */
 .cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
-.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; gap: 3px; pointer-events: auto; text-align: center; width: 100px; }
+.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
 .cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
 .cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
+.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
 .cs-b-shelf-cart b, .cs-b-shelf-cart small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; }
+.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
 .cs-b-shelf-cart:has(.cs-cart:hover) b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) b { color: var(--ui-accent); }
-.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; }
+.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
 .cs-b-shelf-cart.wait small { color: var(--ui-yellow); }
 .cs-b-shelf-cart small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
 .cs-b-shelf-cart small .dot.wait { background: var(--ui-yellow); }

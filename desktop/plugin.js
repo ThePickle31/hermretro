@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 7a2f46e443e06d1fe6a61f6cc945b91aa330e6c2a635733d989580c5edd9132e
- * body: sha256 cd12b540be9f0f0556fda7cec4bd36d85bcaa90e210e8ee749df41942a9251f3
+ * sources: sha256 af61264a6b591764cbcfdda64828bc38116708266ae46da866168b776bd691df
+ * body: sha256 f9cc729a0c23a8988f8b5f85d91acf5dd5315f77a85706606319b68f466f63be
  */
 // page/sdk.js
 import {
@@ -3406,18 +3406,21 @@ var CART_SHELF_CSS = `
 /* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
 .cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
 .cs-b-shelf-probe { height: 0; width: 0; }
-.cs-b-shelf { align-items: flex-end; bottom: var(--cs-at-ground, 48px); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
-.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 168px); }
+.cs-b-attract { --cs-b-cap: 38px; }
+/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
+.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
+.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
 /* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
    cartridges stay clickable the rest of the time */
 .cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
-.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; gap: 3px; pointer-events: auto; text-align: center; width: 100px; }
+.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
 .cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
 .cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
+.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
 .cs-b-shelf-cart b, .cs-b-shelf-cart small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; }
+.cs-b-shelf-cart b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
 .cs-b-shelf-cart:has(.cs-cart:hover) b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) b { color: var(--ui-accent); }
-.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; }
+.cs-b-shelf-cart small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
 .cs-b-shelf-cart.wait small { color: var(--ui-yellow); }
 .cs-b-shelf-cart small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
 .cs-b-shelf-cart small .dot.wait { background: var(--ui-yellow); }
@@ -11860,13 +11863,15 @@ function switcherEntries(games, pending, states, selected) {
 }
 var statusMark = (state) => state?.waiting ? jsx("i", { "aria-label": "Needs your answer", className: "dot wait" }) : state?.busy ? jsx("i", { "aria-label": `${AGENT} is working`, className: "cs-b-spin" }) : state?.unread ? jsx("i", { "aria-label": "New reply", className: "dot new" }) : null;
 var libraryWhen = (game) => (GAME_STATES[game.state] ?? GAME_STATES.unbuilt)[1];
-function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null }) {
+function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null, onRequestSeen = () => {
+} }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState("menu");
   useEffect(() => {
     if (request) {
       setView(request.view === "library" && library.length ? "library" : "menu");
       setOpen(true);
+      onRequestSeen();
     }
   }, [request?.seq]);
   const [query, setQuery] = useState("");
@@ -12152,8 +12157,7 @@ var SLOT = 126;
 var MIN_HEIGHT = 560;
 function shelfOrder(entries) {
   const rank = (entry) => entry.state?.waiting ? 0 : entry.pending ? 1 : 2;
-  const when = (entry) => Math.max((entry.game?.updatedAt ?? 0) * 1e3, entry.state?.last ?? 0);
-  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || when(b.entry) - when(a.entry) || a.index - b.index).map((item) => item.entry);
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index).map((item) => item.entry);
 }
 function shelfFit(width, count, more) {
   const slots = Math.max(1, Math.floor((width + 26) / SLOT));
@@ -12198,8 +12202,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
                 onClick: () => onSelect(entry.key),
                 title: entry.title
               }),
-              jsx("b", { title: entry.title, children: entry.title }),
-              jsxs("small", { children: [statusMark(entry.state), entry.sub] })
+              jsxs("span", { className: "cap", children: [jsx("b", { title: entry.title, children: entry.title }), jsxs("small", { children: [statusMark(entry.state), entry.sub] })] })
             ]
           },
           entry.key
@@ -12217,8 +12220,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
               type: "button",
               children: `+${left}`
             }),
-            jsx("b", { children: "All games" }),
-            jsx("small", { children: others.length ? "With your library" : "Being worked on" })
+            jsxs("span", { className: "cap", children: [jsx("b", { children: "All games" }), jsx("small", { children: others.length ? "With your library" : "Being worked on" })] })
           ]
         },
         "all"
@@ -12449,8 +12451,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       result[key2] = {
         busy: Boolean(value?.busy),
         waiting: Boolean(value?.items?.some((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered)),
-        unread: key2 !== stored && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0),
-        last: value?.lastCompleteAt ?? 0
+        unread: key2 !== stored && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0)
       };
     }
     const key = JSON.stringify(result);
@@ -12479,6 +12480,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const switcher = jsx(BuildSwitcher, {
     entries,
     library,
+    onRequestSeen: () => setSwitcherRequest(null),
     request: switcherRequest,
     onDiscard: (item) => discard(item),
     onOpenChat: openInFullChat,

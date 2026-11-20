@@ -8,15 +8,15 @@ import { statusMark } from './switcher.js'
 const SLOT = 126 // one cartridge and its gap, in px
 const MIN_HEIGHT = 560 // a shorter New Game area shows no shelf: the form needs the room
 
-/** Newest work first: games waiting for an answer, then New Game chats still being set up, then the rest by the
- *  latest of the game's last change and its chat's last reply. `entries` come from switcherEntries. */
+/** Newest work first: games waiting for an answer, then New Game chats still being set up, then the rest in the
+ *  library's own order (the games RPC lists the most recently changed game first). `entries` come from
+ *  switcherEntries, which keeps that order. */
 export function shelfOrder(entries) {
   const rank = entry => (entry.state?.waiting ? 0 : entry.pending ? 1 : 2)
-  const when = entry => Math.max((entry.game?.updatedAt ?? 0) * 1000, entry.state?.last ?? 0)
 
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => rank(a.entry) - rank(b.entry) || when(b.entry) - when(a.entry) || a.index - b.index)
+    .sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index)
     .map(item => item.entry)
 }
 
@@ -76,8 +76,7 @@ export function CartShelf({ entries, others, onSelect, onAll }) {
                 onClick: () => onSelect(entry.key),
                 title: entry.title
               }),
-              jsx('b', { title: entry.title, children: entry.title }),
-              jsxs('small', { children: [statusMark(entry.state), entry.sub] })
+              jsxs('span', { className: 'cap', children: [jsx('b', { title: entry.title, children: entry.title }), jsxs('small', { children: [statusMark(entry.state), entry.sub] })] })
             ]
           },
           entry.key
@@ -96,8 +95,7 @@ export function CartShelf({ entries, others, onSelect, onAll }) {
                   type: 'button',
                   children: `+${left}`
                 }),
-                jsx('b', { children: 'All games' }),
-                jsx('small', { children: others.length ? 'With your library' : 'Being worked on' })
+                jsxs('span', { className: 'cap', children: [jsx('b', { children: 'All games' }), jsx('small', { children: others.length ? 'With your library' : 'Being worked on' })] })
               ]
             },
             'all'

@@ -10,12 +10,13 @@ await runScenario(async ({ act, dom, scenario, page, click, tab, settle, mount, 
   scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
   scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build' }
   scenario.ambient = complete; scenario.routes = []; scenario.byProfile = {}
-  const game = (id, title, updatedAt, extra = {}) => ({ id, title, projectRoot: `/home/u/games/${id}`, kind: 'gbstudio', state: 'ready',
-    rom: null, webExport: false, thumb: null, chat: null, error: null, updatedAt, ...extra })
+  // As the games RPC answers: most recently changed first, no updatedAt (it strips it).
+  const game = (id, title, extra = {}) => ({ id, title, projectRoot: `/home/u/games/${id}`, kind: 'gbstudio', state: 'ready',
+    rom: null, webExport: false, thumb: null, chat: null, error: null, ...extra })
   const library = [
-    game('aaa111aaa111', 'Comet Drift', 100, { session: { storedId: 'st-comet' }, thumb: 'data:image/png;base64,AAAA', cover: true }),
-    game('bbb222bbb222', 'Frog Post', 300, { session: { storedId: 'st-frog' } }),
-    game('ccc333ccc333', 'Moon Courier', 500)
+    game('ccc333ccc333', 'Moon Courier'),
+    game('bbb222bbb222', 'Frog Post', { session: { storedId: 'st-frog' } }),
+    game('aaa111aaa111', 'Comet Drift', { session: { storedId: 'st-comet' }, thumb: 'data:image/png;base64,AAAA', cover: true })
   ]
   scenario.games = answered({ games: library, device: { hardwareEnabled: false, skipped: true } })
   scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: [] })
@@ -27,7 +28,7 @@ await runScenario(async ({ act, dom, scenario, page, click, tab, settle, mount, 
   check('New Game shows the games being worked on as cartridges, newest first, under the form', () => {
     assert.ok(shelf(), 'the shelf is there')
     const carts = [...shelf().querySelectorAll('.cs-b-shelf-cart:not(.all)')]
-    assert.deepEqual(carts.map(cart => cart.querySelector('b').textContent), ['Frog Post', 'Comet Drift'], 'games with a chat, newest change first')
+    assert.deepEqual(carts.map(cart => cart.querySelector('b').textContent), ['Frog Post', 'Comet Drift'], 'games with a chat, in the library\'s newest-first order')
     assert.ok(!/Moon Courier/.test(shelf().textContent.replace('All games', '')), 'a game with no chat is not on the shelf')
     assert.equal(carts[1].querySelector('.cs-cart img').getAttribute('alt'), 'Comet Drift cover art', 'the cover is in the label')
     assert.match(carts[0].querySelector('.cs-cart .ph').textContent, /Frog Post/, 'a placeholder label without a picture')
@@ -46,8 +47,19 @@ await runScenario(async ({ act, dom, scenario, page, click, tab, settle, mount, 
     assert.ok(pop, 'the menu is open'); assert.match(pop.textContent, /Moon Courier/)
     assert.ok(pop.querySelector('input[aria-label="Search your games"]'), 'the Edit a game list')
   })
-  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
-  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+  await fire([...view.node.querySelectorAll('.cs-b-sw-list button')].find(node => node.textContent.includes('Moon Courier')), 'click')
+  await settle()
+  check('picking from that menu opens the game with the menu closed, and it stays closed', () => {
+    assert.equal(view.node.querySelector('.cs-b-sw h2').textContent, 'Moon Courier')
+    assert.ok(!view.node.querySelector('.cs-b-sw-pop'), 'no menu in the conversation')
+  })
+  await fire(view.node.querySelector('.cs-b-sw'), 'click')
+  await fire([...view.node.querySelectorAll('.cs-b-sw-pop button')].find(node => /New game/.test(node.textContent)), 'click')
+  await settle()
+  check('back on New Game the menu does not open again by itself', () => {
+    assert.ok(view.node.querySelector('.cs-b-new'), 'New Game is shown')
+    assert.ok(!view.node.querySelector('.cs-b-sw-pop'), 'the All games request was used up')
+  })
   await fire(shelf().querySelector('.cs-b-shelf-cart .cs-cart'), 'click')
   await settle()
   check('a cartridge opens that game\'s chat', () => {
@@ -55,7 +67,7 @@ await runScenario(async ({ act, dom, scenario, page, click, tab, settle, mount, 
     assert.ok(!view.node.querySelector('.cs-b-shelf'), 'the shelf is only on New Game')
   })
   await view.close()
-  scenario.games = answered({ games: [library[2]], device: { hardwareEnabled: false, skipped: true } })
+  scenario.games = answered({ games: [library[0]], device: { hardwareEnabled: false, skipped: true } })
   scenario.storage = { setup: { hardwareSkipped: true, onboarded: true }, page: 'build' }
   const empty = await mount(page)
   await settle()

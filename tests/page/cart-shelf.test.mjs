@@ -7,20 +7,29 @@ import { registerAliases } from './aliases.mjs'
 
 registerAliases()
 const { shelfFit, shelfOrder } = await import('../../page/pages/build/cart-shelf.js')
+const { CART_SHELF_CSS } = await import('../../page/pages/build/cart-shelf.css.js')
 const { World } = await import('../../page/pages/build/attract/world.js')
 const { T } = await import('../../page/pages/build/attract/physics.js')
 
-const game = (key, updatedAt, state = null) => ({ key, title: key, game: { id: key, updatedAt }, state })
+const game = (key, state = null) => ({ key, title: key, game: { id: key }, state })
 
-test('newest work first: waiting for an answer, then games being set up, then by last change or last reply', () => {
+test('newest work first: waiting for an answer, then games being set up, then the library\'s own order', () => {
+  // as the games RPC sends them: most recently changed first, with no timestamp (it strips updatedAt)
   const entries = [
-    game('old', 100),
-    game('new', 300),
+    game('newest'),
+    game('replied', { unread: true }),
     { key: 'pending:s1', title: 'New game', game: null, pending: { storedId: 's1' }, state: null },
-    game('replied', 50, { last: 400 * 1000 }),
-    game('waiting', 10, { waiting: true })
+    game('older'),
+    game('waiting', { waiting: true })
   ]
-  assert.deepEqual(shelfOrder(entries).map(entry => entry.key), ['waiting', 'pending:s1', 'replied', 'new', 'old'])
+  assert.deepEqual(shelfOrder(entries).map(entry => entry.key), ['waiting', 'pending:s1', 'newest', 'replied', 'older'])
+})
+
+test('the cartridges stand on the ground and their captions hang below it at a fixed height', () => {
+  const rule = sel => CART_SHELF_CSS.split('\n').find(line => line.startsWith(`${sel} {`)) ?? ''
+  assert.match(rule('.cs-b-shelf'), /bottom: calc\(var\(--cs-at-ground, 48px\) - var\(--cs-b-cap\)\)/, 'the shelf drops by the caption height')
+  assert.match(rule('.cs-b-shelf-cart .cap'), /height: var\(--cs-b-cap\)/, 'so the caption is exactly that tall')
+  assert.match(rule('.cs-b-shelf'), /align-items: flex-end/, 'and every column ends on the same line')
 })
 
 test('as many cartridges as fit, keeping a place for All games when anything is left over', () => {

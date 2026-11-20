@@ -46,16 +46,18 @@ export const statusMark = state =>
 
 const libraryWhen = game => (GAME_STATES[game.state] ?? GAME_STATES.unbuilt)[1]
 
-export function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null }) {
+export function BuildSwitcher({ entries, library, selected, title, onSelect, onOpenChat, onStop, onDiscard, request = null, onRequestSeen = () => {} }) {
   const [open, setOpen] = useState(false)
   // 'menu' (New game, Edit a game, the games being edited) or 'library' (Edit a game's list).
   const [view, setView] = useState('menu')
 
-  // Opened from outside (the New Game shelf's All games): `request` is { view, seq }, a new seq each time.
+  // Opened from outside (the New Game shelf's All games): `request` is { view, seq }. Taken once: the page clears
+  // it, so a switcher drawn again (New Game and a conversation each draw their own) does not open again.
   useEffect(() => {
     if (request) {
       setView(request.view === 'library' && library.length ? 'library' : 'menu')
       setOpen(true)
+      onRequestSeen()
     }
   }, [request?.seq])
   const [query, setQuery] = useState('')
