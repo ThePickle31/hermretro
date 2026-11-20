@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from ..hermes import host
 from ..hermes.declare import hook
-from ..system.events import emit
 from . import snapshots
+from .emits import build_kept
 from .rpcs import _snapshots_dir
 
 logger = host.logger
@@ -51,6 +51,6 @@ def snapshot_after_build(
         if taken.get("skipped"):
             logger.debug("hermretro: build snapshot of %s skipped: %s", root, taken["skipped"])
         else:
-            emit("history.build_kept", game=game, root=root)
+            build_kept(game=game, root=root)
     except Exception:
         logger.debug("hermretro snapshot_after_build failed", exc_info=True)

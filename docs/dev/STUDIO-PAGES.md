@@ -460,7 +460,10 @@ nav list (it goes last; move it in both).
 
 Reference content (how something works, rather than something to do) goes on the page it is about, not on a
 page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
-setup explanations to Setup; prompts to Prompts.
+setup explanations to Setup; prompts to Prompts. The keys a game answers to are the `customControls` of its web
+export's `gbstudio.json` (read by `player/web/js/script.js` inside the frame; `player/web/gbstudio.json` is the demo
+cartridge's); `GAME_KEYS` in `page/shared/player/bridge.js` are the keys forwarded to the frame while focus is on
+the page outside it (arrows, Z, X, Enter, Shift, P: not all of the default map, and P is not in it).
 
 ### A tab
 
@@ -471,7 +474,9 @@ Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, 
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
 tab bar (of one). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
 one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
-content into a tab, or drop `Page` when the tabs are the whole page. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
+content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
+drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
+page only). Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
 `python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 
@@ -507,7 +512,8 @@ the chat, which has no shell) and its contribution renders a button. A contribut
 slot's doc string (and the host's README Slots line).
 
 Every place to edit for a new contribution: `contributes` in the contributing page's `index.js`; that page's README
-**Slots** line ("Contributes `X` to `<page>.<name>`"); the "Events and slots today" line below; the `filled`
+**Slots** line ("Contributes `X` to `<page>.<name>`"); the host page's README **Slots** line (who fills it: "Games
+fills it with Install"); the "Events and slots today" line below; the `filled`
 assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
 its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
 

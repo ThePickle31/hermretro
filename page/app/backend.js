@@ -162,9 +162,11 @@ export async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs)
 }
 
-/** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*): the hermretro
- *  profile only, like the Build chats themselves, never whichever profile answered `status`. Resolves to the
- *  RPC's answer itself, like callStudio. */
+/** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*), or read its plugin
+ *  data folder (host._data_dir(), one per profile: the history snapshots builds/build_restore list and restore,
+ *  the asset versions asset* keep): the hermretro profile only (studioTarget(): its route, or the app itself when
+ *  the app is on that profile), like the Build chats themselves, never whichever profile answered `status`;
+ *  StudioProfileMissing otherwise. Resolves to the RPC's answer itself, like callStudio. */
 export async function callStudioOnly(method, params = {}, timeoutMs) {
   const target = studioTarget()
 

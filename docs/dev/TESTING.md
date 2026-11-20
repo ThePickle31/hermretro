@@ -2,7 +2,7 @@
 
 `python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
 
-One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says).
+One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says). A scenario tests the built bundle, so after editing `page/` run `node tools/bundle/bundle.mjs` first: otherwise it stops with `desktop/plugin.js is stale (...)` and `Run: node tools/bundle/bundle.mjs`.
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
