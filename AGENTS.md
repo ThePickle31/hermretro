@@ -104,10 +104,11 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 - `python tools/retrodev` walks each change through these steps and refuses to skip one (`tools/retrodev/README.md`):
   `plan new <topic>` writes the plan in `notes/plans/` (fill it in: `plan approve` refuses the untouched template);
   `plan approve <topic> --words "..."` records the owner's go in their words; `start <kind>/<topic>` makes the
-  worktree from a fresh `dev` and sets it up (docs and chore branches may skip the plan with `--no-plan`); `new
-  feature|rpc|tool|event|listener|page|tab|slot ...` writes a piece with every registry line it needs (`--dry-run`
-  shows the diff first); `check`; `ship --title ...` writes the pull request body from the template to
-  `notes/pr/<topic>.md` the first time and stops until it is filled in (a dry run writes it too), then pushes and
+  worktree from a fresh `dev`, sets it up and writes the pull request body `notes/pr/<topic>.md` from the plan to
+  fill in (docs and chore branches may skip the plan with `--no-plan`; `takeover <branch>` does the same for a
+  teammate's pushed branch); `new feature|rpc|tool|event|listener|page|tab|slot ...` writes a piece with every
+  registry line it needs (`--dry-run` shows the diff first); `check`; `ship --title ...` stops until the body is
+  filled in (writing it when missing; a dry run too), then pushes and
   opens the draft pull request only for a committed tree that passed `check`; after that a bare `ship` reuses the
   recorded title and body; `report` gives the facts for the report to the owner; `approve <n> --words
   "..."` records the owner's approval of the pull request in their words; `land <n>` takes it through up to three
