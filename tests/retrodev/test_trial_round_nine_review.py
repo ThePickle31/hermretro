@@ -65,6 +65,22 @@ class ContributionNames(ScaffoldCase):
         self.assertIn("TextFromHome", out["error"]["message"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 
+    def test_a_trailing_comma_in_the_expected_object_stays_one_comma(self):
+        self.host()
+        registry = self.read(REGISTRY_TEST)
+        found = re.search(r"(const expected = \{)([^\n]*?)(\s*\})", registry)
+        self.assertIsNotNone(found, "the registry test's one-line expected object")
+        write(
+            self.tree, REGISTRY_TEST, registry.replace(found.group(0), found.group(1) + found.group(2).rstrip() + ", }")
+        )
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-qm", "trailing comma")
+        self.new("contribution", "home", SLOT, "RdprobeFirst")
+        registry = self.read(REGISTRY_TEST)
+        self.assertNotIn(",,", registry.replace(" ", ""))
+        self.assertIn(f"'{SLOT}': [RdprobeFirst]", registry)
+        self.parses()
+
     def test_a_double_quoted_existing_contribution_is_extended_not_listed_twice(self):
         self.host()
         self.new("contribution", "home", SLOT, "RdprobeFirst")

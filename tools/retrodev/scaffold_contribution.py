@@ -203,7 +203,7 @@ def registry_expected(plan: Plan, slot: str, component: str, rel: str) -> str:
             return ""  # a name the test imports differently, or a tab's: left to the author
         body = body[: current.start(1)] + ", ".join(ordered) + body[current.end(1) :]
     else:
-        inner = body.strip()
+        inner = body.strip().removesuffix(",").rstrip()  # a trailing comma stays one comma
         body = f" {inner + ', ' if inner else ''}'{slot}': [{local}] "
     names = component if local == component else f"{component}: {local}"
     line = f"const {{ {names} }} = await import('../../{rel}')"
