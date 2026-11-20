@@ -191,8 +191,9 @@ class Sync(RepoCase):
         code, out = self.run_cli("sync", cwd=tree, as_json=True)
         self.assertEqual(code, 1, out)
         self.assertIn(
-            "backend/library/moving.py: dev removed this block; if it moved, `git log -p origin/dev -Smoving_block` "
-            "finds where; apply your change there and drop this side",
+            "backend/library/moving.py:5-11: dev deleted this block (no other file on origin/dev has its lines; if it "
+            "moved and changed, `git log -p origin/dev '-Sdef moving_block():'` finds where); delete the HEAD side of "
+            "this hunk, git add, sync again",
             out["error"]["fix"],
         )
 

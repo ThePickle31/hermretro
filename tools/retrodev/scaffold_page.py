@@ -349,7 +349,7 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
-    said = f"declares `{full}` ({doc[:1].lower() + doc[1:].rstrip('.')})"  # a sentence of its own: never runs on
+    said = f"declares `{full}`: {doc[:1].lower() + doc[1:].rstrip('.')}"  # as page/pages/emulator/README.md writes it
     rel = f"page/pages/{page_id}/README.md"
     before = plan.read(rel) if plan.exists(rel) else None
     if before is not None:
@@ -370,8 +370,8 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
 
 
 def slots_line(text: str, said: str) -> str:
-    """The README's '**Slots:** declares none, contributes X.' as '**Slots:** <said>. Contributes X.' (the doc in
-    brackets, so the line never runs on after it); unchanged when the page declares a slot already."""
+    """The README's '**Slots:** declares none, contributes X.' as '**Slots:** <said>. Contributes X.' (said:
+    'declares `<page>.<name>`: <doc>', a sentence of its own); unchanged when the page declares a slot already."""
     found = re.search(r"\*\*Slots:\*\* declares none(?:[,.;]\s*([cC])ontributes)?", text)
     if not found:
         return text

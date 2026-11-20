@@ -271,7 +271,7 @@ class NewKindsRoundTwo(ScaffoldCase):
         self.assertIn(f'"library.rdprobe_moved": "a game moved folders; {payload}"', door)  # keys say what they hold
         self.assertNotIn("    # emits.", door, "no hint comment inside EVENTS")
         rows = [line for line in self.read("docs/dev/CONTRACT.md").splitlines() if line.startswith("| `")]
-        mine = "| `library.rdprobe_moved` | `game`, `root` | a game moved folders | — |"
+        mine = "| `library.rdprobe_moved` | `game` (id; None without a project, or a list), `root` (project) | a game moved folders | — |"
         self.assertIn(mine, rows)
         before = rows[rows.index(mine) - 1]
         self.assertTrue(before.startswith("| `library."), before)

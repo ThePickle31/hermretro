@@ -119,7 +119,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
         from . import plan  # ship imports plan; start stays importable on its own
 
         plan.remember(ctx, name, record)  # the plan keeps the branch after land or gc forgets this record
-    body = None if no_plan else body_note(ctx, name, record)
+    body = body_note(ctx, name, record, no_plan)  # --no-plan too: the template, so one ship --dry-run checks it
     ctx.out.say(str(path))
     fill = f" (fill in {body} as you go: notes/ is in the main checkout, shared by every worktree)" if body else ""
     ctx.out.say(f"next: {cmd('cd', path)}, build{fill}, then python tools/retrodev check")
@@ -127,7 +127,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
     return 0
 
 
-def body_note(ctx, branch: str, record: dict) -> str | None:
+def body_note(ctx, branch: str, record: dict, no_plan: bool = False) -> str | None:
     """Write the pull request body (notes/pr/<topic>.md, the file ship reads) from the template and the plan, so the
     first ship --dry-run finds a body to check instead of writing one and stopping; an existing one is kept."""
     from . import ship  # ship imports gates and plan; start stays importable on its own
@@ -137,7 +137,9 @@ def body_note(ctx, branch: str, record: dict) -> str | None:
         several = ship.plan.shared(ctx, branch, record)
         mine = several and ship.plan.branch_section(ctx, branch, record)
         copied = (
-            "What changed from the plan, Why from its section for this branch; it covers several branches, so "
+            "the template; no plan, so every section is yours, its Why first"
+            if no_plan
+            else "What changed from the plan, Why from its section for this branch; it covers several branches, so "
             "Not done and the title are yours to write"
             if mine
             else "What changed from the plan; it covers several branches, so Why, Not done and the title are yours "
