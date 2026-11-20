@@ -121,66 +121,44 @@ class QuotedSiblings(ScaffoldCase):
         self.assertIn("'rd.a': 'Doc.', 'rd.b': 'Doc.'", grown)
 
 
-class GuardBaselines(unittest.TestCase):
-    """The scaffold guard's own logic, on fake suites: an unrelated page failure the copy has already skips both
-    guards (the plain one and the grown one); a failure the grown copy's preparation brings fails."""
+class WholeModuleFirst(unittest.TestCase):
+    """Review round 2, 0 (it replaced the guard's own per-test baselines): the scaffold module looks at the copy's
+    page suite (nested: and unit) once, before its first slow test; a failure skips every slow test, a suite
+    check.py scaffold vouches for (RD_SCAFFOLD_BASE) is not run again."""
 
-    def case(self, failing: set[str]) -> tuple[unittest.TestCase, list[str]]:
-        """A guard whose copies are empty folders and whose suites fail for the (state, suite) pairs ``failing``
-        names, state 'original' or 'grown' (after the preparation). Returns it and the log of what ran."""
-        case = tree_test.GeneratedCodePassesTheRealChecks(
-            "test_new_writes_code_that_passes_lint_bundle_page_and_the_structure_tests"
-        )
-        temp = tempfile.TemporaryDirectory(prefix="rd-guard-")
+    def case(self, failing: set[str], log: list[str]) -> unittest.TestCase:
+        """A slow test whose copies are empty folders and whose suites fail when named in ``failing``."""
+        case = tree_test.GeneratedCodePassesTheRealChecks("test_tab_from_page_passes_its_own_checks_lint_and_bundle")
+        temp = tempfile.TemporaryDirectory(prefix="rd-first-")
         self.addCleanup(temp.cleanup)
-        folder = Path(temp.name)
-        log, made = [], []
-
-        def make_tree():
-            tree = folder / f"copy{len(made)}"
-            tree.mkdir()
-            made.append(tree)
-            return folder, tree, {}
 
         def suite(command, tree, env):
-            state = "grown" if (tree / "grown").exists() else "original"
-            name = "unit" if "unit" in command else "page"
-            log.append(f"{state} {name}")
-            return subprocess.CompletedProcess(command, int(f"{state} {name}" in failing), "suite output\n", "")
+            log.append(command[-1])
+            return subprocess.CompletedProcess(command, int(command[-1] in failing), "suite output\n", "")
 
-        case.make_tree, case.suite = make_tree, suite
-        return case, log
+        case.copy, case.suite = (lambda: (Path(temp.name), Path(temp.name), {})), suite
+        return case
 
-    @staticmethod
-    def grow(tree: Path, env: dict) -> None:
-        (tree / "grown").write_text("")
+    def test_a_tree_failing_page_skips_every_slow_test_after_one_run(self):
+        cache, log = {}, []
+        for _ in range(3):  # three slow tests of one process
+            with self.assertRaises(unittest.SkipTest) as said:
+                self.case({"page"}, log).first("1", "", cache)
+            self.assertIn(tree_test.PAGE_FIRST, str(said.exception))
+        self.assertEqual(log, ["page"], "the page suite ran once, not per test")
 
-    def test_a_page_failure_the_original_copy_has_skips_both_guards(self):
-        for prepare in (None, self.grow):
-            with self.subTest(grown=bool(prepare)):
-                case, log = self.case({"original page", "grown page"})
-                with self.assertRaises(unittest.SkipTest) as said:
-                    case.guard(prepare, mode="nested")
-                self.assertIn(tree_test.PAGE_FIRST, str(said.exception))
-                self.assertEqual(log[0], "original page" if prepare else "original unit")
-
-    def test_a_page_failure_the_preparation_brings_fails(self):
-        case, log = self.case({"grown page"})
-        with self.assertRaises(AssertionError) as said:
-            case.guard(self.grow, mode="nested")
-        self.assertIn("the grown copy fails page", str(said.exception))
-        self.assertEqual(log, ["original page", "grown unit", "grown page"])
-
-    def test_a_unit_failure_is_inherited_only_when_a_fresh_copy_fails_it_too(self):
-        case, log = self.case({"original unit", "grown unit"})
+    def test_nested_a_failing_unit_suite_skips_as_unit_first(self):
+        cache, log = {}, []
         with self.assertRaises(unittest.SkipTest) as said:
-            case.guard(self.grow, mode="nested")
+            self.case({"unit", "page"}, log).first("nested", "", cache)
         self.assertIn(tree_test.UNIT_FIRST, str(said.exception))
-        case, log = self.case({"grown unit"})
-        with self.assertRaises(AssertionError) as said:
-            case.guard(self.grow, mode="nested")
-        self.assertIn("the grown copy fails unit", str(said.exception))
-        self.assertEqual(log, ["original page", "grown unit", "original unit"])
+        self.assertEqual(log, ["unit"])
+
+    def test_suites_check_py_ran_already_are_not_run_again(self):
+        cache, log = {}, []
+        self.case({"page"}, log).first("nested", "unit,page", cache)
+        self.case(set(), log).first("1", "", cache)
+        self.assertEqual(log, ["page"], "nested: none run; the plain mode's own page once")
 
 
 if __name__ == "__main__":

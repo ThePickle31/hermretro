@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -284,20 +285,50 @@ def scaffold_fix(test: list[str]) -> str:
 
 
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
-PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # the scaffold test's base page tests failed
+PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # the tree fails page before new runs at all
+BASE = "RD_SCAFFOLD_BASE"  # suites known to pass on this tree (comma-separated): the scaffold test skips its own run
 
 
-def check_scaffold(_args) -> str:
+def base_fails(args, name: str) -> bool:
+    """Whether this tree fails ``name`` already: this invocation's own row when it runs that check too (waited
+    for, never run twice), a pass the caller vouches for in RD_SCAFFOLD_BASE (retrodev check's cached one), else a
+    run of it here (``args.known``: main took RD_SCAFFOLD_BASE out of the environment). A check that cannot run here (Skip) is no failure."""
+    if name in getattr(args, "known", "").split(","):
+        return False
+    finished = getattr(args, "finished", {})
+    if name in finished:
+        finished[name].wait()
+        return args.states.get(name) == "FAILED"
+    try:
+        CHECKS[name](args or argparse.Namespace(strict=False))
+    except AssertionError:
+        return True
+    except Skip:
+        return False
+    return False
+
+
+def scaffold_mode() -> str:
+    return os.environ.get("RD_SCAFFOLD_FULL") or "1"
+
+
+def check_scaffold(args) -> str:
     # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
     if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
         raise Skip(f"{missing} (npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py)")
     need("node")
-    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
     # RD_SCAFFOLD_FULL=nested (CI's page job) adds every kind on the real features and the full suites there
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": os.environ.get("RD_SCAFFOLD_FULL") or "1"})
-    for first in (UNIT_FIRST, PAGE_FIRST):  # the tree failed before new ran: that failure is the one to fix
-        if not result.returncode and f"skipped '{first.removeprefix('skipped: ')}" in result.stderr:
-            raise Skip(first)
+    mode = scaffold_mode()
+    # The whole check first: a tree that fails page (nested: or unit) already says nothing of new, and every test
+    # that runs new with its checks would fail on it. Checked once here, so the test module does not again.
+    first = ["unit", "page"] if mode == "nested" else ["page"]
+    with ThreadPoolExecutor(max_workers=len(first)) as pool:
+        failing = dict(zip(first, pool.map(lambda name: base_fails(args, name), first), strict=True))
+    for name, message in (("unit", UNIT_FIRST), ("page", PAGE_FIRST)):
+        if failing.get(name):
+            raise Skip(message)
+    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first)})
     if result.returncode or " skipped " in result.stderr:
         raise AssertionError(tail(result.stderr, 40) + "\nFIX: " + scaffold_fix(test))
     return "retrodev new of every kind passes the real checks"
@@ -361,8 +392,14 @@ def main(argv: list[str] | None = None) -> int:
         step_summary.write([row])
         return 1
 
+    # scaffold reads page's (and nested, unit's) row of this same run instead of running it again (base_fails); a
+    # pass the caller vouches for is read once and taken out of the environment, so no other check's tests see it
+    args.finished, args.states = {name: threading.Event() for name in wanted}, {}
+    args.known = os.environ.pop(BASE, "")
+
     def one(name: str) -> tuple[str, str, float, str]:
         start = time.monotonic()
+        state = "FAILED"
         try:
             state, detail = "ok", CHECKS[name](args)
         except Skip as skip:
@@ -371,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
                 detail += "\nFIX: install what is missing (see AGENTS.md, \"Checks\")"
         except AssertionError as error:
             state, detail = "FAILED", str(error)
+        finally:
+            args.states[name] = state
+            args.finished[name].set()
         return name, state, time.monotonic() - start, detail
 
     def show(row: tuple[str, str, float, str]) -> None:

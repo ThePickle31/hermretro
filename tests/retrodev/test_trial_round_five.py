@@ -9,7 +9,6 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_five
 import argparse
 import importlib.util
 import io
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -116,12 +115,14 @@ class Guard(unittest.TestCase):
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        said = f"test_new ... skipped '{tree_test.UNIT_FIRST}:\nFAILED (failures=1)'\n\nOK (skipped=1)\n"
-        done = subprocess.CompletedProcess([], 0, "", said)
+        ran = []
+        failing = mock.Mock(side_effect=AssertionError("FAILED (failures=1)"))  # nested: unit, checked once first
         with (
-            mock.patch.object(module, "run", lambda *_a, **_k: done),
+            mock.patch.object(module, "run", lambda *a, **_k: ran.append(a)),
             mock.patch.object(module, "ruff_missing", lambda: None),
             mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.object(module, "scaffold_mode", lambda: "nested"),
+            mock.patch.dict(module.CHECKS, {"unit": failing, "page": lambda _args: "fine"}),
             mock.patch.object(module, "ROOT", ROOT if (ROOT / "tools/npm/node_modules").is_dir() else Path("/")),
         ):
             if not (module.ROOT / "tools/npm/node_modules").is_dir():
@@ -129,6 +130,7 @@ class Guard(unittest.TestCase):
             with self.assertRaises(module.Skip) as raised:
                 module.check_scaffold(None)
         self.assertEqual(str(raised.exception), "skipped: the tree fails unit (fix unit first)")
+        self.assertEqual((failing.call_count, ran), (1, []), "unit ran once; the scaffold module not at all")
 
 
 class Check(RepoCase):

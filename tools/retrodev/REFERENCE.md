@@ -107,7 +107,8 @@ the committed HEAD, so they run only on a committed, clean tree: when one is due
 on a tree that fails lint (in the same run, or lint's recorded failure on the same inputs) scaffold does not run (it
 would fail after a minute and more: new's code is linted) and is reported as `scaffold: skipped: the tree fails lint
 (fix lint first)`, not as scaffold's rerun FIX (likewise `scaffold: skipped: the tree fails page (fix page first)`
-when the copy's page tests fail before `new` runs); once lint passes, scaffold runs beside the other checks. A
+when the tree fails page: check.py scaffold looks at page once, before any scaffold test, reusing page's row of the
+same run or its recorded pass); once lint passes, scaffold runs beside the other checks. A
 generated bundle (`player/frame-shim.js`, `desktop/plugin.js`) whose banner's `body: sha256` is unchanged (only its
 `sources:` line moved) adds no check. A pass of everything the branch needs records the tree's digest (contents and
 file modes) and which checks those were; ship accepts it only while they cover what the policy requires now; a failed
@@ -313,12 +314,10 @@ JavaScript string. The generated code passes the real checks as written: `python
 every kind on a copy of the repository, then lint, the bundle, the structure tests and the page tests there. It is
 part of `check.py full` and `check --full`, `check` adds it when the branch changed the scaffolds or the files whose
 structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds),
-and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after running the base tree's unit suite (a failure there is
-`scaffold: skipped: the tree fails unit (fix unit first)`), it runs each kind once more on a real feature or page (an
+and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
+`scaffold: skipped: the tree fails unit (fix unit first)`, checked once for the whole check, as page is), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
-on prompts, a slot on home, a contribution from home to a declared slot; with the base tree's page suite failing
-first: `scaffold: skipped: the tree fails page (fix page first)`, also in the run on a grown copy when the copy
-fails page before it is grown), then the full unit and page suites, so a test that
+on prompts, a slot on home, a contribution from home to a declared slot), then the full unit and page suites, so a test that
 pins the real tree's current content fails in CI, not in a contributor's branch that used `new`.
 
 ### `new feature <name> [--purpose "..."]`

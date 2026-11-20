@@ -30,7 +30,7 @@ from .checks_run import (  # noqa: F401 - the other modules and the tests use th
     _row_text,
     _stream,
     env_for,
-    fails_lint,
+    fails,
     run_check_py,
     run_script,
     short_tmp,

@@ -82,35 +82,50 @@ def check_py(ctx, names: list[str], env: dict) -> dict:
 
 def run_check_py(ctx, names: list[str], env: dict, record: dict | None = None, ids: dict | None = None) -> dict:
     """check.py's result per check. With ``record`` and ``ids``, when scaffold is due: lint runs first, by itself,
-    and on a tree that fails lint (in this run, or as recorded for these very lint inputs) scaffold is recorded as
-    skipped without running (new's generated code is linted, so a lint failure anywhere fails scaffold too, after a
-    minute and more); the other checks run beside scaffold once lint passed."""
+    and on a tree that fails lint or page (in this run, or as recorded for these very inputs) scaffold is recorded
+    as skipped without running (new's generated code is linted and page-tested, so such a failure anywhere fails
+    scaffold too, after a minute and more); the other checks run beside scaffold once lint passed. check.py
+    scaffold reuses page's row of the same run, and a pass recorded for these inputs goes to it in
+    RD_SCAFFOLD_BASE, so the tree's page suite runs once."""
     if record is None or "scaffold" not in names:
         return check_py(ctx, names, env)
     first = ["lint"] if "lint" in names else []
     results = check_py(ctx, first, env) if first else {}
     rest = [name for name in names if name not in first and name != "scaffold"]
-    if fails_lint(ctx, results, record, ids):
+    failing = next(
+        (name for name in ("lint", "page") if name not in rest and fails(ctx, results, record, ids, name)), ""
+    )
+    if failing:
         results |= check_py(ctx, rest, env) if rest else {}
-        results["scaffold"] = {"state": "skipped", "seconds": 0.0, "detail": LINT_FIRST, "more": []}
-        ctx.out.say(_row_text("skipped", "scaffold", 0.0, LINT_FIRST))
+        why = LINT_FIRST if failing == "lint" else PAGE_FIRST
+        results["scaffold"] = {"state": "skipped", "seconds": 0.0, "detail": why, "more": []}
+        ctx.out.say(_row_text("skipped", "scaffold", 0.0, why))
     else:
-        results |= check_py(ctx, rest + ["scaffold"], env)
+        known = [name for name in ("page", "unit") if name not in names and passed(ctx, record, ids, name)]
+        results |= check_py(ctx, rest + ["scaffold"], {**env, "RD_SCAFFOLD_BASE": ",".join(known)})
     return results
 
 
 LINT_FIRST = "skipped: the tree fails lint (fix lint first)"
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # tools/check.py scaffold's skip in its nested mode
-PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # tools/check.py scaffold's skip: base page tests fail
+PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # tools/check.py scaffold's skip: page fails already
 
 
-def fails_lint(ctx, results: dict, record: dict, ids: dict) -> bool:
-    if "lint" in results:
-        return results["lint"]["state"] == "FAILED"
-    last = record.get("checks", {}).get("lint", {})
-    return last.get("state") == "FAILED" and last.get("digest") == repo.digest(
-        ids, ctx.policy["checks"]["inputs"]["lint"]
-    )
+def recorded(ctx, record: dict, ids: dict, name: str) -> str:
+    """``name``'s recorded state when it was recorded for these very inputs, else ""."""
+    last = record.get("checks", {}).get(name, {})
+    same = last.get("digest") == repo.digest(ids, ctx.policy["checks"]["inputs"][name])
+    return last.get("state", "") if same else ""
+
+
+def passed(ctx, record: dict, ids: dict, name: str) -> bool:
+    return recorded(ctx, record, ids, name) == "ok"
+
+
+def fails(ctx, results: dict, record: dict, ids: dict, name: str = "lint") -> bool:
+    if name in results:
+        return results[name]["state"] == "FAILED"
+    return recorded(ctx, record, ids, name) == "FAILED"
 
 
 def run_script(ctx, name: str, env: dict) -> dict:

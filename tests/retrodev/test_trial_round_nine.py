@@ -7,9 +7,12 @@ README's long rows were cut by agents' readers. Each test failed before its fix.
 Run alone: python -m unittest tests.retrodev.test_trial_round_nine
 """
 
+import argparse
 import importlib.util
+import json
 import io
 import subprocess
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -149,24 +152,90 @@ class PageFirst(RepoCase):
         self.assertIn("scaffold: skipped: the tree fails page (fix page first)", out)
         self.assertNotIn("skipped (a tool is missing)", out)
 
+    def test_page_s_recorded_result_decides_without_running_page_again(self):  # review round 2, 0
+        tree = self.worktree("feat/pages-first")
+        self.commit(tree, "tools/retrodev/scaffold.py", "# changed\n")  # scaffold is due
+        self.fail_checks("page")
+        self.run_cli("check", cwd=tree)
+        before = len(self.check_log())
+        code, out = self.run_cli("check", "scaffold", "--again", cwd=tree)  # page's recorded failure, these inputs
+        self.assertEqual(code, 1, out)
+        self.assertIn("scaffold: skipped: the tree fails page (fix page first)", out)
+        self.assertNotIn("scaffold", json.dumps(self.check_log()[before:]), "scaffold did not run")
+        self.fail_checks()
+        self.run_cli("check", "page", cwd=tree)
+        before = len(self.check_log())
+        self.run_cli("check", "scaffold", "--again", cwd=tree)  # page's recorded pass: check.py does not rerun it
+        [entry] = [e for e in self.check_log()[before:] if "scaffold" in e.get("names", [])]
+        self.assertIn("page", entry["base"].split(","))
+
     def test_check_py_and_the_scaffold_test_say_page_first(self):
         self.assertEqual(tree_test.PAGE_FIRST, checks.PAGE_FIRST.removeprefix("skipped: "))
-        spec = importlib.util.spec_from_file_location("check_py_probe_nine", ROOT / "tools/check.py")
+
+
+class WholeScaffoldCheckFirst(unittest.TestCase):
+    """Review round 2 of #64, 0: check.py scaffold looks at the tree's page suite once, before the scaffold module
+    runs at all (this invocation's own page row when it has one, never a second run): a failing one skips the whole
+    check, a passing one goes to the module in RD_SCAFFOLD_BASE so it does not run it again."""
+
+    def check_py(self):
+        spec = importlib.util.spec_from_file_location("check_py_probe_nine_first", ROOT / "tools/check.py")
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        said = f"test_new ... skipped '{tree_test.PAGE_FIRST}:\\nnot ok 1'\n\nOK (skipped=1)\n"
-        done = subprocess.CompletedProcess([], 0, "", said)
         if not (ROOT / "tools/npm/node_modules").is_dir():
             self.skipTest("the npm tools are not set up here")
+        return module
+
+    def scaffold(self, module, args, page=None):
+        ran = []
+
+        def run(command, **kwargs):
+            ran.append(kwargs.get("env", {}))
+            return subprocess.CompletedProcess(command, 0, "", "Ran 12 tests\n\nOK\n")
+
         with (
-            mock.patch.object(module, "run", lambda *_a, **_k: done),
+            mock.patch.object(module, "run", run),
             mock.patch.object(module, "ruff_missing", lambda: None),
             mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.dict(module.CHECKS, {"page": page or (lambda _args: "fine")}),
         ):
-            with self.assertRaises(module.Skip) as raised:
-                module.check_scaffold(None)
-        self.assertEqual(str(raised.exception), "skipped: the tree fails page (fix page first)")
+            try:
+                return module.check_scaffold(args), ran
+            except module.Skip as skip:
+                return str(skip), ran
+
+    def invocation(self, page_state: str):
+        done = threading.Event()
+        done.set()
+        return argparse.Namespace(strict=False, finished={"page": done}, states={"page": page_state})
+
+    def test_a_page_row_of_the_same_run_that_failed_skips_the_whole_check(self):
+        module = self.check_py()
+        said, ran = self.scaffold(module, self.invocation("FAILED"), page=self.fail)
+        self.assertEqual(said, "skipped: the tree fails page (fix page first)")
+        self.assertEqual(ran, [], "the scaffold module does not run at all")
+
+    def test_a_page_row_of_the_same_run_that_passed_is_reused(self):
+        module = self.check_py()
+        said, ran = self.scaffold(module, self.invocation("ok"), page=self.fail)  # page itself would fail: unused
+        self.assertEqual(said, "retrodev new of every kind passes the real checks")
+        self.assertEqual([env.get("RD_SCAFFOLD_BASE") for env in ran], ["page"])
+
+    def test_without_a_page_row_check_py_runs_page_once_itself(self):
+        module = self.check_py()
+        calls = []
+
+        def page(_args):
+            calls.append(1)
+            raise AssertionError("not ok 1 - rdprobe")
+
+        said, ran = self.scaffold(module, argparse.Namespace(strict=False), page=page)
+        self.assertEqual((said, calls, ran), ("skipped: the tree fails page (fix page first)", [1], []))
+
+    @staticmethod
+    def fail(_args):
+        raise AssertionError("page ran a second time")
 
 
 class Readme(unittest.TestCase):
