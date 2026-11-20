@@ -21,7 +21,7 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 ## Adding a tab here
 
-Make a folder `page/pages/setup/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,
+Make a folder `page/pages/setup/<tab>/` (`install` and `onboarding` are taken: pick another id) with an `index.js` exporting `{ id, label, Page }` (plus `events`,
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/setup/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:

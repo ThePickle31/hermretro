@@ -92,6 +92,15 @@ Off by default. Setting `hardware_enabled` (plugin settings, `config_schema`) tu
 tools on: `chromatic_device`, `chromatic_setup`, `chromatic_play`, `chromatic_flash`,
 `chromatic_device_capture`. While off they return a denial explaining how to enable them.
 Developer Mode activation always stays in the official ModRetro Updater.
+The engine's `device` tool (`engine/modretro-chromatic/dist/chromatic.js`, `ChromaticService`): `status` answers at
+once without touching USB (`{success, sessionId, platform, arch, backend: {supported, target | reason}, drivers,
+acceptingOperations, operations, ...}`); `list_devices` starts a scan and answers `{operationId, state: "running", ...}`;
+`operation_status` with that `operationId` answers, once `state` is `succeeded`, a `result` of `{devices: [{player,
+location, ..., deviceToken, expiresAt}], conflicts, unmatched, diagnostics, selection, identityScope}`.
+A page read that needs the engine is a broker control op (`backend/broker/control.py`) running
+`engine = self.new_engine("<name>")`, `engine.call_tool(...)`, `engine.close()`, as `doctor` does, called from an
+RPC through `host.ensure_broker()`; `doctor` reads no hardware, so a device read must also refuse unless the RPC's
+`ctx.get_config("hardware_enabled")` is on (the gate `Broker.call` applies to the hardware tools).
 
 ### `studio_profile` — no params
 
