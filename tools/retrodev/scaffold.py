@@ -27,7 +27,6 @@ from __future__ import annotations
 import ast
 import difflib
 import keyword
-import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -276,15 +275,9 @@ def validate(ctx, names: list[str]) -> None:
     their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship)."""
     branch = repo.branch(ctx.top)
     kept = state.load_branch(ctx.top, branch)
-    before = os.environ.get(SCAFFOLD_CHECK)
-    os.environ[SCAFFOLD_CHECK] = "1"
-    try:
-        checks.run(ctx, names)
+    try:  # the gate's switch goes only to the checks' processes: os.environ is shared by every thread
+        checks.run(ctx, names, env={SCAFFOLD_CHECK: "1"})
     finally:
-        if before is None:
-            os.environ.pop(SCAFFOLD_CHECK, None)
-        else:
-            os.environ[SCAFFOLD_CHECK] = before
         state.save_branch(ctx.top, kept)
 
 

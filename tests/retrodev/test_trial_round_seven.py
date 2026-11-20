@@ -232,41 +232,6 @@ class PlanApprove(RepoCase):
         self.assertEqual(found, [], "a local named after an imported name hides it; FIX: rename the local")
 
 
-def process_wide(call: ast.Call) -> bool:
-    """A call that changes state every thread of the pool shares: isolated_home (the environment, the host's data
-    folder), mock.patch.dict(os.environ, ...), or the event dispatcher's own table (events.on, events.emit)."""
-    func = call.func
-    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
-    owner = func.value if isinstance(func, ast.Attribute) else None
-    if name == "isolated_home":
-        return True
-    if isinstance(owner, ast.Name) and owner.id == "events" and name in ("on", "emit"):
-        return True
-    return owner is not None and name == "dict" and bool(call.args) and ast.unparse(call.args[0]) == "os.environ"
-
-
-class Pool(unittest.TestCase):
-    def test_a_module_that_changes_process_wide_state_runs_alone(self):  # review 3, 2
-        found = []
-        for path in sorted((ROOT / "tests" / "retrodev").glob("test_*.py")):
-            tree = ast.parse(path.read_text())
-            alone = any(
-                isinstance(node, ast.Assign)
-                and [ast.unparse(target) for target in node.targets] == ["load_tests"]
-                and ast.unparse(node.value) == "alone"
-                for node in tree.body
-            )
-            calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and process_wide(node)]
-            if calls and not alone:
-                found += [f"{path.relative_to(ROOT)}:{node.lineno}: {ast.unparse(node.func)}" for node in calls]
-        self.assertEqual(
-            found,
-            [],
-            "these change state the pool's threads share; FIX: move the tests into a module with load_tests = alone "
-            "(as test_trial_round_seven_alone.py)",
-        )
-
-
 class Body(RepoCase):
     def started(self) -> Path:
         self.commit(

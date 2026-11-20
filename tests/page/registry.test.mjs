@@ -169,14 +169,17 @@ test('pages listen for their whole life: a cover request and a presentation reac
   assert.deepEqual(BUILD_PRESENTED.get().frog, { seq: 3, note: 'try it', t: 5 })
 })
 
-// Filling a real slot changes only the `filled` assertion below (a new, empty slot only the declared list); the
+// Filling a real slot changes only `expected` in the `filled` assertion below (a new, empty slot only the declared list); the
 // empty case renders on a table of its own. A slot's contributions are listed in PAGES order
 // (page/pages/index.js), whatever order the contributing pages were written in.
 test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual([...PAGE_SLOTS.declared().keys()].sort(), ['emulator.barActions', 'games.cardMenu'])
   const filled = Object.fromEntries([...PAGE_SLOTS.declared().keys()].map(name => [name, PAGE_SLOTS.contributions(name)]).filter(([, list]) => list.length))
 
-  assert.deepEqual(filled, { 'emulator.barActions': [InstallButton] })
+  const expected = { 'emulator.barActions': [InstallButton] }
+  const named = slots => JSON.stringify(Object.fromEntries(Object.entries(slots).map(([slot, list]) => [slot, list.map(item => item.name || '(anonymous)')])))
+
+  assert.deepEqual(filled, expected, `slots filled: ${named(filled)}, expected ${named(expected)}\nFIX: when a page's contributes changed on purpose, change \`expected\` here (STUDIO-PAGES.md, "A contribution to a slot")`)
 })
 
 test('an empty slot renders nothing', async () => {

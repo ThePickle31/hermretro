@@ -32,7 +32,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))  # check.py's helpers
+HELPERS = str(Path(__file__).resolve().parent / "py")  # check.py's helpers
+if HELPERS not in sys.path:  # once: the retrodev tests load this file on the pool's threads (tests/retrodev)
+    sys.path.insert(0, HELPERS)
 import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
@@ -75,36 +77,35 @@ def need(tool: str) -> str:
 
 
 def check_unit(_args) -> str:
-    # In an empty home (tools/py/unit_home.py): a write meant for the real one shows up, and names its test module.
+    # In an empty home and an empty TMPDIR (tools/py/unit_home.py): a write meant for the real home, or a temp
+    # folder a test never removed, shows up and names its test module.
     with (
         tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
+        tempfile.TemporaryDirectory(prefix="hermretro-tmp-", dir=short_tmp()) as tmp,
         tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
     ):
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
         result = run(
             [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env=unit_home.unit_env(home, bytecode),
+            env=unit_home.unit_env(home, bytecode, tmp),
         )
-        leaked = unit_home.written(home)
+        leaked = (
+            "" if result.returncode else unit_home.leaks(home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env))
+        )
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
             "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
         )
     if leaked:
-        raise AssertionError(
-            unit_home.leak_message(
-                leaked, unit_home.leaking_modules(ROOT, short_tmp(), lambda cmd, env: run(cmd, env=env))
-            )
-        )
+        raise AssertionError(leaked)
     lines = result.stderr.splitlines()
     ran = [line for line in lines if line.startswith("Ran ")]
     # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
     timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
     # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
-    warnings = sum("layout warning: " in line for line in lines)
-    noted = f"; {warnings} layout warnings (python -m unittest tests.repo.test_layout)" if warnings else ""
+    noted = unit_home.layout_note(lines)
     return (ran[-1] if ran else "ok") + noted + slow
 
 

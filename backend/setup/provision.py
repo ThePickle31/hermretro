@@ -349,9 +349,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
             "vendor_terms_accepted": True,
             "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-        temporary = paths.DEVICE_CLI_RECEIPT.with_suffix(".tmp")
-        temporary.write_text(json.dumps(receipt, indent=2) + "\n")
-        os.replace(temporary, paths.DEVICE_CLI_RECEIPT)
+        paths.write_json_atomic(paths.DEVICE_CLI_RECEIPT, receipt)
 
     selection = paths.select_engine()
     if not selection["prepared"]:
