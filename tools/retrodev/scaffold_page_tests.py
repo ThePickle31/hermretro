@@ -11,6 +11,7 @@ import re
 from .scaffold import Plan
 
 HARNESS = "tests/page/harness.mjs"
+PAGES_DOC = "docs/dev/STUDIO-PAGES.md"  # its 'A tab' section holds a runnable tab test (tab_step points to it)
 SDK_STUB = "tests/page/sdk-stub.mjs"
 LABEL = re.compile(r"""^\s*label:\s*(['"])(.+?)\1""", re.M)
 HELPER = re.compile(r"^[ \t]*const (\w+) = async\b", re.M)  # only the declaration: its body is bounded below
@@ -226,7 +227,14 @@ def tab_step(plan: Plan, page_id: str, tab_id: str, tab_label: str) -> str:
         if own
         else f"add {new} (a scenario test: runScenario, {HARNESS})"
     )
+    doc = read(plan, PAGES_DOC)
+    tab_section = doc.split("\n### A tab\n", 1)[1].split("\n### ", 1)[0] if "\n### A tab\n" in doc else ""
+    example = (
+        f"; a runnable example to start from: {PAGES_DOC} 'A tab' (Testing a tab)"
+        if "runScenario" in tab_section and "```js" in tab_section
+        else ""
+    )
     return (
         f"the tab's checks: {where} (tests/page/*.test.mjs are picked up automatically; name a new one on the "
-        f"**Tests:** line of page/pages/{page_id}/README.md); tab('{label}') opens the page{switch}"
+        f"**Tests:** line of page/pages/{page_id}/README.md); tab('{label}') opens the page{switch}{example}"
     )

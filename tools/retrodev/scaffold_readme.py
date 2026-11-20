@@ -160,6 +160,29 @@ def first_tab_step(page_id: str, tab_id: str, component: str, door: str, name: s
 DESIGN_DOC = "docs/dev/STUDIO-PAGES.md"
 
 
+def doc_sections(doc: str) -> list[tuple[str, list[str]]]:
+    """Each `## ` heading of ``doc`` and the `### ` headings under it."""
+    sections: list[tuple[str, list[str]]] = []
+    for line in doc.split("\n"):
+        if line.startswith("## "):
+            sections.append((line[3:].strip(), []))
+        elif line.startswith("### ") and sections:
+            sections[-1][1].append(line[4:].strip())
+    return sections
+
+
+def own_sections(doc: str) -> str:
+    """For a step naming the `### <Page>` subsections under `## Pages`: the pages described in a top section of their
+    own instead (one with a `### Page` subsection, as Build's `## Build: one game, one conversation`), as
+    "; Build's is its `### Page` subsection under `## Build: ...`" ('' when there are none)."""
+    own = [
+        (re.split(r"\W", top)[0], top)
+        for top, subs in doc_sections(doc)
+        if not top.startswith("Pages") and "Page" in subs
+    ]
+    return "".join(f"; {page}'s is its `### Page` subsection under `## {top}`" for page, top in own)
+
+
 def design_heading(doc: str, label: str) -> str:
     """Where docs/dev/STUDIO-PAGES.md describes the page labelled ``label``: its `### <Label>` subsection under
     `## Pages`, else a top `## <Label>...` section of its own (Build's `## Build: one game, one conversation`, with
@@ -167,12 +190,7 @@ def design_heading(doc: str, label: str) -> str:
     Without the doc (a partial tree), the usual place: its `### <Page>` subsection under `## Pages`."""
     if not doc.strip():
         return f"its `### <Page>` subsection under `## Pages` of {DESIGN_DOC}"
-    sections: list[tuple[str, list[str]]] = []  # each `## ` heading and the `### ` headings under it
-    for line in doc.split("\n"):
-        if line.startswith("## "):
-            sections.append((line[3:].strip(), []))
-        elif line.startswith("### ") and sections:
-            sections[-1][1].append(line[4:].strip())
+    sections = doc_sections(doc)
     named = re.compile(rf"{re.escape(label)}(?!\w)")
     for top, subs in sections:
         if top.startswith("Pages") and not named.match(top):

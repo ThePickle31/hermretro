@@ -271,7 +271,7 @@ class LongEventDocstring(ScaffoldCase):
 class ListenerLogs(ScaffoldCase):
     def test_the_listener_steps_say_how_to_assert_a_log(self):
         said = " ".join(self.new("listener", "history", "history.build_kept")["next"])
-        self.assertIn('with self.assertLogs(listeners.host.logger, "INFO"):', said)
+        self.assertIn('with self.assertLogs(listeners.host.logger, "<LEVEL>"):`, the level the listener logs at', said)
         self.assertIn("from ..hermes import host", said)
         self.assertIn("logger = logging.getLogger(__name__)", (ROOT / "backend/hermes/host.py").read_text())
 
