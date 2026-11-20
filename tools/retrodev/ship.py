@@ -36,6 +36,7 @@ from .review import records
 
 TEMPLATE = ".github/pull_request_template.md"
 NO_GOAL = "<!-- no plan: say why -->"
+SHARED = "<!-- the plan covers several branches: say why this one -->"
 
 
 def labels(ctx, files: list[str]) -> list[str]:
@@ -139,11 +140,14 @@ def skeleton(ctx, branch: str, record: dict) -> str:
     source = ctx.top / TEMPLATE
     sections = ctx.policy["ship"]["sections"]
     text = source.read_text(encoding="utf-8") if source.is_file() else "".join(f"## {s}\n\n" for s in sections)
-    goal = plan_goal(ctx, branch, record)
-    why = "\n".join(goal) if goal else NO_GOAL  # a visible placeholder: the body gate still finds the Why empty
+    several = plan.shared(ctx, branch, record)  # the Goal and Not in scope are the whole plan's, not this PR's
+    goal = plan.branch_section(ctx, branch, record) if several else plan_goal(ctx, branch, record)
+    why = "\n".join(goal) if goal else SHARED if several else NO_GOAL  # the body gate still finds a placeholder empty
     text = re.sub(r"^## Why[ \t]*\n", lambda m: m.group(0) + why + "\n", text, count=1, flags=re.M)
     found = plan_sections(ctx, branch, record)
     for heading, sources in PREFILL.items():
+        if several and heading == "Not done":
+            continue
         lines = next((found[name] for name in sources if found.get(name)), [])
         if lines:  # after the heading and its template comments
             at = re.search(rf"^## {re.escape(heading)}[ \t]*\n(?:[ \t]*<!--.*?-->[ \t]*\n)*", text, flags=re.M | re.S)
@@ -187,8 +191,13 @@ def body_file(ctx, title: str, body: str | None, new_body: bool, dry_run: bool, 
         ctx.out.say(f"kept: {path} exists (nothing was overwritten)")
     else:
         named = gates.plan_for(ctx, branch, record)
+        several = plan.shared(ctx, branch, record)
         why = (
-            "the plan's Goal is its Why"
+            "the plan covers several branches: write this one's Why and Not done"
+            if several and not plan.branch_section(ctx, branch, record)
+            else "the plan's section for this branch is its Why"
+            if several
+            else "the plan's Goal is its Why"
             if plan_goal(ctx, branch, record)
             else f"the plan {named} has no Goal to copy: write the Why"
             if named

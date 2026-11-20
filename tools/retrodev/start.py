@@ -102,6 +102,7 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
     repo.git(["worktree", "add", "--quiet", "--no-track", "-b", name, str(path), base], main)
     ctx.out.say(f"worktree {path} on {name} from {base} ({repo.head(path)[:9]})")
     setup_results = run_setup(ctx, path) if setup else []
+    state.keep_plan_branch(main, name, ctx.policy["branches"]["no_plan"])  # a stale record it replaces
     record = state.load_branch(main, name)
     record.update(
         branch=name,
@@ -114,9 +115,14 @@ def run(ctx, name: str, no_plan: bool = False, setup: bool = True, plan_topic: s
         start_sha=repo.head(path),
     )
     state.save_branch(main, record)
+    if not no_plan:
+        from . import plan  # ship imports plan; start stays importable on its own
+
+        plan.remember(ctx, name, record)  # the plan keeps the branch after land or gc forgets this record
     body = None if no_plan else body_note(ctx, name, record)
     ctx.out.say(str(path))
-    ctx.out.say(f"next: {cmd('cd', path)}, build, then python tools/retrodev check")
+    fill = f" (fill in {body} as you go: notes/ is in the main checkout, shared by every worktree)" if body else ""
+    ctx.out.say(f"next: {cmd('cd', path)}, build{fill}, then python tools/retrodev check")
     ctx.out.set(path=str(path), branch=name, topic=topic, setup=setup_results, body=body)
     return 0
 
@@ -128,8 +134,19 @@ def body_note(ctx, branch: str, record: dict) -> str | None:
 
     written = ship.write_body(ctx, branch, record)
     if written:
+        several = ship.plan.shared(ctx, branch, record)
+        mine = several and ship.plan.branch_section(ctx, branch, record)
+        copied = (
+            "What changed from the plan, Why from its section for this branch; it covers several branches, so "
+            "Not done and the title are yours to write"
+            if mine
+            else "What changed from the plan; it covers several branches, so Why, Not done and the title are yours "
+            "to write"
+            if several
+            else "Why, What changed and Not done from the plan"
+        )
         ctx.out.say(
-            f"wrote {written}: the pull request body (Why, What changed and Not done from the plan); fill in the "
+            f"wrote {written}: the pull request body ({copied}); fill in the "
             "rest while you build, ship refuses it until every section says something"
             + gates.agent_hint(written.read_text(encoding="utf-8"))
         )

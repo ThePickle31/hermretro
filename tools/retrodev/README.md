@@ -14,11 +14,14 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 4. `python tools/retrodev new <kind> ...` for each piece (`--dry-run` lists its files first, also from `dev`), then edit
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
 6. `python tools/retrodev check`
-7. fill in `notes/pr/<topic>.md` (check's last line names what is left)
+7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 
 `RETRODEV_AGENT=<agent, model>` names the agent in the body's `Made by` line (default Hermes); set it per command
 before `start` writes the body, or edit the line.
+
+`notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
+worktree, and every next step names them by their full path.
 
 ## The flow, from plan to merge
 

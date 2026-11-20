@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from . import scaffold_page_tests as page_tests
 from .output import Failure, cmd
 from .scaffold import (
     CAMEL,
@@ -239,6 +240,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
             f"a single tab shows a tab bar of one: add a second tab (python tools/retrodev new tab {page_id} <tab>), "
             "or keep a page without tabs"
         )
+    plan.next_steps.append(page_tests.tab_step(plan, page_id, tab_label))
     for test in rendering_tests(plan, page_id):
         plan.next_steps.append(
             f"{test} renders pageOf('{page_id}').Page"

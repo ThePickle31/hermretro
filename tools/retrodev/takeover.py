@@ -68,6 +68,7 @@ def run(ctx, branch: str, setup: bool = True) -> int:
     repo.git(["worktree", "add", "--quiet", "--track", "-b", branch, str(path), remote], main)
     ctx.out.say(f"worktree {path} on {branch}, tracking {remote} ({(repo.head(path) or '')[:9]})")
     setup_results = start.run_setup(ctx, path) if setup else []
+    state.keep_plan_branch(main, branch, ctx.policy["branches"]["no_plan"])  # a stale record it replaces
     record = state.load_branch(main, branch)
     kind = branch.partition("/")[0] if "/" in branch else ""
     record.update(
@@ -81,6 +82,7 @@ def run(ctx, branch: str, setup: bool = True) -> int:
         taken_over=remote,
     )
     state.save_branch(main, record)
+    plan.remember(ctx, branch, record)  # a plan its topic names keeps it after land or gc forgets this record
     steps = next_steps(ctx, branch, path, record, topic)
     kinds = ctx.policy["branches"]["kinds"]
     if kind not in kinds:  # ship, land and CI read no branch kind (release notes group by labels): it keeps its name
@@ -113,9 +115,12 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
         steps.append(status.read_first(both, ctx.remote_base, "writing the plan" if planned else "sync merges it"))
     if planned and named:
         if not plan.plan_file(ctx, named).is_file():
-            steps.append(f"python tools/retrodev plan new {named} (say what the branch does and what is left)")
+            steps.append(
+                f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
+                "does and what is left)"
+            )
         steps.append(
-            f"show the owner notes/plans/{named}.md; when they say start: python tools/retrodev plan approve {named} "
+            f"show the owner {plan.plan_file(ctx, named)}; when they say start: python tools/retrodev plan approve {named} "
             '--words "<their exact words>" (it also writes the pull request body)'
         )
     if behind:
