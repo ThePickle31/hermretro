@@ -25,9 +25,9 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `.github/` | Workflows, templates, and `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` for people opening pull requests or reporting problems |
 
 Every file belongs to a folder in `tools/layout.toml`; `tests/repo/test_layout.py` fails on a file outside the map
-and on Python or page source over 600 lines (it warns above 400), and `tests/repo/test_portable.py` fails on a
-personal home folder, user id or name. A new folder gets a line in `tools/layout.toml` and the same line in the Map
-of `docs/dev/ARCHITECTURE.md`.
+and on Python or page source over 600 lines (it warns above 400; a split leaves every piece under 400), and
+`tests/repo/test_portable.py` fails on a personal home folder, user id or name. A new folder gets a line in
+`tools/layout.toml` and the same line in the Map of `docs/dev/ARCHITECTURE.md`.
 
 ## Checks
 
@@ -52,7 +52,9 @@ real-engine run and the clean install). It adds the real-engine run itself when 
 `engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
 check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
 new` run on a throwaway copy of the tree, about 50 s) when it changed the scaffolds or the files whose structure they
-parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count). A
+parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count), and
+nested (the full suites in a grown copy, about 110 s) when it changed `tests/repo/`, `tests/support.py` or the page
+test harness (`[checks.nested_triggers]`). A
 branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
 on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`
 `[checks.budgets]`; a check over its budget twice in a row gets a warning, never a failure. Run `python tools/check.py
