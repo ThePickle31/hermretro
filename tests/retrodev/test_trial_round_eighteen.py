@@ -45,6 +45,28 @@ class EventTest(RealFiles):
             scaffold_payload.typed_sample(["root", "count"], PAYLOAD), 'root=Path("/games/probe"), count=1'
         )
 
+    def test_a_dict_typed_last_key_renders_valid_python(self):  # review 1, 0
+        self.new("event", "history", "rdprobe", "--payload", "data=<metadata, dict>")
+        test = self.read("tests/backend/history/test_event_rdprobe.py")
+        self.assertIn('[{"data": {}}]', test)
+        compile(test, "test_event_rdprobe.py", "exec")
+
+    def test_render_unescapes_the_template_but_never_a_value(self):  # review 1, 0
+        from retrodev import scaffold
+
+        self.assertEqual(
+            scaffold.TOKEN.sub(lambda m: m.group(0)[0] if m.group(1) is None else "X", "{{a}} {b}"), "{a} X"
+        )
+        text = scaffold.render(
+            "event",
+            "test_event.py.tmpl",
+            **dict.fromkeys(
+                scaffold.KEY.findall((scaffold.TEMPLATES / "event" / "test_event.py.tmpl").read_text(encoding="utf-8")),
+                "{}}",
+            ),
+        )
+        self.assertIn("{}}", text)
+
     def test_new_listener_then_finds_that_test_already_isolated(self):
         self.real("backend/assets/*.py", "backend/assets/README.md")
         self.new("event", "history", "rdprobe", "--payload", PAYLOAD)
