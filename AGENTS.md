@@ -48,10 +48,11 @@ node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (bound
 `python tools/retrodev check` runs the same checks through `check.py`, but only those whose input files changed
 since their last pass on the branch (a cached pass prints `ok (cached)`; `--again` reruns, `--full` adds the
 real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
-`engine/`, `player/`, the toolchain or `plugin.yaml` (about 1 minute), the clean install (about 40 s; with the update
-check when files moved or were deleted) when it changed the registration side, and the `scaffold` check (`retrodev
-new` run on a throwaway copy of the tree, about 20 s) when it changed the scaffolds or the files whose structure they
-parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the docs do not count). A
+`engine/`, `player/`, the toolchain or `plugin.yaml` beyond its `version:` line (about 1 minute), the clean install
+(about 40 s; with the update check when files moved or were deleted) when it changed the registration side, and the
+`scaffold` check (`retrodev new` run on a throwaway copy of the tree, about 20 s) when it changed the scaffolds or the
+files whose structure they parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the
+docs do not count). A
 branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
 on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`
 `[checks.budgets]`; a check over its budget twice in a row gets a warning, never a failure. Run `python tools/check.py
@@ -143,8 +144,8 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 
 ## Releases (only when the owner asks)
 
-`python tools/retrodev release prepare|publish|verify` runs these steps with their gates (`tools/retrodev/README.md`,
-"Releases"); it refuses without the owner's words asking for a release. By hand:
+`python tools/retrodev release run` takes steps 2 to 4 up to the draft (its parts are `release prepare|publish|verify`;
+`tools/retrodev/README.md`, "Releases"); it refuses without the owner's words asking for a release. By hand:
 
 The version lives only in `plugin.yaml` (`tests/repo/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
