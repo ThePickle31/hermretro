@@ -67,18 +67,27 @@ def tool_module(plan: Plan, feature_name: str, module: str) -> str:
 
 
 TOOL_ARGS = "tool_args"  # backend/<feature>/tool_args.py: tool_error and tool_project (backend/library has it)
-PROJECT_IMPORT = f"from .{TOOL_ARGS} import tool_error, tool_project"
+SHARED_ARGS = f"backend/hermes/{TOOL_ARGS}.py"  # the shared home of both, for any feature (library re-exports them)
+
+
+def project_import(plan: Plan, feature_name: str) -> str:
+    """Where a --project tool imports tool_error and tool_project from: its feature's tool_args.py, else the
+    shared backend/hermes/tool_args.py."""
+    if plan.exists(f"backend/{feature_name}/{TOOL_ARGS}.py"):
+        return f"from .{TOOL_ARGS} import tool_error, tool_project"
+    return f"from ..hermes.{TOOL_ARGS} import tool_error, tool_project"
 
 
 def wants_project(plan: Plan, feature_name: str, project: bool | None) -> bool:
-    """--project (default: on when the feature has tool_args.py, as library does; --no-project turns it off)."""
+    """--project (default: on when the feature has tool_args.py, as library does; --no-project turns it off).
+    Elsewhere --project imports the helpers from backend/hermes/tool_args.py, refused while that file is missing."""
     has = plan.exists(f"backend/{feature_name}/{TOOL_ARGS}.py")
-    if project and not has:
+    if project and not has and not plan.exists(SHARED_ARGS):
         raise Failure(
-            f"--project needs backend/{feature_name}/{TOOL_ARGS}.py (tool_error, tool_project), which "
-            f"{feature_name} does not have; nothing was written",
-            f"declare the tool in library (it has them), or copy backend/library/{TOOL_ARGS}.py's helpers into "
-            f"backend/{feature_name}/{TOOL_ARGS}.py first, or leave out --project",
+            f"--project needs tool_error and tool_project, from backend/{feature_name}/{TOOL_ARGS}.py or {SHARED_ARGS}, "
+            "and this tree has neither; nothing was written",
+            f"bring {SHARED_ARGS} from dev (python tools/retrodev sync; it is there since #60), declare the tool in "
+            "library (it has them), or leave out --project",
         )
     return has if project is None else project
 
@@ -140,6 +149,7 @@ def tool(
             f"tools.py's TOOLS takes in (*{module}.TOOLS); --module <name> picks another name"
         )
     home = source if module is None else f"backend/{feature_name}/{tool_module(plan, feature_name, module)}.py"
+    values["module"] = module or "tools"  # the test imports the handler from there: a plain function to call
     plan.ensure(home, render("tool", "tools.py.tmpl", **values))
     for where in dict.fromkeys(rel for rel in (source, home) if plan.exists(rel)):  # one name per tool, feature-wide
         taken = sorted({f"{const(short)}_TOOL", f"{short}_handler"} & module_names(plan.read(where)))
@@ -151,7 +161,8 @@ def tool(
     entry = f"    Tool({const(short)}_TOOL, {short}_handler, step_words={words}),"
     block = render("tool", "tool_project.py.tmpl" if project else "tool.py.tmpl", **values)
     if project:
-        plan.edit(home, lambda text: with_import(text, PROJECT_IMPORT, ("tool_error", "tool_project")))
+        line = project_import(plan, feature_name)
+        plan.edit(home, lambda text: with_import(text, line, ("tool_error", "tool_project")))
     plan.edit(home, lambda text: add_tool(text, home, block, entry))
     if module is not None:
         plan.ensure(source, render("tool", "tools_index.py.tmpl", **values))
@@ -189,6 +200,11 @@ def tool(
     if project and feature_name == "library":
         plan.next_steps.append(
             'project files: backend/library/README.md "Project files"; title: games.project_title(root)'
+        )
+    if project:
+        plan.next_steps.append(
+            "a tool about the selected game: host.library_game_for([root]) -> (game id, root) or None "
+            "(from ..hermes import host)"
         )
     return f"tool {full}"
 

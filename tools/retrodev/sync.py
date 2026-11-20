@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from . import gates, repo
+from . import gates, land_carry, repo
 from .output import Failure, cmd
 
 REGENERATED = "Regenerate generated files after merging dev"
@@ -163,7 +163,7 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
             if theirs.strip() or not ours.strip():
                 continue
             found = first_name(ours)
-            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "") + " -- page backend"
+            log = f"git log -p {ctx.remote_base}" + (f" -S{found}" if found else "")  # the whole tree: tests move too
             hints.append(
                 f"{name}: {ctx.base} removed this block; if it moved, `{log}` finds where; apply your change there "
                 "and drop this side"
@@ -212,7 +212,56 @@ def resume(ctx) -> int:
     if other:
         raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", with_hints(ctx, other))
     ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
+    added = new_lines(ctx, generated)
+    if added:
+        limit = ctx.policy.get("land", {}).get("max_sync_resolution_lines", 20)
+        files = ", ".join(sorted(added))
+        ctx.out.say(
+            f"warning: the resolution adds {sum(added.values())} line(s) neither side had ({files}): new work belongs "
+            f"in its own commit after sync (a resolution over {limit} lines needs a full review round at land)"
+        )
+        ctx.out.set(new_lines=added)
     return finish(ctx, left, resumed=True)
+
+
+def _side(ctx, rev: str, name: str) -> list[str] | None:
+    """The lines of ``name`` at ``rev`` ("" for the index): [] when it is not there, None when it is binary."""
+    data = repo.blob(ctx.top, f"{rev}:{name}")
+    if data is None:
+        return []
+    content = repo.text(data)
+    return None if content is None else content.splitlines()
+
+
+def conflicted(ctx) -> list[str] | None:
+    """The paths the open merge conflicted on (git merge-tree of HEAD and MERGE_HEAD redoes it without touching the
+    index: once they are resolved and added, git keeps no list of them); None when git's answer cannot be read."""
+    code, out, _err = repo.run(
+        ["git", "merge-tree", "--write-tree", "--name-only", "-z", "HEAD", "MERGE_HEAD"], ctx.top
+    )
+    parsed = land_carry.merge_tree_output(code, out)
+    return None if parsed is None else parsed[1]
+
+
+def new_lines(ctx, generated: set[str]) -> dict[str, int]:
+    """{file: lines} the resolved conflicts hold that neither this branch (HEAD) nor the base (MERGE_HEAD) had: work
+    written into the merge instead of a commit of its own. Only files that were in conflict count (git merged the
+    rest by itself); blank lines, generated files and binary files (never decoded as text) do not."""
+    staged = repo.git(["diff", "--cached", "--name-only", "-z", "HEAD"], ctx.top, check=False).split("\0")
+    hit = conflicted(ctx)
+    found = {}
+    for name in staged:
+        if not name or name in generated or (hit is not None and name not in hit):
+            continue
+        sides = [_side(ctx, rev, name) for rev in ("", "HEAD", "MERGE_HEAD")]
+        if any(side is None for side in sides):
+            continue  # binary on some side: not lines
+        merged, ours, theirs = sides
+        known = set(ours or []) | set(theirs or [])
+        count = sum(1 for line in merged or [] if line.strip() and line not in known)
+        if count:
+            found[name] = count
+    return found
 
 
 def run(ctx) -> int:

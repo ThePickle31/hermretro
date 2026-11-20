@@ -242,7 +242,7 @@ def readme_item(text: str, label_text: str, item: str, only_none: bool = False) 
 def guard(ctx) -> str:
     branch = repo.branch(ctx.top)
     policy = ctx.policy["branches"]
-    if not branch or branch in policy["protected"] or branch.split("/")[0] not in policy["kinds"]:
+    if not branch or branch in policy["protected"]:  # any work branch: ship and land take any name (a takeover's)
         raise Failure(
             f"new writes code only on a work branch, and this checkout is on {branch or 'a detached HEAD'}",
             "python tools/retrodev start feat/<topic> (a worktree on its own branch), then run new there",

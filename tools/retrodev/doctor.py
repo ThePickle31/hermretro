@@ -203,7 +203,25 @@ def checkout(ctx) -> list[dict]:
             "set XDG_RUNTIME_DIR to a short writable folder, or make /tmp writable",
         )
     )
+    free = ctx.fakes.get("tmp_free")
+    if usable or free is not None:
+        found.append(space_item(tmp, shutil.disk_usage(tmp).free if free is None else free))
     return found
+
+
+GIB = 1024**3
+
+
+def space_item(tmp: str, free: int) -> dict:
+    """A warning when the short temp folder has under 1 GB free: the checks' throwaway copies of the tree (the
+    scaffold check, try) go there, and a small tmpfs ($XDG_RUNTIME_DIR) fills up mid-run."""
+    return warning(
+        "short temp folder space",
+        free >= GIB,
+        f"{tmp}: {free / GIB:.1f} GB free",
+        f"free space in {tmp}: remove leftover throwaway folders there (ls -la {tmp}; rd-* and the like), since "
+        "the checks put their copies there (the scaffold check's own copy falls back to the default temp folder)",
+    )
 
 
 def reviewer(ctx) -> list[dict]:

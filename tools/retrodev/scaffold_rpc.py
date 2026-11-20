@@ -3,13 +3,16 @@
 tools/bundle/rpc_names.py (the page's generated RPC names) and tests/repo/test_lockstep.py read the @rpc
 declarations in backend/*/rpcs.py only, and backend/hermes/declare.py collects what rpcs.py declares: so the
 @rpc stays in rpcs.py, as a short function that calls the factory in the module (``from . import <name>``), and the
-handler's code lives in the module. Without --module, an rpcs.py over BIG_RPCS lines gets a note suggesting it.
+handler's code lives in the module. Without --module, an rpcs.py over big_rpcs() lines (tools/layout.toml [size] warn,
+less MODULE_MARGIN) gets a note suggesting it.
 Nothing is written here: it fills scaffold.py's Plan.
 """
 
 from __future__ import annotations
 
 import ast
+import tomllib
+from pathlib import Path
 
 from .output import Failure
 from .scaffold import SNAKE, Plan, check_name, render
@@ -17,7 +20,21 @@ from .scaffold_source import MODULE_TAKEN, bindings, check_front_door_name, impo
 
 RPCS = "backend/{feature}/rpcs.py"
 
-BIG_RPCS = 350  # lines: past this, new rpc suggests --module (the layout test warns above 400, fails above 600)
+LAYOUT = "tools/layout.toml"
+OWN_LAYOUT = Path(__file__).resolve().parents[1] / "layout.toml"
+MODULE_MARGIN = 50  # new rpc suggests --module this many lines before the layout's warning, so a handler lands first
+
+
+def big_rpcs(layout: str | None = None) -> int:
+    """The rpcs.py length past which new rpc suggests --module: the one size rule's `warn` (tools/layout.toml
+    [size]) less MODULE_MARGIN. ``layout`` is that file's text (the tree new edits); else the one beside this code."""
+    if layout is None:
+        layout = OWN_LAYOUT.read_text(encoding="utf-8") if OWN_LAYOUT.is_file() else ""
+    try:
+        warn = int(tomllib.loads(layout).get("size", {}).get("warn", 400))
+    except (tomllib.TOMLDecodeError, TypeError, ValueError):
+        warn = 400  # the rule as the layout has always written it
+    return warn - MODULE_MARGIN
 
 
 def alias(module: str) -> str:
@@ -157,7 +174,7 @@ def big_note(plan: Plan, feature_name: str, name: str) -> None:
     """Without --module: a note when rpcs.py is long already."""
     source = f"backend/{feature_name}/rpcs.py"
     size = len(plan.read(source).splitlines()) if plan.exists(source) else 0
-    if size > BIG_RPCS:
+    if size > big_rpcs(plan.read(LAYOUT) if plan.exists(LAYOUT) else None):
         plan.notes.append(
             f"{source} has {size} lines: python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs puts "
             "the handler in its own module (rpcs.py keeps a short @rpc declaration that calls it)"
