@@ -103,7 +103,7 @@ clean/dirty change, so committing lets the waiting install checks run, and reads
 (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run,
 later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or
 were deleted) when the branch changed what they cover; prints times against budgets (`policy.toml` `[checks.budgets]`,
-from measured cold runs on a loaded machine: unit 45 s, scaffold 40 s, the fast checks together 60 s). A check over
+from measured cold runs on a loaded machine: unit 45 s, scaffold 58 s, the fast checks together 60 s). A check over
 its budget twice in a row on the branch (each check's last passing time is recorded in the branch record's
 `durations`: a failed run measures nothing) gets a warning that it was slower than usual (machines and load differ),
 never a failure; one slow run (a cold cache, a busy machine) warns nothing. The clean install and update check install

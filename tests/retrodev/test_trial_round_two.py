@@ -159,9 +159,9 @@ class Flow(RepoCase):
     def test_the_budgets_are_measured_cold_runs_and_the_readme_agrees(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
         budgets = ctx.policy["checks"]["budgets"]
-        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 40, 60))
+        self.assertEqual((budgets["unit"], budgets["scaffold"], budgets["fast_total"]), (45, 58, 60))
         readme = retrodev_docs()
-        self.assertIn("unit 45 s, scaffold 40 s, the fast checks together 60 s", readme)
+        self.assertIn("unit 45 s, scaffold 58 s, the fast checks together 60 s", readme)
         self.assertIn("over its budget twice in a row", readme)
         self.assertNotIn("Over twice its budget", readme)
 
