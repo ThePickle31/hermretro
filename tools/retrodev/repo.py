@@ -249,11 +249,12 @@ def head_ids(cwd: Path | str) -> dict[str, str]:
     return ids
 
 
-def digest(ids: dict[str, str], patterns: list[str] | None = None) -> str:
-    """One sha256 over the files matching ``patterns`` (fnmatch, * also matches /; None: every file)."""
+def digest(ids: dict[str, str], patterns: list[str] | None = None, ignore: list[str] | None = None) -> str:
+    """One sha256 over the files matching ``patterns`` (fnmatch, * also matches /; None: every file) and none of
+    ``ignore``."""
     hasher = hashlib.sha256()
     for name in sorted(ids):
-        if patterns is None or matches(name, patterns):
+        if (patterns is None or matches(name, patterns)) and not matches(name, ignore or []):
             hasher.update(f"{name}\0{ids[name]}\n".encode())
     return hasher.hexdigest()
 

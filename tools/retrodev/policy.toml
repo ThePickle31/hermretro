@@ -49,6 +49,14 @@ acceptance = ["*"]
 clean_install = ["*"]
 update = ["*"]
 
+[checks.input_ignore]
+# Files a check's input patterns match that it never reads: a change to one keeps its pass. Only what a trace shows
+# no part of the check reads. acceptance (tools/check.py acceptance: tests/acceptance/broker_acceptance.py, the
+# backend it imports, the broker it starts from the plugin root, the player files, the engine and the toolchain
+# outside the tree) imports nothing from tests/retrodev/ and walks no folder that holds it: a retrodev test edit
+# kept rerunning the 40 s real-engine run (round 20). retrodev's own code and this file stay its inputs.
+acceptance = ["tests/retrodev/*"]
+
 [checks.triggers]
 # Added to `check` automatically when the branch changed one of these files since it left the base branch.
 acceptance = ["backend/*", "engine/*", "player/*", "tools/ci/prepare_toolchain.py", "plugin.yaml"]

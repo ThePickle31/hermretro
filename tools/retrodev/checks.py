@@ -31,6 +31,7 @@ from .checks_run import (  # noqa: F401 - the other modules and the tests use th
     _stream,
     env_for,
     fails,
+    inputs_digest,
     run_check_py,
     run_script,
     short_tmp,
@@ -55,7 +56,7 @@ def budget_key(name: str, why: str) -> str:
 def input_digest(ctx, ids: dict, name: str, why: str) -> str:
     """The digest a check's pass is kept against: its inputs, and for scaffold run nested the mode too, so a pass
     in the fast mode never stands for the nested one."""
-    found = repo.digest(ids, ctx.policy["checks"]["inputs"][name])
+    found = inputs_digest(ctx, ids, name)
     return found + "+nested" if budget_key(name, why) == NESTED_KEY else found
 
 
@@ -125,7 +126,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
             ctx.out.say(_row_text("skipped", name, 0.0, detail))
         elif name in SCRIPTS:
             results[name] = run_script(ctx, name, env_for(name, env))
-            digests[name] = repo.digest(committed, ctx.policy["checks"]["inputs"][name])
+            digests[name] = inputs_digest(ctx, committed, name)
     for name in todo:
         result = results[name]
         if name in uncommitted:

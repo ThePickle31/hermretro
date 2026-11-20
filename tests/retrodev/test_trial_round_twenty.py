@@ -17,7 +17,7 @@ import retrodev
 from retrodev import body_names, cli, scaffold_preview, scaffold_rpc
 from retrodev.scaffold_listener import host_name
 
-from tests.retrodev.fixture import RepoCase, git, parallel, retrodev_docs, write
+from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
 
 load_tests = parallel
@@ -239,6 +239,68 @@ class TakeoverAdvice(RepoCase):
         self.assertIn("what is left for you, and that you took the branch over", plan)
         sync = next(step for step in steps if step.startswith(f"python {self.main}/tools/retrodev sync"))
         self.assertIn("every retrodev step until sync is done: then the worktree's own copy is current", sync)
+
+
+class AcceptanceInputs(RepoCase):
+    """A branch that needs the real-engine run passed it, then changed only a retrodev test: acceptance reran (40 s)
+    though nothing it runs reads tests/retrodev/. Every file it may read still takes its pass back."""
+
+    def checked(self, tree, *, cached: bool, code: int = 0) -> dict:
+        self.clear_log()
+        got, data = self.run_cli("check", cwd=tree, as_json=True)
+        self.assertEqual(got, code, data)
+        ran = [name for entry in self.check_log() for name in entry.get("names", [])]
+        self.assertEqual("acceptance" not in ran, cached, ran)
+        row = next(row for row in data["checks"] if row["name"] == "acceptance")
+        self.assertEqual(row["cached"], cached, row)
+        return data
+
+    def shipped(self, tree) -> list[str]:
+        body = write(self.base, "body.md", GOOD_BODY)
+        _code, data = self.run_cli(
+            "ship", "--title", "Move the glue", "--body", str(body), "--dry-run", cwd=tree, as_json=True
+        )
+        return [gate["name"] for gate in data["gates"] if not gate["ok"]]
+
+    def test_a_retrodev_test_edit_keeps_the_acceptance_pass_and_the_tree_may_ship(self):
+        tree = self.worktree("chore/move")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.assertTrue(self.checked(tree, cached=False)["tree_passed"])
+        self.commit(tree, "tests/retrodev/test_probe.py", "PROBE = 1\n", "Add a retrodev test")
+        data = self.checked(tree, cached=True)
+        self.assertTrue(data["tree_passed"], data)
+        self.assertEqual(
+            self.check_log()[0]["names"], ["unit", "lint", "scan"], "the fast checks that read it still run"
+        )
+        self.assertEqual(self.shipped(tree), [], "the ship gate takes the tree whose pass reused acceptance")
+        write(tree, "tests/retrodev/test_probe.py", "PROBE = 2\n")  # uncommitted: the other gates still hold
+        self.assertIn("committed and clean", self.shipped(tree))
+        git(tree, "commit", "-q", "-am", "Change the probe")
+        self.fail_checks("unit")
+        data = self.checked(tree, cached=True, code=1)
+        self.assertFalse(data["tree_passed"], "a cached acceptance pass never outweighs a failure")
+        self.assertIn("checks passed on this tree", self.shipped(tree))
+
+    def test_every_file_the_real_engine_run_may_read_takes_its_pass_back(self):
+        tree = self.worktree("chore/move")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.checked(tree, cached=False)
+        for name in (
+            "backend/library/core.py",  # the backend, broker and player it runs
+            "tests/acceptance/broker_acceptance.py",  # the suite itself
+            "tests/support.py",  # shared test helpers
+            "tests/retrodev.py",  # beside the folder, not in it
+            "tools/ci/prepare_toolchain.py",  # the toolchain
+            "tools/check.py",  # the runner
+            "tools/retrodev/checks.py",  # what decides and runs it
+            "tools/retrodev/policy.toml",  # its inputs and their exceptions
+        ):
+            with self.subTest(name):
+                path = tree / name
+                write(tree, name, (path.read_text() if path.is_file() else "") + "\n# changed\n")
+                git(tree, "add", "-A")
+                git(tree, "commit", "-q", "-m", f"Change {name}")
+                self.checked(tree, cached=False)
 
 
 class Readme(unittest.TestCase):

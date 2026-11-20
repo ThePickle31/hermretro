@@ -111,10 +111,17 @@ UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # tools/check.py s
 PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # tools/check.py scaffold's skip: page fails already
 
 
+def inputs_digest(ctx, ids: dict, name: str) -> str:
+    """The digest of what ``name`` reads: the files its [checks.inputs] patterns match, less those its
+    [checks.input_ignore] patterns name (files the patterns cover that the check is shown never to read)."""
+    policy = ctx.policy["checks"]
+    return repo.digest(ids, policy["inputs"][name], policy.get("input_ignore", {}).get(name, []))
+
+
 def recorded(ctx, record: dict, ids: dict, name: str) -> str:
     """``name``'s recorded state when it was recorded for these very inputs, else ""."""
     last = record.get("checks", {}).get(name, {})
-    same = last.get("digest") == repo.digest(ids, ctx.policy["checks"]["inputs"][name])
+    same = last.get("digest") == inputs_digest(ctx, ids, name)
     return last.get("state", "") if same else ""
 
 
