@@ -273,6 +273,15 @@ def frame_document(root: Path, build: dict, capture_generation: str) -> bytes:
 # -- captures ----------------------------------------------------------------------------
 
 
+def capture_root(identifier, game_root) -> Path | None:
+    """Where a game's captures live (the folder ``list_captures``/``save_capture`` take as ``root``): the library
+    folder for the demo cartridge (its captures go in ``<library>/captures/demo``), else ``game_root(identifier)``,
+    the project folder (``host._game_root`` on the Hermes side); None for an unknown game."""
+    if is_demo(identifier):
+        return demo_captures_root()
+    return game_root(identifier) if library.valid_id(identifier) else None
+
+
 def captures_dir(root: Path, identifier: str | None = None) -> Path:
     return root / "captures" / DEMO_ID if is_demo(identifier) else root / "captures"
 
@@ -536,10 +545,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._text(404, "Not found.")
             return None
         identifier = parts[2]
-        if is_demo(identifier):
-            root = demo_captures_root()
-        else:
-            root = player.resolve(identifier) if library.valid_id(identifier) else None
+        root = capture_root(identifier, player.resolve)
         if root is None:
             self._text(404, "Unknown game.")
             return None
