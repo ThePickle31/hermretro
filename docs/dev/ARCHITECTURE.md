@@ -130,7 +130,11 @@ it there along with the feature's README.
 (`backend/<feature>/<new>.py`). Update every caller to import from it, or, when tests or other features still use the
 moved names through the old module, import them back there with `# noqa: F401 - re-exported`. Move the moved code's
 tests to `tests/backend/<feature>/test_<new>.py`. Then change the feature README's module list and any doc that
-names the old module for the moved code (`tests/repo/test_doc_pointers.py` checks the paths they name).
+names the old module for the moved code (`tests/repo/test_doc_pointers.py` checks the paths they name); `git grep`
+the old module's path too, for comments and docs that name it without backticks. A split can rename log lines: the
+modules that log with `logging.getLogger(__name__)` (`backend/player/server.py`, `backend/system/events.py`,
+`backend/hermes/host.py`) name their logger after the module, so moved code logs under the new name; say so in the
+pull request body. The rest log through `host.logger` and keep its name.
 
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`

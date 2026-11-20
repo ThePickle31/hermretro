@@ -1,9 +1,9 @@
 /**
  * hermretro — the player frame shim. GENERATED FILE, do not edit.
  * Source: page/frame/. Rebuild: node tools/bundle/bundle.mjs
- * Inlined first in the player frame page by backend/player/server.py; imports nothing.
+ * Inlined first in the player frame page by the player backend (backend/player/); imports nothing.
  * build: esbuild 0.28.2
- * sources: sha256 4d432f259a5e92c9b3fb74819a34378a41cad54460a3f64a846309aca848deae
+ * sources: sha256 aa359a54b493a86ef3a18f765fb73bd48dc660a057d262c0869a34b8d3138f86
  * body: sha256 95927e7c4af1969f6960a485bc1b138d8055abf5b36c8c9f6bc670d3bc852a0e
  */
 (() => {

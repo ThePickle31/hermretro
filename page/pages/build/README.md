@@ -5,7 +5,8 @@ transcript (`transcript/`), the message box (`composer/`), the game playing insi
 picture viewer (`viewer/`), the image cache (`assets/`) and the game drawn behind New Game (`attract/`) with the shelf of games being worked on standing on its floor (`cart-shelf.js`). `chat/` holds the conversations, the gateway events
 and the actions. While the hermretro profile is missing it shows `studio-needed.js` instead (the choice is the page's
 `Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last). Its games are the `games` RPC's game
-objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game-object)).
+objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game-object)). A game's conversation is
+`BUILD_CHATS.get()[game.session.storedId]` (`chat/store.js`, inside this page); its `busy` is true while a turn runs.
 
 **Tabs:** none (its areas are subfolders, not tabs).
 
