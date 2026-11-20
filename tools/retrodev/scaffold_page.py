@@ -27,6 +27,7 @@ from .scaffold import (
 from .scaffold import camel as to_camel
 from .scaffold_imports import PAGE_FIELD, binding, drop_page, statements
 from .scaffold_move import move_out
+from .scaffold_readme import code_spans, first_tab_step, slots_block, slots_line, taken_readme, with_block
 
 REGISTRY = "page/pages/index.js"
 REGISTRY_TEST = "tests/page/registry.test.mjs"
@@ -198,6 +199,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
 
     plan.edit(door, wire)
     _readme(plan, page_id, "Tabs:", f"`{tab_id}` (`{tab_id}/index.js`)", append=True)
+    taken_readme(plan, page_id, tab_id)
     plan.regenerate = True
     still_page, tabs = own_page(plan.read(door))[1], tab_count(plan.read(door))
     if from_page:
@@ -207,6 +209,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
         )
     else:
         if tabless and component:
+            plan.next_steps.insert(0, first_tab_step(page_id, tab_id, component, door, name))  # before anything
             plan.skip_checks.append("page")
             plan.notes.append(
                 f"the page check is skipped now: {page_id} gets its first tab and keeps its own Page ({component}), "
@@ -352,11 +355,12 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
-    said = f"declares `{full}`: {doc[:1].lower() + doc[1:].rstrip('.')}"  # as page/pages/emulator/README.md writes it
+    said = f"declares `{full}`: {code_spans(doc[:1].lower() + doc[1:].rstrip('.'))}"  # as emulator's README writes it
     rel = f"page/pages/{page_id}/README.md"
     before = plan.read(rel) if plan.exists(rel) else None
     if before is not None:
         plan.edit(rel, lambda text: slots_line(text, said))
+        plan.edit(rel, lambda text: with_block(text, found.group(0)) if (found := slots_block(text)) else text)
     if before is None or plan.read(rel) == before:
         plan.notes.append(f"mention {said} under **Slots:** in {rel}")
     plan.regenerate = True
@@ -370,16 +374,6 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
         "(Contributes ...) and the 'Events and slots today' line of docs/dev/STUDIO-PAGES.md",
     ]
     return f"slot {full}"
-
-
-def slots_line(text: str, said: str) -> str:
-    """The README's '**Slots:** declares none, contributes X.' as '**Slots:** <said>. Contributes X.' (said:
-    'declares `<page>.<name>`: <doc>', a sentence of its own); unchanged when the page declares a slot already."""
-    found = re.search(r"\*\*Slots:\*\* declares none(?:[,.;]\s*([cC])ontributes)?", text)
-    if not found:
-        return text
-    rest = ". Contributes" if found.group(1) else ""
-    return text[: found.start()] + f"**Slots:** {said}{rest}" + text[found.end() :]
 
 
 def _readme(plan: Plan, page_id: str, what: str, item: str, replaces: str = "none", append: bool = False) -> None:

@@ -153,7 +153,8 @@ class Slot(ScaffoldCase):
         out = self.new("slot", "rdprobe-shelf", "more", "--doc", "Buttons after the lede. Props: { ctx }")
         line = next(r for r in self.read("page/pages/rdprobe-shelf/README.md").splitlines() if "**Slots:**" in r)
         self.assertEqual(
-            line, "**Slots:** declares `rdprobe-shelf.more`: buttons after the lede. Props: { ctx }. Contributes none."
+            line,
+            "**Slots:** declares `rdprobe-shelf.more`: buttons after the lede. Props: `{ ctx }`. Contributes none.",
         )
         steps = joined(out)
         self.assertIn("add a HOSTS recipe for 'rdprobe-shelf.more' in tests/page/slots.test.mjs", steps)

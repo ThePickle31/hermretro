@@ -162,7 +162,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="the output folder (default: <state>/preview)")
     p.add_argument("--desktop", help="a built Hermes Desktop source (default: $HERMES_SOURCE/apps/desktop)")
     p = add("config", "personal settings (never committed)")
-    p.add_argument("action", choices=["get", "set", "list"])
+    p.add_argument("action", nargs="?", default="list", choices=["get", "set", "list"], help="list (the default)")
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
     return top

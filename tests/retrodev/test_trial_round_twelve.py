@@ -192,7 +192,8 @@ class BodyPaths(RepoCase):
             "Things.", "`backend/library/core.py` and `core.py` change; `backend/hermes/glue.py` and `ship.py` too."
         )
         said = body_names.warning(ctx, text) or ""
-        self.assertIn("names the file(s) `backend/hermes/glue.py`, `ship.py`, which the branch's diff does not", said)
+        # a bare name (`ship.py`) is no repository path the diff can check (round 14)
+        self.assertIn("names the file(s) `backend/hermes/glue.py`, which the branch's diff does not", said)
         self.assertNotIn("`backend/library/core.py`", said)
         self.assertNotIn("`core.py`", said)
         self.assertIsNone(body_names.warning(ctx, GOOD_BODY.replace("Things.", "`backend/library/` changes.")))

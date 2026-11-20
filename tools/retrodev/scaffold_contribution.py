@@ -2,7 +2,8 @@
 filling a Plan; nothing is written here).
 
 The places are docs/dev/STUDIO-PAGES.md's "A contribution to a slot": the component in the contributing page's
-folder, `contributes` in its index.js, its README **Slots:** line, and the `filled` assertion of
+folder, `contributes` in its index.js, its README **Slots:** line, the host page README's **Slots:** line (``<Page>
+fills it with `<Component>`.``, scaffold_readme.py), and the `filled` assertion of
 tests/page/registry.test.mjs (written here when its shape is the usual one, so the page check passes at once: the
 import there takes the alias <Component>From<Page> when the test uses the name already, e.g. Text). A slot key is
 matched in any quote style. The docs and the host's side stay the author's: the next steps name them.
@@ -14,9 +15,10 @@ import re
 
 from . import scaffold_page_tests as page_tests
 from .output import Failure
-from .scaffold import Plan, pascal
+from .scaffold import Plan, label, pascal
 from .scaffold_imports import statements
 from .scaffold_page import REGISTRY, REGISTRY_TEST, add_to_descriptor, descriptor, known_page, unique_exports
+from .scaffold_readme import filled_by
 
 SLOT = re.compile(r"^[a-z][a-z0-9-]*\.[a-z][a-zA-Z0-9]{0,39}$")
 PASCAL = re.compile(r"^[A-Z][A-Za-z0-9]{0,39}$")
@@ -102,6 +104,10 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
     plan.edit(door, lambda text: wired(text, door, slot, component, file_of(component)))
     readme(plan, page_id, f"Contributes `{component}` to `{slot}`")
     expected = registry_expected(plan, slot, component, rel)
+    host_readme, giver = f"page/pages/{host}/README.md", page_tests.page_label(plan, page_id) or label(page_id)
+    hosted = filled_by(read(plan, host_readme), slot, giver, component)
+    if hosted is not None:
+        plan.edit(host_readme, lambda text: filled_by(text, slot, giver, component) or text)
     plan.regenerate = True
     if not expected:
         plan.skip_checks.append("page")
@@ -113,7 +119,6 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
         f"write {component} in {rel}: it gets {slot}'s props (the slot's doc in page/pages/{host}/index.js) and "
         "returns what the slot shows (null shows nothing)",
         f"docs/dev/STUDIO-PAGES.md 'Events and slots today': name {component} ({page_id}) under `{slot}`",
-        f"page/pages/{host}/README.md **Slots:** line: say {page_id} fills `{slot}` with {component}",
         page_tests.contribution_step(plan, host, slot, component),
         f"tests/page/slots.test.mjs HOSTS: the recipe that renders `{slot}`'s host"
         + (
@@ -122,6 +127,10 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
             else " (add one once the host renders it)"
         ),
     ]
+    if hosted is None:  # its Slots line does not declare the slot in the usual words
+        plan.next_steps.insert(2, f"{host_readme} **Slots:** line: say {giver} fills `{slot}` with `{component}`")
+    else:
+        plan.done.append(f"{host_readme} **Slots:** line: {giver} fills `{slot}` with `{component}`")
     if expected:
         plan.done.append(
             f"{REGISTRY_TEST}: added {component} to the `filled` assertion's `expected` (and its import)"

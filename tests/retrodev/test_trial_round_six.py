@@ -151,9 +151,9 @@ class Takeover(RepoCase):
         self.assertIn("ok  ", out)  # start's setup ran there (the fixture's stand-in prints 'set up')
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         self.assertEqual(steps[0], f"cd {tree}")
-        self.assertTrue(steps[1].startswith("python tools/retrodev plan new mate"), steps)
-        self.assertIn("python tools/retrodev plan approve mate", steps[2])
-        self.assertEqual(steps[3], "python tools/retrodev sync (HEAD lacks 1 commit(s) of origin/dev)")
+        self.assertEqual(steps[1], "python tools/retrodev sync (HEAD lacks 1 commit(s) of origin/dev)")  # round 14
+        self.assertTrue(steps[2].startswith("python tools/retrodev plan new mate"), steps)
+        self.assertIn("python tools/retrodev plan approve mate", steps[3])
         self.assertEqual(steps[4], "python tools/retrodev check")
         code, out = self.run_cli("takeover", "feat/mate")
         self.assertEqual(code, 1, out)
@@ -194,7 +194,7 @@ class Sync(RepoCase):
             "backend/library/moving.py:5-11: dev deleted this block (no other file on origin/dev has its lines; if it "
             "moved and changed, `git log -p origin/dev '-Sdef moving_block():'` finds where); delete the HEAD side of "
             "this hunk, git add, sync again",
-            out["error"]["fix"],
+            out["error"]["message"],
         )
 
 
