@@ -152,6 +152,51 @@ class SyncHintPerHunk(RepoCase):
         )
 
 
+STEP = '  log("step");'
+NEW_LINE = "const megabytes = Math.round(bytes / 1000000);"
+
+
+class SyncHintNoGuess(RepoCase):
+    def test_ambiguous_context_never_names_a_dev_file_holding_the_branch_s_own_line(self):
+        around = "\n".join([STEP] * 3)
+        self.on_dev(SIZE, f"{around}\n{BASE_LINE}\n{around}\n", "Sizes")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/guess")
+        self.commit(tree, SIZE, f"{around}\n{NEW_LINE}\n{around}\n")
+        self.on_dev(SIZE, f"{around}\n{around}\n", "Drop the size line")
+        self.on_dev("page/shared/unrelated.js", f"{NEW_LINE}\n", "Unrelated")
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, out)
+        hint = next(line for line in out["error"]["message"].splitlines() if line.startswith(SIZE + ":"))
+        self.assertNotIn("unrelated.js", hint)
+        self.assertIn("deleted this block", hint)
+
+    def test_a_destination_dev_renamed_later_is_not_named(self):
+        self.on_dev(SIZE, SIZE_TEXT, "Sizes")
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/renamed")
+        self.commit(tree, SIZE, SIZE_TEXT.replace("1048576", "1000000"))
+        other = self.base / "other"
+        write(
+            other,
+            FORMAT,
+            "export function formatBytes(bytes) {\n  const megabytes = Math.round(bytes / 1024 / 1024);\n}\n",
+        )
+        write(other, SIZE, SIZE_TEXT.replace("  " + BASE_LINE + "\n", ""))
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "formatBytes takes the sizes over")
+        moved = git(other, "rev-parse", "--short=9", "HEAD").strip()
+        git(other, "mv", FORMAT, "page/shared/bytes.js")
+        git(other, "commit", "-q", "-m", "Rename format.js")
+        git(other, "push", "-q", "origin", "dev")
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 1, out)
+        hint = next(line for line in out["error"]["message"].splitlines() if line.startswith(SIZE + ":"))
+        self.assertNotIn(FORMAT, hint)
+        self.assertIn(f"removed these lines in {moved[:7]}", hint)
+        self.assertIn("redo your change where it belongs now", hint)
+
+
 class RealFiles(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:

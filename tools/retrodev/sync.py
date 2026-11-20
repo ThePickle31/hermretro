@@ -176,7 +176,8 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
             # the base's version of what dev removed: the branch's own new lines were never on dev
             part = parts[index] if index < len(parts) else ""
             had = sync_moved.base_lines(ctx, name, ours, part, text, first, last)
-            where, line = moved_to(ctx, name, "\n".join(had) or ours)
+            # never the branch's own lines: they can be in an unrelated dev file, naming a wrong destination
+            where = moved_to(ctx, name, "\n".join(had))[0] if had else None
             line = (distinctive_lines("\n".join(had)) or [None])[0] if had else None
             commit = None
             if line and not where:  # moved and changed: the commit that removed it, and where it added a copy
@@ -191,8 +192,9 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
                 )
             else:
                 hints.append(
-                    f"{name}:{first}-{last}: {ctx.base} deleted this block (no other file on {ctx.remote_base} has its "
-                    "lines"
+                    f"{name}:{first}-{last}: {ctx.base} "
+                    + (f"removed these lines in {commit} (" if commit else "deleted this block (")
+                    + f"no other file on {ctx.remote_base} has its lines"
                     + (f"; if it moved and changed, `{log}` finds where" if log else "")
                     + "); delete the HEAD side of this hunk, git add, sync again, then redo your change where it "
                     "belongs now in a new commit"
