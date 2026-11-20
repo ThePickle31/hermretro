@@ -16,9 +16,9 @@ from backend.hermes import host as hermes_host  # noqa: E402 - the repository ro
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import hooks as history_hooks  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:
@@ -161,10 +161,8 @@ class BuildHistoryHost(unittest.TestCase):
         connect.start()
         self.addCleanup(connect.stop)
         self.store = isolated.data / "snapshots"
-        self.root = make_project(self.base)
+        self.game, self.root = make_library_game(isolated)
         self.outsider = make_project(self.base, name="Not Listed")
-        hermes_host._registry().upsert(str(self.root))
-        self.game = games.game_id(self.root)
 
     def hook(self, **kwargs):
         registered_hook("post_tool_call")(

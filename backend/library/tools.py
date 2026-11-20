@@ -1,5 +1,5 @@
-"""The library's plugin-owned tools: chromatic_present_game, chromatic_game_info and chromatic_build_report,
-with their schemas and handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
+"""The library's plugin-owned tools (named on the Tools line of backend/library/README.md), with their schemas and
+handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
 
 from __future__ import annotations
 

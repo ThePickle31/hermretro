@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Broker, Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_games import make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
