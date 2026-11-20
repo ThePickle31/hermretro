@@ -29,14 +29,26 @@ def _key(ctx) -> dict:
     return {"branch": repo.branch(ctx.top), "head": repo.head(ctx.top), "merge_head": repo.head(ctx.top, "MERGE_HEAD")}
 
 
+def _valid_hunk(hunk: object) -> bool:
+    return (
+        isinstance(hunk, dict)
+        and hunk.get("kind") in ("moved", "rewritten")
+        and all(isinstance(hunk.get(key), str) and hunk[key] for key in ("file", "lines"))
+        and all(hunk.get(key) is None or isinstance(hunk[key], str) for key in ("where", "commit"))
+    )
+
+
 def _load(ctx) -> dict | None:
-    """The record for the merge open now, or None (none kept, unreadable, or kept for another merge)."""
+    """The well-formed record for the merge open now, or None."""
     path = _path(ctx)
     try:
         record = json.loads(path.read_text(encoding="utf-8")) if path and path.is_file() else None
     except (OSError, ValueError):
         return None
     if not isinstance(record, dict) or not record.get("merge_head"):
+        return None
+    hunks = record.get("hunks")
+    if not isinstance(hunks, list) or not all(_valid_hunk(hunk) for hunk in hunks):
         return None
     return record if all(record.get(name) == value for name, value in _key(ctx).items()) else None
 
@@ -47,15 +59,24 @@ def remember(ctx, hunks: list[dict]) -> None:
     path = _path(ctx)
     if path is None:
         return
+    key = _key(ctx)
+    if not key["merge_head"]:
+        return
     kept = (_load(ctx) or {}).get("hunks", [])
     merged = kept + [hunk for hunk in hunks if hunk not in kept]
-    state.write_atomic(path, json.dumps({**_key(ctx), "hunks": merged}, indent=2, sort_keys=True) + "\n")
+    try:
+        state.write_atomic(path, json.dumps({**key, "hunks": merged}, indent=2, sort_keys=True) + "\n")
+    except OSError:
+        pass  # The first sync can still show its hints; the finishing sync can fall back to merge-tree.
 
 
 def forget(ctx) -> None:
     path = _path(ctx)
     if path is not None:
-        path.unlink(missing_ok=True)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass  # An optional hint must not stop the merge or report a failed sync after it succeeded.
 
 
 def _line(ctx, hunk: dict) -> str:

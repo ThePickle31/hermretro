@@ -13,6 +13,7 @@ rebuilt anyway, and committed if they changed, so they always match the merged s
 from __future__ import annotations
 
 import difflib
+from collections.abc import Sequence
 
 from . import gates, land_carry, repo, sync_followup, sync_moved
 from .sync_rewrite import AMBIGUOUS, new_location, rewritten_from
@@ -226,7 +227,7 @@ def unresolved(ctx) -> list[str]:
     return repo.git(["diff", "--name-only", "--diff-filter=U"], ctx.top).split()
 
 
-def finish(ctx, conflicts: list[str], resumed: bool = False, followup: list[str] = ()) -> int:
+def finish(ctx, conflicts: list[str], resumed: bool = False, followup: Sequence[str] = ()) -> int:
     """Take the base's side of the conflicted generated files, rebuild every generated file, commit the merge; then
     the ``followup`` lines (sync_followup.advice) before the next step."""
     base = ctx.remote_base

@@ -8,6 +8,8 @@ did not point at the runnable tab test in STUDIO-PAGES.md. Each test failed befo
 Run alone: python -m unittest tests.retrodev.test_trial_round_nineteen
 """
 
+import ast
+import json
 import re
 from pathlib import Path
 
@@ -100,6 +102,28 @@ class SyncFollowUp(RepoCase):
         self.assertIn(f"it conflicted in {NAMES}; if dev moved or rewrote", out["followup"][0])
         self.assertNotIn(FOLDERS, out["followup"][0])
 
+    def test_a_malformed_advice_record_falls_back_and_cannot_stop_a_merge(self):
+        tree = self.conflicted(elsewhere=True)
+        record = json.loads(self.record().read_text(encoding="utf-8"))
+        record["hunks"] = [{}]
+        self.record().write_text(json.dumps(record), encoding="utf-8")
+        self.resolve(tree)
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, out)
+        assert isinstance(out, dict)
+        self.assertIn(f"it conflicted in {NAMES}", out["followup"][0])
+        self.assertNotIn(FOLDERS, "\n".join(out["followup"]))
+
+    def test_an_unwritable_advice_record_cannot_stop_either_sync(self):
+        self.record().mkdir(parents=True)  # a directory at the record path refuses both replacement and unlink
+        tree = self.conflicted(elsewhere=True)
+        self.resolve(tree)
+        code, out = self.run_cli("sync", cwd=tree, as_json=True)
+        self.assertEqual(code, 0, out)
+        assert isinstance(out, dict)
+        self.assertIn(f"it conflicted in {NAMES}", out["followup"][0])
+        self.assertNotIn(FOLDERS, "\n".join(out["followup"]))
+
     def test_no_follow_up_after_a_clean_merge_or_a_plain_conflict(self):
         self.on_dev(NAMES, DOC, "Names")
         git(self.main, "fetch", "-q", "origin")
@@ -124,11 +148,13 @@ class ProjectTool(RealFiles):
         home = next(
             path for path in (self.tree / "backend/library").glob("*.py") if "RDPROBE_PROJ_TOOL" in path.read_text()
         )
-        namespace: dict = {}
-        source = home.read_text()
-        schema = source[source.index("RDPROBE_PROJ_TOOL = ") :].split("\n\n\n")[0]
-        exec(schema, namespace)  # the generated schema itself, as Hermes receives it
-        project = namespace["RDPROBE_PROJ_TOOL"]["parameters"]["properties"]["project"]
+        schema = next(
+            node.value
+            for node in ast.parse(home.read_text()).body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "RDPROBE_PROJ_TOOL" for target in node.targets)
+        )
+        project = ast.literal_eval(schema)["parameters"]["properties"]["project"]
         # the cap the library's own project tools give the same argument
         library = (ROOT / "backend/library/tools.py").read_text()
         caps = set(re.findall(r'"project": \{\s*"type": "string",\s*"maxLength": (\d+)', library))
