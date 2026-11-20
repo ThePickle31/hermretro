@@ -174,13 +174,14 @@ def needs_host(plan: Plan, source: str) -> None:
     plan.edit(source, lambda text: with_import(text, "from ..hermes import host", ("host",)))
 
 
-def big_note(plan: Plan, feature_name: str, name: str) -> None:
+def big_note(plan: Plan, feature_name: str, name: str, game: bool) -> None:
     """Without --module, after the RPC is planned in: a note when rpcs.py WITH it is past the advisory size (an
     advice, never a gate). A dry run's command keeps --dry-run; after a real run it is for the next RPC."""
     source = f"backend/{feature_name}/rpcs.py"
     size, limit = len(plan.read(source).splitlines()), big_rpcs(plan.read(LAYOUT) if plan.exists(LAYOUT) else None)
     if size > limit:
-        module = f"python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs --dry-run previews it in"
+        flags = " --game --dry-run" if game else " --dry-run"
+        module = f"python tools/retrodev new rpc {feature_name} {name} --module {name}_rpcs{flags} previews it in"
         if not plan.dry_run:
             module = f"give the next one its own module (python tools/retrodev new rpc {feature_name} <name> --module "
             module += "<name>_rpcs), or move this handler to"

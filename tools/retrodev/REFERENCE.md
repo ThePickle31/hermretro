@@ -361,7 +361,8 @@ stdlib-only feature (`policy.toml` `[new] stdlib_only`: broker, system; their ga
 or another feature). `--dry-run` lists the files, prints the unified diff of every file it would create or change
 (from the plan's in-memory edits; `diff` in `--json`), then the next steps the real run would print, as a preview
 whose `new` commands keep `--dry-run` (`next` in `--json`), and writes nothing; a later `new --dry-run` does not see
-the previewed files, so preview a piece that builds on another (a second tab) after the first is written; `--no-check` skips the checks; `--no-build`
+the previewed files, so preview a piece that builds on another (a second tab) after the first is written. Advisory
+messages print as `note:` lines (`notes` in `--json`). `--no-check` skips the checks; `--no-build`
 skips the rebuild (when several `new` run in a row, let the last one rebuild). It never writes a broken or partial
 change: every edit is made in memory first, each Python file of it must parse, and only then is anything written. It
 extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `EVENTS` a dict literal, on one line or
@@ -608,7 +609,7 @@ the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's; the nex
 
 A component of `<page>` in another page's declared slot (an undeclared slot is refused, naming the declared ones;
 with `--dry-run` only, a slot of an existing host page that is not declared yet is previewed with the note `slot not
-declared yet: run new slot <page> <name> first`, so a plan that adds a slot and fills it can list both): the
+declared yet` and a read-only `new slot ... --dry-run` command, so a plan that adds a slot and fills it can list both): the
 stub `page/pages/<page>/<component-file>.js` (`InstallButton` -> `install-button.js`, returning `null`), its import
 and `contributes: { '<slot>': [Component] }` in `page/pages/<page>/index.js` (after the slot's list when the page
 fills it already), the page README's **Slots:** line (`contributes none` becomes ``contributes `<Component>` to

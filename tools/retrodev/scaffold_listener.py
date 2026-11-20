@@ -18,7 +18,7 @@ from .scaffold import Plan, in_section, label, pascal, render
 from .scaffold_backend import ARCHITECTURE, CONTRACT, PAYLOAD_GUIDE, known_feature
 from .scaffold_payload import emitter_values, payload_keys, placeholders, split_parts, typed_sample, undescribed
 from .scaffold_readme import add_test
-from .scaffold_source import module_names
+from .scaffold_source import bindings, module_names
 
 EVENT = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 
@@ -261,17 +261,20 @@ def catch_all(keys: list[str]) -> str:
     raise AssertionError("unreachable: more candidate names than keys")
 
 
-def host_name(text: str) -> tuple[str, str]:
-    """(the name listeners.py logs through, what to do first): the host it imports, else the import to add; under
-    `hermes_host` when `host` is bound to something else (the template imports only `on`)."""
+def host_name(text: str, reserved: tuple[str, ...] = ()) -> tuple[str, str]:
+    """Reuse an unshadowed host import, or suggest an alias free both in the module and in the listener."""
     for node in ast.parse(text).body:
         if isinstance(node, ast.ImportFrom) and node.level == 2 and node.module == "hermes":
             for alias in node.names:
-                if alias.name == "host":
-                    return alias.asname or "host", ""
-    name = "hermes_host" if "host" in module_names(text) else "host"
-    line = "from ..hermes import host" + (" as hermes_host" if name != "host" else "")
-    return name, f"add `{line}` to its imports first (it does not import host yet), then "
+                name = alias.asname or alias.name
+                if alias.name == "host" and name not in reserved and len(bindings(text, name)) == 1:
+                    return name, ""
+    name, suffix = "host", 1
+    while name in reserved or bindings(text, name):
+        name = "hermes_host" if suffix == 1 else f"hermes_host{suffix}"
+        suffix += 1
+    line = "from ..hermes import host" + (f" as {name}" if name != "host" else "")
+    return name, f"add `{line}` to its imports first, then "
 
 
 def listener(plan: Plan, feature_name: str, event: str) -> str:
@@ -280,7 +283,8 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     if plan.dry_run and EVENT.match(event or "") and event not in declared:  # a plan lists its files before the event
         plan.notes.append(
             f"no front door declares {event} yet: the real run refuses until it exists (python tools/retrodev new "
-            f"event {event.partition('.')[0]} {event.partition('.')[2]} first); this dry run shows the files it "
+            f"event {event.partition('.')[0]} {event.partition('.')[2]} --dry-run previews that prerequisite); "
+            "this dry run shows the files it "
             "would write for it in a generic form (**_payload for the payload, no CONTRACT 'Heard by' row): not the "
             "final payload or row; once the event exists, --dry-run again shows the exact ones"
         )
@@ -337,7 +341,7 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
         if on_readme
         else "; say it on the README's 'Listens to' line too"
     )
-    host, first = host_name(plan.read(source))
+    host, first = host_name(plan.read(source), (*keys, rest))
     plan.next_steps += [
         f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); to log, "
         f"{first}use {host}.logger (e.g. {host}.logger.info(...))",

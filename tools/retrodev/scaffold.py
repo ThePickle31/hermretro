@@ -308,6 +308,7 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         out.say(f"{verb}run     {shown(command)}")
     for note in plan.notes:
         out.say("note: " + note)
+    out.set(notes=plan.notes)
     out.set(what=what, created=sorted(plan.created), changed=sorted(plan.changed), dry_run=dry_run)
     out.set(regenerate=[shown(command) for command in regenerate], next=plan.next_steps, done=plan.done)
     if dry_run:

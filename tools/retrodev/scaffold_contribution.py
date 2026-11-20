@@ -81,7 +81,10 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
     ):
         # a plan that adds the slot and fills it previews both; the real run still needs the slot declared
         declared[slot] = host_page
-        plan.notes.append(f"slot not declared yet: run new slot {host_page} {slot.partition('.')[2]} first")
+        plan.notes.append(
+            f"slot not declared yet: preview it with python tools/retrodev new slot {host_page} "
+            f"{slot.partition('.')[2]} --dry-run; declare it before writing a contribution"
+        )
     if not SLOT.match(slot or "") or slot not in declared:
         listed = ", ".join(sorted(declared)) or "none yet"
         raise Failure(

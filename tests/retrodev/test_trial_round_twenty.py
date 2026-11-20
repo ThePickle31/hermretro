@@ -120,6 +120,12 @@ class RpcSize(ScaffoldCase):
         self.assertIn("give the next one its own module (python tools/retrodev new rpc history <name> --module", text)
         self.assertEqual(len(self.read("backend/history/rpcs.py").splitlines()), limit + 1)
 
+    def test_the_projected_size_preview_keeps_game_mode_and_exposes_its_note_in_json(self):
+        self.padded(scaffold_rpc.big_rpcs(self.read("tools/layout.toml")))
+        out = self.new("rpc", "history", "rdprobe_size_game", "--game", "--dry-run")
+        assert isinstance(out, dict)
+        self.assertIn("--module rdprobe_size_game_rpcs --game --dry-run", " ".join(out["notes"]))
+
 
 class Guidance(ScaffoldCase):
     def test_generic_tool_step_words_say_they_are_generic_and_chosen_words_do_not(self):
@@ -132,7 +138,7 @@ class Guidance(ScaffoldCase):
     def test_the_listener_logging_step_names_the_import_only_when_it_is_missing(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         steps = " ".join(self.new("listener", "history", "library.build_reported")["next"])
-        self.assertIn("to log, add `from ..hermes import host` to its imports first (it does not import host", steps)
+        self.assertIn("to log, add `from ..hermes import host` to its imports first, then use host.logger", steps)
         self.assertIn("listeners.host.logger", steps)
         self.assertIn("once listeners.py imports host as the first step says", steps)
         source = self.read("backend/history/listeners.py")
@@ -147,9 +153,16 @@ class Guidance(ScaffoldCase):
         self.assertEqual(host_name(self.read("backend/history/listeners.py")), ("host", ""))
         steps = " ".join(self.new("listener", "history", "library.game_presented")["next"])
         self.assertIn("to log, use host.logger (e.g. host.logger.info(...))", steps)
-        self.assertNotIn("does not import host", steps)
+        self.assertNotIn("to its imports first", steps)
         self.assertEqual(host_name("from . import x as host\n")[0], "hermes_host")  # `host` taken: another name
         self.assertIn("from ..hermes import host as hermes_host", host_name("host = None\n")[1])
+
+    def test_logging_advice_avoids_rebound_imports_payload_keys_and_taken_aliases(self):
+        text = "from ..hermes import host\nhost = None\nhermes_host = None\n"
+        name, step = host_name(text, ("hermes_host2",))
+        self.assertEqual(name, "hermes_host3")
+        self.assertIn("from ..hermes import host as hermes_host3", step)
+        self.assertEqual(host_name("from ..hermes import host\n", ("host",))[0], "hermes_host")
 
     def test_the_event_and_listener_help_examples_run_as_written(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")

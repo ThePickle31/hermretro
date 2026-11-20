@@ -230,7 +230,7 @@ def rpc_(plan: Plan, feature_name: str, name: str, module: str | None = None, ga
         scaffold_rpc.needs_host(plan, source)
     scaffold_rpc.listed_in_docstring(plan, f"backend/{feature_name}/rpcs.py", name)
     if not module:  # measured with every rpcs.py edit in: the size it would have
-        scaffold_rpc.big_note(plan, feature_name, name)
+        scaffold_rpc.big_note(plan, feature_name, name, game)
     plan.ensure(f"tests/backend/{feature_name}/__init__.py", "")
     test = "test_rpc_game.py.tmpl" if game else "test_rpc.py.tmpl"
     plan.create(f"tests/backend/{feature_name}/test_rpc_{name}.py", render("rpc", test, **values))
