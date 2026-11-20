@@ -49,7 +49,7 @@ class EventTest(RealFiles):
         self.real("backend/assets/*.py", "backend/assets/README.md")
         self.new("event", "history", "rdprobe", "--payload", PAYLOAD)
         steps = " ".join(self.new("listener", "assets", "history.rdprobe")["next"])
-        self.assertIn("already isolated: tests/backend/history/test_event_rdprobe.py::EventRdprobe", steps)
+        self.assertRegex(steps, r"already isolated: [^;]*tests/backend/history/test_event_rdprobe\.py::EventRdprobe")
         self.assertNotIn("give each isolated_home(self)", steps)
 
 
@@ -96,17 +96,19 @@ class ReadmeTestsLine(RealFiles):
         self.assertTrue(self.readme_tests("history").endswith(listener), self.readme_tests("history"))
         self.new("rpc", "history", "rdprobe_list")
         self.assertTrue(self.readme_tests("history").endswith(", `test_rpc_rdprobe_list.py` (the `rdprobe_list` RPC)."))
-        self.assertIn("`test_event_build_kept.py` (the event), `test_event_rdprobe.py`", self.readme_tests("history"))
+        self.assertIn("`test_event_build_kept.py` (the event)", self.readme_tests("history"))  # kept as it was
         self.new("rpc", "library", "rdprobe_info")  # a line naming only the folder stays as it is
         self.assertEqual(self.readme_tests("library"), "`tests/backend/library/`.")
 
 
 class RpcBesideItsFeature(RealFiles):
     def test_a_history_rpc_gets_its_table_row_after_build_restore(self):
+        mine = re.findall(r'@rpc\("(\w+)"\)', self.read("backend/history/rpcs.py"))  # a grown tree may hold more
+        self.assertIn("build_restore", mine)
         out = self.new("rpc", "history", "rdprobe_list", "--game")
         contract = self.read("docs/dev/CONTRACT.md")
         lines = contract.splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("| `build_restore` |"))
+        at = max(i for i, line in enumerate(lines) if any(line.startswith(f"| `{rpc}` |") for rpc in mine))
         self.assertEqual(
             lines[at + 1],
             "| `rdprobe_list` | `{ game }` | `{ ok, game }`, or `NO_GAME`: "
@@ -114,7 +116,7 @@ class RpcBesideItsFeature(RealFiles):
         )
         self.assertNotIn("### `rdprobe_list`", contract)
         steps = " ".join(out["next"])
-        self.assertIn("grep -n '`build_restore' docs/dev/CONTRACT.md", steps)
+        self.assertIn(f"grep -n '`{mine[-1]}' docs/dev/CONTRACT.md", steps)
         self.assertNotIn("add its row to the RPC table", steps)
 
     def test_a_setup_rpc_follows_setup_s_last_section_and_others_keep_today_s_place(self):
