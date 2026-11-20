@@ -550,15 +550,16 @@ its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused:
 Testing a tab: a scenario file `tests/page/page-<page>-<tab>.test.mjs` on the real harness (`tests/page/harness.mjs`),
 run alone with `node tests/page/page-<page>-<tab>.test.mjs` after `node tools/bundle/bundle.mjs` (`python tools/check.py
 page` runs it with every other `tests/page/**/*test*.mjs`). `tab('<Page>')` clicks the studio nav, `pageTab('<Label>')` the page's own tab bar.
-As written it opens Setup (which has no tabs yet), so it runs unchanged; for your tab, open its page and uncomment
-the `pageTab` line:
+`currentTab()` names the studio nav's open page and `currentPageTab()` the selected tab of the mounted page's own
+tab bar (null for a page without tabs). As written it opens Setup (which has no tabs yet), so it runs unchanged;
+for your tab, open its page, uncomment the `pageTab` line and expect your tab's label from `currentPageTab()`:
 
 ```js
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ scenario, render, tab, pageTab, currentTab, heading, shows, check, answered, doctor, complete }) => {
+await runScenario(async ({ scenario, render, tab, pageTab, currentTab, currentPageTab, heading, shows, check, answered, doctor, complete }) => {
   // A finished setup in emulator mode (the harness's buildScenario starts the same way), on Home.
   scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'home' }
   scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
@@ -568,6 +569,7 @@ await runScenario(async ({ scenario, render, tab, pageTab, currentTab, heading, 
   // await pageTab('<Label>')   // then your tab, in the page's own tab bar (.cs-tabs)
   check('Setup opens on its finished summary', () => {
     assert.equal(currentTab(), 'Setup')
+    assert.equal(currentPageTab(), null)  // '<Label>' once pageTab opened your tab
     assert.equal(heading(), 'Setup is complete')
     shows(/emulator only/)
   })

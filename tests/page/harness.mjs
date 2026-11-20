@@ -34,6 +34,11 @@ export const modulesFrom = argv => (argv[2] ? path.resolve(argv[2]) : null)
 export const tabButton = (document, label) =>
   [...document.querySelectorAll('.cs-tabs button')].find(node => node.textContent === label) ?? null
 
+/** The label of the selected tab (`aria-selected`) in a page's own tab bar (`.cs-tabs`, app/page-view.js) inside
+ *  `scope`, or null when it has none. The studio nav's open page is `currentTab()`, not this. */
+export const selectedPageTab = scope =>
+  scope?.querySelector('.cs-tabs [role="tab"][aria-selected="true"]')?.textContent ?? null
+
 // The SDK stand-in, the bundle rewritten to use it, and the jsdom globals, in a temp folder that is removed
 // however the file ends.
 async function load() {
@@ -128,6 +133,9 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
     await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   }
   const currentTab = () => nav()?.querySelector('[aria-current="page"]')?.firstChild?.textContent ?? null
+  // The open page's own selected tab (its `.cs-tabs`), looked up only in the mounted page (#root), never in a pane
+  // that mount() added beside it; currentTab() above is the studio nav's.
+  const currentPageTab = () => selectedPageTab(dom.window.document.getElementById('root'))
   const settle = async (ms = 20) => { await act(async () => { await new Promise(resolve => realSetTimeout(resolve, ms)) }) }
   const button = label => [...dom.window.document.querySelectorAll('button')].find(node => node.textContent.includes(label))
   const typeInto = async (input, value) => {
@@ -189,7 +197,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
   return {
     act, createRoot, dom, emit, host, plugin, scenario, buildScenario,
     registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
-    settle, button, typeInto, key, mount, checks, check, holdTimers,
+    currentPageTab, settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }
 }
