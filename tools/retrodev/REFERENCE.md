@@ -86,7 +86,9 @@ A teammate's pushed branch: fetches, makes `<worktree_root>/<topic>` on a local 
 (refused when that local branch exists or the folder is taken), runs `start`'s setup, records the branch, notes a kind
 the repository does not name (`test/x`: it keeps its name, since ship, land and CI accept any work branch, and
 retrodev's record follows that name), and prints the next steps: `plan new` and `plan approve` while it has no
-approved plan, `sync` while HEAD lacks commits of `origin/dev`, then `check`; while the branch's own copy of retrodev
+approved plan (`plan approve` then writes the pull request body; otherwise takeover writes `notes/pr/<topic>.md` from
+the template itself, as `start --no-plan` does, and the next steps name its absolute path to fill in), `sync` while
+HEAD lacks commits of `origin/dev`, then `check`; while the branch's own copy of retrodev
 is older than `origin/dev`'s, every one of these runs the main checkout's retrodev in the worktree, as every later
 next step does until `sync` (`plan approve`, `status`, `sync`'s own, `land`'s conflict fix). Needs nothing of the main
 checkout but its git folder
@@ -102,7 +104,8 @@ their pins, `tools/check.py` and `policy.toml`); `--watch` runs again on every f
 clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run
 (a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run,
 later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or
-were deleted) when the branch changed what they cover; prints times against budgets (`policy.toml` `[checks.budgets]`,
+were deleted) when the branch changed what they cover (not for a file `[checks.trigger_ignore]` lists: a backend
+`README.md` adds no acceptance run); prints times against budgets (`policy.toml` `[checks.budgets]`,
 from measured cold runs on a loaded machine: unit 45 s, scaffold 58 s, the fast checks together 60 s). A check over
 its budget twice in a row on the branch (each check's last passing time is recorded in the branch record's
 `durations`: a failed run measures nothing) gets a warning that it was slower than usual (machines and load differ),
@@ -152,7 +155,9 @@ prints `note: no GitHub remote; the open pull request lookup was skipped` instea
 is shell-quoted (a title with an apostrophe pastes as it is). When the body passes its gate, ship (and `check`'s last
 line) warns, never fails, about each backtick-quoted identifier of its What changed (`games.rom_path`: an underscore,
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
-files: a name renamed while building (`games.built_rom`). The next step it prints is `report`, or, when the owner
+files: a name renamed while building (`games.built_rom`); and about each backtick-quoted file path there (a slash in
+it, or a known suffix: `tools/retrodev/sync.py`, `sync.py`, `backend/library/`) that the branch's changes do not
+touch (a renamed file counts at both its old and its new path). The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
 
 ### `report`
@@ -211,7 +216,8 @@ any of its lines: `dev deleted this block`, the same steps); resolve only the co
 it rebuilds the generated files and makes the merge commit (no `git commit` by hand). If `dev` rewrote the code your
 side changed, the FIX says to take dev's lines in the merge and redo your change on top in its own commit after sync.
 When the resolved conflicts hold lines neither side had (only the files that were in conflict count; binary files are
-read as bytes and never counted), it warns `new work belongs in its own commit after sync (a resolution over N lines
+read as bytes and never counted; compared word by word with line breaks and spaces normalised, so a paragraph rewrapped
+around an edit from each side adds nothing), it warns `new work belongs in its own commit after sync (a resolution over N lines
 needs a full review round at land)` (N: `[land] max_sync_resolution_lines`). A clean merge rebuilds the generated
 files too and commits them if they changed. Each generator prints as `rebuilt: <command>`, as a person would type it
 (`python ...`)
@@ -302,10 +308,17 @@ Reads the draft and proves the update path; `--publish` publishes it. Below
 ### The rules every kind follows
 
 Each `new` writes from the templates in `templates/<kind>/` (`{key}` filled in; `{{` and `}}` are literal braces),
-prints every file it created (`create`) or changed (`change`), formats the Python it touched with the pinned ruff,
+prints every file it created (`create`) or changed (`change`), formats the Python it touched with the pinned ruff
+(before the `--dry-run` diff too, so the diff is what the write produces),
 rebuilds the generated files when the change feeds them (`policy.toml` `[generated] regenerate`), runs the checks
 those files are inputs of (lint, bundle, unit, page; the page kinds, `page`, `tab`, `slot` and `contribution`, run
-only lint, bundle and page, leaving unit to `check`; the install scan waits for `check`) and prints the next steps
+only lint, bundle and page, leaving unit to `check`; the install scan waits for `check`; when lint fails, new lints its
+own files again, alone, with lint's own commands and settings (`python tools/check.py lint-files FILE...`); when that
+passes, every tool those files need being there (a missing ruff fails it: `python tools/py/setup.py`), the failure is
+reported as `pre-existing on this tree (not from new)` and the scaffold stands, exit 0, when every other check it ran
+passed (one skipped for a missing tool keeps the exit 1: it proves nothing); a
+unit or page failure is always new's, since new's code may break a test it did not write) and
+prints the next steps
 (for a change the clean install covers, such as `plugin.yaml` or `backend/features.py`: commit, then `check`, then
 `ship`, since that install takes only the committed tree). It refuses (`FIX:`) a name that exists or breaks the naming
 rules (features, RPCs, tools and events: lowercase and underscores; pages and tabs: lowercase and dashes; slots:
@@ -325,7 +338,9 @@ JavaScript string. The generated code passes the real checks as written: `python
 (`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; a few seconds, so not in the fast unit run) runs
 every kind on a copy of the repository, then lint, the bundle, the structure tests and the page tests there. It is
 part of `check.py full` and `check --full`, `check` adds it when the branch changed the scaffolds or the files whose
-structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds),
+structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds,
+nor a change to `page/pages/index.js` or `step-words.js` made only of the lines `new page` and `new tool` write there,
+`[checks.new_lines]`),
 and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
 `scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
@@ -416,9 +431,8 @@ those keys with sample values; the `EVENTS` entry drops `--when`'s backticks (th
 CONTRACT events row and the README line. A key given without what it holds (`--payload root`) is written `root=<...>`:
 the next steps name those placeholders to replace in the `EVENTS` entry (`new listener` copies it into its docstring),
 and say to assert the event in the test of the code that emits it (`grep -rln <caller> tests/backend/<feature>`).
-Another feature listens with `new listener`. Changing an event's payload later: edit `emits.py`'s function, the `EVENTS`
-description in the feature's `__init__.py`, its `docs/dev/CONTRACT.md` row and
-`tests/backend/<feature>/test_event_<name>.py` (new event's next steps say so too)
+Another feature listens with `new listener`. Changing its payload later: "Changing an event's payload" below (new
+event's and new listener's next steps point there)
 
 ### `new listener <feature> <event>`
 
@@ -440,9 +454,26 @@ under `backend.system.paths.hermretro_home()`, written atomically. The next step
 needs in the feature's `__init__.py` `__all__` and name it on the README Front door line. Its next steps name the
 placeholders to replace (`<feature> (say what it does)` in the Heard by cell, `say what this listener does` in the
 docstring, and in the README entry when new wrote one) and the event entry's `key=<...>` placeholders it copied into
-the docstring, and warn that tests calling the emitter (`grep -rn 'emit("<event>"' backend tests`) now run the
-listener: give them `isolated_home(self)`. Refuses an event no front door's `EVENTS` declares, one the feature hears
+the docstring, and list the test classes that emit the event (they name it or call its emitter) and now run the
+listener: those whose `setUp` lacks `isolated_home(self)`, and those `already isolated`. The docstring's first
+paragraph copies the `EVENTS` description wrapped within 120 characters; the test's call gives each key a sample of
+the type its `EVENTS` entry hints (`<..., int>` 1, `str` `"probe"`, `pathlib.Path` `Path("/games/probe")`, `bool`
+`True`). The last next step points to "Changing an event's payload". Refuses an event no front door's `EVENTS` declares, one the feature hears
 already, and the stdlib-only features
+
+### Changing an event's payload
+
+An event `<feature>.<name>` is spelled out in six places; change them together, in one commit:
+
+1. its function in `backend/<feature>/emits.py` (`def <name>(*, key1, key2)`: add, rename or drop the keyword);
+2. every caller of that function, which passes the keys (`grep -rn '<name>(' backend/<feature>`);
+3. its `EVENTS` entry in `backend/<feature>/__init__.py` (`key=<what it holds, type>` per key);
+4. its row in `docs/dev/CONTRACT.md` "Events between backend features" (Payload);
+5. `tests/backend/<feature>/test_event_<name>.py`, which emits the keys and asserts what a listener hears;
+6. the emitter's own tests that assert the payload (`grep -rln '<feature>.<name>' tests/backend/<feature>`).
+
+Then each listener (the CONTRACT row's "Heard by"; `grep -rn '@on("<feature>.<name>")' backend`): its parameters,
+its docstring's copy of the `EVENTS` entry and its test's call (`tests/backend/<listener>/test_listener_on_*.py`).
 
 ### `new page <id> [--label "..."]`
 

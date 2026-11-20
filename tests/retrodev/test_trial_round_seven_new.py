@@ -207,7 +207,7 @@ class Listener(ScaffoldCase):
         git(self.tree, "commit", "-q", "-m", "Probe feature and the library's front door")
         self.new("listener", "rdprobe_ears", "library.build_reported")
         test = self.read("tests/backend/rdprobe_ears/test_listener_on_library_build_reported.py")
-        self.assertIn('listeners.on_library_build_reported(game="sample game", assets="sample assets")', test)
+        self.assertIn('listeners.on_library_build_reported(game="probe", assets=["probe"])', test)  # typed: round 12
         self.assertNotIn("null", test)
 
 

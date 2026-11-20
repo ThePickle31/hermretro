@@ -116,17 +116,14 @@ class Tab(ScaffoldCase):
 class Event(ScaffoldCase):
     def test_the_next_steps_and_the_reference_say_how_to_change_a_payload_later(self):
         steps = joined(self.new("event", "history", "rdprobe_moved", "--payload", "game=<id>"))
-        self.assertIn(
-            "changing history.rdprobe_moved's payload later: edit backend/history/emits.py's function rdprobe_moved, "
-            "the EVENTS description in backend/history/__init__.py, its docs/dev/CONTRACT.md row and "
-            "tests/backend/history/test_event_rdprobe_moved.py",
+        self.assertIn(  # round 12: the steps point to the reference's list, which names the callers and tests too
+            "changing history.rdprobe_moved's payload later: tools/retrodev/REFERENCE.md \"Changing an event's "
+            "payload\" lists every place (backend/history/emits.py's function rdprobe_moved, its callers: grep -rn "
+            "'rdprobe_moved(' backend/history; the EVENTS entry in backend/history/__init__.py, its "
+            "docs/dev/CONTRACT.md row, tests/backend/history/test_event_rdprobe_moved.py",
             steps,
         )
-        self.assertIn(
-            "Changing an event's payload later: edit `emits.py`'s function, the `EVENTS` description in the feature's "
-            "`__init__.py`, its `docs/dev/CONTRACT.md` row and `tests/backend/<feature>/test_event_<name>.py`",
-            retrodev_docs("REFERENCE.md"),
-        )
+        self.assertIn("### Changing an event's payload", retrodev_docs("REFERENCE.md"))
 
 
 SEEDED = """

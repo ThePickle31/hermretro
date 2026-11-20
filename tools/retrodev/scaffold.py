@@ -34,8 +34,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import checks, repo, state
+from . import repo
 from .output import Failure, cmd
+from .scaffold_checks import PAGE_CHECKS, validate
 
 TEMPLATES = Path(__file__).resolve().with_name("templates")
 SNAKE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -169,6 +170,17 @@ class Plan:
     def paths(self) -> list[str]:
         return sorted({*self.created, *self.changed})
 
+    def format_python(self, ruff: Path) -> None:
+        """Every Python file the plan writes, as ruff formats it with the repository's settings (tools/check.py fix
+        does the same): the --dry-run diff then shows exactly what the write produces. A text ruff cannot read (a
+        syntax error) stays as written."""
+        for files in (self.created, self.changed):
+            for rel, text in files.items():
+                if rel.endswith(".py"):
+                    command = [str(ruff), "format", "--config", "tools/py/ruff.toml", "--stdin-filename", rel, "-"]
+                    code, formatted, _err = repo.run(command, self.top, timeout=120, feed=text)
+                    files[rel] = formatted if code == 0 and formatted else text
+
     def diff(self) -> str:
         """The unified diff of every file the plan creates or changes, from its in-memory edits."""
         parts = []
@@ -269,26 +281,12 @@ def shown(command: list[str]) -> str:
     return cmd(*["python" if word == sys.executable else word for word in command])
 
 
-# The page kinds touch no Python the unit tests import (page/, tests/page/registry.test.mjs, the generated bundle):
-# their own checks are these, and `check` runs unit before ship. The backend kinds keep unit.
-PAGE_CHECKS = ("lint", "bundle", "page")
-SCAFFOLD_CHECK = "RETRODEV_SCAFFOLD_CHECK"  # tests/repo/test_placeholders.py skips its gate while it is set
-
-
-def validate(ctx, names: list[str]) -> None:
-    """The checks right after writing the stubs: without the placeholder gate (the stubs are not filled in yet), so
-    their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship)."""
-    branch = repo.branch(ctx.top)
-    kept = state.load_branch(ctx.top, branch)
-    try:  # the gate's switch goes only to the checks' processes: os.environ is shared by every thread
-        checks.run(ctx, names, env={SCAFFOLD_CHECK: "1"})
-    finally:
-        state.save_branch(ctx.top, kept)
-
-
 def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bool = True) -> int:
     out = ctx.out
     verb = "would " if dry_run else ""
+    ruff = ctx.top / ".dev" / "py" / "bin" / "ruff"
+    if ruff.is_file():  # the one formatting, before the diff and the write alike; without ruff, as written
+        plan.format_python(ruff)
     for rel in sorted(plan.created):
         out.say(f"{verb}create  {rel}")
     for rel in sorted(plan.changed):
@@ -313,10 +311,6 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         path = ctx.top / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    python = [rel for rel in plan.paths() if rel.endswith(".py")]
-    ruff = ctx.top / ".dev" / "py" / "bin" / "ruff"
-    if python and ruff.is_file():  # the one formatting (tools/check.py fix does the same); without ruff, as written
-        repo.run([str(ruff), "format", "--config", "tools/py/ruff.toml", "-q", *python], ctx.top, timeout=120)
     for command in regenerate:
         code, stdout, stderr = repo.run(command, ctx.top, timeout=300)
         if code:
@@ -328,7 +322,8 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
     names = [name for name in names if name in plan.only_checks] if plan.only_checks else names
     if names:
         out.say("checks: " + " ".join(names))
-        validate(ctx, names)
+        generated = set(ctx.policy["generated"]["files"]) if plan.regenerate else set()
+        validate(ctx, names, set(plan.paths()) | generated)
     for item in plan.done:
         out.say("done: " + item)
     for step in plan.next_steps:

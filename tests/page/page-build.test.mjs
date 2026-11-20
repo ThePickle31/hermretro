@@ -6,10 +6,12 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, button, typeInto, key, mount, check, answered, doctor, installAnswer, complete }) => {
+await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, holdTimers, button, typeInto, key, mount, check, answered, doctor, installAnswer, complete }) => {
   // Where the Emulator scenarios leave the app: a game loaded in the player.
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
   scenario.install = installAnswer({ state: 'idle' })
+  // The open-request poll (a 1.2 to 4 s timer) runs when clock.fire() says, not when a real clock gets there.
+  const clock = holdTimers()
 
   // 14. Build: one game, one conversation, driven through the gateway and the event stream.
   // The games are a menu on the title: open it, take a copy, close it again.
@@ -143,7 +145,7 @@ await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, b
   scenario.byMethod['session.resume'] = params => (params.omit_messages ? { session_id: params.session_id, running: true, open_requests: openRequests } : plainResume(params))
   scenario.locks = []
   scenario.byMethod['clarify.lock'] = params => { scenario.locks.push(params); if (scenario.locks.length === 2) openRequests = []; return { status: 'ok', remaining: [] } }
-  await settle(1500)
+  await clock.fire()
   menu14 = await gamesMenu(build14)
   check('a question shows as one card, outside the steps, with numbered choices and the suggested one marked', () => {
     assert.equal(build14.node.querySelectorAll('.cs-b-card.ask').length, 1)
@@ -188,7 +190,7 @@ await runScenario(async ({ act, dom, emit, scenario, page, click, tab, settle, b
   scenario.byMethod['session.resume'] = params => (params.omit_messages
     ? { session_id: params.session_id, running: true, open_requests: [{ id: 'ap-1', method: 'approval', params: { command: 'flash' } }] }
     : plainResume(params))
-  await settle(1500)
+  await clock.fire()
   check('an approval seen both as an event and by the poll is one card', () => {
     assert.equal(build14.node.querySelectorAll('.cs-b-card.warn').length, 1)
     assert.match(build14.node.querySelector('.cs-b-card.warn').textContent, /needs your OK/)

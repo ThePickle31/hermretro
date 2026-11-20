@@ -61,6 +61,18 @@ scaffold = ["tools/retrodev/scaffold*", "tools/retrodev/templates/*", "tests/ret
             "page/pages/build/transcript/step-words.js"]
 clean_install = ["__init__.py", "plugin.yaml", "backend/features.py", "backend/hermes/*", "skills/*"]
 
+[checks.trigger_ignore]
+# Files a trigger's patterns match that still do not add its check: a backend README changes no code the real-engine
+# run exercises.
+acceptance = ["backend/*.md"]
+
+[checks.new_lines]
+# Lines `new` itself writes in files the scaffold trigger lists (a regular expression for each whole line): a
+# branch whose change to such a file is only these lines (added, or the one-line PAGES list rewritten) does not
+# add the scaffold check, as the docs rows `new` writes do not.
+"page/pages/build/transcript/step-words.js" = ['''^  \w+: \['.*', '.*'\],$''']
+"page/pages/index.js" = ['''^import \{ \w+_PAGE \} from '\./[\w-]+/index\.js'$''', '^export const PAGES = \[[\w, ]*\]$']
+
 [checks.budgets]
 # Seconds, from measured cold runs on a loaded machine (the fresh-agent trials: unit took up to about 40 s, the
 # fast checks together up to about 55 s; scaffold's passing runs in the eleventh round 41.6-49.5 s, and on an idle

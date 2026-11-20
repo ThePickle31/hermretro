@@ -31,6 +31,8 @@ imports the Page's exported name as #pages/..., never ../). One more moves an ex
 so do inline Pages moved with block comments and into an import with a trailing comma (scaffold_moves.py). One
 more runs `new rpc` in history with RPCs named host, logger, dict and isinstance (host inline and --module, in two
 rounds) and their generated tests pass: the handler's fixed name _answer shadows nothing it uses.
+Two more lint: a lint error only in the root __init__.py is pre-existing for `new rpc` with its checks, and
+`tools/check.py lint-files` lints only the files it names (ruff, the page lint), failing when ruff is missing.
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
@@ -146,7 +148,8 @@ def judges(mode: str, env: dict) -> list[tuple[list[str], dict]]:
     the nested mode's full unit suite runs with the placeholder gate off (RETRODEV_SCAFFOLD_CHECK, for that
     subprocess only); the fast mode's unit tests do not include the gate."""
     if mode == "nested":
-        gate_off = {**env, "RETRODEV_SCAFFOLD_CHECK": "1"}  # as tools/retrodev/scaffold.py sets for its own checks
+        # as tools/retrodev/scaffold_checks.py sets for new's own checks
+        gate_off = {**env, "RETRODEV_SCAFFOLD_CHECK": "1"}
         return [([sys.executable, "tools/check.py", "lint", "bundle", "unit", "page"], gate_off)]
     # the same judges, faster: the page tests the new names reach, and the structure tests, side by side
     return [
@@ -392,6 +395,40 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
 
     def test_new_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
         self.new_then_gate(["rpc", "history", "trial_ping"], ["Describe what it does, its params and its result here."])
+
+    def test_a_lint_failure_only_in_the_root_init_is_pre_existing_for_new(self):  # review 2, 1 (round twelve)
+        _, tree, env = self.make_tree()
+        root = tree / "__init__.py"
+        root.write_text(root.read_text() + "\n\ndef _rdlint_probe():\n    return rdlint_undefined_name\n")
+        for command in (["add", "-A"], ["commit", "-q", "-m", "An unrelated lint error"]):
+            git_ok(self, tree, env, command)
+        done = run([*RETRODEV, "new", "rpc", "history", "rdlint_root"], tree, env)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("pre-existing on this tree (not from new)", done.stdout)
+        self.assertIn("next: ", done.stdout)
+
+    def test_lint_files_lints_only_the_named_files_and_fails_without_ruff(self):  # review 2, 0 (round twelve)
+        _, tree, env = self.make_tree()
+        (tree / "backend/history/rdlint_other.py").write_text("import os\n")  # not named: not linted
+        (tree / "backend/history/rdlint_mine.py").write_text('"""Mine."""\n')
+        (tree / "page/pages/home/rdlint.js").write_text("export const a = 1\n")
+        mine = ["backend/history/rdlint_mine.py", "page/pages/home/rdlint.js", "docs/dev/CONTRACT.md"]
+        lint = [sys.executable, "tools/check.py", "lint-files"]
+        done = run([*lint, *mine], tree, env)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("(1 Python, 1 page;", done.stdout)
+        done = run([*lint, "backend/history/rdlint_other.py"], tree, env)
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("rdlint_other.py", done.stdout)
+        (tree / "page/pages/home/rdlint.js").write_text("export const a = rdlintUndefined\n")
+        done = run([*lint, "page/pages/home/rdlint.js"], tree, env)
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("the page lint fails on new's own files", done.stdout)
+        (tree / ".dev/py").unlink()  # the borrowed ruff gone
+        done = run([*lint, *mine], tree, env)
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("ruff is missing", done.stdout)
+        self.assertIn("python tools/py/setup.py", done.stdout)
 
     def test_new_listener_with_its_checks_completes_and_the_placeholder_gate_still_fails_afterwards(self):
         self.new_then_gate(
