@@ -5,7 +5,8 @@
 // name Small is imported as. A tone must be provably 'warn' (or absent: undefined, null). A tone the check cannot
 // prove (a variable, a call, spread props, props that are not an object written in place) is refused as unverifiable,
 // because a guard that let unknown values through would pass exactly the tone it exists to stop; the one exception is
-// a name bound in the same file by a top-level `const NAME = <a value it can prove>`.
+// a name bound in the same file by a top-level `const NAME = <a value it can prove>` and bound nowhere else in it
+// (no other variable, parameter, function, class, catch parameter or import of that name, at any depth).
 // Run alone: node tests/page/small-tone.test.mjs
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -39,6 +40,34 @@ function* walk(node) {
 function keyName(prop) {
   if (prop.computed) return prop.key.type === 'Literal' ? String(prop.key.value) : null
   return prop.key.type === 'Identifier' ? prop.key.name : String(prop.key.value)
+}
+
+/** The names a binding pattern (a declarator's id, a parameter, a catch parameter) binds, at any depth. */
+function patternNames(node) {
+  if (!node) return []
+  if (node.type === 'Identifier') return [node.name]
+  if (node.type === 'ObjectPattern') return node.properties.flatMap(p => patternNames(p.type === 'RestElement' ? p : p.value))
+  if (node.type === 'ArrayPattern') return node.elements.flatMap(patternNames)
+  if (node.type === 'AssignmentPattern') return patternNames(node.left)
+  if (node.type === 'RestElement') return patternNames(node.argument)
+  return []
+}
+
+/** How many times each name is bound anywhere in the file: variables, functions, classes, parameters, catch
+ * parameters and imports. */
+function bindingCounts(tree) {
+  const counts = new Map()
+  const add = names => names.forEach(name => counts.set(name, (counts.get(name) ?? 0) + 1))
+  for (const node of walk(tree)) {
+    if (node.type === 'VariableDeclarator') add(patternNames(node.id))
+    else if (/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(node.type)) {
+      add(patternNames(node.id))
+      node.params.forEach(param => add(patternNames(param)))
+    } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') add(patternNames(node.id))
+    else if (node.type === 'CatchClause') add(patternNames(node.param))
+    else if (/^Import(Default|Namespace)?Specifier$/.test(node.type)) add([node.local.name])
+  }
+  return counts
 }
 
 /** The tone values `node` can take, as strings (null for none), or undefined when it cannot be proven. */
@@ -75,6 +104,11 @@ export function badTones(text) {
       for (const d of decl.declarations) if (d.id.type === 'Identifier' && d.init) consts.set(d.id.name, d.init)
     }
   }
+
+  // A const is trusted only when its name is bound nowhere else in the file: no scope is modelled, so a name that a
+  // local variable, a parameter or anything else also binds may not mean the const where it is read.
+  const counts = bindingCounts(tree)
+  for (const name of [...consts.keys()]) if (counts.get(name) !== 1) consts.delete(name)
 
   const found = []
   for (const node of walk(tree)) {
@@ -143,6 +177,23 @@ test('a tone it cannot prove is refused; a const, a conditional of proven values
   assert.deepEqual(badTones("jsxs(Small, { tone: ok ? undefined : 'warn' })"), [])
   assert.deepEqual(badTones("jsxs(Small, { tone: ok ? 'good' : 'warn' })"), ["line 1: tone ok ? 'good' : 'warn'"])
   assert.deepEqual(badTones('jsx(Small, { tone: `warn` })'), [])
+})
+
+test('a const counts only when nothing else in the file binds its name', () => {
+  const shadowed = 'line 3: tone TONE (unverifiable)'
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View() {\n  const TONE = 'error'; return jsx(Small, { tone: TONE })\n}"), [shadowed], 'a local const')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View() {\n  let TONE = 'error'; return jsx(Small, { tone: TONE })\n}"), [shadowed], 'a local let')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View(TONE) {\n  return jsx(Small, { tone: TONE })\n}"), [shadowed], 'a parameter')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View({ TONE }) {\n  return jsx(Small, { tone: TONE })\n}"), [shadowed], 'a destructured parameter')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View({ a: [TONE = 'x'] }) {\n  return jsx(Small, { tone: TONE })\n}"), [shadowed], 'a nested default')
+  assert.deepEqual(badTones("const TONE = 'warn'\nconst View = TONE =>\n  jsx(Small, { tone: TONE })"), [shadowed], 'an arrow parameter')
+  assert.deepEqual(badTones("const TONE = 'warn'\nconst View = (...TONE) =>\n  jsx(Small, { tone: TONE })"), [shadowed], 'a rest parameter')
+  assert.deepEqual(badTones("const TONE = 'warn'\ntry {} catch (TONE) {\n  jsx(Small, { tone: TONE })\n}"), [shadowed], 'a catch parameter')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction f() { class TONE {} }\njsx(Small, { tone: TONE })"), ['line 3: tone TONE (unverifiable)'], 'a class')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction f() { function TONE() {} }\njsx(Small, { tone: TONE })"), ['line 3: tone TONE (unverifiable)'], 'a function')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfor (const TONE of x) {}\njsx(Small, { tone: TONE })"), ['line 3: tone TONE (unverifiable)'], 'a loop const')
+  assert.deepEqual(badTones("const TONE = 'warn'\nconst TONE2 = TONE\njsx(Small, { tone: TONE2 })"), [], 'a const of a const')
+  assert.deepEqual(badTones("const TONE = 'warn'\nfunction View({ tone }) {\n  return jsx(Small, { tone: TONE })\n}"), [], 'other names bound')
 })
 
 test("page/ gives Small no tone but 'warn'", () => {
