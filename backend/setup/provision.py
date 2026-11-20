@@ -489,9 +489,9 @@ def remove_downloads() -> dict:
             os.replace(child, trash / child.name)
     removed = 0
     for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:  # also earlier, failed runs
-        removed += _size(leftover)
+        removed += folder_bytes(leftover)
         _rmtree(leftover)
-    left = sum(_size(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
+    left = sum(folder_bytes(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
     return {
         "ok": not left,
         "removed_bytes": removed - left,
@@ -526,7 +526,8 @@ def _rmtree(path: Path) -> None:
         shutil.rmtree(path, onerror=retry)
 
 
-def _size(path: Path) -> int:
+def folder_bytes(path: Path) -> int:
+    """Bytes in a whole file or folder tree (links counted as themselves, never followed)."""
     if path.is_symlink() or path.is_file():
         return path.lstat().st_size
     return sum(child.lstat().st_size for child in path.rglob("*") if not child.is_dir() or child.is_symlink())

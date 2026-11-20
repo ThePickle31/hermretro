@@ -2,8 +2,9 @@
 
 Hermes is imported inside each function, so this module loads anywhere (the broker, tests, CI without Hermes).
 Some of these names are not a public plugin API yet (Hermes's validator warns about them): keeping them here
-means a Hermes change breaks one file, and the nightly run (`tools/ci/hermes_api_check.py`) checks every name
-below against the newest Hermes before users update.
+means a Hermes change breaks one file. `tools/ci/hermes_api_check.py` checks every name below: CI runs it on every
+pull request against the oldest supported Hermes (`HERMES_REF` in `.github/workflows/ci.yml`) and nightly against
+Hermes `main` (`nightly.yml`), before users update.
 """
 
 from __future__ import annotations

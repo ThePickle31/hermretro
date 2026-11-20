@@ -21,7 +21,9 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 ## Adding a tab here
 
-Make a folder `page/pages/setup/<tab>/` (`install` and `onboarding` are taken: pick another id) with an `index.js` exporting `{ id, label, Page }` (plus `events`,
+Setup has no tabs yet: first make the wizard it shows today (`SetupPage`, `setup-page.js`) its first tab with
+`python tools/retrodev new tab setup wizard --label Setup --from-page`, then add yours with
+`python tools/retrodev new tab setup <id> --label <Label>`. By hand: make a folder `page/pages/setup/<tab>/` (`install` and `onboarding` are taken: pick another id) with an `index.js` exporting `{ id, label, Page }` (plus `events`,
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/setup/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:

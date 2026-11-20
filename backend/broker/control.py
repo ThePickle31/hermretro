@@ -66,7 +66,7 @@ class ControlMixin:
                     "error": None,
                     "code": None,
                     "seeded": None,
-                    "baseline_bytes": setup.directory_bytes(paths.setup_root()),
+                    "baseline_bytes": setup.download_bytes(paths.setup_root()),
                 }
                 snapshot = dict(self.install)
                 threading.Thread(target=self._run_install, name="hermretro-install", daemon=True).start()
@@ -97,7 +97,7 @@ class ControlMixin:
                 self.install["seeded"] = bool(seeded.get("seeded"))
                 if seeded.get("seeded"):
                     # The copied cache is not a download: count only what arrives after it.
-                    self.install["baseline_bytes"] = setup.directory_bytes(paths.setup_root())
+                    self.install["baseline_bytes"] = setup.download_bytes(paths.setup_root())
             engine = self.new_engine("chromatic-studio-install")
             self.install_engine = engine  # close_all stops it if the broker stops mid-install
             result = engine.call_tool("toolchain_prepare", {"components": ["build", "emulator"]}, timeout=1800)

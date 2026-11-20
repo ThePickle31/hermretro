@@ -424,7 +424,9 @@ def update(
     build_sha: str | None = None,
     default_title: str | None = None,
 ) -> dict:
-    """Check and store the given fields (all or nothing). ``{ok, problems?, card, status}``."""
+    """Check and store the given fields (all or nothing). ``{ok, problems?, card, status, was_complete}``:
+    ``was_complete`` is the strict completeness before this change, so ``result["status"]["complete"] and not
+    result["was_complete"]`` is the moment the card became complete."""
     root = Path(root)
     problems = []
     for field in TEXT_FIELDS:
@@ -456,6 +458,7 @@ def update(
                 problems.append(_copy_problem(copied))
     if problems:
         return {"ok": False, "problems": problems}
+    was_complete = status(root, load(root) or {}, strict=True)["complete"]
     data = load(root) or {"version": VERSION, "createdAt": int(time.time())}
     data.setdefault("title", (default_title or root.name)[: LIMITS["title"][1]])
     for field in TEXT_FIELDS:
@@ -488,7 +491,7 @@ def update(
         data["version"] = VERSION
     data["updatedAt"] = int(time.time())
     _write(root, data)
-    return {"ok": True, "card": data, "status": status(root, data, strict=True)}
+    return {"ok": True, "card": data, "status": status(root, data, strict=True), "was_complete": was_complete}
 
 
 # -- for the desktop ---------------------------------------------------------------------
