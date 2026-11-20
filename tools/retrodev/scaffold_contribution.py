@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 
+from . import scaffold_page_tests as page_tests
 from .output import Failure
 from .scaffold import Plan, pascal
 from .scaffold_imports import statements
@@ -110,6 +111,7 @@ def contribution(plan: Plan, page_id: str, slot: str, component: str) -> str:
             else f"{REGISTRY_TEST}: add {component} under '{slot}' to the `filled` assertion's `expected`, in PAGES "
             f"order ({REGISTRY}), imported from {rel}"
         ),
+        page_tests.contribution_step(plan, host, slot, component),
         f"tests/page/slots.test.mjs HOSTS: the recipe that renders `{slot}`'s host"
         + (
             " is there"

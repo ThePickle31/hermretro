@@ -47,10 +47,11 @@ The plan and its approval; with no topic, the current branch's plan (else every 
 
 ### `plan approve <topic> --words "..."`
 
-Refuses (exit 1, `FIX: fill in notes/plans/<topic>.md first`) a plan with a section that still holds only the
+Refuses (exit 1, `FIX: fill in <main checkout>/notes/plans/<topic>.md first`) a plan with a section that still holds only the
 template's comments, as ship refuses such a body, and a `Title:` line that ship's title gate refuses, with the same
 FIX (`shorten it to 100 characters or fewer (yours is 105)`, `drop the trailing period`). Records the owner's go with
-the time, their exact words and the plan's hash (status notes a later change). Next step: `start <kind>/<topic>`,
+the time, their exact words and the plan's hash (status notes a later change), and rewrites the plan's `Status:` line
+(the template's `draft for the owner's approval`) to `approved <YYYY-MM-DD>: "<words>"` before taking that hash. Next step: `start <kind>/<topic>`,
 naming the kinds (feat, fix, docs, chore: refactors that change no behaviour), or, when branches already work under
 the plan (recorded ones, and any local `<kind>/<topic>` branch made by hand), `cd <worktree> && python tools/retrodev
 check` for each (`sync (HEAD lacks N commit(s) of origin/dev), then check` while that worktree is behind, status's
@@ -70,7 +71,10 @@ kind: feat (a new ability), fix (a bug), docs (documentation only), chore (refac
 --prefix tools/npm` and `python tools/py/setup.py` there, prints the path. Under a plan it writes the pull request
 body `notes/pr/<topic>.md` in the main checkout (the file `ship` reads; never over an existing one) from
 `.github/pull_request_template.md`: Why from the plan's Goal, What changed from its "What changes", Not done from its
-"Not in scope" (each only when the plan says something there), and the `Made by` line (while it names only the generic
+"Not in scope" (each only when the plan says something there; under a plan shared by several branches, one whose
+`## Branches` (or `## PRs`) list names more than one or that a branch started earlier works under, Why comes only
+from a section whose heading names this branch or its topic, Not done stays the template's, and the plan's `Title:`
+is not offered as the `--title`), and the `Made by` line (while it names only the generic
 agent, the next step says to name yours there or set `RETRODEV_AGENT=<agent, model>`); ship's body gate still refuses
 it until How verified and Risk and rollback say something too
 
@@ -135,7 +139,8 @@ blocked by it), which `start` (or `plan approve` inside the linked branch) write
 file is missing (or with `--new-body`; an existing one is kept) ship writes it from
 `.github/pull_request_template.md`, with the plan's Goal as the Why and the line `Made by an agent (<name>) for
 @<account>.` in place of the template's comment (`RETRODEV_AGENT` names the agent, default Hermes; the account is the
-GitHub remote's; with no GitHub remote it is `Made by an agent for the owner.`: add the agent and model if known),
+GitHub remote's; with no GitHub remote it is `Made by an agent (Hermes) for the owner.`: add the model, and name your
+agent if it is not Hermes; the body gate takes the line as written),
 then exits 1 with `FIX: fill in <path>, then ship --title '<the title given>' --body <path>`. With `--no-plan` or an
 empty Goal the Why holds a visible `<!-- no plan: say why -->` instead. `--dry-run` writes the same skeleton (a
 git-ignored note, not a push), reports the body gate as `NO body: fill in <path>` with that FIX, still a `--dry-run`
@@ -349,9 +354,10 @@ what the handler uses), `tests/backend/<feature>/test_rpc_<name>.py` (its `setUp
 `tests/support.py`: `HERMRETRO_HOME` and the data folder in a temp folder, so it never reads the real library), a `###
 \`<name>\`` section in `docs/dev/CONTRACT.md`, the README line; then rebuilds `page/app/rpc-names.js` (`RPC_<NAME>`;
 the page imports it from `#app/rpc.js`, which re-exports it) and `tests/repo/registration.json`. Its next steps give
-one rule for the call: `callStudioOnly` (the hermretro profile only) for an RPC that reads or binds a profile's Build
-conversations or its plugin data folder (snapshots, asset versions; `host._data_dir()`; so always for an
-RPC in history or assets), `callStudio` for the library, `callBackend` resolving to `{ data }`; the page's `useQuery`
+one rule for the call, chosen by what the handler reads, not by the feature: `callStudioOnly` (the hermretro profile
+only) if the handler reads or binds a profile's Build conversations or its plugin data folder (`host._data_dir()`:
+snapshots, asset versions), otherwise `callStudio` (the library's way; history and assets RPCs usually need
+`callStudioOnly`, so the suggested code uses it there and the step says to check what yours reads), `callBackend` resolving to `{ data }`; the page's `useQuery`
 (`queryKey: [ID, '<name>', shell.viaProfile]` in the page's own Page component with `callStudio`, without viaProfile
 with `callStudioOnly`; for `--game`, in the component that has the game, as above), whose second word the page tests
 answer (`scenario.<name>`); that a page reading a new shell field adds it to its fixture in `tests/page/shells.mjs`
@@ -371,7 +377,9 @@ a word up to twenty, digits past it. `--module <name>` writes the tool into `bac
 `TOOLS` and adds `from . import <name>` and `*<name>.TOOLS` to `tools.py`'s `TOOLS` (made when missing); a name
 `tools.py` already binds to anything but `from . import <name>` is refused before anything is written; without it,
 when `tools.py` is over 400 lines or only takes in sibling modules (no `Tool` of its own), the tool goes into
-`<tool>_tools.py` that way, and a note says so. In a sibling module the README's Tools line names it too (`Tools
+`<tool>_tools.py` that way, and a note says so. Splitting `tools.py` by hand works the same way: each module has its
+own `TOOLS`, `tools.py` aggregates them (`from . import <module>`, `*<module>.TOOLS`), and tests patch names on the new
+module (`mock.patch("backend.<feature>.<module>.<name>")`), not on `tools.py`. In a sibling module the README's Tools line names it too (`Tools
 (\`tools.py\`, \`<module>.py\`)`). `--project` is for a tool that acts on the game's project (most library tools): a
 `project` schema property, a handler that calls `tool_args.tool_project` (the `project` given, else this chat's) and
 answers failures with `tool_error`, and a test with `isolated_home(self)` that passes a temp project and a missing
@@ -398,7 +406,9 @@ those keys with sample values; the `EVENTS` entry drops `--when`'s backticks (th
 CONTRACT events row and the README line. A key given without what it holds (`--payload root`) is written `root=<...>`:
 the next steps name those placeholders to replace in the `EVENTS` entry (`new listener` copies it into its docstring),
 and say to assert the event in the test of the code that emits it (`grep -rln <caller> tests/backend/<feature>`).
-Another feature listens with `new listener`
+Another feature listens with `new listener`. Changing an event's payload later: edit `emits.py`'s function, the `EVENTS`
+description in the feature's `__init__.py`, its `docs/dev/CONTRACT.md` row and
+`tests/backend/<feature>/test_event_<name>.py` (new event's next steps say so too)
 
 ### `new listener <feature> <event>`
 

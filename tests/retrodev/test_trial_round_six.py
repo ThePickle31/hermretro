@@ -39,7 +39,9 @@ class Body(RepoCase):
         self.assertIn("## Why\nMake goalie work.\n", body)
         self.assertIn("## What changed\nThe code of goalie.\n", body)
         self.assertIn("## Not done\nNothing else.\n", body)
-        self.assertIn("Made by an agent for the owner.", body)  # no GitHub remote (flipped in round seven)
+        self.assertIn(
+            "Made by an agent (Hermes) for the owner.", body
+        )  # no GitHub remote (flipped in rounds seven, ten)
         write(self.main, "notes/pr/keeper.md", "## Why\nMine.\n")
         self.started("keeper")
         self.assertEqual((self.main / "notes" / "pr" / "keeper.md").read_text(), "## Why\nMine.\n")

@@ -100,7 +100,9 @@ class MadeBy(RepoCase):
         self.assertEqual(code, 0, out)
         self.assertIn("RETRODEV_AGENT='<agent, model>'", out.strip().splitlines()[-1])
         body = self.main / "notes/pr/goalie.md"
-        body.write_text(body.read_text().replace("Made by an agent for the owner.", "Made by an agent (Codex) for x."))
+        body.write_text(
+            body.read_text().replace("Made by an agent (Hermes) for the owner.", "Made by an agent (Codex) for x.")
+        )
         _code, out = self.run_cli("check", cwd=tree)
         self.assertNotIn("RETRODEV_AGENT", out.strip().splitlines()[-1], "a named agent needs no hint")
 

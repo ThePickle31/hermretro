@@ -113,9 +113,12 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
         steps.append(status.read_first(both, ctx.remote_base, "writing the plan" if planned else "sync merges it"))
     if planned and named:
         if not plan.plan_file(ctx, named).is_file():
-            steps.append(f"python tools/retrodev plan new {named} (say what the branch does and what is left)")
+            steps.append(
+                f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
+                "does and what is left)"
+            )
         steps.append(
-            f"show the owner notes/plans/{named}.md; when they say start: python tools/retrodev plan approve {named} "
+            f"show the owner {plan.plan_file(ctx, named)}; when they say start: python tools/retrodev plan approve {named} "
             '--words "<their exact words>" (it also writes the pull request body)'
         )
     if behind:

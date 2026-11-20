@@ -10,6 +10,7 @@ Plans live in the main checkout's notes/plans/ (git ignores notes/), so every wo
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 from . import gates, repo, state
@@ -134,7 +135,7 @@ def approve(ctx, topic: str, words: str | None) -> int:
             f"the plan {path} is still the template: "
             + ", ".join(f"'## {name}'" for name in empty)
             + " hold only its comments (the owner approves what the plan says, as ship needs a filled-in body)",
-            f"fill in notes/plans/{topic}.md first ({path}), show it to the owner, then plan approve again",
+            f"fill in {path} first, show it to the owner, then plan approve again",
         )
     said = title_line(path.read_text(encoding="utf-8"))
     title = gates.title_gate(said or "", f"the Title: line of {path}") if said is not None else None
@@ -146,8 +147,10 @@ def approve(ctx, topic: str, words: str | None) -> int:
             f'python tools/retrodev plan approve {topic} --words "<the owner\'s exact words>"',
             code=OWNER,
         )
+    at = state.now()
+    mark_approved(path, at[:10], words.strip())
     record = state.load_plan(ctx.top, topic) or {"topic": topic, "created": state.now()}
-    record.update(path=str(path), approved={"at": state.now(), "words": words.strip(), "sha256": fingerprint(path)})
+    record.update(path=str(path), approved={"at": at, "words": words.strip(), "sha256": fingerprint(path)})
     state.save_plan(ctx.top, record)
     ctx.out.say(f"approved {topic}: \"{words.strip()}\"")
     here_body(ctx, topic)
@@ -176,6 +179,20 @@ def approve(ctx, topic: str, words: str | None) -> int:
         )
     ctx.out.set(topic=topic, approved=record["approved"], linked=linked)
     return 0
+
+
+STATUS = re.compile(r"^Status:.*$", re.M)
+
+
+def mark_approved(path: Path, day: str, words: str) -> None:
+    """The plan's 'Status:' line says the approval (approved <YYYY-MM-DD>: "<words>"), so the file read alone no
+    longer says draft; a plan without one in its header is left as it is. Run before the approval's hash is taken."""
+    text = path.read_text(encoding="utf-8")
+    said = " ".join(words.split())
+    line = f'Status: approved {day}: "{said}"'
+    head, sep, rest = text.partition("\n## ")  # only the header's line: a section may quote one
+    if STATUS.search(head):
+        path.write_text(STATUS.sub(lambda _m: line, head, count=1) + sep + rest, encoding="utf-8")
 
 
 def here_body(ctx, topic: str) -> None:
@@ -266,12 +283,51 @@ def link(ctx, topic: str) -> int:
     return 0
 
 
-def branch_title(ctx, branch: str, record: dict) -> str | None:
-    """The plan's 'Title:' line (the template asks for one plain sentence), else its own title line ('# Plan:
-    <words>') when it says more than the topic."""
+LISTS = ("Branches", "PRs", "Pull requests", "Branches/PRs", "Branches and PRs", "Pull requests and branches")
+
+
+def shared(ctx, branch: str, record: dict) -> bool:
+    """The plan covers more than this branch: its Branches/PRs section lists several, or a branch recorded
+    earlier (start, plan link, takeover) works under it too. Its Goal, Not in scope and Title then belong to the
+    whole plan, not to this branch's pull request."""
     named = gates.plan_for(ctx, branch, record)
     path = plan_file(ctx, named) if named and state.NAME.match(named) else None
     if not path or not path.is_file():
+        return False
+    found = gates.section_lines(path.read_text(encoding="utf-8"))
+    listed = next((found[name] for name in found if name.strip().lower() in {s.lower() for s in LISTS}), [])
+    if sum(1 for line in listed if re.match(r"^\s*(?:[-*+]|\d+[.)])\s+\S", line)) > 1:
+        return True
+    mine = record.get("created") or state.now()
+    for other in state.branches(ctx.top):
+        name = other.get("branch")
+        if not name or name == branch or gates.plan_for(ctx, name, other) != named:
+            continue
+        if (other.get("created") or "") <= mine:  # started before this one (a record without a time counts)
+            return True
+    return False
+
+
+def branch_section(ctx, branch: str, record: dict) -> list[str]:
+    """Under a shared plan, the lines of the plan's section for this branch: a '## ' heading naming the branch
+    (feat/x) or its topic as a whole word; [] when the plan has none."""
+    named = gates.plan_for(ctx, branch, record)
+    path = plan_file(ctx, named) if named and state.NAME.match(named) else None
+    if not path or not path.is_file():
+        return []
+    topic = record.get("topic") or branch.partition("/")[2]
+    names = [re.escape(branch)] + ([re.escape(topic)] if topic else [])
+    pattern = re.compile(rf"(?<![\w/-])(?:{'|'.join(names)})(?![\w/-])")
+    found = gates.section_lines(path.read_text(encoding="utf-8"))
+    return next((lines for heading, lines in found.items() if pattern.search(heading) and lines), [])
+
+
+def branch_title(ctx, branch: str, record: dict) -> str | None:
+    """The plan's 'Title:' line (the template asks for one plain sentence), else its own title line ('# Plan:
+    <words>') when it says more than the topic; None under a shared plan (its title is the whole plan's)."""
+    named = gates.plan_for(ctx, branch, record)
+    path = plan_file(ctx, named) if named and state.NAME.match(named) else None
+    if not path or not path.is_file() or shared(ctx, branch, record):
         return None
     lines = gates.COMMENT.sub("", path.read_text(encoding="utf-8")).splitlines()
     said = next((line[6:].strip() for line in lines if line.startswith("Title:")), "")
@@ -286,5 +342,7 @@ def title_note(ctx, branch: str | None, record: dict) -> str:
     """' (the plan's Title: line is not offered: <why>)' when the plan has a Title: line ship cannot take, else ''."""
     named = gates.plan_for(ctx, branch, record) if branch else None
     path = plan_file(ctx, named) if named and state.NAME.match(named) else None
+    if path and path.is_file() and shared(ctx, branch, record):
+        return " (the plan's Title: line is not offered: the plan covers several branches; name this one's change)"
     why = title_skipped(path.read_text(encoding="utf-8")) if path and path.is_file() else None
     return f" (the plan's Title: line is not offered: {why})" if why else ""

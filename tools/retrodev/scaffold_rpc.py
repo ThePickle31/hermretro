@@ -184,8 +184,9 @@ def big_note(plan: Plan, feature_name: str, name: str) -> None:
 
 CONTRACT = "docs/dev/CONTRACT.md"
 PAGE_RPCS = "## Studio pages (desktop) and their RPCs"  # its table lists RPCs the pages call
-# Features whose RPCs read the hermretro profile's plugin data folder (host._data_dir()) or its Build chats: the
-# page calls them with callStudioOnly (page/app/backend.js), never whichever profile answered status.
+# Features whose RPCs usually read the hermretro profile's plugin data folder (host._data_dir()) or its Build chats:
+# the suggested page code calls them with callStudioOnly (page/app/backend.js). The rule is what the handler reads,
+# so the step says to check; any other feature's suggestion is callStudio.
 STUDIO_ONLY = ("history", "assets")
 
 
@@ -196,10 +197,16 @@ def page_steps(plan: Plan, feature_name: str, name: str, source: str, game: bool
     steps = [
         f"write the handler in {source} and its section in {CONTRACT} (params, result)",
         f"call it from the page: import {{ {constant} }} from '#app/rpc.js' (re-exports the generated rpc-names.js)",
-        "callStudioOnly (page/app/backend.js) for an RPC that reads or binds a profile's Build conversations or its "
-        "plugin data folder (snapshots, asset versions; host._data_dir()): the hermretro profile only; "
-        "callStudio for the library (whichever profile answered status serves it)"
-        + (f"; backend/{feature_name} reads that folder: use callStudioOnly" if only else ""),
+        "callStudioOnly (page/app/backend.js; the hermretro profile only) if the handler reads or binds a "
+        "profile's Build conversations or its plugin data folder (host._data_dir(): snapshots, asset versions); "
+        "otherwise callStudio (whichever profile answered status serves it, as for the library): what the handler "
+        "reads decides, not the feature"
+        + (
+            f"; the code below uses callStudioOnly because {' and '.join(STUDIO_ONLY)} RPCs usually do: check what "
+            "yours reads"
+            if only
+            else ""
+        ),
         "callStudio and callStudioOnly resolve to the RPC's answer itself (data.ok, ...); callBackend resolves to "
         "{ data } (read .data): page/app/backend.js",
     ]
