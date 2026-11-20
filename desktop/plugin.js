@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 9f05c06718f2ed1fe01c5120d6c1b92ad65af15566461b63db3e281197351c59
- * body: sha256 76e644f5d208ec767c2649497c729346755b93c927f7ba0bd9fdd5c46edd3d32
+ * sources: sha256 177a1466421aee4f46c33b3b61d7c00c2188122cd9342c97cf93402384f0dea4
+ * body: sha256 aafecc60dec7841bd41829cab2eb25fdb5f07863a6885a0457f59bd3a87d2761
  */
 // page/sdk.js
 import {
@@ -3334,10 +3334,11 @@ var ATTRACT_CSS = `
 .cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
 .cs-at canvas { bottom: 0; filter: saturate(.78); image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .4; position: absolute; }
 .cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
-/* the header above the form, so the game switcher's menu opens over it */
+/* the header above the form, so the game switcher's menu opens over it; the composer above the choice cards, so its
+   model picker opens over them (the glass's backdrop-filter makes each a stacking context that would trap it) */
 .cs-b-attract > .cs-b-head { z-index: 2; }
 .cs-b-attract .cs-b-new .cs-title { align-self: center; text-shadow: 0 2px 0 color-mix(in srgb, var(--cs-at-bg) 70%, black), 0 0 18px var(--cs-at-bg), 0 0 6px var(--cs-at-bg); }
-.cs-b-attract .cs-b-new .cs-b-comp { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-b-attract .cs-b-new .cs-b-comp { position: relative; z-index: 2; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
 .cs-b-attract .cs-b-opt { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); }
 .cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass)); }
 `;

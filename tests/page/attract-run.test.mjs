@@ -115,3 +115,17 @@ test('the header (and the game switcher\'s menu) stays above the form; the level
   assert.ok(z('.cs-b-new') > z('.cs-at'), 'the form over the level')
   t.stop()
 })
+
+test('the composer stays above the frosted choice cards, so its model picker opens over them', () => {
+  const t = setup()
+  const style = t.doc.createElement('style')
+  style.textContent = ATTRACT_CSS
+  t.doc.head.append(style)
+  const opt = t.doc.createElement('button')
+  opt.className = 'cs-b-opt'
+  t.form.append(opt)
+  const css = sel => t.dom.window.getComputedStyle(t.doc.querySelector(sel))
+  assert.equal(css('.cs-b-comp').position, 'relative', 'the composer is positioned')
+  assert.ok(Number(css('.cs-b-comp').zIndex) > (Number(css('.cs-b-opt').zIndex) || 0), `composer ${css('.cs-b-comp').zIndex} over the cards ${css('.cs-b-opt').zIndex}`)
+  t.stop()
+})
