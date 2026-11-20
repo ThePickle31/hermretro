@@ -10,6 +10,10 @@ Creates the `hermretro` profile, installs the committed checkout into it and int
 checks the agent side registers only in `hermretro`. Needs no model, no network beyond Git and touches no
 real Hermes home (HOME is a temp folder too). Every failure ends with a "FIX:" line.
 
+Its throwaway folder goes in HERMRETRO_CLEAN_INSTALL_TMP, else TMPDIR, else /tmp (`work_parent`): never inside the
+real Hermes home, and short enough for the broker's socket path (a TMPDIR that is not is passed over; such a
+HERMRETRO_CLEAN_INSTALL_TMP is refused).
+
 --update-from: see tools/ci/update_check.py.
 """
 
@@ -45,7 +49,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Never under ~/.hermes: Hermes treats a home inside its real root as the real root itself.
     real_root = Path.home() / ".hermes"
-    with tempfile.TemporaryDirectory(prefix="hermretro-clean-install-", dir="/tmp") as tmp:
+    try:
+        parent = work_parent(os.environ, real_root)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory(prefix=PREFIX, dir=str(parent)) as tmp:
         root = Path(tmp).resolve() / "hermes-home"
         if root.is_relative_to(real_root.resolve()):
             print(f"refusing to use {root}: it is inside the real Hermes home", file=sys.stderr)
@@ -67,6 +76,40 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     print("ok: installs cleanly; the agent side registers only in the hermretro profile")
     return 0
+
+
+PREFIX = "hermretro-clean-install-"
+# What the throwaway folder (PREFIX + 8 random characters) holds below it, at its longest: the update check's broker
+# socket, under the throwaway HOME (update_check.py leaves HERMRETRO_HOME unset).
+SOCKET_BELOW = "/" + "/".join(("home", ".hermes", "hermretro", "run", "broker.sock"))
+SOCKET_PATH_LIMIT = 100  # backend/system/paths.py SOCKET_PATH_LIMIT
+
+
+def work_parent(env, real_root: Path) -> Path:
+    """The folder the throwaway folder goes in: HERMRETRO_CLEAN_INSTALL_TMP, else TMPDIR, else /tmp. A
+    HERMRETRO_CLEAN_INSTALL_TMP inside ``real_root`` or too long for the broker's socket path raises ValueError (with
+    a FIX line); a TMPDIR like that is passed over."""
+    for name in ("HERMRETRO_CLEAN_INSTALL_TMP", "TMPDIR"):
+        value = env.get(name)
+        if not value:
+            continue
+        folder = Path(value).expanduser().resolve()
+        longest = len(os.fsencode(folder)) + 1 + len(PREFIX) + 8 + len(SOCKET_BELOW)
+        inside = folder.is_relative_to(real_root.expanduser().resolve())
+        if not inside and longest <= SOCKET_PATH_LIMIT:
+            return folder
+        if name == "TMPDIR":  # an agent's scratch TMPDIR is often both
+            continue
+        why = (
+            f"it is inside the real Hermes home {real_root}"
+            if inside
+            else f"the broker's socket under it would be {longest} bytes (at most {SOCKET_PATH_LIMIT})"
+        )
+        raise ValueError(
+            f"refusing {name}={value}: {why}\nFIX: point {name} at a short folder outside the Hermes home, such "
+            "as $XDG_RUNTIME_DIR or /tmp, or unset it"
+        )
+    return Path("/tmp")
 
 
 def _update_check():

@@ -69,8 +69,9 @@ What the plugin reads from a GB Studio project (the engine writes them; `backend
 
 Use `python tools/retrodev new <kind> library <name>`: it writes the stub, its test, the docs and the registry lines, rebuilds the generated files and runs the checks; there are no hand steps.
 
-- an RPC: `python tools/retrodev new rpc library <name>`.
-- card state: `game_card.status(root, strict=True)` answers `{complete, missing, problems, cover}` and
+- an RPC: `python tools/retrodev new rpc library <name>`; `python tools/retrodev new rpc library <name> --game` for an RPC about one game (a `game` param, `NO_GAME` unless `host._game_root` finds it).
+- card state: `game_card.status(root, strict=True)` answers `{complete, missing, problems, cover}`,
+  `game_card.cover_problem(root, strict=True)` only the cover's problem text by the same rules (None when usable) and
   `game_card.next_step(missing)` the sentence telling the agent what to fill in. `game_card.scaffold(root, title)` writes a
   starter card (title only) when there is none; every other card change is saved by `game_card.update(root, fields,
   cover_source=..., build_sha=..., default_title=...)`, called only by `chromatic_game_info` (`tools.py`). Its result's `was_complete` is the strict completeness before
