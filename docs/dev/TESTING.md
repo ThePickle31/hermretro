@@ -82,7 +82,9 @@ Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feat
 bundle, the install scan) and
 `tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
 bare origin and a fake `gh`; under discovery the whole package runs in one thread pool, about 1.3 s; a test there
-never patches a module's global, since other threads use it: `tests/retrodev/pool.py`). Each folder is a package, so discovery runs from the root:
+never patches a module's global, the environment, the working folder, sys.path or sys.stdout, since other threads
+use them: `tests/retrodev/pool.py`; a module that must is marked `load_tests = alone` and runs after the pool, and
+`tests/repo/test_pool_guard.py` names any that is not). The other packages run one test at a time on the main thread. Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`;
 one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
 folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
