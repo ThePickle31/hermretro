@@ -317,7 +317,8 @@ and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after running the base
 `scaffold: skipped: the tree fails unit (fix unit first)`), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
 on prompts, a slot on home, a contribution from home to a declared slot; with the base tree's page suite failing
-first: `scaffold: skipped: the tree fails page (fix page first)`), then the full unit and page suites, so a test that
+first: `scaffold: skipped: the tree fails page (fix page first)`, also in the run on a grown copy when the copy
+fails page before it is grown), then the full unit and page suites, so a test that
 pins the real tree's current content fails in CI, not in a contributor's branch that used `new`.
 
 ### `new feature <name> [--purpose "..."]`
@@ -472,7 +473,10 @@ stub `page/pages/<page>/<component-file>.js` (`InstallButton` -> `install-button
 and `contributes: { '<slot>': [Component] }` in `page/pages/<page>/index.js` (after the slot's list when the page
 fills it already), the page README's **Slots:** line (`contributes none` becomes ``contributes `<Component>` to
 `<slot>` ``), and the `filled` assertion's `expected` in `tests/page/registry.test.mjs` with its import (in `PAGES`
-order; when its shape is not the usual one, a note says to add it and the page check is skipped); then the bundle and
+order; imported as `<Component>From<Page>` when the test names `<Component>` already, e.g. `Text`, and refused when it
+names that too; when its shape is not the usual one, a note says to add it and the page check is skipped). A slot key
+already in `contributes`, in any quote style, is extended only when its value is a one-line array, else refused before
+anything is written (as `new slot` refuses a slot declared in either quotes); then the bundle and
 lint, bundle and page. Its next steps name what it leaves to the author: the component itself,
 docs/dev/STUDIO-PAGES.md's "Events and slots today", the host page's README **Slots:** line and the `HOSTS` recipe in
 `tests/page/slots.test.mjs`

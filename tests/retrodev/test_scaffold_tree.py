@@ -9,7 +9,7 @@ installed tools (.dev/py and tools/npm/node_modules, linked), runs `new feature 
 which goes in its own module too; once in library, a --project tool; once in rdtree, a --project tool importing
 backend/hermes/tool_args.py),
 `new event`, `new listener`, `new page rdtree`, `new tab rdtree extra`, `new slot rdtree extraActions` and `new
-contribution rdtree rdtree.extraActions RdtreeExtra`, then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
+contribution rdtree rdtree.extraActions RdtreeExtra` (then Text, which the registry test binds itself), then, side by side, `tools/check.py lint bundle`, the unit tests that judge structure and lock step (layout,
 docs, boundaries, lock step, the registration snapshot, and the generated tests) and the page tests the new names
 reach (the registry, the nav). With RD_SCAFFOLD_FULL=nested the full `tools/check.py lint bundle unit page` runs
 there instead (it nests the whole unit suite, with tests/repo/test_placeholders.py's gate off for that run only:
@@ -17,7 +17,7 @@ the stubs are unfilled), and it is the guard against tests that pin the real tre
 unit suite as it is (a failure skips the test with "the tree fails unit (fix unit first)", which check.py scaffold
 reports as such; likewise its page tests, "the tree fails page (fix page first)", in either mode), notes every real feature README's RPCs/Tools/Listens lines (hand_edits.py), then runs real_steps(copy) after STEPS, each kind once more on a real feature or page as a
 contributor's branch would (chosen from what the copy declares), before the full suites; a second guard run does
-the same on a copy where setup has tabs, history listens to library.game_presented and history's README names an RPC
+the same on a copy where setup has tabs (a page failure the copy has before that skips it too; one the growing brings fails), history listens to library.game_presented and history's README names an RPC
 module beside rpcs.py already (made only where the copy lacks them: grown_steps). CI's page job runs it in this mode. Skipped when node, the npm tools or the pinned ruff are not set up
 here (check.py scaffold then says so). Two more run `new rpc history trial_ping` and `new listener setup library.game_presented` with their own
 checks: each completes (tests/repo/test_placeholders.py skips its gate there) and the placeholder gate still fails afterwards.
@@ -77,6 +77,7 @@ STEPS = [
     ["tab", "rdtree", "extra"],
     ["slot", "rdtree", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
     ["contribution", "rdtree", "rdtree.extraActions", "RdtreeExtra"],  # fills it: the registry's filled assertion
+    ["contribution", "rdtree", "rdtree.extraActions", "Text"],  # a name the registry test binds: an alias there
 ]
 STEPS += [["tool", "rdtree", "rdtree_proj", "--project"]]  # outside library: imports backend/hermes/tool_args.py
 # The guard's steps on REAL features and pages (nested mode): scaffold_steps.py chooses them from the copy.
@@ -235,20 +236,18 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             return
         self.guard(grown)
 
-    def guard(self, prepare=None) -> None:
+    def guard(self, prepare=None, mode: str | None = None) -> None:
         _, tree, env = self.make_tree()
-        if prepare:
+        mode = os.environ.get("RD_SCAFFOLD_FULL", "") if mode is None else mode
+        if prepare:  # the original copy's page tests first: a page failure it inherits skips (review 1, 2)
+            self.suite_first("page", tree, env, mode)
             prepare(tree, env)
-        mode = os.environ.get("RD_SCAFFOLD_FULL", "")
-        steps = STEPS + (real_steps(tree) if mode == "nested" else [])
         if mode == "nested":  # the full suites judge the copy: a tree that fails them already says nothing of new
-            base = run([sys.executable, "tools/check.py", "unit"], tree, env)
-            if base.returncode and prepare:  # the grown copy is this test's own: it must pass unit
-                self.fail(f"the grown copy fails unit:\n{base.stdout[-6000:]}")
-            if base.returncode:
-                self.skipTest(f"{UNIT_FIRST}:\n{base.stdout[-2000:]}")
-            self.assertTrue(note_feature_readmes(tree))  # hand edits a branch makes: pins of those lines fail here
-        self.page_first(tree, env, mode, own=bool(prepare))
+            self.suite_first("unit", tree, env, mode, own=bool(prepare))
+        self.suite_first("page", tree, env, mode, own=bool(prepare), clean=bool(prepare))
+        if mode == "nested":  # hand edits a branch makes: pins of those lines fail here
+            self.assertTrue(note_feature_readmes(tree))
+        steps = STEPS + (real_steps(tree) if mode == "nested" else [])
         for step in steps:  # several in a row: the generated files are rebuilt once, after the last
             last = step is steps[-1]
             done = run([*RETRODEV, "new", *step, "--no-check", *([] if last else ["--no-build"])], tree, env)
@@ -263,15 +262,27 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
         git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
 
-    def page_first(self, tree: Path, env: dict, mode: str, own: bool = False) -> None:
-        """The copy's page tests before new runs (all of them nested, else the ones the judges run): a tree that
-        fails them already is reported as such, not as new's failure."""
-        command = [sys.executable, "tools/check.py", "page"] if mode == "nested" else ["node", "--test", *PAGE_TESTS]
-        base = run(command, tree, env)
-        if base.returncode and own:  # the grown copy is this test's own: it must pass page
-            self.fail(f"the grown copy fails page:\n{(base.stdout + base.stderr)[-6000:]}")
-        if base.returncode:
-            self.skipTest(f"{PAGE_FIRST}:\n{(base.stdout + base.stderr)[-2000:]}")
+    def suite_first(self, suite: str, tree: Path, env: dict, mode: str, own: bool = False, clean: bool = False) -> None:
+        """The copy's unit or page tests before new runs (page: all of them nested, else the ones the judges run):
+        a tree that fails them already is reported as such ("fix <suite> first"), not as new's failure. On the
+        grown copy (``own``) a failure is the preparation's when the original copy passed the suite (``clean``: page,
+        checked before the preparation) or passes it now (unit, on a fresh copy: checked only on a failure, since a
+        unit run more on every guard run would double its time); otherwise it is inherited and skips."""
+        page = [sys.executable, "tools/check.py", "page"] if mode == "nested" else ["node", "--test", *PAGE_TESTS]
+        command = [sys.executable, "tools/check.py", "unit"] if suite == "unit" else page
+        base = self.suite(command, tree, env)
+        if not base.returncode:
+            return
+        said = (base.stdout + (base.stderr or ""))[-6000:]
+        if own and not clean:
+            _, original, original_env = self.make_tree()
+            clean = not self.suite(command, original, original_env).returncode
+        if own and clean:
+            self.fail(f"the grown copy fails {suite}, and the copy before the preparation passes it:\n{said}")
+        self.skipTest(f"{UNIT_FIRST if suite == 'unit' else PAGE_FIRST}:\n{said[-2000:]}")
+
+    def suite(self, command: list[str], tree: Path, env: dict) -> subprocess.CompletedProcess:
+        return run(command, tree, env)
 
     def test_rpcs_named_after_what_their_handler_uses_pass_their_generated_tests(self):  # review 2, 2
         """RPCs named host, logger or a builtin, in every variant (host both inline and --module, so in two rounds:

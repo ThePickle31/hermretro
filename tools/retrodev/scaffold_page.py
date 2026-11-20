@@ -39,7 +39,7 @@ def page(plan: Plan, page_id: str, page_label: str | None) -> str:
     check_name(page_id, KEBAB, "page", "games")
     page_label = js_label(page_label, label(page_id))
     folder = f"page/pages/{page_id}"
-    if plan.exists(folder) or f"'./{page_id}/index.js'" in plan.read(REGISTRY):
+    if plan.exists(folder) or re.search(rf"""['"]\./{re.escape(page_id)}/index\.js['"]""", plan.read(REGISTRY)):
         raise Failure(f"{folder} exists or the registry lists it", "pick another page id")
     values = {"id": page_id, "Label": page_label, "Component": pascal(page_id) + "Page", "CONST": const(page_id)}
     unique_exports(plan, [values["Component"], f"{const(page_id)}_PAGE"])
@@ -75,7 +75,7 @@ def _append_to(text: str, pattern: re.Pattern, item: str, what: str, sort: bool 
     found = pattern.search(text)
     if not found:
         raise Failure(f"{REGISTRY_TEST}: the list of {what} is not where it was", f"add '{item}' to it by hand")
-    items = re.findall(r"'([^']*)'", found.group(2)) + [item]
+    items = [entry for _quote, entry in re.findall(r"""(['"])(.*?)\1""", found.group(2))] + [item]  # either quote
     items = sorted(items) if sort else items
     return text[: found.start(2)] + ", ".join(f"'{entry}'" for entry in items) + text[found.end(2) :]
 
@@ -113,6 +113,13 @@ def add_to_descriptor(text: str, field_name: str, opening: str, closing: str, en
     lines = text.split("\n")
     body = lines[first + 1 : end]
     start = next((i for i, line in enumerate(body) if line.startswith(f"  {field_name}: {opening}")), None)
+    named = re.compile(rf"""^  (?:{field_name}|'{field_name}'|"{field_name}")\s*:""")
+    if start is None and any(named.match(line) for line in body):  # quoted, or not a literal: a second would win
+        raise Failure(
+            f"the descriptor has {field_name} in a shape new cannot extend (it extends only '  {field_name}: "
+            f"{opening}...'); nothing was written",
+            f"add {entry} to its {field_name} by hand",
+        )
     if start is None:
         if body and not body[-1].rstrip().endswith((",", "{")):
             body[-1] += ","
@@ -336,7 +343,7 @@ def slot(plan: Plan, page_id: str, name: str, doc: str | None) -> str:
     full = f"{page_id}.{name}"
     doc = js_label(doc, "Where it is on the page. Props: { ... }", "doc")
     for index in plan.top.glob("page/pages/**/index.js"):
-        if f"'{full}'" in plan.read(str(index.relative_to(plan.top))):
+        if re.search(rf"""['"]{re.escape(full)}['"]""", plan.read(str(index.relative_to(plan.top)))):
             raise Failure(f"the slot {full} is declared already ({index.relative_to(plan.top)})", "pick another name")
     plan.edit(door, lambda text: add_to_descriptor(text, "slots", "{", "}", f"'{full}': '{doc}'"))
     plan.edit(REGISTRY_TEST, lambda text: _append_to(text, SLOTS_LIST, full, "declared slots", sort=True))
