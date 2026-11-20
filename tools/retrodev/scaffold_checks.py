@@ -43,20 +43,39 @@ def blame(ctx, rows: list[dict], written: set[str]) -> tuple[list[str], list[str
     return mine, theirs
 
 
+def unproven(ctx, rows: list[dict], names: list[str]) -> list[str]:
+    """The asked checks that neither passed nor failed: skipped (a tool is missing, or the tree fails another check
+    first) or with no row at all. Such a check proves nothing about new's files, so a pre-existing lint failure
+    beside it never makes new's run a pass. Only a check policy.toml lets skip (`may_skip`) is not one."""
+    may_skip = set(ctx.policy["checks"].get("may_skip", []))
+    states = {row.get("name"): row.get("state") for row in rows}
+    return [name for name in names if states.get(name) not in ("ok", "FAILED") and name not in may_skip]
+
+
 def validate(ctx, names: list[str], written: set[str] | None = None) -> None:
     """The checks right after writing the stubs: without the placeholder gate (the stubs are not filled in yet), so
     their results are not kept as passes (the branch's own record is put back: `check` runs the gate before ship).
-    A failure only in files new did not write is the tree's own: said as such, and new's scaffold stands."""
+    A failure only in files new did not write is the tree's own: said as such, and new's scaffold stands, but only
+    when every other asked check passed (a skipped one proves nothing, so new's run still fails)."""
     branch = repo.branch(ctx.top)
     kept = state.load_branch(ctx.top, branch)
     try:  # the gate's switch goes only to the checks' processes: os.environ is shared by every thread
         checks.run(ctx, names, env={SCAFFOLD_CHECK: "1"})
     except Failure:
-        mine, theirs = blame(ctx, ctx.out.data.get("checks") or [], written or set())
+        rows = ctx.out.data.get("checks") or []
+        mine, theirs = blame(ctx, rows, written or set())
         for name in theirs:
             ctx.out.say(f"pre-existing on this tree (not from new): {name}")
         ctx.out.set(pre_existing=theirs)
         if mine or not theirs:
+            raise
+        skipped = unproven(ctx, rows, names)
+        if skipped:
+            ctx.out.say(
+                f"not run, so new's files are not proven: {', '.join(skipped)} (a skipped check proves nothing; "
+                "python tools/retrodev doctor names what is missing)"
+            )
+            ctx.out.set(unproven=skipped)
             raise
         ctx.out.say(
             "new's own files pass; the scaffold stays. Fix the files above in a commit of their own (python "

@@ -195,3 +195,26 @@ class PreExisting(ScaffoldCase):
             scaffold_checks.blame(ctx, rows[:1], {"backend/history/rpcs.py"}), ([], ["backend/history/untidy.py"])
         )
         self.assertTrue(re.search(r"pre-existing on this tree", retrodev_docs("REFERENCE.md")))
+
+    def test_a_check_skipped_beside_a_pre_existing_lint_failure_keeps_new_failing(self):  # review 1, 0
+        # No Node: bundle and page print skipped rows, as check.py does without its tool; lint fails only on a file
+        # new did not write. Neither page check proved anything, so new's run is no pass.
+        no_node = FORMAT_CHECK.replace(
+            "    else:\n",
+            "    elif name in ('bundle', 'page'):\n"
+            "        print(f\"{'skipped':>7}  {name:<10} {0.0:5.1f} s  node is not installed\")\n"
+            "    else:\n",
+        )
+        write(self.tree, "tools/check.py", no_node)
+        write(self.tree, "backend/history/untidy.py", "x  =  1\n")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "An unformatted file")
+        code, out = self.run_cli("new", "page", "rdprobe", "--no-build", cwd=self.tree)
+        self.assertEqual(code, 1, out)
+        self.assertIn("pre-existing on this tree (not from new): backend/history/untidy.py", out)
+        self.assertIn("not run, so new's files are not proven: bundle, page", out)
+        self.assertNotIn("new's own files pass", out)
+        ctx = config.Context.make(self.tree, output.Out(stream=io.StringIO()))
+        ok = [{"name": "lint", "state": "FAILED"}, {"name": "bundle", "state": "ok"}, {"name": "page", "state": "ok"}]
+        self.assertEqual(scaffold_checks.unproven(ctx, ok, ["lint", "bundle", "page"]), [])
+        self.assertEqual(scaffold_checks.unproven(ctx, ok[:2], ["lint", "bundle", "page"]), ["page"], "no row")

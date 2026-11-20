@@ -175,11 +175,13 @@ def merge_base(cwd: Path | str, base: str) -> str | None:
 
 
 def changed_files(cwd: Path | str, base: str) -> list[str] | None:
-    """Files this branch changed since it left ``base`` (committed, uncommitted and new); None without ``base``."""
+    """Files this branch changed since it left ``base`` (committed, uncommitted and new); None without ``base``. A
+    renamed file counts at both paths (git's rename detection would list only the new one, so a trigger file moved
+    away, or a body naming the old path, would go unseen)."""
     point = merge_base(cwd, base)
     if not point:
         return None
-    names = set(git(["diff", "--name-only", "-z", point], cwd).split("\0"))
+    names = set(git(["diff", "--no-renames", "--name-only", "-z", point], cwd).split("\0"))
     names |= set(git(["ls-files", "-z", "--others", "--exclude-standard"], cwd).split("\0"))
     return sorted(name for name in names if name)
 
@@ -189,8 +191,8 @@ def moved_or_deleted(cwd: Path | str, base: str) -> list[str]:
     point = merge_base(cwd, base)
     if not point:
         return []
-    out = git(["diff", "--name-status", "--diff-filter=DR", point], cwd)
-    return [line.split("\t", 1)[1] for line in out.splitlines() if "\t" in line]
+    out = git(["diff", "--name-status", "--diff-filter=DR", point], cwd)  # R: "R100<TAB>old<TAB>new"
+    return [line.split("\t")[1] for line in out.splitlines() if "\t" in line]
 
 
 def _blob_id(path: Path) -> str:

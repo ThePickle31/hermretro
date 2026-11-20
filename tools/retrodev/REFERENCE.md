@@ -157,7 +157,7 @@ line) warns, never fails, about each backtick-quoted identifier of its What chan
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
 files: a name renamed while building (`games.built_rom`); and about each backtick-quoted file path there (a slash in
 it, or a known suffix: `tools/retrodev/sync.py`, `sync.py`, `backend/library/`) that the branch's changes do not
-touch. The next step it prints is `report`, or, when the owner
+touch (a renamed file counts at both its old and its new path). The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
 
 ### `report`
@@ -313,7 +313,8 @@ prints every file it created (`create`) or changed (`change`), formats the Pytho
 rebuilds the generated files when the change feeds them (`policy.toml` `[generated] regenerate`), runs the checks
 those files are inputs of (lint, bundle, unit, page; the page kinds, `page`, `tab`, `slot` and `contribution`, run
 only lint, bundle and page, leaving unit to `check`; the install scan waits for `check`; a lint failure only in files new
-did not write is reported as `pre-existing on this tree (not from new): <file>` and the scaffold stands, exit 0; a
+did not write is reported as `pre-existing on this tree (not from new): <file>` and the scaffold stands, exit 0, when
+every other check it ran passed (one skipped for a missing tool keeps the exit 1: it proves nothing); a
 unit or page failure is always new's, since new's code may break a test it did not write) and
 prints the next steps
 (for a change the clean install covers, such as `plugin.yaml` or `backend/features.py`: commit, then `check`, then

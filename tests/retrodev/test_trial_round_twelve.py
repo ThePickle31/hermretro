@@ -12,7 +12,7 @@ import importlib.util
 import io
 from pathlib import Path
 
-from retrodev import body_names, checks_triggers, config, output, sync
+from retrodev import body_names, checks_triggers, config, output, repo, sync
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
@@ -196,3 +196,25 @@ class BodyPaths(RepoCase):
         self.assertNotIn("`backend/library/core.py`", said)
         self.assertNotIn("`core.py`", said)
         self.assertIsNone(body_names.warning(ctx, GOOD_BODY.replace("Things.", "`backend/library/` changes.")))
+
+    def test_a_renamed_file_counts_at_both_its_paths(self):  # review 1, 1
+        self.on_dev("backend/library/old.py", "VALUE = 1\n" * 20)
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("fix/rename")
+        git(tree, "mv", "backend/library/old.py", "backend/library/new.py")
+        git(tree, "commit", "-q", "-m", "Rename")
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        self.assertEqual(repo.moved_or_deleted(tree, ctx.remote_base), ["backend/library/old.py"])
+        text = GOOD_BODY.replace("Things.", "Renamed `backend/library/old.py` to `backend/library/new.py`.")
+        self.assertIsNone(body_names.warning(ctx, text))
+
+
+class RenamedTrigger(RepoCase):
+    def test_moving_a_trigger_file_out_of_its_folder_still_triggers(self):  # review 1, 1
+        self.on_dev("backend/library/moved.py", "VALUE = 1\n" * 20)
+        git(self.main, "fetch", "-q", "origin")
+        tree = self.worktree("feat/move")
+        git(tree, "mv", "backend/library/moved.py", "tools/moved.py")
+        git(tree, "commit", "-q", "-m", "Move it out of backend/")
+        found = checks_triggers.triggered(config.Context.make(tree, output.Out(stream=io.StringIO())))
+        self.assertIn("acceptance", found, "a rename moving a trigger file away still changed it")
