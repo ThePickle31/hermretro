@@ -1,6 +1,6 @@
 # backend/library
 
-The games library: the user's games (`games.py`, `games.json` under the hermretro home), each game's card (`game_card.py`: `game.json` + `cover.png`), the Build page's game ↔ conversation binding, the Games/Build/Emulator page RPCs (`rpcs.py`), the plugin's game tools (`tools.py`) and the helpers every tool shares (`tool_args.py`).
+The games library: the user's games (`games.py`, `games.json` under the hermretro home), each game's card (`game_card.py` for `game.json`, `game_cover.py` for reading and validating `cover.png`), the Build page's game ↔ conversation binding, the Games/Build/Emulator page RPCs (`rpcs.py`), the plugin's game tools (`tools.py`) and the helpers every tool shares (`tool_args.py`).
 
 ## What it adds
 

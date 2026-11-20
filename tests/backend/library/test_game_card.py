@@ -12,6 +12,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
@@ -72,7 +73,7 @@ class CoverCheck(unittest.TestCase):
                 left = line[i - 4] if i >= 4 else 0
                 up = previous[i]
                 corner = previous[i - 4] if i >= 4 else 0
-                predictor = {1: left, 2: up, 4: game_card._paeth(left, up, corner)}[filter_type]
+                predictor = {1: left, 2: up, 4: game_cover._paeth(left, up, corner)}[filter_type]
                 out.append((value - predictor) & 0xFF)
             rows += bytes([filter_type]) + bytes(out)
             previous = line
