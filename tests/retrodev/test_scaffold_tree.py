@@ -33,12 +33,16 @@ more runs `new rpc` in history with RPCs named host, logger, dict and isinstance
 rounds) and their generated tests pass: the handler's fixed name _answer shadows nothing it uses.
 Two more lint: a lint error only in the root __init__.py is pre-existing for `new rpc` with its checks, and
 `tools/check.py lint-files` lints only the files it names (ruff, the page lint), failing when ruff is missing.
+One more commits `new tool`, then `new rpc`, then the other kinds on a branch of a copy: none of what they write adds
+the nested scaffold run to `retrodev check` (the registration snapshot is generated); a hand edit to a tests/repo
+test does.
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -141,6 +145,16 @@ def line(text: str, start: str) -> str:
 
 
 RETRODEV = [sys.executable, str(ROOT / "tools" / "retrodev")]
+TRIGGERED = (  # {check: why} for the copy's branch, by the copy's own retrodev and policy
+    "import io, json, sys; sys.path.insert(0, 'tools'); from retrodev import checks_triggers, config, output; "
+    "print(json.dumps(checks_triggers.triggered(config.Context.make('.', output.Out(stream=io.StringIO())))))"
+)
+
+
+def triggered(tree: Path, env: dict) -> dict:
+    done = run([sys.executable, "-c", TRIGGERED], tree, env)
+    assert not done.returncode, done.stdout + done.stderr
+    return json.loads(done.stdout)
 
 
 def judges(mode: str, env: dict) -> list[tuple[list[str], dict]]:
@@ -326,6 +340,36 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             self.assertEqual(linted.returncode, 0, linted.stdout + linted.stderr)
             for command in (["reset", "-q", "--hard"], ["clean", "-qfd"]):  # the next round starts from the copy
                 git_ok(self, tree, env, command)
+
+    def test_the_files_new_writes_never_add_the_nested_scaffold_run(self):  # review 2, 0 (#75)
+        """The real plans on a copy, each committed on a branch off its start: the whole changed-file set of `new
+        tool`, then with `new rpc`, then with every other kind (the registration snapshot and the page registry test
+        among them) never adds scaffold nested; a hand edit to tests/repo/test_docs.py after them still does."""
+        _, tree, env = self.copy()
+        git_ok(self, tree, env, ["update-ref", "refs/remotes/origin/dev", "HEAD"])
+        rest = [
+            ["feature", "rdtrig", "--purpose", "A probe feature made by retrodev new"],
+            ["event", "rdtrig", "pinged", "--payload", "count", "--when", "the probe was pinged"],
+            ["listener", "rdtrig", "library.build_reported"],
+            ["page", "rdtrig"],
+            ["tab", "rdtrig", "extra"],
+            ["slot", "rdtrig", "extraActions", "--doc", "Buttons after the lede. Props: { ctx }"],
+            ["contribution", "rdtrig", "rdtrig.extraActions", "RdtrigExtra"],
+        ]
+        rounds = [[["tool", "history", "rdtrig_tool"]], [["rpc", "history", "rdtrig_rpc"]], rest]
+        for steps in rounds:
+            for step in steps:  # the generated files rebuilt once a round, as a branch's last `new` does
+                build = [] if step is steps[-1] else ["--no-build"]
+                done = run([*RETRODEV, "new", *step, "--no-check", *build], tree, env)
+                self.assertEqual(done.returncode, 0, f"new {' '.join(step)}:\n{done.stdout}{done.stderr}")
+            for command in (["add", "-A"], ["commit", "-q", "-m", steps[0][0]]):
+                git_ok(self, tree, env, command)
+            self.assertNotIn("run nested", triggered(tree, env).get("scaffold", ""), steps[0])
+        changed = run(["git", "diff", "--name-only", "origin/dev"], tree, env).stdout.split()
+        self.assertIn("tests/repo/registration.json", changed)  # what the trigger matched before the fix
+        docs = tree / "tests/repo/test_docs.py"
+        docs.write_text(docs.read_text() + "\n# a hand edit\n")
+        self.assertIn("changed tests/repo/test_docs.py; run nested", triggered(tree, env).get("scaffold", ""))
 
     def test_moved_pages_with_comments_and_trailing_commas_bundle(self):  # review 2, 2 and 3
         moved_pages_bundle(self, RETRODEV)

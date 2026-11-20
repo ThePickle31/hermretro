@@ -2,7 +2,10 @@
 `check` run selects. A generated bundle whose banner says its body is unchanged (``body: sha256``) changed in its
 header alone (``sources:``, after an edit that did not change what it bundles): that calls for nothing. Nor does a
 file [checks.trigger_ignore] lists for that check, or a change to a scaffold-parsed file made only of the lines `new`
-itself writes there ([checks.new_lines]).
+itself writes there ([checks.new_lines]). A change to a file only the nested scaffold run reads
+([checks.nested_triggers]: the tests the grown copy runs, which CI's page job runs with RD_SCAFFOLD_FULL=nested)
+adds scaffold in that nested mode, so a test that reads the surrounding tree fails here as it would in CI; a
+generated file there ([generated] files: the registration snapshot `new tool` and `new rpc` rewrite) never does.
 """
 
 from __future__ import annotations
@@ -50,6 +53,14 @@ def only_new_lines(top, base: str, path: str, patterns: list[str]) -> bool:
     return bool(lines) and all(any(re.fullmatch(p, line) for p in patterns) for line in lines)
 
 
+NESTED = "; run nested (RD_SCAFFOLD_FULL=nested), as CI's page job runs those tests in its grown copy"
+
+
+def nested(why: str) -> bool:
+    """The scaffold check was added for a file the nested mode reads: run it with RD_SCAFFOLD_FULL=nested."""
+    return why.endswith(NESTED)
+
+
 def known(ctx) -> list[str]:
     return list(ctx.policy["checks"]["inputs"])
 
@@ -72,6 +83,14 @@ def triggered(ctx) -> dict[str, str]:
             hits = [p for p in hits if not only_new_lines(ctx.top, ctx.remote_base, p, new_lines.get(p, []))]
         if hits:
             found[name] = f"changed {hits[0]}" + (f" and {len(hits) - 1} more" if len(hits) > 1 else "")
+    deep = [  # never a generated file (tests/repo/registration.json): `new tool` and `new rpc` rewrite it
+        path
+        for path in changed
+        if path not in generated
+        and repo.matches(path, ctx.policy["checks"].get("nested_triggers", {}).get("scaffold", []))
+    ]
+    if deep:
+        found["scaffold"] = f"changed {deep[0]}" + (f" and {len(deep) - 1} more" if len(deep) > 1 else "") + NESTED
     if "clean_install" in found:
         moved = repo.moved_or_deleted(ctx.top, ctx.remote_base)
         if moved:
@@ -85,12 +104,16 @@ def required(ctx) -> dict[str, str]:
 
 
 def select(ctx, names: list[str], full: bool, need: dict[str, str] | None = None) -> dict[str, str]:
+    """{check: why} for this run. The scaffold check's mode is the branch's, however it was asked for: on a branch
+    that calls for it nested, a named `check scaffold`, `--again` and `--full` run it nested too, so their pass
+    lands under the nested digest the shipping record asks for (a fast-mode pass there would revoke it)."""
+    wanted = dict(need if need is not None else required(ctx))
+    deep = {"scaffold": wanted["scaffold"]} if nested(wanted.get("scaffold", "")) else {}
     if names:
         unknown = [name for name in names if name not in known(ctx)]
         if unknown:
             raise Failure(f"unknown check: {', '.join(unknown)}", "use one of: " + ", ".join(known(ctx)))
-        return {name: "asked" for name in names}
-    wanted = dict(need if need is not None else required(ctx))
+        return {name: deep.get(name, "asked") for name in names}
     if full:
-        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"}
+        wanted |= {"scaffold": "--full", "acceptance": "--full", "clean_install": "--full"} | deep
     return wanted

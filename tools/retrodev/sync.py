@@ -189,9 +189,13 @@ def moved_hints(ctx, files: list[str]) -> list[str]:
     return list(dict.fromkeys(hints))
 
 
-def with_hints(ctx, files: list[str]) -> str:
+def conflict_failure(ctx, message: str, files: list[str]) -> Failure:
+    """The failure for source conflicts: each hunk's own instruction (moved_hints) on its own line under the message,
+    before the general FIX text, so the per-hunk steps are read first and none is buried at the end of a paragraph."""
     hints = moved_hints(ctx, files)
-    return resume_fix(ctx) + ("; " + "; ".join(hints) if hints else "")
+    ctx.out.set(hunks=hints)
+    fix = resume_fix(ctx) + ("; first do what each hunk's line above says" if hints else "")
+    return Failure("\n".join([message, *hints]), fix)
 
 
 def merging(ctx) -> bool:
@@ -228,7 +232,7 @@ def resume(ctx) -> int:
     other = [name for name in left if name not in generated]
     ctx.out.set(conflicts=left, other=other)
     if other:
-        raise Failure(f"the merge is still open; still unresolved: {', '.join(other)}", with_hints(ctx, other))
+        raise conflict_failure(ctx, f"the merge is still open; still unresolved: {', '.join(other)}", other)
     ctx.out.say("the merge is open and its sources are resolved: rebuilding the generated files")
     added = new_lines(ctx, generated)
     if added:
@@ -316,14 +320,15 @@ def run(ctx) -> int:
         other = [name for name in conflicts if name not in generated]
         ctx.out.set(conflicts=conflicts, other=other)
         if other:
-            raise Failure(
+            raise conflict_failure(
+                ctx,
                 f"merging {base} conflicts in files only a person can merge: {', '.join(other)}"
                 + (
                     f" (and generated ones retrodev rebuilds: {', '.join(sorted(set(conflicts) - set(other)))})"
                     if len(other) < len(conflicts)
                     else ""
                 ),
-                with_hints(ctx, other),
+                other,
             )
         ctx.out.say(f"conflicts only in generated files ({', '.join(conflicts)}): taking {base}'s side, rebuilding")
         return finish(ctx, conflicts)

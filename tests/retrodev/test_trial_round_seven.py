@@ -56,7 +56,7 @@ class Sync(RepoCase):
             code, out = self.run_cli("sync", cwd=tree, as_json=True)
             self.assertEqual(code, 1, (style, out))
             self.assertRegex(  # round eleven: the hunk's lines, and no other file has them
-                out["error"]["fix"],
+                out["error"]["message"],
                 r"backend/history/hooks\.py:\d+-\d+: dev deleted this block \(no other file on origin/dev has its "
                 r"lines; .*\); delete the HEAD side of this hunk, git add, sync again",
                 style,
@@ -87,11 +87,12 @@ class Takeover(RepoCase):
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         read = (
             "read `git diff HEAD...origin/dev -- backend/library/core.py` and `git log --oneline HEAD..origin/dev -- "
-            "backend/library/core.py` before writing the plan (origin/dev changed these files of the branch too)"
+            "backend/library/core.py` before sync merges it (origin/dev changed these files of the branch too)"
         )
         self.assertEqual(steps[1], read)
-        self.assertTrue(steps[2].startswith("python tools/retrodev plan new mate"), steps)
-        self.assertEqual(steps[4], "python tools/retrodev sync (HEAD lacks 2 commit(s) of origin/dev)")
+        self.assertEqual(steps[2], "python tools/retrodev sync (HEAD lacks 2 commit(s) of origin/dev)")  # round 14
+        self.assertTrue(steps[3].startswith("python tools/retrodev plan new mate"), steps)
+        read = read.replace("before sync merges it", "before writing the plan")  # status's own wording
         code, out = self.run_cli("status", cwd=tree)
         self.assertEqual(code, 0, out)
         self.assertTrue(
@@ -171,7 +172,7 @@ class Takeover(RepoCase):
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         tree = self.base / "hermretro-wt" / "mate"
         self.assertEqual(steps[0], f"cd {tree}", out)
-        self.assertEqual(len(steps), 5, steps)  # cd, plan new, plan approve, sync, check
+        self.assertEqual(len(steps), 5, steps)  # cd, sync, plan new, plan approve, check
         self.assertNotIn("python tools/retrodev ", out)
         self.assertIn('-> str:\n    return ""\n', (tree / "tools/retrodev/sync.py").read_text())  # its own is older
         for step in steps[1:]:
@@ -181,16 +182,10 @@ class Takeover(RepoCase):
             done = sh(command, tree)  # verbatim, in the worktree the first step went to
             if " plan new " in command:
                 (self.main / "notes/plans/mate.md").write_text(FILLED_PLAN.format(topic="mate"))
-            if " plan approve " in command:
+            if " plan approve " in command:  # sync ran first (round 14): nothing is left to merge
                 approve = line_with(done, "next: feat/mate already works under it: ")
-                self.assertIn(f" && {runner} sync (HEAD lacks ", approve)
-                self.assertTrue(approve.endswith(f"), then {runner} check"), approve)
-                status = sh(f"{runner} status", tree)
-                self.assertIn(f"next: {runner} sync (HEAD lacks ", status)
-                self.assertNotIn("python tools/retrodev ", status)
-                # the branch's own (older) plan approve would have printed the older sync: the case fixed here
-                done = sh("python tools/retrodev plan approve mate --words start", tree)
-                self.assertIn("&& python tools/retrodev sync (HEAD lacks ", done)
+                self.assertNotIn(" sync (HEAD lacks ", approve)
+                self.assertTrue(approve.endswith(f" && {runner} check") or approve.endswith(" check"), approve)
         self.assertEqual(git(tree, "rev-list", "--count", "HEAD..origin/dev").strip(), "0")
         self.assertEqual(sh("python tools/retrodev status", tree).count(f"{runner} "), 0)  # synced: its own again
 

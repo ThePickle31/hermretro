@@ -67,7 +67,7 @@ class Sync(RepoCase):
         moved = (
             "dev moved this block to tests/support.py (or deleted it); delete the HEAD side of this hunk"  # round 11
         )
-        self.assertIn(f"{TESTS}:4-10: {moved}", out["error"]["fix"])
+        self.assertIn(f"{TESTS}:4-10: {moved}", out["error"]["message"])
         self.assertIn("+++ b/tests/support.py", git(tree, "log", "-p", "origin/dev", "-Smoving_helper"))
         before = git(tree, "log", "-p", "origin/dev", "-Smoving_helper", "--", "page", "backend")
         self.assertNotIn("tests/support.py", before, "the old hint's pathspec missed it")

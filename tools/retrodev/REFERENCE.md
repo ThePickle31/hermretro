@@ -9,15 +9,15 @@ Every detail behind `tools/retrodev/README.md` (the entry: what retrodev is, the
 <branch>` (from any checkout) fetches, makes the worktree under the configured worktree root
 (`<worktree_root>/<topic>`) on a local branch tracking `origin/<branch>`, sets it up as `start` does and prints the
 next steps: when it lacks commits of `origin/dev`, first "read `git diff HEAD...origin/dev -- <files>` and `git log
---oneline HEAD..origin/dev -- <files>` before writing the plan" for the files both changed (`status` says the same
-while it has no plan); `plan new <topic>` describing what the branch does and what is left, then `plan approve <topic>
---words "<the owner's words>"` while it has no approved plan (a branch named `<kind>/<topic>` works under it; another
-name: `plan link <topic>` in its checkout), `sync` when it lacks commits of `origin/dev`, then `check` (while the
+--oneline HEAD..origin/dev -- <files>` before sync merges it" for the files both changed (`status` says the same
+while it has no plan), then `sync`, so the plan is written knowing what dev rewrote; `plan new <topic>` describing what
+the branch does and what is left, then `plan approve <topic> --words "<the owner's words>"` while it has no approved
+plan (a branch named `<kind>/<topic>` works under it; another name: `plan link <topic>` in its checkout), then `check` (while the
 branch's own `tools/retrodev` is older than `origin/dev`'s, each of these is the main checkout's, `python
 <main>/tools/retrodev ...`, run in the worktree, until `sync` brings the branch's copy up to date); then `ship` as for
 your own; its plan and pull request body stay in the main checkout's `notes/` (`notes/plans/<topic>.md`,
 `notes/pr/<topic>.md`), shared by every worktree, never in the worktree. When the branch is checked out already (for instance in the only checkout, a clone made for it), skip the
-worktree: run `plan new`, `plan approve`, `sync`, `check` and `ship` there. `sync`, `check` and `ship` work in any
+worktree: run `sync`, `plan new`, `plan approve`, `check` and `ship` there. `sync`, `check` and `ship` work in any
 checkout of the branch; only `start` and `land` need the main checkout on `dev`.
 
 At any time `status` names the one next step (once `notes/pr/<topic>.md` exists, the `ship --title ... --body <path>`
@@ -85,10 +85,10 @@ it until How verified and Risk and rollback say something too
 A teammate's pushed branch: fetches, makes `<worktree_root>/<topic>` on a local branch tracking `origin/<branch>`
 (refused when that local branch exists or the folder is taken), runs `start`'s setup, records the branch, notes a kind
 the repository does not name (`test/x`: it keeps its name, since ship, land and CI accept any work branch, and
-retrodev's record follows that name), and prints the next steps: `plan new` and `plan approve` while it has no
-approved plan (`plan approve` then writes the pull request body; otherwise takeover writes `notes/pr/<topic>.md` from
-the template itself, as `start --no-plan` does, and the next steps name its absolute path to fill in), `sync` while
-HEAD lacks commits of `origin/dev`, then `check`; while the branch's own copy of retrodev
+retrodev's record follows that name), and prints the next steps: `sync` while HEAD lacks commits of `origin/dev`
+(first, so the plan is written knowing what dev rewrote), `plan new` and `plan approve` while it has no approved plan
+(`plan approve` then writes the pull request body; otherwise takeover writes `notes/pr/<topic>.md` from the template
+itself, as `start --no-plan` does, and the next steps name its absolute path to fill in), then `check`; while the branch's own copy of retrodev
 is older than `origin/dev`'s, every one of these runs the main checkout's retrodev in the worktree, as every later
 next step does until `sync` (`plan approve`, `status`, `sync`'s own, `land`'s conflict fix). Needs nothing of the main
 checkout but its git folder
@@ -155,9 +155,11 @@ prints `note: no GitHub remote; the open pull request lookup was skipped` instea
 is shell-quoted (a title with an apostrophe pastes as it is). When the body passes its gate, ship (and `check`'s last
 line) warns, never fails, about each backtick-quoted identifier of its What changed (`games.rom_path`: an underscore,
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
-files: a name renamed while building (`games.built_rom`); and about each backtick-quoted file path there (a slash in
-it, or a known suffix: `tools/retrodev/sync.py`, `sync.py`, `backend/library/`) that the branch's changes do not
-touch (a renamed file counts at both its old and its new path). The next step it prints is `report`, or, when the owner
+files: a name renamed while building (`games.built_rom`); and about each backtick-quoted repository path there (a slash in it, under
+one of the repository's top folders: `tools/retrodev/sync.py`, `backend/library/`, `desktop/plugin.js`) that the
+branch's changes do not touch (a renamed file counts at both its old and its new path). A bare file name (`sync.py`,
+`games.json`), a path under `engine/` and a path a citation clause holds (`checked against`, `see`, `comes from` ...)
+never warn. The next step it prints is `report`, or, when the owner
 already approved this pull request (`approve`), `cd <main checkout> && python tools/retrodev land <n>`
 
 ### `report`
@@ -347,7 +349,12 @@ and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's 
 `scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
 on prompts, a slot on home, a contribution from home to a declared slot), then the full unit and page suites, so a test that
-pins the real tree's current content fails in CI, not in a contributor's branch that used `new`.
+pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. `check` runs it in
+that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
+runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
+copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
+(`policy.toml` `[checks.nested_triggers]`; never the generated `tests/repo/registration.json` that `new tool` and
+`new rpc` rewrite); a fast-mode pass never stands for a nested one.
 
 ### `new feature <name> [--purpose "..."]`
 
@@ -389,7 +396,9 @@ answer (`scenario.<name>`); that a page reading a new shell field adds it to its
 `docs/dev/STUDIO-PAGES.md` (the table row stays short); and the row to add to the RPC table under
 CONTRACT.md's "Studio pages (desktop) and their RPCs", naming the RPCs it lists. It also names the RPC in the
 feature's "The agent half" Declares cell in `docs/dev/ARCHITECTURE.md` (`nothing yet` becomes `RPC \`<name>\``, else
-it joins the RPCs, as `new tool` does with tools and `new event` with the row's events)
+it joins the RPCs, as `new tool` does with tools and `new event` with the row's events), and when the module docstring
+of `rpcs.py` lists every RPC the file declares (`status, doctor, ... and remove_tools`), adds the new one last there
+(the paragraph rewrapped at 120 columns when it grows past them), said on a `done:` line
 
 ### `new tool <feature> <name> [--step RUNNING DONE]`
 
@@ -490,7 +499,11 @@ a new `### <Page>` subsection under `## Pages`, with "not designed yet" in the d
 
 `page/pages/<page>/<id>/index.js` (`<PAGE>_<ID>_TAB`: `{ id, label, Page }`; the page is one bundle, so every exported
 name is unique, and new refuses a taken one), imported and listed in the page's `tabs`, appended to the README's
-**Tabs:** line (every tab, not only the first); then the bundle. An id whose folder exists is refused, naming what
+**Tabs:** line (every tab, not only the first) and, when the README's "Adding a tab here" names taken ids (setup's
+"`install` and `onboarding` are taken"), to that list (a `done:` line); then the bundle. On a page without tabs that still
+renders its own Page, the first next step is ``this page has no tabs yet: run new tab <page> main --from-page first so
+its current content becomes a tab`` with how to undo the tab just made (it is not refused: a Page meant to stay above
+every tab is a real choice, and `--dry-run` shows the step before anything is written). An id whose folder exists is refused, naming what
 that folder is (the first line of its `index.js` comment) and the same command with another id and `--label <the
 label>`. The tab template opens with `Heading` (`page/shared/ui/text.js`). With tabs, the page's own Page still
 renders, between the tab bar and the chosen tab, with a `tab` prop (`app/page-view.js`); the next steps say so while
@@ -519,7 +532,8 @@ the page's README **Shows:** line and as a bullet in its `### <Page>` subsection
 
 `'<page>.<name>'` (camelCase) in the page's `slots`, the declared-slots list in `tests/page/registry.test.mjs`, the
 README's **Slots:** line (``declares `<page>.<name>`: <doc, its first letter lowercased>. Contributes none.``, as
-`page/pages/emulator/README.md` writes it); then
+`page/pages/emulator/README.md` writes it: the doc's `{ ... }` props objects and identifiers such as `hardwareOn` or
+`go(pageId)` in backticks, the paragraph wrapped at 120 columns); then
 the bundle. Rendering `jsx(Slot, ...)` where it goes stays the author's; the next steps add the `HOSTS` recipe in
 `tests/page/slots.test.mjs`, and `new contribution` fills it from another page
 
@@ -531,14 +545,15 @@ declared yet: run new slot <page> <name> first`, so a plan that adds a slot and 
 stub `page/pages/<page>/<component-file>.js` (`InstallButton` -> `install-button.js`, returning `null`), its import
 and `contributes: { '<slot>': [Component] }` in `page/pages/<page>/index.js` (after the slot's list when the page
 fills it already), the page README's **Slots:** line (`contributes none` becomes ``contributes `<Component>` to
-`<slot>` ``), and the `filled` assertion's `expected` in `tests/page/registry.test.mjs` with its import (in `PAGES`
+`<slot>` ``), the host page README's **Slots:** line (``<Page> fills it with `<Component>`.`` after what it says of
+the slot; a next step when that line does not declare it in those words), and the `filled` assertion's `expected` in `tests/page/registry.test.mjs` with its import (in `PAGES`
 order; imported as `<Component>From<Page>` when the test names `<Component>` already, e.g. `Text`, and refused when it
 names that too; when its shape is not the usual one, a note says to add it and the page check is skipped). A slot key
 already in `contributes`, in any quote style, is extended only when its value is a one-line array, else refused before
 anything is written (as `new slot` refuses a slot declared in either quotes); then the bundle and
-lint, bundle and page. The edits it made that read like steps (the `filled` assertion) print as `done: ...` lines,
-apart from the `next:` ones. Its next steps name what it leaves to the author: the component itself,
-docs/dev/STUDIO-PAGES.md's "Events and slots today", the host page's README **Slots:** line and the `HOSTS` recipe in
+lint, bundle and page. The edits it made that read like steps (the `filled` assertion, the host's **Slots:** line)
+print as `done: ...` lines, apart from the `next:` ones. Its next steps name what it leaves to the author: the
+component itself, docs/dev/STUDIO-PAGES.md's "Events and slots today" and the `HOSTS` recipe in
 `tests/page/slots.test.mjs`
 
 Every command takes `--json` (one JSON object: `command`, `ok`, `code`, `status`, the command's data, and `error` with

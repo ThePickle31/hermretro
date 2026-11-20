@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import re
+import textwrap
 import tomllib
 from pathlib import Path
 
@@ -254,3 +255,43 @@ def page_rpcs(contract: str) -> list[str]:
     body = contract[start + len(PAGE_RPCS) :]
     body = body[: body.find("\n## ")] if "\n## " in body else body
     return re.findall(r"^\| `(\w+)` \|", body, re.M)
+
+
+DOCSTRING = re.compile(r'\A(\s*)"""(.*?)"""', re.S)
+WIDTH = 120  # the line length the Python lint allows
+
+
+def docstring_listed(text: str, name: str) -> str | None:
+    """rpcs.py with ``name`` added last to the list of its RPCs its module docstring gives (``status, doctor and
+    install`` -> ``status, doctor, install and <name>``, the paragraph rewrapped at WIDTH when it grows past it), or
+    None when the docstring lists none: every RPC the file declares (two at least), as `a, b and c`."""
+    found = DOCSTRING.match(text)
+    declared = [rpc for rpc in re.findall(r'@rpc\("(\w+)"\)', text) if rpc != name]
+    if not found or len(declared) < 2:
+        return None
+    word = "(?:" + "|".join(re.escape(rpc) for rpc in sorted(declared, key=len, reverse=True)) + ")"
+    listed = re.compile(rf"(?<![\w`])({word}(?:,\s+{word})*)(\s+and\s+)({word})(?![\w`])")
+    doc = found.group(2)
+    match = next(
+        (m for m in listed.finditer(doc) if set(re.findall(r"\w+", m.group(1)) + [m.group(3)]) == set(declared)), None
+    )
+    if not match:  # a list of some of them is about something else (library's "the real player and captures")
+        return None
+    joined = match.group(1) + ", " + match.group(3) + match.group(2) + name
+    doc = doc[: match.start()] + joined + doc[match.end() :]
+    paragraphs = doc.split("\n\n")
+    at = doc[: match.start()].count("\n\n")
+    head, tail = ('"""' if at == 0 else ""), ('"""' if at == len(paragraphs) - 1 else "")
+    whole = head + paragraphs[at] + tail
+    if max(len(line) for line in whole.split("\n")) > WIDTH:  # the line the name went into grew too long: rewrap
+        wrapped = textwrap.fill(" ".join(whole.split()), WIDTH, break_on_hyphens=False, break_long_words=False)
+        paragraphs[at] = wrapped[len(head) : len(wrapped) - len(tail)]
+    return text[: found.start(2)] + "\n\n".join(paragraphs) + text[found.end(2) :]
+
+
+def listed_in_docstring(plan: Plan, source: str, name: str) -> None:
+    """new rpc's edit of rpcs.py's docstring (docstring_listed), said on a done: line; nothing when it lists none."""
+    if not plan.exists(source) or docstring_listed(plan.read(source), name) is None:
+        return
+    plan.edit(source, lambda text: docstring_listed(text, name) or text)
+    plan.done.append(f"added `{name}` to the list of RPCs in {source}'s docstring")

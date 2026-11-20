@@ -42,7 +42,7 @@ class Sync(RepoCase):
 
     def test_a_moved_block_names_the_file_it_went_to_and_the_steps(self):
         tree, out = self.moved(elsewhere=True)
-        fix = out["error"]["fix"]
+        fix = out["error"]["message"]
         self.assertRegex(
             fix,
             r"backend/library/names\.py:\d+-\d+: dev moved this block to backend/library/folders\.py \(or deleted "
@@ -56,7 +56,7 @@ class Sync(RepoCase):
     def test_a_deleted_block_says_so(self):
         tree, out = self.moved(elsewhere=False)
         self.assertRegex(
-            out["error"]["fix"],
+            out["error"]["message"],
             r"backend/library/names\.py:\d+-\d+: dev deleted this block \(no other file on origin/dev has its "
             r"lines; .*\); delete the HEAD side of this hunk, git add, sync again",
         )
