@@ -2,17 +2,25 @@
 // page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of three games
 // fed by the games RPC, the studio page mounted and Refresh pressed. Each file navigates to its own page from here.
 //   const { games, now2, studio } = await gamesStudio(helpers)   // helpers: what runScenario hands the scenario
+// Comet Drift and Old Orbit carry a `card` in the real shape (docs/dev/CONTRACT.md, "The game object";
+// game_card.public()): Comet Drift's is complete with genres and controls, Old Orbit's is still missing its cover.
 
-/** The three library games the scenarios use (Comet Drift ready with a chat, Robo Run failed, Old Orbit older). */
+/** The three library games the scenarios use (Comet Drift ready with a chat and a full card, Robo Run failed with no
+ *  card, Old Orbit older with an unfinished card). */
 export function libraryGames(now2) {
   return [
     { id: 'aaa111aaa111', title: 'Comet Drift', projectRoot: '/home/u/ChromaticGames/CometDrift', kind: 'gbstudio', state: 'ready',
       rom: { path: '/home/u/ChromaticGames/CometDrift/build/web/rom/game.gbc', sha256: 'sha-one', size: 262144, builtAt: now2 - 120 },
-      webExport: true, thumb: 'data:image/png;base64,AAAA', chat: { sessionId: 'stored-comet', title: 'Comet Drift — first level' }, error: null },
+      webExport: true, thumb: 'data:image/png;base64,AAAA', chat: { sessionId: 'stored-comet', title: 'Comet Drift — first level' }, error: null,
+      card: { title: 'Comet Drift', tagline: 'Dodge, boost, survive.', description: 'Steer a comet through an asteroid field.', about: null,
+        genres: ['Arcade', 'Shooter'], tags: ['space'], controls: { A: 'Boost', 'D-Pad': 'Steer' },
+        complete: true, missing: [], hasCover: true, coverForBuild: 'sha-one' } },
     { id: 'bbb222bbb222', title: 'Robo Run', projectRoot: '/home/u/ChromaticGames/RoboRun', kind: 'gbdk', state: 'failed', rom: null,
       webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' },
     { id: 'ccc333ccc333', title: 'Old Orbit', projectRoot: '/home/u/ChromaticGames/OldOrbit', kind: 'gbstudio', state: 'ready', // built first:
-      rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null } // Home skips it
+      rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null, // Home skips it
+      card: { title: 'Old Orbit', tagline: null, description: null, about: null, genres: ['Puzzle'], tags: [], controls: {},
+        complete: false, missing: ['tagline', 'description', 'cover'], hasCover: false, coverForBuild: null } }
   ]
 }
 

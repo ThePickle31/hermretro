@@ -9,7 +9,7 @@ The browser player: ModRetro's real web player served from a loopback server in 
 
 ## Front door
 
-`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `list_captures`, `save_capture`, `PlayerError`. Standard library only.
+`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `capture_root`, `list_captures`, `save_capture`, `PlayerError`. Standard library only.
 
 ## Tests
 
