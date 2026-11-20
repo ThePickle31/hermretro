@@ -10,6 +10,7 @@ import re
 import shutil
 import stat
 import subprocess
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -86,6 +87,19 @@ VENDOR_ARCHIVES = ("third-party/chromatic-cli/executables-v2.br", "third-party/c
 # source that is not public, so this plugin does not ship them). Without them Linux device capture
 # says it is unavailable; everything else, and capture on macOS, is unaffected.
 CAPTURE_FFMPEG = ("native/capture/linux/x64/ffmpeg", "native/capture/linux/arm64/ffmpeg")
+
+
+def write_json_atomic(path: Path, data, indent: int = 2) -> None:
+    """Write ``data`` as JSON (``indent``, a final newline) so a reader in another process sees the old file or the
+    new one, never half of it: a temp file beside ``path`` (same folder, so same file system), then ``os.replace``.
+    For state a listener or a tool keeps for other processes; the folder must exist."""
+    path = Path(path)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        temporary.write_text(json.dumps(data, indent=indent) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def default_runtime_dir() -> Path:

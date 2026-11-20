@@ -2,6 +2,7 @@
 
 import json
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -53,6 +54,7 @@ def write_run(root: Path, components: list[dict], status="running"):
 class Progress(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         (self.root / "downloads").mkdir()
 
     def test_idle_reports_nothing_and_never_reads_an_old_run(self):
@@ -144,6 +146,7 @@ def bare_broker(engine):
 class BrokerInstall(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "toolchain"
+        self.addCleanup(shutil.rmtree, self.root.parent, ignore_errors=True)
         patches = [
             mock.patch.object(broker_module.paths, "setup_root", return_value=self.root),
             mock.patch.object(broker_module.setup, "seed_toolchain_cache", return_value={"seeded": False}),

@@ -118,7 +118,9 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]
-# Python and page source files: a warning above `warn` lines, a failure above `fail`.
+# The one per-file size rule. Python and page source files: a warning above `warn` lines (check.py's unit row names
+# them), a failure above `fail` (tests/repo/test_layout.py). `retrodev new rpc` suggests --module a little earlier,
+# above 350 lines (tools/retrodev/scaffold_rpc.py BIG_RPCS), so a new handler lands before rpcs.py reaches `warn`.
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]

@@ -6,7 +6,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 
 | Check | Command | Time | What it proves |
 |---|---|---|---|
-| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder and no Hermes; fails if a test writes there |
+| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
 | bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
 | lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | ~6 s | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
@@ -105,9 +105,15 @@ whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's 
 test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
 the module with `import()` after `registerAliases()` from `./aliases.mjs` (the page's `#app/`… aliases, React and
 the SDK stand-in; it uses `module.registerHooks`, or `register('./aliases.mjs', import.meta.url)` on a Node without
-it), like `tests/page/build-player.test.mjs`. A pure helper in `page/shared/`: add `tests/page/<name>.test.mjs`
-(`node:test`), call `registerAliases()` from `./aliases.mjs`, then `await import('#shared/...')`; `check.py page`
-runs every `tests/page/**/*test*.mjs`, so the name must contain `test`.
+it), like `tests/page/build-player.test.mjs`.
+
+**Test a plain page helper** (a page test of a pure function, e.g. in `page/shared/`): add
+`tests/page/<name>.test.mjs` (`node:test`), call `registerAliases()` from `./aliases.mjs`, then
+`await import('#shared/...')`, as `tests/page/time.test.mjs` does; `check.py page` runs every
+`tests/page/**/*test*.mjs`, so the name must contain `test`.
+The SDK stand-in's react-query (`tests/page/sdk-stub.mjs`, listed in its header): `useQuery` (answers
+`scenario[queryKey[1]]`) and `useQueryClient()` with `invalidateQueries` (a no-op), `setQueryData` and `getQueryData`
+(one cache, `scenario.queryData`); add what else a page starts to use.
 
 ## Adding a test
 
@@ -170,6 +176,9 @@ it.
   reaches every feature's `listeners.py`, including ones added later: give it `isolated_home(self)` even when
   today's listeners write nothing. A clean-install or Hermes-CLI test must use a folder outside
   `~/.hermes` (Hermes treats a home inside its real root as the real root).
+- Clean up every temp file and folder: `tempfile.TemporaryDirectory()` with its cleanup, or
+  `self.addCleanup(shutil.rmtree, folder, ignore_errors=True)` right after `tempfile.mkdtemp()`. `check.py unit` gives
+  the run an empty `TMPDIR`, fails on anything left in it, and names the leaking module.
 - Never the hardware tools (`flash`, `play`, `setup`, capture); `device` with `command: "status"` is the only
   hardware call allowed, and only in acceptance.
 - Unix sockets: keep `TMPDIR` short (`$XDG_RUNTIME_DIR` on Linux, `/tmp` on macOS); macOS caps socket paths at
