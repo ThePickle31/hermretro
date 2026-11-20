@@ -20,9 +20,12 @@ HEAD = (
 
 def previewed(step: str) -> str:
     """``step`` with `--dry-run` after every `new` command it names (unless that command has it already)."""
-    return NEW.sub(
-        lambda match: match.group(1) if "--dry-run" in match.group(1) else match.group(1) + " --dry-run", step
-    )
+    return NEW.sub(lambda match: dry_command(match.group(1)), step)
+
+
+def dry_command(command: str) -> str:
+    """The scaffold hints use unquoted identifiers and flags; an identifier can contain the text of a flag."""
+    return command if "--dry-run" in command.split() else command + " --dry-run"
 
 
 def show(out, steps: list[str]) -> None:

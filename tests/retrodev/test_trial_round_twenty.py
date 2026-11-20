@@ -83,6 +83,19 @@ class Previews(ScaffoldCase):
         self.assertEqual(scaffold_preview.previewed(step), step + " --dry-run")
         self.assertEqual(scaffold_preview.previewed("new put it after the others"), "new put it after the others")
 
+    def test_a_page_id_cannot_replace_the_dry_run_flag_in_the_first_tab_command(self):
+        page = "probe--dry-run"
+        self.new("page", page)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-qm", "A tabless probe page")
+        output = self.new("tab", page, "extra", "--dry-run")
+        assert isinstance(output, dict)
+        argv = shlex.split(output["next"][0].split("`")[1])
+        self.assertEqual(argv, ["python", "tools/retrodev", "new", "tab", page, "main", "--from-page", "--dry-run"])
+        text = self.new(*argv[3:], as_json=False)
+        self.assertIn("dry run: nothing was written", text)
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+
 
 class RpcSize(ScaffoldCase):
     def padded(self, lines: int) -> None:
