@@ -3,7 +3,7 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 33075cdc5824adef48df70fa152744e693a624fb483cdc7d1eb96958567c032a
+ * sources: sha256 005f9bc2476a31818edfce57610368070db8863ccbfbf4aeb5ea9f46eb5cf2bb
  * body: sha256 cfe978b0496eb6488c90b79e2b9038c02706f17a7bb6ab44f84fe27a3aeece1a
  */
 // page/sdk.js
