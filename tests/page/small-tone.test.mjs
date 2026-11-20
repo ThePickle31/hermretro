@@ -74,7 +74,7 @@ function bindingCounts(tree) {
 function values(node, consts, seen = new Set()) {
   if (node.type === 'Literal' && (typeof node.value === 'string' || node.value === null)) return [node.value]
   if (node.type === 'TemplateLiteral' && node.expressions.length === 0) return [node.quasis[0].value.cooked]
-  if (node.type === 'Identifier' && node.name === 'undefined') return [null]
+  if (node.type === 'Identifier' && node.name === 'undefined' && !consts.undefinedBound) return [null]
   if (node.type === 'Identifier' && consts.has(node.name) && !seen.has(node.name)) {
     return values(consts.get(node.name), consts, new Set([...seen, node.name]))
   }
@@ -109,6 +109,8 @@ export function badTones(text) {
   // local variable, a parameter or anything else also binds may not mean the const where it is read.
   const counts = bindingCounts(tree)
   for (const name of [...consts.keys()]) if (counts.get(name) !== 1) consts.delete(name)
+  // `undefined` is not a keyword: a file that binds the name (a local, a parameter) may mean any value by it.
+  consts.undefinedBound = counts.has('undefined')
 
   const found = []
   for (const node of walk(tree)) {
@@ -177,6 +179,12 @@ test('a tone it cannot prove is refused; a const, a conditional of proven values
   assert.deepEqual(badTones("jsxs(Small, { tone: ok ? undefined : 'warn' })"), [])
   assert.deepEqual(badTones("jsxs(Small, { tone: ok ? 'good' : 'warn' })"), ["line 1: tone ok ? 'good' : 'warn'"])
   assert.deepEqual(badTones('jsx(Small, { tone: `warn` })'), [])
+})
+
+test('undefined counts as no tone only when nothing in the file binds the name', () => {
+  assert.deepEqual(badTones("function View() {\n  const undefined = 'error'; return jsx(Small, { tone: undefined })\n}"), ['line 2: tone undefined (unverifiable)'], 'a local declaration')
+  assert.deepEqual(badTones("function View(undefined) {\n  return jsx(Small, { tone: undefined })\n}"), ['line 2: tone undefined (unverifiable)'], 'a parameter')
+  assert.deepEqual(badTones("jsx(Small, { tone: undefined })"), [], 'the global undefined')
 })
 
 test('a const counts only when nothing else in the file binds its name', () => {
