@@ -23,6 +23,7 @@ import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
 import { BuildNewGame } from './new-game.js'
+import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 
 export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
@@ -480,8 +481,8 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const main =
     selected === 'new'
       ? jsxs('div', {
-          className: 'cs-b-chat',
-          children: [header, jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) })]
+          className: 'cs-b-chat cs-b-attract',
+          children: [jsx(AttractLevel, {}, 'level'), header, jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new')]
         })
       : jsxs('div', {
           className: 'cs-b-chat',

@@ -1,0 +1,268 @@
+// The enemies' pixel art at 24-px tiles, one character per pixel ('.' clear); the letters are inks that
+// palettes.js maps to colours per sky.
+
+// beetle, 22x16 facing right, four walk frames: E shell, e shine, d underside, W eye
+export const BUG = [
+  [
+    '......................',
+    '.....KKKKK.KKK......KK',
+    '....KEEEEEKEEEK....K..',
+    '...KEEEEEEKEEEEK..K...',
+    '..KEEeeEEEKEddEEKKKK..',
+    '.KEEeeEEEEKEdEEEEEEEK.',
+    'KEEEeEEEEEKEEEEEEEWWEK',
+    'KEEEEEEEdEKEEEdEEEWKWK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEddddddddddddddEEEEK.',
+    '.KKKKKKKKKKKKKKKKKKK..',
+    '.....K....K....K......',
+    '....K.....K...K.......',
+    '....KK.....KK.KK......',
+    '......................'
+  ],
+  [
+    '......................',
+    '.....KKKKK.KKK......KK',
+    '....KEEEEEKEEEK....K..',
+    '...KEEEEEEKEEEEK..K...',
+    '..KEEeeEEEKEddEEKKKK..',
+    '.KEEeeEEEEKEdEEEEEEEK.',
+    'KEEEeEEEEEKEEEEEEEWWEK',
+    'KEEEEEEEdEKEEEdEEEWKWK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEddddddddddddddEEEEK.',
+    '.KKKKKKKKKKKKKKKKKKK..',
+    '.....K....K....K......',
+    '.....K....K....K......',
+    '.....KK...KK...KK.....',
+    '......................'
+  ],
+  [
+    '......................',
+    '.....KKKKK.KKK......KK',
+    '....KEEEEEKEEEK....K..',
+    '...KEEEEEEKEEEEK..K...',
+    '..KEEeeEEEKEddEEKKKK..',
+    '.KEEeeEEEEKEdEEEEEEEK.',
+    'KEEEeEEEEEKEEEEEEEWWEK',
+    'KEEEEEEEdEKEEEdEEEWKWK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEddddddddddddddEEEEK.',
+    '.KKKKKKKKKKKKKKKKKKK..',
+    '.....K....K....K......',
+    '.....K...K.....K......',
+    '......KK.KK.....KK....',
+    '......................'
+  ],
+  [
+    '......................',
+    '.....KKKKK.KKK......KK',
+    '....KEEEEEKEEEK....K..',
+    '...KEEEEEEKEEEEK..K...',
+    '..KEEeeEEEKEddEEKKKK..',
+    '.KEEeeEEEEKEdEEEEEEEK.',
+    'KEEEeEEEEEKEEEEEEEWWEK',
+    'KEEEEEEEdEKEEEdEEEWKWK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEEEEEEEEEKEEEEEEEEEEK',
+    'KEddddddddddddddEEEEK.',
+    '.KKKKKKKKKKKKKKKKKKK..',
+    '.....K....K....K......',
+    '.....K....K....K......',
+    '.....KK...KK...KK.....',
+    '......................'
+  ]
+]
+
+// a stomped beetle
+export const BUG_FLAT = [
+  '.......................',
+  '.........KKKK..........',
+  '...KKKKKKEEEEKKKKKK....',
+  '.KKEEEEEEEEEEEEEEEEKK..',
+  'KEEEEEeeeEEEEEEEEEEEEK.',
+  'KEdddddddddddddddddddK.',
+  'KEEEEEEEEEEEEEEEEEEEEK.',
+  'KEEEEEEEEEEEEEEEEEEEEK.'
+]
+
+// spiny, 22x16 facing right, two walk frames: S shell, s shine, P spikes, F face (she cannot stomp it)
+export const SPINY = [
+  [
+    '....K...K...K...K.....',
+    '...KPK.KPK.KPK.KPK....',
+    '..KPPPKPPPKPPPKPPPK...',
+    '..KPPPKPPPKPPPKPPPK...',
+    '.KPPPPSSSSSSSSPPPPPK..',
+    '..KKSSSSSSSSSSSSKKK...',
+    '..KSSssSSSSSSSSSFFFKK.',
+    '.KSSSsSSSSSSSSSFFFKFFK',
+    '.KSSSSSSSSSSSSFFFFKKFK',
+    'KSSSSSSSSSSSSSFFFFFFFK',
+    '.KSSSSSSSSSSSSSFFFFFK.',
+    '.KSSSSSSSSSSSSSSFFFK..',
+    '..KKKKKKKKKKKKKKKKK...',
+    '.....KFK......KFK.....',
+    '.....KKK......KKK.....',
+    '......................'
+  ],
+  [
+    '....K...K...K...K.....',
+    '...KPK.KPK.KPK.KPK....',
+    '..KPPPKPPPKPPPKPPPK...',
+    '..KPPPKPPPKPPPKPPPK...',
+    '.KPPPPSSSSSSSSPPPPPK..',
+    '..KKSSSSSSSSSSSSKKK...',
+    '..KSSssSSSSSSSSSFFFKK.',
+    '.KSSSsSSSSSSSSSFFFKFFK',
+    '.KSSSSSSSSSSSSFFFFKKFK',
+    'KSSSSSSSSSSSSSFFFFFFFK',
+    '.KSSSSSSSSSSSSSFFFFFK.',
+    '.KSSSSSSSSSSSSSSFFFK..',
+    '..KKKKKKKKKKKKKKKKK...',
+    '......KFK....KFK......',
+    '......KKK....KKK......',
+    '......................'
+  ]
+]
+
+// blob, 20x16: idle, squash (before a hop and on landing), stretch (in the air): G jelly, g shade, W eyes
+export const BLOB = [
+  [
+    '....................',
+    '....................',
+    '.......KKKKKK.......',
+    '.....KKGGGGGGKK.....',
+    '...KKGGGGGGGGGGKK...',
+    '..KGGGWWGGGGGGGGGK..',
+    '.KGGGGWGGGGGGGGGGGK.',
+    '.KGGGGGGGGGGGGGGGGK.',
+    'KGGGGGGGGGWGGGWGgGGK',
+    'KGGGGGGGGGKGGGKGggGK',
+    '.KGGGGGGGGGGKGGgggK.',
+    '.KGGgGGGGGGGGGgggGK.',
+    '..KGGgggGGGggggggK..',
+    '...KKGgggggggggKK...',
+    '.....KKGGgggGKK.....',
+    '.......KKKKKK.......'
+  ],
+  [
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '.......KKKKKK.......',
+    '...KKKKGGGGGGKKKK...',
+    '..KGGGGGGGGGGGGGGK..',
+    '.KGGGGWWGGGGGGGGGGK.',
+    'KGGGGGWGGGGGGGGGGGGK',
+    'GGGGGGGGGGWGGGWGGgGG',
+    'KGGGGGGGGGKGGGKGgggK',
+    'KGGggggGGGGGKgggggGK',
+    '.KKGgggggggggggggKK.',
+    '...KKKGGggggggKKK...',
+    '......KKKKKKKK......'
+  ],
+  [
+    '.......KKKKKK.......',
+    '.....KKGGGGGGKK.....',
+    '....KGWWGGGGGGGK....',
+    '...KGGWGGGGGGGGGK...',
+    '...KGGGGGGGGGGGGK...',
+    '...KGGGGGGGGGGgGK...',
+    '..KGGGGGGGWGGGWGGK..',
+    '..KGGGGGGGKGGGKgGK..',
+    '..KGGGGGGGGGGGggGK..',
+    '..KGGGGGGGGGGGggGK..',
+    '...KGGGGGGGGGgggK...',
+    '...KGGgGGGGGgggGK...',
+    '....KGGggggggggK....',
+    '.....KGGgggggGK.....',
+    '......KKKGGKKK......',
+    '.........KK.........'
+  ]
+]
+
+// a stomped blob
+export const BLOB_FLAT = [
+  '....................',
+  '....................',
+  '....KKKKKKKKKKKK....',
+  '.KKKGGGGGGGGGGGGKKK.',
+  'KGGGGGGGGGGGGGGGGGGK',
+  'GGGGGGGGGGGGGGGGGGGG',
+  'KGGGGGGGGGGGGGGGGGGK',
+  '.KKKGGGGGGGGGGGGKKK.'
+]
+
+// bat, 22x14, four flap frames (up, middle, down, middle): B body, W eyes and fangs
+export const BAT = [
+  [
+    '..KK.....K...K....KK..',
+    '.KBBKKK.KBK.KBKKKKBBK.',
+    'KBKBBBBKKBK.KBKBBBBKBK',
+    '.KBBBBBBKBKKKBBBBBBBK.',
+    '..KBKBBBBBBBBBBBBKBK..',
+    '...KKBBBBBBBBBBBBKK...',
+    '.....KKBBBWBWBBKK.....',
+    '......KBBBBBBBBK......',
+    '.......KBBBBBBK.......',
+    '.......KBBWBWBK.......',
+    '........KBBBBK........',
+    '.........KKKK.........',
+    '......................',
+    '......................'
+  ],
+  [
+    '.........K...K........',
+    '........KBK.KBK.......',
+    '........KBK.KBK.......',
+    '.KK.....KBKKKBK....KK.',
+    'KBBKKKKKKBBBBKKKKKKBBK',
+    'KBKBBBBBBBBBBBBBBBBKBK',
+    '.KBBBBBBBBWBWBBBBBBBK.',
+    '..KBKBBBBBBBBBBBBKBK..',
+    '...KKBBBBBBBBBBBBKK...',
+    '.....KKKBBWBWBKKK.....',
+    '........KBBBBK........',
+    '.........KKKK.........',
+    '......................',
+    '......................'
+  ],
+  [
+    '.........K...K........',
+    '........KBK.KBK.......',
+    '........KBK.KBK.......',
+    '........KBKKKBK.......',
+    '........KBBBBK........',
+    '.......KBBBBBBK.......',
+    '.....KKKBBWBWBKKK.....',
+    '...KKBBBBBBBBBBBBKK...',
+    '..KBKBBBBBBBBBBBBKBK..',
+    '.KBBBBBBBBWBWBBBBBBBK.',
+    'KBKBBBKKKBBBBKKKBBBKBK',
+    'KBBBKK...KKKK...KKBBBK',
+    'KBKK..............KKBK',
+    '.K..................K.'
+  ],
+  [
+    '.........K...K........',
+    '........KBK.KBK.......',
+    '........KBK.KBK.......',
+    '.KK.....KBKKKBK....KK.',
+    'KBBKKKKKKBBBBKKKKKKBBK',
+    'KBKBBBBBBBBBBBBBBBBKBK',
+    '.KBBBBBBBBWBWBBBBBBBK.',
+    '..KBKBBBBBBBBBBBBKBK..',
+    '...KKBBBBBBBBBBBBKK...',
+    '.....KKKBBWBWBKKK.....',
+    '........KBBBBK........',
+    '.........KKKK.........',
+    '......................',
+    '......................'
+  ]
+]
