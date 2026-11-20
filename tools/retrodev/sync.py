@@ -15,6 +15,7 @@ from __future__ import annotations
 import difflib
 
 from . import gates, land_carry, repo
+from .sync_rewrite import AMBIGUOUS, new_location, rewritten_from
 from .output import Failure, cmd
 
 REGENERATED = "Regenerate generated files after merging dev"
@@ -134,15 +135,40 @@ def moved_to(ctx, name: str, ours: str) -> tuple[str | None, str | None]:
     return None, lines[0] if lines else None
 
 
+def rewrite_hint(ctx, name: str, first: int, last: int, ours: str, theirs: str) -> str | None:
+    """The hint for a hunk where dev rewrote the block HEAD changed (rewritten_from), or None."""
+    base, dev = _side(ctx, ":1", name), _side(ctx, "MERGE_HEAD", name)
+    if not base or not dev:
+        return None
+    changed = rewritten_from(ours, theirs, base, dev)
+    if not changed:
+        return None
+    where = new_location(name, changed, dev, base) or (moved_to(ctx, name, "\n".join(changed))[0] or name)
+    if where == AMBIGUOUS:
+        return (
+            f"{name}:{first}-{last}: {ctx.base} rewrote this block (see git diff HEAD...{ctx.remote_base} -- {name}); "
+            f"take {ctx.base}'s side, then redo your change where it belongs now in its own commit after sync"
+        )
+    return (
+        f"{name}:{first}-{last}: {ctx.base} rewrote this block; take {ctx.base}'s side, then redo your change in "
+        f"{where} in its own commit after sync"
+    )
+
+
 def moved_hints(ctx, files: list[str]) -> list[str]:
     """For each conflict hunk whose base side is empty (dev removed or moved that block): where it went (the
-    base's file holding the hunk's most distinctive line) and how to resolve it."""
+    base's file holding the hunk's most distinctive line) and how to resolve it; for a hunk dev rewrote into a much
+    longer block (rewrite_hint): take dev's side and where to redo the change."""
     hints = []
     for name in files:
         path = ctx.top / name
         text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
         for first, last, ours, theirs in conflict_hunks(text):
-            if theirs.strip() or not ours.strip():
+            if theirs.strip() and ours.strip():
+                rewrite = rewrite_hint(ctx, name, first, last, ours, theirs)
+                hints += [rewrite] if rewrite else []
+                continue
+            if not ours.strip():
                 continue
             where, line = moved_to(ctx, name, ours)
             log = cmd("git", "log", "-p", ctx.remote_base, f"-S{line}") if line else ""  # the whole tree

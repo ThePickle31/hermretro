@@ -3,7 +3,12 @@
 A body is often written from the plan before the code, and a name the code then changed (`games.rom_path`, renamed
 `games.built_rom` while building) stays in the body the owner reads. ship and check's last line name each
 backtick-quoted identifier of 'What changed' that appears nowhere in the branch's diff (either side) or its tree,
-and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch.
+and each backtick-quoted file path (a slash in it, or a known suffix) the branch's diff does not touch. Any quoted path
+there is a claim, whatever the verb (`Fixed`, `Updated`, none), unless a citation clause holds it: from an evidence
+phrase (CITATION: `checked against`, `verified in`, `comes from`, `source:`, `see`, `per`, `based on`, ...) to the
+end of the sentence or a new change clause (a `;`, or `and` with a past-tense verb: `and removed`), so every path of a
+cited list (`checked against `a` and `b``) is cited. A path under engine/ never warns (never changed outside an engine
+update, so only ever cited). A bare `from` cites nothing: `removed the helper from `x`` claims a change to x.
 """
 
 from __future__ import annotations
@@ -28,15 +33,53 @@ def is_path(word: str) -> bool:
     return bool(PATH.match(word)) and ("/" in word or word.lower().endswith(SUFFIXES)) and not word.startswith("/")
 
 
+# Where a citation clause starts: words that cite what follows as evidence rather than claim a change to it. A
+# hyphenated modifier is not one: 'per-game' or 'see-through' describes the change, it cites nothing.
+CITATION = re.compile(
+    r"(?<![\w-])(?:checked against|verified (?:in|against)|(?:comes?|came|taken|read|reads|copied) from|source:|see|per|"
+    r"as in|cited|based on)(?![\w-])",
+    re.I,
+)
+# Where a new change clause starts, ending a citation clause: a semicolon, or `and` with a past-tense verb.
+CLAUSE = re.compile(r";|\band\s+(?=[a-z]+ed\b)", re.I)
+BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`(])")
+
+
+def claims(lines: list[str]) -> list[str]:
+    """The section's bullets (a wrapped bullet joined back into one) and paragraphs, each split into sentences."""
+    blocks: list[str] = []
+    for line in lines:
+        if not line.strip():
+            blocks.append("")
+        elif BULLET.match(line) or not blocks or not blocks[-1]:
+            blocks.append(line.strip())
+        else:
+            blocks[-1] += " " + line.strip()
+    return [sentence for block in blocks if block for sentence in SENTENCE_END.split(block)]
+
+
+def claimed(sentence: str) -> list[str]:
+    """The paths ``sentence`` claims a change to: every quoted path outside a citation clause (one that starts at a
+    CITATION and runs to the sentence's end or the next CLAUSE); never a path under engine/."""
+    marks = sorted(
+        [(m.start(), True) for m in CITATION.finditer(sentence)]
+        + [(m.start(), False) for m in CLAUSE.finditer(sentence)]
+    )
+    found = []
+    for match in QUOTED.finditer(sentence):
+        word = match.group(1).strip()
+        cited = [citing for at, citing in marks if at < match.start()]
+        if is_path(word) and not (cited and cited[-1]):
+            found.append(word)
+    return [path for path in found if not path.startswith("engine/") and path != "engine"]
+
+
 def quoted_paths(text: str) -> list[str]:
-    """The file paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `sync.py`, `backend/library/`),
-    in order, each once; a path with a placeholder or a space in it is not one."""
-    found = [
-        quoted.strip()
-        for line in gates.section_lines(text).get(SECTION, [])
-        for quoted in QUOTED.findall(line)
-        if is_path(quoted.strip())
-    ]
+    """The file paths 'What changed' quotes in backticks (`tools/retrodev/sync.py`, `sync.py`, `backend/library/`)
+    in sentences that claim a change to them (claimed), in order, each once; a path with a placeholder or a space in
+    it is not one."""
+    found = [path for sentence in claims(gates.section_lines(text).get(SECTION, [])) for path in claimed(sentence)]
     return list(dict.fromkeys(found))
 
 
@@ -110,7 +153,8 @@ def warning(ctx, text: str | None) -> str | None:
         listed = ", ".join(f"`{path}`" for path in away)
         lines.append(
             f"warning: the body's 'What changed' names the file(s) {listed}, which the branch's diff does not touch: "
-            "a typo, or a change that went elsewhere? check the body against git diff --stat (a warning, not a gate)"
+            "a typo, or a change that went elsewhere? check the body against git diff --stat; ignore if the file is only "
+            "cited (a warning, not a gate)"
         )
     return "\n".join(lines) or None
 

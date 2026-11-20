@@ -168,7 +168,7 @@ class Page(ScaffoldCase):
         steps = joined(self.new("page", "rdprobe-board"))
         self.assertIn("README.md 'What works today'", steps)
         self.assertIn("docs/dev/CONTRACT.md 'Studio pages (desktop) and their RPCs'", steps)
-        self.assertIn("the Pages table of docs/dev/STUDIO-PAGES.md", steps)
+        self.assertIn("docs/dev/STUDIO-PAGES.md: a row in its Pages table", steps)
         self.assertIn("## What works today", (ROOT / "README.md").read_text())
         self.assertIn("## Studio pages", (ROOT / "docs/dev/CONTRACT.md").read_text())
         self.assertIn("## Pages", (ROOT / "docs/dev/STUDIO-PAGES.md").read_text())
