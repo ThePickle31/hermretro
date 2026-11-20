@@ -6,6 +6,7 @@ test template, status behind dev without a plan, and ship's gates without a titl
 Run alone: python -m unittest tests.retrodev.test_trial_round_five
 """
 
+import argparse
 import importlib.util
 import io
 import subprocess
@@ -46,14 +47,26 @@ def inline_page(case, page_id: str = "rdprobe-own", exported: bool = False) -> N
 
 
 def event_help() -> str:
-    """`new event --help`, as argparse prints it."""
-    stream = io.StringIO()
-    with mock.patch("sys.stdout", stream), unittest.TestCase().assertRaises(SystemExit):
-        cli.parser().parse_args(["new", "event", "--help"])
-    return stream.getvalue()
+    """`new event --help`, as argparse prints it (format_help is what print_help writes; read from the parser itself
+    so no test swaps sys.stdout, which every thread of the pool writes to). An uncached parser of its own: cli.parser()
+    is cached and shared by every test."""
+    parser = event_parser(cli.parser.__wrapped__())
+    parser.color = False  # as print_help into a stream that is not a terminal
+    return parser.format_help()
+
+
+def event_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    for name in ("new", "event"):
+        parser = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction)).choices[name]
+    return parser
 
 
 class Guard(unittest.TestCase):
+    def test_event_help_leaves_the_cached_parser_unchanged(self):  # review 1, 1
+        event_help()
+        cached, fresh = event_parser(cli.parser()), event_parser(cli.parser.__wrapped__())
+        self.assertEqual(getattr(cached, "color", None), getattr(fresh, "color", None))
+
     def test_the_guard_runs_every_kind_and_the_real_steps_name_real_features_and_pages(self):
         kinds = {step[0] for step in tree_test.STEPS + tree_test.REAL_STEPS}
         self.assertEqual(kinds, {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot"})

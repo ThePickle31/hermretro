@@ -7,6 +7,8 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_four
 """
 
 import shutil
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -316,17 +318,29 @@ class New(ScaffoldCase):
         )
 
 
+WALK = """
+import sys, unittest
+
+
+def flat(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from flat(item)
+        else:
+            yield item
+
+
+found = unittest.TestLoader().discover(sys.argv[1] + "/tests", top_level_dir=sys.argv[1])  # as check.py unit
+print("\\n".join(test.id() for test in flat(found)))
+"""
+
+
 class Pool(unittest.TestCase):
     def test_walking_the_discovered_suite_reaches_every_test_id(self):
-        def flat(suite):
-            for item in suite:
-                if isinstance(item, unittest.TestSuite):
-                    yield from flat(item)
-                else:
-                    yield item
-
-        found = unittest.TestLoader().discover(str(ROOT / "tests"), top_level_dir=str(ROOT))  # as check.py unit
-        ids = [test.id() for test in flat(found)]
+        # In a process of its own: discovery imports every test module, whose first import changes sys.path.
+        ids = subprocess.run(
+            [sys.executable, "-c", WALK, str(ROOT)], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.split()
         self.assertIn(f"{__name__}.Pool.test_walking_the_discovered_suite_reaches_every_test_id", ids)
         self.assertIn("tests.retrodev.test_trial_round_four.Check.test_the_body_hash_is_read_from_the_banner_only", ids)
 

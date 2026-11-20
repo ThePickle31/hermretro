@@ -32,7 +32,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent / "py"))  # check.py's helpers
+HELPERS = str(Path(__file__).resolve().parent / "py")  # check.py's helpers
+if HELPERS not in sys.path:  # once: the retrodev tests load this file on the pool's threads (tests/retrodev)
+    sys.path.insert(0, HELPERS)
 import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_home  # noqa: E402 - tools/py/ goes on sys.path first

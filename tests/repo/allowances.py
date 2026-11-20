@@ -22,6 +22,7 @@ RULES = {
     "layer": "backend.system imports nothing of ours above it; only the Hermes layer imports backend.features",
     "front-door-export": "a front door does not leak private names",
     "event": "events are declared once by their owner, emitted only by it, and literal",
+    "pool": "a test on the unit pool's threads leaves process-wide state alone (tests/repo/test_pool_guard.py)",
 }
 MARK = re.compile(r"(?:#|//)\s*retrodev:\s*allow\s+([\w-]+)\s*(?:(?:—|--)\s*(.*?))?\s*$")
 
