@@ -5,14 +5,15 @@ file [checks.trigger_ignore] lists for that check, or a change to a scaffold-par
 itself writes there ([checks.new_lines]). A change to a file only the nested scaffold run reads
 ([checks.nested_triggers]: the tests the grown copy runs, which CI's page job runs with RD_SCAFFOLD_FULL=nested)
 adds scaffold in that nested mode, so a test that reads the surrounding tree fails here as it would in CI; a
-generated file there ([generated] files: the registration snapshot `new tool` and `new rpc` rewrite) never does.
+generated file there ([generated] files: the registration snapshot `new tool` and `new rpc` rewrite) never does, nor
+a change to one made only of comments, docstrings and blank lines (comment_only: no test runs differently).
 """
 
 from __future__ import annotations
 
 import re
 
-from . import repo
+from . import comment_only, repo
 from .output import Failure
 
 BODY = re.compile(r"^ \* body: sha256 ([0-9a-f]{64})$", re.M)  # tools/bundle/bundle.mjs's banner line
@@ -53,6 +54,17 @@ def only_new_lines(top, base: str, path: str, patterns: list[str]) -> bool:
     return bool(lines) and all(any(re.fullmatch(p, line) for p in patterns) for line in lines)
 
 
+def comments_changed(top, base: str, path: str) -> bool:
+    """The branch changed only comments, docstrings or blank lines of ``path`` (comment_only; False when unsure)."""
+    point = repo.merge_base(top, base)
+    file = top / path
+    if not point or not file.is_file():
+        return False
+    code, before, _err = repo.run(["git", "show", f"{point}:{path}"], top)
+    after = file.read_text(encoding="utf-8", errors="replace")
+    return not code and comment_only.comments_only(path, before, after)
+
+
 NESTED = "; run nested (RD_SCAFFOLD_FULL=nested), as CI's page job runs those tests in its grown copy"
 
 
@@ -88,6 +100,7 @@ def triggered(ctx) -> dict[str, str]:
         for path in changed
         if path not in generated
         and repo.matches(path, ctx.policy["checks"].get("nested_triggers", {}).get("scaffold", []))
+        and not comments_changed(ctx.top, ctx.remote_base, path)
     ]
     if deep:
         found["scaffold"] = f"changed {deep[0]}" + (f" and {len(deep) - 1} more" if len(deep) > 1 else "") + NESTED
