@@ -12,7 +12,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import game_card, games as library
-from .tool_args import _present_error, _tool_project  # shared by every tool module (re-exported here)
+from .tool_args import _present_error, _tool_project  # noqa: F401 - re-exported: every tool module shares them
 
 logger = host.logger  # one logger for the Hermes side of the backend
 

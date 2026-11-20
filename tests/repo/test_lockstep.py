@@ -74,6 +74,25 @@ def contract_tool_list(text):
     return sentence.group(1), re.findall(r"`(chromatic_\w+)`", sentence.group(2))
 
 
+def tool_list_problems(count: int | None, listed: list[str], owned: set[str]) -> list[str]:
+    """Each way the sentence's list differs from the plugin-owned tools, naming the tool. Every backticked
+    `chromatic_` name in the sentence is a list entry, also one inside another tool's description, so a reference
+    to another tool there is counted again (or as an extra tool)."""
+    where = "inside another tool's description it still counts: write it without backticks or after the sentence"
+    problems = [
+        f"`{name}` is named {listed.count(name)} times ({where})"
+        for name in sorted(set(listed))
+        if listed.count(name) > 1
+    ]
+    problems += [
+        f"`{name}` is backticked but not a plugin-owned tool ({where})" for name in sorted(set(listed) - owned)
+    ]
+    problems += [f"`{name}` is missing" for name in sorted(owned - set(listed))]
+    if count != len(listed):
+        problems.append(f"the count word says {count}, the sentence names {len(listed)}")
+    return problems
+
+
 def plugin_owned_tools(registered: set[str]) -> set[str]:
     engine = {f"chromatic_{tool['name']}" for tool in json.loads(paths.PINNED_TOOLS.read_text())["tools"]}
     return registered - engine
@@ -172,10 +191,19 @@ class LockStep(unittest.TestCase):
             "\nFIX: in docs/dev/CONTRACT.md's 'plus <count> plugin-owned tools' sentence, name each tool in "
             f"{sorted(owned)} once and write the count as {count_words().count_text(len(owned))!r}"
         )
-        self.assertEqual(count_words().count_value(count), len(listed), "count word vs names listed" + fix)
-        self.assertEqual(
-            sorted(listed), sorted(owned), "names listed vs plugin.yaml tools that are not engine tools" + fix
+        problems = tool_list_problems(count_words().count_value(count), listed, owned)
+        self.assertEqual(problems, [], "\n".join(problems) + fix)
+
+    def test_a_tool_reference_in_a_description_is_named_as_the_duplicate(self):  # round 21
+        _count, listed = contract_tool_list(
+            "2 tools, plus two plugin-owned tools: `chromatic_a` and `chromatic_b` (what `chromatic_a` lacks, "
+            "after `chromatic_rom_build`). 4 in total."
         )
+        problems = tool_list_problems(2, listed, {"chromatic_a", "chromatic_b"})
+        self.assertIn("`chromatic_a` is named 2 times", problems[0])
+        self.assertIn("`chromatic_rom_build` is backticked but not a plugin-owned tool", problems[1])
+        self.assertEqual(problems[2], "the count word says 2, the sentence names 4")
+        self.assertEqual(tool_list_problems(2, ["chromatic_a", "chromatic_b"], {"chromatic_a", "chromatic_b"}), [])
 
     def test_the_tool_list_is_the_sentence_alone(self):
         text = (
