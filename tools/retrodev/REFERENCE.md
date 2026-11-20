@@ -151,8 +151,9 @@ empty Goal the Why holds a visible `<!-- no plan: say why -->` instead. `--dry-r
 git-ignored note, not a push), reports the body gate as `NO body: fill in <path>` with that FIX, still a `--dry-run`
 (a dry run's FIX never turns it into a push), and exits 1; `status` keeps `--dry-run` in the next ship it names while
 the last ship was a dry run and no pull request exists. With no GitHub remote (a sandbox, another host) the dry run
-prints `note: no GitHub remote; the open pull request lookup was skipped` instead of gh's error. Every printed command
-is shell-quoted (a title with an apostrophe pastes as it is). When the body passes its gate, ship (and `check`'s last
+prints `note: no GitHub remote; the open pull request lookup was skipped` instead of gh's error. Every printed command is shell-quoted (`output.cmd`): a title with an apostrophe is in double quotes
+(`--title "Fix the player's frame"`) unless it holds a `"`, `$`, backtick, backslash or `!`, which keep shlex's
+quoting; either pastes as it is. When the body passes its gate, ship (and `check`'s last
 line) warns, never fails, about each backtick-quoted identifier of its What changed (`games.rom_path`: an underscore,
 a dot or a capital inside) whose name appears nowhere in the branch's diff against `dev` (either side) or its tracked
 files: a name renamed while building (`games.built_rom`); and about each backtick-quoted repository path there (a slash in it, under
@@ -442,9 +443,13 @@ boundary test refuses an event nothing emits), `def <name>(*, key1, key2)` with 
 those keys with sample values; the `EVENTS` entry drops `--when`'s backticks (the CONTRACT row keeps them), the
 CONTRACT events row and the README line. A key given without what it holds (`--payload root`) is written `root=<...>`:
 the next steps name those placeholders to replace in the `EVENTS` entry (`new listener` copies it into its docstring),
-and say to assert the event in the test of the code that emits it (`grep -rln <caller> tests/backend/<feature>`).
-Another feature listens with `new listener`. Changing its payload later: "Changing an event's payload" below (new
-event's and new listener's next steps point there)
+and say to assert the event in the test of the code that emits it (`grep -rln <caller> tests/backend/<feature>`), and
+that the broker process never emits (`backend/system/events.py`): call it from Hermes-side code (an RPC, tool or hook)
+that sees it happen. The `--when` text is both the CONTRACT row's "Emitted when" cell and the start of the `EVENTS`
+description, so phrase it as the existing entries do, a sentence about what happened: `--when 'Setup finished
+installing the toolchain'` (without `--when` both say `say when`/`say when it is emitted`, placeholders to replace).
+Another feature listens with `new listener`. Changing its payload or name later: "Changing an event's payload or
+name" below (new event's and new listener's next steps point there)
 
 ### `new listener <feature> <event>`
 
@@ -459,8 +464,8 @@ test calls it with the event's payload keys (its CONTRACT row, else its `EVENTS`
 what it does, name `host.library_game_for([path])` and `tests.support.make_library_game` for a payload with a path or
 root but no game, and list the emitting feature's tests that mock `backend.hermes.host` helpers and emit this event
 (they name it, or call its emitter in `emits.py` or a function that calls that or `emit("<event>")`, found by parsing
-the feature's code): the listener now runs against those mocks. The docstring says to log with `host.logger` (`from ..hermes import host`) and that a listener
-runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
+the feature's code): the listener now runs against those mocks. The next steps say to log with `host.logger` (`from
+..hermes import host`); the docstring says that a listener runs synchronously in the emitting process and thread on the Hermes side (the gateway, the plugin host or a turn
 process), never in the broker, so module-level state is per process: state other processes must read goes in a file
 under `backend.system.paths.hermretro_home()`, written atomically. The next steps add: export a reader other code
 needs in the feature's `__init__.py` `__all__` and name it on the README Front door line. Its next steps name the
@@ -468,12 +473,13 @@ placeholders to replace (`<feature> (say what it does)` in the Heard by cell, `s
 docstring, and in the README entry when new wrote one) and the event entry's `key=<...>` placeholders it copied into
 the docstring, and list the test classes that emit the event (they name it or call its emitter) and now run the
 listener: those whose `setUp` lacks `isolated_home(self)`, and those `already isolated`. The docstring's first
-paragraph copies the `EVENTS` description wrapped within 120 characters; the test's call gives each key a sample of
+paragraph copies the `EVENTS` description wrapped within 120 characters, then `say what this listener does.` on a
+line of its own (its replacement has the whole line); the test's call gives each key a sample of
 the type its `EVENTS` entry hints (`<..., int>` 1, `str` `"probe"`, `pathlib.Path` `Path("/games/probe")`, `bool`
-`True`). The last next step points to "Changing an event's payload". Refuses an event no front door's `EVENTS` declares, one the feature hears
+`True`). The last next step points to "Changing an event's payload or name". Refuses an event no front door's `EVENTS` declares, one the feature hears
 already, and the stdlib-only features
 
-### Changing an event's payload
+### Changing an event's payload or name
 
 An event `<feature>.<name>` is spelled out in six places; change them together, in one commit:
 
@@ -486,6 +492,23 @@ An event `<feature>.<name>` is spelled out in six places; change them together, 
 
 Then each listener (the CONTRACT row's "Heard by"; `grep -rn '@on("<feature>.<name>")' backend`): its parameters,
 its docstring's copy of the `EVENTS` entry and its test's call (`tests/backend/<listener>/test_listener_on_*.py`).
+
+Renaming `<feature>.<old>` to `<feature>.<new>` touches the same places (the `EVENTS` key, the CONTRACT row's Event
+cell, the `emit("<feature>.<new>", ...)` string in `emits.py`), plus:
+
+- the `emits.py` function's name (`def <old>(` becomes `def <new>(`) and every caller (`grep -rn '<old>(' backend`);
+- `git mv tests/backend/<feature>/test_event_<old>.py tests/backend/<feature>/test_event_<new>.py`, then its
+  docstring (`Run alone: ... test_event_<new>`), its class (`Event<Old>` becomes `Event<New>`) and the event name in it;
+- the feature's row in `docs/dev/ARCHITECTURE.md` "The agent half" and the `Events emitted` line (and the Tests line,
+  which names `test_event_<old>.py`) of `backend/<feature>/README.md`;
+- each listener: `@on("<feature>.<new>")`, its function `on_<feature>_<old>` and test
+  `tests/backend/<listener>/test_listener_on_<feature>_<old>.py` (`git mv`, then the names inside), the CONTRACT
+  row's "Heard by" stays, and the listening feature's README `Listens to` line and ARCHITECTURE row name it;
+- `grep -rn '<old>' tools tests/retrodev` for fixtures and examples that use it as an existing event (the retrodev
+  tests listen to real events such as `library.build_reported`).
+
+`tests/repo/test_boundaries.py` fails on an event emitted or listened to under a name no `EVENTS` declares, so a
+missed place shows up in `python tools/check.py unit`.
 
 ### `new page <id> [--label "..."]`
 
@@ -522,9 +545,13 @@ files (`scaffold_move.mjs`, the pinned npm tools: without them the move is refus
 `<page>-page.js` under another name than that file's own declaration; refused, before anything is written, for a
 default or namespace import or a Page `index.js` neither imports nor defines). An aliased import keeps its exported
 name (`import { SetupPage as SetupPanel }` stays that in the tab). Its automatic page check runs:
-`tests/page/registry.test.mjs` takes a page whose tabs each have a Page. Every tab's next steps say to describe it in
-the page's README **Shows:** line and as a bullet in its `### <Page>` subsection under `## Pages` of
-`docs/dev/STUDIO-PAGES.md` (the table row stays short); a Page moved out of `index.js` whose page
+`tests/page/registry.test.mjs` takes a page whose tabs each have a Page. Every tab's next steps say to describe it in the page's README **Shows:** line and as a bullet
+where `docs/dev/STUDIO-PAGES.md` describes the page: its `### <Page>` subsection under `## Pages`, else a `## <Page>...`
+section of its own (Build's `## Build: one game, one conversation`, and there its `### Page` subsection), else a new
+`### <Page>` subsection to add (the table row stays short); and to add the tab's checks to one of the page's own
+`tests/page/page-<page>*.test.mjs` that covers it, or a new `tests/page/page-<page>-<tab>.test.mjs` (picked up
+automatically; named on the README's **Tests:** line). A `**Tabs:** none (...)` line becomes the first tab, its
+parenthetical dropped; a Page moved out of `index.js` whose page
 `tests/page/registry.test.mjs` still names in `PAGE_IN_INDEX` gets a step to remove it there (new never edits
 `tests/page/`)
 

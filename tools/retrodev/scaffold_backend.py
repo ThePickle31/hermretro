@@ -253,7 +253,7 @@ def readme(plan: Plan, feature_name: str, what: str, item: str, only_none: bool 
         plan.notes.append(f"name {item} under '{what}' in {rel} (its line did not have the usual shape)")
 
 
-PAYLOAD_GUIDE = "tools/retrodev/REFERENCE.md \"Changing an event's payload\" lists every place"
+PAYLOAD_GUIDE = "tools/retrodev/REFERENCE.md \"Changing an event's payload or name\" lists every place"
 
 
 def event_row(body: str, feature_name: str, row: str) -> str:
@@ -303,6 +303,8 @@ def event(plan: Plan, feature_name: str, name: str, payload: str | None, when: s
     plan.next_steps += [
         f"call emits.{name}(...) in backend/{feature_name}/ where it happens (from .emits import {name}; it runs "
         f'emit("{full}", ...))' + ("" if when else f"; say when in its CONTRACT row and EVENTS entry ({door})"),
+        "the broker process never emits (backend/system/events.py): call it from Hermes-side code (an RPC, tool "
+        "or hook) that sees it happen",
         f'react in another feature\'s listeners.py: @on("{full}") (backend/system/events.py)',
         f"assert the event in the test of the code that emits it (grep -rln <the function that calls emits.{name}> "
         f"tests/backend/{feature_name}): mock emits.{name} there, or listen with events.on as test_event_{name}.py does",

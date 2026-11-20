@@ -136,9 +136,10 @@ def _next_steps(ctx, branch: str, path, record: dict) -> list[str]:
                 f"python tools/retrodev plan new {named} (writes {plan.plan_file(ctx, named)}: say what the branch "
                 "does and what is left)"
             )
+        agent = gates.agent_prefix()  # the body plan approve writes names the agent in its Made by line
         steps.append(
-            f"show the owner {plan.plan_file(ctx, named)}; when they say start: python tools/retrodev plan approve {named} "
-            f'--words "<their exact words>" (it also writes the pull request body {body})'
+            f"show the owner {plan.plan_file(ctx, named)}; when they say start: {agent}python tools/retrodev plan "
+            f'approve {named} --words "<their exact words>" (it also writes the pull request body {body})'
         )
     else:
         steps.append(

@@ -234,9 +234,9 @@ def in_section(text: str, heading: str, change) -> str:
 
 
 def readme_item(text: str, label_text: str, item: str, only_none: bool = False) -> str:
-    """Add ``item`` to a README line such as '- RPCs: none.' or '**Tabs:** none.' (its first sentence: 'none'
-    becomes the item, else it is appended). Unchanged when there is no such line, or (``only_none``) when the
-    sentence already lists something: the caller then reminds the author."""
+    """Add ``item`` to a README line such as '- RPCs: none.' or '**Tabs:** none.' (its first sentence: 'none',
+    with a parenthetical that explains it, becomes the item, else it is appended). Unchanged when there is no such
+    line, or (``only_none``) when the sentence already lists something: the caller then reminds the author."""
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if not line.lstrip("-* ").startswith(label_text):
@@ -244,8 +244,8 @@ def readme_item(text: str, label_text: str, item: str, only_none: bool = False) 
         head, sep, rest = line.partition(label_text)
         end = re.search(r"\.(?=\s|$)", rest)
         segment, tail = (rest[: end.start()], rest[end.start() :]) if end else (rest, "")
-        if re.search(r"\bnone\b", segment):
-            segment = re.sub(r"\bnone\b", lambda _match: item, segment, count=1)
+        if re.search(r"\bnone\b", segment):  # with the parenthetical that explains it: '**Tabs:** none (its ...)'
+            segment = re.sub(r"\bnone\b(?:\s*\([^()]*\))?", lambda _match: item, segment, count=1)
         elif only_none:
             return text
         else:

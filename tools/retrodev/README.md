@@ -10,7 +10,7 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 
 1. `python tools/retrodev plan new <topic>`, then fill in `notes/plans/<topic>.md` (its `Title:` line too: one plain sentence, at most 100 characters, no trailing period)
 2. `python tools/retrodev plan approve <topic> --words "<the owner's exact words>"`
-3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (so the body's `Made by` line names the agent from the start; it writes the pull request body `notes/pr/<topic>.md`, from the plan or, with `--no-plan`, the template), then `cd` into the worktree it prints: `<worktree_root>/<topic>`, by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it)
+3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`, never your local `dev`; `RETRODEV_AGENT` so the body's `Made by` line names the agent from the start; it writes the pull request body `notes/pr/<topic>.md`, from the plan or, with `--no-plan`, the template), then `cd` into the worktree it prints: `<worktree_root>/<topic>`, by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it)
 4. `python tools/retrodev new <kind> ...` for each piece (`--dry-run` lists its files first, also from `dev`), then edit
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
 6. `python tools/retrodev check`
@@ -18,7 +18,8 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 
 `RETRODEV_AGENT=<agent, model>` names the agent in the body's `Made by` line (default Hermes); set it per command
-before `start` writes the body (step 3), or edit the line; `start` says so when it is unset.
+before `start` writes the body (step 3), or before `plan approve` writes it for a branch taken over with `takeover`
+(whose printed `plan approve` step carries it), or edit the line; `start` says so when it is unset.
 
 `notes/` is in the main checkout, shared by every worktree: the plan and the pull request body are never in the
 worktree, and every next step names them by their full path.
