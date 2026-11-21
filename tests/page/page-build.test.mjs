@@ -100,7 +100,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(build14.node.querySelector('.cs-b-user').textContent, 'a lighthouse keeper in a storm')
   })
   check('sending makes a hidden New game session, records it as a New Game with no name, then sends the idea as written', () => {
-    assert.equal(scenario.lastCreate.hidden, true); assert.equal(scenario.lastCreate.title, 'New game')
+    assert.deepEqual(scenario.lastCreate, { hidden: true, source: 'gui' })
     assert.deepEqual(buildCalls.at(-1), { action: 'start', stored: 'st-new-1', name: null, plan: false })
     assert.equal(submits.at(-1).session_id, 'rt-new-1'); assert.match(submits.at(-1).submission_id, /^uuid-/)
     assert.equal(submits.at(-1).text, 'a lighthouse keeper in a storm', 'the backend tells the agent how to start')

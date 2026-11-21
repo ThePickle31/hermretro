@@ -200,7 +200,8 @@ own connection when the app is on that profile). When it is missing or not answe
 throws `STUDIO_PROFILE_MISSING`, the Build page shows `StudioNeeded` (Repair re-runs `studio_profile` from the
 profile the plugin was installed into) and "Use in chat" copies the prompt with a notice; nothing ever runs in
 another profile. Gateway calls (on that route, `host.retainProfile` held): `session.create
-{hidden: true, title}`, `session.resume` (history; `omit_messages` while polling), `prompt.submit`
+{hidden: true}` (no title: the canonical gateway treats it as a lookup for an existing session),
+`session.resume` (history; `omit_messages` while polling), `prompt.submit`
 (with `submission_id`), `session.interrupt`, `clarify.lock` (fallback `request.answer`),
 `approval.respond`. The stream is `host.onEvent` filtered by `session_id`, de-duplicated by `seq`
 and the delta `offset`. Questions and approvals are server requests the page never receives: while
@@ -353,7 +354,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
   use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}` (plus `fast` for a ChatGPT or Codex Subscription model). A reply names its model when it differs from the message before.
+  reasoning_effort}` (plus `fast` for a ChatGPT or Codex Subscription model). The first message is not bound or sent
+  if the returned session already has history or does not confirm the explicitly picked model and provider.
+  A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
   follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn

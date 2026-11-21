@@ -597,7 +597,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   delete scenario.byMethod['config.set']
   const creates = []
   const plainCreate = scenario.byMethod['session.create']
-  scenario.byMethod['session.create'] = params => { creates.push(params); return plainCreate(params) }
+  scenario.byMethod['session.create'] = params => { creates.push(params); return { ...plainCreate(params), info: params } }
   const build14n = await mount(page)
   await settle()
   await act(async () => { build14n.node.querySelector('.cs-b-mp-chip').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })

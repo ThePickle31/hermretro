@@ -310,7 +310,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   scenario.storage.buildSelected = 'new'
   scenario.storage.buildModel = { model: 'gpt-6.2-sol', provider: 'openai-codex', effort: 'low' }
   const creates = []
-  scenario.byMethod['session.create'] = params => { creates.push(params); return { session_id: 'rt-new-1', stored_session_id: 'st-new-1', messages: [] } }
+  scenario.byMethod['session.create'] = params => {
+    const n = creates.push(params)
+    return { session_id: `rt-new-${n}`, stored_session_id: `st-new-${n}`, info: params, messages: [] }
+  }
   const draft = await mount(page)
   await settle()
   await act(async () => { draft.node.querySelector('.cs-b-mp-chip').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })

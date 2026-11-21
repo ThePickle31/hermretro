@@ -97,16 +97,24 @@ export async function createBuildChat(title, pick = null) {
     ...(pick?.effort ? { reasoning_effort: pick.effort } : {}),
     ...(typeof pick?.fast === 'boolean' && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {})
   }
-  const result = await chatRequest('session.create', { hidden: true, title, source: 'gui', ...choice }, 60_000)
+  // On the canonical gateway a title finds an existing session before creating one. This title is a Build label only.
+  const result = await chatRequest('session.create', { hidden: true, source: 'gui', ...choice }, 60_000)
   const stored = result?.stored_session_id ?? result?.session_id
   const runtime = result?.session_id
+  const info = result?.info
 
   if (!stored || !runtime) {
     throw new Error('Hermes did not return a session.')
   }
+  if (result.message_count > 0 || result.messages?.length) {
+    throw new Error('Hermes returned an existing conversation. Your message was not sent.')
+  }
+  if (choice.model && (info?.model !== choice.model || info?.provider !== choice.provider)) {
+    throw new Error(`Hermes did not confirm ${choice.model} (${choice.provider}) for the new conversation. Your message was not sent.`)
+  }
 
   buildRuntime.set(runtime, stored)
-  patchChat(stored, chat => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }))
+  patchChat(stored, chat => ({ ...withInfo(chat, info), runtime, title, items: [] }))
 
   return stored
 }

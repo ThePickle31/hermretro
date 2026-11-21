@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 49ecebab28b06f23afa1baffa24e0ca4b164189ba8909270900054eb0a98d5ee
- * body: sha256 c69febf87e7f4bbe6b4561b1c6f401a127266b481464d4ffad3aaba19f0343dc
+ * sources: sha256 1966a905c1125fe556e7fe01b17bc6f640dfb76b76591173a3b9086c780312a3
+ * body: sha256 83ac34c47daec31a97c9f8072ad88e5eb88c2bf75b707f34d99d623ca4fc2fe2
  */
 // page/sdk.js
 import {
@@ -1142,14 +1142,21 @@ async function createBuildChat(title, pick = null) {
     ...pick?.effort ? { reasoning_effort: pick.effort } : {},
     ...typeof pick?.fast === "boolean" && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {}
   };
-  const result = await chatRequest("session.create", { hidden: true, title, source: "gui", ...choice }, 6e4);
+  const result = await chatRequest("session.create", { hidden: true, source: "gui", ...choice }, 6e4);
   const stored = result?.stored_session_id ?? result?.session_id;
   const runtime = result?.session_id;
+  const info = result?.info;
   if (!stored || !runtime) {
     throw new Error("Hermes did not return a session.");
   }
+  if (result.message_count > 0 || result.messages?.length) {
+    throw new Error("Hermes returned an existing conversation. Your message was not sent.");
+  }
+  if (choice.model && (info?.model !== choice.model || info?.provider !== choice.provider)) {
+    throw new Error(`Hermes did not confirm ${choice.model} (${choice.provider}) for the new conversation. Your message was not sent.`);
+  }
   buildRuntime.set(runtime, stored);
-  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }));
+  patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
