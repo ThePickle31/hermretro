@@ -9,6 +9,11 @@ from pathlib import Path
 
 import retrodev
 from retrodev import gates, github, status
+import shlex
+from retrodev import output, ship
+from tests.retrodev.fixture import GOOD_BODY, RepoCase
+from retrodev import checks
+import ast
 
 SOURCE = Path(retrodev.__file__).parent
 SECTIONS = ["Why", "What changed", "How verified", "Risk and rollback", "Not done"]
@@ -88,7 +93,6 @@ class Titles(unittest.TestCase):
 
 class Bodies(unittest.TestCase):
     def test_a_filled_in_body_passes(self):
-        from tests.retrodev.fixture import GOOD_BODY
 
         self.assertEqual(gates.body_problems(GOOD_BODY, SECTIONS), [])
 
@@ -184,12 +188,68 @@ class Patterns(unittest.TestCase):
         self.assertFalse(repo.matches("docs/guide.md", ["*.py", "page/*"]))
 
     def test_check_py_rows_are_read(self):
-        from retrodev import checks
 
         row = "FAILED  scan        11.6 s  verdict caution; installs would ask for confirmation:"
         self.assertEqual(checks.ROW.match(row).groups()[:3], ("FAILED", "scan", "11.6"))
         self.assertEqual(checks.ROW.match("     ok  unit         0.1 s  fine").group(2), "unit")
         self.assertIsNone(checks.ROW.match("         FIX: read the failures above"))
+
+
+ROOT = Path(retrodev.__file__).resolve().parents[2]
+
+LONG = "Show how many builds each game of the library has had, newest first, on the Home page's shelf and in Game"
+
+
+class QuotingRoundFifteen(RepoCase):
+    def test_a_title_with_an_apostrophe_is_double_quoted_and_still_one_word(self):
+        title = "Fix the player's frame"
+        said = ship.command(title)
+        self.assertEqual(said, "python tools/retrodev ship --title \"Fix the player's frame\"")
+        self.assertNotIn("'\"'\"'", said)
+        self.assertEqual(shlex.split(said)[-1], title)
+
+    def test_a_word_double_quotes_would_expand_keeps_shlex_quoting(self):
+        for title in ("It's $HOME", 'Say "it\'s"', "It's `x`", "It's a\\b", "It's done!"):
+            with self.subTest(title=title):
+                said = output.cmd("ship", "--title", title)
+                self.assertFalse(said.endswith(f'"{title}"'), said)
+                self.assertEqual(shlex.split(said)[-1], title)
+        self.assertEqual(output.cmd("a b", "plain"), "'a b' plain")  # no apostrophe: unchanged
+
+
+class TitleRoundNine(RepoCase):
+    def test_the_gate_names_the_problem_and_the_length(self):
+        self.assertEqual(len(LONG), 105)
+        gate = gates.title_gate(LONG)
+        self.assertIn("the title is 105 characters; the limit is 100", gate.message)
+        self.assertIn("shorten it to 100 characters or fewer (yours is 105)", gate.fix)
+        self.assertNotIn("One plain sentence saying", gate.fix)
+        self.assertIn("drop the trailing period", gates.title_gate("Keep the goalie in goal.").fix)
+        both = gates.title_gate(LONG + ".")
+        self.assertIn("drop the trailing period, and shorten it", both.fix)
+        self.assertTrue(gates.title_gate("Keep the goalie in goal").ok)
+
+
+class PlanApproveRoundSeven(RepoCase):
+    def test_no_retrodev_function_binds_the_name_of_a_module_it_imports(self):  # review 3, 0: the same flaw anywhere
+        found = []
+        for path in sorted((ROOT / "tools" / "retrodev").rglob("*.py")):
+            tree = ast.parse(path.read_text())
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported |= {(alias.asname or alias.name).split(".")[0] for alias in node.names}
+                elif isinstance(node, ast.ImportFrom):
+                    imported |= {alias.asname or alias.name for alias in node.names}
+            for function in ast.walk(tree):
+                if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                    continue
+                for node in ast.walk(function):
+                    bound = node.id if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) else None
+                    bound = node.arg if isinstance(node, ast.arg) else bound
+                    if bound in imported:
+                        found.append(f"{path.relative_to(ROOT)}:{getattr(node, 'lineno', 0)}: {bound}")
+        self.assertEqual(found, [], "a local named after an imported name hides it; FIX: rename the local")
 
 
 if __name__ == "__main__":

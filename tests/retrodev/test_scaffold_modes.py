@@ -111,3 +111,30 @@ class ScaffoldModes(RepoCase):
         code, out = self.run_cli("check", "acceptance", cwd=self.tree)
         self.assertEqual(code, 0, out)
         self.assertIn("skipped, so not proven here: acceptance (PR CI runs it only when its changes select it)", out)
+
+
+class NestedScaffoldRoundFourteen(RepoCase):
+    def test_the_nested_mode_comes_from_the_caller_and_keeps_its_own_pass(self):
+        tree = self.worktree("fix/probe")
+        self.commit(tree, "tests/repo/test_probe.py", "VALUE = 1\n")  # once a nested trigger: adds nothing now
+        code, out = self.run_cli("check", cwd=tree)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("scaffold", [name for entry in self.check_log() for name in entry.get("names", [])])
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        self.clear_log()
+        self.assertEqual(checks.run(ctx, ["scaffold"], env={"RD_SCAFFOLD_FULL": "nested"}), 0)
+        self.assertEqual([entry.get("mode") for entry in self.check_log() if "scaffold" in entry["names"]], ["nested"])
+        self.clear_log()
+        checks.run(ctx, ["scaffold"], env={"RD_SCAFFOLD_FULL": "1"})  # the nested pass never stands for this one
+        self.assertEqual([entry.get("mode") for entry in self.check_log() if "scaffold" in entry["names"]], ["1"])
+
+    def test_a_fast_mode_pass_never_stands_for_the_nested_one_and_nested_has_its_own_budget(self):
+        ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
+        ids = {"a.py": "1"}
+        self.assertNotEqual(checks.input_digest(ctx, ids, "scaffold"), checks.input_digest(ctx, ids, "scaffold", True))
+        self.assertEqual(checks.input_digest(ctx, ids, "unit"), checks.input_digest(ctx, ids, "unit", True))
+        self.assertIn("scaffold_nested", ctx.policy["checks"]["budgets"])
+        self.assertGreater(checks.budget(ctx, "scaffold_nested"), checks.budget(ctx, "scaffold"))
+        rows = [{"name": "scaffold", "state": "ok", "seconds": 120.0, "cached": False, "budget": "scaffold_nested"}]
+        self.assertEqual(checks.budget_warnings(ctx, rows, None, False, {"scaffold_nested": 120.0}), [])
+        self.assertEqual(checks.durations(rows, None, {}), {"scaffold_nested": 120.0})

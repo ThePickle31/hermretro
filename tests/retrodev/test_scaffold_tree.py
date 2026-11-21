@@ -32,6 +32,7 @@ import threading
 import unittest
 from pathlib import Path
 
+from retrodev import checks
 
 from tests.retrodev.fixture import parallel
 from tests.retrodev.hand_edits import note_feature_readmes
@@ -91,7 +92,7 @@ FILLED = (  # the placeholders a tab and a listener write (tests/repo/test_place
 )
 REAL_STEPS = real_steps(ROOT)  # this tree's, for the fast checks; the guard computes them again on its copy
 UNIT_FIRST = "the tree fails unit (fix unit first)"  # tools/check.py scaffold reports this skip as such
-PAGE_FIRST = "the tree fails page (fix page first)"  # likewise, when the copy's page suite fails before new runs
+PAGE_FIRST = checks.PAGE_FIRST.removeprefix("skipped: ")  # one source with check.py's row, for the page suite
 BASE = "RD_SCAFFOLD_BASE"  # suites tools/check.py scaffold found passing on this tree: not run again here
 FIRST = {}  # mode: why every slow test skips ("" when the copy passes), found once per process (first_failure)
 FIRST_LOCK = threading.Lock()

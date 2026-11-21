@@ -236,5 +236,16 @@ class Changes(unittest.TestCase):
         self.assertIn("FIX:", done.stderr)
 
 
+class GuardRoundFive(unittest.TestCase):
+    def test_ci_runs_the_scaffold_check_nested_when_job_changes_says_so_else_the_smoke(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow[workflow.index("- name: python tools/check.py bundle lint page scaffold") :].split("\n\n")[0]
+        self.assertIn("SCAFFOLD: ${{ needs.changes.outputs.scaffold }}", step)
+        self.assertIn("true) export RD_SCAFFOLD_FULL=nested ;;", step)
+        self.assertIn("false) export RD_SCAFFOLD_FULL=smoke ;;", step)
+        self.assertIn("*) echo", step)  # no decision: the step fails
+        self.assertIn("python tools/check.py bundle lint page scaffold --strict", step)
+
+
 if __name__ == "__main__":
     unittest.main()

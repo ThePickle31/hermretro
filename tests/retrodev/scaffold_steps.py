@@ -18,7 +18,7 @@ from retrodev.scaffold_page import own_page
 # listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
 # library tool are in STEPS already. The steps follow what the copy holds (real_steps), so a branch that gives
 # setup or games tabs, or history a listener, still passes: the tabless-page conversions have their own probe
-# fixtures (tab_from_page below, tests/retrodev/test_trial_round_five.py).
+# fixtures (tab_from_page below, tests/retrodev/test_scaffold_move.py).
 REAL_PAGES = ("setup", "games")  # build stays tabless: the tab tests use it as their host
 REAL_LISTENERS = ("history", "assets", "library", "setup", "hermes")  # the first that can take one more
 
