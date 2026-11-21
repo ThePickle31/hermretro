@@ -173,7 +173,10 @@ class ToolAndRpc(ScaffoldCase):
             "a test that needs a library game: `game, root = make_library_game(self.home, name)` from tests.support",
             steps,
         )
-        self.assertEqual(list(inspect.signature(support.make_library_game).parameters), ["home", "name"])
+        parameters = inspect.signature(support.make_library_game).parameters.values()
+        positional = [p.name for p in parameters if p.kind is not inspect.Parameter.KEYWORD_ONLY]
+        self.assertEqual(positional, ["home", "name"])  # the call above; its switches are keyword-only, defaulted
+        self.assertTrue(all(p.default is not p.empty for p in parameters if p.kind is p.KEYWORD_ONLY))
         self.assertIn("self.home = isolated_home(self)", self.read("tests/backend/library/test_tool_rdprobe_picked.py"))
 
     def test_a_game_rpc_says_to_check_what_games_returns_first(self):

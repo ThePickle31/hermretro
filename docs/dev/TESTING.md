@@ -1,33 +1,43 @@
 # Testing
 
-`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time (about 12 s; the install scan is the floor; machines and load differ, so read every time here as a rough guide); CI runs the same ones. Every failure ends with a `FIX:` line.
+`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time; CI runs the same ones. Every failure ends with a `FIX:` line. This page gives no times: they depend on the machine and on how many agents check at once. Each check's budget, with the runs it was measured from (idle or loaded machine, alone or beside other checks), is in `tools/retrodev/policy.toml` `[checks.budgets]`; `retrodev check` prints each check's time against it.
 
 One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says). A scenario tests the built bundle, so after editing `page/` run `node tools/bundle/bundle.mjs` first: otherwise it stops with `desktop/plugin.js is stale (...)` and `Run: node tools/bundle/bundle.mjs`.
 
-| Check | Command | Time | What it proves |
-|---|---|---|---|
-| unit | `python tools/check.py unit` | ~9 s | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
-| bundle | `python tools/check.py bundle` | ~1 s | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
-| lint | `python tools/check.py lint` | ~1 s | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
-| page | `python tools/check.py page` | ~6 s | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
-| scan | `python tools/check.py scan` | ~11 s | Hermes's install scanner on exactly what a commit ships says `safe` |
-| scaffold | `python tools/check.py scaffold` | ~48 s | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
-| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | ~1–4 min | The real engine, compiler and emulator through the broker |
-| clean install | `python tools/ci/clean_install_check.py` | ~35 s | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
-| update | `python tools/ci/clean_install_check.py --update-from [REF]` | ~55 s | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
+| Check | Command | What it proves |
+|---|---|---|
+| unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
+| bundle | `python tools/check.py bundle` | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
+| lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
+| page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
+| scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
+| scaffold | `python tools/check.py scaffold` | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
+| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
+| clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
+| update | `python tools/ci/clean_install_check.py --update-from [REF]` | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
 While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
 pass there (`ok (cached)` for the rest; inputs per check in `tools/retrodev/policy.toml`), adds acceptance and the
 clean install when the branch touched what they cover, and prints each time against its budget (`[checks.budgets]` in
-`tools/retrodev/policy.toml`, measured on a loaded machine: fast checks 60 s together, unit 45 s, scaffold 58 s (idle about 48 s); only passing runs count; a
-check over its budget twice in a row on the branch gets a warning, never a failure).
+`tools/retrodev/policy.toml`, whose comments say which runs each budget came from; only passing runs count; a check
+over its budget twice in a row on the branch gets a warning, never a failure). A time you measure yourself is only
+comparable with the same context: say the machine, whether it was idle, and what else ran beside it.
 `python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
 on the current tree is what `python tools/retrodev ship` requires.
+
+**Rerunning one check.** `python tools/retrodev check unit --again` runs only unit, ignoring its cached pass (any
+name from `python tools/retrodev check --help` works, several too). What it does to ship's `checks passed on this
+tree` gate: after the run, when every check the branch needs has a pass on the current inputs (the named one now,
+the others from earlier runs on the same tree), the tree is recorded as passed, so an earlier pass is kept; when the
+named check fails, the recorded pass is taken back and ship refuses until it passes again; when another needed check
+still has no pass on these inputs, nothing is recorded and the gate still refuses (`no passing check run is recorded`
+or `the tree changed since`; a bare `python tools/retrodev check` runs what is missing). `python tools/retrodev ship
+--dry-run` shows the gate without pushing. `tools/retrodev/REFERENCE.md` ("check") has the full rules.
 
 - Run `python tools/check.py fix` and commit before `python tools/retrodev check`: when the clean install is due it
   installs the committed tree, so uncommitted edits are not what it tests (and `ship` needs a committed tree anyway).
 - A branch that changes `backend/` (or `engine/`, `player/`, the toolchain, `plugin.yaml`) makes `retrodev check`
-  add the real-engine acceptance run, about a minute more; a branch whose only change is `plugin.yaml`'s `version:`
+  add the real-engine acceptance run (its budget is in `policy.toml`); a branch whose only change is `plugin.yaml`'s `version:`
   line (a release's version pull request) gets the clean install but not acceptance. Without the toolchain (`python
   tools/ci/prepare_toolchain.py`) it is skipped, and CI runs it on Linux and macOS. `retrodev check` always uses the
   toolchain that setup put in place: it clears `HERMRETRO_DEPS_ROOT` for the run. To use a toolchain somewhere else,
@@ -136,11 +146,19 @@ repository root): `tests/backend` would then shadow the real `backend` package, 
 (`python -B -m unittest tests.backend.setup.test_remove_tools tests.backend.library.test_games`) fail with an
 ImportError that neither shows alone (`tests/repo/test_test_imports.py` refuses it).
 A test that needs a library game calls `make_library_game(home, name="Game") -> (game id, project root)` from
-`tests/support.py` (`home` is what `isolated_home(self)` returns): a real project, registered as the gateway does.
+`tests/support.py` (`home` is what `isolated_home(self)` returns): a real project, registered as the gateway does,
+ready to present. `web=False`, `card=False` or `built=False` (`make_project`'s switches, all on by default) leave out
+the playable copy, the game card or the native ROM; the id comes back either way. `add_images(root, count,
+folder="sprites")` puts real PNGs where the `assets` RPC lists them (`tests/backend/assets/test_asset_list_limit.py`).
 A test that needs a running broker patches in a `FakeBrokerClient(answer)` from there (it records `asked` and `calls`).
 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
-page is a `page-<name>.test.mjs` on `harness.mjs`; check the page's text with its `shows(expected, message)` and
+page is a `page-<name>.test.mjs` on `harness.mjs`, with exactly one `runScenario(...)` call: it ends the process when
+its body finishes (the page's polling would keep it alive), so a second call in the same file never reports, and
+nothing says so; put another scenario in its own file. Its opening comment needs, within its first 12 lines, the line
+`// Run alone: node tests/page/<file> [path to a node_modules folder]` (`tests/repo/test_check_page.py` fails without
+it; a file without `runScenario(` needs only `// Run alone: node tests/page/<file>`). Check the page's text with its
+`shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
 `app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up.

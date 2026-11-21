@@ -160,6 +160,22 @@ def complete_card(root: Path) -> None:
     )
 
 
+TILE = encode_png(8, 8, lambda x, y: (40, 120, 60, 255) if (x + y) % 2 else (250, 250, 240, 255))  # a valid image
+
+
+def add_images(root: Path, count: int, folder: str = "sprites", prefix: str = "image") -> list[Path]:
+    """Put ``count`` pictures (``TILE``, a real 8x8 PNG) in ``root/assets/<folder>/`` as ``<prefix>000.png``,
+    ``<prefix>001.png``... (sorted as numbered) and return them: what ``project_images`` and the ``assets`` RPC list (``folder``: ``sprites``, ``backgrounds``, ``ui`` or
+    ``fonts``). No ``.gbsres`` sidecar, so each is named by its file stem; write ``<image>.png.gbsres`` (JSON with a
+    ``name``) beside one for a sidecar name."""
+    where = root / "assets" / folder
+    where.mkdir(parents=True, exist_ok=True)
+    images = [where / f"{prefix}{index:03d}.png" for index in range(count)]
+    for image in images:
+        image.write_bytes(TILE)
+    return images
+
+
 def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
     root = base / name.lower().replace(" ", "-")
     (root / "project").mkdir(parents=True)
@@ -186,15 +202,20 @@ def make_project(base: Path, name="Space Game", web=True, built=True, card=True)
     return root
 
 
-def make_library_game(home: SimpleNamespace, name: str = "Game") -> tuple[str, Path]:
-    """A game in the library, as the gateway records one: ``make_project(paths.games_dir(), name)`` (a
+def make_library_game(
+    home: SimpleNamespace, name: str = "Game", *, built: bool = True, web: bool = True, card: bool = True
+) -> tuple[str, Path]:
+    """A game in the library, as the gateway records one: ``make_project(paths.games_dir(), name, ...)`` (a
     ``.gbsproj``, a scene, a built ROM and web export, a finished card) registered with ``host._registry().upsert``.
-    ``home`` is what ``isolated_home(self)`` returns. Returns ``(game id, project root)``; ``host._game_root(id)``
-    answers the root. Registering never reaches the broker (and the isolated runtime folder has none), so nothing
-    else needs patching."""
+    ``home`` is what ``isolated_home(self)`` returns. ``built``, ``web`` and ``card`` are ``make_project``'s, with its
+    defaults: by default the game is ready to present; ``web=False`` gives one with no playable copy,
+    ``card=False`` one without a card (``built=False`` leaves out the native ROM only). Returns ``(game id, project
+    root)`` either way (the id is always there); ``host._game_root(id)`` answers the root. Registering never reaches
+    the broker (and the isolated runtime folder has none), so nothing else needs patching. Pictures for the assets
+    RPC: ``add_images(root, count)``."""
     for folder in (paths.library_dir(), paths.games_dir()):
         assert Path(folder).is_relative_to(home.base), f"call isolated_home(self) first, unpatched: {folder}"
-    root = make_project(paths.games_dir(create=True), name)
+    root = make_project(paths.games_dir(create=True), name, web=web, built=built, card=card)
     entry = hermes_host._registry().upsert(str(root))
     assert entry is not None and entry.get("id"), f"the library did not register {root}"
     return entry["id"], root

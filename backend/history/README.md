@@ -13,6 +13,20 @@ Only successful builds are kept here; whether each build passed is recorded by t
 
 - Data: `<plugin data dir>/snapshots/<game>/<ms>/` (`host._data_dir()`, the profile's Hermes plugin data folder, not the hermretro home; `<ms>` is the build's time in Unix milliseconds). Only folders whose names are all digits are listed and pruned (the newest 30 are kept); other per-game files may sit beside them. In tests, `isolated_home(self)` from `tests/support.py` moves this folder.
 
+## What `build_restore` answers
+
+- `ok: false` with a `code`: `NO_GAME` (not a library game, or its folder is gone), `MISSING` (that build is no longer
+  kept) or `TOO_LARGE` (the current files could not be kept first) mean nothing was restored. `ERROR` is an
+  unexpected failure (logged); it can come after files were already changed.
+- `ok: true` means the restore ran: the current files were kept as the `before-restore` snapshot `backup`, then
+  `removed` files the build lacked were deleted and `changed` files were written back (`restored` is the build's id).
+  It does not mean every file came back: `problems`, present only when something was skipped, lists the first 20
+  `"<relative path>: <reason>"` lines for files that could not be deleted or written (a link or a file in the way, an
+  OS error). Those files are as they were before the restore; the rest are restored.
+- The Build page treats any `ok: true` as restored (it does not show `problems`) and asks the agent to build again.
+  `snapshots.restore` (`snapshots.py`) makes this answer and `tests/backend/history/test_snapshots.py` tests it; its
+  `docs/dev/CONTRACT.md` table row lists the same keys ("Build history (snapshots)" there says how files come back).
+
 ## Front door
 
 `backend.history` exports nothing.
