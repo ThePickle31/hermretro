@@ -78,9 +78,36 @@ jobs:
       # A deliberate cold install: proves the pinned downloads still exist. Its result seeds main's cache.
       restore: false
 
+  scaffold:
+    name: Full scaffold guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tools/npm/package-lock.json
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - name: Install the pinned dev tools
+        run: |
+          npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
+          python tools/py/setup.py
+      - name: Check the baseline and the grown tree
+        env:
+          RD_SCAFFOLD_FULL: nested
+        # Nightly has no separate unit job; check the baseline unit suite here too.
+        run: python tools/check.py unit bundle lint page scaffold --strict
+
   report:
     name: Report a failed night
-    needs: [latest-hermes, integration]
+    needs: [latest-hermes, integration, scaffold]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -377,13 +377,14 @@ JavaScript string. The generated code passes the real checks as written: `python
 (`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; not in the fast unit run) prepares a copy
 where Setup already has tabs, History already listens to `library.game_presented`, and its README already lists an
 extra RPC module. It then runs every kind and judges the result with lint, the bundle, selected structure and
-page tests. It is part of `check.py full`, `check --full` and `check scaffold`. CI's page job can run it with
-`RD_SCAFFOLD_FULL=nested`: after checking the baseline, it adds probes on real
-features and pages, including more tabs on the now-tabbed Setup page. It then runs the full unit and page suites
-in that same copy, so tests that pin the real tree's current content fail in CI. The baseline page suite runs once;
-the baseline unit suite is reused from CI's unit job when unit is not part of the same invocation. For the same
-nested run locally: `RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` (budget `scaffold_nested`).
-The local check never picks this mode from the branch's changes, and a fast-mode pass never stands for it.
+page tests. It is part of `check.py full`, `check --full` and `check scaffold`. CI runs it with
+`RD_SCAFFOLD_FULL=nested` on pushes to `dev`, on relevant pull requests (see
+`SCAFFOLD` in `tools/ci/changes.py`), and nightly. Other pull requests run `RD_SCAFFOLD_FULL=smoke`, only the guard
+test in fast mode. The nested run adds probes on real features and pages, including more tabs on the now-tabbed
+Setup page, then runs the full unit and page suites in that copy so tests that pin the real tree fail in CI. The
+baseline page suite runs once; PR CI reuses its unit job for the baseline. For the nested run locally:
+`RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` (budget `scaffold_nested`). The local check never
+picks this mode from the branch's changes, and a fast-mode pass never stands for it.
 
 ### `new feature <name> [--purpose "..."]`
 

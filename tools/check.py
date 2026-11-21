@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -83,22 +84,28 @@ def need(tool: str) -> str:
     return found
 
 
-def check_unit(_args) -> str:
+def check_unit(args) -> str:
     # In an empty home and an empty TMPDIR (tools/py/unit_home.py): a write meant for the real home, or a temp
     # folder a test never removed, shows up and names its test module.
+    product_only = getattr(args, "unit_product_only", False)
     with (
         tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
         tempfile.TemporaryDirectory(prefix="hermretro-tmp-", dir=short_tmp()) as tmp,
         tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
     ):
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
+        env = unit_home.unit_env(home, bytecode, tmp)
+        if product_only:
+            env["HERMRETRO_UNIT_PRODUCT_ONLY"] = "1"
         result = run(
             [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env=unit_home.unit_env(home, bytecode, tmp),
+            env=env,
         )
-        leaked = (
-            "" if result.returncode else unit_home.leaks(home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env))
-        )
+        leaked = ""
+        if not result.returncode:
+            leaked = unit_home.leaks(
+                home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env), product_only=product_only
+            )
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
@@ -113,7 +120,8 @@ def check_unit(_args) -> str:
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
     # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
     noted = unit_home.layout_note(lines, unit_home.branch_files(run) if "layout warning: " in result.stderr else [])
-    return (ran[-1] if ran else "ok") + noted + slow
+    scope = "plugin and repository only; " if product_only else ""
+    return f"{scope}{ran[-1] if ran else 'ok'}{noted}{slow}"
 
 
 def check_bundle(args) -> str:
@@ -384,17 +392,34 @@ def base_failure(args, name: str) -> str:
 
 
 def scaffold_mode() -> str:
-    return "nested" if os.environ.get("RD_SCAFFOLD_FULL") == "nested" else "1"
+    """RD_SCAFFOLD_FULL: nested (every kind on the real features and pages too, then the full suites), smoke (CI's
+    page job on most pull requests: only the guard test, SMOKE, in the fast mode), else the fast mode."""
+    mode = os.environ.get("RD_SCAFFOLD_FULL")
+    return mode if mode in ("nested", "smoke") else "1"
 
 
-def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
+# The guard test's full unittest ID: the smoke runs it alone (tests/retrodev/test_scaffold_smoke.py checks the loader
+# resolves it to exactly that one test).
+SMOKE = (
+    "tests.retrodev.test_scaffold_tree.GeneratedCodePassesTheRealChecks"
+    ".test_new_writes_code_that_passes_the_repository_checks"
+)
+
+
+def scaffold_test(mode: str) -> tuple[list[str], str]:
+    """(the scaffold test's command, the RD_SCAFFOLD_FULL it runs with)."""
+    target = SMOKE if mode == "smoke" else "tests.retrodev.test_scaffold_tree"
+    return [sys.executable, "-m", "unittest", "-v", target], "1" if mode == "smoke" else mode
+
+
+def scaffold_baseline(args, mode: str, environ: Mapping[str, str] | None = None) -> tuple[list[str], list[str]]:
     """(the suites run on the tree before new, those taken as covered elsewhere). Nested adds unit, except in GitHub
     Actions when this invocation does not run unit itself: CI's unit job runs it on every system for the same
     commit, so the page job would only repeat it (and a failure there is already red, with its tests named)."""
-    environ = os.environ if environ is None else environ
+    env = os.environ if environ is None else environ
     if mode != "nested":
         return ["page"], []
-    if environ.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
+    if env.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
         return ["page"], ["unit"]
     return ["unit", "page"], []
 
@@ -437,11 +462,16 @@ def check_scaffold(args) -> str:
     for name, message in (("unit", UNIT_FIRST), ("page", PAGE_FIRST)):
         if failing.get(name):
             raise base_skip(name, message, failing[name])
-    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first + covered)})
-    if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test, mode))
-    return "retrodev new of every kind passes the real checks"
+    test, inner = scaffold_test(mode)
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": inner, BASE: ",".join(first + covered)})
+    # The selector is wrong only when unittest's own final count says 0; a run that stopped before it says why itself.
+    if mode == "smoke" and re.search(r"^Ran 0 tests in ", result.stderr, re.M):
+        raise AssertionError(f"the smoke ran no test ({SMOKE})\nFIX: set SMOKE in tools/check.py to the guard test")
+    ran = mode != "smoke" or re.search(r"^Ran 1 test in ", result.stderr, re.M)
+    if result.returncode or not ran or " skipped " in result.stderr:
+        code = f"(exit {result.returncode}{'' if ran else ', no test count'})\n"
+        raise AssertionError(code + scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test, mode))
+    return "retrodev new of every kind passes the " + ("focused checks (smoke)" if mode == "smoke" else "real checks")
 
 
 def check_acceptance(args) -> str:
@@ -486,8 +516,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("checks", nargs="*", help="fast (default), full, fix, or check names: " + ", ".join(ALL))
     parser.add_argument("--hermes-source")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--unit-product-only", action="store_true", help="with unit alone: omit the development CLI suite"
+    )
     args = parser.parse_args(argv)
     names = args.checks or ["fast"]
+    if args.unit_product_only and names != ["unit"]:
+        parser.error("--unit-product-only can only be used with unit alone")
     if names == ["fix"]:
         return fix(args)
     if names[0] == "lint-files":  # retrodev new: only the files it wrote, with lint's own tools and settings

@@ -1,10 +1,11 @@
 # hermretro's checks. The only required check is "All checks pass" (all-checks-pass), which sums up the
 # others, so jobs can be added, split or skipped without touching the repository rules. The integration tier
 # (real engine) runs for pull requests that touch the backend, engine, player or toolchain, and on every push to
-# dev, except a change of only plugin.yaml's version line (job `changes`). main is not built: it only ever
-# fast-forwards to a dev commit whose push run is green already (release publish checks it), and the main rule
-# reads that same commit's checks. Every check here is
-# also `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
+# dev, except a change of only plugin.yaml's version line (job `changes`). The same job picks the page job's
+# scaffold mode (nested or the smoke) and whether validate also updates from dev; when it fails, so does this.
+# main is not built: it only ever fast-forwards to a dev commit whose push run is green already (release publish
+# checks it), and the main rule reads that same commit's checks. Every check here is also
+# `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
 #
 # Safety: this workflow runs code from pull requests (forks included), so it uses no secrets, its token
 # can only read, and every action is pinned to a full commit SHA (the repository requires it).
@@ -69,11 +70,16 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-      - name: python tools/check.py unit
+      - name: Unit tests (plugin and repository only)
+        if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
+        run: python tools/check.py unit --strict --unit-product-only
+      - name: Unit tests (full suite)
+        if: github.event_name != 'pull_request' || matrix.os != 'macos-15-intel'
         run: python tools/check.py unit --strict
 
   page:
     name: Lint, page bundle and page tests
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -95,10 +101,20 @@ jobs:
           npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
           python tools/py/setup.py
       - name: python tools/check.py bundle lint page scaffold
-        # nested: every retrodev new kind also on the real features and pages, then the full unit and page suites
+        # nested (every push, and pull requests that change what retrodev new is, reads or is judged by: job
+        # `changes`): every new kind also on the real features and pages, then the full unit and page suites.
+        # smoke (other pull requests): the guard test alone, every new kind with its focused checks. No decision
+        # fails here.
         env:
-          RD_SCAFFOLD_FULL: nested
-        run: python tools/check.py bundle lint page scaffold --strict
+          SCAFFOLD: ${{ needs.changes.outputs.scaffold }}
+        run: |
+          case "$SCAFFOLD" in
+            true) export RD_SCAFFOLD_FULL=nested ;;
+            false) export RD_SCAFFOLD_FULL=smoke ;;
+            *) echo "::error::job changes decided no scaffold mode ('$SCAFFOLD'). FIX: read its log; tools/ci/changes.py must print scaffold=true or scaffold=false"; exit 1 ;;
+          esac
+          echo "RD_SCAFFOLD_FULL=$RD_SCAFFOLD_FULL"
+          python tools/check.py bundle lint page scaffold --strict
 
   scan:
     name: Install scan
@@ -119,6 +135,7 @@ jobs:
 
   validate:
     name: Hermes validation and a clean install
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -153,10 +170,10 @@ jobs:
       # Installs the newest v* release on origin/main, uses it, then `hermes plugins update`s it to this commit.
       - name: python tools/ci/clean_install_check.py --update-from
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from
-      # And from dev as it is now: the layout and code the next release will update from.
-      - name: python tools/ci/clean_install_check.py --update-from origin/dev
-        if: github.event_name == 'pull_request'
-        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from origin/dev
+      # Use the PR merge commit's first parent: a moving origin/dev may not be an ancestor of this checkout.
+      - name: Update from the tested dev base
+        if: github.event_name == 'pull_request' && needs.changes.outputs.upgrade != 'false'
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from HEAD^1
 
   changes:
     name: What changed
@@ -164,26 +181,38 @@ jobs:
     timeout-minutes: 2
     outputs:
       engine: ${{ steps.diff.outputs.engine }}
+      scaffold: ${{ steps.diff.outputs.scaffold }}
+      upgrade: ${{ steps.diff.outputs.upgrade }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 2
-      - name: Does this touch the backend, the engine or the toolchain?
+      - name: Does this need the real engine, the nested scaffold run or the update from dev?
         id: diff
+        shell: bash
         # tools/ci/changes.py decides (its paths, and why a change of only plugin.yaml's version line skips the
         # real-engine run). A pull request's checkout is its merge commit: the first parent is the base. A push is
         # judged only when it pushed one commit (before is HEAD's parent); any other push runs everything.
         env:
           BEFORE: ${{ github.event.before }}
+        # Every decision must be there, true or false, or this job fails (and with it All checks pass).
         run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            python3 tools/ci/changes.py HEAD^1 HEAD >> "$GITHUB_OUTPUT"
+            said=$(python3 tools/ci/changes.py HEAD^1 HEAD)
           elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$BEFORE" = "$(git rev-parse -q --verify HEAD^1 || true)" ]; then
-            python3 tools/ci/changes.py --push "$BEFORE" HEAD >> "$GITHUB_OUTPUT"
+            said=$(python3 tools/ci/changes.py --push "$BEFORE" HEAD)
           else
-            echo "engine=true" >> "$GITHUB_OUTPUT"
+            said=$(printf 'engine=true\nscaffold=true\nupgrade=true')
           fi
+          echo "$said"
+          values='(true|false)'
+          format="^engine=$values"$'\n'"scaffold=$values"$'\n'"upgrade=$values"'$'
+          if ! [[ "$said" =~ $format ]]; then
+            echo "::error::Invalid CI check selection. FIX: tools/ci/changes.py must print engine, scaffold and upgrade once, in order, each true or false"
+            exit 1
+          fi
+          printf '%s\n' "$said" >> "$GITHUB_OUTPUT"
 
   integration:
     name: Integration
