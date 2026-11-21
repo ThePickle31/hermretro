@@ -254,6 +254,8 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
             for stub, said in FILLED:
                 text = text.replace(stub, said)
             path.write_text(text)
+        # Check before committing so a scaffold cannot bake an engine edit into the fixture's baseline.
+        git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
         for command in (["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "Grown"]):
             git_ok(self, tree, env, command)
         steps = real_steps(tree)

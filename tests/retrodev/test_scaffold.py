@@ -96,7 +96,8 @@ class New(ScaffoldCase):
         self.clear_log()
         code, said = self.run_cli("new", "listener", "rdcheck", "history.rdcheck_ready", cwd=self.tree)
         self.assertEqual(code, 0, said)
-        self.assertIn("unit", [name for entry in self.check_log() for name in entry["names"]])
+        unit_invocations = [entry for entry in self.check_log() if "unit" in entry["names"]]
+        self.assertEqual([entry.get("scaffold_gate") for entry in unit_invocations], ["1"])
         after = state.load_branch(self.tree, branch)
         # The restore saves the record again, so its write timestamp is not part of the restored data.
         self.assertEqual(

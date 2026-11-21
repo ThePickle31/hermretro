@@ -370,17 +370,18 @@ extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `
 several, its entries kept) and otherwise refuses with a `FIX:` and changes no file (the hermes feature's `TOOLS` is a
 function: its tools come from the engine). Step words may hold quotes; each is written as a proper Python and
 JavaScript string. The generated code passes the real checks as written: `python tools/check.py scaffold`
-(`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; a few seconds, so not in the fast unit run) runs
-every kind on a copy of the repository, then lint, the bundle, the structure tests and the page tests there. It is
-part of `check.py full` and `check --full`, `check` adds it when the branch changed the scaffolds or the files whose
+(`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; not in the fast unit run) prepares a copy
+where Setup already has tabs, History already listens to `library.game_presented`, and its README already lists an
+extra RPC module. It then runs every kind and judges the result with lint, the bundle, selected structure and
+page tests. It is part of `check.py full` and `check --full`. The branch check adds it when the branch changed
+scaffolds or the files whose
 structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds,
 nor a change to `page/pages/index.js` or `step-words.js` made only of the lines `new page` and `new tool` write there,
 `[checks.new_lines]`),
-and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
-`scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
-rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
-on games, a slot on build, a contribution from build to a declared slot), then the full unit and page suites, so a test that
-pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. `check` runs it in
+and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after checking the baseline, it adds probes on real
+features and pages, including more tabs on the now-tabbed Setup page. It then runs the full unit and page suites
+in that same copy, so tests that pin the real tree's current content fail in CI. The baseline page suite runs once;
+the baseline unit suite is reused from CI's unit job when unit is not part of the same invocation. `check` runs it in
 that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
 runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
 copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
