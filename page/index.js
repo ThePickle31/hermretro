@@ -8,7 +8,6 @@
  *   Setup     the wizard driven by the `status` / `doctor` RPCs (game steps, then a
  *             choice between the emulator and a physical Chromatic, whose steps are
  *             optional), beside the flying Chromatic.
- *   Prompts   the Reader: prompt list, editable prompt, New chat / Add / Copy.
  *   Games     the shelf of real cartridges, from the `games` RPC.
  *   Emulator  ModRetro's real player in a SandboxedFrame (`player` RPC), kept
  *             loaded while other pages are shown.

@@ -29,7 +29,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const row = available => answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: available, update_target: 'abc' } })
   const fresh = async (storage = {}, available = true) => {
     await act(async () => { root.render(null) })
-    scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'prompts', ...storage }
+    scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'games', ...storage }
     scenario.status = answered({ ...status(), plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
     scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: 'idle' })
     scenario['plugin-update'] = row(available); scenario['update-busy'] = answered([])

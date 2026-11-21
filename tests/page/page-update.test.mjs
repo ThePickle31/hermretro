@@ -29,7 +29,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   dom.window.hermesDesktop = { reconcileDesktopPlugins: async () => { reconciled.push(true); return [] } }
   const fresh = async (storage = {}) => {
     await act(async () => { root.render(null) })
-    scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'prompts', ...storage }
+    scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'games', ...storage }
     scenario.status = answered(base()); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: 'idle' })
     scenario.notices.length = 0; calls.length = 0; reconciled.length = 0
     await render()
@@ -80,7 +80,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const realRequestProfile = scenario.requestProfileHook
   scenario.requestProfileHook = (route, method, params) => { viaRoute.push([route.profile, method, params?.action, params?.enable]); return { ok: true, gateway_reloaded: true } }
   await act(async () => { root.render(null) })
-  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'prompts' }
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'games' }
   scenario.status = answered(elsewhere); calls.length = 0; reconciled.length = 0
   await render()
   await openChip(); await click('Update now'); await settle(40)

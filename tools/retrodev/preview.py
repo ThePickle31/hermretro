@@ -23,7 +23,7 @@ from .output import OK, Failure
 
 SCRIPT = "tests/page/preview/build.mjs"
 # The `p=` choices it prints: the nav's pages in order (page/pages/index.js; tests/retrodev/test_reach.py keeps them equal).
-PAGES = ("build", "setup", "prompts", "games", "emulator")
+PAGES = ("build", "setup", "games", "emulator")
 
 
 def desktop_dir(given: str | None, source: Path | None = None) -> Path:

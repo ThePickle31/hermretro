@@ -123,24 +123,32 @@ class PageSummary(unittest.TestCase):
             check.check_page(mock.Mock(strict=False))
         self.assertEqual(seen[0][:3], ["node", "--test", "--test-reporter=spec"])
 
-    @unittest.skipUnless(
-        shutil.which("node") and (ROOT / "tools/npm/node_modules/jsdom").is_dir(),
-        "node or the page tools (npm ci --prefix tools/npm --ignore-scripts) are missing",
-    )
+    @unittest.skipUnless(shutil.which("node"), "node is missing")
     def test_a_live_run_reads_the_same_with_either_reporter(self):
-        files = ["tests/page/harness-text.test.mjs", "tests/page/page-setup.test.mjs"]
-        for reporter in ("spec", "tap"):
-            with self.subTest(reporter=reporter):
-                result = subprocess.run(
-                    [shutil.which("node"), "--test", f"--test-reporter={reporter}", *files],
-                    cwd=ROOT,
-                    text=True,
-                    capture_output=True,
-                    timeout=120,
-                )
-                self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
-                said = check.page_summary.summary(result.stdout + result.stderr, 2)
-                self.assertRegex(said, r"^2 files, (5[6-9]|[6-9]\d|\d{3,}) checks passed, 0 failed$")
+        # Exercise both actual Node reporters without depending on the size of a product scenario.
+        node = shutil.which("node")
+        assert node is not None  # the skip above checks availability
+        probe = subprocess.run([node, "--help"], text=True, capture_output=True, timeout=10)
+        if probe.returncode or "--test-reporter" not in probe.stdout:
+            self.skipTest("this Node does not support the test runner reporters")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scenario = root / "page-probe.test.mjs"
+            scenario.write_text("console.log('page-probe.test.mjs: 3 passed, 0 failed')\n")
+            ordinary = root / "ordinary.test.mjs"
+            ordinary.write_text("import { test } from 'node:test'\ntest('ordinary check', () => {})\n")
+            for reporter in ("spec", "tap"):
+                with self.subTest(reporter=reporter):
+                    result = subprocess.run(
+                        [node, "--test", f"--test-reporter={reporter}", scenario, ordinary],
+                        cwd=root,
+                        text=True,
+                        capture_output=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
+                    said = check.page_summary.summary(result.stdout + result.stderr, 2)
+                    self.assertEqual(said, "2 files, 4 checks passed, 0 failed")
 
     def test_the_page_tests_glob_finds_the_files_node_runs(self):
         found = sorted(path.name for path in ROOT.glob(check.PAGE_TESTS))

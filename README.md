@@ -36,7 +36,7 @@ hermes plugins enable hermretro
 ```
 
 Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins and open **HermRetro**
-from the sidebar. The page checks your setup and has copyable prompts for every step.
+from the sidebar. The page checks your setup and offers chat help for toolchain and device software installation.
 
 The first step on that page creates a dedicated **hermretro** profile: it shares your sign-in, has the
 plugin and its skills turned on, and leaves the profile you installed into unchanged. Chromatic chats open
@@ -61,7 +61,7 @@ Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated 
 | Real emulator frames reaching the model | Proven with a vision model |
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |
-| hermretro page: Build, Setup, Prompts, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
+| hermretro page: Build, Setup, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
 | Playing inside Hermes | The Emulator page runs ModRetro's own player (with a demo cartridge when you have no games yet). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
@@ -84,11 +84,10 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   one segmented control for its pages (it opens on Build):
   - **Setup**: one step per page, advancing by itself as the backend verifies each step; a physical
     Chromatic is optional. A step that breaks later shows a Repair banner on the other pages.
-  - **Prompts**: every prompt, editable, put into a new or the current chat (never sent for you).
   - **Games**: your library as cartridges: play, install on a Chromatic (through the chat's approval),
-    open the game's chat.
+    open the game's chat, or start a new game on Build.
   - **Emulator**: ModRetro's real player, served by the plugin (`backend/player/server.py`).
-  - **Build**: one game, one conversation with HermRetro. When a turn has built the game, you play it
+  - **Build**: one game, one conversation with HermRetro. Start with **Build it** or **Plan first**. When a turn has built the game, you play it
     right in that turn's build card, at a whole-number scale, with a play-test checklist from the build
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.
 

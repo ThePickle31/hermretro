@@ -31,8 +31,8 @@ REAL = [
     "plugin.yaml",
     "page/pages/build/transcript/step-words.js",
     "page/pages/index.js",
-    "page/pages/prompts/index.js",
-    "page/pages/prompts/README.md",
+    "page/pages/build/index.js",
+    "page/pages/build/README.md",
     "tests/page/registry.test.mjs",
     "tests/backend/history/__init__.py",
 ]
@@ -125,7 +125,7 @@ class New(ScaffoldCase):
             ["rpc", "history", "builds"],
             ["rpc", "nowhere", "x"],
             ["tool", "history", "present_game"],
-            ["page", "prompts"],
+            ["page", "build"],
             ["page", "Bad_Id"],
             ["tab", "nowhere", "x"],
             ["event", "history", "build_kept"],
@@ -273,17 +273,15 @@ class New(ScaffoldCase):
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_EXTRA_TAB,\n    RDPROBE_NOTES_MORE_TAB\n  ]", index)
         readme = self.read("page/pages/rdprobe-notes/README.md")
         self.assertIn("**Tabs:** `extra` (`extra/index.js`), `more` (`more/index.js`).", readme)  # every tab, not one
-        self.new("slot", "prompts", "side-panel", "--doc", "Beside the Reader. Props: { ctx }")
-        # last in prompts' slots, after whatever slots prompts declares already (a branch may have added one)
+        self.new("slot", "build", "side-panel", "--doc", "Beside the transcript. Props: { ctx }")
+        # last in build's slots, after whatever slots build declares already (a branch may have added one)
         self.assertRegex(
-            self.read("page/pages/prompts/index.js"),
-            r"\n  slots: \{\n(    '[\w.]+': '[^'\n]*',\n)*    'prompts\.sidePanel': 'Beside the Reader\. Props: \{ ctx \}'\n  \}",
+            self.read("page/pages/build/index.js"),
+            r"\n  slots: \{\n(    '[\w.]+': '[^'\n]*',\n)*    'build\.sidePanel': 'Beside the transcript\. Props: \{ ctx \}'\n  \}",
         )
-        self.assertRegex(
-            self.read("tests/page/registry.test.mjs"), r"keys\(\)\]\.sort\(\), \[[^\]]*'prompts\.sidePanel'"
-        )
-        self.new("slot", "prompts", "sidePanel", code=1)
-        write(self.tree, "page/pages/prompts/other.js", "export function RdprobeTwoPage() {}\n")
+        self.assertRegex(self.read("tests/page/registry.test.mjs"), r"keys\(\)\]\.sort\(\), \[[^\]]*'build\.sidePanel'")
+        self.new("slot", "build", "sidePanel", code=1)
+        write(self.tree, "page/pages/build/other.js", "export function RdprobeTwoPage() {}\n")
         self.new("page", "rdprobe-two", code=1)  # the bundle needs unique export names
 
     def test_a_tool_whose_schema_or_handler_name_is_bound_already_is_refused_and_nothing_changes(self):
@@ -308,12 +306,12 @@ class New(ScaffoldCase):
     def test_labels_that_would_break_the_javascript_string_are_refused_and_nothing_changes(self):
         for label in ("Ends in \\", "Two\\nlines", "Line\u2028sep", "Para\u2029sep", "Car\rriage", "It's"):
             self.new("page", "rdprobe-odd", "--label", label, code=1)
-            self.new("tab", "prompts", "odd", "--label", label, code=1)
+            self.new("tab", "build", "odd", "--label", label, code=1)
             self.assertEqual(git(self.tree, "status", "--porcelain"), "", repr(label))
 
     def test_slot_docs_that_would_break_the_javascript_string_are_refused_and_nothing_changes(self):
         for doc in ("Car\rriage", "Ends in \\", "Line\u2028sep", "Tab\there", "It's"):
-            out = self.new("slot", "prompts", "oddSlot", "--doc", doc, code=1)
+            out = self.new("slot", "build", "oddSlot", "--doc", doc, code=1)
             self.assertIn("quoted JavaScript string", out["error"]["message"], repr(doc))
             self.assertIn("--doc", out["error"]["fix"], repr(doc))
             self.assertEqual(git(self.tree, "status", "--porcelain"), "", repr(doc))

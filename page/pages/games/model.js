@@ -2,7 +2,6 @@
 import { formatBytes } from '#app/format.js'
 import { gameLabel } from '#app/game-prompts.js'
 import { ago } from '#shared/ui/time.js'
-import { FLASH_PROMPT } from '#pages/prompts/index.js'
 
 const KIND_LABELS = { gbstudio: 'GB Studio', gbdk: 'GBDK' }
 export const GAME_STATES = {
@@ -29,7 +28,7 @@ export function latestGame(games) {
 
 
 export function installPrompt(game) {
-  return FLASH_PROMPT.replace('my built homebrew ROM', `the built ROM of ${gameLabel(game)}`)
+  return `Flash the built ROM of ${gameLabel(game)} to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks.`
 }
 
 export function fixPrompt(game) {

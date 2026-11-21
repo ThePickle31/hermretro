@@ -10,8 +10,9 @@ objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game
 
 **Tabs:** none (its areas are subfolders, not tabs).
 
-**Events:** emits none. Listens to `games.coverRequested` (opens that game with the cover prompt in its
-message box, not sent) and `emulator.presented` (plays the presented game in its conversation).
+**Events:** emits none. Listens to `games.coverRequested` (queues the cover draft in the game's message box,
+not sent) and `emulator.presented` (plays the presented game in its conversation). The Games cover action
+separately opens the game with `shell.go('build', game.id)`.
 
 **Slots:** declares none, contributes none.
 

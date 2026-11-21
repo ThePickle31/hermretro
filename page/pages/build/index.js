@@ -24,14 +24,8 @@ import { VIEWER_CSS } from './viewer/viewer.css.js'
 export { buildShowing, isBuildSession } from './chat/store.js'
 export { toolResultObject, unwrapCalls } from './chat/tool-results.js'
 
-/** Make cover art on the Games shelf: open that game here with the request in its message box, not sent. */
-function coverRequested({ game, prompt }, ctx) {
-  try {
-    ctx.storage.set('buildSelected', game.id)
-  } catch {
-    // this visit only
-  }
-
+/** Make cover art on the Games shelf: put the request in that game's message box, not sent. */
+function coverRequested({ game, prompt }) {
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false
 
   injectBuildDraft(own ? game.session.storedId : '', prompt)

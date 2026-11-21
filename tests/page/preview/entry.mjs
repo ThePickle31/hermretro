@@ -372,6 +372,7 @@ preview.scenario.models = answered(MODEL_OPTIONS)
 if (chosen.rpc) preview.scenario.rpc = { 'plugin.hermretro.games': chosen.games?.data, ...chosen.rpc }
 
 const registrations = []
+const storage = { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
 const ctx = {
   registerMany: list => registrations.push(...list),
   setTimeout: (fn, ms) => {
@@ -381,8 +382,8 @@ const ctx = {
   },
   os: { writeClipboard: async () => true, openExternal: async url => console.log('open', url) },
   storage: {
-    get: (key, fallback) => (key === 'setup' ? { ...chosen.storage } : key === 'page' ? (params.get('p') ?? fallback) : (chosen.extra?.[key] ?? fallback)),
-    set: () => {}
+    get: (key, fallback) => storage[key] ?? fallback,
+    set: (key, value) => { storage[key] = value }
   }
 }
 
