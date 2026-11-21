@@ -74,7 +74,9 @@ const TARGETS = [
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
-      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.'
+      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
+      'Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its',
+      'provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.'
     ],
     esbuild: { format: 'esm', external: EXTERNAL },
     // Hermes's install scanner notes any single file over 1024 KB.

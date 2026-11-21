@@ -2,9 +2,11 @@
  * hermretro — Hermes Desktop half. GENERATED FILE, do not edit.
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
+ * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
+ * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 ef172a142160f99077c3210912fae2b95c4994d7859f2d41d68f47844b07baba
- * body: sha256 42584cde41c18701cdee69a91fdfa8489036c167124af20f9a116c981d762921
+ * sources: sha256 90a4cb97d326871b7ee114ea1053f6a14be0bfe4cc5cd4fffa0d6939a81f611b
+ * body: sha256 4e48fe191299fc836825850f53ced2669b9e10d50533063f139108596fe40de0
  */
 // page/sdk.js
 import {
@@ -2868,7 +2870,7 @@ var LOGOS = {
   claude: { name: "Claude", light: claude_default, dark: claude_default, source: "https://www.anthropic.com/press-kit" },
   openai: { name: "OpenAI", light: openai_default, dark: openai_dark_default, source: "https://openai.com/brand/" },
   xai: { name: "xAI (Grok)", light: xai_default, dark: xai_dark_default, source: "https://x.ai/legal/brand-guidelines" },
-  qwen: { name: "Qwen", light: qwen_default, dark: qwen_default, source: "https://github.com/QwenLM/qwen-code" },
+  qwen: { name: "Qwen", light: qwen_default, dark: qwen_default, plate: "dark", source: "https://github.com/QwenLM/qwen-code" },
   alibabacloud: { name: "Alibaba Cloud", light: alibabacloud_default, dark: alibabacloud_default, source: "https://www.alibabacloud.com/" },
   xiaomimimo: { name: "Xiaomi MiMo", light: xiaomimimo_default, dark: xiaomimimo_default, source: "https://platform.xiaomimimo.com/" },
   tencentcloud: { name: "Tencent Cloud", light: tencentcloud_default, dark: tencentcloud_default, source: "https://cloud.tencent.com/" },

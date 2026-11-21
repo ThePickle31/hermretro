@@ -4,7 +4,8 @@
 // draws it, where that is smaller than the SVG (the bundle has a size budget). OpenAI's files carry a wide empty
 // margin, trimmed so its mark is the size of the others (the tile gives it room). bundle.mjs turns each
 // import into a data URL. `dark` is the brand's own version for dark backgrounds (else the same file);
-// `plate: 'dark'` puts a mark that has no version for dark backgrounds on a light plate in the dark theme (Novita);
+// `plate: 'dark'` puts a mark that has no version for dark backgrounds on a light plate in the dark theme (Novita,
+// Qwen's dark blue);
 // `plate: 'light'` puts one with none for light backgrounds on a dark plate in the light theme (StepFun's white disc).
 // A provider missing from PROVIDER_BRANDS (custom endpoints, Mixture of Agents, ones Hermes adds later) keeps its
 // letter mark.
@@ -67,7 +68,7 @@ export const LOGOS = {
   claude: { name: 'Claude', light: claude, dark: claude, source: 'https://www.anthropic.com/press-kit' },
   openai: { name: 'OpenAI', light: openai, dark: openaiDark, source: 'https://openai.com/brand/' },
   xai: { name: 'xAI (Grok)', light: xai, dark: xaiDark, source: 'https://x.ai/legal/brand-guidelines' },
-  qwen: { name: 'Qwen', light: qwen, dark: qwen, source: 'https://github.com/QwenLM/qwen-code' },
+  qwen: { name: 'Qwen', light: qwen, dark: qwen, plate: 'dark', source: 'https://github.com/QwenLM/qwen-code' },
   alibabacloud: { name: 'Alibaba Cloud', light: alibabacloud, dark: alibabacloud, source: 'https://www.alibabacloud.com/' },
   xiaomimimo: { name: 'Xiaomi MiMo', light: xiaomimimo, dark: xiaomimimo, source: 'https://platform.xiaomimimo.com/' },
   tencentcloud: { name: 'Tencent Cloud', light: tencentcloud, dark: tencentcloud, source: 'https://cloud.tencent.com/' },

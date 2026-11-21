@@ -70,6 +70,48 @@ const CATALOGUE = {
   'claude-subscription-directsdk-experimental': 'Claude'
 }
 
+// Each brand's light and dark files, written out here rather than read from the logo index, so an index that
+// points a brand at another brand's image fails.
+const FILES = {
+  nous: ['nous.png', 'nous-dark.png'],
+  fireworks: ['fireworks.svg', 'fireworks.svg'],
+  openrouter: ['openrouter.svg', 'openrouter-dark.svg'],
+  novita: ['novita.svg', 'novita.svg'],
+  lmstudio: ['lmstudio.png', 'lmstudio.png'],
+  anthropic: ['anthropic.svg', 'anthropic-dark.svg'],
+  claude: ['claude.png', 'claude.png'],
+  openai: ['openai.png', 'openai-dark.png'],
+  xai: ['xai.svg', 'xai-dark.svg'],
+  qwen: ['qwen.svg', 'qwen.svg'],
+  alibabacloud: ['alibabacloud.png', 'alibabacloud.png'],
+  xiaomimimo: ['xiaomimimo.png', 'xiaomimimo.png'],
+  tencentcloud: ['tencentcloud.png', 'tencentcloud.png'],
+  nvidia: ['nvidia.png', 'nvidia.png'],
+  huggingface: ['huggingface.png', 'huggingface.png'],
+  gemini: ['gemini.png', 'gemini.png'],
+  vertexai: ['vertexai.png', 'vertexai.png'],
+  deepseek: ['deepseek.png', 'deepseek.png'],
+  zai: ['zai.png', 'zai.png'],
+  kimi: ['kimi.png', 'kimi-dark.png'],
+  stepfun: ['stepfun.svg', 'stepfun.svg'],
+  minimax: ['minimax.png', 'minimax.png'],
+  ollama: ['ollama.png', 'ollama.png'],
+  arcee: ['arcee.svg', 'arcee.svg'],
+  gmi: ['gmi.png', 'gmi.png'],
+  kilocode: ['kilocode.svg', 'kilocode.svg'],
+  opencode: ['opencode.png', 'opencode-dark.png'],
+  bedrock: ['bedrock.png', 'bedrock.png'],
+  azurefoundry: ['azurefoundry.png', 'azurefoundry.png'],
+  vercel: ['vercel.svg', 'vercel-dark.svg'],
+  actual: ['actual.png', 'actual-dark.png'],
+  commandcode: ['commandcode.png', 'commandcode.png'],
+  deepinfra: ['deepinfra.png', 'deepinfra.png'],
+  meta: ['meta.png', 'meta.png'],
+  nebius: ['nebius.png', 'nebius.png'],
+  ramp: ['ramp.png', 'ramp.png'],
+  upstage: ['upstage.png', 'upstage.png']
+}
+
 await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle, mount, check, answered }) => {
   const { LOGOS, providerLogo } = await import('../../page/shared/art/providers/index.js')
 
@@ -82,6 +124,19 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
       assert.match(logo.dark, /^data:image\/(png;base64|svg\+xml(;base64)?),/, brand)
       assert.match(logo.source, /^https:\/\//, brand)
       assert.ok(logo.name, brand)
+    }
+  })
+  check('each brand shows its own files, light and dark', () => {
+    const url = file => `data:image/${file.endsWith('.svg') ? 'svg+xml' : 'png'};base64,${readFileSync(new URL(file, ART)).toString('base64')}`
+
+    assert.deepEqual(Object.keys(LOGOS).sort(), Object.keys(FILES).sort())
+    // Marks with no version for one theme: Novita's black and Qwen's dark blue on dark, StepFun's white disc on light.
+    assert.deepEqual(Object.entries(LOGOS).filter(([, logo]) => logo.plate).map(([brand, logo]) => `${brand}:${logo.plate}`).sort(), ['novita:dark', 'qwen:dark', 'stepfun:light'])
+    // The shipped bundle says the embedded marks are not under the MIT licence.
+    assert.match(readFileSync(new URL('../../desktop/plugin.js', import.meta.url), 'utf8').slice(0, 800), /not covered by the MIT licence/)
+    for (const [brand, [light, dark]] of Object.entries(FILES)) {
+      assert.equal(LOGOS[brand].light, url(light), `${brand} light`)
+      assert.equal(LOGOS[brand].dark, url(dark), `${brand} dark`)
     }
   })
   check('the provider slugs Hermes lists have a logo, except Hermes\u2019s own custom endpoint and Mixture of Agents', () => {
