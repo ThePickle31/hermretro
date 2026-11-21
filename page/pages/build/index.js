@@ -8,6 +8,7 @@ import { CART_SHELF_CSS } from './cart-shelf.css.js'
 import { Build } from './build-entry.js'
 import { watchBuildChats } from './chat/events.js'
 import { injectBuildDraft, notePresented } from './chat/store.js'
+import { restoreNewGameDraft, takeFirstIdea } from './new-game-draft.js'
 import { COMPOSER_CSS } from './composer/composer.css.js'
 import { MENTIONS_CSS } from './composer/mentions.css.js'
 import { MODEL_PICKER_CSS } from './composer/model-picker.css.js'
@@ -63,9 +64,13 @@ export const BUILD_PAGE = {
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.
   cssLast: true,
-  register: watchBuildChats,
+  register: ctx => {
+    watchBuildChats(ctx)
+    restoreNewGameDraft(ctx)
+  },
   listens: {
     'games.coverRequested': coverRequested,
+    'setup.firstIdea': takeFirstIdea,
     'emulator.presented': presentation => notePresented(presentation)
   }
 }

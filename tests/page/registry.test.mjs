@@ -104,7 +104,7 @@ test("each page's own Page is imported into index.js from its own file, not defi
 test('events are declared once, by the page their name starts with', () => {
   const declared = PAGE_EVENTS.declared()
 
-  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested'])
+  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested', 'setup.demoRequested', 'setup.firstIdea'])
 
   for (const [name, { owner }] of declared) {
     assert.ok(name.startsWith(`${owner}.`), name)

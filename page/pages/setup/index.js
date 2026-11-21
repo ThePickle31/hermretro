@@ -19,5 +19,10 @@ export const SETUP_PAGE = {
   label: 'Setup',
   Page: SetupPage,
   Badge: SetupBadge,
-  css: [SETUP_CSS, ONBOARDING_CSS]
+  css: [SETUP_CSS, ONBOARDING_CSS],
+  events: {
+    'setup.firstIdea':
+      "Onboarding's last screen handed its idea on: { idea, plan }. Build opens New Game with the idea in its box and Build it (plan false) or Plan first (plan true) chosen, not sent.",
+    'setup.demoRequested': 'Try the demo was picked during setup: {}. The Emulator page opens the bundled demo beside the chat; it needs neither the toolchain nor a model.'
+  }
 }

@@ -50,6 +50,17 @@ means both.
 
 - Today's Atelier wizard (step rail + current step, same rules as now) with the **flying Chromatic** on the right on every step: body + one wing drawn twice, wings flap ~0.9 s, whole thing bobs and drifts, tilted (`perspective rotateY(-14deg) rotateX(6deg) rotateZ(16deg) scale(.82)`), soft shadow, still pose under reduced motion.
 - Setup tab shows a small dot while incomplete.
+- First-run onboarding ends on Build: the last screen's idea goes into New Game's box through the page event
+  `setup.firstIdea` (`{ idea, plan }`; Continue in Build, Plan it first, Skip and Set up my Chromatic first all take
+  what was typed), with Build it or Plan first chosen and nothing sent; the user sends it from there, through New
+  Game's normal start in the hermretro profile. The box is a kept draft (`buildNewGame`), cleared only once a game
+  starts. On the hardware screen **Start making games** is the primary choice and **Set up my Chromatic** the
+  optional one. While the tools install, **Try the demo while you wait** (only where the app can open a tab beside the
+  chat) emits `setup.demoRequested`, and the Emulator page opens the bundled demo there; nothing plays unasked.
+- Model access is not assumed: the hermretro profile starts with the sign-ins Hermes can share, and New Game says so
+  when Hermes's `model.options` there lists no signed-in provider (no model is called), with Open provider settings.
+  The hardware switch opens the hermretro profile's plugin settings (`&profile=hermretro`, Settings' own scope
+  hand-off) even while the app is on another profile.
 
 ### Prompts
 
@@ -674,5 +685,6 @@ in `page/app/rpc.js`.
 
 ### Events and slots today
 
-Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
+Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build), `setup.firstIdea`
+(Setup → Build), `setup.demoRequested` (Setup → Emulator). Slots today:
 `games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

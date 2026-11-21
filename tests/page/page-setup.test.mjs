@@ -100,30 +100,34 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('tools verified and profile made: Do you have a Chromatic?', () => {
     assert.equal(heading(), 'Do you have a Chromatic?'); assert.ok(!nav())
     assert.match(dom.window.document.querySelector('.cs-onb-steps').getAttribute('aria-label'), /step 2 of 3/)
-    assert.ok(button('Not yet') && button('Yes, I have one'))
+    assert.ok(button('Start making games') && button('Set up my Chromatic'))
+    assert.ok(button('Start making games').classList.contains('primary'), 'making games is the primary choice')
+    shows(/A Chromatic is optional/); shows(/Optional · 4 more steps/)
   })
-  await click('Not yet')
-  check('Not yet: emulator only, then What do you want to make?', () => {
+  await click('Start making games')
+  check('Start making games: emulator only, then What do you want to make?', () => {
     assert.equal(scenario.storage.setup.hardwareSkipped, true)
     assert.equal(heading(), 'What do youwant to make?')
   })
   await click('Tiny platformer')
   check('an idea fills the box', () => { assert.match(dom.window.document.querySelector('.cs-idea textarea').value, /frog hops/) })
   scenario.calls.length = 0; scenario.inserted.length = 0
-  await click('Start in chat'); await settle()
-  check('Start in chat opens a new chat with the idea, ends onboarding and shows Build', () => {
-    assert.ok(scenario.calls.some(call => call[0] === 'newChat'))
-    assert.match(scenario.inserted.at(-1)[1], /make a new Game Boy Color game: a tiny platformer where a frog/)
+  await click('Continue in Build'); await settle()
+  check('Continue in Build ends onboarding on Build with the idea in New Game\'s box, unsent and no chat opened', () => {
+    assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
+    assert.ok(!scenario.calls.some(call => call[1] === 'session.create' || call[1] === 'prompt.submit'), 'nothing is sent')
     assert.equal(scenario.storage.setup.onboarded, true)
     assert.equal(currentTab(), 'Build'); assert.equal(scenario.storage.page, 'build')
+    assert.equal(scenario.storage.buildSelected, 'new')
+    assert.deepEqual(scenario.storage.buildNewGame, { idea: 'a tiny platformer where a frog hops across lily pads to reach home', plan: false })
   })
   const keptRun = { ...scenario.storage }
   scenario.storage = { setup: { onboardStarted: true } }
   const second = dom.window.document.createElement('div'); dom.window.document.body.appendChild(second)
   const secondRoot = createRoot(second)
   await act(async () => { root.render(null); secondRoot.render(page.render()) })
-  await click('Yes, I have one')
-  check('Yes, I have one: onboarding ends on the first Chromatic step of Setup', () => {
+  await click('Set up my Chromatic')
+  check('Set up my Chromatic: onboarding ends on the first Chromatic step of Setup', () => {
     assert.equal(scenario.storage.setup.hardwareWanted, true); assert.equal(scenario.storage.setup.onboarded, true)
     assert.equal(currentTab(), 'Setup'); assert.equal(heading(), 'Update your Chromatic')
   })

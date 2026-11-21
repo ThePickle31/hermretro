@@ -175,9 +175,10 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     return true
   }
 
+  // True once the conversation holds the idea (New Game then clears its kept draft); false leaves the draft as it is.
   const startGame = async ({ idea, name, plan }) => {
     if (refuseWhileUpdating()) {
-      return
+      return false
     }
 
     let id = null
@@ -188,16 +189,25 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
 
+      if (!(await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim()))) {
+        void buildRpc({ action: 'cancel', stored: id }).catch(() => {})
+
+        return false
+      }
+
       setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }] }))
       select(`pending:${id}`)
-      await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim())
       onLibraryChanged()
+
+      return true
     } catch (error) {
       host.notify({ kind: 'error', message: `Could not start the conversation: ${describeRequestError(error).message}` })
 
       if (id) {
         void buildRpc({ action: 'cancel', stored: id }).catch(() => {})
       }
+
+      return false
     }
   }
 

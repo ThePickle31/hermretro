@@ -6,7 +6,10 @@ import { Working } from '#shared/ui/working.js'
 import { useUpdating } from '#app/update/lock.js'
 
 const PROFILE_FACTS = [
-  ['Sign-in', 'It uses your existing sign-in and keys, so there is nothing to log in to again.'],
+  [
+    'Sign-in',
+    'It starts with the sign-ins and keys Hermes can share from the profile the plugin is installed in. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one.'
+  ],
   ['Skills', 'hermretro and its six skills are turned on there, with a game-developer persona.'],
   ['Tools', 'Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults.'],
   ['Approvals', 'Kept on (smart mode), so installing device software and anything that touches your Chromatic goes through an approval check.']

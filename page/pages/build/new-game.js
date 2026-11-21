@@ -1,6 +1,8 @@
 // The New Game screen.
-import { Codicon, jsx, jsxs, useLayoutEffect, useRef, useState } from '#sdk'
+import { Codicon, jsx, jsxs, useEffect, useLayoutEffect, useRef, useState, useValue } from '#sdk'
 import { AGENT } from '#app/ids.js'
+import { ProviderNotice } from './composer/provider-notice.js'
+import { clearNewGameDraft, editNewGameDraft, NEW_GAME_DRAFT } from './new-game-draft.js'
 
 // The two ways to start, as the backend tells the agent (backend/library/rpcs.py build context): keep the words in step.
 const NEW_GAME_MODES = [
@@ -8,16 +10,35 @@ const NEW_GAME_MODES = [
   { id: 'plan', title: 'Plan first', text: 'A short interview, then a brief, backlog and test plan. Nothing is built until you say so.', ends: 'Ends with a plan to review' }
 ]
 
+// The last handoff the box took focus for: once each, not on every later visit.
+let focusedSeq = 0
+
 /** New Game: one centred composer (the Build page's own) and two choices under it, each saying what it does.
  *  No name field: the agent names the project when it creates it. The attract-mode level (attract/) plays behind
- *  it and takes no part in the form. */
+ *  it and takes no part in the form. The idea and the choice are a kept draft (new-game-draft.js): onboarding's
+ *  first idea arrives here unsent, and leaving the page keeps what was typed. `onStart` answers true once the
+ *  conversation has the idea; only then is the draft cleared. */
 export function BuildNewGame({ onStart, picker = null, updating = false }) {
-  const [idea, setIdea] = useState('')
-  const [mode, setMode] = useState('build')
+  const draft = useValue(NEW_GAME_DRAFT)
+  const idea = draft.idea
+  const mode = draft.plan ? 'plan' : 'build'
+  const setIdea = value => editNewGameDraft({ idea: value })
+  const setMode = value => editNewGameDraft({ plan: value === 'plan' })
   const [busy, setBusy] = useState(false)
   const box = useRef(null)
   // A second Enter before the re-render would start a second game: a ref sees the first at once.
   const starting = useRef(false)
+
+  // A handed-over idea (onboarding): the box gets focus with the cursor after it, ready to send or edit.
+  useEffect(() => {
+    const element = box.current
+
+    if (draft.seq && draft.seq !== focusedSeq && element) {
+      focusedSeq = draft.seq
+      element.focus?.()
+      element.setSelectionRange?.(element.value.length, element.value.length)
+    }
+  }, [draft.seq])
 
   useLayoutEffect(() => {
     const element = box.current
@@ -37,7 +58,9 @@ export function BuildNewGame({ onStart, picker = null, updating = false }) {
     setBusy(true)
 
     try {
-      await onStart({ idea, name: '', plan: mode === 'plan' })
+      if ((await onStart({ idea, name: '', plan: mode === 'plan' })) === true) {
+        clearNewGameDraft()
+      }
     } finally {
       starting.current = false
       setBusy(false)
@@ -94,6 +117,8 @@ export function BuildNewGame({ onStart, picker = null, updating = false }) {
           })
         ]
       }),
+      // Right under the box, where it is seen before sending (not under the cards, where the shelf can cover it).
+      jsx(ProviderNotice, {}, 'providers'),
       jsx('div', {
         'aria-label': 'How to start',
         className: 'cs-b-opts',

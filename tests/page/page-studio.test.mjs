@@ -80,7 +80,8 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   await tab('Setup')
   check('a plugin installed into an ordinary profile starts with creating the studio profile', () => {
     assert.equal(heading(), 'Create the hermretro profile'); assert.match(text(), /Step 1 of 6/)
-    assert.match(text(), /uses your existing sign-in and keys/)
+    assert.match(text(), /starts with the sign-ins and keys Hermes can share/); assert.match(text(), /Some accounts may not carry over/)
+    assert.ok(!/nothing to log in to again/.test(text()), 'no promise that every sign-in is shared')
     assert.match(text(), /The "default" profile, where the plugin is installed, is not changed/)
   })
   scenario.calls.length = 0; scenario.notices.length = 0
