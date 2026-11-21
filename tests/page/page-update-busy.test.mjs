@@ -27,7 +27,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   dom.window.hermesDesktop = { reconcileDesktopPlugins: async () => [] }
   const building = (title = 'Comet Drift') => ({ id: 's1', title, status: 'working' })
   scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
-  const fresh = async ({ busy = [], install = 'idle', page = 'home' } = {}) => {
+  const fresh = async ({ busy = [], install = 'idle', page = 'prompts' } = {}) => {
     await act(async () => { root.render(null) })
     scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page }
     scenario.status = answered(base()); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: install })
@@ -134,5 +134,5 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   check('afterwards it starts games again', () => {
     assert.equal(send().disabled, false); assert.match(send().getAttribute('title'), /Start (building|planning)/)
   })
-  await tab('Home')
+  await tab('Prompts')
 })
