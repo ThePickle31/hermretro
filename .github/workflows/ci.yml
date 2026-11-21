@@ -133,16 +133,17 @@ jobs:
       - name: python tools/check.py scan
         run: python3 tools/check.py scan --strict --hermes-source "$RUNNER_TEMP/hermes"
 
+  # The install checks run as parallel jobs, each with its own Hermes: validate and the clean install, the update
+  # from the newest release, and (when job `changes` asks) the update from the dev base.
   validate:
     name: Hermes validation and a clean install
-    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0  # every tag and origin/main: the update check installs the newest release first
+          fetch-depth: 0  # the whole history, as before the update checks moved to their own jobs
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -167,12 +168,46 @@ jobs:
         run: '"$HERMES_RUNTIME_PY" -I tools/ci/build_session_check.py'
       - name: python tools/ci/clean_install_check.py
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
+
+  update:
+    name: Update from the newest release
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # every tag and origin/main: the update check installs the newest release first
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/hermes
+        with:
+          ref: ${{ env.HERMES_REF }}
       # Installs the newest v* release on origin/main, uses it, then `hermes plugins update`s it to this commit.
       - name: python tools/ci/clean_install_check.py --update-from
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from
+
+  update-dev:
+    name: Update from the tested dev base
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.upgrade != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # every tag and origin/main: the update check installs the newest release first
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/hermes
+        with:
+          ref: ${{ env.HERMES_REF }}
       # Use the PR merge commit's first parent: a moving origin/dev may not be an ancestor of this checkout.
-      - name: Update from the tested dev base
-        if: github.event_name == 'pull_request' && needs.changes.outputs.upgrade != 'false'
+      - name: python tools/ci/clean_install_check.py --update-from HEAD^1
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from HEAD^1
 
   changes:
@@ -223,7 +258,7 @@ jobs:
   all-checks-pass:
     name: All checks pass
     if: always()
-    needs: [base, unit, page, scan, validate, changes, integration]
+    needs: [base, unit, page, scan, validate, update, update-dev, changes, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
