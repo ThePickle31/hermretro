@@ -28,7 +28,7 @@ export const MODEL_PICKER_CSS = `
 .cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; font-size: 11px; gap: 5px; min-width: 0; padding: 6px 16px 2px; white-space: nowrap; }
 .cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cs-b-mp-head span { flex: none; }
-.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px; }
+.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; -webkit-mask-image: linear-gradient(black calc(100% - 28px), transparent); mask-image: linear-gradient(black calc(100% - 28px), transparent); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 24px; }
 .cs-b-mp-list > .cs-faint { margin: 0; padding: 10px 8px; }
 .cs-b-mp-group { color: var(--ui-text-quaternary); flex: none; font: 700 9.5px/1.3 var(--dt-font-mono, ui-monospace, monospace); letter-spacing: .12em; padding: 8px 8px 3px; text-transform: uppercase; }
 .cs-b-mp-item { align-items: center; border-radius: 7px; display: flex; flex: none; min-width: 0; }
@@ -69,6 +69,15 @@ export const MODEL_PICKER_CSS = `
 .cs-b-mp-confirm { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, var(--ui-bg-secondary)); border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 8px 12px; }
 .cs-b-mp-pop.narrow .cs-b-mp-effort { width: 120px; }
 .cs-b-mp-pop.narrow .cs-b-mp-emodel { display: none; }
+.cs-b-mp-pop.narrow .cs-b-mp-row { white-space: normal; }
+.cs-b-mp-pop.narrow .cs-b-mp-label { overflow-wrap: anywhere; white-space: normal; }
+/* too narrow for three columns: Effort moves under the models as a wrapping row */
+.cs-b-mp-pop.tiny .cs-b-mp-body { flex-wrap: wrap; height: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-rail, .cs-b-mp-pop.tiny .cs-b-mp-models { height: 250px; }
+.cs-b-mp-pop.tiny .cs-b-mp-effort { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); flex-basis: 100%; padding: 4px 8px 8px; width: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-ehead { padding: 4px 6px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels button { border-radius: 6px; gap: 4px; justify-content: center; padding: 4px 8px; }
 .cs-b-comp-row { align-items: center; display: flex; gap: 8px; min-width: 0; }
 @container (max-width: 560px) { .cs-b-mp-name, .cs-b-mp-dot { display: none; } }
 .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }

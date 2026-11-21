@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 53b615f442aa8ab6bf0ee8fb4600c01781937d07da793d7cd5c38e25fd11322f
- * body: sha256 f081b4e6b2b46d03f3b68ef1c5a3f6550b80ff63e94d2a4a9a64dda4fa208fba
+ * sources: sha256 ac6f708b9eb0c2dc651cf5538a4efc1e3401f05c93269133e288780a33adfc1b
+ * body: sha256 b3714e0ac32cb99a4f22b783daebb73876ef9860e81b806164be74cba03f3f81
  */
 // page/sdk.js
 import {
@@ -2025,6 +2025,24 @@ var connectProvider = (close) => () => {
 
 // page/pages/build/composer/model-settings.js
 var FAST_HINT = "Quicker replies. Uses more of your plan";
+var ARROWS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+function radioProps(keys, current, index, pick, disabled) {
+  return {
+    "data-key": keys[index],
+    tabIndex: (keys.includes(current) ? keys[index] === current : index === 0) ? 0 : -1,
+    onKeyDown: (event) => {
+      const step = ARROWS[event.key];
+      if (!step || disabled) {
+        return;
+      }
+      event.preventDefault();
+      const from = keys.includes(current) ? keys.indexOf(current) : index;
+      const next = keys[(from + step + keys.length) % keys.length];
+      pick(next);
+      event.currentTarget.parentElement?.querySelector(`[data-key="${next}"]`)?.focus?.();
+    }
+  };
+}
 function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
   const fixed = caps ? caps.reasoning === false : false;
   const levels = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
@@ -2044,9 +2062,10 @@ function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
         className: "cs-b-mp-levels",
         role: "radiogroup",
         children: levels.map(
-          ([key, label, hint]) => jsxs(
+          ([key, label, hint], index) => jsxs(
             "button",
             {
+              ...radioProps(levels.map(([level]) => level), shown.effort, index, (next) => next !== shown.effort && onEffort(next), disabled || fixed),
               "aria-checked": shown.effort === key,
               disabled: disabled || fixed,
               onClick: () => key !== shown.effort && onEffort(key),
@@ -2078,9 +2097,10 @@ function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
           ["normal", false, "Standard", "Standard speed"],
           ["fast", true, [jsx(Codicon, { name: "zap", size: 11 }, "zap"), "Fast"], FAST_HINT]
         ].map(
-          ([key, on, label, title]) => jsx(
+          ([key, on, label, title], index) => jsx(
             "button",
             {
+              ...radioProps(["normal", "fast"], fast ? "fast" : "normal", index, (next) => next === "fast" !== fast && onFast(next === "fast"), disabled),
               "aria-checked": fast === on,
               className: on ? "cs-b-mp-fast" : void 0,
               disabled,
@@ -2108,6 +2128,7 @@ function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
 // page/pages/build/composer/model-picker.js
 var PANEL = 560;
 var NARROW = 500;
+var TINY = 440;
 function useModelOptions(runtime) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
@@ -2122,15 +2143,17 @@ function useModelOptions(runtime) {
 function panelArea(node) {
   let start = 0;
   let end = window.innerWidth || 1200;
+  let clip = null;
   for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
     const rect = parent.getBoundingClientRect();
     if (rect.width > 0 && getComputedStyle(parent).overflowX !== "visible") {
       start = Math.max(start, rect.left);
       end = Math.min(end, rect.right);
+      clip = parent;
       break;
     }
   }
-  return [start, end];
+  return { start, end, clip };
 }
 function useStars(ctx) {
   const [stars, setStars] = useState(() => {
@@ -2156,7 +2179,7 @@ function useStars(ctx) {
   };
   return [stars, toggle];
 }
-function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
@@ -2178,16 +2201,31 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
   const name = shown.model ? modelName(shown.model).name : "Default model";
   const [place, setPlace] = useState(null);
   const narrow = Boolean(place && place.width < NARROW);
+  const tiny = Boolean(place && place.width < TINY);
   useLayoutEffect(() => {
     if (!open || !box.current?.getBoundingClientRect) {
       setPlace(null);
-      return;
+      return void 0;
     }
-    const left = box.current.getBoundingClientRect().left;
-    const [start, end] = panelArea(box.current);
-    const width = Math.min(PANEL, end - start - 24);
-    const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width));
-    setPlace({ left: shift, width });
+    const measure = () => {
+      if (!box.current) {
+        return null;
+      }
+      const left = box.current.getBoundingClientRect().left;
+      const { start, end, clip: clip2 } = panelArea(box.current);
+      const width = Math.min(PANEL, end - start - 24);
+      const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width));
+      setPlace((last) => last && last.left === shift && last.width === width ? last : { left: shift, width });
+      return clip2;
+    };
+    const clip = measure();
+    const watch = typeof ResizeObserver === "function" && clip ? new ResizeObserver(() => measure()) : null;
+    watch?.observe(clip);
+    window.addEventListener("resize", measure);
+    return () => {
+      watch?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [open]);
   useEffect(() => {
     if (!open) {
@@ -2227,7 +2265,7 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
   const choose = (row) => {
     setOpen(false);
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
+      onPick({ model: row.model, provider: row.provider, ...(shown.fast || pendingFast) && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
     }
   };
   const close = () => setOpen(false);
@@ -2258,7 +2296,7 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
       }),
       open ? jsxs("div", {
         "aria-label": "Model and effort",
-        className: `cs-b-mp-pop${up ? " up" : ""}${narrow ? " narrow" : ""}`,
+        className: `cs-b-mp-pop${up ? " up" : ""}${narrow ? " narrow" : ""}${tiny ? " tiny" : ""}`,
         role: "dialog",
         style: place ? { left: place.left, width: place.width } : void 0,
         children: [
@@ -2314,6 +2352,7 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     confirm: chat?.pickConfirm ?? null,
     disabled,
     held: chat?.busy ? chat?.heldPick ?? null : null,
+    pendingFast: chat?.heldPick?.fast === true,
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: (effort) => void pickBuildModel(stored, { effort }),
@@ -12840,7 +12879,7 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; font-size: 11px; gap: 5px; min-width: 0; padding: 6px 16px 2px; white-space: nowrap; }
 .cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cs-b-mp-head span { flex: none; }
-.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px; }
+.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; -webkit-mask-image: linear-gradient(black calc(100% - 28px), transparent); mask-image: linear-gradient(black calc(100% - 28px), transparent); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 24px; }
 .cs-b-mp-list > .cs-faint { margin: 0; padding: 10px 8px; }
 .cs-b-mp-group { color: var(--ui-text-quaternary); flex: none; font: 700 9.5px/1.3 var(--dt-font-mono, ui-monospace, monospace); letter-spacing: .12em; padding: 8px 8px 3px; text-transform: uppercase; }
 .cs-b-mp-item { align-items: center; border-radius: 7px; display: flex; flex: none; min-width: 0; }
@@ -12881,6 +12920,15 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-confirm { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, var(--ui-bg-secondary)); border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 8px 12px; }
 .cs-b-mp-pop.narrow .cs-b-mp-effort { width: 120px; }
 .cs-b-mp-pop.narrow .cs-b-mp-emodel { display: none; }
+.cs-b-mp-pop.narrow .cs-b-mp-row { white-space: normal; }
+.cs-b-mp-pop.narrow .cs-b-mp-label { overflow-wrap: anywhere; white-space: normal; }
+/* too narrow for three columns: Effort moves under the models as a wrapping row */
+.cs-b-mp-pop.tiny .cs-b-mp-body { flex-wrap: wrap; height: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-rail, .cs-b-mp-pop.tiny .cs-b-mp-models { height: 250px; }
+.cs-b-mp-pop.tiny .cs-b-mp-effort { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); flex-basis: 100%; padding: 4px 8px 8px; width: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-ehead { padding: 4px 6px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels button { border-radius: 6px; gap: 4px; justify-content: center; padding: 4px 8px; }
 .cs-b-comp-row { align-items: center; display: flex; gap: 8px; min-width: 0; }
 @container (max-width: 560px) { .cs-b-mp-name, .cs-b-mp-dot { display: none; } }
 .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }

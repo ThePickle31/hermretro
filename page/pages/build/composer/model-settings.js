@@ -5,6 +5,30 @@ import { AGENT } from '#app/ids.js'
 import { EFFORTS, modelName } from './model-names.js'
 
 const FAST_HINT = 'Quicker replies. Uses more of your plan'
+const ARROWS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }
+
+/** A radio group's keys: one Tab stop (the picked choice, else the first), arrows pick and focus the next one. */
+function radioProps(keys, current, index, pick, disabled) {
+  return {
+    'data-key': keys[index],
+    tabIndex: (keys.includes(current) ? keys[index] === current : index === 0) ? 0 : -1,
+    onKeyDown: event => {
+      const step = ARROWS[event.key]
+
+      if (!step || disabled) {
+        return
+      }
+
+      event.preventDefault()
+
+      const from = keys.includes(current) ? keys.indexOf(current) : index
+      const next = keys[(from + step + keys.length) % keys.length]
+
+      pick(next)
+      event.currentTarget.parentElement?.querySelector(`[data-key="${next}"]`)?.focus?.()
+    }
+  }
+}
 
 /** `shown` is what the conversation runs on (`model`, `effort`). `narrow` drops the note under the levels. */
 export function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
@@ -26,10 +50,11 @@ export function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
         'aria-label': 'Effort',
         className: 'cs-b-mp-levels',
         role: 'radiogroup',
-        children: levels.map(([key, label, hint]) =>
+        children: levels.map(([key, label, hint], index) =>
           jsxs(
             'button',
             {
+              ...radioProps(levels.map(([level]) => level), shown.effort, index, next => next !== shown.effort && onEffort(next), disabled || fixed),
               'aria-checked': shown.effort === key,
               disabled: disabled || fixed,
               onClick: () => key !== shown.effort && onEffort(key),
@@ -69,10 +94,11 @@ export function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage
             children: [
               ['normal', false, 'Standard', 'Standard speed'],
               ['fast', true, [jsx(Codicon, { name: 'zap', size: 11 }, 'zap'), 'Fast'], FAST_HINT]
-            ].map(([key, on, label, title]) =>
+            ].map(([key, on, label, title], index) =>
               jsx(
                 'button',
                 {
+                  ...radioProps(['normal', 'fast'], fast ? 'fast' : 'normal', index, next => (next === 'fast') !== fast && onFast(next === 'fast'), disabled),
                   'aria-checked': fast === on,
                   className: on ? 'cs-b-mp-fast' : undefined,
                   disabled,

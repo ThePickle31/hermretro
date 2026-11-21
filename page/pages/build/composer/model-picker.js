@@ -21,9 +21,11 @@ import { effortLabel, modelName, providerMark, providerMarks } from './model-nam
 import { connectProvider, ModelList, ProviderRail, STARRED, starKey, useModelRows } from './model-list.js'
 import { EffortColumn, SpeedBar } from './model-settings.js'
 
-// The panel's width, and the width under which it narrows its Effort column and shortens its words.
+// The panel's width, the width under which it narrows its Effort column and shortens its words, and the one under
+// which three columns no longer fit, so Effort moves under the models.
 const PANEL = 560
 const NARROW = 500
+const TINY = 440
 
 /** The connected providers and their models (`model.options`), for a conversation or the profile. */
 function useModelOptions(runtime) {
@@ -40,10 +42,11 @@ function useModelOptions(runtime) {
 }
 
 /** The left and right edges the panel must stay within: the window, narrowed by the nearest box that clips or
- *  scrolls sideways. */
+ *  scrolls sideways (returned as `clip`, so the panel can follow its size). */
 function panelArea(node) {
   let start = 0
   let end = window.innerWidth || 1200
+  let clip = null
 
   for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
     const rect = parent.getBoundingClientRect()
@@ -51,12 +54,13 @@ function panelArea(node) {
     if (rect.width > 0 && getComputedStyle(parent).overflowX !== 'visible') {
       start = Math.max(start, rect.left)
       end = Math.min(end, rect.right)
+      clip = parent
 
       break
     }
   }
 
-  return [start, end]
+  return { start, end, clip }
 }
 
 /** Starred models (`provider:model`), kept in the page's storage: Hermes's own starred list is not open to plugins. */
@@ -92,7 +96,7 @@ function useStars(ctx) {
   return [stars, toggle]
 }
 
-function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState(null)
   const [query, setQuery] = useState('')
@@ -116,20 +120,40 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
   // little room it moves left and narrows.
   const [place, setPlace] = useState(null)
   const narrow = Boolean(place && place.width < NARROW)
+  const tiny = Boolean(place && place.width < TINY)
 
+  // Placed when it opens, and again whenever the window or the box that clips it changes size while it is open.
   useLayoutEffect(() => {
     if (!open || !box.current?.getBoundingClientRect) {
       setPlace(null)
 
-      return
+      return undefined
     }
 
-    const left = box.current.getBoundingClientRect().left
-    const [start, end] = panelArea(box.current)
-    const width = Math.min(PANEL, end - start - 24)
-    const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width))
+    const measure = () => {
+      if (!box.current) {
+        return null
+      }
 
-    setPlace({ left: shift, width })
+      const left = box.current.getBoundingClientRect().left
+      const { start, end, clip } = panelArea(box.current)
+      const width = Math.min(PANEL, end - start - 24)
+      const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width))
+
+      setPlace(last => (last && last.left === shift && last.width === width ? last : { left: shift, width }))
+
+      return clip
+    }
+    const clip = measure()
+    const watch = typeof ResizeObserver === 'function' && clip ? new ResizeObserver(() => measure()) : null
+
+    watch?.observe(clip)
+    window.addEventListener('resize', measure)
+
+    return () => {
+      watch?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [open])
 
   useEffect(() => {
@@ -181,8 +205,9 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
 
     if (row.model !== shown.model || row.provider !== shown.provider) {
       // Leaving fast mode on would carry Hermes's priority tier to a model without the switch (Anthropic and
-      // xAI read it as their own fast mode), so a model without it goes back to standard.
-      onPick({ model: row.model, provider: row.provider, ...(shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
+      // xAI read it as their own fast mode), so a model without it goes back to standard. That covers a Fast
+      // still on its way (`pendingFast`), which the model pick would otherwise inherit.
+      onPick({ model: row.model, provider: row.provider, ...((shown.fast || pendingFast) && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
     }
   }
   const close = () => setOpen(false)
@@ -229,7 +254,7 @@ function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick,
       open
         ? jsxs('div', {
             'aria-label': 'Model and effort',
-            className: `cs-b-mp-pop${up ? ' up' : ''}${narrow ? ' narrow' : ''}`,
+            className: `cs-b-mp-pop${up ? ' up' : ''}${narrow ? ' narrow' : ''}${tiny ? ' tiny' : ''}`,
             role: 'dialog',
             style: place ? { left: place.left, width: place.width } : undefined,
             children: [
@@ -291,6 +316,7 @@ export function ChatModelPicker({ ctx, stored, chat, disabled }) {
     confirm: chat?.pickConfirm ?? null,
     disabled,
     held: chat?.busy ? (chat?.heldPick ?? null) : null,
+    pendingFast: chat?.heldPick?.fast === true,
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: effort => void pickBuildModel(stored, { effort }),

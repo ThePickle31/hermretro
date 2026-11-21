@@ -129,16 +129,62 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'fast', value: 'fast' })
   })
 
-  // A narrow window: the Effort column narrows, drops its note, and the words shorten.
-  const width = dom.window.innerWidth
-  dom.window.innerWidth = 470
+  // Review round 1: a Fast still on its way must not carry over to a model without the switch.
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { fast: false } }) })
+  await settle()
+  let release
+  const plainSet = scenario.byMethod['config.set']
+  scenario.byMethod['config.set'] = params => {
+    scenario.sets.push(params)
+    return params.key === 'fast' && params.value === 'fast' && !release ? new Promise(done => { release = () => done({ key: 'fast', value: 'fast' }) }) : { key: params.key, value: params.value }
+  }
   await open()
-  check('in a narrow window the panel narrows and shortens its words', () => {
-    assert.ok(pop().classList.contains('narrow'))
+  await click('Fast', speed())
+  await settle()
+  await press(tile('Anthropic'))
+  await press(row('claude-opus-5-5'))
+  await settle()
+  await act(async () => { release() })
+  await settle()
+  check('a model without fast mode picked while Fast is still on its way goes back to standard', () => {
+    assert.deepEqual(scenario.sets.slice(-3).map(set => [set.key, set.value]), [['fast', 'fast'], ['model', 'claude-opus-5-5 --provider anthropic --session'], ['fast', 'normal']])
+  })
+  scenario.byMethod['config.set'] = plainSet
+  await open()
+  await press(tile('ChatGPT or Codex Subscription'))
+  await press(row('gpt-6.2-sol'))
+  await settle()
+
+  // Review round 1: Standard / Fast and the Effort list are radio groups with one Tab stop, moved by arrow keys.
+  await open()
+  check('each radio group has one Tab stop: the picked choice', () => {
+    assert.deepEqual([...speed().querySelectorAll('button')].map(node => node.tabIndex), [0, -1])
+    assert.deepEqual([...pop().querySelectorAll('[aria-label="Effort"] button')].map(node => node.tabIndex).filter(index => index === 0).length, 1)
+  })
+  await act(async () => { speed().querySelector('[data-key="normal"]').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })) })
+  await settle()
+  check('an arrow key picks the next speed', () => { assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'fast', value: 'fast' }) })
+  await act(async () => { pop().querySelector('[aria-label="Effort"] [data-key="medium"]').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })) })
+  await settle()
+  check('and the next effort level', () => { assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'reasoning', value: 'high' }) })
+  await key('keydown', 'Escape')
+
+  // A narrow window: the Effort column narrows, drops its note, and the words shorten. The open panel follows a resize.
+  const width = dom.window.innerWidth
+  await open()
+  check('the panel opens at its full width', () => { assert.ok(!pop().classList.contains('narrow')) })
+  dom.window.innerWidth = 470
+  await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')) })
+  check('a window made narrow while the panel is open narrows it at once', () => {
+    assert.ok(pop().classList.contains('narrow')); assert.ok(!pop().classList.contains('tiny'))
     assert.ok(!pop().querySelector('.cs-b-mp-enote'))
     assert.equal(pop().querySelector('.cs-b-mp-head').textContent, 'ChatGPT or Codex Subscription· 19')
     assert.match(pop().querySelector('.cs-b-mp-manage').textContent, /^Providers$/)
   })
+  await key('keydown', 'Escape')
+  dom.window.innerWidth = 340
+  await open()
+  check('too narrow for three columns, Effort moves under the models', () => { assert.ok(pop().classList.contains('tiny')) })
   await key('keydown', 'Escape')
   dom.window.innerWidth = width
   await view.close()
