@@ -71,6 +71,34 @@ class TheBaseline(unittest.TestCase):
         self.assertEqual(module.scaffold_baseline(argparse.Namespace(), "nested", {}), (["unit", "page"], []))
         self.assertEqual(module.scaffold_baseline(argparse.Namespace(), "1", ci), (["page"], []))
 
+    def test_a_nested_run_without_a_unit_result_runs_unit_once_and_stops_before_the_suites(self):  # review 1, 4
+        module = check_py()
+        if not (ROOT / "tools/npm/node_modules").is_dir():
+            self.skipTest("the npm tools are not set up here")
+        failure = "FAIL: test_probe (tests.backend.x.test_y.Case.test_probe)\nRan 9 tests"
+        args = self.invocation(page=("ok", ""))  # unit has not run: this standalone nested check must run it
+        calls = []
+
+        def failing_unit(_args):
+            calls.append(1)
+            raise AssertionError(failure)
+
+        with (
+            mock.patch.object(module, "ruff_missing", lambda: None),
+            mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.object(module, "scaffold_mode", lambda: "nested"),
+            mock.patch.object(module, "scaffold_baseline", lambda _args, _mode: (["unit", "page"], [])),
+            mock.patch.dict(module.CHECKS, {"unit": failing_unit}),
+            mock.patch.object(module, "run", lambda *a, **k: self.fail("the scaffold module ran")),
+        ):
+            with self.assertRaises(module.Skip) as said:
+                module.check_scaffold(args)
+        self.assertEqual(calls, [1], "the unit check ran once")
+        text = str(said.exception)
+        self.assertTrue(text.startswith(module.UNIT_FIRST), text)
+        self.assertIn("FAIL: test_probe (tests.backend.x.test_y.Case.test_probe)", text)
+        self.assertIn("FIX: python tools/check.py unit", text)
+
     def test_a_tree_failing_unit_shows_the_failing_tests_and_the_command_to_see_them(self):
         module = check_py()
         if not (ROOT / "tools/npm/node_modules").is_dir():

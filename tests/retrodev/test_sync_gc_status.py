@@ -343,12 +343,17 @@ class FlowFixes(RepoCase):
         self.assertIn("only start and land need it", row["detail"])
 
 
-class DoctorRun(RepoCase):
-    def test_doctor_prints_the_space_warning_with_its_fix(self):
-        self.fakes["tmp_free"] = 10
-        _code, out = self.run_cli("doctor")
-        self.assertIn("!!  short temp folder space: ", out)
-        self.assertIn("FIX: free space in ", out)
+class DoctorRun(unittest.TestCase):
+    def test_the_short_temp_folder_warns_below_one_gibibyte_and_not_at_it(self):  # review 1, 6
+        from retrodev.doctor import GIB, space_item
+
+        under = space_item("/short", GIB - 1)
+        enough = space_item("/short", GIB)
+        self.assertTrue(under["warning"], "under 1 GB free is a warning")
+        self.assertIn("free space in /short", under["fix"])
+        self.assertFalse(enough["warning"], "exactly 1 GB free is enough")
+        self.assertEqual(enough["fix"], "")
+        self.assertIn("0.5 GB free", space_item("/short", GIB // 2)["detail"])
 
 
 class SharedAfterLanding(RepoCase):

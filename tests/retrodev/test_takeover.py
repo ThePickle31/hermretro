@@ -261,6 +261,7 @@ class TakeoverRoundSix(RepoCase):
         steps = [line.removeprefix("next: ") for line in out.splitlines() if line.startswith("next: ")]
         self.assertEqual(steps[0], f"cd {tree}")
         self.assertEqual(steps[1], "python tools/retrodev sync (HEAD lacks 1 commit(s) of origin/dev)")  # round 14
+        self.assertNotIn("is not one of this repository's kinds", out, "feat is a known kind")  # review 1, 8
         self.assertTrue(steps[2].startswith("python tools/retrodev plan new mate"), steps)
         self.assertIn("python tools/retrodev plan approve mate", steps[3])
         self.assertEqual(steps[4], "python tools/retrodev check")

@@ -77,6 +77,7 @@ from tests.retrodev.scaffold_steps import (  # noqa: E402, F401 - other tests re
     REAL_LISTENERS,
     REAL_PAGES,
     declared_events,
+    declared_slots,
     grown_steps,
     listens,
     page_steps,

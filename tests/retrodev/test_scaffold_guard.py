@@ -34,9 +34,23 @@ class TempSpace(unittest.TestCase):
 
 
 class Guard(unittest.TestCase):
-    def test_the_guard_runs_every_kind_and_the_real_steps_name_real_features_and_pages(self):
-        kinds = {step[0] for step in tree_test.STEPS + tree_test.REAL_STEPS}
-        self.assertEqual(kinds, {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot", "contribution"})
+    def test_the_probe_steps_alone_run_every_kind(self):  # review 1, 0
+        # The smoke mode runs STEPS only: a kind missing here is never scaffolded in it, whatever REAL_STEPS adds.
+        self.assertEqual(
+            {step[0] for step in tree_test.STEPS},
+            {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot", "contribution"},
+        )
+
+    def test_the_nested_contribution_fills_a_slot_a_real_page_declares(self):  # review 1, 0
+        slots = tree_test.declared_slots(ROOT)
+        step = next(step for step in tree_test.REAL_STEPS if step[0] == "contribution")
+        self.assertIn(step[2], slots)
+        page = slots[step[2]]
+        self.assertTrue((ROOT / "page/pages" / page / "index.js").is_file(), step)
+        self.assertEqual(step[1], "build")
+        self.assertNotIn("rdtree", step[2], "the probe's own slot is not on a real page")
+
+    def test_the_real_steps_name_real_features_and_pages(self):
         for step in tree_test.REAL_STEPS:
             where = "page/pages" if step[0] in ("tab", "slot", "contribution") else "backend"
             self.assertTrue((ROOT / where / step[1]).is_dir(), step)

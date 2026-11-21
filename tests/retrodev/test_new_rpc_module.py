@@ -134,6 +134,14 @@ class RpcRoundSixNew(ScaffoldCase):
         )
         self.assertIn("both ran", run_in_copy(self, probe))
 
+    def test_a_reserved_feature_module_name_is_refused_before_anything_is_written(self):  # review 1, 2
+        self.assertFalse((self.tree / "backend/history/tools.py").exists())
+        out = self.new("rpc", "history", "rdprobe_tools", "--module", "tools", code=1)
+        self.assertIn("--module tools is a name every feature keeps for its own part", out["error"]["message"])
+        self.assertIn("nothing was written", out["error"]["message"])
+        self.assertFalse((self.tree / "backend/history/tools.py").exists())
+        self.assertEqual(git(self.tree, "status", "--porcelain"), "")
+
     def test_a_generated_name_rpcs_py_binds_already_is_refused_before_writing(self):
         source = self.read("backend/history/rpcs.py")
         write(self.tree, "backend/history/rpcs.py", source + "\n\nrpc_rdprobe_taken = None\n_rdprobe_mine_mod = 1\n")

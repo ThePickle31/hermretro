@@ -129,6 +129,14 @@ class StatusRoundThree(RepoCase):
         _code, out = self.run_cli("status", cwd=self.main)
         self.assertIn("behind origin/dev: 1 commits (python tools/retrodev sync)", out)
         self.assertIn("next: python tools/retrodev sync", out)
+        git(self.main, "switch", "-q", "-c", "docs/direct", "dev")  # a work branch in the main checkout: still behind
+        code, out = self.run_cli("status", cwd=self.main)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out.startswith("branch docs/direct  ("), out)  # its own summary, not the dev listing
+        self.assertTrue(line_with(out, "next:").startswith("next: python tools/retrodev sync"), out)
+        _code, data = self.run_cli("status", cwd=self.main, as_json=True)
+        self.assertEqual(data["branch"], "docs/direct")
+        self.assertTrue(data["next"].startswith("next: python tools/retrodev sync"), data)
         write(tree, "docs/guide.md", "# dirty\n")
         _code, out = self.run_cli("status", cwd=tree)
         self.assertIn("git commit", line_with(out, "next:"))

@@ -161,6 +161,22 @@ class Previews(ScaffoldCase):
         real = self.new("feature", "rdprobe_tw")  # the real run's steps run as printed
         self.assertNotIn("--dry-run", " ".join(real["next"]))
         self.assertIn("python tools/retrodev new rpc rdprobe_tw <name> | new tool", " ".join(real["next"]))
+        headers = [line for line in data["diff"].splitlines() if line.startswith(("--- ", "+++ "))]
+        empty = [rel for rel in data["created"] if (self.tree / rel).stat().st_size == 0]  # no hunk to show
+        planned = sorted(set(data["created"] + data["changed"]) - set(empty))
+        self.assertEqual(len(headers), 2 * len(planned), "every edited file has its diff, changed files too")
+        targets = sorted(header.removeprefix("+++ b/") for header in headers[1::2])
+        self.assertEqual(targets, planned)
+        for old, new in zip(headers[::2], headers[1::2], strict=True):
+            rel = new.removeprefix("+++ b/")
+            self.assertEqual(old, "--- /dev/null" if rel in data["created"] else f"--- a/{rel}", rel)
+        self.assertTrue(all(line in lines for line in data["diff"].splitlines()), "the text run shows the same diff")
+        edits = [
+            line
+            for line in data["diff"].splitlines()
+            if line.startswith(("+", "-")) and not line.startswith(("+++", "---")) and line[1:].strip()
+        ]
+        self.assertTrue(edits, "the diff shows the edits, not just the file names")
 
     def test_every_new_command_a_preview_prints_keeps_dry_run(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")

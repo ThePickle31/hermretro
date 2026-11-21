@@ -183,14 +183,22 @@ class FlowFixes(RepoCase):
             self.assertIn("note: no GitHub remote", out, command)
             self.assertNotIn(NOT_GITHUB, out, command)
 
-    def test_a_branch_that_changes_no_file_is_refused(self):
+    def test_a_branch_that_changes_no_file_is_refused(self):  # review 1, 3
         tree, body = self.ready()
         git(tree, "revert", "--no-edit", "HEAD")
         self.passed(tree, "docs/tidy")
-        code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, "--dry-run", cwd=tree, as_json=True)
-        self.assertEqual(code, 1, data)
-        gate = next(gate for gate in data["gates"] if gate["name"] == "has commits")
-        self.assertIn("nothing to ship: the branch changes no file", gate["message"])
+
+        def refused(where: str) -> None:
+            code, data = self.run_cli("ship", "--title", "Tidy", "--body", body, "--dry-run", cwd=tree, as_json=True)
+            self.assertEqual(code, 1, (where, data))
+            gate = next(gate for gate in data["gates"] if gate["name"] == "has commits")
+            self.assertIn("nothing to ship: the branch changes no file", gate["message"], where)
+            self.assertIn("no change since it left", gate["message"], where)
+
+        refused("before dev moved")
+        self.on_dev("docs/unrelated.md", "# Unrelated\n")  # the tip now differs from the merge base
+        git(tree, "fetch", "-q", "origin")  # a dry-run ship itself does not fetch: the cached ref moves here
+        refused("after dev moved")
 
 
 class TitleAndBody(RepoCase):
