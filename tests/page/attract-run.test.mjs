@@ -9,9 +9,12 @@ import { registerAliases } from './aliases.mjs'
 registerAliases()
 const { JSDOM } = await import('jsdom')
 const { runAttract } = await import('../../page/pages/build/attract/run.js')
-const { ATTRACT_CSS } = await import('../../page/pages/build/attract/attract.css.js')
+const { BUILD_PAGE } = await import('../../page/pages/build/index.js')
 
 const NIGHT = 'rgb(16, 18, 24)', DAY = 'rgb(250, 250, 250)'
+// The stylesheet the Build page actually gets: a rule dropped from its composition fails here even if it is
+// still in attract.css.js.
+const BUILD_CSS = BUILD_PAGE.css.join('\n')
 
 /** The New Game area with its form, a fake world, a fake clock and frame queue. */
 function setup({ still = false } = {}) {
@@ -95,7 +98,7 @@ test('scrolling the form or typing in it leaves the game running', () => {
 test('the page colour is set on the area, where the title and the frosted composer (in the form) inherit it', () => {
   const t = setup()
   const style = t.doc.createElement('style')
-  style.textContent = ATTRACT_CSS
+  style.textContent = BUILD_CSS
   t.doc.head.append(style)
   const get = sel => t.dom.window.getComputedStyle(t.doc.querySelector(sel)).getPropertyValue('--cs-at-bg').trim()
   assert.equal(get('h1'), NIGHT, 'the title inherits it')
@@ -104,19 +107,34 @@ test('the page colour is set on the area, where the title and the frosted compos
   assert.equal(t.host.style.getPropertyValue('--cs-at-bg'), '', 'removed on stop')
 })
 
-test('the composer and the two choices are frosted glass over the level', () => {
+test('the composer and the two frosted choice states are glass over the level, from the Build stylesheet', () => {
   const t = setup()
   const style = t.doc.createElement('style')
-  style.textContent = ATTRACT_CSS
+  style.textContent = BUILD_CSS
   t.doc.head.append(style)
-  const opt = t.doc.createElement('div')
-  opt.className = 'cs-b-opt'
-  t.host.append(opt)
-  for (const [sel, el] of [['.cs-b-new .cs-b-comp', t.doc.querySelector('.cs-b-new .cs-b-comp')], ['.cs-b-opt', opt]]) {
-    const css = t.dom.window.getComputedStyle(el)  // the cascaded rule, wherever it is written
-    assert.match(css.getPropertyValue('backdrop-filter'), /blur\(/, `${sel} blurs the level behind it`)
-    assert.match(css.getPropertyValue('background'), /var\(--cs-at-glass\)/, `${sel} is see-through page colour`)
+  const opt = cls => {
+    const el = t.doc.createElement('button')
+    el.className = cls
+    t.form.append(el)
+    return el
   }
+  const plain = opt('cs-b-opt'), selected = opt('cs-b-opt on')
+  const css = el => t.dom.window.getComputedStyle(el)  // the cascaded rule, in the page's own order
+  const bg = el => css(el).getPropertyValue('background').replace(/\s+/g, ' ').trim()
+  for (const [name, el] of [
+    ['.cs-b-new .cs-b-comp', t.doc.querySelector('.cs-b-new .cs-b-comp')],
+    ['.cs-b-opt (unselected)', plain],
+    ['.cs-b-opt.on (selected)', selected]
+  ]) {
+    assert.match(css(el).getPropertyValue('backdrop-filter'), /blur\(/, `${name} blurs the level behind it`)
+  }
+  assert.equal(bg(t.doc.querySelector('.cs-b-new .cs-b-comp')), 'var(--cs-at-glass)', 'the composer is see-through page colour')
+  assert.equal(bg(plain), 'var(--cs-at-glass)', 'an unselected choice is see-through page colour')
+  assert.equal(
+    bg(selected),
+    'color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass))',
+    'a selected choice tints the glass with the accent, not the plain form colour'
+  )
   t.stop()
 })
 
@@ -139,7 +157,7 @@ test('under reduced motion it draws one still frame and repaints it when the the
 test('the header (and the game switcher\'s menu) stays above the form; the level stays behind both', () => {
   const t = setup()
   const style = t.doc.createElement('style')
-  style.textContent = ATTRACT_CSS
+  style.textContent = BUILD_CSS
   t.doc.head.append(style)
   const z = sel => Number(t.dom.window.getComputedStyle(t.doc.querySelector(sel)).zIndex)
   assert.ok(z('.cs-b-head') > z('.cs-b-new'), `header ${z('.cs-b-head')} over form ${z('.cs-b-new')}`)
@@ -150,7 +168,7 @@ test('the header (and the game switcher\'s menu) stays above the form; the level
 test('the composer stays above the frosted choice cards, so its model picker opens over them', () => {
   const t = setup()
   const style = t.doc.createElement('style')
-  style.textContent = ATTRACT_CSS
+  style.textContent = BUILD_CSS
   t.doc.head.append(style)
   const opt = t.doc.createElement('button')
   opt.className = 'cs-b-opt'

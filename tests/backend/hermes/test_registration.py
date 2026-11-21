@@ -75,8 +75,8 @@ class Registration(unittest.TestCase):
         self.assertEqual(
             len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
         )
-        # The names are pinned by tests/repo/test_registration_snapshot.py; registering one twice is not.
-        self.assertEqual(len(calls["hook"]), len(set(calls["hook"])), "a hook registered twice")
+        # The exact hook list is pinned by tests/repo/test_registration_snapshot.py, and collection (one name,
+        # every callback chained in order) by tests/backend/hermes/test_declare.py.
         self.assertEqual(calls["section"], ["hermretro.guide"])
         self.assertIn("status", calls["rpc"])
 

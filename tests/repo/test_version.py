@@ -1,5 +1,6 @@
 """The plugin's version lives in plugin.yaml and nowhere else, so a release changes one line."""
 
+import os
 import re
 import subprocess
 import sys
@@ -43,15 +44,23 @@ class OneVersion(unittest.TestCase):
             base = Path(folder)
             (base / "backend").mkdir()
             (base / "backend" / "one.py").write_bytes(b"x = 1\n")
-            (base / "plugin.yaml").write_text("name: hermretro\nversion: 0.0.5\n", encoding="utf-8")
-            stamp = (("../plugin.yaml", 0, 0), ("one.py", 0, 0))
+            manifest = base / "plugin.yaml"
+            manifest.write_text("name: hermretro\nversion: 0.0.5\n", encoding="utf-8")
+            # Explicit, distinct stamps: the fingerprint is cached per file stamp, so a rewrite with the same
+            # mtime and size could be served from the cache and say nothing about the manifest's bytes.
+            os.utime(base / "backend" / "one.py", ns=(1_600_000_000_000_000_000, 1_600_000_000_000_000_000))
+            os.utime(manifest, ns=(1_600_000_100_000_000_000, 1_600_000_100_000_000_000))
             with mock.patch.object(paths, "BACKEND_ROOT", base / "backend"):
                 paths._fingerprint_for.cache_clear()
-                old = paths._fingerprint_for(stamp)
-                (base / "plugin.yaml").write_text("name: hermretro\nversion: 0.0.6\n", encoding="utf-8")
-                paths._fingerprint_for.cache_clear()
-                new = paths._fingerprint_for(stamp)
-            paths._fingerprint_for.cache_clear()
+                try:
+                    # The gateway's own call, not the cache's key: if code_fingerprint stops including the
+                    # manifest, this pair agrees although the version changed.
+                    old = paths.code_fingerprint()
+                    manifest.write_text("name: hermretro\nversion: 0.0.6\n", encoding="utf-8")
+                    os.utime(manifest, ns=(1_600_000_200_000_000_000, 1_600_000_200_000_000_000))
+                    new = paths.code_fingerprint()  # no cache clear: a new stamp is the miss
+                finally:
+                    paths._fingerprint_for.cache_clear()
         self.assertNotEqual(old, new)
 
     def test_no_other_file_repeats_the_version(self):

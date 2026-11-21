@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { registerAliases } from './aliases.mjs'
 
 registerAliases()
+const { JSDOM } = await import('jsdom')
 const { PAGES } = await import('#pages/index.js')
 const { composeStyles } = await import('../../page/app/style.js')
 const { findModules, MISSING_HINT } = await import('../../tools/bundle/node-modules.mjs')
@@ -218,10 +219,26 @@ test("page/ gives Small no tone but 'warn'", () => {
 })
 
 test('every tone and the shared colour classes are in the composed page stylesheet', () => {
-  // The stylesheet the page is built from (app/style.js), where a tone's colour class must land, wherever its
-  // chunk is written: a rule dropped from the composition fails here even if it is still in base.css.js.
-  const css = composeStyles(PAGES)
+  // The stylesheet the page is built from (app/style.js), parsed as rules: a tone's colour class must be a
+  // real rule with a colour, wherever its chunk is written. A comment mentioning the selector is not a rule
+  // and cannot stand in for one.
+  const dom = new JSDOM(`<!doctype html><style>${composeStyles(PAGES)}</style>`)
+  const rules = []
+  const collect = list => {
+    for (const rule of list ?? []) {
+      if (rule.selectorText) rules.push(rule)
+      if (rule.cssRules) collect(rule.cssRules)
+    }
+  }
+  collect(dom.window.document.styleSheets[0]?.cssRules)
   for (const name of [...TONES, 'bad', 'good']) {
-    assert.match(css, new RegExp(`\\.cs-${name} \\{ color:`), `FIX: define .cs-${name} { color: ... } in the page's stylesheet`)
+    const matching = rules.filter(rule =>
+      rule.selectorText.split(',').some(selector => selector.trim() === `.cs-${name}`)
+    )
+    assert.ok(matching.length, `FIX: define a .cs-${name} rule in the page's stylesheet`)
+    assert.ok(
+      matching.some(rule => rule.style.getPropertyValue('color').trim()),
+      `FIX: give .cs-${name} a color declaration in the page's stylesheet`
+    )
   }
 })

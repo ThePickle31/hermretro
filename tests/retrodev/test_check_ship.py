@@ -156,6 +156,9 @@ class Check(RepoCase):
             f"fast checks took {total_budget + 10.0:.1f} s together, over their {total_budget:g} s budget twice in a row",
             warnings[1],
         )
+        # Back in budget after a slow run: quiet (a gate looking only at the previous run would warn).
+        recovered = [{**rows[0]}, {**rows[1], "seconds": unit_budget - 5.0}]
+        self.assertEqual(checks.budget_warnings(ctx, recovered, total_budget - 5.0, True, last), [])
         cached = [{"name": "unit", "state": "ok", "seconds": 0.0, "cached": True}]
         self.assertEqual(checks.durations(cached, None, last), last, "a cached row keeps the last run's time")
 

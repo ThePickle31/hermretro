@@ -57,6 +57,13 @@ class NeverDoes(unittest.TestCase):
         self.assertIn("ctx.remote", line, "the push goes to the configured remote")
         self.assertNotIn("force", line)
         self.assertNotIn("-f", line, "a plain push, never forced")
+        # The refspec itself: <source>:main, with no force prefix ('+<sha>:main' forces it without either
+        # string above). The source name is a local, so any identifier is accepted; its shape is fixed.
+        self.assertRegex(
+            line,
+            r'\["git", "push", ctx\.remote, f"\{[A-Za-z_]\w*\}:main"\]',
+            "one plain refspec, <sha>:main, with no '+' in front",
+        )
 
     def test_force_appears_nowhere_and_the_mac_never_pushes(self):
         hits = [

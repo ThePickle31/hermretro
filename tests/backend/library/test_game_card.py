@@ -75,6 +75,15 @@ class CoverCheck(unittest.TestCase):
             [((x * 37 + y * 91) % 256, (x * 53 + y * 17) % 256, (x * 11 + y * 71) % 256, 255) for x in range(width)]
             for y in range(height)
         ]
+        # The Paeth row (y=2) must contain a byte where the three neighbours disagree and the spec picks the
+        # upper-left: its red at x=1 has left 0, up 14 and upper-left 8. A decoder choosing only between left
+        # and up decodes a different pixel here, which the comparison below sees.
+        source[1][0] = (8, 60, 120, 255)
+        source[1][1] = (14, 61, 121, 255)
+        source[2][0] = (0, 62, 122, 255)
+        left, up, corner = source[2][0][0], source[1][1][0], source[1][0][0]
+        self.assertEqual((left, up, corner), (0, 14, 8))
+        self.assertEqual(paeth(left, up, corner), 8, "the upper-left byte is the Paeth predictor here")
         rows = b""
         previous = bytes(width * 4)
         for y, filter_type in enumerate((1, 2, 4)):

@@ -38,13 +38,25 @@ test('New Game chats being set up: the latest started first, so a full shelf kee
 
 test('the cartridges stand on the ground and their captions hang below it at a fixed height', () => {
   const dom = new JSDOM(`<!doctype html><style>${CART_SHELF_CSS}</style>
-    <div class="cs-b-attract"><nav class="cs-b-shelf"><div class="cs-b-shelf-cart"><div class="cap"></div></div></nav></div>`)
+    <div class="cs-b-attract"><nav class="cs-b-shelf"><div class="cs-b-shelf-cart"><div class="cap"></div></div></nav>
+      <div class="cs-b-new"></div></div>`)
   const style = sel => dom.window.getComputedStyle(dom.window.document.querySelector(sel))
   const shelf = style('.cs-b-shelf')
-  assert.match(shelf.getPropertyValue('bottom'), /var\(--cs-at-ground, 48px\)/, 'the shelf drops by the ground')
-  assert.match(shelf.getPropertyValue('bottom'), /var\(--cs-b-cap\)/, 'and by the caption height')
+  // The whole expression: a subtraction turned into an addition would lift the cartridges off the ground
+  // while both variables were still named.
+  assert.equal(
+    shelf.getPropertyValue('bottom').replace(/\s+/g, ' ').trim(),
+    'calc(var(--cs-at-ground, 48px) - var(--cs-b-cap))',
+    'the shelf drops by the ground, less the caption height'
+  )
   assert.equal(shelf.getPropertyValue('align-items'), 'flex-end', 'every column ends on the same line')
   assert.match(style('.cap').getPropertyValue('height'), /var\(--cs-b-cap\)/, 'the caption is exactly that tall')
+  // The form above keeps clear of ground plus captions the same way.
+  assert.equal(
+    style('.cs-b-new').getPropertyValue('padding-bottom').replace(/\s+/g, ' ').trim(),
+    'calc(var(--cs-at-ground, 48px) + 140px)',
+    'the form ends above the shelf, by the ground and its captions'
+  )
 })
 
 test('the form above the shelf is centred only while it fits, so a tall form scrolls back to its title', () => {
