@@ -91,17 +91,14 @@ class NodeArchitecture(unittest.TestCase):
             tried.append(candidate)
             return None
 
-        paths.find_node.cache_clear()
-        try:
-            with (
-                mock.patch.dict(os.environ, {"PATH": ""}),
-                mock.patch.object(paths.os.path, "isfile", return_value=True),
-                mock.patch.object(paths.os, "access", return_value=True),
-                mock.patch.object(paths, "_node_version", side_effect=version),
-            ):
-                paths.find_node()
-        finally:
-            paths.find_node.cache_clear()
+        paths._failed_probes.clear()  # every candidate is probed: none is cooling down from an earlier failure
+        self.addCleanup(paths._failed_probes.clear)
+        with (
+            mock.patch.dict(os.environ, {"PATH": ""}),
+            mock.patch.object(paths, "_node_stamp", return_value=(0,)),
+            mock.patch.object(paths, "_node_version", side_effect=version),
+        ):
+            paths.find_node()
         self.assertLess(tried.index("/opt/homebrew/bin/node"), tried.index("/usr/local/bin/node"))
 
 

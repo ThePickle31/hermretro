@@ -154,7 +154,9 @@ imports; there are no exceptions).
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the
 gateway talks to it over a private Unix socket with a token. It replaces itself when the backend's code on disk
-changes and it is idle (the fingerprint covers every file under `backend/` and `plugin.yaml`). The broker
+changes and it is idle (the fingerprint covers every file under `backend/` and `plugin.yaml`), and likewise when
+its handshake shows its new workers cannot start (its `node` was removed, or `temp_ok` is false while the
+client's TMPDIR would work); a busy one keeps its games. The broker
 reads its fingerprint once, at start, and its handshake names it as `loaded_fingerprint`; the client compares
 that with the files on disk now, so a broker an update rewrote underneath is told apart from a new one.
 
