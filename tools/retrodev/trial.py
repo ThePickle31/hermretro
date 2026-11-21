@@ -1,6 +1,10 @@
 """Throwaway checkouts: `try <pr>` runs a pull request's full checks in one, and the release commands run the
 clean install (with its update check) in one at the release commit.
 
+try's required checks are fixed by the launcher (the fast ones, scaffold nested, acceptance, the clean
+install and the update from the newest published release), whatever the pull request changed: its own suite, kept
+apart from what a draft push needs (`check`) and from `check --full`.
+
     try <pr> [--keep] [--no-setup]
 
 A throwaway checkout is a detached git worktree in a short temp folder outside the repository (short: the checks
@@ -80,6 +84,38 @@ def fetch_pr(ctx, number: int) -> str:
     return sha
 
 
+REQUIRED = ("unit", "bundle", "lint", "page", "scan", "scaffold", "acceptance", "clean_install", "update")
+
+
+def upgrade_baseline(ctx, number: int, sha: str) -> str:
+    """Resolve and pin the latest stable release before we test the exact PR head."""
+    main = f"refs/remotes/{ctx.remote}/main"
+    refspec = f"refs/heads/main:{main}"
+    code, _, err = repo.run(["git", "fetch", "--quiet", "--atomic", "--tags", ctx.remote, refspec], ctx.top)
+    if code:
+        raise Failure(
+            f"#{number} upgrade is unverified: could not refresh {ctx.remote}/main and release tags: {err.strip()}",
+            f"check the remote and retry python tools/retrodev try {number}",
+        )
+    # Same stable-tag rule as tools/ci/update_check.py. Pin the commit so the subsequent check cannot pick another.
+    tags = repo.git(["tag", "--merged", main, "--list", "v*", "--sort=-v:refname"], ctx.top).split()
+    latest = next((tag for tag in tags if "-" not in tag), "")
+    baseline = repo.head(ctx.top, f"refs/tags/{latest}^{{commit}}") if latest else None
+    if not baseline:
+        raise Failure(
+            f"#{number} upgrade is unverified: no stable release tag on {ctx.remote}/main",
+            "check the published branch and its tags; do not count this trial as a full pass",
+        )
+    if not repo.is_ancestor(ctx.top, baseline, sha):
+        raise Failure(
+            f"#{number} upgrade is unverified: latest release {latest} is not an ancestor of PR head {sha[:9]}",
+            f"sync and push the PR branch, then run python tools/retrodev try {number} again",
+        )
+    ctx.out.say(f"upgrade baseline: {latest} ({baseline[:9]})")
+    ctx.out.set(update_from=baseline, update_tag=latest)
+    return baseline
+
+
 def run(ctx, number: int, keep: bool = False, setup: bool = True) -> int:
     sha = fetch_pr(ctx, number)
     ctx.out.say(f"pull request #{number} at {sha[:9]}")
@@ -87,10 +123,19 @@ def run(ctx, number: int, keep: bool = False, setup: bool = True) -> int:
     ctx.out.set(pr=number, head=sha, path=str(path), kept=keep)
     try:
         ctx.out.say(f"throwaway checkout {path}")
+        inside = ctx.at(path)
+        configured = inside.policy.get("checks", {}).get("inputs", {})
+        missing = [name for name in REQUIRED if name not in configured]
+        if missing:
+            raise Failure(
+                f"#{number} is unverified: required check configuration is missing: {', '.join(missing)}",
+                "restore the required entries under [checks.inputs] in tools/retrodev/policy.toml and push the fix",
+            )
+        baseline = upgrade_baseline(ctx, number, sha)
         if setup:
             start.run_setup(ctx, path)
         try:
-            checks.run(ctx.at(path), [], full=True)
+            checks.run(inside, list(REQUIRED), env={"RD_SCAFFOLD_FULL": "nested"}, update_from=baseline)
         except Failure as failure:
             raise Failure(
                 f"#{number} at {sha[:9]} failed its full checks: {failure.message}",

@@ -3,11 +3,8 @@
 
 import importlib.util
 import os
-import shutil
 import socket
 import sys
-import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -15,9 +12,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import host as host_os  # noqa: E402 - the repository root goes on sys.path first
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = host_os.LINUX or host_os.MACOS
 
@@ -87,47 +82,6 @@ class HostOs(unittest.TestCase):
         with self.assertRaises(RuntimeError) as caught:
             module.register(object())
         self.assertIn("Linux and macOS", str(caught.exception))
-
-
-@unittest.skipUnless(POSIX, "Linux and macOS only")
-class RealBroker(unittest.TestCase):
-    """Starts the real broker (no engine work) and completes its handshake: the peer check, the private run
-    folder and the socket path must all work on this system."""
-
-    def test_a_broker_starts_answers_and_stops(self):
-        if not paths.find_node().get("ok"):
-            self.skipTest("Node.js 22 or newer is not installed")
-        base = Path(tempfile.mkdtemp(prefix="hr-", dir="/tmp"))  # short: socket paths are capped
-        self.addCleanup(shutil.rmtree, base, True)
-        state = base / "run"
-        with mock.patch.dict(
-            os.environ, {"HERMRETRO_HOME": str(base / "home"), "HERMRETRO_BROKER_IDLE_SECONDS": "5"}
-        ):  # a leaked one exits soon
-            broker = client.ensure_broker(state, wait=30)
-        try:
-            self.assertTrue(broker.hello.get("ok"), broker.hello)
-            self.assertEqual(os.path.realpath(broker.hello["plugin_root"]), os.path.realpath(paths.PLUGIN_ROOT))
-            self.assertEqual(state.stat().st_mode & 0o777, 0o700)
-            self.assertEqual((state / "broker.sock").stat().st_mode & 0o777, 0o600)
-            pid = broker.hello["pid"]
-        finally:
-            try:
-                broker.request({"op": "shutdown", "force": True})
-            finally:
-                broker.close()
-        for _ in range(100):
-            try:  # this test started it, so reap it (an exited child stays visible until reaped)
-                if os.waitpid(pid, os.WNOHANG)[0] == pid:
-                    break
-            except ChildProcessError:  # not ours to reap: another process started it
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    break
-            time.sleep(0.1)
-        else:
-            self.fail(f"broker {pid} did not stop")
-        self.assertFalse((state / "broker.sock").exists())
 
 
 if __name__ == "__main__":

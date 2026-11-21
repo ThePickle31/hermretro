@@ -10,7 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS = ROOT / "skills"
-NAMES = ("setup", "game-planning", "authoring", "pixel-art", "rom-debugging", "deployment")
 
 # Mentions of Codex that deliberately name ModRetro's Codex product or keep a real path/URL.
 CODEX_ALLOWED = (
@@ -63,10 +62,11 @@ def anchors(path: Path) -> set[str]:
 
 
 class SkillsTest(unittest.TestCase):
-    def test_six_skills_with_matching_names(self):
+    def test_every_skill_names_its_folder_and_has_a_description(self):
+        # The folders are the inventory: a new skill must be well formed, not be added to a list here.
         dirs = sorted(p.name for p in SKILLS.iterdir() if (p / "SKILL.md").is_file())
-        self.assertEqual(dirs, sorted(NAMES))
-        for name in NAMES:
+        self.assertTrue(dirs)
+        for name in dirs:
             head = (SKILLS / name / "SKILL.md").read_text().split("\n---\n", 1)[0]
             self.assertIn(f"\nname: {name}\n", head + "\n")
             self.assertRegex(head, r"\ndescription: \S")

@@ -49,6 +49,14 @@ class Prepare(unittest.TestCase):
         self.assertNotIn("plugin.js", (self.r1.review / "stat.txt").read_text())
         self.assertIn("backend/b.py", (self.r1.review / "diff.patch").read_text())
 
+    def test_the_round_line_says_how_many_rounds_this_pull_request_gets(self):
+        self.assertEqual(inputs.round_section(1, {}, {}), "THIS IS ROUND 1 of 3.")
+        one = inputs.round_section(1, {}, {}, 1)
+        self.assertTrue(one.startswith("THIS IS ROUND 1 of 1 (the last)."), one)
+        self.assertIn("true severity", one)
+        self.assertEqual(inputs.round_section(1, {}, {}, 2), "THIS IS ROUND 1 of 2.")
+        self.assertTrue(inputs.round_section(2, {1: "x"}, {}, 2).startswith("THIS IS ROUND 2 of 2 (the last)."))
+
     def test_brief(self):
         brief = self.r1.brief.read_text()
         self.assertIn("pull request #7", brief)
@@ -61,14 +69,6 @@ class Prepare(unittest.TestCase):
         self.assertNotIn("$", brief.replace("$(", ""))  # every placeholder filled
         self.assertIn('"verdict": "clean" | "findings"', brief)
         self.assertEqual(len((self.r1.review / "commits.txt").read_text().splitlines()), 3)
-
-    def test_override_keeps_rules_and_output(self):
-        r = inputs.prepare(self.repo, 8, "HEAD", root=self.root, brief_override="Review only backend/c.py.")
-        brief = r.brief.read_text()
-        self.assertIn("Review only backend/c.py.", brief)
-        self.assertIn("Never call write_file or patch", brief)
-        self.assertIn("OUTPUT: only this JSON", brief)
-        self.assertNotIn("HOW TO REVIEW", brief)
 
     def test_round_two_has_earlier_findings_and_the_fixes(self):
         first = self.r1.sha

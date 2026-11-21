@@ -300,6 +300,7 @@ test("pageShell() matches the shell a page really gets", async () => {
 
     assert.ok(seen.length, 'the probe rendered')
     const shell = seen.at(-1)
+    assert.equal(shell.viaProfile, 'hermretro', 'the shell names the profile the studio page queried')
     const fixture = pageShell()
     // null or a value, by setup state and routing
     const scalar = new Set(['auto', 'autoId', 'buildSelection', 'choosing', 'shown', 'viaProfile'])

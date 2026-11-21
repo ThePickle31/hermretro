@@ -339,21 +339,8 @@ def apply(ctx, plan: Plan, what: str, dry_run: bool, run_checks: bool, build: bo
         out.say("done: " + item)
     for step in plan.next_steps:
         out.say("next: " + step)
-    out.say("then: " + then(ctx, plan.paths()))
+    out.say("then: python tools/retrodev check, commit, python tools/retrodev ship")
     return 0
-
-
-def then(ctx, paths: list[str]) -> str:
-    """The steps after new's own: a branch the clean install covers commits first (it installs the committed tree,
-    so check refuses uncommitted changes then). Decided over the whole branch, as check decides it (its changes
-    since it left the base, plus this scaffold's files), not over the latest scaffold alone."""
-    branch = set(repo.changed_files(ctx.top, ctx.remote_base) or []) | set(paths)
-    if any(repo.matches(path, ctx.policy["checks"]["triggers"].get("clean_install", [])) for path in branch):
-        return (
-            "commit (git add -A && git commit; the clean install that check adds installs the committed tree), "
-            "then python tools/retrodev check, then python tools/retrodev ship"
-        )
-    return "python tools/retrodev check, commit, python tools/retrodev ship"
 
 
 def run(ctx, args) -> int:

@@ -131,7 +131,7 @@ def open_it(ctx, released: str, version: str, words: str) -> int:
         repo.git(["add", "--", "plugin.yaml"], path)
         repo.git(["commit", "--quiet", "-m", title(version)], path)  # only the staged manifest
         release.release_only(tree, path, branch)
-    checks.run(tree, [])
+    checks.run(tree, release.version_pr_checks(tree))
     ship.run(tree, title(version), str(body_file))
     number = (state.load_branch(ctx.top, branch).get("pr") or {}).get("number")
     if not number:

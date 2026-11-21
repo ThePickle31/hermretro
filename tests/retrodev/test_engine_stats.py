@@ -163,6 +163,9 @@ class EngineUpdate(RepoCase):
     def test_a_version_must_look_like_one(self):
         code, out = self.run_cli("engine", "update", "latest", "--owner-words", WORDS, cwd=self.tree())
         self.assertEqual(code, 1, out)
+        # Refused by the version check itself, not by the branch gate that also refuses this checkout.
+        self.assertIn("'latest' is not an engine version", out)
+        self.assertIn("use the form X.Y.Z", out)
 
 
 class Stats(RepoCase):

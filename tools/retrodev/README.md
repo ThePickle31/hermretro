@@ -13,7 +13,7 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`), then enter its printed worktree: by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it). `docs/` and `chore/` may skip steps 1-2: `start <kind>/<topic> --no-plan`.
 4. `python tools/retrodev new <kind> ...` (`--dry-run` previews it, even on `dev`); use `--no-check` on intermediate scaffolds and run step 6 on the finished tree. An RPC in an `rpcs.py` over 350 lines takes `--module <name>_rpcs`; an RPC about one game takes `--game` (a `game` param with the library id; `NO_GAME` if unknown).
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
-6. `python tools/retrodev check`
+6. `python tools/retrodev check` (the fast checks; PR CI picks which slow ones run)
 7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 
@@ -77,7 +77,7 @@ Then steps 5 to 8 of the Quick path.
 | 4 build | agent | `start <kind>/<topic>` (feat, fix, docs, or chore for refactors that change no behaviour), `new ...`, edit, `check` (or `check --watch`), commit, `ship --title ...` (the body `notes/pr/<topic>.md` is written early: `start`, or `plan approve` inside the linked branch, writes it from the plan for the agent to fill in; `ship` writes it only when it is missing, then stops; later ones need only `ship`) |
 | 5 report | agent | `report` gives the facts (PR, commits, files, checks, CI, restarts); the agent adds the prose |
 | 6 approve | owner says approve, merge or go ahead | `approve <pr> --words "<the owner's exact words>"`, once per pull request |
-| 7 land | agent | `cd <main checkout> && python tools/retrodev land <pr>` in the background: up to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding |
+| 7 land | agent | `cd <main checkout> && python tools/retrodev land <pr>` in the background: 1 to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding |
 | 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts |
 
 At any time `status` names the one next step. `takeover <branch>` takes over a teammate's pushed branch, `sync`

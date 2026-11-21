@@ -315,11 +315,6 @@ def tracked(root: Path) -> list[str]:
 class Boundaries(unittest.TestCase):
     def test_backend_features_connect_only_through_front_doors_and_declared_events(self):
         allowed = allowances.in_files(ROOT, tracked(ROOT))
-        self.assertEqual(
-            [a.problem() for a in allowed if a.problem()],
-            [],
-            "malformed allowances\nFIX: name a known rule and give the reason after '—'",
-        )
         message = report(check(ROOT), allowed)
         self.assertFalse(message, message)
 

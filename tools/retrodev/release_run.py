@@ -32,7 +32,6 @@ import time
 
 from . import (
     approve,
-    checks_triggers,
     land,
     release,
     release_guard,
@@ -42,6 +41,7 @@ from . import (
     repo,
     reviews,
     state,
+    version_diff,
 )
 from .output import OWNER, WAITING, Failure, cmd
 
@@ -64,7 +64,7 @@ def resumable(failure: Failure, again: str) -> Failure:
 
 def version_only(ctx, old: str, new: str) -> str | None:
     """None when ``old``..``new`` changes only plugin.yaml's version line; else what it changes besides."""
-    return checks_triggers.beyond_version(ctx.top, old, new)
+    return version_diff.beyond_version(ctx.top, old, new)
 
 
 def checked_head(ctx, info: dict, rec: dict, again: str) -> str:

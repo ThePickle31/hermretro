@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, shows, tab, typeInto, answered, status, doctor, installAnswer }) => {
+await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, shows, tab, typeInto, answered, status, doctor, installAnswer, holdTimers }) => {
   const document = dom.window.document
   const chip = () => document.querySelector('.cs-upd-chip')
   const popover = () => document.querySelector('.cs-upd-pop')?.textContent.replace(/\s+/g, ' ') ?? ''
@@ -83,13 +83,14 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   // A build started while Hermes updated: the hermretro profile reloads only after it finishes.
   let looks = 0
   sessions = () => { looks += 1; return looks === 2 || looks === 3 ? [building('Moon Maze')] : [] }
+  const clock = holdTimers()  // the update's wait for the build to finish, on the fake clock
   await fresh()
   await openChip(); await click('Update now'); await settle(300)
   check('a build started during the update is waited for, and the popover says so', () => {
     assert.match(popover(), /Waiting for "Moon Maze" to finish building/)
     assert.ok(!log.includes('toggle:false'), 'not reloaded while it builds')
   })
-  await settle(4_500)
+  for (let round = 0; round < 8 && !log.includes('toggle:true'); round++) await clock.fire()
   check('once it finishes, the hermretro profile reloads', () => {
     assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'busy', 'busy', 'toggle:false', 'toggle:true'])
     assert.equal(chip().textContent, 'Updated')
