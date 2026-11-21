@@ -1,4 +1,4 @@
-// Model, effort and (ChatGPT or Codex Subscription models) speed: one button, one panel with a provider rail,
+// Model, effort and (ChatGPT or Codex Subscription and OpenAI API models) speed: one button, one panel with a provider rail,
 // the models, an Effort column and a speed bar.
 import {
   Button,
@@ -115,10 +115,12 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const current = providers.find(item => item.slug === shown.provider) ?? null
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers))
   const caps = current?.capabilities?.[shown.model] ?? null
-  const speed = hasFastMode(shown.provider, caps)
   const activeTab = tab === STARRED || providers.find(item => item.slug === tab) ? tab : (current?.slug ?? providers[0]?.slug ?? null)
   const activeProvider = providers.find(item => item.slug === activeTab) ?? null
   const needle = query.trim().toLowerCase()
+  // Standard / Fast only on the tab of the model in use (not another provider's, Starred or a search), and only when
+  // that model has fast mode: browsing away keeps the conversation's speed, shown by the bolt on the button.
+  const speed = !needle && activeTab === shown.provider && hasFastMode(shown.provider, caps)
   const groups = useModelRows(providers, activeTab, needle, stars)
   const name = shown.model ? modelName(shown.model).name : 'Default model'
   // The panel opens from the button and stays inside the window and the box that scrolls it: where there is too

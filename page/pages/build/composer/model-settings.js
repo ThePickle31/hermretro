@@ -1,5 +1,5 @@
 // The right column of the model panel (Effort as a list) and the bar along its bottom (Standard / Fast for
-// ChatGPT or Codex Subscription models with fast mode; Manage providers, or the held-pick note).
+// ChatGPT or Codex Subscription and OpenAI API models with fast mode; Manage providers, or the held-pick note).
 import { Codicon, jsx, jsxs } from '#sdk'
 import { AGENT } from '#app/ids.js'
 import { EFFORTS, modelName } from './model-names.js'
@@ -82,7 +82,7 @@ export function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
   })
 }
 
-/** Standard / Fast when `speed` (a Codex model with fast mode), and on the right the held note or Manage providers. */
+/** Standard / Fast when `speed` (on its provider's tab, the model in use has fast mode), and on the right the held note or Manage providers. */
 export function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
   return jsxs('div', {
     className: 'cs-b-mp-bar',

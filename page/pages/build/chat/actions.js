@@ -4,7 +4,7 @@ import { describeRequestError } from '#app/backend.js'
 import { studioTarget } from '#app/routing.js'
 import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { attachmentLine } from './attachments.js'
-import { FAST_PROVIDER, settleBuildPick } from './model-pick.js'
+import { FAST_PROVIDERS, settleBuildPick } from './model-pick.js'
 import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
 import { APPROVAL_LABELS, schedulePromptCheck } from './requests.js'
@@ -88,14 +88,14 @@ export async function reopenBuildChat(stored) {
 }
 
 /** A new hidden session in the studio profile, on the model, effort and fast mode picked for it (else the
- *  profile's default). Fast mode is sent only for a ChatGPT or Codex Subscription model. Returns its stored id. */
+ *  profile's default). Fast mode is sent only for a ChatGPT or Codex Subscription or OpenAI API model. Returns its stored id. */
 export async function createBuildChat(title, pick = null) {
   await retainChatRoute()
 
   const choice = {
     ...(pick?.model && pick?.provider ? { model: pick.model, provider: pick.provider } : {}),
     ...(pick?.effort ? { reasoning_effort: pick.effort } : {}),
-    ...(typeof pick?.fast === 'boolean' && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {})
+    ...(typeof pick?.fast === 'boolean' && FAST_PROVIDERS.has(pick?.provider) ? { fast: pick.fast } : {})
   }
   // On the canonical gateway a title finds an existing session before creating one. This title is a Build label only.
   const result = await chatRequest('session.create', { hidden: true, source: 'gui', ...choice }, 60_000)

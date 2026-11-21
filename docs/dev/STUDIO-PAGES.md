@@ -350,8 +350,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag; a star on each row, kept in the page's storage as
   `buildModelStars` because Hermes's own starred list is not open to plugins), Effort as a list on the right (Off
   only when the model can disable reasoning; Minimal, Low, Medium, High, X-high, Max; what the level is for under
-  it), and a bar along the bottom. The bar has Standard / Fast only for a ChatGPT or Codex Subscription
-  (`openai-codex`) model whose `capabilities` list `fast`; Fast shows as a bolt on the button and is sent as
+  it), and a bar along the bottom. The bar has Standard / Fast only on the tab of the model in use, when that is a
+  ChatGPT or Codex Subscription (`openai-codex`) or OpenAI API (`openai-api`) model whose `capabilities` list `fast`
+  (not on other providers' tabs, Starred or a search); Fast shows as a bolt on the button and is sent as
   `config.set {key: 'fast', value: 'fast'|'normal'}` (read back from `session.info.fast`); picking a model without
   fast mode sets it back to normal, because Hermes's priority tier would also turn on another provider's own fast
   mode. Changes are per conversation, never the profile default:
@@ -364,9 +365,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
   use the same model/provider pair for the draft chip and `session.create`: a saved pick (`buildModel`) wins,
   else use the studio default returned by `model.options` if both values are known. Clicking the displayed default
-  saves it as a pick. Creation also passes the chosen `reasoning_effort` (plus `fast` for a ChatGPT or Codex
-  Subscription model). The first message is not bound or sent if the returned session already has history or
-  does not confirm the model and provider sent with the request.
+  saves it as a pick. Creation passes the chosen `reasoning_effort` and the draft's `fast` choice for a ChatGPT or
+  Codex Subscription or OpenAI API model. The first message is not bound or sent if the returned session already
+  has history or does not confirm the model and provider sent with the request.
   A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
