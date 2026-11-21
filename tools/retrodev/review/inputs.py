@@ -28,8 +28,6 @@ EXCLUDED = (
     "tests/repo/registration.json",
 )
 MAX_ROUNDS = 3
-# The brief's two free sections, replaced whole by a short override (a focused or smoke-test round).
-BODY_START, BODY_END = "WHAT YOU ARE REVIEWING", "OUTPUT:"
 
 
 class InputsError(RuntimeError):
@@ -174,13 +172,9 @@ def fill_brief(
     commits: list[str],
     section: str,
     notes: str,
-    override: str | None = None,
     template: str | None = None,
 ) -> str:
     text = template if template is not None else BRIEF.read_text(encoding="utf-8")
-    if override is not None:
-        start, end = text.index(BODY_START), text.index(BODY_END)
-        text = text[:start] + override.strip() + "\n\n" + text[end:]
     return Template(text).safe_substitute(
         pr=pr,
         title=title,
@@ -207,7 +201,6 @@ def prepare(
     earlier: dict[int, str] | None = None,
     last_reviewed: str | None = None,
     root: Path | str | None = None,
-    brief_override: str | None = None,
     total: int = MAX_ROUNDS,
 ) -> RoundInputs:
     """Build <root>/<pr>/round<N>/ afresh for ``sha``.
@@ -266,7 +259,6 @@ def prepare(
         commits=commits,
         section=round_section(round_no, earlier, fixes, total),
         notes=commit_notes(commits, mechanical, moves),
-        override=brief_override,
     )
     for name, text in write.items():
         (review / name).write_text(text, encoding="utf-8")

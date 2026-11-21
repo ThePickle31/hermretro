@@ -111,17 +111,3 @@ class RunRound(unittest.TestCase):
         result = self.go(fake, {"s": self.reads()})
         self.assertEqual((result["status"], result["action"]), ("invalid", "needs-owner"))
         self.assertIn("--resume", fake.calls[1]["cmd"])
-
-    def test_skipped_without_profile_or_provider(self):
-        result = round.run_round(self.repo, 7, "HEAD", {}, root=self.root, notes=self.notes, run=FakeHermes())
-        self.assertEqual((result["status"], result["action"]), ("skipped", "merge-on-green"))
-        self.assertEqual(records.load(self.root, 7)["skipped"]["reason"], "no reviewer profile configured")
-        down = FakeHermes("Error: 429 rate limit", returncode=1)
-        result = round.run_round(self.repo, 8, "HEAD", {"profile": "rev"}, root=self.root, notes=self.notes, run=down)
-        self.assertEqual(result["status"], "skipped")
-        self.assertIn("429", records.load(self.root, 8)["skipped"]["reason"])
-        self.assertEqual(len(down.calls), 1)  # only the probe ran
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,5 +1,4 @@
-"""`new` friction from the first round of fresh-agent trials (the listener test scaffolds into a throwaway feature): rpc <feature>.<name>, the listener kind, the tool
-counts past six and the big tools.py warning, every tab on the README line and the tab template's Heading. Each
+"""`new` friction from the first round of fresh-agent trials (the listener test scaffolds into a throwaway feature): rpc <feature>.<name>, the listener kind, the big tools.py warning, every tab on the README line and the tab template's Heading. Each
 test failed before its fix.
 
 Run alone: python -m unittest tests.retrodev.test_new_kinds
@@ -8,7 +7,7 @@ Run alone: python -m unittest tests.retrodev.test_new_kinds
 import shutil
 import unittest
 
-from retrodev import scaffold, scaffold_backend
+from retrodev import scaffold
 
 from tests.retrodev.fixture import git, parallel, write
 from tests.retrodev.test_scaffold import ROOT, ScaffoldCase
@@ -77,13 +76,6 @@ class NewKinds(ScaffoldCase):
         git(self.tree, "commit", "-q", "-m", "Broker")
         self.new("listener", "broker", "history.build_kept", code=1)
         self.assertEqual(self.changed(), "")
-
-    def test_tool_counts_past_six_are_words(self):
-        text = "the 87 tools, and 81 tools, plus six plugin-owned ones: `chromatic_a` and `chromatic_b`. 87 in total.\n"
-        changed = scaffold_backend._contract_tool(text, "chromatic_seventh", "history")
-        self.assertIn("81 tools, plus seven", changed)
-        self.assertIn("88 in total", changed)
-        self.assertIn("plus 21", scaffold_backend._contract_tool(text.replace("six", "twenty"), "chromatic_x", "h"))
 
     def test_a_tool_in_a_tools_py_over_400_lines_suggests_a_sibling_module(self):
         header = (ROOT / "tools/retrodev/templates/tool/tools.py.tmpl").read_text().replace("{Name}", "History")

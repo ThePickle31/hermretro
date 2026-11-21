@@ -12,7 +12,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import game_card, games as library
-from .tool_args import _present_error, _tool_project  # noqa: F401 - re-exported: every tool module shares them
+from .tool_args import tool_error, tool_project
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -60,24 +60,24 @@ def present_game_handler(args: dict, **kwargs) -> str:
         conversation_id = str(kwargs.get("conversation_id") or "")
         session_id = str(kwargs.get("session_id") or "")
         if host._is_child(session_id):
-            return _present_error("Only the main conversation can show the game to the user.", "PARENT_ONLY")
+            return tool_error("Only the main conversation can show the game to the user.", "PARENT_ONLY")
         note = args.get("note")
         if note is not None and not isinstance(note, str):
-            return _present_error("note must be a string.", "INVALID_ARGUMENTS")
+            return tool_error("note must be a string.", "INVALID_ARGUMENTS")
         project = args.get("project")
         if project is not None and (not isinstance(project, str) or not project.strip()):
-            return _present_error("project must be an absolute folder path.", "INVALID_ARGUMENTS")
+            return tool_error("project must be an absolute folder path.", "INVALID_ARGUMENTS")
         if project:
             candidate = Path(project).expanduser()
             if not candidate.is_absolute() or not candidate.is_dir():
-                return _present_error(
+                return tool_error(
                     f"{project} is not an existing project folder (give an absolute path).", "PROJECT_NOT_FOUND"
                 )
             root = str(candidate)
         else:
             root = host._chat_project(conversation_id, session_id)
         if not root or not Path(root).is_dir():
-            return _present_error(
+            return tool_error(
                 "This chat has no current project. Select or create the game's project, build it with "
                 "chromatic_rom_build, then call chromatic_present_game again (or pass project).",
                 "NO_PROJECT",
@@ -124,7 +124,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
             }
         presented = registry.present(root, chat=chat, note=note)
         if presented is None:
-            return _present_error(f"{root} is not an existing project folder.", "PROJECT_NOT_FOUND")
+            return tool_error(f"{root} is not an existing project folder.", "PROJECT_NOT_FOUND")
         record = presented["presentation"]
         emit("library.game_presented", game=record["gameId"], root=root)
         url = player_server.get_server(host._game_root).url(record["gameId"])
@@ -143,7 +143,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
         )
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_present_game failed")
-        return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+        return tool_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
 
 
 # -- plugin-owned tool: the game card (game.json + cover.png) ------------------------------
@@ -225,17 +225,17 @@ def game_info_handler(args: dict, **kwargs) -> str:
     try:
         args = args if isinstance(args, dict) else {}
         if host._is_child(str(kwargs.get("session_id") or "")):
-            return _present_error("Only the main conversation can change the game card.", "PARENT_ONLY")
-        root, error = _tool_project("chromatic_game_info", args, kwargs)
+            return tool_error("Only the main conversation can change the game card.", "PARENT_ONLY")
+        root, error = tool_project("chromatic_game_info", args, kwargs)
         if error or root is None:  # narrows root to str for pyright: tool_project gives one or the other
-            return error or _present_error("chromatic_game_info: no project folder.", "NO_PROJECT")
+            return error or tool_error("chromatic_game_info: no project folder.", "NO_PROJECT")
         path = Path(root)
         title = library.project_title(path)
         game_card.scaffold(path, title)
         fields = {key: args[key] for key in _CARD_FIELDS if key in args}
         cover = args.get("cover")
         if cover is not None and (not isinstance(cover, str) or not cover.strip()):
-            return _present_error("cover must be the path of a PNG.", "INVALID_ARGUMENTS")
+            return tool_error("cover must be the path of a PNG.", "INVALID_ARGUMENTS")
         if fields or cover:
             entry = host._registry().get(library.game_id(root)) or {}
             build = entry.get("lastBuild") if isinstance(entry.get("lastBuild"), dict) else {}
@@ -271,7 +271,7 @@ def game_info_handler(args: dict, **kwargs) -> str:
         )
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_game_info failed")
-        return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+        return tool_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
 
 
 # -- plugin-owned tool: the Build page's build card ------------------------------------------
@@ -419,7 +419,7 @@ def build_report_handler(args: dict, **kwargs) -> str:
     try:
         args = args if isinstance(args, dict) else {}
         if host._is_child(str(kwargs.get("session_id") or "")):
-            return _present_error("Only the main conversation reports a build.", "PARENT_ONLY")
+            return tool_error("Only the main conversation reports a build.", "PARENT_ONLY")
         problems: list[str] = []
         known = set(BUILD_REPORT_TOOL["parameters"]["properties"])
         problems += [f"Unknown field {key!r}." for key in sorted(set(args) - known)]
@@ -516,7 +516,7 @@ def build_report_handler(args: dict, **kwargs) -> str:
         return json.dumps(answer)
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_build_report failed")
-        return _present_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
+        return tool_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")
 
 
 TOOLS = (

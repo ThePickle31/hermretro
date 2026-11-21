@@ -34,7 +34,7 @@ class Running:
         self.server = server.Server(str(self.socket_path), server.Handler)
         self.server.broker = self.broker  # type: ignore[attr-defined]
         (state / "broker.token").write_text(self.broker.token)
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
         self.stopped = threading.Event()
         threading.Thread(target=self._stop_when_asked, daemon=True).start()
 

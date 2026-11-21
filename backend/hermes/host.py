@@ -72,16 +72,16 @@ def on_subagent_stop(child_session_id=None, **_kwargs):
             _child_sessions.pop(str(child_session_id), None)
 
 
-def _deliver(response: dict, name: str, encode=results.encode):
+def _deliver(response: dict, name: str):
     """Shape a broker response for the model. By now the tool has already run, so a failure here
     (for example the frames folder cannot be written) must not read as "the tool did not run"."""
     try:
-        return encode(response, name, _data_dir() / "frames", _attach_images())
+        return results.encode(response, name, _data_dir() / "frames", _attach_images())
     except Exception as error:
         logger.exception("Chromatic tool %s ran but its result could not be fully delivered", name)
         problem = f"{type(error).__name__}: {error}"
     try:
-        plain = encode(response, name, None, False)  # the same result, without saving images
+        plain = results.encode(response, name, None, False)  # the same result, without saving images
         payload = json.loads(plain) if isinstance(plain, str) else None
         if isinstance(payload, dict):
             payload["deliveryProblem"] = (

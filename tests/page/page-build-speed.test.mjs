@@ -17,8 +17,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   scenario.models = answered({ model: 'gpt-6.2-sol', provider: 'openai-codex', providers: [
     { slug: 'anthropic', name: 'Anthropic', authenticated: true, models: ['claude-opus-5-5'],
       capabilities: { 'claude-opus-5-5': { fast: true, reasoning: true } } },
-    { slug: 'openai-codex', name: 'ChatGPT or Codex Subscription', authenticated: true, total_models: 19, models: ['gpt-6.2-sol', 'gpt-5-mini'],
-      capabilities: { 'gpt-6.2-sol': { fast: true, reasoning: true }, 'gpt-5-mini': { reasoning: true } } },
+    { slug: 'openai-codex', name: 'ChatGPT or Codex Subscription', authenticated: true, total_models: 19, models: ['gpt-6.2-sol', 'gpt-5-mini', 'o3-mini'],
+      capabilities: { 'gpt-6.2-sol': { fast: true, reasoning: true }, 'gpt-5-mini': { reasoning: true }, 'o3-mini': { reasoning: true } } },
     { slug: 'openai-api', name: 'OpenAI API', authenticated: true, models: ['gpt-6.2'], capabilities: { 'gpt-6.2': { fast: true, reasoning: true } } },
     { slug: 'gone', name: 'Signed Out Co', authenticated: false, models: ['x-1'] }] })
   scenario.sets = []
@@ -96,9 +96,11 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   check('unstarring takes it off the list', () => {
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.title), ['gpt-6.2-sol · ChatGPT or Codex Subscription'])
   })
-  await typeInto(pop().querySelector('input[aria-label="Search models"]'), 'o')
-  check('a search groups matches under each provider\u2019s name and drops the tab\u2019s highlight', () => {
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-group')].map(node => node.textContent), ['Anthropic', 'ChatGPT or Codex Subscription'])
+  await typeInto(pop().querySelector('input[aria-label="Search models"]'), 'gpt')
+  check('a search groups matches under each provider\u2019s name, drops the nonmatches and the tab\u2019s highlight', () => {
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-group')].map(node => node.textContent), ['ChatGPT or Codex Subscription', 'OpenAI API'])
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.title),
+      ['gpt-6.2-sol · ChatGPT or Codex Subscription', 'gpt-5-mini · ChatGPT or Codex Subscription', 'gpt-6.2 · OpenAI API'])
     assert.ok(!pop().querySelector('.cs-b-mp-rail [aria-pressed="true"]'))
   })
   await key('keydown', 'Escape')

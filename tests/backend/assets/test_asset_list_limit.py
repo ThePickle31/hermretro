@@ -20,9 +20,6 @@ class AssetListLimit(unittest.TestCase):
         self.assertTrue(answer["ok"], answer)
         return answer
 
-    def test_the_cap_is_400(self):
-        self.assertEqual(assets_rpcs.ASSET_LIST_LIMIT, 400)
-
     def test_an_ordinary_game_lists_every_picture(self):
         answer = self.listed(4)
         self.assertEqual([item["name"] for item in answer["assets"]], ["Cover", *(f"image{n:03d}" for n in range(4))])

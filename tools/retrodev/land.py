@@ -155,7 +155,7 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         mechanical=reviews.mechanical(ctx, tree, ctx.remote_base, sha),
         probe=probe,
         run=run,
-        ls_remote=ctx.fakes.get("ls_remote") or (lambda path, name: audit.ls_remote_branch(path, name, ctx.remote)),
+        ls_remote=lambda path, name: audit.ls_remote_branch(path, name, ctx.remote),
         root=root,
         notes=notes,
         db=ctx.fakes.get("review_db"),

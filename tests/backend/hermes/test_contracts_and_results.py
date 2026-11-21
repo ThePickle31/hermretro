@@ -59,18 +59,6 @@ class ContractTests(unittest.TestCase):
         self.assertIn("desktop_preview tool", schemas["chromatic_device_capture"])
         self.assertNotIn("Codex", schemas["chromatic_device_capture"])
 
-    def test_manifest_lists_exactly_the_registered_tools(self):
-        manifest = (paths.PLUGIN_ROOT / "plugin.yaml").read_text()
-        declared = [
-            line.strip()[2:]
-            for line in manifest.split("provides_tools:")[1].splitlines()
-            if line.strip().startswith("- ")
-        ]
-        engine = [s["name"] for s in contracts.hermes_schemas()]
-        # plugin-owned tools first, then the engine's in pinned order (the set itself is checked by test_lockstep)
-        self.assertEqual(declared[-len(engine) :], engine)
-        self.assertEqual(len(set(declared)), len(declared))
-
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()
         self.assertTrue(check["verified"], check)

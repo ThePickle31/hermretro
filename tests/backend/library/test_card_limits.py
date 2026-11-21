@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
 CONTRACT = ROOT / "docs" / "dev" / "CONTRACT.md"
@@ -56,10 +57,10 @@ class ContractLimits(unittest.TestCase):
 
     def test_file_sizes_and_cover(self):
         self.assertEqual(number(r"`game\.json` is at most (\d+) KB", self.doc) * 1024, game_card.MAX_CARD_BYTES)
-        self.assertEqual(number(r"a PNG of at most (\d+) KB", self.doc) * 1024, game_card.MAX_COVER_BYTES)
+        self.assertEqual(number(r"a PNG of at most (\d+) KB", self.doc) * 1024, game_cover.MAX_COVER_BYTES)
         self.assertEqual(number(r"exactly (\d+)×\d+", self.doc), game_card.COVER_WIDTH)
         self.assertEqual(number(r"exactly \d+×(\d+)", self.doc), game_card.COVER_HEIGHT)
-        self.assertEqual(number(r"(\d+)–\d+ colours", self.doc), game_card.MIN_COVER_COLOURS)
+        self.assertEqual(number(r"(\d+)–\d+ colours", self.doc), game_cover.MIN_COVER_COLOURS)
         self.assertEqual(number(r"\d+–(\d+) colours", self.doc), game_card.MAX_COVER_COLOURS)
 
 
@@ -68,6 +69,7 @@ class SchemaLimits(unittest.TestCase):
 
     def test_schema(self):
         props = library_tools.GAME_INFO_TOOL["parameters"]["properties"]
+        self.assertNotIn("required", library_tools.GAME_INFO_TOOL["parameters"])
         for field, (_low, high) in game_card.LIMITS.items():
             self.assertEqual(props[field]["maxLength"], high, field)
         self.assertEqual(props["genres"]["maxItems"], game_card.MAX_GENRES)

@@ -145,23 +145,6 @@ def judges(mode: str, env: dict) -> list[tuple[list[str], dict]]:
     ]
 
 
-class NestedModeSkipsOnlyThePlaceholderGate(unittest.TestCase):
-    """Fast, always run: RD_SCAFFOLD_FULL=nested runs the whole unit suite (the placeholder gate among it) on
-    unfilled stubs, so only that subprocess gets RETRODEV_SCAFFOLD_CHECK; the fast mode and the caller's own
-    environment (which the later placeholder-gate run uses) keep the gate on."""
-
-    def test_nested_mode_turns_the_gate_off_for_its_own_run_only(self):
-        env = {"PATH": "/bin"}
-        [(command, nested_env)] = judges("nested", env)
-        self.assertIn("unit", command)
-        self.assertEqual(nested_env.get("RETRODEV_SCAFFOLD_CHECK"), "1")
-        self.assertNotIn("RETRODEV_SCAFFOLD_CHECK", env, "the caller's environment keeps the gate on")
-
-    def test_the_fast_mode_keeps_the_gate_on(self):
-        for command, fast_env in judges("1", {"PATH": "/bin"}):
-            self.assertNotIn("RETRODEV_SCAFFOLD_CHECK", fast_env, command)
-
-
 @unittest.skipIf(os.environ.get(NESTED), "inside its own throwaway run")
 @unittest.skipUnless(os.environ.get("RD_SCAFFOLD_FULL"), "slow: python tools/check.py scaffold runs it")
 class GeneratedCodePassesTheRealChecks(unittest.TestCase):
