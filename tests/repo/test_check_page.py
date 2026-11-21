@@ -126,6 +126,8 @@ class PageSummary(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "node is missing")
     def test_a_live_run_reads_the_same_with_either_reporter(self):
         # Exercise both actual Node reporters without depending on the size of a product scenario.
+        node = shutil.which("node")
+        assert node is not None  # the skip above checks availability
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scenario = root / "page-probe.test.mjs"
@@ -135,7 +137,7 @@ class PageSummary(unittest.TestCase):
             for reporter in ("spec", "tap"):
                 with self.subTest(reporter=reporter):
                     result = subprocess.run(
-                        [shutil.which("node"), "--test", f"--test-reporter={reporter}", scenario, ordinary],
+                        [node, "--test", f"--test-reporter={reporter}", scenario, ordinary],
                         cwd=root,
                         text=True,
                         capture_output=True,

@@ -11,8 +11,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   await render()
   // The registry test (registry.test.mjs) pins every page in nav order; here the shell draws them, the built-in ones
   // first, so a page added at the end (python tools/retrodev new page) changes only the registry and its test.
-  check('one segmented control in the header: Build · Setup · Games · Emulator, opening on Build', () => {
-    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent), ['Build', 'Setup', 'Games', 'Emulator'])
+  check('one segmented control starts with Build · Setup · Games · Emulator, opening on Build', () => {
+    const labels = [...nav().querySelectorAll('button')].map(node => node.firstChild.textContent)
+    assert.deepEqual(labels.slice(0, 4), ['Build', 'Setup', 'Games', 'Emulator'])
+    assert.ok(!labels.includes('Prompts'), 'the removed page is not in the nav')
     assert.equal(currentTab(), 'Build')
   })
   check('with the backend off there are no setup steps, only how to switch it on', () => {
