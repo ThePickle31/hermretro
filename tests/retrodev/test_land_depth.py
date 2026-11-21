@@ -9,7 +9,7 @@ import unittest
 
 from retrodev.review import records
 
-from tests.retrodev.fixture import parallel
+from tests.retrodev.fixture import git, parallel
 from tests.retrodev.landing import FINDING, GREEN, PR, TITLE, LandCase, reply
 
 load_tests = parallel
@@ -58,8 +58,7 @@ class Depth(LandCase):
         self.assertIn("Review depth: one round", (self.main / "notes" / "reviews" / "pr12.md").read_text())
 
     def test_a_second_round_file_gets_round_two_which_reviews_the_fixes(self):
-        policy = tomllib.loads((self.main / "tools" / "retrodev" / "policy.toml").read_text(encoding="utf-8"))
-        name = policy["land"]["second_round"][0].replace("*", "probe.js")
+        name = self.second_round_name()
         tree = self.open_pr(change=lambda t: self.commit(t, name, "export const probe = 1\n", TITLE))
         self.reviewer("OK\n", reply("s1", findings=1))
         code, data = self.land()
@@ -88,6 +87,7 @@ class Depth(LandCase):
         self.reviewer("OK\n", rated("s1", "medium", "high"))
         code, data = self.land()
         self.assertEqual((code, data["action"], data["last_round"]), (1, "fix", False), data)
+        self.assertEqual(data["review_depth"]["rounds"], 2, "the answer names the depth after the round")
         self.assertEqual(self.record()["depth"]["rounds"], 2)
         self.assertIn("round 1 had a high-severity finding", self.record()["depth"]["why"])
         self.fix(tree, 1, count=2)
@@ -140,7 +140,51 @@ class Depth(LandCase):
         code, out = self.land("--dry-run", as_json=False)
         self.assertEqual(code, 0, out)
         self.assertIn("review depth: one round", out)
+        code, data = self.land("--dry-run")
+        self.assertEqual((code, data["review_depth"]["rounds"]), (0, 1), data)
         self.assertNotIn("depth", self.record())
+
+    def second_round_name(self) -> str:
+        policy = tomllib.loads((self.main / "tools" / "retrodev" / "policy.toml").read_text(encoding="utf-8"))
+        return policy["land"]["second_round"][0].replace("*", "probe.js")
+
+    def test_a_second_round_file_first_added_by_the_round_two_fixes_is_reviewed(self):
+        tree = self.open_pr()
+        self.reviewer("OK\n", reply("s1", findings=1))
+        self.assertEqual(self.land()[0], 1)
+        self.assertEqual(self.run_cli("answer", PR, "1", "0", "Wrong: the test exists, see its output")[0], 0)
+        self.reviewer("OK\n", reply("s2", findings=1))  # the judging round finds something else
+        code, data = self.land()
+        self.assertEqual((code, data["round"], data["last_round"]), (1, 2, True), data)
+        name = self.second_round_name()
+        self.commit(tree, name, "export const probe = 1\n", "Fix round 2, and touch a second-round file")
+        head = self.publish(tree)
+        self.assertEqual(self.run_cli("answer", PR, "2", "0", "Fixed: the test")[0], 0)
+        code, out = self.land("--dry-run", as_json=False)
+        self.assertIn(f"another round: it now changes {name}", out)
+        self.assertIn("would: probe the reviewer, then run review round 3", out)
+        self.reviewer("OK\n", reply("s3"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(records.valid_rounds(self.record())[-1]["sha"], head, "round 3 saw the new file")
+
+    def test_a_push_that_changes_nothing_of_the_pull_request_is_no_fix_for_a_disputed_finding(self):
+        tree = self.open_pr()
+        self.reviewer("OK\n", reply("s1", findings=1))
+        self.assertEqual(self.land()[0], 1)
+        self.assertEqual(self.run_cli("answer", PR, "1", "0", "Wrong: the test exists, see its output")[0], 0)
+        git(tree, "commit", "-q", "--allow-empty", "-m", "Nothing")
+        self.publish(tree)
+        code, out = self.land("--dry-run", as_json=False)
+        self.assertIn("would: probe the reviewer, then run review round 2", out)
+        self.on_dev("docs/other.md", "# Other\n")  # a clean merge of dev changes the tree, not the patch
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
+        self.publish(tree)
+        self.assertTrue(self.land("--dry-run")[1]["review_depth"]["same_patch"])
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual([entry["round"] for entry in records.valid_rounds(self.record())], [1, 2])
 
 
 if __name__ == "__main__":

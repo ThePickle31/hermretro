@@ -641,7 +641,7 @@ refused for merge conflicts says the same. Then, from the records (`records.next
 - **how many rounds** (`land_depth.py`, recomputed on every `land`, kept as `depth` in the review record and printed
   by `--dry-run`): one. Two when the pull request changes a file matching `policy.toml` `[land] second_round` (the
   second reviews the fixes), or when its changed files cannot be read. A high-severity finding adds the round after
-  it. Never more than 3
+  it, and so does a `second_round` file the last reviewed head did not change. Never more than 3
 - **a round is due: none at this head yet, fewer than 3, earlier findings all answered**: probes the reviewer once;
   unavailable, or no `review_profile`: reviews skipped with the reason recorded, on to CI. Else runs the round (minutes;
   CI runs meanwhile)
@@ -651,7 +651,8 @@ refused for merge conflicts says the same. Then, from the records (`records.next
 - **every finding answered, nothing new pushed**: the next round judges the answers, unless every finding of the
   last due round was rated low (a low finding may be answered `Deferred: <where it is recorded>`)
 - **the last due round had findings, all answered**: no further round: on to CI with this head, recorded as the one
-  accepted for that round (`accepted` in the review record)
+  accepted for that round (`accepted` in the review record). A push that leaves the pull request's patch as the round
+  saw it (an empty commit, a clean merge of `dev`) is no fix: findings above low then still get the judging round
 - **a push after the accepted head (a CI fix, say), fewer than 3 rounds ran**: a round reviews the new head
 - **3 rounds ran and the head moved past round 3's clean head or the accepted head**: exit 3 (`action:
   reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not

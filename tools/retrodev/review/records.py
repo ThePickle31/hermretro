@@ -184,8 +184,12 @@ def only_low(entry: dict) -> bool:
 def reviewed_as(record: dict, head: str) -> str:
     """The reviewed head that ``head`` stands for: a head that only merged the base branch after it keeps its review
     (record['carried'], written by land_carry), else ``head`` itself."""
-    for entry in record.get("carried") or []:
-        if entry.get("head") == head:
+    rounds = valid_rounds(record)
+    if rounds and head == rounds[-1]["sha"]:
+        return head  # reviewed itself, later than any carry made for it
+    current = {rounds[-1]["sha"] if rounds else None, accepted_head(record)}
+    for entry in reversed(record.get("carried") or []):
+        if entry.get("head") == head and entry.get("reviewed") in current:
             return entry["reviewed"]
     return head
 
@@ -201,9 +205,10 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     green; 'wait-ci' clean, CI not green; 'reviews-exhausted' MAX_ROUNDS ran and the head moved past the reviewed
     (or accepted) head: the owner decides.
 
-    Before MAX_ROUNDS, a head is accepted only when it differs from the reviewed one (fixes were pushed) or every
-    finding was rated low: findings above low that are only disputed, with nothing pushed, get a round to judge the
-    answers ('fix', which land turns into 'review' once all are answered).
+    Before MAX_ROUNDS, a head is accepted only when its patch differs from the reviewed one (fixes were pushed; an
+    empty commit or a clean merge of the base branch is not one: depth['same_patch']) or every finding was rated
+    low: findings above low that are only disputed get a round to judge the answers ('fix', which land turns into
+    'review' once all are answered).
 
     A clean verdict counts only for the head it reviewed, whatever the round count (or a head carried over from it:
     one that only merged the base branch after it, ``reviewed_as``)."""
@@ -227,7 +232,8 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
             return "fix-then-merge"
         if accepted is not None:
             return "reviews-exhausted" if exhausted else "review"
-        if exhausted or head != last["sha"] or only_low(last):
+        pushed = head != last["sha"] and not (record.get("depth") or {}).get("same_patch")
+        if exhausted or pushed or only_low(last):
             return "fix-then-merge"
         return "fix"
     return "review" if head != last["sha"] else "fix"

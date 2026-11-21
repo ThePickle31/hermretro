@@ -119,6 +119,25 @@ class NextAction(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(records.next_action(rec, True, head=head), want)
 
+    def test_a_head_reviewed_itself_wins_over_a_carry_made_for_it_and_stale_carries_do_not_count(self):
+        # Accepted "b" was synced to "c" (carried), then a round reviewed "c" directly and found it clean.
+        rec = record(rnd(1, "a"), rnd(2, "c", "clean"), depth=2, accepted={"head": "b", "round": 1})
+        rec["carried"] = [{"head": "c", "reviewed": "b", "resolution_lines": 0}]
+        self.assertEqual(records.reviewed_as(rec, "c"), "c")
+        self.assertEqual(records.next_action(rec, True, head="c"), "merge")
+        self.assertEqual(records.next_action(rec, False, head="c"), "wait-ci")
+        rec["carried"].append({"head": "d", "reviewed": "b", "resolution_lines": 0})  # points past the clean head
+        self.assertEqual(records.reviewed_as(rec, "d"), "d")
+        rec["carried"].append({"head": "e", "reviewed": "c", "resolution_lines": 0})
+        self.assertEqual(records.next_action(rec, True, head="e"), "merge")
+
+    def test_a_push_with_the_same_patch_is_no_fix(self):
+        rec = record(rnd(1, "a"), depth=1)
+        rec["depth"]["same_patch"] = True
+        self.assertEqual(records.next_action(rec, True, head="b"), "fix")
+        rec["depth"]["same_patch"] = False
+        self.assertEqual(records.next_action(rec, True, head="b"), "fix-then-merge")
+
     def test_an_acceptance_belongs_to_its_round_and_older_records_mean_round_three(self):
         old = record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c"), accepted={"head": "d"})
         self.assertEqual(records.accepted_head(old), "d")
