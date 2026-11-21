@@ -1,5 +1,6 @@
 """The page's status poll and a first run: cheap to poll, honest about Node and updates, folders that exist."""
 
+import io
 import os
 import subprocess
 import sys
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker import engine  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker import lane  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import host as host_os  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
@@ -118,8 +120,30 @@ class ProxySettingsReachDownloads(unittest.TestCase):
         self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
 
     def test_the_engine_gets_them(self):
-        for key in PROXY:
-            self.assertIn(key, engine._PASSTHROUGH)
+        # The environment Popen actually receives from the broker's launch, not a helper's return value:
+        # checking sanitized_environment() alone stays green if new_engine stops passing its result.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "engine"
+            (root / "scripts").mkdir(parents=True)
+            (root / "scripts" / "start-mcp.mjs").write_text("", encoding="utf-8")
+            broker = mock.Mock(node="/usr/bin/node")
+            with (
+                mock.patch.dict(os.environ, {**PROXY, "HERMES_GATEWAY_TOKEN": "secret"}),
+                mock.patch.object(
+                    paths, "select_engine", return_value={"root": root, "prepared": False, "check": {"verified": True}}
+                ),
+                mock.patch.object(paths, "setup_root", return_value=Path(folder) / "toolchain"),
+                mock.patch.object(engine.subprocess, "Popen") as popen,
+                mock.patch.object(engine.EngineProcess, "request", return_value={}),
+                mock.patch.object(engine.EngineProcess, "notify"),
+            ):
+                popen.return_value.stdin = io.StringIO()
+                popen.return_value.stdout = io.StringIO("")
+                popen.return_value.stderr = io.StringIO("")
+                lane.LaneMixin.new_engine(broker, "test-client")
+        env = popen.call_args.kwargs["env"]
+        self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
+        self.assertNotIn("HERMES_GATEWAY_TOKEN", env)
 
     def test_setup_scripts_get_them(self):
         node = {"found": True, "path": "/usr/bin/node", "version": "24.0.0", "required": "22", "ok": True}
