@@ -12,7 +12,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
 from ..system.events import emit
-from . import progress as onboarding, provision, studio_profile
+from . import progress as onboarding, provision, recovery, studio_profile
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -241,27 +241,35 @@ def rpc_studio_profile(ctx):
 
 @rpc("install")
 def rpc_install(ctx):
-    """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker)
-    or ``{"action": "start"}``. Always returns the download list, so the page can show it first."""
+    """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker),
+    ``{"action": "start"}`` or ``{"action": "cancel"}`` (the engine's own MCP cancellation; the install then reports
+    ``cancelled`` once the engine let go of its lock). Always returns the download list, so the page can show it first."""
 
     def install(params, **_kwargs):
         try:
             action = (params or {}).get("action") or "status"
+            root = paths.setup_root()
             answer = {
                 "ok": True,
                 "manifest": onboarding.manifest(),
-                "root": str(paths.setup_root()),
+                "root": str(root),
+                "space": recovery.free_space(root),
                 "install": {"state": "idle"},
             }
             if action == "start":
                 with host.ensure_broker() as client:
                     reply = client.request({"op": "install_start"})
-            elif action == "status":
+            elif action in ("status", "cancel"):
                 client, _error = host.try_connect(paths.runtime_dir())
                 if client is None:
+                    # No broker: nothing runs. The last install, as its journal tells it (``interrupted`` when its
+                    # broker ended mid-run), so a reload shows what happened instead of a fresh start.
+                    last = recovery.recovered(root, None)
+                    if last is not None:
+                        answer["install"] = onboarding.progress(last, root)
                     return answer
                 with client:
-                    reply = client.request({"op": "install_status"})
+                    reply = client.request({"op": "install_status" if action == "status" else "install_cancel"})
             else:
                 return {"ok": False, "error": f"Unknown action {action!r}."}
             if not reply.get("ok"):

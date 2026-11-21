@@ -8,128 +8,16 @@ from __future__ import annotations
 
 import hashlib
 import os
-import threading
 import time
 from pathlib import Path
 
-from .. import setup
-from ..system import paths
 from .engine import EngineError
+from .install import InstallMixin
 from .lane import Denied
 
 
-def _prepare_failure(result: dict, structured: dict) -> str:
-    """One readable reason a toolchain_prepare call did not finish: the first failed component's
-    error, else the engine's message, else its text."""
-    run = structured.get("result")
-    for component in (run.get("components") or []) if isinstance(run, dict) else []:
-        if isinstance(component, dict) and component.get("status") in ("failed", "blocked"):
-            error = component.get("error")
-            message = error.get("message") if isinstance(error, dict) else error or component.get("reason")
-            if message:
-                return f"{component.get('id')}: {message}"
-    if isinstance(structured.get("message"), str) and structured["message"]:
-        return structured["message"]
-    text = " ".join(
-        str(block.get("text", ""))
-        for block in result.get("content") or []
-        if isinstance(block, dict) and block.get("type") == "text"
-    )
-    return text or "The game tools could not be prepared."
-
-
-class ControlMixin:
-    """The Broker's install, control op and housekeeping methods."""
-
-    # -- the desktop page's toolchain install ------------------------------------------
-    def install_running(self) -> bool:
-        with self.install_lock:
-            return self.install.get("state") == "running"
-
-    def start_install(self) -> dict:
-        """Prepare the game toolchain for the desktop page, without a chat. Runs the engine's own
-        toolchain_prepare in a throwaway worker on a background thread; install_status reports it."""
-        with self.install_lock:
-            if self.install.get("state") == "running":
-                return dict(self.install)
-            if not self.prepare_lock.acquire(blocking=False):
-                raise Denied(
-                    "OPERATION_IN_PROGRESS",
-                    "Another setup operation is already running on this machine (probably in a chat). "
-                    "Wait for it to finish; this page moves on when the tools are verified.",
-                )
-            try:
-                self.install = {
-                    "state": "running",
-                    "started_at": time.time(),
-                    "finished_at": None,
-                    "error": None,
-                    "code": None,
-                    "seeded": None,
-                    "baseline_bytes": setup.download_bytes(paths.setup_root()),
-                }
-                snapshot = dict(self.install)
-                threading.Thread(target=self._run_install, name="hermretro-install", daemon=True).start()
-            except BaseException as error:
-                # Never leave the setup lock held, or a "running" install nobody runs.
-                self.prepare_lock.release()
-                self.install = {
-                    "state": "failed",
-                    "started_at": None,
-                    "finished_at": time.time(),
-                    "code": "INSTALL_ERROR",
-                    "error": f"{type(error).__name__}: {error}"[:800],
-                }
-                raise
-        self.trace(event="install_started")
-        return snapshot
-
-    def _run_install(self) -> None:
-        engine = None
-        outcome: dict = {"state": "failed", "error": None, "code": None}
-        try:
-            try:
-                seeded = setup.seed_toolchain_cache()
-            except Exception as error:  # reuse is an optimisation; never let it block setup
-                seeded = {"seeded": False, "reason": f"{type(error).__name__}: {error}"}
-            self.trace(event="toolchain_cache_seed", **seeded)
-            with self.install_lock:
-                self.install["seeded"] = bool(seeded.get("seeded"))
-                if seeded.get("seeded"):
-                    # The copied cache is not a download: count only what arrives after it.
-                    self.install["baseline_bytes"] = setup.download_bytes(paths.setup_root())
-            engine = self.new_engine("chromatic-studio-install")
-            self.install_engine = engine  # close_all stops it if the broker stops mid-install
-            result = engine.call_tool("toolchain_prepare", {"components": ["build", "emulator"]}, timeout=1800)
-            structured = result.get("structuredContent")
-            structured = structured if isinstance(structured, dict) else {}
-            if result.get("isError") or structured.get("success") is not True:
-                outcome.update(
-                    code=str(structured.get("stage") or "PREPARE_FAILED").upper(),
-                    error=_prepare_failure(result, structured)[:800],
-                )
-            else:
-                outcome = {"state": "done", "error": None, "code": None}
-        except Denied as denial:
-            outcome.update(code=denial.code, error=str(denial))
-        except EngineError as error:
-            outcome.update(code="ENGINE_ERROR", error=str(error)[:800])
-        except Exception as error:  # surface, never hide
-            outcome.update(code="INSTALL_ERROR", error=f"{type(error).__name__}: {error}"[:800])
-        finally:
-            if engine is not None:
-                engine.close()
-            self.install_engine = None
-            self.prepare_lock.release()
-            with self.install_lock:
-                self.install.update(outcome, finished_at=time.time())
-            self.last_activity = time.monotonic()
-            self.trace(event="install_finished", state=outcome["state"], code=outcome.get("code"))
-
-    def install_status(self) -> dict:
-        with self.install_lock:
-            state = dict(self.install)
-        return setup.install_progress(state, paths.setup_root())
+class ControlMixin(InstallMixin):
+    """The Broker's control op and housekeeping methods (the install's are in install.py)."""
 
     # -- control operations ---------------------------------------------------------
     def control(self, request: dict) -> dict:
@@ -139,6 +27,8 @@ class ControlMixin:
             return {"ok": True, "install": self.install_status()}
         if op == "install_status":
             return {"ok": True, "install": self.install_status()}
+        if op == "install_cancel":
+            return {"ok": True, "install": self.cancel_install()}
         if op == "stats":
             with self.table_lock:
                 lanes = [

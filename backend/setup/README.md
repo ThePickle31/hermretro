@@ -1,10 +1,11 @@
 # backend/setup
 
-Preparing the machine and the studio profile: the page's toolchain install and its progress (`progress.py`), ModRetro's CLI and removing downloads (`provision.py`), the `hermretro` profile (`studio_profile.py`) and the Setup page's RPCs (`rpcs.py`).
+Preparing the machine and the studio profile: the page's toolchain install and its progress (`progress.py`), its
+journal, failure hints, free-space check and cancel settling (`recovery.py`), ModRetro's CLI and removing downloads (`provision.py`), the `hermretro` profile (`studio_profile.py`) and the Setup page's RPCs (`rpcs.py`).
 
 ## What it adds
 
-- RPCs (`rpcs.py`): `status`, `doctor`, `activity`, `studio_profile`, `install`, `remove_tools`.
+- RPCs (`rpcs.py`): `status`, `doctor`, `activity`, `studio_profile`, `install` (`status`, `start`, `cancel`), `remove_tools`.
 - Tools (`tools.py`): `chromatic_studio_device_cli`.
 - Hooks (`hooks.py`): `pre_tool_call` — asks before downloading ModRetro's CLI (chained after the Hermes layer's hardware approvals).
 - Folder sizes: `download_bytes(root)` (`progress.py`) counts only the engine's `downloads/` and `cache/` under a
@@ -14,7 +15,9 @@ Preparing the machine and the studio profile: the page's toolchain install and i
 
 ## Front door
 
-`backend.setup`: `install_progress`, `download_bytes`, `folder_bytes`, `seed_toolchain_cache` (used by the broker). Standard library only: the broker imports it, so it never imports `rpcs.py`, `tools.py`, `hooks.py` or `studio_profile.py`.
+`backend.setup`: `install_progress`, `download_bytes`, `folder_bytes`, `seed_toolchain_cache`, and from `recovery.py`
+`write_journal`, `read_journal`, `recovered_install`, `explain`, `free_space`, `settled`, `lock_path`, `activity_mark`
+(used by the broker). Standard library only: the broker imports it, so it never imports `rpcs.py`, `tools.py`, `hooks.py` or `studio_profile.py`.
 
 ## Tests
 

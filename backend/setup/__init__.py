@@ -8,8 +8,31 @@ hooks.py and studio_profile.py are never imported from here.
 
 from .progress import download_bytes, progress as install_progress
 from .provision import folder_bytes, seed_toolchain_cache
+from .recovery import (
+    activity_mark,
+    explain,
+    free_space,
+    lock_path,
+    read_journal,
+    recovered as recovered_install,
+    settled,
+    write_journal,
+)
 
-__all__ = ["download_bytes", "folder_bytes", "install_progress", "seed_toolchain_cache"]
+__all__ = [
+    "activity_mark",
+    "download_bytes",
+    "explain",
+    "folder_bytes",
+    "free_space",
+    "install_progress",
+    "lock_path",
+    "read_journal",
+    "recovered_install",
+    "seed_toolchain_cache",
+    "settled",
+    "write_journal",
+]
 
 EVENTS = {
     "setup.tools_removed": "Setup removed the downloaded tools; root=<the emptied download folder, str>",

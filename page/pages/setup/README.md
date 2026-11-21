@@ -2,7 +2,8 @@
 
 **Shows:** the wizard: the step rail, the step shown (or the Chromatic choice, or setup complete) and the flying
 Chromatic (`setup-page.js`, `wizard.js`, one file per step body). Also first-run onboarding (`onboarding/`,
-shown by the shell instead of any page until the game tools are in) and the toolchain install (`install/`).
+shown by the shell instead of any page until the game tools are in) and the toolchain install (`install/`: the list and log in `install/install-panel.js`, progress,
+errors and buttons in `install/install-actions.js`, state in `install/installer.js`).
 The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 **Tabs:** none.
@@ -19,7 +20,8 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 **Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `setup`.
 
-**Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-studio.test.mjs`.
+**Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-recovery.test.mjs` (the install's failure,
+cancel and recovery states), `tests/page/page-studio.test.mjs`.
 
 ## Adding a tab here
 

@@ -141,19 +141,24 @@ export function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
   const install = useInstall({ enabled: wantInstall })
   const installState = install.data?.install?.state ?? null
+  // A chat holds the setup lock (the broker says so): the only time the tools check repeats on its own.
+  const installElsewhere = Boolean(install.data?.install?.elsewhere)
   const pluginUpdate = usePluginUpdate({ ctx, installing: installState === 'running', running, status })
   const lastInstall = useRef(installState)
+  const lastElsewhere = useRef(installElsewhere)
 
-  // The page's install finished: read the tools again so the step can verify.
+  // The page's install (or a chat's) finished: read the tools again, once, so the step can verify.
   useEffect(() => {
     const before = lastInstall.current
+    const wasElsewhere = lastElsewhere.current
 
     lastInstall.current = installState
+    lastElsewhere.current = installElsewhere
 
-    if (before === 'running' && installState === 'done') {
+    if ((before === 'running' && installState === 'done') || (wasElsewhere && !installElsewhere)) {
       void doctor.refetch?.()
     }
-  }, [installState])
+  }, [installState, installElsewhere])
 
   const finishOnboarding = () => {
     update({ onboarded: true })
@@ -164,11 +169,13 @@ export function StudioPage({ ctx }) {
     const toolchainOpen = toolchainStep && toolchainStep.state !== 'done' && toolchainStep.state !== 'checking'
     const next = {
       fast: autoId !== 'ready',
-      pollDoctor: Boolean(toolchainOpen) && installState !== 'running' && (autoId === 'toolchain' || onboardScreen === 'install')
+      // Each check starts an engine worker: never while someone reads the review or waits on the page's own
+      // install (its end triggers one check above), only while a chat installs where this page cannot see it.
+      pollDoctor: Boolean(toolchainOpen) && installElsewhere
     }
 
     setPolling(current => (current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next))
-  }, [autoId, toolchainStep?.state, installState, onboardScreen])
+  }, [autoId, toolchainStep?.state, installElsewhere])
 
   const go = id => {
     setPage(id)
@@ -378,7 +385,7 @@ export function StudioPage({ ctx }) {
     body = [
       jsx(
         Onboarding,
-        { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
+        { ctx, doctor, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
         'onboarding'
       )
     ]
