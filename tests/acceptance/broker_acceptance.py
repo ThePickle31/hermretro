@@ -21,9 +21,10 @@ import subprocess
 import sys
 import tempfile
 import threading
-import urllib.request
 import time
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
@@ -124,9 +125,15 @@ def main() -> int:
         except Exception as error:  # noqa: BLE001 - every racer's failure is collected and reported
             errors.append(repr(error))
 
-    threads = [threading.Thread(target=racer) for _ in range(4)]
-    [t.start() for t in threads]
-    [t.join() for t in threads]
+    # Model the deep TMPDIR inherited from a Desktop or gateway launch. Only the broker's engine needs a
+    # short path; leave sockets and test fixtures in their own short workspace. Keep fallback files local on Linux.
+    deep_temp = WORK / ("nested-" + "x" * 120)
+    deep_temp.mkdir()
+    observations["inherited_compiler_tmp_bytes"] = len(os.fsencode(deep_temp))
+    with mock.patch.dict(os.environ, {"TMPDIR": str(deep_temp), "XDG_RUNTIME_DIR": str(WORK)}):
+        threads = [threading.Thread(target=racer) for _ in range(4)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
     pids = {c.hello.get("pid") for c in clients}
     gens = {c.hello.get("broker_generation") for c in clients}
     check(

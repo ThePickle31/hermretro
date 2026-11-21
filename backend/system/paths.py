@@ -171,10 +171,30 @@ def _node_version(path: str) -> tuple[int, ...] | None:
     return tuple(int(part) for part in match.groups()) if match else None
 
 
-@lru_cache(maxsize=1)
+def _node_stamp(path: str) -> tuple[int, ...] | None:
+    try:
+        info = os.stat(path)
+        if stat.S_ISREG(info.st_mode) and os.access(path, os.X_OK):
+            return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_mode
+    except OSError:
+        pass
+    return None
+
+
+class _UnverifiedNode(Exception):
+    pass
+
+
+@lru_cache(maxsize=16)
+def _installed_node_version(path: str, _stamp: tuple[int, ...]) -> tuple[int, ...]:
+    version = _node_version(path)
+    if version is None:
+        raise _UnverifiedNode  # don't cache a failure to launch or a transient timeout
+    return version
+
+
 def find_node() -> dict:
-    """Find a usable Node.js. Desktop-launched apps often lack the shell's PATH, so also
-    look in the engine's managed setup root and common per-user locations."""
+    """Discover Node again on refresh, but only probe the version of a new or changed executable."""
     candidates: list[str] = []
     override = os.environ.get("HERMRETRO_NODE")
     if override:
@@ -186,8 +206,10 @@ def find_node() -> dict:
     if managed.is_dir():
         candidates.extend(str(p) for p in sorted(managed.glob("**/bin/node"), reverse=True))
     home = Path.home()
-    # The Node.js Hermes installs for itself (~/.hermes/tools/node-<version>-<platform>/bin/node).
-    candidates.extend(str(p) for p in sorted((home / ".hermes" / "tools").glob("node-*/bin/node"), reverse=True))
+    # Desktop launched from Finder may not have the shell's PATH. Hermes's tool store follows its root,
+    # including custom HERMES_HOME installations; keep the conventional location as an older install fallback.
+    for store in dict.fromkeys((_hermes_root() / "tools", home / ".hermes" / "tools")):
+        candidates.extend(str(p) for p in sorted(store.glob("node-*/bin/node"), reverse=True))
     # Apple Silicon Homebrew before /usr/local, where an Intel (Rosetta) Homebrew keeps its Node on the same Mac.
     candidates.extend(
         str(p)
@@ -200,13 +222,13 @@ def find_node() -> dict:
     )
     candidates.extend(str(p) for p in sorted((home / ".nvm/versions/node").glob("*/bin/node"), reverse=True))
     best: dict | None = None
-    seen: set[str] = set()
-    for candidate in candidates:
-        if candidate in seen or not os.path.isfile(candidate) or not os.access(candidate, os.X_OK):
+    for candidate in dict.fromkeys(candidates):
+        stamp = _node_stamp(candidate)
+        if stamp is None:
             continue
-        seen.add(candidate)
-        version = _node_version(candidate)
-        if version is None:
+        try:
+            version = _installed_node_version(candidate, stamp)
+        except _UnverifiedNode:
             continue
         found = {
             "found": True,

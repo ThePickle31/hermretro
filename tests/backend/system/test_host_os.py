@@ -31,6 +31,34 @@ class HostOs(unittest.TestCase):
         self.assertEqual(uid, os.getuid())
         self.assertEqual(pid, os.getpid())
 
+    def test_a_short_trusted_temp_parent_needs_no_replacement(self):
+        with tempfile.TemporaryDirectory(prefix="hr-", dir="/tmp") as base:
+            self.assertIsNone(host_os.engine_tempdir({"TMPDIR": base}))
+
+    def test_a_short_symlink_to_a_deep_temp_parent_gets_a_private_replacement(self):
+        with tempfile.TemporaryDirectory(prefix="hr-", dir="/tmp") as base:
+            parent = Path(base).resolve()
+            deep = parent / ("x" * 120)
+            deep.mkdir()
+            link = parent / "short"
+            link.symlink_to(deep, target_is_directory=True)
+            replacement = host_os.engine_tempdir({"TMPDIR": str(link), "XDG_RUNTIME_DIR": str(parent)})
+            assert replacement is not None
+            with replacement as directory:
+                path = Path(directory)
+                self.assertEqual(path, path.resolve())
+                self.assertLessEqual(len(os.fsencode(path)), 64)
+                self.assertEqual(path.stat().st_uid, os.getuid())
+                self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+            self.assertFalse(path.exists())
+            self.assertTrue(link.is_symlink())
+            self.assertTrue(deep.is_dir())
+
+    def test_temp_unavailable_reports_the_fix(self):
+        with mock.patch.object(host_os, "_short_temp_parent", return_value=None):
+            with self.assertRaisesRegex(OSError, "short, writable temporary directory.*TMPDIR"):
+                host_os.engine_tempdir({"TMPDIR": "/does-not-exist"})
+
     def test_linux_and_macos_are_supported_and_windows_is_not(self):
         for name in ("linux", "darwin"):
             with (

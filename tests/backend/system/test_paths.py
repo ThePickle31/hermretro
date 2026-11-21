@@ -121,6 +121,43 @@ class HermretroHome(unittest.TestCase):
         self.assertEqual(popen.call_args.kwargs["env"]["HERMRETRO_HOME"], expected)
 
 
+class NodeDiscovery(unittest.TestCase):
+    def test_custom_hermes_home_detects_node_installed_or_replaced_while_the_app_is_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "custom-hermes"
+            node = root / "tools" / "node-24.1.0-platform" / "bin" / "node"
+            env = {
+                "HOME": tmp,
+                "HERMES_HOME": str(root / "profiles" / "hermretro"),
+                "PATH": "",
+                "GB_STUDIO_SETUP_ROOT": str(base / "setup"),
+            }
+            real_stamp = paths._node_stamp
+            with (
+                mock.patch.dict(os.environ, env, clear=True),
+                mock.patch.object(paths.hermes_home, "asked", return_value=None),
+                mock.patch.object(
+                    paths, "_node_stamp", side_effect=lambda p: real_stamp(p) if p == str(node) else None
+                ),
+                mock.patch.object(paths, "_node_version", wraps=paths._node_version) as probe,
+            ):
+                self.assertFalse(paths.find_node()["ok"])
+                node.parent.mkdir(parents=True)
+                node.write_text("#!/bin/sh\necho v24.1.0\n")
+                node.chmod(0o755)
+                first = paths.find_node()
+                self.assertEqual((first["path"], first["version"], first["ok"]), (str(node), "24.1.0", True))
+                self.assertEqual(paths.find_node(), first)
+                self.assertEqual(probe.call_count, 1, "polling does not run another version probe")
+                replacement = node.with_name("new-node")
+                replacement.write_text("#!/bin/sh\necho v25.9.1\n")
+                replacement.chmod(0o755)
+                replacement.replace(node)
+                self.assertEqual(paths.find_node()["version"], "25.9.1")
+                self.assertEqual(probe.call_count, 2)
+
+
 class HermesHomeHandOver(unittest.TestCase):
     """backend.system never imports Hermes: the Hermes layer hands over how to ask (system/hermes_home.py).
     Where hermretro's home resolves must not change: Hermes's answer when the plugin runs inside Hermes,

@@ -7,12 +7,17 @@ Windows is not supported: ``unsupported_reason`` says so before anything else lo
 
 from __future__ import annotations
 
+import os
 import platform
 import socket
+import stat
 import struct
 import subprocess
 import sys
+import tempfile
+from collections.abc import Mapping
 from functools import cache
+from pathlib import Path
 
 LINUX = sys.platform.startswith("linux")
 MACOS = sys.platform == "darwin"
@@ -39,6 +44,62 @@ _LOCAL_PEERCRED = 0x001
 _LOCAL_PEERPID = 0x002
 # struct xucred: u_int cr_version; uid_t cr_uid; short cr_ngroups; gid_t cr_groups[16]
 _XUCRED = struct.Struct("=IIh2x16I")
+
+
+# GBDK 4.5 has a 128-byte install-prefix buffer. Leave room for GB Studio's generated build folder and
+# the relative path to the copied compiler. Check the real path: GB Studio resolves temporary parents itself.
+_ENGINE_TMP_MAX = 64
+
+
+def _short_temp_parent(raw: str) -> Path | None:
+    try:
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            return None
+        path = candidate.resolve(strict=True)
+        info = path.stat()
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or len(os.fsencode(path)) > _ENGINE_TMP_MAX
+            or not os.access(path, os.W_OK | os.X_OK)
+        ):
+            return None
+        uid = os.getuid()
+        if (info.st_uid == uid and not info.st_mode & 0o022) or (
+            info.st_uid in (0, uid) and info.st_mode & stat.S_ISVTX
+        ):
+            return path
+    except (OSError, RuntimeError, ValueError):
+        pass
+    return None
+
+
+def engine_tempdir(env: Mapping[str, str]) -> tempfile.TemporaryDirectory | None:
+    """Give a worker a short private temp directory if Node's inherited one will not work.
+
+    Leave a usable parent alone. Linux runtime directories are private and suitable when provided; on
+    both platforms the system's short sticky temp parent is a fallback (resolving /tmp on macOS).
+    The caller owns the new directory until its worker exits, never the inherited directory.
+    """
+    inherited = next((env[name] for name in ("TMPDIR", "TMP", "TEMP") if env.get(name)), "/tmp")
+    if _short_temp_parent(inherited) is not None:
+        return None
+    candidates = (env.get("XDG_RUNTIME_DIR", ""), "/tmp") if LINUX else ("/tmp",)
+    for candidate in candidates:
+        parent = _short_temp_parent(candidate)
+        if parent is None:
+            continue
+        try:
+            directory = tempfile.TemporaryDirectory(prefix="hrt-", dir=parent, ignore_cleanup_errors=True)
+        except OSError:
+            continue
+        if len(os.fsencode(directory.name)) <= _ENGINE_TMP_MAX:
+            return directory
+        directory.cleanup()
+    raise OSError(
+        "Game tools need a short, writable temporary directory. Free space in the system temporary "
+        "directory or set TMPDIR to a short, private folder and restart Hermes."
+    )
 
 
 def unsupported_reason() -> str | None:
