@@ -15,7 +15,7 @@ export function attachToBuild(stored, attachments, text = '') {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text, attach: attachments } })
 }
 
-export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null }) {
+export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState([])
   const [mention, setMention] = useState(null)
@@ -29,11 +29,6 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
     : assets === false
       ? []
       : null
-
-  useEffect(() => {
-    setAttachments([])
-    setMention(null)
-  }, [stored])
 
   // Ask about an asset or a frame (or Make cover art on the Games page) adds it here for the user to finish
   // and send. Each draft is used once, also when it was left before this box was on screen.
@@ -82,7 +77,7 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
   }
 
   const choose = item => {
-    if (!item || !mention) {
+    if (!item || !mention || disabled) {
       return
     }
 
@@ -115,29 +110,35 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
     })
   }
 
-  const send = () => {
+  const send = async () => {
     const value = text.trim()
 
     if ((!value && !attachments.length) || disabled) {
       return
     }
 
+    // A first edit may be refused before the transcript takes over, including retries. Keep its draft until then.
+    if (fresh && !(await onSend(value, attachments))) {
+      return
+    }
     setText('')
     setAttachments([])
     setMention(null)
-    onSend(value, attachments)
+    if (!fresh) {
+      void onSend(value, attachments)
+    }
   }
 
   return jsxs('div', {
     className: 'cs-b-comp',
     children: [
       status,
-      mention && game ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
+      mention && game && !disabled ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
       attachments.length
         ? jsx('div', {
             className: 'cs-b-chips',
             children: attachments.map(item =>
-              jsx(AttachmentChip, { item, onRemove: gone => setAttachments(current => current.filter(entry => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
+              jsx(AttachmentChip, { item, disabled, onRemove: gone => setAttachments(current => current.filter(entry => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
             )
           })
         : null,

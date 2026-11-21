@@ -462,10 +462,14 @@ class Registry:
             self._save(data)
             return True
 
-    def bind(self, identifier: str, stored: str, profile: str | None, *, replace: bool = False) -> dict:
-        """Give a game its conversation. ``replace`` swaps a conversation that no longer exists."""
+    def bind(self, identifier: str, stored: str, profile: str | None, *, replace: str | None = None) -> dict:
+        """Give a game its conversation. ``replace`` names the stored id of the conversation the page saw
+        was removed: the swap happens only while the game is still bound to exactly that one, so two
+        stale pages racing to replace it cannot detach each other's conversation."""
         if not valid_id(identifier) or not isinstance(stored, str) or not stored or len(stored) > 256:
             raise BindingError("INVALID", "A game id and a stored session id are required.")
+        if replace is not None and (not isinstance(replace, str) or not replace or len(replace) > 256):
+            raise BindingError("INVALID", "replace must be the stored session id being replaced.")
         with self._locked():
             data = self.load()
             entry = data["games"].get(identifier)
@@ -475,11 +479,18 @@ class Registry:
             if kind == "game" and other is not entry:
                 raise BindingError("BOUND", "This conversation already belongs to another game.")
             current = entry.get("session")
-            if isinstance(current, dict) and current.get("storedId") != stored:
-                if not replace:
+            if isinstance(current, dict):
+                current_id = current.get("storedId")
+                if current_id != stored and replace is None:
                     raise BindingError("HAS_CONVERSATION", "This game already has its own conversation.")
                 if profile is not None and current.get("profile") not in (None, profile):
                     raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
+                if current_id == stored:
+                    return entry
+                if current_id != replace:
+                    raise BindingError("STALE", "This game's conversation changed since the page last looked.")
+            elif replace is not None:
+                raise BindingError("STALE", "This game no longer has the conversation being replaced.")
             entry["session"] = {"storedId": stored, "profile": profile, "createdAt": time.time(), "aliases": []}
             data["pending"].pop(stored, None)
             self._save(data)

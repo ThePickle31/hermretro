@@ -97,21 +97,29 @@ export async function createBuildChat(title, pick = null) {
     ...(pick?.effort ? { reasoning_effort: pick.effort } : {}),
     ...(typeof pick?.fast === 'boolean' && FAST_PROVIDERS.has(pick?.provider) ? { fast: pick.fast } : {})
   }
-  const result = await chatRequest('session.create', { hidden: true, title, source: 'gui', ...choice }, 60_000)
+  // On the canonical gateway a title finds an existing session before creating one. This title is a Build label only.
+  const result = await chatRequest('session.create', { hidden: true, source: 'gui', ...choice }, 60_000)
   const stored = result?.stored_session_id ?? result?.session_id
   const runtime = result?.session_id
+  const info = result?.info
 
   if (!stored || !runtime) {
     throw new Error('Hermes did not return a session.')
   }
+  if (result.message_count > 0 || result.messages?.length) {
+    throw new Error('Hermes returned an existing conversation. Your message was not sent.')
+  }
+  if (choice.model && (info?.model !== choice.model || info?.provider !== choice.provider)) {
+    throw new Error(`Hermes did not confirm ${choice.model} (${choice.provider}) for the new conversation. Your message was not sent.`)
+  }
 
   buildRuntime.set(runtime, stored)
-  patchChat(stored, chat => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }))
+  patchChat(stored, chat => ({ ...withInfo(chat, info), runtime, title, items: [] }))
 
   return stored
 }
 
-/** Send a message. Never throws: a failure shows up in the transcript (with the words the user sent).
+/** Send a message. Returns true once the transcript owns the message, even if it must offer a retry.
  *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. */
 export async function sendBuildChat(stored, text, shown = text, attachments = []) {
   // An update is swapping and reloading the plugin: no new turn starts until it is done.
@@ -159,7 +167,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   if (!chat?.runtime) {
     patchChat(stored, current => ({ ...current, items: [...current.items, { kind: 'error', text: 'This conversation could not be opened, so the message was not sent.' }] }))
 
-    return false
+    return true
   }
 
   // The change it waited for failed ("Could not switch" says why): the message is kept to send again, not sent on
@@ -167,7 +175,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   if (!settled.ok) {
     patchChat(stored, current => endTurn({ ...current, items: [...current.items, { kind: 'error', text: 'The model change did not go through, so the message was not sent.', resend: { text, shown, attachments } }] }, 'error'))
 
-    return false
+    return true
   }
 
   schedulePromptCheck(stored)
@@ -195,8 +203,6 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
         return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...(current.queued ?? []), item] }
       })
     }
-
-    return true
   } catch (error) {
     const { message } = describeRequestError(error)
 
@@ -206,9 +212,9 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored)
     }
-
-    return false
   }
+
+  return true
 }
 
 export async function stopBuildChat(stored) {
