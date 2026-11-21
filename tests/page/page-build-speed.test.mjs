@@ -1,6 +1,6 @@
 // The Build model panel's rail, stars and Standard / Fast bar (page/pages/build/composer/model-list.js,
-// model-settings.js): Fast only for ChatGPT or Codex Subscription models that list fast mode, per conversation and in
-// the New Game draft pick.
+// model-settings.js): Fast only for ChatGPT or Codex Subscription and OpenAI API models that list fast mode, only on
+// their provider's tab, per conversation and in the New Game draft pick.
 // Run alone: node tests/page/page-build-speed.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
@@ -17,6 +17,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
       capabilities: { 'claude-opus-5-5': { fast: true, reasoning: true } } },
     { slug: 'openai-codex', name: 'ChatGPT or Codex Subscription', authenticated: true, total_models: 19, models: ['gpt-6.2-sol', 'gpt-5-mini'],
       capabilities: { 'gpt-6.2-sol': { fast: true, reasoning: true }, 'gpt-5-mini': { reasoning: true } } },
+    { slug: 'openai-api', name: 'OpenAI API', authenticated: true, models: ['gpt-6.2'], capabilities: { 'gpt-6.2': { fast: true, reasoning: true } } },
     { slug: 'gone', name: 'Signed Out Co', authenticated: false, models: ['x-1'] }] })
   scenario.sets = []
   scenario.byMethod['config.set'] = params => { scenario.sets.push(params); return { key: params.key, value: params.value } }
@@ -37,7 +38,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await open()
   check('the rail has Starred, one mark per signed-in provider, and connect another', () => {
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-rail button')].map(node => node.getAttribute('aria-label')),
-      ['Starred', 'Anthropic', 'ChatGPT or Codex Subscription', 'Connect another provider'])
+      ['Starred', 'Anthropic', 'ChatGPT or Codex Subscription', 'OpenAI API', 'Connect another provider'])
     assert.equal(tile('ChatGPT or Codex Subscription').getAttribute('aria-pressed'), 'true', 'it opens on the conversation\u2019s provider')
     assert.equal(pop().querySelector('.cs-b-mp-head').textContent, 'ChatGPT or Codex Subscription· 19 models')
   })
@@ -67,13 +68,15 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   // Stars: kept in the page's storage, listed under Starred with each model's provider.
   await press(row('gpt-6.2-sol').parentElement.querySelector('.cs-b-mp-star'))
   await press(tile('Anthropic'))
-  check('another provider\u2019s tab lists its models and keeps the speed of the model in use', () => {
+  check('another provider\u2019s tab lists its models without Standard / Fast; the conversation stays fast', () => {
     assert.equal(pop().querySelector('.cs-b-mp-head').textContent, 'Anthropic· 1 model')
-    assert.ok(speed(), 'Speed follows the conversation\u2019s model, not the tab')
+    assert.ok(!speed(), 'no toggle on a provider whose models it does not apply to (even Anthropic with fast)')
+    assert.ok(chip().querySelector('.cs-b-mp-bolt'), 'the button still shows the conversation is fast')
   })
   await press(row('claude-opus-5-5').parentElement.querySelector('.cs-b-mp-star'))
   await press(tile('Starred'))
   check('Starred lists the starred models of every provider, each with its provider, and remembers them', () => {
+    assert.ok(!speed(), 'no toggle on Starred')
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row .cs-b-mp-label')].map(node => node.textContent), ['Claude Opus 5.5Anthropic', 'GPT-6.2 SolChatGPT or Codex Subscription'])
     assert.deepEqual(scenario.storage.buildModelStars, ['openai-codex:gpt-6.2-sol', 'anthropic:claude-opus-5-5'])
   })
@@ -106,6 +109,21 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await settle()
   await open()
   check('nor does a Codex model without fast mode', () => { assert.ok(!speed()) })
+  await press(tile('OpenAI API'))
+  await press(row('gpt-6.2'))
+  await settle()
+  await open()
+  check('an OpenAI API model with fast mode has Standard / Fast on its tab', () => { assert.ok(speed()) })
+  await click('Fast', speed())
+  await settle()
+  check('and Fast turns fast mode on for the conversation', () => {
+    assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'fast', value: 'fast' })
+  })
+  await click('Standard', speed())
+  await settle()
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { fast: false } }) })
+  await settle()
+  await press(tile('ChatGPT or Codex Subscription'))
   await press(row('gpt-6.2-sol'))
   await settle()
   const before = scenario.sets.length

@@ -346,8 +346,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag; a star on each row, kept in the page's storage as
   `buildModelStars` because Hermes's own starred list is not open to plugins), Effort as a list on the right (Off
   only when the model can disable reasoning; Minimal, Low, Medium, High, X-high, Max; what the level is for under
-  it), and a bar along the bottom. The bar has Standard / Fast only for a ChatGPT or Codex Subscription
-  (`openai-codex`) model whose `capabilities` list `fast`; Fast shows as a bolt on the button and is sent as
+  it), and a bar along the bottom. The bar has Standard / Fast only on the tab of the model in use, when that is a
+  ChatGPT or Codex Subscription (`openai-codex`) or OpenAI API (`openai-api`) model whose `capabilities` list `fast`
+  (not on other providers' tabs, Starred or a search); Fast shows as a bolt on the button and is sent as
   `config.set {key: 'fast', value: 'fast'|'normal'}` (read back from `session.info.fast`); picking a model without
   fast mode sets it back to normal, because Hermes's priority tier would also turn on another provider's own fast
   mode. Changes are per conversation, never the profile default:
