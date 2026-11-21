@@ -6,7 +6,9 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, settle, typeInto, key, mount, check, answered }) => {
+await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, settle, typeInto, key, mount, check, answered, holdTimers }) => {
+  // The test ends turns via events. A real open-request poll can otherwise report idle early on a loaded runner.
+  holdTimers()
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
@@ -338,7 +340,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   scenario.storage.buildSelected = 'new'
   scenario.storage.buildModel = { model: 'gpt-6.2-sol', provider: 'openai-codex', effort: 'low' }
   const creates = []
-  scenario.byMethod['session.create'] = params => { creates.push(params); return { session_id: 'rt-new-1', stored_session_id: 'st-new-1', messages: [] } }
+  scenario.byMethod['session.create'] = params => {
+    const n = creates.push(params)
+    return { session_id: `rt-new-${n}`, stored_session_id: `st-new-${n}`, info: params, messages: [] }
+  }
   const draft = await mount(page)
   await settle()
   await act(async () => { draft.node.querySelector('.cs-b-mp-chip').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })

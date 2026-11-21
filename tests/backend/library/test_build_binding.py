@@ -42,7 +42,7 @@ class Binding(unittest.TestCase):
         with self.assertRaises(games.BindingError) as refused:
             self.registry.bind(self.game, "st-2", PROFILE)
         self.assertEqual(refused.exception.code, "HAS_CONVERSATION")
-        self.registry.bind(self.game, "st-2", PROFILE, replace=True)  # the old one was deleted
+        self.registry.bind(self.game, "st-2", PROFILE, replace="st-1")  # the old one was deleted
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-1"]), (None, None))
         self.assertEqual(self.registry.binding_for(PROFILE, ["st-2"])[0], "game")
 
@@ -101,9 +101,64 @@ class Binding(unittest.TestCase):
 
     def test_another_profiles_conversation_is_never_replaced(self):
         self.registry.bind(self.game, "st-1", "/profiles/other")
-        with self.assertRaises(games.BindingError) as refused:
-            self.registry.bind(self.game, "st-2", PROFILE, replace=True)
-        self.assertEqual(refused.exception.code, "OTHER_PROFILE")
+        old = (self.registry.get(self.game) or {})["session"]
+        for stored in ("st-2", "st-1"):
+            with self.subTest(stored=stored), self.assertRaises(games.BindingError) as refused:
+                self.registry.bind(self.game, stored, PROFILE, replace="st-1")
+            self.assertEqual(refused.exception.code, "OTHER_PROFILE")
+        self.assertEqual((self.registry.get(self.game) or {})["session"], old)
+
+    def test_a_replacement_names_the_conversation_it_replaces(self):
+        self.registry.bind(self.game, "st-1", PROFILE)
+        self.registry.bind(self.game, "st-2", PROFILE, replace="st-1")  # the first page wins
+        with self.assertRaises(games.BindingError) as stale:  # a second page that also saw st-1 missing
+            self.registry.bind(self.game, "st-3", PROFILE, replace="st-1")
+        self.assertEqual(stale.exception.code, "STALE")
+        self.registry.note_alias(PROFILE, "st-2", "st-2-rotated")
+        winner = (self.registry.get(self.game) or {})["session"]
+        self.assertEqual(winner["storedId"], "st-2")
+        self.registry.bind(self.game, "st-2", PROFILE, replace="st-1")  # the winner retrying is a no-op
+        self.assertEqual((self.registry.get(self.game) or {})["session"], winner)
+
+    def test_a_replacement_of_a_binding_that_was_removed_is_refused(self):
+        self.registry.bind(self.game, "st-1", PROFILE)
+        self.registry.unbind(self.game, "st-1", PROFILE)
+        with self.assertRaises(games.BindingError) as stale:
+            self.registry.bind(self.game, "st-2", PROFILE, replace="st-1")
+        self.assertEqual(stale.exception.code, "STALE")
+        self.assertIsNone(self.registry.get(self.game).get("session"))
+        self.registry.bind(self.game, "st-2", PROFILE)  # a free game binds without replace
+        self.assertEqual(self.registry.get(self.game)["session"]["storedId"], "st-2")
+
+    def test_replace_must_be_a_stored_session_id(self):
+        self.registry.bind(self.game, "st-1", PROFILE)
+        for bad in (True, False, "", 1, "x" * 257):
+            with self.subTest(replace=bad), self.assertRaises(games.BindingError) as refused:
+                self.registry.bind(self.game, "st-2", PROFILE, replace=bad)
+            self.assertEqual(refused.exception.code, "INVALID")
+        self.assertEqual(self.registry.get(self.game)["session"]["storedId"], "st-1")
+
+    def test_racing_replacements_leave_exactly_one_winner(self):
+        self.registry.bind(self.game, "st-1", PROFILE)
+        outcomes, start = [], threading.Barrier(4)
+
+        def replace(stored):
+            start.wait()
+            try:
+                self.registry.bind(self.game, stored, PROFILE, replace="st-1")
+                outcomes.append(("ok", stored))
+            except games.BindingError as error:
+                outcomes.append((error.code, stored))
+
+        threads = [threading.Thread(target=replace, args=(f"st-new-{n}",)) for n in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        winners = [stored for code, stored in outcomes if code == "ok"]
+        self.assertEqual(len(winners), 1, outcomes)
+        self.assertEqual(sorted(code for code, _ in outcomes), ["STALE", "STALE", "STALE", "ok"])
+        self.assertEqual(self.registry.get(self.game)["session"]["storedId"], winners[0])
 
     def test_a_pending_conversation_keeps_its_place_after_compression(self):
         self.registry.build_start("st-new", PROFILE)
@@ -310,6 +365,16 @@ class RpcAndContext(unittest.TestCase):
         self.assertEqual((answer["ok"], answer["session"]["storedId"]), (True, "st-frog"))
         again = self.rpc({"action": "bind", "game": self.game, "stored": "st-other"})
         self.assertEqual((again["ok"], again["code"]), (False, "HAS_CONVERSATION"))
+        legacy = self.rpc({"action": "bind", "game": self.game, "stored": "st-other", "replace": True})
+        self.assertEqual((legacy["ok"], legacy["code"]), (False, "INVALID"))
+        stale = self.rpc({"action": "bind", "game": self.game, "stored": "st-other", "replace": "st-gone"})
+        self.assertEqual((stale["ok"], stale["code"]), (False, "STALE"))
+        swapped = self.rpc({"action": "bind", "game": self.game, "stored": "st-other", "replace": "st-frog"})
+        self.assertEqual((swapped["ok"], swapped["session"]["storedId"]), (True, "st-other"))
+        late = self.rpc({"action": "bind", "game": self.game, "stored": "st-third", "replace": "st-frog"})
+        self.assertEqual((late["ok"], late["code"]), (False, "STALE"))
+        back = self.rpc({"action": "bind", "game": self.game, "stored": "st-frog", "replace": "st-other"})
+        self.assertEqual((back["ok"], back["session"]["storedId"]), (True, "st-frog"))
         listed = library_rpcs.rpc_games(mock.Mock(get_config=lambda key, default=None: default))({})
         self.assertEqual(listed["games"][0]["session"]["storedId"], "st-frog")
         self.assertIs(listed["games"][0]["session"]["thisProfile"], True)
