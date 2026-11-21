@@ -13,6 +13,7 @@ every run, and thousands of them once filled a machine's /run/user temp space.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import time
@@ -48,19 +49,27 @@ def left(tmp: str | Path) -> list[str]:
 
 
 def test_modules(root: Path) -> list[str]:
-    """Every unit test module under tests/, dotted, as discovery finds them (test_*.py)."""
-    return sorted(
-        ".".join(path.relative_to(root).with_suffix("").parts) for path in (root / "tests").rglob("test_*.py")
-    )
+    """Every unit test module under tests/, dotted, by unittest discovery's own rules: a file matching test*.py with
+    an importable name, in a folder that is a package all the way down from tests/."""
+    found = []
+    for path in (root / "tests").rglob("test*.py"):
+        parts = path.relative_to(root).parts
+        if not re.fullmatch(r"[_a-z]\w*\.py", path.name, re.IGNORECASE):
+            continue
+        if all((root.joinpath(*parts[:depth]) / "__init__.py").is_file() for depth in range(1, len(parts))):
+            found.append(".".join(path.relative_to(root).with_suffix("").parts))
+    return sorted(found)
 
 
-def leaking_modules(root: Path, temp_base: str, run: Callable, *, product_only: bool = False) -> list[str]:
+def leaking_modules(
+    root: Path, temp_base: str, run: Callable, *, product_only: bool = False, modules: list[str] | None = None
+) -> list[str]:
     """The test modules that write into an empty home, or leave something in an empty temp folder, when each runs
     alone (within LOCATE_BUDGET_S). ``run(cmd, env)`` runs one command from the repository root (check.py's run; tests
     pass a fake)."""
     found = []
     started = time.monotonic()
-    for module in test_modules(root):
+    for module in test_modules(root) if modules is None else modules:
         if product_only and module.startswith("tests.retrodev."):
             continue  # tests.retrodev's discovery hook leaves this package out of the product scope
         if time.monotonic() - started > LOCATE_BUDGET_S:
@@ -77,16 +86,25 @@ def leaking_modules(root: Path, temp_base: str, run: Callable, *, product_only: 
     return found
 
 
-def leaks(home: str, tmp: str, root: Path, temp_base: str, run: Callable, *, product_only: bool = False) -> str:
+def leaks(
+    home: str,
+    tmp: str,
+    root: Path,
+    temp_base: str,
+    run: Callable,
+    *,
+    product_only: bool = False,
+    modules: list[str] | None = None,
+) -> str:
     """After the suite ran with ``unit_env(home, bytecode, tmp)``: "" when it left nothing, else the failure message
     naming what was left and, after a rerun module by module, which test modules left it."""
     in_home, in_tmp = written(home), left(tmp)
     if not in_home and not in_tmp:
         return ""
-    modules = leaking_modules(root, temp_base, run, product_only=product_only)
+    found = leaking_modules(root, temp_base, run, product_only=product_only, modules=modules)
     if in_home:
-        return leak_message(in_home, modules)
-    return tmp_message(in_tmp, modules)
+        return leak_message(in_home, found)
+    return tmp_message(in_tmp, found)
 
 
 def leak_message(leaked: list[str], modules: list[str]) -> str:

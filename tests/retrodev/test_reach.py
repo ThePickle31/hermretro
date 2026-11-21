@@ -6,6 +6,7 @@ Run alone: python -m unittest tests.retrodev.test_reach
 import io
 import re
 import subprocess
+import sys
 import threading
 import unittest
 import urllib.error
@@ -331,6 +332,21 @@ class Preview(RepoCase):
         self.addCleanup(server.shutdown)
         host, port = server.server_address[:2]
         self.assertEqual(host, "127.0.0.1")
+        # HTTPServer looks 127.0.0.1 up in DNS (socket.getfqdn), about 35 s on a Mac: started in its own process with
+        # the lookup made to fail, the server still starts (a patch here would reach every thread of the pool).
+        probe = (
+            "import socket, sys\n"
+            "def refuse(*_a): raise SystemExit('the preview server looked its address up')\n"
+            "socket.getfqdn = refuse\n"
+            "from retrodev import preview\n"
+            "server = preview.make_server(*map(__import__('pathlib').Path, sys.argv[1:]))\n"
+            "server.server_close()\n"
+        )
+        tools = str(Path(preview.__file__).resolve().parents[1])
+        started = subprocess.run(
+            [sys.executable, "-c", probe, str(out), str(assets)], cwd=tools, capture_output=True, text=True, timeout=60
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
 
         def get(path):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as answer:
