@@ -41,6 +41,8 @@ import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
 import { PageView } from './page-view.js'
 import { NAV_PAGES, pageById } from './registry.js'
+import { UpdateChip } from './update/chip.js'
+import { usePluginUpdate } from './update/use-update.js'
 
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
@@ -139,6 +141,7 @@ export function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
   const install = useInstall({ enabled: wantInstall })
   const installState = install.data?.install?.state ?? null
+  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === 'running', running, status })
   const lastInstall = useRef(installState)
 
   // The page's install finished: read the tools again so the step can verify.
@@ -321,6 +324,8 @@ export function StudioPage({ ctx }) {
     pick,
     unpin: () => setPinned(null),
     install,
+    // Hermes's update of hermretro: the header chip, and the version row on the Setup page
+    pluginUpdate,
     gameReady,
     hardwareOn,
     emulatorOnly,
@@ -411,7 +416,14 @@ export function StudioPage({ ctx }) {
       children: [
         jsx(PageStyle, {}, 'style'),
         onboardScreen
-          ? jsx(OnboardHeader, { stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null }, 'nav')
+          ? jsx(
+              OnboardHeader,
+              {
+                end: pluginUpdate.visible ? jsx(UpdateChip, { update: pluginUpdate }) : null,
+                stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null
+              },
+              'nav'
+            )
           : jsx(
               StudioNav,
               {
@@ -420,6 +432,7 @@ export function StudioPage({ ctx }) {
                 onRefresh: refresh,
                 pages: NAV_PAGES,
                 refreshing,
+                update: pluginUpdate,
                 viaProfile
               },
               'nav'
@@ -429,7 +442,8 @@ export function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
-              running && status.data?.restart_needed
+              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
+              running && status.data?.restart_needed && pluginUpdate.phase !== 'restart'
                 ? jsxs(
                     'div',
                     {
@@ -437,7 +451,7 @@ export function StudioPage({ ctx }) {
                       role: 'status',
                       children: [
                         jsx(Codicon, { name: 'refresh', size: 14 }),
-                        jsx('span', { children: 'hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart).' })
+                        jsx('span', { children: 'hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish.' })
                       ]
                     },
                     'restart'

@@ -24,6 +24,7 @@ export function SetupPage({ shell }) {
                 onGo: shell.go,
                 onRecheck: shell.refresh,
                 onSetUpDevice: shell.setUpDevice,
+                pluginUpdate: shell.pluginUpdate,
                 rechecking: shell.refreshing,
                 status,
                 steps

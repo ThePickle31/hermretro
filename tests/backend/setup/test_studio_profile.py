@@ -59,6 +59,22 @@ class StudioProfile(unittest.TestCase):
         self.assertTrue(sp.describe(self.target)["is_studio"])
         self.assertEqual(sp.profile_name(Path(self.tmp.name)), "default")
 
+    def test_the_page_is_told_which_profile_installed_the_copy_it_runs(self):
+        root = Path(self.tmp.name)
+        installed = self.home / "plugins" / "hermretro"
+        installed.mkdir()
+        self.assertEqual(sp.installed_in(installed), {"profile": "work", "linked": False})
+        (root / "plugins" / "hermretro").mkdir(parents=True)
+        self.assertEqual(sp.installed_in(root / "plugins" / "hermretro"), {"profile": "default", "linked": False})
+        # The studio profile links the installed copy in: the update still runs where it was installed.
+        (self.target / "plugins").mkdir(parents=True)
+        (self.target / "plugins" / "hermretro").symlink_to(installed, target_is_directory=True)
+        self.assertEqual(sp.installed_in(self.target / "plugins" / "hermretro"), {"profile": "work", "linked": False})
+        # A development checkout linked in from elsewhere: Hermes does not update it.
+        checkout = root / "projects" / "hermretro"
+        checkout.mkdir(parents=True)
+        self.assertEqual(sp.installed_in(checkout), {"profile": None, "linked": True})
+
     def test_finishing_needs_the_profile_to_exist(self):
         with self.assertRaises(sp.StudioProfileError) as raised:
             self.finish()

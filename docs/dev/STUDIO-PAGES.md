@@ -16,6 +16,29 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 | Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
 | Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
 
+Beside Refresh, the header shows an update chip (`page/app/update/`, mockup round "one-click update", A + C) only
+while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
+`plugin.installed_in`), while an update runs, or just after one. Its popover runs the update: Hermes's
+`plugins.manage update` in that profile (a caution scan or a widened plugin is shown and needs "Install anyway"; a
+dangerous verdict is never offered), then the `studio_profile` RPC there, then `plugins.manage toggle` off and on in
+the hermretro profile (Hermes reloads only the profile that ran the update), then the app's
+`hermesDesktop.reconcileDesktopPlugins` (the call Capabilities > Plugins makes; not in the plugin SDK, used only when
+present) so the app copies and reloads the new page. A storage marker (`update`) lets the reloaded page say how it
+went. "Later" hides the chip until a newer target. No update while something is being built: while a chat in the
+hermretro profile has a turn under way (`session.active_list` there: `working`, `waiting`, `streaming` or `starting`;
+checked every 5 s while an update is ready, and again right before anything changes) or the page's toolchain install
+runs, Update is disabled with the reason; a turn started while Hermes updates is waited for before the hermretro
+profile reloads (only after a successful check: five failed checks in a row stop there); everything that starts
+work (Build sends, Continue after a lost turn, New Game, Restore, the toolchain install, removing the tools, setting up
+the hermretro profile) checks the update lock in its handler and greys its control out while an update runs
+(`app/update/lock.js`); a toolchain install already running is waited for before the reload. A failed profile lookup,
+or a hermretro profile the status reports but the app cannot reach, stops the update before anything changes, and a
+failed profile-settings step leaves it unfinished. Each yes given to Hermes (caution scan,
+widened plugin) is kept for the next try. An update Hermes installed whose later steps failed is remembered
+(`updatePending`) and shown as "Finish update", which runs the remaining steps even though Hermes then answers
+"unchanged"; it never says "nothing was changed". The Setup page's complete screen has a hermretro row with the
+version and, when one is ready, Update.
+
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
 (`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
 approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps

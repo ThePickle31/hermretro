@@ -6,7 +6,8 @@ import { S } from '#shared/styles/tokens.js'
 export const LINKS = {
   node: 'https://nodejs.org/',
   firmware: 'https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx',
-  quickstart: 'https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg'
+  quickstart: 'https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg',
+  releases: 'https://github.com/ThePickle31/hermretro/releases'
 }
 
 export function ExternalLink({ ctx, href, children, variant = 'link' }) {

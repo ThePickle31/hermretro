@@ -210,8 +210,10 @@ def write(ctx, version: str, sha: str, previous: str | None, checklist: str | No
     else:
         parts.append(
             "## Updating\n\n"
-            "`hermes plugins update hermretro` in the profile you installed it into (or Capabilities > Plugins), then "
-            "quit and reopen Hermes. Your games and library are kept.\n"
+            "Press **Update** on the \"Update ready\" chip in the hermretro page's header: it updates, reloads hermretro "
+            "in both profiles and refreshes the page. From a version without the chip: `hermes plugins update hermretro` "
+            "in the profile you installed it into (or Capabilities > Plugins), then quit and reopen Hermes. Your games "
+            "and library are kept.\n"
         )
     tested = "CI on Linux, Apple Silicon and Intel macOS, including the real engine"
     if previous:
