@@ -22,6 +22,8 @@ from .doctor import hermes_source
 from .output import OK, Failure
 
 SCRIPT = "tests/page/preview/build.mjs"
+# The `p=` choices it prints: the nav's pages in order (page/pages/index.js; tests/retrodev/test_reach.py keeps them equal).
+PAGES = ("build", "setup", "prompts", "games", "emulator")
 
 
 def desktop_dir(given: str | None, source: Path | None = None) -> Path:
@@ -80,12 +82,12 @@ def run(ctx, serve: bool = False, out_dir: str | None = None, desktop: str | Non
     folder = desktop_dir(desktop, ctx.fakes.get("hermes_source"))
     index = build(ctx, out, folder)
     ctx.out.say(str(index))
-    ctx.out.say(f"open: file://{index}?s=choice&mode=dark&p=home (p = home, setup, prompts, games, emulator)")
+    ctx.out.say(f"open: file://{index}?s=choice&mode=dark&p={PAGES[0]} (p = {', '.join(PAGES)})")
     ctx.out.set(path=str(index), out=str(out), desktop=str(folder))
     if not serve:
         return OK
     server = make_server(out, folder / "dist" / "assets")
-    url = f"http://127.0.0.1:{server.server_address[1]}/index.html?s=choice&mode=dark&p=home"
+    url = f"http://127.0.0.1:{server.server_address[1]}/index.html?s=choice&mode=dark&p={PAGES[0]}"
     ctx.out.set(url=url)
     ctx.out.say(f"serving {out} on {url} (loopback only; Ctrl+C stops)")
     try:
