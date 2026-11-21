@@ -123,7 +123,8 @@ class ProxySettingsReachDownloads(unittest.TestCase):
             root = Path(folder) / "engine"
             (root / "scripts").mkdir(parents=True)
             (root / "scripts" / "start-mcp.mjs").write_text("", encoding="utf-8")
-            broker = mock.Mock(node="/usr/bin/node")
+            # Popen is faked, but the broker still checks that its executable exists.
+            broker = mock.Mock(node=sys.executable)
             with (
                 mock.patch.dict(os.environ, {**PROXY, "HERMES_GATEWAY_TOKEN": "secret"}),
                 mock.patch.object(
