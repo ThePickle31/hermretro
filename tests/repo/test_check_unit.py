@@ -219,7 +219,7 @@ class UnitCheckHomeTests(unittest.TestCase):
         self.assertIn("FIX: clean up with addCleanup / TemporaryDirectory", message)
 
 
-class LayoutSummaryRoundEighteen(unittest.TestCase):
+class LayoutSummary(unittest.TestCase):
     def test_the_branch_s_own_big_files_are_named_first(self):
         spec = importlib.util.spec_from_file_location("unit_home_round_eighteen", ROOT / "tools/py/unit_home.py")
         unit_home = importlib.util.module_from_spec(spec)
