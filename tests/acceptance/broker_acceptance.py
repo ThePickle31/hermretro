@@ -16,14 +16,16 @@ import json
 import os
 import shutil
 import signal
+import stat
 import struct
 import subprocess
 import sys
 import tempfile
 import threading
-import urllib.request
 import time
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
@@ -33,6 +35,7 @@ os.environ["HERMRETRO_WRITER_HANDOFF_SECONDS"] = str(HANDOFF)
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.engine import EngineProcess  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import host as host_os  # noqa: E402 - the repository root goes on sys.path first
 
 RUN = time.strftime("%Y%m%dT%H%M%S")
 # Resolved: on macOS /tmp and /var are links into /private, and the engine reports real paths.
@@ -45,6 +48,7 @@ HW = {"hardware_enabled": True}
 
 checks: list[dict] = []
 observations: dict = {}
+BROKERS: set[int] = set()  # every broker this run started: their fallback temp folders are this run's
 
 
 def check(check_id: str, title: str, passed: bool, **detail) -> bool:
@@ -96,6 +100,44 @@ def alive(pid: int) -> bool:
     return bool(state) and not state.startswith("Z")
 
 
+def fallback_dirs(broker: int) -> list[Path]:
+    """The private temp folders one broker made for its workers (``hrt-<pid>-`` in the system temp root),
+    only those this user owns."""
+    root = Path(host_os.SYSTEM_TEMP).resolve()
+    found = []
+    for path in root.glob(f"hrt-{broker}-*"):
+        info = path.lstat()
+        if stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid():
+            found.append(path)
+    return sorted(found)
+
+
+def wait_gone(pids, seconds: float) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and any(alive(p) for p in pids):
+        time.sleep(0.1)
+    return not any(alive(p) for p in pids)
+
+
+def stop_brokers() -> None:
+    """Teardown: ask the broker to stop (it closes its workers and their temp folders), kill only what this run
+    started and would not stop, then remove the temp folders brokers killed on purpose could not."""
+    try:
+        with BrokerClient(STATE) as last:
+            last.request({"op": "shutdown", "force": True})
+    except Exception:  # noqa: BLE001 - no broker running is the usual case
+        pass
+    if not wait_gone(BROKERS, 10):
+        for pid in BROKERS:
+            command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
+            if alive(pid) and "backend.broker" in command.stdout:
+                os.kill(pid, signal.SIGKILL)
+        wait_gone(BROKERS, 5)
+    for pid in BROKERS:
+        for path in fallback_dirs(pid):
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def session_processes(leader: int) -> list[dict]:
     """Processes in the group a worker or the broker leads (each starts in its own session, so its group)."""
     listing = subprocess.run(["ps", "-A", "-o", "pid=,pgid=,rss=,comm="], capture_output=True, text=True).stdout
@@ -123,9 +165,16 @@ def main() -> int:
         except Exception as error:  # noqa: BLE001 - every racer's failure is collected and reported
             errors.append(repr(error))
 
-    threads = [threading.Thread(target=racer) for _ in range(4)]
-    [t.start() for t in threads]
-    [t.join() for t in threads]
+    # Model the deep TMPDIR inherited from a Desktop or gateway launch. Only the broker's engine needs a
+    # short path; leave sockets and test fixtures in their own short workspace. Fallback folders go to the system
+    # temp root under the broker's pid; stop_brokers() removes those of brokers this run kills on purpose.
+    deep_temp = WORK / ("nested-" + "x" * 120)
+    deep_temp.mkdir()
+    observations["inherited_compiler_tmp_bytes"] = len(os.fsencode(deep_temp))
+    with mock.patch.dict(os.environ, {"TMPDIR": str(deep_temp)}):
+        threads = [threading.Thread(target=racer) for _ in range(4)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
     pids = {c.hello.get("pid") for c in clients}
     gens = {c.hello.get("broker_generation") for c in clients}
     check(
@@ -136,6 +185,7 @@ def main() -> int:
         errors=errors,
     )
     broker_pid = pids.pop()
+    BROKERS.add(broker_pid)
     loser = spawn_broker(STATE, NODE)
     loser_code = loser.wait(timeout=10)
     check(
@@ -617,6 +667,14 @@ def main() -> int:
 
     # --- crash: SIGKILL the broker; workers must not be orphaned -----------------------------------------
     worker_pids = sorted({p["pid"] for lane in cost for p in lane["processes"]})
+    private_temp = fallback_dirs(broker_pid)
+    check(
+        "T1",
+        "Workers of a broker with a deep TMPDIR get short private temp folders of their own",
+        bool(private_temp)
+        and all(len(os.fsencode(p)) <= 64 and p.stat().st_mode & 0o777 == 0o700 for p in private_temp),
+        folders=[str(p) for p in private_temp],
+    )
     os.kill(broker_pid, signal.SIGKILL)
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline and any(alive(p) for p in worker_pids + [broker_pid]):
@@ -634,6 +692,7 @@ def main() -> int:
         client.close()
     snap_before_restart = snapshot(proj_a)
     c2 = ensure_broker(STATE)
+    BROKERS.add(c2.hello["pid"])
     fresh_status = c2.call(A, "session_status")
     reselect = c2.call(A, "project_select", {"projectPath": str(proj_a / "project.gbsproj")})
     names = [v.get("name") for v in structured(c2.call(A, "variable_inspect")).get("variables", [])]
@@ -668,7 +727,10 @@ def main() -> int:
     while time.monotonic() < deadline and (alive(killed_broker) or (held_by and alive(held_by))):
         time.sleep(0.1)
     orphaned = lease_path.exists() and held_by is not None and not alive(held_by)
-    c2 = ensure_broker(STATE)
+    with mock.patch.dict(os.environ, {"TMPDIR": str(deep_temp)}):  # its clean stop must remove its temp folders
+        c2 = ensure_broker(STATE)
+    final_pid = c2.hello["pid"]
+    BROKERS.add(final_pid)
     c2.call(A, "project_select", {"projectPath": str(proj_a / "project.gbsproj")})
     rerun = c2.call(A, "emulator_run", {"romPath": rom_a})
     trace = [json.loads(line) for line in (STATE / "trace.jsonl").read_text().splitlines()]
@@ -701,13 +763,22 @@ def main() -> int:
         polite.get("denied", {}).get("code") == "BUSY",
         response=polite,
     )
+    in_use = fallback_dirs(final_pid)
     c2.request({"op": "shutdown", "force": True})
     c2.close()
-    time.sleep(1.5)
+    stopped = wait_gone([final_pid], 15)
     check(
         "R3",
         "Clean shutdown removes the socket and token",
-        not (STATE / "broker.sock").exists() and not (STATE / "broker.token").exists(),
+        stopped and not (STATE / "broker.sock").exists() and not (STATE / "broker.token").exists(),
+    )
+    left = fallback_dirs(final_pid)
+    check(
+        "T2",
+        "A clean shutdown removes the private temp folders the broker made for its workers",
+        stopped and bool(in_use) and not left,
+        in_use=[str(p) for p in in_use],
+        left=[str(p) for p in left],
     )
 
     passed = all(c["passed"] for c in checks)
@@ -777,6 +848,7 @@ def run() -> int:
         write_evidence(False, crashed)
         return 1
     finally:
+        stop_brokers()
         shutil.rmtree(WORK, ignore_errors=True)
 
 

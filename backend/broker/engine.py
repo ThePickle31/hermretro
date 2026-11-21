@@ -15,6 +15,7 @@ import signal
 import subprocess
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,7 @@ class EngineProcess:
         self._node = node
         self._client_name = client_name
         self._env = env if env is not None else sanitized_environment()
+        self._compiler_temp = None
         self._proc: subprocess.Popen | None = None
         self._pending: dict[int, queue.Queue] = {}
         self._lock = threading.Lock()
@@ -97,11 +99,26 @@ class EngineProcess:
     def start(self, timeout: float = 60.0) -> dict:
         if self._proc is not None:
             raise EngineError("Engine already started")
+        try:
+            self._compiler_temp = host_os.engine_tempdir(self._env)
+        except OSError as error:
+            raise EngineError(str(error)) from error
+        env = self._env
+        if self._compiler_temp is not None:
+            env = {**env, **dict.fromkeys(("TMPDIR", "TMP", "TEMP"), self._compiler_temp.name)}
+        try:
+            return self._start(timeout, env)
+        except BaseException:
+            with suppress(OSError, subprocess.TimeoutExpired):
+                self.close(grace=0.25)
+            raise
+
+    def _start(self, timeout: float, env: dict[str, str]) -> dict:
         self.started_monotonic = time.monotonic()
         self._proc = subprocess.Popen(
             [self._node, str(self._launcher)],
             cwd=self.engine_root,
-            env=self._env,
+            env=env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -134,6 +151,14 @@ class EngineProcess:
         return self._proc is not None and self._proc.poll() is None
 
     def close(self, grace: float = 8.0) -> int | None:
+        try:
+            return self._stop(grace)
+        finally:
+            if not self.alive() and self._compiler_temp is not None:
+                directory, self._compiler_temp = self._compiler_temp, None
+                directory.cleanup()
+
+    def _stop(self, grace: float) -> int | None:
         proc = self._proc
         if proc is None:
             return None
