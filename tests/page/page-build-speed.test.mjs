@@ -65,6 +65,16 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { fast: true } }) })
   await settle()
 
+  // The toggle shows only on the tab of the Codex model in use: not on the other OpenAI tab, nor in a search.
+  await press(tile('OpenAI API'))
+  check('the OpenAI API tab has no toggle while a Codex model is in use', () => { assert.ok(!speed()) })
+  await press(tile('ChatGPT or Codex Subscription'))
+  const search = () => pop().querySelector('input[aria-label="Search models"]')
+  await typeInto(search(), 'gpt')
+  check('a search has no toggle, even from the Codex tab', () => { assert.ok(!speed()) })
+  await typeInto(search(), '')
+  check('clearing the search brings it back', () => { assert.ok(speed()) })
+
   // Stars: kept in the page's storage, listed under Starred with each model's provider.
   await press(row('gpt-6.2-sol').parentElement.querySelector('.cs-b-mp-star'))
   await press(tile('Anthropic'))
@@ -324,7 +334,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   dom.window.innerWidth = width
   await view.close()
 
-  // New Game: the draft pick remembers fast mode and sends it with session.create, for Codex models only.
+  // New Game: the draft pick remembers fast mode and sends it with session.create, for Codex and OpenAI API models only.
   scenario.storage.buildSelected = 'new'
   scenario.storage.buildModel = { model: 'gpt-6.2-sol', provider: 'openai-codex', effort: 'low' }
   const creates = []
@@ -353,4 +363,17 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await settle()
   check('another provider never gets fast mode with session.create', () => { assert.ok(!('fast' in creates.at(-1))) })
   await other.close()
+  scenario.storage.buildSelected = 'new'
+  scenario.storage.buildModel = { model: 'gpt-6.2', provider: 'openai-api' }
+  const api = await mount(page)
+  await settle()
+  await act(async () => { api.node.querySelector('.cs-b-mp-chip').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await click('Fast', api.node.querySelector('[aria-label="Speed"]'))
+  await typeInto(api.node.querySelector('textarea[aria-label="Your game idea"]'), 'a heron game')
+  await act(async () => { api.node.querySelector('.cs-b-new .cs-b-send[aria-label="Start building"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await settle()
+  check('an OpenAI API draft with Fast makes its conversation with fast mode on', () => {
+    assert.deepEqual([creates.at(-1).model, creates.at(-1).provider, creates.at(-1).fast], ['gpt-6.2', 'openai-api', true])
+  })
+  await api.close()
 })

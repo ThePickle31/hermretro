@@ -360,7 +360,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
   use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}` (plus `fast` for a ChatGPT or Codex Subscription model). A reply names its model when it differs from the message before.
+  reasoning_effort}` (plus the draft's `fast` choice for a ChatGPT or Codex Subscription or OpenAI API model). A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
   follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn
