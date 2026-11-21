@@ -266,7 +266,9 @@ def resume(ctx) -> int:
         files = ", ".join(sorted(added))
         ctx.out.say(
             f"warning: the resolution adds {sum(added.values())} line(s) neither side had ({files}): new work belongs "
-            f"in its own commit after sync (a resolution over {limit} lines needs a full review round at land)"
+            f"in its own commit after sync (a resolution over {limit} lines needs a full review round at land); "
+            "prose reworded to join both sides' text counts too: if that is all they are, they need no commit of "
+            f"their own, and land still counts them toward the {limit}"
         )
         ctx.out.set(new_lines=added)
     followup = sync_followup.advice(ctx, hit, generated)

@@ -171,15 +171,30 @@ def isolation_step(plan: Plan, owner: str, event: str) -> str:
     )
 
 
-def docstring_head(event: str, payload: str, feature: str) -> str:
-    """The listener docstring's first paragraph, wrapped within 120 characters at the function's indent: it copies
-    the EVENTS description, which may be long. The placeholder is a line of its own (the placeholder gate reads
-    it), so the sentence that replaces it has the whole line."""
-    text = f"When {event} happens ({payload}), backend/{feature} does this (a listener that raises is logged):"
-    lines = textwrap.wrap(
-        text, 120, initial_indent='    """', subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
-    )
-    return "\n".join([*lines, f"    {LISTENS}."]).removeprefix('    """')
+def described(doc: str) -> tuple[str, str]:
+    """(what happened, its payload) from an EVENTS entry '<what happened>; <key>=<...>, ...', each as written: the
+    description may start with a name (chromatic_build_report), so its case is never changed."""
+    said, _sep, payload = doc.partition("; ")
+    return said.strip(), payload.strip()
+
+
+def docstring_head(event: str, doc: str, feature: str) -> str:
+    """The listener docstring's opening, wrapped within 120 characters at the function's indent: the sentence with the
+    placeholder, then the event's EVENTS entry as two labelled lines of their own (what happened, the payload), so the
+    copied description never runs into the payload or the listener's own sentence. The placeholder is a line of its
+    own (the placeholder gate reads it), so the sentence that replaces it has the whole line."""
+
+    def wrap(text: str, first: str = "    ") -> list[str]:
+        return textwrap.wrap(
+            text, 120, initial_indent=first, subsequent_indent="    ", break_long_words=False, break_on_hyphens=False
+        )
+
+    said, payload = described(doc)
+    lines = [*wrap(f"When {event} happens, backend/{feature} does this (a listener that raises is logged):", '    """')]
+    lines.append(f"    {LISTENS}.")
+    if said:
+        lines += ["", *wrap(f"The event: {said.rstrip('.')}."), *wrap(f"Its payload: {payload or 'none declared'}.")]
+    return "\n".join(lines).removeprefix('    """')
 
 
 def test_template(plan: Plan) -> str:
@@ -299,10 +314,10 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     func = "on_" + event.replace(".", "_")
     source = f"backend/{feature_name}/listeners.py"
     values = {"name": feature_name, "Name": label(feature_name), "event": event, "func": func, "Func": pascal(func)}
-    values["payload"] = declared[event] or "its payload"
     keys = payload_of(plan, event, declared[event])
     values["call"] = typed_sample(keys, declared[event].partition("; ")[2])  # the declared keys, typed as hinted
-    values["doc"] = docstring_head(event, values["payload"], feature_name)
+    values["doc"] = docstring_head(event, declared[event], feature_name)
+    said, payload = described(declared[event])
     named = emitter_values(keys)["params"]  # keyword-only, one per payload key; later keys still arrive in **_payload
     rest = catch_all(keys)  # never one of the keys: a key named _payload would be bound twice
     values["params"] = f"**{rest}" if named == "**payload" else f"{named}, **{rest}"
@@ -343,7 +358,9 @@ def listener(plan: Plan, feature_name: str, event: str) -> str:
     )
     host, first = host_name(plan.read(source), (*keys, rest))
     plan.next_steps += [
-        f"write what {feature_name} does in {source} ({func}; it gets the payload: {values['payload']}); to log, "
+        f"write what {feature_name} does in {source} ({func}"
+        + (f'; the event: "{said}"' if said else "")
+        + f"; its payload: {payload or 'none declared'}); to log, "
         f"{first}use {host}.logger (e.g. {host}.logger.info(...))",
         f"replace the placeholders new wrote: '{feature_name} (say what it does)' in the 'Heard by' cell of "
         f"{event} in {CONTRACT}, '{LISTENS}' in {func}'s docstring" + readme_step,

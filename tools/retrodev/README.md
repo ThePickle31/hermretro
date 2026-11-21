@@ -17,13 +17,12 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 
-`RETRODEV_AGENT=<agent, model>` names the agent in the body's `Made by` line (default Hermes); set it per command
-before `start` or `takeover`, which record it for the branch: a later `plan approve` or `ship` that writes the body
-names that agent even without the variable; or edit the
-line; `start` says so when it is unset.
+`RETRODEV_AGENT=<agent, model>` names the agent in the body's `Made by` line (default Hermes; `start` says when it
+is unset). Set it before `start` or `takeover`, which record it for the branch, so a later `plan approve` or `ship`
+that writes the body names that agent; or edit the line.
 
 `notes/` is in the main checkout, shared by every worktree. `start` writes the pull request body from the plan or,
-with `--no-plan`, the template. Next steps name the plan and body by full path.
+with `--no-plan`, the template.
 
 ### Add a plugin tool
 
@@ -35,8 +34,8 @@ python tools/retrodev new tool library probe --step 'Probing the game' 'Probed t
 `new` writes every registry line (`plugin.yaml`, the page's step words, the counts, the README line, the snapshot).
 You edit three files, each named in its next steps:
 
-1. the handler module, `backend/<feature>/tools.py` (or `backend/<feature>/<name>_tools.py`, here `probe_tools.py`,
-   when `tools.py` is long; the first next step says which): the schema and the handler;
+1. the handler module, `backend/<feature>/tools.py` (or `probe_tools.py` beside it when `tools.py` is long; the
+   first next step says which): the schema and the handler;
 2. its test, `tests/backend/<feature>/test_tool_<name>.py` (here `test_tool_probe.py`): it pins the stub's answer,
    so change it with the real one;
 3. the CONTRACT line the next step quotes as `docs/dev/CONTRACT.md:<line>`: replace `say what it does and when the
@@ -56,14 +55,17 @@ Then steps 5 to 8 of the Quick path.
 
 1. Move the code to `<feature>/<new>.py`. Put shared dependencies (an error class, a lock) in that module or
    a small sibling helper: the new module must not import back from the old one. In the old module re-export
-   each moved public name as `from .<new> import X as X`: ruff keeps that, but `fix` deletes a plain unused import.
-2. Tests that use a moved private name (`_x`) import the new module and patch there, as for each dependency
+   each moved public name as `from .<new> import X as X`: ruff keeps that, but `fix` deletes a plain unused import
+   (so does an import it kept only for importers, once its last use moves out).
+2. Moved tools keep their `TOOLS` positions (the registration snapshot pins the order): import them into the
+   module that lists `TOOLS`, at the same places.
+3. Tests that use a moved private name (`_x`) import the new module and patch there, as for each dependency
    the moved code imports: `mock.patch.object(<new module>, "dep")`, not the old module.
-3. Search the old module name and path with `git grep -n` across `backend/`, `tests/`, `tools/retrodev/` and `docs/`.
-   Check sibling docstrings and comments, the feature README and `tests/retrodev` (trial tests read file text);
-   keep references to the public API that goes through the old module.
-4. Aim every resulting module under the 400-line warning, then `python tools/check.py fix`, commit and `python
-   tools/retrodev check`.
+4. Search as in step 1 of the rename above; check sibling docstrings and comments, the feature README and
+   `tests/retrodev` (trial tests read file text); keep references to the public API that goes through the old
+   module.
+5. Aim every resulting module under the 400-line warning (above 400 warns, above 600 fails), then `python
+   tools/check.py fix`, commit and `python tools/retrodev check`.
 
 ## The flow, from plan to merge
 
@@ -72,8 +74,8 @@ Then steps 5 to 8 of the Quick path.
 | 1 discuss | owner and agent | |
 | 2 plan | agent | `plan new <topic>` writes `notes/plans/<topic>.md` (git-ignored) from the template; the agent fills it in |
 | 3 go | owner says start | `plan approve <topic> --words "<the owner's exact words>"` (the agent runs it) |
-| 4 build | agent | `start <kind>/<topic>` (feat, fix, docs, or chore for refactors that change no behaviour), `new ...`, edit, `check` (or `check --watch`), commit, `ship --title ...` (the body `notes/pr/<topic>.md` is written early: `start`, or `plan approve` inside the linked branch, writes it from the plan; the agent fills it in while building; `ship` writes it only when it is missing, then stops; later ones need only `ship`) |
-| 5 report | agent | `report` gives the facts (PR, commits, files by area, checks, CI, what to restart); the agent adds the prose |
+| 4 build | agent | `start <kind>/<topic>` (feat, fix, docs, or chore for refactors that change no behaviour), `new ...`, edit, `check` (or `check --watch`), commit, `ship --title ...` (the body `notes/pr/<topic>.md` is written early: `start`, or `plan approve` inside the linked branch, writes it from the plan for the agent to fill in; `ship` writes it only when it is missing, then stops; later ones need only `ship`) |
+| 5 report | agent | `report` gives the facts (PR, commits, files, checks, CI, restarts); the agent adds the prose |
 | 6 approve | owner says approve, merge or go ahead | `approve <pr> --words "<the owner's exact words>"`, once per pull request |
 | 7 land | agent | `cd <main checkout> && python tools/retrodev land <pr>` in the background: up to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding |
 | 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts |
@@ -89,7 +91,6 @@ Each in full: `tools/retrodev/REFERENCE.md`, "Commands".
   untouched template and a `Title:` line ship would refuse)
 - `start <kind>/<topic>`, `takeover <branch>`: a worktree on a new or a teammate's branch, set up
 - `new feature|rpc|tool|event|listener|page|tab|slot|contribution ...`: a piece with every registry line it needs
-  (`tools/retrodev/REFERENCE.md`, "new")
 - `check`, `ship`, `report`, `approve <pr>`, `land <pr>`, `answer <pr> ...`, `summary <pr>`: build to merge
 - `status`, `sync`, `gc`, `doctor`, `config`, `stats`: any time
 - `try <pr>`, `mac`, `preview`: beyond one change; `engine update <version>` and `release ...`: only with the

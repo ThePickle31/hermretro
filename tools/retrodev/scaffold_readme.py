@@ -157,6 +157,30 @@ def first_tab_step(page_id: str, tab_id: str, component: str, door: str, name: s
     )
 
 
+def moved_page_steps(plan, page_id: str, tab_id: str, values: dict) -> list[str]:
+    """new tab --from-page's steps about the Page it moved: where it is now and, when the page README's **Shows:**
+    still explains the page-level Page (it names `Page` or the component), that line with the tab's real import, so
+    the author rewrites it from what the tab holds rather than from what the descriptor used to say. Read-only."""
+    moved = f", moved from index.js into {values['moved']}" if values.get("moved") else ""
+    steps = [f"the page's own Page ({values['source']}{moved}) is now the {tab_id} tab, and the descriptor has no Page"]
+    rel = f"page/pages/{page_id}/README.md"
+    lines = plan.read(rel).split("\n") if plan.exists(rel) else []
+    start = next((n for n, line in enumerate(lines) if line.startswith("**Shows:**")), len(lines))
+    names = ("`Page`", f"`{values['Component']}`")
+    for number in range(start, len(lines)):
+        if not lines[number].strip() or (number > start and lines[number].startswith("**")):
+            break  # the end of the Shows paragraph
+        if any(name in lines[number] for name in names):
+            steps.append(
+                f"{rel}:{number + 1} (**Shows:**) still explains the page's own Page, which the descriptor no longer "
+                f"has: say the {tab_id} tab shows it now; its Page is {values['Component']} from "
+                f"page/pages/{values['source'].removeprefix('#pages/')}, which page/pages/{page_id}/{tab_id}/index.js "
+                f"imports as import {{ {values['Imported']} }} from '{values['source']}'"
+            )
+            break
+    return steps
+
+
 DESIGN_DOC = "docs/dev/STUDIO-PAGES.md"
 
 

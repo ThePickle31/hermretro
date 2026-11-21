@@ -183,7 +183,8 @@ def tool(
     plan.regenerate = True
     plan.next_steps += [
         f"write the schema and handler in {home}; in {contract_at(plan, full)} replace '{TOOL_LINE}' after `{full}` "
-        "with what it does and when the agent calls it"
+        "with what it does and when the agent calls it (another tool named there goes without backticks: "
+        "tests/repo/test_lockstep.py counts every backticked chromatic_* name in that sentence as a listed tool)"
         + (
             f"; it acts on a project: tool_project gives the `project` argument's folder, else this chat's ({TOOL_ARGS}.py)"
             if project
@@ -211,7 +212,8 @@ def tool(
         )
         plan.next_steps.append(
             "the game card (from . import game_card): game_card.public(root) (None without a game.json); "
-            "game_card.status(root, strict=True) for what is missing (its missing and problems)"
+            "game_card.status(root, strict=True) for what is missing (its missing and problems); both take a Path "
+            "and tool_project gives root as a str, so pass them Path(root) (from pathlib import Path)"
         )
         plan.next_steps.append(
             "a test that needs the game's last build: seed it after isolated_home(self) with "

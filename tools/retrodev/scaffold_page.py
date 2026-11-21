@@ -33,6 +33,7 @@ from .scaffold_readme import (
     declares_line,
     design_heading,
     first_tab_step,
+    moved_page_steps,
     slots_block,
     taken_readme,
     with_block,
@@ -212,10 +213,7 @@ def tab(plan: Plan, page_id: str, tab_id: str, tab_label: str | None, from_page:
     plan.regenerate = True
     still_page, tabs = own_page(plan.read(door))[1], tab_count(plan.read(door))
     if from_page:
-        moved = f", moved from index.js into {values['moved']}" if values.get("moved") else ""
-        plan.next_steps.append(
-            f"the page's own Page ({values['source']}{moved}) is now the {tab_id} tab, and the descriptor has no Page"
-        )
+        plan.next_steps += moved_page_steps(plan, page_id, tab_id, values)
     else:
         if tabless and component:
             plan.next_steps.insert(0, first_tab_step(page_id, tab_id, component, door, name))  # before anything
