@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 0abd31627248f56ffd735949439b3f480dcbcfea21d92fbc5c795d231b81c660
- * body: sha256 e0550563795a4bfa4591c4f82a1c786637224f8a4f4c7782731da6c4019b4e7c
+ * sources: sha256 bbf8d3d64beba0f0ff195f298d6f531d72d447cae7cd571d4b9ea94d31798ad7
+ * body: sha256 cb7e2a4807c3f4cdfbc0d1ff0db6a127a83bdd3972390aa49ecad885642ae3fe
  */
 // page/sdk.js
 import {
@@ -1914,49 +1914,53 @@ function providerMarks(providers) {
 // page/shared/art/providers/nous.png
 var nous_default = [
   "data:image/png;base64,",
-  "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",
-  "P/8HMs12Zc6zbwQAAAAASUVORK5CYII="
+  "iVBORw0KGgoAAAANSUhEUgAAABoAAAAkCAYAAACXOioTAAAFKklEQVR42m2XbYhVVRSGn3Puvc5MOjOpU+ooKpOfpeBHZmZo",
+  "kiaRFFoYlVD6o6j+WGKGURAY/YjCUMIsspLSog8sy6g0tNTMLEoztdIpJTUZtZnRUWfm3P48OzYHLxzOOfusvT7etda7102A",
+  "OmAZMAw4A1wCdALtQAJ0Bc4DZ4FqoKAcPpeVrwCKfqv0e1dgPbAwAd7y42oV7wUuBfoCbcAuYCAwBvgCOAeM1Uiz9xrgIHAc",
+  "uBr4HWgFegLLge2ouJuWO4C5wCC9XODzL8AbwFa9Xq7sbcBCDU7QkR+BncrOBq4AtqduaAV+1buJepS5abGK7gWuA+4AvlJ2",
+  "p04cBYYAU4EZwLPK1gAXgCwVrgToIt6jgO7Cebme7lHmEDAJqFK2wn0Z0EMUegEfAJ+b0wxIUpNWBoLRgUA/PakwV83KNAP1",
+  "rifR3hJwwChnu/6y+UyBcjCElbLf53EWQkml7a63G00h2pe59h1wApgH1AIbgW+tvCw2VAL+Ao4A41WamcOgOI3WiSLqopHX",
+  "gMuA+cC/5rgyb6gItAA7zEu1oZ/Qq9S1f4S1nIOvYDU2A4+YgtSL2FCi9zuAK01uE7AbGGAUAyyM88qfFuKQpyM2f63VmkXO",
+  "sNv7amAdMFKDncANwM1G9STwh1BUAo2urQReUGHBJj2qM/2BocDXaQ7rCmCfeUiBPsAGYJY9sQy4H5gpPCnwIfAoMNzSbwJe",
+  "NG9zQuXlocsM+1PgfTfPVcH3wBZZZDWwBrje5KOTM3x+W0SuUb4zQJcAr0shYdMTJr4cXbts6Kv0PKx/DNxojmqilGwGRgCb",
+  "0xxsBXHdAiyJvA3lPAZ4xSKYHaExQzhPA+/pSAPwg/RWLFqqvc1HE7DCkI9IQSf9vgtYakEsMC+rZOvPgLUyeD/gXWAT8IyU",
+  "lCU21RRxrDeiqZZxHfC36+ulo1VCPV0nl/jeaRQTPdPOGu1oYGlRuFpUtlivRgK3CllvK2eO59RAFTyg1zPV0WZjz5JUu1i9",
+  "5YDvHu8P5RIfrn259ws6cNi9R71a/f6qERbVOyouBqLuP2fDno8K4UCOExMLZbAMUhVBNVmZDnL8FijilA1YVGiF59Ig4Esd",
+  "aTH5E6zS+Nfivb+yv+W+87PKG6y0DuBNcwZwn7PAIt/HGmXZWWC7738aVRm4PdL/P3SZ3HUQuMkZYLTzQAp8ouFGE1yKUBgi",
+  "lyXqOBP1G3noiCh/r9UzCXjHtVMaD7/6aE+PaL1GJsE+TOKKy5Nqqoc/2aidUVJL3od678g5HaLNhLdnxKFcjFTr7OZpQpNG",
+  "DYlnVYxGqMxMQ+0W0bVxMDHXhTC723TdNVqKJtJUHsNRKz7S28xTmC+mxEGk0XDRWy/r5LhaYJv91KGhaqM8LNPHjlbJDAV7",
+  "cXIMcZiVpzizHbMcAZ52WDlmY25TQRi16n2v1FAxSkGrx0O3MMMXfegL3Cl3TVd5H1m5Xfh2AA+rcL8n6z0XyVcSHTuDNZoA",
+  "fGPPNBrBSqNrjhozQLdB+XI0CXXoTKfyFxy1MguqAdiaiu1OB5NN0kubhkO1pR5oDwK3mJ9QygUjCtVZErJEpkiBcjgmmqSY",
+  "RR4Dh4C7oiElcRJqlMs+ss9G6GQYh8d4llVrZI9pyfBfRFWE8XwHj2UmOz4innP6GadT03JN20syLgNPuTbe0YA1Tpg1lmfR",
+  "541uOGk5b5CahnvozTPSbl7VwnY38Lx6+jpRPZ5IFS9Z1mfdXBudpCe9n5GhhwnTcQshP4fXiESbxtcBj/0HnUCY1TdtYp4A",
+  "AAAASUVORK5CYII="
+].join("");
+
+// page/shared/art/providers/nous-dark.png
+var nous_dark_default = [
+  "data:image/png;base64,",
+  "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"
 ].join("");
 
 // page/shared/art/providers/fireworks.svg
@@ -2850,7 +2854,7 @@ var upstage_default = [
 
 // page/shared/art/providers/index.js
 var LOGOS = {
-  nous: { name: "Nous Research", light: nous_default, dark: nous_default, source: "https://nousresearch.com/assets/nous-web/favicon.png" },
+  nous: { name: "Nous Research", light: nous_default, dark: nous_dark_default, source: "https://nousresearch.com/ (the header badge, drawn in the text colour: black, white on dark)" },
   fireworks: { name: "Fireworks AI", light: fireworks_default, dark: fireworks_default, source: "https://fireworks.ai/icon.svg" },
   openrouter: { name: "OpenRouter", light: openrouter_default, dark: openrouter_dark_default, source: "https://openrouter.ai/brand" },
   novita: { name: "Novita AI", light: novita_default, dark: novita_default, plate: "dark", source: "https://novita.ai/logo/logo_small.svg" },

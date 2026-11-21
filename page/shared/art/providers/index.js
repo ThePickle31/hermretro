@@ -8,6 +8,7 @@
 // A provider missing from PROVIDER_BRANDS (custom endpoints, Mixture of Agents, ones Hermes adds later) keeps its
 // letter mark.
 import nous from './nous.png'
+import nousDark from './nous-dark.png'
 import fireworks from './fireworks.svg'
 import openrouter from './openrouter.svg'
 import openrouterDark from './openrouter-dark.svg'
@@ -54,7 +55,7 @@ import ramp from './ramp.png'
 import upstage from './upstage.png'
 
 export const LOGOS = {
-  nous: { name: 'Nous Research', light: nous, dark: nous, source: 'https://nousresearch.com/assets/nous-web/favicon.png' },
+  nous: { name: 'Nous Research', light: nous, dark: nousDark, source: 'https://nousresearch.com/ (the header badge, drawn in the text colour: black, white on dark)' },
   fireworks: { name: 'Fireworks AI', light: fireworks, dark: fireworks, source: 'https://fireworks.ai/icon.svg' },
   openrouter: { name: 'OpenRouter', light: openrouter, dark: openrouterDark, source: 'https://openrouter.ai/brand' },
   novita: { name: 'Novita AI', light: novita, dark: novita, plate: 'dark', source: 'https://novita.ai/logo/logo_small.svg' },
