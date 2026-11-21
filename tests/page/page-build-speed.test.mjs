@@ -210,12 +210,81 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await settle()
   check('long provider and model names wrap instead of being cut', () => {
     const css = dom.window.document.querySelector('style')?.textContent ?? ''
-    for (const rule of ['.cs-b-mp-head {', '.cs-b-mp-head b {', '.cs-b-mp-label {', '.cs-b-mp-label.two > span {', '.cs-b-mp-row {']) {
+    for (const rule of ['.cs-b-mp-head {', '.cs-b-mp-head b {', '.cs-b-mp-label {', '.cs-b-mp-label.two > span {', '.cs-b-mp-row {', '.cs-b-mp-ehead {', '.cs-b-mp-emodel {']) {
       const text = css.split('\n').find(line => line.startsWith(rule)) ?? ''
       assert.ok(text, `${rule} exists`)
       assert.ok(!/text-overflow: ellipsis|white-space: nowrap/.test(text), `${rule} does not cut its words`)
     }
   })
+
+  // Review round 3: a message sent right after a switch waits for it, the Standard reset included.
+  const calls = []
+  const later = []
+  scenario.byMethod['config.set'] = params => {
+    scenario.sets.push(params); calls.push(`${params.key}=${params.value}`)
+    return new Promise(done => { later.push(() => done({ key: params.key, value: params.value })) })
+  }
+  scenario.byMethod['prompt.submit'] = params => { calls.push(`submit:${params.text}`); return { ok: true } }
+  await open()
+  await press(tile('Anthropic'))
+  await press(row('claude-opus-5-5'))
+  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'make it rain')
+  await click('Send', view.node.querySelector('.cs-b-comp'))
+  await settle()
+  check('a message sent while the switch is on its way waits for the model', () => { assert.deepEqual(calls, ['model=claude-opus-5-5 --provider anthropic --session']) })
+  await act(async () => { later.shift()() }); await settle()
+  check('then for the Standard reset', () => { assert.deepEqual(calls.slice(1), ['fast=normal']) })
+  await act(async () => { later.shift()() }); await settle(60)
+  check('and only then goes to Hermes', () => { assert.deepEqual(calls.slice(2), ['submit:make it rain']) })
+  await act(async () => { emit({ type: 'message.complete', session_id: 'rt-of-st-frog', payload: { text: 'Rain added.' } }) })
+  await settle()
+  // A switch that fails keeps the message to send again.
+  let refuse
+  scenario.byMethod['config.set'] = params => { calls.push(`${params.key}=${params.value}`); return new Promise((_, fail) => { refuse = () => fail(new Error('provider refused')) }) }
+  await open()
+  await press(tile('ChatGPT or Codex Subscription'))
+  await press(row('gpt-6.2-sol'))
+  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'add thunder')
+  await click('Send', view.node.querySelector('.cs-b-comp'))
+  await settle()
+  await act(async () => { refuse() })
+  await settle(80)
+  check('when the switch fails the message is not sent, and it can be sent again', () => {
+    assert.ok(!calls.includes('submit:add thunder'))
+    assert.match(view.node.querySelector('.cs-b-turns, .cs-b-tx')?.textContent ?? view.node.textContent, /The model change did not go through/)
+  })
+  scenario.byMethod['config.set'] = plainSet
+  scenario.byMethod['prompt.submit'] = () => ({ ok: true })
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: false } }) })
+  await settle()
+
+  // Review round 3: no speed change while a model's cost question is open, and none reaches it after Use it.
+  let costAsked = false
+  scenario.byMethod['config.set'] = params => {
+    scenario.sets.push(params)
+    if (params.key === 'model' && !params.confirm_expensive_model) { costAsked = true; return { confirm_required: true, confirm_message: 'Opus costs more.' } }
+    return { key: params.key, value: params.value }
+  }
+  await open()
+  await press(tile('Anthropic'))
+  await press(row('claude-opus-5-5'))
+  await settle()
+  check('while a model asks "Use it", Standard / Fast cannot be changed', () => {
+    assert.ok(costAsked); assert.ok(pop().querySelector('.cs-b-mp-confirm'))
+    assert.ok([...speed().querySelectorAll('button')].every(node => node.disabled))
+  })
+  const mark = scenario.sets.length
+  await click('Fast', speed())
+  await click('Use it', pop())
+  await settle()
+  check('so Use it switches without sending Fast to the new model', () => {
+    assert.ok(!scenario.sets.slice(mark).some(set => set.key === 'fast' && set.value === 'fast'))
+    assert.match(chip().textContent, /Claude Opus 5\.5/); assert.ok(!chip().querySelector('.cs-b-mp-bolt'))
+  })
+  await key('keydown', 'Escape')
+  scenario.byMethod['config.set'] = plainSet
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: true } }) })
+  await settle()
 
   // A narrow window: the Effort column narrows, drops its note, and the words shorten. The open panel follows a resize.
   const width = dom.window.innerWidth

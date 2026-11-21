@@ -210,7 +210,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
       // Leaving fast mode on would carry Hermes's priority tier to a model without the switch (Anthropic and
       // xAI read it as their own fast mode), so a model without it goes back to standard. That covers a Fast
       // still on its way (`shown` includes `pending`), which the model pick would otherwise inherit.
-      onPick({ model: row.model, provider: row.provider, ...(shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
+      onPick({ model: row.model, provider: row.provider, ...(shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) }, row)
     }
   }
   const close = () => setOpen(false)
@@ -302,7 +302,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
                   jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
                 ]
               }),
-              jsx(SpeedBar, { disabled, fast: shown.fast, held: waiting, narrow, onFast: on => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
+              jsx(SpeedBar, { disabled: disabled || Boolean(confirm), fast: shown.fast, held: waiting, narrow, onFast: on => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
             ]
           })
         : null
@@ -325,7 +325,8 @@ export function ChatModelPicker({ ctx, stored, chat, disabled }) {
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: effort => void pickBuildModel(stored, { effort }),
     onFast: fast => void pickBuildModel(stored, { fast }),
-    onPick: pick => void pickBuildModel(stored, pick),
+    // A model pick says whether that model has fast mode, so a Fast picked before it is applied is checked against it.
+    onPick: (pick, row) => void pickBuildModel(stored, { ...pick, fastOk: hasFastMode(row.provider, row.caps) }),
     options,
     value: chat?.info ?? null
   })

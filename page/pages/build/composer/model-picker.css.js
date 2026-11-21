@@ -47,8 +47,8 @@ export const MODEL_PICKER_CSS = `
 .cs-b-mp-star:hover { color: var(--ui-text-primary); }
 .cs-b-mp-item.starred .cs-b-mp-star { color: var(--ui-yellow); }
 .cs-b-mp-effort { border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; min-height: 0; padding: 8px 0 0; width: 172px; }
-.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 5px 14px 6px; white-space: nowrap; }
-.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 0 8px; padding: 5px 14px 6px; }
+.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .cs-b-mp-levels { display: flex; flex-direction: column; }
 .cs-b-mp-levels button { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 13px; justify-content: space-between; padding: 5px 14px; text-align: left; white-space: nowrap; }
 .cs-b-mp-levels button:hover:not(:disabled) { background: var(--ui-bg-quaternary); }

@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 03aa8e590e75495ab499e1810664894b3b1182dd7d36c089fa75f8a0626eef38
- * body: sha256 b8a58732fe608a33498dc828c74c2a300f7b808f06351eacf9cf4f6315c72cc3
+ * sources: sha256 49ecebab28b06f23afa1baffa24e0ca4b164189ba8909270900054eb0a98d5ee
+ * body: sha256 c69febf87e7f4bbe6b4561b1c6f401a127266b481464d4ffad3aaba19f0343dc
  */
 // page/sdk.js
 import {
@@ -644,6 +644,7 @@ function patchChat(stored, change) {
 // page/pages/build/chat/model-pick.js
 var FAST_PROVIDER = "openai-codex";
 var hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true;
+var failedAt = /* @__PURE__ */ new Map();
 async function pickBuildModel(stored, pick) {
   const chat = BUILD_CHATS.get()[stored];
   if (!chat?.runtime) {
@@ -677,9 +678,10 @@ async function applyBuildPick(stored, { confirmed = false } = {}) {
       await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
       patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
     }
-    if (typeof pick.fast === "boolean") {
-      await chatRequest("config.set", { session_id: chat.runtime, key: "fast", value: pick.fast ? "fast" : "normal" });
-      patchChat(stored, (current) => withInfo(current, { fast: pick.fast }));
+    const fast = pick.fast === true && pick.model && pick.fastOk === false ? false : pick.fast;
+    if (typeof fast === "boolean") {
+      await chatRequest("config.set", { session_id: chat.runtime, key: "fast", value: fast ? "fast" : "normal" });
+      patchChat(stored, (current) => withInfo(current, { fast }));
     }
     patchChat(stored, (current) => {
       const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
@@ -693,6 +695,7 @@ async function applyBuildPick(stored, { confirmed = false } = {}) {
     return { ok: true };
   } catch (error) {
     const { message } = describeRequestError(error);
+    failedAt.set(stored, Date.now());
     patchChat(stored, (current) => {
       const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
       return rest;
@@ -700,6 +703,24 @@ async function applyBuildPick(stored, { confirmed = false } = {}) {
     host.notify({ kind: "error", message: `Could not switch: ${message}` });
     return { ok: false };
   }
+}
+async function settleBuildPick(stored, limitMs = 3e4) {
+  const since = Date.now();
+  while (Date.now() - since < limitMs) {
+    const chat = BUILD_CHATS.get()[stored];
+    if ((failedAt.get(stored) ?? 0) >= since) {
+      return { ok: false };
+    }
+    if (!chat?.heldPick || chat.pickConfirm) {
+      return { ok: true };
+    }
+    if (!chat.applyingPick) {
+      await applyBuildPick(stored);
+    } else {
+      await new Promise((done) => setTimeout(done, 25));
+    }
+  }
+  return { ok: true };
 }
 function cancelBuildPick(stored) {
   patchChat(stored, (current) => {
@@ -1143,6 +1164,8 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
       return false;
     }
   }
+  const before = BUILD_CHATS.get()[stored];
+  const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true };
   const chat = BUILD_CHATS.get()[stored];
   const now = Date.now();
   const live = Boolean(chat?.runtime);
@@ -1161,6 +1184,10 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
+    return false;
+  }
+  if (!settled.ok) {
+    patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
     return false;
   }
   schedulePromptCheck(stored);
@@ -2264,7 +2291,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const choose = (row) => {
     setOpen(false);
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
+      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} }, row);
     }
   };
   const close = () => setOpen(false);
@@ -2338,7 +2365,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
               jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
             ]
           }),
-          jsx(SpeedBar, { disabled, fast: shown.fast, held: waiting, narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
+          jsx(SpeedBar, { disabled: disabled || Boolean(confirm), fast: shown.fast, held: waiting, narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
         ]
       }) : null
     ]
@@ -2357,7 +2384,8 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: (effort) => void pickBuildModel(stored, { effort }),
     onFast: (fast) => void pickBuildModel(stored, { fast }),
-    onPick: (pick) => void pickBuildModel(stored, pick),
+    // A model pick says whether that model has fast mode, so a Fast picked before it is applied is checked against it.
+    onPick: (pick, row) => void pickBuildModel(stored, { ...pick, fastOk: hasFastMode(row.provider, row.caps) }),
     options,
     value: chat?.info ?? null
   });
@@ -12898,8 +12926,8 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-star:hover { color: var(--ui-text-primary); }
 .cs-b-mp-item.starred .cs-b-mp-star { color: var(--ui-yellow); }
 .cs-b-mp-effort { border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; min-height: 0; padding: 8px 0 0; width: 172px; }
-.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 5px 14px 6px; white-space: nowrap; }
-.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 0 8px; padding: 5px 14px 6px; }
+.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .cs-b-mp-levels { display: flex; flex-direction: column; }
 .cs-b-mp-levels button { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 13px; justify-content: space-between; padding: 5px 14px; text-align: left; white-space: nowrap; }
 .cs-b-mp-levels button:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
