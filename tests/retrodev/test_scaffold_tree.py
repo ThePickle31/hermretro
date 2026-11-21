@@ -242,6 +242,11 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         (tree / ".git" / "info" / "exclude").write_text("/.dev\n/tools/npm/node_modules\n")
         return base, tree, env
 
+    def assert_engine_clean(self, tree: Path, env: dict) -> None:
+        done = run(["git", "status", "--porcelain=v1", "--untracked-files=all", "--", "engine"], tree, env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout, "", "scaffolding must not change engine/:\n" + done.stdout)
+
     def grow(self, tree: Path, env: dict) -> None:
         """Model a branch where contributors have already added Setup tabs, an RPC module and a History listener."""
         for step in grown_steps(tree):
@@ -255,7 +260,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
                 text = text.replace(stub, said)
             path.write_text(text)
         # Check before committing so a scaffold cannot bake an engine edit into the fixture's baseline.
-        git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
+        self.assert_engine_clean(tree, env)
         for command in (["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "Grown"]):
             git_ok(self, tree, env, command)
         steps = real_steps(tree)
@@ -283,7 +288,7 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         for (command, _), process in zip(commands, running, strict=True):
             output = process.communicate()[0]
             self.assertEqual(process.returncode, 0, f"{' '.join(command[1:])}:\n{output}")
-        git_ok(self, tree, env, ["diff", "--quiet", "HEAD", "--", "engine"])
+        self.assert_engine_clean(tree, env)
 
     def suite(self, command: list[str], tree: Path, env: dict) -> subprocess.CompletedProcess:
         return run(command, tree, env)
@@ -402,8 +407,16 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         for command in (["add", "-A"], ["commit", "-q", "-m", "An unrelated lint error"]):
             git_ok(self, tree, env, command)
 
-        listener = run([*RETRODEV, "new", "listener", "setup", "library.game_presented", "--no-check"], tree, env)
+        listener = run(
+            [*RETRODEV, "--json", "new", "listener", "setup", "library.game_presented", "--no-check"], tree, env
+        )
         self.assertEqual(listener.returncode, 0, listener.stdout + listener.stderr)
+        edits = json.loads(listener.stdout)
+        files = [path for path in edits["created"] + edits["changed"] if path.endswith(".py")]
+        self.assertTrue(files, edits)
+        linted = run([sys.executable, "tools/check.py", "lint-files", *files], tree, env)
+        self.assertEqual(linted.returncode, 0, linted.stdout + linted.stderr)
+
         done = run([*RETRODEV, "new", "rpc", "history", "trial_ping"], tree, env)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("unit", line(done.stdout, "checks: ").split(), done.stdout)
