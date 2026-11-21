@@ -3,7 +3,7 @@
 A hunk where dev's side is much longer than HEAD's, and HEAD's changed lines are modified copies of lines dev
 removed (rewritten_from), means dev rewrote the block: a table row into a subsection, say. new_location then names
 where HEAD's change belongs now: for a table row of a markdown file, the subsection headed with the row's first cell
-(`### Prompts` for `| Prompts | ... |`); else the markdown block (a heading and its lines) most like HEAD's lines, never a
+(`### Games` for `| Games | ... |`); else the markdown block (a heading and its lines) most like HEAD's lines, never a
 table row for a row's details; else the line most like them. When the best two are close it names no place (AMBIGUOUS),
 and the hint points to the diff instead.
 """
@@ -44,7 +44,7 @@ def is_row(line: str) -> bool:
 
 
 def plain(text: str) -> str:
-    """A heading's or a cell's words, without markup or case: `### **Prompts**` and `| `Prompts` |` are both `prompts`."""
+    """A heading's or a cell's words, without markup or case: `### **Games**` and `| `Games` |` are both `games`."""
     return " ".join(re.sub(r"[`*_]", " ", text.strip().lstrip("#")).split()).lower()
 
 
