@@ -37,16 +37,16 @@ function rememberSelection(ctx, selection) {
 }
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, initialSelection = null, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   // The model and effort a new conversation starts on (New Game, a game with no conversation yet).
   const [draftPick, setDraftPick] = useDraftPick(ctx)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} })
-  const [selected, setSelected] = useState(() => {
-    if (initialSelection) {
-      return initialSelection
+  const [rememberedSelection] = useState(() => {
+    if (selection !== null) {
+      return selection
     }
     try {
       return ctx.storage.get('buildSelected', 'new') || 'new'
@@ -55,17 +55,16 @@ export function BuildPage({ ctx, games, initialSelection = null, pendingGames, l
     }
   })
 
-  // An explicit selection is already rendered; a failed save must not change where the navigation landed.
-  useEffect(() => {
-    if (initialSelection) {
-      rememberSelection(ctx, initialSelection)
-    }
-  }, [ctx, initialSelection])
+  const selected = selection ?? rememberedSelection
 
-  const select = key => {
-    setSelected(key)
-    rememberSelection(ctx, key)
-  }
+  // The shell owns the active selection across remounts; storage only remembers it for the next visit.
+  useEffect(() => {
+    if (selection === null) {
+      select(selected)
+    } else {
+      rememberSelection(ctx, selection)
+    }
+  }, [ctx, select, selected, selection])
 
   const rail = useMemo(
     () =>

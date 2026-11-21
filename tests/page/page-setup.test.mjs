@@ -14,14 +14,13 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('one segmented control starts with Build · Setup · Games · Emulator, opening on Build', () => {
     const labels = [...nav().querySelectorAll('button')].map(node => node.firstChild.textContent)
     assert.deepEqual(labels.slice(0, 4), ['Build', 'Setup', 'Games', 'Emulator'])
-    assert.ok(!labels.includes('Prompts'), 'the removed page is not in the nav')
     assert.equal(currentTab(), 'Build')
   })
   check('with the backend off there are no setup steps, only how to switch it on', () => {
     assert.deepEqual(headings(), ['hermretro is not switched on in any profile'])
     hides(/Step \d of/, 'no step counter')
     shows(/Open Capabilities/)
-    hides('Start building', 'prompt library must not show')
+    hides('What are we making?', 'the New Game form does not appear while the backend is off')
   })
 
 

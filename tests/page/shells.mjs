@@ -53,6 +53,7 @@ export function pageShell(overrides = {}) {
     emulatorOnly: false,
     setUpDevice: noop,
     buildSelection: null,
+    selectBuild: noop,
     games: answered({ games: [], device: { hardwareEnabled: false } }),
     gameList: [],
     gamesChanged: noop,

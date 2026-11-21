@@ -526,7 +526,8 @@ tests with the exact problem.
 `shell.ctx.storage.get(key, fallback)` / `shell.ctx.storage.set(key, value)`; every page shares one set of keys, so
 pick one no other page uses (`buildSelected`, `buildModel`). Page tests seed and read them as `scenario.storage`
 (`tests/page/harness.mjs`). To navigate from Games without depending on a storage write, `shell.go('build', selection)`
-passes the requested game ID (or `'new'`) in `shell.buildSelection`. Build opens that selection and saves it if possible.
+passes the requested game ID (or `'new'`). `shell.buildSelection` survives a backend disconnect within the same Build
+visit; Build updates it through `shell.selectBuild` and saves the selection if possible.
 
 ### A page
 

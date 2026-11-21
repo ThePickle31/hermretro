@@ -7,7 +7,18 @@ import { StudioNeeded } from './studio-needed.js'
 
 export function Build({ shell }) {
   // Build chats run only in the hermretro profile: without it there is nothing to fall back to.
-  return studioTarget()
-    ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, initialSelection: shell.buildSelection, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === 'updating', pendingGames: shell.games.data?.pending ?? [] }, 'build')
-    : jsx(StudioNeeded, { status: shell.status }, 'studio-needed')
+  if (!studioTarget()) {
+    return jsx(StudioNeeded, { status: shell.status }, 'studio-needed')
+  }
+  return jsx(BuildPage, {
+    ctx: shell.ctx,
+    games: shell.gameList,
+    loaded: Boolean(shell.games.data),
+    onLibraryChanged: shell.gamesChanged,
+    onPlay: shell.play,
+    onSelect: shell.selectBuild,
+    pendingGames: shell.games.data?.pending ?? [],
+    selection: shell.buildSelection,
+    updating: shell.pluginUpdate?.phase === 'updating'
+  }, 'build')
 }

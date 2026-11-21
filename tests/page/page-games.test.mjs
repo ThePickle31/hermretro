@@ -6,7 +6,7 @@ import { gamesStudio } from './games-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async helpers => {
-  const { act, ctx, dom, scenario, text, heading, click, tab, currentTab, settle, button, key, check, answered, complete } = helpers
+  const { act, ctx, dom, scenario, text, heading, click, tab, currentTab, settle, button, key, typeInto, check, answered, complete, notLoaded } = helpers
   const { games, studio } = await gamesStudio(helpers)
   await tab('Games')
   // A game's card by its title (games-fixture.mjs: the fixture's orders differ, so never by position).
@@ -45,6 +45,63 @@ await runScenario(async helpers => {
   }
   await opensNewGame('New game', dom.window.document.querySelector('.cs-page-head'), 'The shelf header')
   await opensNewGame('New game', dom.window.document.querySelector('.cs-shelf'), 'The blank cartridge')
+  {
+    const initialStatus = scenario.status
+    const initialGames = scenario.games
+    const pending = { storedId: 'stored-from-shelf', name: 'Shelf game', exists: true }
+    const idea = 'A frog runs a post office'
+    scenario.byMethod['session.create'] = { session_id: 'runtime-from-shelf', stored_session_id: pending.storedId }
+    scenario.byMethod['plugin.hermretro.build'] = () => {
+      scenario.games = answered({ ...initialGames.data, pending: [pending] })
+      return { ok: true }
+    }
+    scenario.byMethod['prompt.submit'] = { ok: true }
+    scenario.byMethod['session.resume'] = { running: true, open_requests: [] }
+    await click('New game', dom.window.document.querySelector('.cs-shelf'))
+    await typeInto(dom.window.document.querySelector('.cs-b-new textarea'), idea)
+    await act(async () => { dom.window.document.querySelector('.cs-b-new .cs-b-send').click() })
+    await settle()
+    check('a game started from the shelf is selected as its pending conversation', () => {
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+    })
+    scenario.status = notLoaded
+    await studio.rerender()
+    check('losing the backend unmounts the current Build conversation, without leaving Build', () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(dom.window.document.querySelector('.cs-b-user'), null)
+    })
+    scenario.status = initialStatus
+    await studio.rerender()
+    check('the pending conversation returns after reconnect rather than replaying New Game', () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
+    const store = ctx.storage.set
+    scenario.storage.buildSelected = games[0].id
+    ctx.storage.set = (key, value) => {
+      if (key === 'buildSelected') throw new Error('storage is read-only')
+      store(key, value)
+    }
+    try {
+      await tab('Build') // Re-selecting the active tab is not a new visit.
+      scenario.status = notLoaded
+      await studio.rerender()
+      scenario.status = initialStatus
+      await studio.rerender()
+      check('reconnect keeps the current conversation even when storage still names a different game', () => {
+        assert.equal(scenario.storage.buildSelected, games[0].id)
+        assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      })
+    } finally {
+      ctx.storage.set = store
+    }
+    await act(async () => { helpers.emit({ type: 'message.complete', session_id: 'runtime-from-shelf', payload: { text: 'Done.' } }) })
+    scenario.games = initialGames
+    for (const method of ['session.create', 'plugin.hermretro.build', 'prompt.submit', 'session.resume']) delete scenario.byMethod[method]
+    await tab('Games')
+  }
   {
     const store = ctx.storage.set
     let attempted = false

@@ -7,6 +7,7 @@ import {
   jsx,
   jsxs,
   ScrollArea,
+  useCallback,
   useEffect,
   useQuery,
   useQueryClient,
@@ -47,17 +48,23 @@ import { usePluginUpdate } from './update/use-update.js'
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
-  const [page, setPage] = useState(() => {
-    try {
-      const stored = ctx.storage.get('page', 'build')
+  // Keep Build's selection for this visit even if the backend drops and unmounts the page.
+  const [{ page, buildSelection, visit }, setNavigation] = useState(() => {
+    let stored = 'build'
 
-      return pageById(stored) ? stored : 'build'
+    try {
+      stored = ctx.storage.get('page', 'build')
     } catch {
-      return 'build'
+      // use the default
     }
+    return { page: pageById(stored) ? stored : 'build', buildSelection: null, visit: 0 }
   })
-  // A Games action can choose what Build opens without relying on storage being writable.
-  const [buildSelection, setBuildSelection] = useState(null)
+  // Late asynchronous actions from a previous visit must not change the new selection.
+  const selectBuild = useCallback(selection => {
+    setNavigation(current => (current.page === 'build' && current.visit === visit && current.buildSelection !== selection
+      ? { ...current, buildSelection: selection }
+      : current))
+  }, [visit])
   // Step the user chose to look at; null follows the first incomplete step.
   const [pinned, setPinned] = useState(null)
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false })
@@ -172,8 +179,9 @@ export function StudioPage({ ctx }) {
   }, [autoId, toolchainStep?.state, installState, onboardScreen])
 
   const go = (id, selection = null) => {
-    setPage(id)
-    setBuildSelection(id === 'build' ? selection : null)
+    setNavigation(current => (id === current.page && selection === null
+      ? current
+      : { page: id, buildSelection: id === 'build' ? selection : null, visit: current.visit + 1 }))
 
     try {
       ctx.storage.set('page', id)
@@ -327,8 +335,9 @@ export function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and where to enter Build
+    // games and the current Build selection
     buildSelection,
+    selectBuild,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),

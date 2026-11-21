@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 fcd1753cacb1c2fa71534c8dbc111075e108bd36a9ba14398a8f9be09e8e5e9c
- * body: sha256 012133fcd76285ef56c21b83c7632b168204bcd65b87b9d3603aed5f7cdc7d8b
+ * sources: sha256 a34552e117aab2a8cbb2a6ccf8305ec1c993d65797b9fabbb909a1d0e5497333
+ * body: sha256 a64ef4706c7762dd920a9b6c085e8247f43927ef2fc0f92329046f10807f185f
  */
 // page/sdk.js
 import {
@@ -11415,13 +11415,13 @@ function rememberSelection(ctx, selection) {
   } catch {
   }
 }
-function BuildPage({ ctx, games, initialSelection = null, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
-  const [selected, setSelected] = useState(() => {
-    if (initialSelection) {
-      return initialSelection;
+  const [rememberedSelection] = useState(() => {
+    if (selection !== null) {
+      return selection;
     }
     try {
       return ctx.storage.get("buildSelected", "new") || "new";
@@ -11429,15 +11429,14 @@ function BuildPage({ ctx, games, initialSelection = null, pendingGames, loaded =
       return "new";
     }
   });
+  const selected = selection ?? rememberedSelection;
   useEffect(() => {
-    if (initialSelection) {
-      rememberSelection(ctx, initialSelection);
+    if (selection === null) {
+      select(selected);
+    } else {
+      rememberSelection(ctx, selection);
     }
-  }, [ctx, initialSelection]);
-  const select = (key) => {
-    setSelected(key);
-    rememberSelection(ctx, key);
-  };
+  }, [ctx, select, selected, selection]);
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
@@ -13448,7 +13447,20 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, initialSelection: shell.buildSelection, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  if (!studioTarget()) {
+    return jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  }
+  return jsx(BuildPage, {
+    ctx: shell.ctx,
+    games: shell.gameList,
+    loaded: Boolean(shell.games.data),
+    onLibraryChanged: shell.gamesChanged,
+    onPlay: shell.play,
+    onSelect: shell.selectBuild,
+    pendingGames: shell.games.data?.pending ?? [],
+    selection: shell.buildSelection,
+    updating: shell.pluginUpdate?.phase === "updating"
+  }, "build");
 }
 
 // page/pages/build/chat/events.js
@@ -16786,15 +16798,17 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
-  const [page, setPage] = useState(() => {
+  const [{ page, buildSelection, visit }, setNavigation] = useState(() => {
+    let stored = "build";
     try {
-      const stored = ctx.storage.get("page", "build");
-      return pageById(stored) ? stored : "build";
+      stored = ctx.storage.get("page", "build");
     } catch {
-      return "build";
     }
+    return { page: pageById(stored) ? stored : "build", buildSelection: null, visit: 0 };
   });
-  const [buildSelection, setBuildSelection] = useState(null);
+  const selectBuild = useCallback((selection) => {
+    setNavigation((current) => current.page === "build" && current.visit === visit && current.buildSelection !== selection ? { ...current, buildSelection: selection } : current);
+  }, [visit]);
   const [pinned, setPinned] = useState(null);
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
   const { backend, doctor, gateway, status } = useBackend(polling);
@@ -16868,8 +16882,7 @@ function StudioPage({ ctx }) {
     setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
   }, [autoId, toolchainStep?.state, installState, onboardScreen]);
   const go = (id, selection = null) => {
-    setPage(id);
-    setBuildSelection(id === "build" ? selection : null);
+    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, visit: current.visit + 1 });
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -16990,8 +17003,9 @@ function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and where to enter Build
+    // games and the current Build selection
     buildSelection,
+    selectBuild,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, "games"] }),
