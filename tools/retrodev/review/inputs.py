@@ -28,8 +28,6 @@ EXCLUDED = (
     "tests/repo/registration.json",
 )
 MAX_ROUNDS = 3
-# The brief's two free sections, replaced whole by a short override (a focused or smoke-test round).
-BODY_START, BODY_END = "WHAT YOU ARE REVIEWING", "OUTPUT:"
 
 
 class InputsError(RuntimeError):
@@ -147,11 +145,15 @@ def commit_notes(commits: list[str], mechanical=(), moves=()) -> str:
     return "\n".join(lines)
 
 
-def round_section(round_no: int, earlier: dict[int, str], fixes: dict[int, str]) -> str:
-    if round_no == 1:
-        return f"THIS IS ROUND 1 of {MAX_ROUNDS}."
-    last = " (the last)" if round_no >= MAX_ROUNDS else ""
-    parts = [f"THIS IS ROUND {round_no} of {MAX_ROUNDS}{last}."]
+def round_section(round_no: int, earlier: dict[int, str], fixes: dict[int, str], total: int = MAX_ROUNDS) -> str:
+    """``total``: the rounds this pull request gets (records.depth); the fixes of the last one are not reviewed."""
+    last = " (the last)" if round_no >= total and (round_no > 1 or total == 1) else ""
+    parts = [f"THIS IS ROUND {round_no} of {total}{last}."]
+    if round_no == 1 and total == 1:
+        parts.append(
+            "The fixes for its findings merge without another review unless a finding is high severity: report"
+            " every problem now and give each its true severity."
+        )
     for k in sorted(earlier, reverse=True):
         part = f"Round {k}'s findings with the author's answers: REV/review/round{k}-findings-and-answers.txt"
         if k in fixes:
@@ -170,13 +172,9 @@ def fill_brief(
     commits: list[str],
     section: str,
     notes: str,
-    override: str | None = None,
     template: str | None = None,
 ) -> str:
     text = template if template is not None else BRIEF.read_text(encoding="utf-8")
-    if override is not None:
-        start, end = text.index(BODY_START), text.index(BODY_END)
-        text = text[:start] + override.strip() + "\n\n" + text[end:]
     return Template(text).safe_substitute(
         pr=pr,
         title=title,
@@ -203,7 +201,7 @@ def prepare(
     earlier: dict[int, str] | None = None,
     last_reviewed: str | None = None,
     root: Path | str | None = None,
-    brief_override: str | None = None,
+    total: int = MAX_ROUNDS,
 ) -> RoundInputs:
     """Build <root>/<pr>/round<N>/ afresh for ``sha``.
 
@@ -259,9 +257,8 @@ def prepare(
         rev=rdir,
         sha=sha,
         commits=commits,
-        section=round_section(round_no, earlier, fixes),
+        section=round_section(round_no, earlier, fixes, total),
         notes=commit_notes(commits, mechanical, moves),
-        override=brief_override,
     )
     for name, text in write.items():
         (review / name).write_text(text, encoding="utf-8")

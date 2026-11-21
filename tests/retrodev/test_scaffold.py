@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 import retrodev
-from retrodev import count_words, repo, scaffold, scaffold_listener
+from retrodev import count_words, repo, scaffold, scaffold_listener, state
 
 from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
@@ -88,6 +88,22 @@ class ScaffoldCase(RepoCase):
 
 
 class New(ScaffoldCase):
+    def test_a_successful_listener_checks_unit_without_retaining_the_pass(self):
+        self.new("feature", "rdcheck", "--purpose", "Tests checked scaffolds.")
+        self.new("event", "history", "rdcheck_ready", "--when", "the wiring test is ready")
+        branch = "feat/grow"
+        prior = state.load_branch(self.tree, branch)
+        self.clear_log()
+        code, said = self.run_cli("new", "listener", "rdcheck", "history.rdcheck_ready", cwd=self.tree)
+        self.assertEqual(code, 0, said)
+        unit_invocations = [entry for entry in self.check_log() if "unit" in entry["names"]]
+        self.assertEqual([entry.get("scaffold_gate") for entry in unit_invocations], ["1"])
+        after = state.load_branch(self.tree, branch)
+        # The restore saves the record again, so its write timestamp is not part of the restored data.
+        self.assertEqual(
+            {k: v for k, v in after.items() if k != "updated"}, {k: v for k, v in prior.items() if k != "updated"}
+        )
+
     def test_a_feature_gets_its_folder_tests_and_every_registry_line(self):
         out = self.new("feature", "rdprobe", "--purpose", "Demonstrates new.")
         self.assertEqual(
@@ -117,21 +133,23 @@ class New(ScaffoldCase):
         self.assertFalse((self.tree / "backend/rdprobe").exists())
 
     def test_names_that_exist_or_break_the_rules_are_refused(self):
-        for argv in (
-            ["feature", "history"],
-            ["feature", "Demo"],
-            ["feature", "class"],
-            ["feature", "a-b"],
-            ["rpc", "history", "builds"],
-            ["rpc", "nowhere", "x"],
-            ["tool", "history", "present_game"],
-            ["page", "build"],
-            ["page", "Bad_Id"],
-            ["tab", "nowhere", "x"],
-            ["event", "history", "build_kept"],
+        # Each row names why it must be refused, so a refusal for another reason cannot pass.
+        for argv, why in (
+            (["feature", "history"], "backend/history exists or is taken"),
+            (["feature", "Demo"], "'Demo' is not a usable feature name"),
+            (["feature", "class"], "'class' is not a usable feature name"),
+            (["feature", "a-b"], "'a-b' is not a usable feature name"),
+            (["rpc", "history", "builds"], "an RPC named builds exists"),
+            (["rpc", "nowhere", "x"], "backend/nowhere is not a feature listed in"),
+            (["tool", "history", "present_game"], "a tool named chromatic_present_game exists"),
+            (["page", "build"], "page/pages/build exists or the registry lists it"),
+            (["page", "Bad_Id"], "'Bad_Id' is not a usable page name"),
+            (["tab", "nowhere", "x"], "page/pages/nowhere/index.js does not exist"),
+            (["event", "history", "build_kept"], "the event history.build_kept is declared already"),
         ):
-            out = self.new(*argv, code=1)
-            self.assertIn("fix", out["error"], argv)
+            with self.subTest(argv=argv):
+                out = self.new(*argv, code=1)
+                self.assertIn(why, out["error"]["message"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), "")
 
     def test_only_on_a_work_branch(self):
@@ -389,3 +407,70 @@ def contract_counts(contract: str) -> tuple[int, int]:
 
 def scaffold_words():
     return "page/pages/build/transcript/step-words.js"
+
+
+README = """# {Label}
+
+**Shows:** the page.
+
+**Tabs:** none.
+
+**Slots:** declares none, contributes none.
+
+**Tests:** `tests/page/page-{page}.test.mjs`.
+
+## Adding a tab here
+
+Make a folder `page/pages/{page}/<tab>/`{taken} with an `index.js` exporting `{{ id, label, Page }}`.
+"""
+
+
+class Scaffolds(ScaffoldCase):
+    def real(self, *names: str) -> None:
+        for name in names:
+            (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, self.tree / name)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "More real files")
+
+    def files(self, files: dict) -> None:
+        for name, text in files.items():
+            write(self.tree, name, text)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Known files")
+
+    def readmes(self) -> None:
+        taken = " (`install` and `onboarding` are taken: pick another id)"
+        self.real("page/pages/setup/index.js")
+        self.files(
+            {
+                "page/pages/build/README.md": README.format(Label="Build", page="build", taken=""),
+                "page/pages/setup/README.md": README.format(Label="Setup", page="setup", taken=taken),
+            }
+        )
+
+    def test_the_undo_step_names_only_new_s_own_edits_never_a_whole_file_or_folder(self):
+        """Review round 1 of #75: the undo restored page/pages/<page> and desktop/plugin.js, discarding unrelated
+        uncommitted work on the branch. Each step now names only what new wrote, and each of those is really there."""
+        self.readmes()
+        out = self.new("tab", "build", "extra")
+        said = " ".join(out["next"] + out.get("notes", []) + out.get("done", []))
+        for whole in (
+            "git restore",
+            "git checkout",
+            "git reset",
+            "git stash",
+            "git clean",
+            "rm -r page/pages/build ",
+        ):
+            self.assertNotIn(whole, said)
+        self.assertNotIn("rm -r page/pages/build;", said)
+        undo = out["next"][0]
+        self.assertIn("rm -r page/pages/build/extra;", undo)
+        self.assertIn("then node tools/bundle/bundle.mjs", undo)
+        index = self.read("page/pages/build/index.js")
+        line = "import { BUILD_EXTRA_TAB } from './extra/index.js'"
+        self.assertIn(f"delete the line {line} and the", undo)
+        self.assertIn(line, index)
+        self.assertIn("  tabs: [\n    BUILD_EXTRA_TAB\n  ]", index)
+        self.assertIn("three lines tabs: [ BUILD_EXTRA_TAB ]", undo)

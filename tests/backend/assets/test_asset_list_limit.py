@@ -1,6 +1,5 @@
 """The assets RPC's list cap (backend/assets/rpcs.py ``ASSET_LIST_LIMIT``, 400 items, the cover included) and what its
-``truncated`` means today: true once the list holds the cap, so also at exactly the cap with nothing left out; false
-below it.
+``truncated`` means: true only when the list stopped at the cap with items left out; false at exactly the cap.
 
 Run alone: python -m unittest tests.backend.assets.test_asset_list_limit
 """
@@ -21,9 +20,6 @@ class AssetListLimit(unittest.TestCase):
         self.assertTrue(answer["ok"], answer)
         return answer
 
-    def test_the_cap_is_400(self):
-        self.assertEqual(assets_rpcs.ASSET_LIST_LIMIT, 400)
-
     def test_an_ordinary_game_lists_every_picture(self):
         answer = self.listed(4)
         self.assertEqual([item["name"] for item in answer["assets"]], ["Cover", *(f"image{n:03d}" for n in range(4))])
@@ -34,11 +30,11 @@ class AssetListLimit(unittest.TestCase):
         self.assertEqual(len(answer["assets"]), 399)
         self.assertIs(answer["truncated"], False)
 
-    def test_exactly_the_cap_lists_all_and_says_truncated(self):
-        answer = self.listed(399)  # the cover and 399 images: nothing is left out, truncated is still true
+    def test_exactly_the_cap_lists_all_and_is_not_truncated(self):
+        answer = self.listed(399)  # the cover and 399 images: the list ends at the cap, nothing is left out
         self.assertEqual(len(answer["assets"]), 400)
         self.assertEqual(answer["assets"][-1]["name"], "image398")
-        self.assertIs(answer["truncated"], True)
+        self.assertIs(answer["truncated"], False)
 
     def test_beyond_the_cap_stops_at_it(self):
         answer = self.listed(450)

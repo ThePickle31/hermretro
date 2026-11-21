@@ -203,9 +203,7 @@ def checkout(ctx) -> list[dict]:
             "set XDG_RUNTIME_DIR to a short writable folder, or make /tmp writable",
         )
     )
-    free = ctx.fakes.get("tmp_free")
-    if usable or free is not None:
-        found.append(space_item(tmp, shutil.disk_usage(tmp).free if free is None else free))
+    found.append(space_item(tmp, shutil.disk_usage(tmp).free))
     return found
 
 

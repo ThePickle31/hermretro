@@ -153,7 +153,6 @@ def main() -> int:
     A = {"profile": "s01-profile", "conversation_id": "conv-A"}
     B = {"profile": "s01-profile", "conversation_id": "conv-B"}
     C = {"profile": "s01-profile", "conversation_id": "conv-C"}
-    D = {"profile": "s01-profile", "conversation_id": "conv-D"}
     proj_a, proj_b = WORK / "projA", WORK / "projB"
 
     # --- election: racing lazy starts converge on exactly one broker ----------
@@ -647,28 +646,6 @@ def main() -> int:
         notice=after_crash.get("notice"),
     )
 
-    # --- observation: can one worker move between projects? ----------------------------------------
-    cd = BrokerClient(STATE)
-    d1 = cd.call(D, "project_create_blank", {"name": "S01 D1", "destinationPath": str(WORK / "projD1"), "select": True})
-    d2 = cd.call(D, "project_create_blank", {"name": "S01 D2", "destinationPath": str(WORK / "projD2"), "select": True})
-    d3 = cd.call(D, "project_select", {"projectPath": str(WORK / "projD1" / "project.gbsproj")})
-    observations["single_worker_project_switch"] = {
-        "create_and_select_first": d1.get("ok") and not d1["result"].get("isError"),
-        "create_and_select_second": {
-            "isError": d2["result"].get("isError"),
-            "structured": {k: v for k, v in structured(d2).items() if k in ("error", "code", "projectRoot")},
-        }
-        if d2.get("ok")
-        else d2,
-        "select_back_to_first": {
-            "isError": d3["result"].get("isError"),
-            "structured": {k: v for k, v in structured(d3).items() if k in ("error", "code", "projectRoot")},
-        }
-        if d3.get("ok")
-        else d3,
-        "final_selected_root": cd.call(D, "session_status")["lane"]["selected_root"],
-    }
-
     # --- measured cost ---------------------------------------------------------------------------------
     stats = control.request({"op": "stats"})
     cost = []
@@ -711,7 +688,7 @@ def main() -> int:
         worker_processes=len(worker_pids),
         survivors=survivors,
     )
-    for client in (ca, cb, cc, cd, control):
+    for client in (ca, cb, cc, control):
         client.close()
     snap_before_restart = snapshot(proj_a)
     c2 = ensure_broker(STATE)

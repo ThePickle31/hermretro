@@ -75,12 +75,8 @@ class Registration(unittest.TestCase):
         self.assertEqual(
             len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
         )
-        self.assertEqual(
-            sorted(calls["hook"]),
-            sorted(
-                ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call", "post_llm_call", "post_tool_call"]
-            ),
-        )
+        # The exact hook list is pinned by tests/repo/test_registration_snapshot.py, and collection (one name,
+        # every callback chained in order) by tests/backend/hermes/test_declare.py.
         self.assertEqual(calls["section"], ["hermretro.guide"])
         self.assertIn("status", calls["rpc"])
 

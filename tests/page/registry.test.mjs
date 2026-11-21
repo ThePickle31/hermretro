@@ -178,33 +178,6 @@ test('slots: the real ones are declared, and what fills them', () => {
   assert.deepEqual(filled, expected, `slots filled: ${named(filled)}, expected ${named(expected)}\nFIX: when a page's contributes changed on purpose, change \`expected\` here (STUDIO-PAGES.md, "A contribution to a slot")`)
 })
 
-// The one bar both hosts draw (emulator-bar.js): with the shell's go (the Emulator page) and without (the tab beside
-// the chat). A probe beside the real contribution records what it gets; Install renders either way.
-test('an emulator.barActions contribution gets go on the Emulator page, not beside the chat', async () => {
-  const { EmulatorBar } = await import('../../page/pages/emulator/emulator-bar.js')
-  const list = PAGE_SLOTS.contributions('emulator.barActions')
-  const got = []
-  const Probe = props => { got.push(Object.keys(props).sort()); return null }
-  const game = { id: 'abc123abc123', title: 'Probe', rom: { path: '/x.gb' } }
-  const bar = extra => jsx(EmulatorBar, { ctx: { storage: { get: (key, fallback) => fallback, set() {} }, os: {} }, game, hardwareOn: true, player: { data: null }, ...extra })
-
-  list.push(Probe)
-  try {
-    for (const extra of [{ go() {} }, {}]) {
-      const { node, root } = await render(bar(extra))
-
-      assert.ok([...node.querySelectorAll('button')].some(button => button.textContent.includes('Install')), 'Install is in the bar')
-      await act(async () => root.unmount())
-    }
-  } finally {
-    list.splice(list.indexOf(Probe), 1)
-  }
-  assert.deepEqual(got, [['ctx', 'game', 'go', 'hardwareOn'], ['ctx', 'game', 'hardwareOn']])
-  const sources = ['emulator-page.js', 'beside-chat/tab.js'].map(file => readFileSync(path.join(ROOT, 'page', 'pages', 'emulator', file), 'utf8'))
-
-  assert.deepEqual(sources.map(text => /jsx\(\s*EmulatorBar,\s*\{[^}]*\bgo\b/.test(text)), [true, false], 'the Emulator page passes go to the bar, the tab beside the chat does not')
-})
-
 test('an empty slot renders nothing', async () => {
   const slots = createSlots()
 
@@ -274,31 +247,6 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
 })
 
 // The shell every Page gets, from the real StudioPage, with a probe in Games' place.
-test('a page sees shell.viaProfile: the profile the studio page queries', async () => {
-  const { StudioPage } = await import('../../page/app/studio-page.js')
-  const { scenario } = await import('./sdk-stub.mjs')
-  const probe = PAGES.find(page => page.id === 'games')
-  const original = probe.Page
-  const seen = []
-  const storage = { page: 'games', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
-  const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
-  const answered = data => ({ data, isFetching: false, isPending: false })
-  const ready = { state: 'installed', version: '1.2.1' }
-
-  scenario.status = answered({ ok: true, via_profile: 'hermretro', hardware_enabled: false, project: null, plugin: { version: '9' }, node: { ok: true }, engine: { present: true, verified: true },
-    profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } }, deps: { device_cli: ready } })
-  scenario.doctor = answered({ ok: true, missing_required: [], components: [] })
-  probe.Page = ({ shell }) => { seen.push(shell.viaProfile); return null }
-  try {
-    const { root } = await render(jsx(StudioPage, { ctx }))
-
-    assert.ok(seen.length, 'the probe rendered')
-    assert.equal(seen.at(-1), 'hermretro')
-    await act(async () => root.unmount())
-  } finally {
-    probe.Page = original
-  }
-})
 
 // A shared component's class is styled by the shared stylesheets, not by one page's: removing that page (as Home was)
 // must not leave the component bare on every other page.

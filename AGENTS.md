@@ -46,20 +46,11 @@ node tools/bundle/bundle.mjs --watch    # rebuild on every save
 node tools/bundle/lint-page.mjs --fix   # the page lint's automatic fixes (boundaries between pages)
 ```
 
-`python tools/retrodev check` runs the same checks through `check.py`, but only those whose input files changed
-since their last pass on the branch (a cached pass prints `ok (cached)`; `--again` reruns, `--full` adds the
-real-engine run and the clean install). It adds the real-engine run itself when the branch changed `backend/`,
-`engine/`, `player/`, the toolchain or `plugin.yaml` beyond its `version:` line (about 1 minute), the clean install
-(about 40 s; with the update check when files moved or were deleted) when it changed the registration side, and the
-`scaffold` check (`retrodev new` run on a throwaway copy of the tree, about 50 s) when it changed the scaffolds or the
-files whose structure they parse (`tools/retrodev/policy.toml` `[checks.triggers]`; the table rows `new` writes in the
-docs do not count), and nested (the full suites in a grown copy, about 110 s) when it changed `tests/repo/`,
-`tests/support.py` or the page test harness (`[checks.nested_triggers]`). A
-branch that adds a tool or an RPC takes about 2 minutes to check on an idle machine; several agents checking at once
-on one machine can double the times. Budgets are in `tools/retrodev/policy.toml`
-`[checks.budgets]`; a check over its budget twice in a row gets a warning, never a failure. Run `python tools/check.py
-fix` and commit before `retrodev check`: the clean install installs the committed tree, so `check` refuses an
-uncommitted one when it is due.
+`python tools/retrodev check` runs the fast checks (unit, bundle, lint, page, scan) and reuses passes for
+unchanged inputs (`ok (cached)`; `--again` reruns). These checks gate draft pushes; CI and review gate the merge
+on the exact PR head. Run slow checks by name (`check acceptance`) or use `--full` for scaffold, acceptance and
+a clean install. Commit before `check clean_install` or `--full`: the install uses the committed tree.
+Timing warnings do not fail checks; budgets are in `tools/retrodev/policy.toml` under `[checks.budgets]`.
 `python tools/retrodev check --watch` reruns the affected checks on every save. `python tools/retrodev doctor` says
 what this machine is missing, each with its fix.
 
@@ -131,7 +122,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   agent made the change.
 - The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
   CI green on the exact head and the review loop done on that head (a clean round of it, or the one head that
-  fixes round 3's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
+  fixes its last round's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
   request needs its own approval. GitHub auto-merge stays off.
 - When `dev` moved on, `python tools/retrodev sync` merges it in. On a conflict in a source file, edit the
   conflicting hunks (never take one side of a whole file with `git checkout --ours/--theirs`: its other hunks were

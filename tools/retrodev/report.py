@@ -53,7 +53,7 @@ def cached_from(row: dict, record: dict) -> dict:
     """A cached row with the pass it reused: when it ran and how long it took (the branch record's check entry)."""
     if not row.get("cached"):
         return row
-    passed = (record.get("checks") or {}).get(row["name"]) or {}
+    passed = (record.get("checks") or {}).get(row.get("key", row["name"])) or {}  # key: scaffold's nested result
     return row | {"passed_at": passed.get("at"), "seconds": passed.get("seconds", row.get("seconds"))}
 
 

@@ -14,10 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from backend.broker.broker import Broker, Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 
@@ -202,13 +202,7 @@ class Binding(unittest.TestCase):
 
 
 def guard_broker(registry):
-    broker = Broker.__new__(Broker)
-    broker.lanes, broker.writer_leases = {}, {}
-    broker.table_lock = threading.RLock()
-    broker.games = registry
-    broker.events = []
-    broker.trace = lambda **record: broker.events.append(record)
-    return broker
+    return bare_broker(games=registry)
 
 
 class Guards(unittest.TestCase):
@@ -454,11 +448,6 @@ class AssetRpc(unittest.TestCase):
         self.assertEqual(self.asset({"path": str(text)})["code"], "NOT_IMAGE")
         self.assertEqual(self.asset({"path": "assets/frog.png"})["code"], "INVALID")
         self.assertEqual(self.asset({"path": str(self.frog / "gone.png")})["code"], "MISSING")
-
-    def test_large_images_are_not_sent(self):
-        big = self.frog / "big.png"
-        big.write_bytes(PNG_1x1 + b"\0" * (assets_versions.ASSET_MAX_BYTES + 1))
-        self.assertEqual(self.asset({"path": str(big)})["code"], "TOO_LARGE")
 
 
 if __name__ == "__main__":

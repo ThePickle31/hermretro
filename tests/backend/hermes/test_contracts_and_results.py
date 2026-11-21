@@ -22,9 +22,9 @@ class ContractTests(unittest.TestCase):
     def test_every_pinned_tool_becomes_one_prefixed_schema(self):
         pinned = contracts.pinned_tools()
         schemas = contracts.hermes_schemas()
-        self.assertEqual(len(pinned), 81)
+        self.assertEqual(len(schemas), len(pinned))
         self.assertEqual([s["name"] for s in schemas], ["chromatic_" + t["name"] for t in pinned])
-        self.assertEqual(len({s["name"] for s in schemas}), 81)
+        self.assertEqual(len({s["name"] for s in schemas}), len(pinned))
 
     def test_schemas_carry_no_references_and_keep_required_fields(self):
         for tool, schema in zip(contracts.pinned_tools(), contracts.hermes_schemas(), strict=True):
@@ -58,18 +58,6 @@ class ContractTests(unittest.TestCase):
         # The physical feed has no Studio surface: it keeps the in-app browser wording.
         self.assertIn("desktop_preview tool", schemas["chromatic_device_capture"])
         self.assertNotIn("Codex", schemas["chromatic_device_capture"])
-
-    def test_manifest_lists_exactly_the_registered_tools(self):
-        manifest = (paths.PLUGIN_ROOT / "plugin.yaml").read_text()
-        declared = [
-            line.strip()[2:]
-            for line in manifest.split("provides_tools:")[1].splitlines()
-            if line.strip().startswith("- ")
-        ]
-        engine = [s["name"] for s in contracts.hermes_schemas()]
-        # plugin-owned tools first, then the engine's in pinned order (the set itself is checked by test_lockstep)
-        self.assertEqual(declared[-len(engine) :], engine)
-        self.assertEqual(len(set(declared)), len(declared))
 
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()

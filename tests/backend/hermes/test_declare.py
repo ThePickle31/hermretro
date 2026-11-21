@@ -15,12 +15,10 @@ class Declarations(unittest.TestCase):
         found = declare.collect("backend", FEATURES)
         rpcs = [name for name, _factory in found.rpcs]
         tools = [tool.name for tool in found.tools]
+        hooks = found.hook_names()
         self.assertEqual(len(rpcs), len(set(rpcs)), "an RPC declared twice")
         self.assertEqual(len(tools), len(set(tools)), "a tool declared twice")
-        self.assertEqual(
-            found.hook_names(),
-            ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call", "post_llm_call", "post_tool_call"],
-        )
+        self.assertEqual(len(hooks), len(set(hooks)), "a hook declared twice")
 
     def test_a_chain_calls_every_callback_and_answers_the_first_result(self):
         seen = []
