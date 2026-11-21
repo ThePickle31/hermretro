@@ -35,8 +35,8 @@ ln -s /path/to/hermretro "$HERMES_HOME/plugins/hermretro"   # ~/.hermes by defau
 hermes plugins enable hermretro
 ```
 
-Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins and open the
-**hermretro** page from the sidebar. The page checks your setup and has copyable prompts for every step.
+Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins and open **HermRetro**
+from the sidebar. The page checks your setup and has copyable prompts for every step.
 
 The first step on that page creates a dedicated **hermretro** profile: it shares your sign-in, has the
 plugin and its skills turned on, and leaves the profile you installed into unchanged. Chromatic chats open
