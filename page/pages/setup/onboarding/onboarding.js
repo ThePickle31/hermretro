@@ -223,11 +223,6 @@ function OnboardChromatic({ onEmulator, onDevice }) {
   })
 }
 
-const NEW_GAME_PROMPT =
-  'Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.'
-const PLAN_GAME_PROMPT =
-  'Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project.'
-
 const IDEAS = [
   ['Tiny platformer', 'a tiny platformer where a frog hops across lily pads to reach home'],
   ['Top-down adventure', 'a top-down adventure where a gardener collects three seeds to open a gate'],
