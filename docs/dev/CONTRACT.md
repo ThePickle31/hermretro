@@ -188,7 +188,7 @@ match. Served from the broker's memory: no engine call, never starts the broker 
 
 The page at `/hermretro` has one segmented control over its pages (`PAGES` in `page/pages/index.js`): **Build** (one game,
 one conversation; the page opens here), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
-**Prompts** (the prompt Reader; prompts go into a chat composer, never sent), **Games** (the library shelf)
+**Games** (the library shelf, with New game opening the form on Build)
 and **Emulator** (ModRetro's real player in a `SandboxedFrame`). Full contract, result shapes and the
 page ↔ frame messages: `docs/dev/STUDIO-PAGES.md`. All RPCs answer `{ ok: false, error }` on failure
 instead of throwing.

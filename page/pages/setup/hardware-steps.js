@@ -1,12 +1,13 @@
 // Setup steps for a physical Chromatic, and the choice between it and the emulator.
 import { Button, Codicon, host, jsx, jsxs } from '#sdk'
 import { AGENT_SETTINGS_HREF } from '#app/ids.js'
-import { DEVICE_CLI_PROMPT } from '#pages/prompts/index.js'
 import { Chip } from '#shared/ui/glyph.js'
 import { ExternalLink, LINKS } from '#shared/ui/links.js'
 import { PromptBlock } from '#app/prompt-block.js'
 import { Facts, Lede, Small } from '#shared/ui/text.js'
 import { MANUAL_STEPS } from './steps.js'
+
+const DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic."
 
 /** Steps done in ModRetro's own app: the user says when they are done. */
 function Confirm({ step, update }) {

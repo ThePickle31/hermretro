@@ -28,14 +28,25 @@ import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
 
+function rememberSelection(ctx, selection) {
+  try {
+    ctx.storage.set('buildSelected', selection)
+  } catch {
+    // this visit only
+  }
+}
+
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
-  const [local, setLocal] = useState({ bound: {}, pending: [], released: {} })
-  const [selected, setSelected] = useState(() => {
+  const [local, setLocal] = useState({ bound: {}, released: {} })
+  const [rememberedSelection] = useState(() => {
+    if (selection !== null) {
+      return selection
+    }
     try {
       return ctx.storage.get('buildSelected', 'new') || 'new'
     } catch {
@@ -43,15 +54,16 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     }
   })
 
-  const select = key => {
-    setSelected(key)
+  const selected = selection ?? rememberedSelection
 
-    try {
-      ctx.storage.set('buildSelected', key)
-    } catch {
-      // this visit only
+  // The shell owns the active selection across remounts; storage only remembers it for the next visit.
+  useEffect(() => {
+    if (selection === null) {
+      select(selected)
+    } else {
+      rememberSelection(ctx, selection)
     }
-  }
+  }, [ctx, select, selected, selection])
 
   const rail = useMemo(
     () =>
@@ -70,9 +82,9 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     () =>
       [
         ...(Array.isArray(pendingGames) ? pendingGames : []),
-        ...local.pending.filter(item => !(pendingGames ?? []).some(known => known.storedId === item.storedId))
+        ...localPending.filter(item => !(pendingGames ?? []).some(known => known.storedId === item.storedId))
       ].filter(item => !rail.some(game => game.buildSession === item.storedId)),
-    [pendingGames, local.pending, rail]
+    [pendingGames, localPending, rail]
   )
 
   // Render the same conversation even on the first render where its game replaces the pending entry.
@@ -197,7 +209,9 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
 
-      setLocal(current => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }] }))
+      const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }
+
+      changePending(current => [...current, created])
       select(`pending:${id}`)
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim())
       onLibraryChanged()
@@ -221,7 +235,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       return
     }
 
-    setLocal(current => ({ ...current, pending: current.pending.filter(entry => entry.storedId !== item.storedId) }))
+    changePending(current => current.filter(entry => entry.storedId !== item.storedId))
     select('new')
     onLibraryChanged()
   }

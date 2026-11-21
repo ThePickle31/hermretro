@@ -16,7 +16,7 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 `useSetupMemory`), onboarding (`Onboarding`, `OnboardHeader`, `ONBOARD_STAGES`), the install (`useInstall`) and
 `createStudioProfileOnce`. The shell reads the steps and onboarding through `page/pages/index.js`.
 
-**Uses from other pages:** `#pages/prompts/index.js` (setup and device prompts).
+**Uses from other pages:** none.
 
 **Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `setup`.
 

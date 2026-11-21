@@ -7,6 +7,7 @@ import {
   jsx,
   jsxs,
   ScrollArea,
+  useCallback,
   useEffect,
   useQuery,
   useQueryClient,
@@ -47,18 +48,29 @@ import { usePluginUpdate } from './update/use-update.js'
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
-  const [page, setPage] = useState(() => {
-    try {
-      const stored = ctx.storage.get('page', 'build')
+  // Keep Build's selection for this visit even if the backend drops and unmounts the page.
+  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
+    let stored = 'build'
 
-      return pageById(stored) ? stored : 'build'
+    try {
+      stored = ctx.storage.get('page', 'build')
     } catch {
-      return 'build'
+      // use the default
     }
+    return { page: pageById(stored) ? stored : 'build', buildSelection: null, buildPending: [], visit: 0 }
   })
+  // Late asynchronous actions from a previous visit must not change the new selection.
+  const changeBuildVisit = useCallback(change => {
+    setNavigation(current => (current.page === 'build' && current.visit === visit ? change(current) : current))
+  }, [visit])
+  const selectBuild = useCallback(selection => {
+    changeBuildVisit(current => (current.buildSelection === selection ? current : { ...current, buildSelection: selection }))
+  }, [changeBuildVisit])
+  const changeBuildPending = change => {
+    changeBuildVisit(current => ({ ...current, buildPending: change(current.buildPending) }))
+  }
   // Step the user chose to look at; null follows the first incomplete step.
   const [pinned, setPinned] = useState(null)
-  const [promptId, setPromptId] = useState('new-game')
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false })
   const { backend, doctor, gateway, status } = useBackend(polling)
   const refreshing = status.isFetching || doctor.isFetching
@@ -177,8 +189,10 @@ export function StudioPage({ ctx }) {
     setPolling(current => (current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next))
   }, [autoId, toolchainStep?.state, installElsewhere])
 
-  const go = id => {
-    setPage(id)
+  const go = (id, selection = null) => {
+    setNavigation(current => (id === current.page && selection === null
+      ? current
+      : { page: id, buildSelection: id === 'build' ? selection : null, buildPending: [], visit: current.visit + 1 }))
 
     try {
       ctx.storage.set('page', id)
@@ -198,10 +212,6 @@ export function StudioPage({ ctx }) {
     update({ hardwareSkipped: false, hardwareWanted: true, onboarded: true })
     setPinned(null)
     go('setup')
-  }
-  const openPrompt = id => {
-    setPromptId(id)
-    go('prompts')
   }
 
   // ── games and the player ──
@@ -333,30 +343,18 @@ export function StudioPage({ ctx }) {
     install,
     // Hermes's update of hermretro: the header chip, and the version row on the Setup page
     pluginUpdate,
-    gameReady,
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and prompts
+    // games and the Build visit: selection and locally started games not in the library yet
+    buildSelection,
+    buildPending,
+    changeBuildPending,
+    selectBuild,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
     play,
-    openPrompt,
-    promptId,
-    setPromptId,
-    // New games go in the plugin's games folder (the backend reports it); an older backend without it falls
-    // back to the folder of the latest game.
-    newGameFolder: (() => {
-      if (typeof games.data?.gamesDir === 'string' && games.data.gamesDir) {
-        return games.data.gamesDir
-      }
-
-      const root = latestGame(gameList)?.projectRoot
-
-      return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, '') || null : null
-    })(),
-    profileLabel: routing.profile ?? status.data?.profile?.name ?? 'this profile',
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,

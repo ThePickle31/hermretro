@@ -1,7 +1,7 @@
 // Artwork drawn as masks in the accent colour: the Hermes bust and the flying Chromatic.
 import { jsx, jsxs } from '#sdk'
 
-/** The Hermes bust (Prompts, empty pages). The image itself is a CSS variable on the page. */
+/** The Hermes bust on empty pages and in onboarding. The image itself is a CSS variable on the page. */
 export function Art() {
   return jsx('div', { 'aria-hidden': true, className: 'cs-art' })
 }

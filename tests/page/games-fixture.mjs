@@ -1,4 +1,4 @@
-// The shared starting state of the Games, Prompts and Emulator scenarios (page-games, page-prompts, page-emulator,
+// The shared starting state of the Games and Emulator scenarios (page-games, page-emulator,
 // page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of four games
 // fed by the games RPC, the studio page mounted and Refresh pressed. Each file navigates to its own page from here.
 //   const { games, now2, studio } = await gamesStudio(helpers)   // helpers: what runScenario hands the scenario
@@ -42,7 +42,7 @@ export async function gamesStudio({ scenario, page, mount, click, answered, doct
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: false, code: 'NAME_TAKEN', error: 'A profile named hermretro already exists and was not made by hermretro.' }
   scenario.install = installAnswer({ state: 'idle' })
 
-  // Games, Prompts and the Emulator, fed by the games / player RPCs (docs/dev/STUDIO-PAGES.md).
+  // Games and the Emulator, fed by the games / player RPCs (docs/dev/STUDIO-PAGES.md).
   scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
   scenario.storage = { setup: { hardwareSkipped: true } }
   const now2 = Math.round(Date.now() / 1000)
