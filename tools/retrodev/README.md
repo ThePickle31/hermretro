@@ -13,7 +13,7 @@ by kind, what `land` does, releases and state: `tools/retrodev/REFERENCE.md`.
 3. `RETRODEV_AGENT='<agent, model>' python tools/retrodev start <kind>/<topic>` (it fetches and branches from `origin/dev`), then enter its printed worktree: by default a `<checkout>-wt` folder next to the checkout (`python tools/retrodev config list` shows it). `docs/` and `chore/` may skip steps 1-2: `start <kind>/<topic> --no-plan`.
 4. `python tools/retrodev new <kind> ...` (`--dry-run` previews it, even on `dev`); use `--no-check` on intermediate scaffolds and run step 6 on the finished tree. An RPC in an `rpcs.py` over 350 lines takes `--module <name>_rpcs`; an RPC about one game takes `--game` (a `game` param with the library id; `NO_GAME` if unknown).
 5. `python tools/check.py fix`, then `git add -A && git commit -m "..."`
-6. `python tools/retrodev check`
+6. `python tools/retrodev check` (the fast checks; PR CI picks which slow ones run)
 7. fill in `notes/pr/<topic>.md` (check's last line names what is left; check What changed still matches the code; start copied it from the plan)
 8. `python tools/retrodev ship --dry-run`, then `python tools/retrodev ship --title '<one plain sentence>'`
 

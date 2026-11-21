@@ -1,4 +1,4 @@
-"""check's caching and automatic extras, and ship's gates, push and pull request.
+"""check's caching and ship's gates, push and pull request.
 
 Run alone: python -m unittest tests.retrodev.test_check_ship
 """
@@ -19,6 +19,7 @@ from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
 load_tests = parallel
 FAST = ["unit", "bundle", "lint", "page", "scan"]
+FAST_LINE = 'fast = ["unit", "bundle", "lint", "page", "scan"]'  # policy.toml's line
 DEPS = "/nonexistent-deps"  # set for every test (fixture.shared_env): acceptance must drop it
 
 
@@ -35,7 +36,7 @@ class Check(RepoCase):
                 # next: the body to fill in (missing here), then ship (round eight: also before the body exists)
                 [
                     *["branch", "checks", "code", "command", "fast_wall", "next", "ok", "status", "tree"],
-                    *["tree_passed", "warnings"],
+                    *["tree_passed", "unpassed", "warnings"],
                 ]
             ),
         )
@@ -69,31 +70,6 @@ class Check(RepoCase):
         self.assertEqual(self.check_log()[0]["names"], ["lint"], "only the failed check runs again")
         self.assertIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
 
-    def test_scaffold_changes_add_the_scaffold_check_beside_the_fast_ones(self):
-        tree = self.worktree("chore/templates")
-        write(tree, "tools/retrodev/templates/tool/tool.py.tmpl", "# changed\n")
-        git(tree, "add", "-A")
-        git(tree, "commit", "-q", "-m", "Change a template")
-        code, data = self.run_cli("check", cwd=tree, as_json=True)
-        self.assertEqual(code, 0, data)
-        rest = [name for name in FAST if name != "lint"] + ["scaffold"]  # lint first: scaffold waits for it
-        self.assertEqual([entry["names"] for entry in self.check_log()], [["lint"], rest])
-
-    def test_backend_changes_add_acceptance_and_the_clean_install(self):
-        tree = self.worktree("chore/move")
-        git(tree, "mv", "backend/hermes/glue.py", "backend/hermes/seam.py")
-        git(tree, "commit", "-q", "-m", "Move the glue")
-        code, data = self.run_cli("check", cwd=tree, as_json=True)
-        self.assertEqual(code, 0, data)
-        log = self.check_log()
-        self.assertEqual(log[0]["names"], FAST)
-        self.assertEqual(log[1]["names"], ["acceptance"])
-        self.assertEqual(log[1]["tmpdir"], checks.short_tmp())
-        self.assertIsNone(log[1]["deps"], "acceptance uses the toolchain setup put in place")
-        head = git(tree, "rev-parse", "HEAD").strip()
-        self.assertEqual(log[2:], [{"script": [], "head": head}, {"script": ["--update-from"], "head": head}])
-        self.assertEqual([row["name"] for row in data["checks"]], FAST + ["acceptance", "clean_install", "update"])
-
     def test_a_failed_rerun_takes_back_the_tree_s_pass(self):
         tree = self.worktree()
         self.assertEqual(self.run_cli("check", cwd=tree)[0], 0)
@@ -121,21 +97,20 @@ class Check(RepoCase):
     def test_the_install_checks_run_only_on_a_committed_tree_and_install_its_head(self):
         tree = self.worktree("chore/glue")
         write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # not committed: the install would miss it
-        code, out = self.run_cli("check", cwd=tree)
+        code, out = self.run_cli("check", "clean_install", cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertNotIn("script", "".join(json.dumps(entry) for entry in self.check_log()))
         self.assertIn("FIX: commit first: the clean install installs the committed tree", out)
-        self.assertTrue(out.rstrip().endswith("then python tools/retrodev check"), out)
+        self.assertTrue(out.rstrip().endswith("then python tools/retrodev check clean_install"), out)
         self.assertEqual(self.check_log(), [], "refused before any check ran")
         self.assertNotIn("passed_tree", state.load_branch(self.main, "chore/glue"))
         git(tree, "commit", "-q", "-am", "Change the glue")
         self.clear_log()
-        code, out = self.run_cli("check", cwd=tree)
+        code, out = self.run_cli("check", "clean_install", cwd=tree)
         self.assertEqual(code, 0, out)
         installs = [entry for entry in self.check_log() if "script" in entry]
         self.assertEqual(installs, [{"script": [], "head": git(tree, "rev-parse", "HEAD").strip()}])
-        record = state.load_branch(self.main, "chore/glue")
-        self.assertEqual(record["passed_tree"], repo.tree_digest(tree))
+        self.assertEqual(state.load_branch(self.main, "chore/glue")["checks"]["clean_install"]["state"], "ok")
 
     def test_the_digest_sees_modes_and_symlinks(self):
         tree = self.worktree()
@@ -187,7 +162,7 @@ class Check(RepoCase):
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # a registration change: installs wait for a commit
+        write(tree, "backend/hermes/glue.py", "GLUE = 2\n")  # uncommitted: the asked install waits for a commit
         waits = []
 
         def sleep(seconds):
@@ -198,7 +173,7 @@ class Check(RepoCase):
             elif len(waits) > 5:
                 raise AssertionError("the watcher never woke after the commit")
 
-        self.assertEqual(watch.watch(ctx, [], rounds=2, sleep=sleep), 0)
+        self.assertEqual(watch.watch(ctx, ["clean_install"], rounds=2, sleep=sleep), 0)
         installs = [entry for entry in self.check_log() if "script" in entry]
         self.assertEqual(installs[0], {"script": [], "head": git(tree, "rev-parse", "HEAD").strip()})
 
@@ -212,10 +187,10 @@ class Check(RepoCase):
 
         def sleep(seconds):
             waits.append(seconds)
-            if len(waits) == 1:  # while watching, the policy starts calling for the clean install on docs
+            if len(waits) == 1:  # while watching, the policy starts requiring the clean install of every tree
                 self.assertIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
                 policy = tree / "tools/retrodev/policy.toml"
-                text = policy.read_text().replace('clean_install = ["__init__', 'clean_install = ["docs/*", "__init__')
+                text = policy.read_text().replace(FAST_LINE, FAST_LINE[:-1] + ', "clean_install"]')
                 self.commit(tree, "tools/retrodev/policy.toml", text, "Docs need the clean install")
             elif len(waits) > 5:
                 raise AssertionError("the watcher never woke after the policy change")
@@ -364,8 +339,8 @@ class Ship(RepoCase):
     def test_a_pass_recorded_before_the_policy_required_more_is_refused(self):
         tree, body = self.ready()
         policy = tree / "tools/retrodev/policy.toml"
-        text = policy.read_text().replace('clean_install = ["__init__', 'clean_install = ["docs/*", "__init__')
-        self.commit(tree, "tools/retrodev/policy.toml", text, "Docs need the clean install")
+        text = policy.read_text().replace(FAST_LINE, FAST_LINE[:-1] + ', "clean_install"]')
+        self.commit(tree, "tools/retrodev/policy.toml", text, "Every tree needs the clean install")
         record = state.load_branch(self.main, "docs/tidy")  # as a watcher holding the old policy recorded it
         record.update(passed_tree=repo.tree_digest(tree), passed_checks=FAST)
         state.save_branch(self.main, record)

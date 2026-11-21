@@ -165,10 +165,14 @@ class AcceptanceContract(RepoCase):
     reran). Nothing acceptance runs reads that file; every neighbour still takes the pass back, and the clean install
     still counts it (ship's scanner reads the docs)."""
 
-    def checked(self, tree, *, cached: bool, code: int = 0) -> dict:
+    def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
+        """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
+        run's data (its tree_passed is still the fast checks')."""
         self.clear_log()
         got, data = self.run_cli("check", cwd=tree, as_json=True)
         self.assertEqual(got, code, data)
+        got, data = self.run_cli("check", *slow, cwd=tree, as_json=True)
+        self.assertEqual(got, 0, data)
         ran = [name for entry in self.check_log() for name in entry.get("names", [])]
         self.assertEqual("acceptance" not in ran, cached, ran)
         row = next(row for row in data["checks"] if row["name"] == "acceptance")
@@ -210,11 +214,11 @@ class AcceptanceContract(RepoCase):
 
     def test_the_clean_install_still_reruns_after_a_contract_edit(self):
         tree = self.worktree("chore/glue")
-        self.commit(tree, "backend/hermes/glue.py", "GLUE = 2\n", "Change the glue")  # adds the clean install
-        self.checked(tree, cached=False)
+        self.commit(tree, "backend/hermes/glue.py", "GLUE = 2\n", "Change the glue")
+        self.checked(tree, cached=False, slow=("acceptance", "clean_install"))
         self.assertTrue([entry for entry in self.check_log() if "script" in entry], self.check_log())
         self.commit(tree, "docs/dev/CONTRACT.md", "# Contract\n", "Describe it")
-        self.checked(tree, cached=True)
+        self.checked(tree, cached=True, slow=("acceptance", "clean_install"))
         self.assertTrue([entry for entry in self.check_log() if "script" in entry], "the install key keeps docs")
 
 

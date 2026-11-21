@@ -183,5 +183,4 @@ class Contribution(ScaffoldCase):
             r"'([a-z-]+\.\w+)':", (ROOT / f"page/pages/{real[0][2].split('.')[0]}/index.js").read_text()
         )
         self.assertIn(real[0][2], declared, "a slot the real tree declares")
-        self.assertIn('"tests/retrodev/scaffold_steps.py"', (ROOT / "tools/retrodev/policy.toml").read_text())
         self.assertTrue(json.dumps(real))

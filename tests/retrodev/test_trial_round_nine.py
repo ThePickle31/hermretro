@@ -151,14 +151,14 @@ class PageFirst(RepoCase):
         self.fail_checks("page")
         self.skip_checks("scaffold")
         write(self.base, "skip-detail", checks.PAGE_FIRST)
-        code, out = self.run_cli("check", cwd=tree)
+        code, out = self.run_cli("check", "--full", cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertIn("scaffold: skipped: the tree fails page (fix page first)", out)
         self.assertNotIn("skipped (a tool is missing)", out)
 
     def test_page_s_recorded_result_decides_without_running_page_again(self):  # review round 2, 0
         tree = self.worktree("feat/pages-first")
-        self.commit(tree, "tools/retrodev/scaffold.py", "# changed\n")  # scaffold is due
+        self.commit(tree, "tools/retrodev/scaffold.py", "# changed\n")
         self.fail_checks("page")
         self.run_cli("check", cwd=tree)
         before = len(self.check_log())

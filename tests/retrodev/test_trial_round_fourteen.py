@@ -12,7 +12,6 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_fourteen
 """
 
 import io
-import os
 import re
 import shutil
 from pathlib import Path
@@ -20,7 +19,6 @@ from pathlib import Path
 from retrodev import (
     body_names,
     checks,
-    checks_triggers,
     config,
     output,
     plan,
@@ -41,82 +39,28 @@ def steps(out) -> list[str]:
 
 
 class NestedScaffold(RepoCase):
-    def checked(self, name: str, text: str, branch: str):
-        tree = self.worktree(branch)
-        self.commit(tree, name, text)
+    """The nested scaffold run is asked for (RD_SCAFFOLD_FULL=nested, as CI's page job runs it), never chosen from
+    the branch's changes; its pass and the fast mode's never stand for each other, and it has its own budget."""
+
+    def test_the_nested_mode_comes_from_the_caller_and_keeps_its_own_pass(self):
+        tree = self.worktree("fix/probe")
+        self.commit(tree, "tests/repo/test_probe.py", "VALUE = 1\n")  # once a nested trigger: adds nothing now
         code, out = self.run_cli("check", cwd=tree)
-        scaffold = [entry for entry in self.check_log() if "scaffold" in entry.get("names", [])]
-        return code, out, scaffold
-
-    def test_a_repo_test_or_tests_support_adds_scaffold_run_nested_and_says_why(self):
-        for name, branch in (("tests/repo/test_probe.py", "fix/probe"), ("tests/support.py", "fix/support")):
-            with self.subTest(name=name):
-                self.clear_log()
-                code, out, scaffold = self.checked(name, "VALUE = 1\n", branch)
-                self.assertEqual(code, 0, out)
-                self.assertIn(f"adding scaffold: changed {name}; run nested (RD_SCAFFOLD_FULL=nested)", out)
-                self.assertIn("as CI's page job runs those tests in its grown copy", out)
-                self.assertEqual([entry.get("mode") for entry in scaffold], ["nested"])
-
-    def test_a_named_scaffold_or_again_keeps_the_branch_s_nested_mode_and_the_tree_s_pass(self):
-        """Review round 1 of #75: `check scaffold` ran the fast guard on a nested-trigger branch, and `check --again
-        scaffold` after a passing check overwrote the nested pass and took the tree's shipping approval back."""
-        code, out, scaffold = self.checked("tests/repo/test_probe.py", "VALUE = 1\n", "fix/named")
         self.assertEqual(code, 0, out)
-        self.assertIn("this tree may ship", out)
-        tree = self.base / "hermretro-wt" / "named"
-        for args in (("check", "scaffold"), ("check", "--again", "scaffold"), ("check", "--full", "--again")):
-            with self.subTest(args=args):
-                self.clear_log()
-                code, out = self.run_cli(*args, cwd=tree)
-                if "--full" in args and code:  # the full run's other checks need what the fixture lacks
-                    continue
-                self.assertEqual(code, 0, out)
-                ran = [entry for entry in self.check_log() if "scaffold" in entry.get("names", [])]
-                if "--again" in args:
-                    self.assertEqual([entry.get("mode") for entry in ran], ["nested"], out)
-                else:  # the nested pass above stands for it: a fast-mode run would have missed that cache
-                    self.assertEqual(ran, [], out)
-                    self.assertIn("scaffold        0.0 s  ok (cached)", out)
-                self.assertIn("this tree may ship", out)
+        self.assertNotIn("scaffold", [name for entry in self.check_log() for name in entry.get("names", [])])
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        self.assertTrue(checks_triggers.nested(checks_triggers.select(ctx, ["scaffold"], False)["scaffold"]))
-        self.assertEqual(checks_triggers.select(ctx, ["unit"], False), {"unit": "asked"})
-
-    def test_the_registration_snapshot_new_rewrites_never_adds_it_nested_and_a_repo_test_still_does(self):
-        """Review round 2 of #75: `new tool` and `new rpc` rewrite tests/repo/registration.json (generated), which
-        matched tests/repo/* and sent an ordinary tool branch through the nested run. The real plans' whole
-        changed-file sets: test_scaffold_tree.py's test_the_files_new_writes_never_add_the_nested_scaffold_run."""
-        code, out, scaffold = self.checked("tests/repo/registration.json", '{"tools": []}\n', "feat/snapshot")
-        self.assertNotIn("run nested", out)
-        self.assertEqual(scaffold, [])
         self.clear_log()
-        code, out, scaffold = self.checked("tests/repo/test_docs.py", "VALUE = 1\n", "fix/docs-test")
-        self.assertIn("adding scaffold: changed tests/repo/test_docs.py; run nested", out)
-        self.assertEqual([entry.get("mode") for entry in scaffold], ["nested"])
-
-    def test_the_page_harness_adds_it_nested_too(self):
-        code, out, scaffold = self.checked("tests/page/harness.mjs", "export const x = 1\n", "fix/harness")
-        self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
-        self.assertEqual([entry.get("mode") for entry in scaffold], ["nested"])
-
-    def test_other_branches_are_unchanged(self):
-        code, out, scaffold = self.checked("backend/library/core.py", "VALUE = 2\n", "fix/core")
-        self.assertNotIn("adding scaffold", out)
-        self.assertEqual(scaffold, [])
+        self.assertEqual(checks.run(ctx, ["scaffold"], env={"RD_SCAFFOLD_FULL": "nested"}), 0)
+        self.assertEqual([entry.get("mode") for entry in self.check_log() if "scaffold" in entry["names"]], ["nested"])
         self.clear_log()
-        code, out, scaffold = self.checked("tools/retrodev/scaffold_probe.py", "X = 1\n", "fix/scaffolds")
-        self.assertIn("adding scaffold: changed tools/retrodev/scaffold_probe.py", out)
-        self.assertNotIn("run nested", out)
-        if os.environ.get("RD_SCAFFOLD_FULL") != "nested":  # the caller's own mode passes through
-            self.assertNotEqual([entry.get("mode") for entry in scaffold], ["nested"])
+        checks.run(ctx, ["scaffold"], env={"RD_SCAFFOLD_FULL": "1"})  # the nested pass never stands for this one
+        self.assertEqual([entry.get("mode") for entry in self.check_log() if "scaffold" in entry["names"]], ["1"])
 
     def test_a_fast_mode_pass_never_stands_for_the_nested_one_and_nested_has_its_own_budget(self):
         ctx = config.Context.make(self.main, output.Out(stream=io.StringIO()))
         ids = {"a.py": "1"}
-        fast = checks.input_digest(ctx, ids, "scaffold", "changed tools/retrodev/scaffold.py")
-        deep = checks.input_digest(ctx, ids, "scaffold", "changed tests/support.py" + checks_triggers.NESTED)
-        self.assertNotEqual(fast, deep)
+        self.assertNotEqual(checks.input_digest(ctx, ids, "scaffold"), checks.input_digest(ctx, ids, "scaffold", True))
+        self.assertEqual(checks.input_digest(ctx, ids, "unit"), checks.input_digest(ctx, ids, "unit", True))
         self.assertIn("scaffold_nested", ctx.policy["checks"]["budgets"])
         self.assertGreater(checks.budget(ctx, "scaffold_nested"), checks.budget(ctx, "scaffold"))
         rows = [{"name": "scaffold", "state": "ok", "seconds": 120.0, "cached": False, "budget": "scaffold_nested"}]

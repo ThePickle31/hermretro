@@ -1,6 +1,5 @@
 """Friction the twelfth round of fresh-agent trials found outside `new`: check.py page (and so the scaffold check,
-whose copy runs it) showed a failing page file only as node's 'test failed'; the lines `new` itself writes in
-step-words.js and the page registry added the scaffold check, and a backend README the real-engine run; sync's
+whose copy runs it) showed a failing page file only as node's 'test failed'; sync's
 'neither side had' warning fired on a rewrapped merge of two edits; takeover wrote no pull request body; a body's
 What changed could name a file the branch never touched. Each test failed before its fix. `new`'s side is in
 test_trial_round_twelve_new.py.
@@ -12,7 +11,7 @@ import importlib.util
 import io
 from pathlib import Path
 
-from retrodev import body_names, checks_triggers, config, output, repo, sync
+from retrodev import body_names, config, output, sync
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, write
 
@@ -75,52 +74,6 @@ class PageFailure(RepoCase):
         said = module.scaffold_said(stderr)
         self.assertIn("check failed: an approval seen both as an event and by the poll is one card", said)
         self.assertTrue(said.endswith("more"), "and the last lines still follow")
-
-
-class Triggers(RepoCase):
-    def triggered(self, files: dict[str, str]) -> dict[str, str]:
-        self.made = getattr(self, "made", 0) + 1
-        tree = self.worktree(f"feat/probe{self.made}")
-        for name, text in files.items():
-            write(tree, name, text)
-        git(tree, "add", "-A")
-        git(tree, "commit", "-q", "-m", "Probe")
-        return checks_triggers.triggered(config.Context.make(tree, output.Out(stream=io.StringIO())))
-
-    def on_base(self, name: str) -> str:
-        text = (ROOT / name).read_text()
-        self.on_dev(name, text, "The real file")
-        git(self.main, "fetch", "-q", "origin")
-        return text
-
-    def test_the_step_words_entry_new_tool_writes_adds_no_scaffold_check(self):
-        name = "page/pages/build/transcript/step-words.js"
-        text = self.on_base(name)
-        entry = "  rdprobe_ping: ['Pinging the probe', 'Pinged the probe'],\n"
-        added = text.replace("  skill_view: ", entry + "  skill_view: ", 1)
-        self.assertNotIn("scaffold", self.triggered({name: added}))
-
-    def test_a_hand_edit_of_step_words_still_adds_it(self):
-        name = "page/pages/build/transcript/step-words.js"
-        text = self.on_base(name)
-        changed = text.replace("const STEP_WORDS = {", "const STEP_WORDS = Object.freeze({", 1)
-        self.assertIn("scaffold", self.triggered({name: changed}))
-
-    def test_the_registry_line_new_page_writes_adds_no_scaffold_check(self):
-        name = "page/pages/index.js"
-        text = self.on_base(name)
-        added = text.replace(
-            "import { EMULATOR_PAGE } from './emulator/index.js'\n",
-            "import { EMULATOR_PAGE } from './emulator/index.js'\nimport { RDPROBE_PAGE } from './rdprobe/index.js'\n",
-        ).replace("EMULATOR_PAGE]", "EMULATOR_PAGE, RDPROBE_PAGE]")
-        self.assertNotEqual(added, text)
-        self.assertNotIn("scaffold", self.triggered({name: added}))
-        self.assertIn("scaffold", self.triggered({name: added + "export const EXTRA = 1\n"}))
-
-    def test_a_backend_readme_adds_no_acceptance_run_and_backend_code_does(self):
-        found = self.triggered({"backend/library/README.md": "# Library\n\nMore words.\n"})
-        self.assertNotIn("acceptance", found)
-        self.assertIn("acceptance", self.triggered({"backend/library/core.py": "VALUE = 2\n"}))
 
 
 PARAGRAPH = (
@@ -205,17 +158,5 @@ class BodyPaths(RepoCase):
         git(tree, "mv", "backend/library/old.py", "backend/library/new.py")
         git(tree, "commit", "-q", "-m", "Rename")
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
-        self.assertEqual(repo.moved_or_deleted(tree, ctx.remote_base), ["backend/library/old.py"])
         text = GOOD_BODY.replace("Things.", "Renamed `backend/library/old.py` to `backend/library/new.py`.")
         self.assertIsNone(body_names.warning(ctx, text))
-
-
-class RenamedTrigger(RepoCase):
-    def test_moving_a_trigger_file_out_of_its_folder_still_triggers(self):  # review 1, 1
-        self.on_dev("backend/library/moved.py", "VALUE = 1\n" * 20)
-        git(self.main, "fetch", "-q", "origin")
-        tree = self.worktree("feat/move")
-        git(tree, "mv", "backend/library/moved.py", "tools/moved.py")
-        git(tree, "commit", "-q", "-m", "Move it out of backend/")
-        found = checks_triggers.triggered(config.Context.make(tree, output.Out(stream=io.StringIO())))
-        self.assertIn("acceptance", found, "a rename moving a trigger file away still changed it")

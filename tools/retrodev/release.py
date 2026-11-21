@@ -194,6 +194,12 @@ def bind(ctx, record: dict, pr: dict) -> int:
     return 0
 
 
+def version_pr_checks(ctx) -> list[str]:
+    """What a version pull request is checked with before ship: the fast checks and the clean install of its new
+    version line (the real-engine run is for code, which a version line is not; CI runs both on its exact head)."""
+    return [*ctx.policy["checks"]["fast"], "clean_install"]
+
+
 def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) -> int:
     words = words_gate(words)
     repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.main())
@@ -243,7 +249,7 @@ def prepare(ctx, words: str | None, rc: bool = False, named: str | None = None) 
         ctx.out.say(f"committed: {title} (plugin.yaml version {current} to {stable(version)})")
     resume = resume_command(version, words, rc) + " (it resumes: the same worktree, check, ship, the record)"
     try:
-        checks.run(tree, [])
+        checks.run(tree, version_pr_checks(tree))
         ship.run(tree, title, str(body_file))
     except Failure as failure:
         raise Failure(failure.message, f"{failure.fix}; then {resume}", failure.code, failure.data)
