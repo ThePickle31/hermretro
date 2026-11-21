@@ -4,10 +4,10 @@ import { describeRequestError } from '#app/backend.js'
 import { withInfo } from './steps.js'
 import { BUILD_CHATS, chatRequest, patchChat } from './store.js'
 
-/** Fast mode (OpenAI's priority tier) is offered only for ChatGPT or Codex Subscription models that list it
- *  (`model.options` `capabilities[model].fast`). */
-export const FAST_PROVIDER = 'openai-codex'
-export const hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true
+/** Fast mode (OpenAI's priority tier) is offered only for ChatGPT or Codex Subscription and OpenAI API models that
+ *  list it (`model.options` `capabilities[model].fast`); Hermes also lists it for other providers' own fast modes. */
+export const FAST_PROVIDERS = new Set(['openai-codex', 'openai-api'])
+export const hasFastMode = (provider, caps) => FAST_PROVIDERS.has(provider) && caps?.fast === true
 
 // When a pick last failed, per conversation: a message waiting on it is then not sent (settleBuildPick).
 const failedAt = new Map()

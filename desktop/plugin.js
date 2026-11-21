@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b1bfd9ced689d6c2d4be54da3daabb1e27510d63b3a3914e0fc9abdbe328b4c0
- * body: sha256 167190ef8eba7914a5cb4fd0658de6b07486ef2d3c91aad6c9f8aa95ca928535
+ * sources: sha256 a2d0d52f83566a7f65b6058f74f12ffafd2dcb1906c90bd2e79d665ed5c2c75a
+ * body: sha256 88fa507f232f93086914d24aa3751329875aeef7267bdac0c68a2be716591ac3
  */
 // page/sdk.js
 import {
@@ -645,8 +645,8 @@ function patchChat(stored, change) {
 }
 
 // page/pages/build/chat/model-pick.js
-var FAST_PROVIDER = "openai-codex";
-var hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true;
+var FAST_PROVIDERS = /* @__PURE__ */ new Set(["openai-codex", "openai-api"]);
+var hasFastMode = (provider, caps) => FAST_PROVIDERS.has(provider) && caps?.fast === true;
 var failedAt = /* @__PURE__ */ new Map();
 async function pickBuildModel(stored, pick) {
   const chat = BUILD_CHATS.get()[stored];
@@ -1143,7 +1143,7 @@ async function createBuildChat(title, pick = null) {
   const choice = {
     ...pick?.model && pick?.provider ? { model: pick.model, provider: pick.provider } : {},
     ...pick?.effort ? { reasoning_effort: pick.effort } : {},
-    ...typeof pick?.fast === "boolean" && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {}
+    ...typeof pick?.fast === "boolean" && FAST_PROVIDERS.has(pick?.provider) ? { fast: pick.fast } : {}
   };
   const result = await chatRequest("session.create", { hidden: true, title, source: "gui", ...choice }, 6e4);
   const stored = result?.stored_session_id ?? result?.session_id;
@@ -3266,10 +3266,10 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
   const caps = current?.capabilities?.[shown.model] ?? null;
-  const speed = hasFastMode(shown.provider, caps);
   const activeTab = tab === STARRED || providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
   const activeProvider = providers.find((item) => item.slug === activeTab) ?? null;
   const needle = query.trim().toLowerCase();
+  const speed = !needle && activeTab === shown.provider && hasFastMode(shown.provider, caps);
   const groups = useModelRows(providers, activeTab, needle, stars);
   const name = shown.model ? modelName(shown.model).name : "Default model";
   const [place, setPlace] = useState(null);
