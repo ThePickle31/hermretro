@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 from unittest import mock
 
@@ -83,6 +84,20 @@ class UnitCheckBytecodeTests(unittest.TestCase):
             "tools/check.py's unit run read a stale .pyc (-B and PYTHONDONTWRITEBYTECODE only stop writes)\n"
             f"{seen[0].stderr}\nFIX: give the run a fresh, empty PYTHONPYCACHEPREFIX in check_unit",
         )
+
+
+class UnitCheckDiscovery(unittest.TestCase):
+    def test_only_an_explicit_product_run_omits_the_dev_cli(self):
+        flags = []
+
+        def fake_run(cmd, **kwargs):
+            flags.append(kwargs["env"].get("HERMRETRO_UNIT_PRODUCT_ONLY"))
+            return subprocess.CompletedProcess(cmd, 0, "", OK)
+
+        with mock.patch.object(check, "run", fake_run), mock.patch.dict(os.environ, HERMRETRO_UNIT_PRODUCT_ONLY="1"):
+            check.check_unit(None)
+            check.check_unit(Namespace(unit_product_only=True))
+        self.assertEqual(flags, [None, "1"])
 
 
 class UnitCheckHomeTests(unittest.TestCase):
