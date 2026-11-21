@@ -105,11 +105,19 @@ test('the page colour is set on the area, where the title and the frosted compos
 })
 
 test('the composer and the two choices are frosted glass over the level', () => {
-  for (const sel of ['.cs-b-new .cs-b-comp', '.cs-b-opt']) {
-    const rule = ATTRACT_CSS.split('\n').find(line => line.includes(`.cs-b-attract ${sel} {`)) ?? ''
-    assert.match(rule, /backdrop-filter: blur\(/, `${sel} blurs the level behind it`)
-    assert.match(rule, /background: var\(--cs-at-glass\)/, `${sel} is see-through page colour`)
+  const t = setup()
+  const style = t.doc.createElement('style')
+  style.textContent = ATTRACT_CSS
+  t.doc.head.append(style)
+  const opt = t.doc.createElement('div')
+  opt.className = 'cs-b-opt'
+  t.host.append(opt)
+  for (const [sel, el] of [['.cs-b-new .cs-b-comp', t.doc.querySelector('.cs-b-new .cs-b-comp')], ['.cs-b-opt', opt]]) {
+    const css = t.dom.window.getComputedStyle(el)  // the cascaded rule, wherever it is written
+    assert.match(css.getPropertyValue('backdrop-filter'), /blur\(/, `${sel} blurs the level behind it`)
+    assert.match(css.getPropertyValue('background'), /var\(--cs-at-glass\)/, `${sel} is see-through page colour`)
   }
+  t.stop()
 })
 
 test('under reduced motion it draws one still frame and repaints it when the theme changes', () => {

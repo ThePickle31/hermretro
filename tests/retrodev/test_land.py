@@ -148,7 +148,6 @@ class Rounds(LandCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(self.hermes.calls, [], "no 4th round, not even a probe")
         self.assertEqual(data["review_action"], "fix-then-merge")
-        self.assertEqual(len(self.hermes.calls), 0)
         self.assertEqual(self.merges()[0][self.merges()[0].index("--match-head-commit") + 1], head)
 
     def test_a_void_round_twice_needs_the_owner(self):

@@ -118,8 +118,11 @@ class ProxySettingsReachDownloads(unittest.TestCase):
         self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
 
     def test_the_engine_gets_them(self):
-        for key in PROXY:
-            self.assertIn(key, engine._PASSTHROUGH)
+        # The environment the engine process is started with, not a list it is built from.
+        with mock.patch.dict(os.environ, {**PROXY, "HERMES_GATEWAY_TOKEN": "secret"}):
+            env = engine.sanitized_environment()
+        self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
+        self.assertNotIn("HERMES_GATEWAY_TOKEN", env)
 
     def test_setup_scripts_get_them(self):
         node = {"found": True, "path": "/usr/bin/node", "version": "24.0.0", "required": "22", "ok": True}

@@ -25,7 +25,8 @@ FORBIDDEN = [
 
 
 # The one push that moves main: release publish's fast-forward of a green dev commit (<sha> onto main).
-RELEASE_PUSH = ("release_publish.py", 'found.append({"run": ["git", "push", ctx.remote, f"{sha}' + ':' + 'main"]')
+# Only the module is pinned here; the line is read below for a plain push, so renaming a local cannot break this.
+RELEASE_MODULE = "release_publish.py"
 
 
 class NeverDoes(unittest.TestCase):
@@ -33,7 +34,7 @@ class NeverDoes(unittest.TestCase):
         hits = []
         for path in sorted(SOURCE.rglob("*.py")) + [SOURCE / "policy.toml"]:
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if (path.name, line.strip()[: len(RELEASE_PUSH[1])]) == RELEASE_PUSH:
+                if path.name == RELEASE_MODULE and ":" + "main" in line:
                     continue  # the release fast-forward, checked on its own below
                 hits += [f"{path.name}:{number}: {word}" for word in FORBIDDEN if word in line]
         self.assertEqual(
@@ -51,8 +52,11 @@ class NeverDoes(unittest.TestCase):
                     hits.append((path.name, number, line.strip()))
         self.assertEqual(len(hits), 1, hits)
         name, _number, line = hits[0]
-        self.assertEqual(name, RELEASE_PUSH[0])
-        self.assertTrue(line.startswith(RELEASE_PUSH[1]), line)
+        self.assertEqual(name, RELEASE_MODULE, "main moves in one module only")
+        self.assertIn("push", line, line)
+        self.assertIn("ctx.remote", line, "the push goes to the configured remote")
+        self.assertNotIn("force", line)
+        self.assertNotIn("-f", line, "a plain push, never forced")
 
     def test_force_appears_nowhere_and_the_mac_never_pushes(self):
         hits = [

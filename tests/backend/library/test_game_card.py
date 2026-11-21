@@ -12,7 +12,6 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
@@ -62,8 +61,20 @@ class CoverCheck(unittest.TestCase):
         import struct
         import zlib
 
+        def paeth(a, b, c):
+            # The PNG spec's predictor, written out here: a change to the decoder's copy must not move
+            # the bytes this test encodes, or a symmetric bug would compare the code with itself.
+            p = a + b - c
+            distances = (abs(p - a), abs(p - b), abs(p - c))
+            return (a, b, c)[distances.index(min(distances))]
+
         width, height = 4, 3
-        source = [[(x * 10, y * 20, 5, 255) for x in range(width)] for y in range(height)]
+        # Varied channels: a Paeth row over a flat picture picks the same byte under almost any
+        # predictor, which would hide a change to the decoder's rule.
+        source = [
+            [((x * 37 + y * 91) % 256, (x * 53 + y * 17) % 256, (x * 11 + y * 71) % 256, 255) for x in range(width)]
+            for y in range(height)
+        ]
         rows = b""
         previous = bytes(width * 4)
         for y, filter_type in enumerate((1, 2, 4)):
@@ -73,7 +84,7 @@ class CoverCheck(unittest.TestCase):
                 left = line[i - 4] if i >= 4 else 0
                 up = previous[i]
                 corner = previous[i - 4] if i >= 4 else 0
-                predictor = {1: left, 2: up, 4: game_cover._paeth(left, up, corner)}[filter_type]
+                predictor = {1: left, 2: up, 4: paeth(left, up, corner)}[filter_type]
                 out.append((value - predictor) & 0xFF)
             rows += bytes([filter_type]) + bytes(out)
             previous = line
@@ -161,14 +172,22 @@ class CardFile(unittest.TestCase):
         self.assertIn("must be exactly 160x144", game_card.cover_problem(self.root, strict=False))
 
     def test_placeholders_and_bad_lists_do_not_count(self):
-        for problem in (
-            game_card._text_problem("description", "Lorem ipsum " * 5),
-            game_card._text_problem("tagline", "Short"),
-            game_card._list_problem("genres", ["Arcade"] * 4),
-            game_card._list_problem("tags", ["x" * 30]),
-            game_card._controls_problem({"A": ""}),
-        ):
-            self.assertTrue(problem)
+        # Each row is refused through the public update, with the text the agent is told.
+        rows = (
+            ({"description": "Lorem ipsum " * 5}, "description still has placeholder text; write the real thing."),
+            ({"tagline": "Short"}, "tagline is too short (at least 8 characters)."),
+            ({"genres": ["Arcade"] * 4}, "At most 3 genres."),
+            ({"tags": ["x" * 30]}, "Each tag is 1 to 24 characters."),
+            (
+                {"controls": {"A": ""}},
+                "Each control is a button name (up to 20 characters) and what it does (up to 60 characters).",
+            ),
+        )
+        for fields, problem in rows:
+            with self.subTest(fields=fields):
+                result = game_card.update(self.root, fields)
+                self.assertFalse(result["ok"], result)
+                self.assertEqual(result["problems"], [problem])
 
     def test_the_card_files_never_mark_a_built_game_changed(self):
         built = time.time() - 100
@@ -244,9 +263,13 @@ class ToolsAndPresent(unittest.TestCase):
         self.assertEqual((refused["code"], refused["missing"]), ("GAME_INFO_INCOMPLETE", ["cover"]))
 
     def test_an_invalid_field_changes_nothing_and_says_why(self):
+        self.info({})  # writes the starter card, so the next call has bytes to leave alone
+        before = (self.root / "game.json").read_bytes()
         answer = self.info({"tagline": "x", "cover": str(self.root / "missing.png")})
         self.assertEqual(answer["code"], "INVALID_GAME_INFO")
         self.assertEqual(len(answer["problems"]), 2)
+        self.assertEqual((self.root / "game.json").read_bytes(), before, "a refused update must write nothing")
+        self.assertEqual(game_card.load(self.root)["tagline"], "")
 
     def test_a_cover_edited_by_hand_into_something_else_is_caught_at_present(self):
         cover = self.base / "drawn.png"

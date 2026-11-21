@@ -239,11 +239,27 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: true } }) })
   await settle()
   check('long provider and model names wrap instead of being cut', () => {
-    const css = dom.window.document.querySelector('style')?.textContent ?? ''
-    for (const rule of ['.cs-b-mp-head {', '.cs-b-mp-head b {', '.cs-b-mp-label {', '.cs-b-mp-label.two > span {', '.cs-b-mp-row {', '.cs-b-mp-ehead {', '.cs-b-mp-emodel {']) {
-      const text = css.split('\n').find(line => line.startsWith(rule)) ?? ''
-      assert.ok(text, `${rule} exists`)
-      assert.ok(!/text-overflow: ellipsis|white-space: nowrap/.test(text), `${rule} does not cut its words`)
+    // The cascade decides, wherever the rule is written (the sheet is the page's own).
+    const probe = (cls, child) => {
+      const el = dom.window.document.createElement('div')
+      el.className = cls
+      if (child) el.append(dom.window.document.createElement(child))
+      dom.window.document.body.append(el)
+      const style = dom.window.getComputedStyle(child ? el.querySelector(child) : el)
+      el.remove()
+      return style
+    }
+    for (const [name, style] of [
+      ['.cs-b-mp-head', probe('cs-b-mp-head')],
+      ['.cs-b-mp-head b', probe('cs-b-mp-head', 'b')],
+      ['.cs-b-mp-label', probe('cs-b-mp-label')],
+      ['.cs-b-mp-label.two > span', probe('cs-b-mp-label two', 'span')],
+      ['.cs-b-mp-row', probe('cs-b-mp-row')],
+      ['.cs-b-mp-ehead', probe('cs-b-mp-ehead')],
+      ['.cs-b-mp-emodel', probe('cs-b-mp-emodel')]
+    ]) {
+      assert.notEqual(style.getPropertyValue('white-space'), 'nowrap', `${name} does not cut its words`)
+      assert.notEqual(style.getPropertyValue('text-overflow'), 'ellipsis', `${name} does not cut its words`)
     }
   })
 

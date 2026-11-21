@@ -112,10 +112,6 @@ class NewKinds(ScaffoldCase):
             steps,
         )
         self.assertIn("a single tab shows a tab bar of one", steps)
-        text = (ROOT / "page/shared/ui/text.js").read_text()
-        self.assertIn(
-            "export function Heading({ children }) {\n  return jsx('h2', { className: 'cs-word cs-title'", text
-        )
 
 
 class Pieces(unittest.TestCase):

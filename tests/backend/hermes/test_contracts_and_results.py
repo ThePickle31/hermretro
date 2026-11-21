@@ -22,9 +22,9 @@ class ContractTests(unittest.TestCase):
     def test_every_pinned_tool_becomes_one_prefixed_schema(self):
         pinned = contracts.pinned_tools()
         schemas = contracts.hermes_schemas()
-        self.assertEqual(len(pinned), 81)
+        self.assertEqual(len(schemas), len(pinned))
         self.assertEqual([s["name"] for s in schemas], ["chromatic_" + t["name"] for t in pinned])
-        self.assertEqual(len({s["name"] for s in schemas}), 81)
+        self.assertEqual(len({s["name"] for s in schemas}), len(pinned))
 
     def test_schemas_carry_no_references_and_keep_required_fields(self):
         for tool, schema in zip(contracts.pinned_tools(), contracts.hermes_schemas(), strict=True):

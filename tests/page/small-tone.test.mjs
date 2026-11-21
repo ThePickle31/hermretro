@@ -15,7 +15,12 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { findModules, MISSING_HINT } from '../../tools/bundle/node-modules.mjs'
+import { registerAliases } from './aliases.mjs'
+
+registerAliases()
+const { PAGES } = await import('#pages/index.js')
+const { composeStyles } = await import('../../page/app/style.js')
+const { findModules, MISSING_HINT } = await import('../../tools/bundle/node-modules.mjs')
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const modules = findModules(['acorn'])
@@ -212,9 +217,11 @@ test("page/ gives Small no tone but 'warn'", () => {
     'To add a tone: the className test in page/shared/ui/text.js, TONES in this file, and its colour class (.cs-<tone>) in page/shared/styles/base.css.js')
 })
 
-test('every tone and the shared colour classes are in base.css.js', () => {
-  const base = readFileSync(path.join(root, 'page/shared/styles/base.css.js'), 'utf8')
+test('every tone and the shared colour classes are in the composed page stylesheet', () => {
+  // The stylesheet the page is built from (app/style.js), where a tone's colour class must land, wherever its
+  // chunk is written: a rule dropped from the composition fails here even if it is still in base.css.js.
+  const css = composeStyles(PAGES)
   for (const name of [...TONES, 'bad', 'good']) {
-    assert.match(base, new RegExp(`^\\.cs-${name} \\{ color:`, 'm'), `FIX: define .cs-${name} { color: ... } in page/shared/styles/base.css.js, next to .cs-warn`)
+    assert.match(css, new RegExp(`\\.cs-${name} \\{ color:`), `FIX: define .cs-${name} { color: ... } in the page's stylesheet`)
   }
 })

@@ -3,6 +3,7 @@
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -36,11 +37,22 @@ class OneVersion(unittest.TestCase):
             self.assertEqual(match.group(1) if match else None, expected, line)
 
     def test_a_new_version_on_disk_changes_the_broker_fingerprint(self):
-        # A gateway that imported an older version must still agree with a broker started from the new files.
-        with mock.patch.object(paths, "_fingerprint_for", return_value="x") as fingerprint:
-            paths.code_fingerprint()
-        stamp = fingerprint.call_args.args[0]
-        self.assertIn("../plugin.yaml", [name for name, _mtime, _size in stamp])
+        # The fingerprint hashes plugin.yaml's bytes: two trees that differ only in the version must not agree,
+        # or a gateway would keep talking to a broker started from the old files.
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "backend").mkdir()
+            (base / "backend" / "one.py").write_bytes(b"x = 1\n")
+            (base / "plugin.yaml").write_text("name: hermretro\nversion: 0.0.5\n", encoding="utf-8")
+            stamp = (("../plugin.yaml", 0, 0), ("one.py", 0, 0))
+            with mock.patch.object(paths, "BACKEND_ROOT", base / "backend"):
+                paths._fingerprint_for.cache_clear()
+                old = paths._fingerprint_for(stamp)
+                (base / "plugin.yaml").write_text("name: hermretro\nversion: 0.0.6\n", encoding="utf-8")
+                paths._fingerprint_for.cache_clear()
+                new = paths._fingerprint_for(stamp)
+            paths._fingerprint_for.cache_clear()
+        self.assertNotEqual(old, new)
 
     def test_no_other_file_repeats_the_version(self):
         try:
