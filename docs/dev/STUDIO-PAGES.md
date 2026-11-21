@@ -6,6 +6,8 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 
 ## Pages (one segmented control in the header, always in the same place)
 
+The **HermRetro** entry in the Hermes Desktop sidebar opens `/hermretro`.
+
 `Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them). The page opens on
 Build, or on the page the user last chose (a remembered page that no longer exists, such as the removed Home, opens Build).
 
