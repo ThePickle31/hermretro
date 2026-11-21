@@ -6,25 +6,43 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 
 ## Pages (one segmented control in the header, always in the same place)
 
-`Home · Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them).
+`Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them). The page opens on
+Build, or on the page the user last chose (a remembered page that no longer exists, such as the removed Home, opens Build).
 
 | Page | Approved design (details below) | Mockup file (source template) |
 |---|---|---|
-| Home | E · Segmented nav, home variant 1 "Hero + band" | `src/nav.template.html` (`ui.dir='E'`, `ui.home='1'`) |
 | Setup | Atelier wizard with the flying Chromatic | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
 | Prompts | **Reader** | `src/prompts-page.template.html` variant 2 |
 | Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
 | Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
 
+Beside Refresh, the header shows an update chip (`page/app/update/`, mockup round "one-click update", A + C) only
+while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
+`plugin.installed_in`), while an update runs, or just after one. Its popover runs the update: Hermes's
+`plugins.manage update` in that profile (a caution scan or a widened plugin is shown and needs "Install anyway"; a
+dangerous verdict is never offered), then the `studio_profile` RPC there, then `plugins.manage toggle` off and on in
+the hermretro profile (Hermes reloads only the profile that ran the update), then the app's
+`hermesDesktop.reconcileDesktopPlugins` (the call Capabilities > Plugins makes; not in the plugin SDK, used only when
+present) so the app copies and reloads the new page. A storage marker (`update`) lets the reloaded page say how it
+went. "Later" hides the chip until a newer target. No update while something is being built: while a chat in the
+hermretro profile has a turn under way (`session.active_list` there: `working`, `waiting`, `streaming` or `starting`;
+checked every 5 s while an update is ready, and again right before anything changes) or the page's toolchain install
+runs, Update is disabled with the reason; a turn started while Hermes updates is waited for before the hermretro
+profile reloads (only after a successful check: five failed checks in a row stop there); everything that starts
+work (Build sends, Continue after a lost turn, New Game, Restore, the toolchain install, removing the tools, setting up
+the hermretro profile) checks the update lock in its handler and greys its control out while an update runs
+(`app/update/lock.js`); a toolchain install already running is waited for before the reload. A failed profile lookup,
+or a hermretro profile the status reports but the app cannot reach, stops the update before anything changes, and a
+failed profile-settings step leaves it unfinished. Each yes given to Hermes (caution scan,
+widened plugin) is kept for the next try. An update Hermes installed whose later steps failed is remembered
+(`updatePending`) and shown as "Finish update", which runs the remaining steps even though Hermes then answers
+"unchanged"; it never says "nothing was changed". The Setup page's complete screen has a hermretro row with the
+version and, when one is ready, Update.
+
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
 (`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
 approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps
 means both.
-
-### Home
-
-- E · Segmented nav, home variant 1 "Hero + band" (hero with the Hermes bust, then three columns Continue / Start something / Studio).
-- While setup is incomplete quick starts are disabled ("after setup") and "Continue setup" leads with a 7-step bar and the next step's name; the hero and the Studio list both count done steps ("n of 7 done", as the Setup rail does).
 
 ### Setup
 
@@ -57,7 +75,7 @@ means both.
 
 - ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
 - A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
-- Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf or Home picks the game).
+- Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf picks the game).
 - Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
 - "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
 - Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below).
@@ -479,7 +497,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 
 - `index.js` is the entry: the default export and the one `register()`, which calls `startPages(ctx)` (every page's own start-up work and event listeners). `sdk.js` is the only module that imports packages.
 - `app/`: the shell and what every page uses. The shell: `studio-page.js` (the page shown, the data every page shares as `shell`), `nav.js`, `page-view.js` (a page's body or its tabs), `not-running.js`, `shell.css.js`, `registry.js` (checks the pages and wires them), `player/` (the one player, kept across pages). Hubs pages use: `events.js`, `slots.js`, `style.js`. Plumbing: routing, ids, RPC names, backend queries, the chat composer insert and prompt buttons, formatting (`format.js`: `formatBytes`, the one bytes formatter every page uses, and `shortPath`), paths, the prompts several pages send, agent tool names.
-- `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `home/`, `build/`, `setup/` (with `onboarding/` and `install/`), `prompts/`, `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`HOME_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
+- `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `build/`, `setup/` (with `onboarding/` and `install/`), `prompts/`, `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`BUILD_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
 - `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (the PNGs), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
 - `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
 - Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// retrodev: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
@@ -560,8 +578,8 @@ import assert from 'node:assert/strict'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ scenario, render, tab, pageTab, currentTab, currentPageTab, heading, shows, check, answered, doctor, complete }) => {
-  // A finished setup in emulator mode (the harness's buildScenario starts the same way), on Home.
-  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'home' }
+  // A finished setup in emulator mode (the harness's buildScenario starts the same way), on Build.
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'build' }
   scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
   scenario.ambient = complete
   await render()
@@ -622,9 +640,9 @@ Test what the item does in the host page's scenario test, where the slot is draw
 `ctx.os.writeClipboard`, `scenario.notices` each `host.notify({ kind, message })`, `scenario.revealed` the last
 `ctx.os.revealPath`, `scenario.inserted` what went into a chat's composer (`tests/page/sdk-stub.mjs`,
 `tests/page/harness.mjs`; "Show in folder on a remote Hermes" in `page-games.test.mjs` is one). For
-`emulator.barActions`, `tests/page/page-emulator.test.mjs`. For a slot on Home, two scenario tests draw it:
-`tests/page/page-studio.test.mjs` reaches a ready Home (onboarded, Chromatic set up, tools verified: its opening
-`scenario.storage`), and `tests/page/page-setup.test.mjs` shows Home while setup is incomplete and in emulator-only mode.
+`emulator.barActions`, `tests/page/page-emulator.test.mjs`. For a slot on Prompts, two scenario tests draw it:
+`tests/page/page-studio.test.mjs` reaches a ready studio (onboarded, Chromatic set up, tools verified: its opening
+`scenario.storage`), and `tests/page/page-setup.test.mjs` shows Prompts in emulator-only mode and from another profile.
 
 ### Calling the backend from a page
 

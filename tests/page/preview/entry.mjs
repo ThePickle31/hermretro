@@ -39,7 +39,7 @@ const doctor = ready => ({
   }))
 })
 const installer = { name: 'chromatic-dev', is_studio: false, create: {}, studio: { exists: false, installed: false } }
-// Example library for the Games / Emulator / Home pages. Title screens are the mockups' real
+// Example library for the Games / Emulator / Build pages. Title screens are the mockups' real
 // captures (copied next to index.html by build.mjs); the player is a static stand-in page.
 const t = Math.round(Date.now() / 1000)
 const GAMES = [
@@ -276,9 +276,9 @@ export const SCENARIOS = {
   choice: { label: 'Emulator or Chromatic', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true } },
   devmode: { label: 'Developer Mode', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareWanted: true, firmwareDone: true } },
   devicecli: { label: 'Device software', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareWanted: true, firmwareDone: true, devmodeDone: true } },
-  emulator: { label: 'Home (emulator only)', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareSkipped: true } },
+  emulator: { label: 'Ready (emulator only)', status: answered(status()), doctor: answered(doctor(true)), storage: { onboarded: true, hardwareSkipped: true } },
   complete: {
-    label: 'Home (complete)',
+    label: 'Ready (complete)',
     status: answered(status({ hardware_enabled: true, project: { name: 'MoonGarden', root: '~/games/MoonGarden' }, deps: { device_cli: cli('installed') } })),
     doctor: answered(doctor(true)),
     storage: { onboarded: true, hardwareWanted: true, firmwareDone: true, devmodeDone: true }

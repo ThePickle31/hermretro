@@ -1,9 +1,5 @@
 // Narrow panes and reduced motion, for every page but Build. Kept after the pages' own rules.
 export const RESPONSIVE_CSS = `
-@container (max-width: 1100px) {
-  .cs-band { grid-template-columns: 1fr 1fr; }
-  .cs-band > section:nth-child(3) { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); grid-column: 1 / -1; padding-left: 0; }
-}
 @container (max-width: 1000px) {
   .cs-setup { grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 1fr); }
   .cs-setup > .cs-flyer { display: none; }
@@ -13,7 +9,7 @@ export const RESPONSIVE_CSS = `
   .cs-empty > .cs-art { display: none; }
 }
 /* Narrow main pane (an emulator tab docked beside it, a small window): the header stays one row.
-   The segments tighten, Refresh keeps only its icon, the wordmark goes (Home does the same) and, as
+   The segments tighten, Refresh keeps only its icon, the wordmark goes and, as
    a last resort, the segments scroll sideways. The player bar stops wrapping the same way and, below
    560px, its buttons keep only their icons (each has a tooltip and an aria-label). */
 @container (max-width: 900px) {
@@ -37,12 +33,10 @@ export const RESPONSIVE_CSS = `
   .cs-rp-focus { padding: 0 6px; }
 }
 @container (max-width: 760px) {
-  .cs-setup, .cs-hero, .cs-band, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
+  .cs-setup, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
   .cs-rail, .cs-rlist { position: static; }
   .cs-rail-item, .cs-rail-group { display: none; }
   .cs-meter { margin-top: 0; }
-  .cs-hero > .cs-art { display: none; }
-  .cs-band > section { border-left: 0 !important; border-top: 1px solid var(--ui-stroke-tertiary); padding-left: 0; }
   .cs-choice { grid-template-columns: 1fr; }
   .cs-choice > div + div { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); padding-left: 0; }
 }

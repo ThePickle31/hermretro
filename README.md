@@ -20,10 +20,13 @@ From a terminal:
 hermes plugins install ThePickle31/hermretro --enable
 ```
 
-Update later with `hermes plugins update hermretro` (or Capabilities → Plugins), in the profile you installed it
-into. The hermretro profile holds a link to that copy, so it follows; Hermes refuses an update run from inside
-the hermretro profile. Then restart Hermes (quit and reopen the app): until then it keeps running the old code,
-and the hermretro page says so.
+When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears beside Refresh in
+the hermretro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
+copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
+that copy) and then refreshes itself, with no restart. Update waits while a game is being built: it is disabled while
+a hermretro chat is working (the popover names it) or the game tools are installing. The terminal way still works: `hermes plugins update
+hermretro` (or Capabilities → Plugins) in the profile you installed it into, then quit and reopen Hermes (Hermes
+refuses an update run from inside the hermretro profile).
 
 For development, link a checkout instead:
 
@@ -58,7 +61,7 @@ Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated 
 | Real emulator frames reaching the model | Proven with a vision model |
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |
-| hermretro page: Home, Build, Setup, Prompts, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
+| hermretro page: Build, Setup, Prompts, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
 | Playing inside Hermes | The Emulator page runs ModRetro's own player (with a demo cartridge when you have no games yet). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
@@ -78,8 +81,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
   checksums (run by the page, not a chat), whether you have a Chromatic, and your first game idea. After that,
-  one segmented control for its pages:
-  - **Home**: what to do next (continue setup or your last game), quick starts and studio status.
+  one segmented control for its pages (it opens on Build):
   - **Setup**: one step per page, advancing by itself as the backend verifies each step; a physical
     Chromatic is optional. A step that breaks later shows a Repair banner on the other pages.
   - **Prompts**: every prompt, editable, put into a new or the current chat (never sent for you).

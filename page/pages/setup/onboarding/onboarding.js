@@ -28,7 +28,8 @@ export const ONBOARD_STAGES = [
 
 // A new user sees only this until the game tools are installed and they have chosen how to play:
 // Welcome → what gets downloaded / installing → "Do you have a Chromatic?" → "What do you want to make?".
-export function OnboardHeader({ stage }) {
+/** `end`: what the shell puts at the header's right (the update chip, so a broken install can still be updated). */
+export function OnboardHeader({ stage, end = null }) {
   const index = ONBOARD_STAGES.findIndex(([id]) => id === stage)
 
   return jsxs('header', {
@@ -45,7 +46,8 @@ export function OnboardHeader({ stage }) {
               jsx('span', { children: `${index + 1} / ${ONBOARD_STAGES.length} · ${ONBOARD_STAGES[index][1]}` })
             ]
           })
-        : jsx('span', { className: 'cs-onb-steps', children: jsx('span', { children: 'First-time setup' }) })
+        : jsx('span', { className: 'cs-onb-steps', children: jsx('span', { children: 'First-time setup' }) }),
+      end ? jsx('div', { className: 'cs-top-end', children: end }) : null
     ]
   })
 }

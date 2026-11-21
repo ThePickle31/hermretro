@@ -58,7 +58,8 @@ fails when it is stale); the agent tool names it reacts to are in
 ```json
 {
   "ok": true,
-  "plugin": { "id": "hermretro", "version": "<plugin.yaml version>" },
+  "plugin": { "id": "hermretro", "version": "<plugin.yaml version>",
+              "installed_in": { "profile": "default", "linked": false } },
   "platform": { "system": "linux | darwin", "machine": "x64 | arm64", "rosetta": false, "supported": true,
                 "qualified": true },
   "node": { "found": true, "version": "26.13.0", "required": "22" },
@@ -70,7 +71,9 @@ fails when it is stale); the agent tool names it reacts to are in
 ```
 
 `project` is `null` or `{ "root": "/abs/path", "name": "folder", "emulator_active": false, "writer": true }`
-for the conversation named by `chat` (the focused chat's id). It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
+for the conversation named by `chat` (the focused chat's id). `plugin.installed_in` names the profile Hermes installed
+this copy into (the studio profile only links it), where the page runs Hermes's `plugins.manage update`; it is
+`{ "profile": null, "linked": true }` for a checkout linked in from elsewhere, which Hermes does not update. It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
 
 ### `doctor` — params `{ probe?: boolean }`
 
@@ -170,8 +173,8 @@ match. Served from the broker's memory: no engine call, never starts the broker 
 
 ## Studio pages (desktop) and their RPCs
 
-The page at `/hermretro` has one segmented control over its pages (`PAGES` in `page/pages/index.js`): **Home** (hero,
-Continue, quick starts, studio status), **Build** (one game, one conversation), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
+The page at `/hermretro` has one segmented control over its pages (`PAGES` in `page/pages/index.js`): **Build** (one game,
+one conversation; the page opens here), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
 **Prompts** (the prompt Reader; prompts go into a chat composer, never sent), **Games** (the library shelf)
 and **Emulator** (ModRetro's real player in a `SandboxedFrame`). Full contract, result shapes and the
 page ↔ frame messages: `docs/dev/STUDIO-PAGES.md`. All RPCs answer `{ ok: false, error }` on failure

@@ -53,4 +53,28 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
     assert.ok(lost.restore); assert.equal(lost.restore.disabled, true)
   })
   await view.close()
+
+  // While hermretro updates, Restore (which restores files and sends a build request) and the chat box start nothing.
+  snapshots = [{ id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' }]
+  scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
+  scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
+  scenario['update-busy'] = answered([])
+  scenario.byMethod['session.active_list'] = () => ({ sessions: [] })
+  let finish
+  scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finish = resolve }) : { ok: true })
+  const updating = await mount(page)
+  await settle(100)
+  await click('Update ready', updating.node); await click('Update now', updating.node); await settle(40)
+  await click('Builds', updating.node.querySelector('.cs-b-head')); await settle(30)
+  check('while updating, the Builds menu cannot restore a build', () => {
+    const buttons = [...updating.node.querySelectorAll('.cs-b-brow button')].filter(node => node.textContent === 'Restore')
+    assert.ok(buttons.length, 'Restore buttons are shown'); assert.ok(buttons.every(node => node.disabled), 'every Restore is disabled')
+  })
+  check('while updating, the chat box sends nothing', () => {
+    assert.equal(updating.node.querySelector('.cs-b-chat textarea')?.disabled, true)
+  })
+  await key('keydown', 'Escape')
+  await settle(10)
+  finish({ ok: true, unchanged: true }); await settle(40)
+  await updating.close()
 })

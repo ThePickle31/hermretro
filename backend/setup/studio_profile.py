@@ -55,6 +55,16 @@ def profile_name(home: Path) -> str:
     return home.name if home.parent.name == "profiles" else "default"
 
 
+def installed_in(root: Path | None = None) -> dict:
+    """Where this copy of the plugin is installed: ``{"profile": name, "linked": False}`` for a copy Hermes installed
+    into ``<home>/plugins/`` (the profile that updates it), ``{"profile": None, "linked": True}`` for a checkout linked
+    in from elsewhere (Hermes does not update those). The studio profile only links that copy, so the path is resolved."""
+    root = (root or paths.PLUGIN_ROOT).resolve()
+    if root.parent.name != "plugins":
+        return {"profile": None, "linked": True}
+    return {"profile": profile_name(root.parent.parent), "linked": False}
+
+
 def is_studio(name: str | None) -> bool:
     """Whether the plugin's tools, skills, hooks and prompt belong in this profile: only the studio
     profile, unless ``HERMRETRO_EVERY_PROFILE=1`` (plugin development only, never for users)."""

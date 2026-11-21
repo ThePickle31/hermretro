@@ -4,7 +4,7 @@ names (`tools.py`) and runtime data files (`games.json`); a bare `config` was an
 sync; sync's per-hunk steps were buried at the end of its FIX paragraph; `new rpc` left the RPC list of rpcs.py's
 docstring stale; `new tab` on a tabless page did not say to turn its Page into a tab first, nor add the id to the
 README's taken ones; `new slot` wrote props without backticks and `new contribution` left the host's Slots line to
-the author; the page-test step pointed a Home slot at page-setup.test.mjs; the README had no worked tool example and
+the author; the page-test step pointed a Home (now Prompts) slot at page-setup.test.mjs; the README had no worked tool example and
 `new tool` did not quote the CONTRACT placeholder; the plan template did not say where a page's tests are named.
 Each test failed before its fix.
 
@@ -213,7 +213,7 @@ class SyncHunkLines(RepoCase):
 
 
 # Hermetic inputs: CI's nested scaffold guard runs this module in a copy of the tree that `new` has grown (setup
-# has more tabs, home a slot), so these tests write the files they read instead of copying the surrounding ones.
+# has more tabs, prompts a slot), so these tests write the files they read instead of copying the surrounding ones.
 SETUP_RPCS = '''"""The Setup page's RPCs: status, doctor, activity, studio_profile, install and remove_tools. Declared with
 @rpc; registered in this order (backend/hermes/declare.py)."""
 
@@ -262,7 +262,7 @@ class Scaffolds(ScaffoldCase):
         self.real("page/pages/setup/index.js")
         self.files(
             {
-                "page/pages/home/README.md": README.format(Label="Home", page="home", taken=""),
+                "page/pages/prompts/README.md": README.format(Label="Prompts", page="prompts", taken=""),
                 "page/pages/setup/README.md": README.format(Label="Setup", page="setup", taken=taken),
             }
         )
@@ -285,35 +285,42 @@ class Scaffolds(ScaffoldCase):
         self.assertIsNone(scaffold_rpc.docstring_listed(other, "x_y"))
 
     def test_new_tab_on_a_tabless_page_says_to_make_its_page_a_tab_first(self):
-        out = self.new("tab", "home", "extra")
+        out = self.new("tab", "prompts", "extra")
         self.assertTrue(
             out["next"][0].startswith(
-                "this page has no tabs yet: `python tools/retrodev new tab home main --from-page` makes its current "
+                "this page has no tabs yet: `python tools/retrodev new tab prompts main --from-page` makes its current "
                 "content a tab"
             ),
             out["next"],
         )
-        out = self.new("tab", "home", "more")
+        out = self.new("tab", "prompts", "more")
         self.assertFalse(any(step.startswith("this page has no tabs yet") for step in out["next"]), out["next"])
 
     def test_the_undo_step_names_only_new_s_own_edits_never_a_whole_file_or_folder(self):
         """Review round 1 of #75: the undo restored page/pages/<page> and desktop/plugin.js, discarding unrelated
         uncommitted work on the branch. Each step now names only what new wrote, and each of those is really there."""
         self.readmes()
-        out = self.new("tab", "home", "extra")
+        out = self.new("tab", "prompts", "extra")
         said = " ".join(out["next"] + out.get("notes", []) + out.get("done", []))
-        for whole in ("git restore", "git checkout", "git reset", "git stash", "git clean", "rm -r page/pages/home "):
+        for whole in (
+            "git restore",
+            "git checkout",
+            "git reset",
+            "git stash",
+            "git clean",
+            "rm -r page/pages/prompts ",
+        ):
             self.assertNotIn(whole, said)
-        self.assertNotIn("rm -r page/pages/home;", said)
+        self.assertNotIn("rm -r page/pages/prompts;", said)
         undo = out["next"][0]
-        self.assertIn("rm -r page/pages/home/extra;", undo)
+        self.assertIn("rm -r page/pages/prompts/extra;", undo)
         self.assertIn("then node tools/bundle/bundle.mjs", undo)
-        index = self.read("page/pages/home/index.js")
-        line = "import { HOME_EXTRA_TAB } from './extra/index.js'"
+        index = self.read("page/pages/prompts/index.js")
+        line = "import { PROMPTS_EXTRA_TAB } from './extra/index.js'"
         self.assertIn(f"delete the line {line} and the", undo)
         self.assertIn(line, index)
-        self.assertIn("  tabs: [\n    HOME_EXTRA_TAB\n  ]", index)
-        self.assertIn("three lines tabs: [ HOME_EXTRA_TAB ]", undo)
+        self.assertIn("  tabs: [\n    PROMPTS_EXTRA_TAB\n  ]", index)
+        self.assertIn("three lines tabs: [ PROMPTS_EXTRA_TAB ]", undo)
 
     def test_new_tab_adds_its_id_to_the_readme_s_taken_ones(self):
         self.readmes()
@@ -331,8 +338,8 @@ class Scaffolds(ScaffoldCase):
             "Below the quick start buttons, under the hero band, for the own extras of plugins. Props { ctx, game, "
             "hardwareOn }, plus go(pageId) on the page only"
         )
-        self.new("slot", "home", "rdfourteenExtras", "--doc", doc)
-        text = self.read("page/pages/home/README.md")
+        self.new("slot", "prompts", "rdfourteenExtras", "--doc", doc)
+        text = self.read("page/pages/prompts/README.md")
         block = text[text.index("**Slots:**") :].split("\n\n")[0]
         flat = " ".join(block.split())
         self.assertIn("Props `{ ctx, game, hardwareOn }`, plus `go(pageId)` on the page only", flat)
@@ -340,25 +347,25 @@ class Scaffolds(ScaffoldCase):
 
     def test_new_contribution_says_who_fills_the_slot_on_the_host_readme(self):
         self.readmes()
-        self.new("slot", "home", "rdfourteenExtras", "--doc", "Below the hero. Props { ctx }")
-        out = self.new("contribution", "setup", "home.rdfourteenExtras", "HeroNote")
-        text = self.read("page/pages/home/README.md")
+        self.new("slot", "prompts", "rdfourteenExtras", "--doc", "Below the hero. Props { ctx }")
+        out = self.new("contribution", "setup", "prompts.rdfourteenExtras", "HeroNote")
+        text = self.read("page/pages/prompts/README.md")
         block = " ".join(text[text.index("**Slots:**") :].split("\n\n")[0].split())
         self.assertIn("Props `{ ctx }`. Setup fills it with `HeroNote`.", block)
         self.assertFalse(any("**Slots:** line: say" in step for step in out["next"]), out["next"])
-        self.assertTrue(any("page/pages/home/README.md **Slots:** line" in item for item in out["done"]), out)
+        self.assertTrue(any("page/pages/prompts/README.md **Slots:** line" in item for item in out["done"]), out)
 
-    def test_a_home_slot_s_test_is_the_one_that_reaches_a_ready_home(self):
+    def test_a_prompts_slot_s_test_is_the_one_that_reaches_a_ready_prompts(self):
         self.files(
-            {  # page-setup's shape: Home looked at during setup, more often; page-studio's: Home opened and used
-                "tests/page/page-setup.test.mjs": "await tab('Home')\ncheck('a', () => {})\n" * 3,
-                "tests/page/page-studio.test.mjs": "await tab('Home')\nscenario.calls.length = 0\nawait click('Use')\n",
+            {  # page-setup's shape: Prompts looked at during setup, more often; page-studio's: Prompts opened and used
+                "tests/page/page-setup.test.mjs": "await tab('Prompts')\ncheck('a', () => {})\n" * 3,
+                "tests/page/page-studio.test.mjs": "await tab('Prompts')\nscenario.calls.length = 0\nawait click('Use')\n",
                 "tests/page/page-games.test.mjs": "await tab('Games')\n",
                 "tests/page/page-other.test.mjs": "await tab('Games')\nawait click('Play')\n",
             }
         )
         plan = scaffold.Plan(self.tree)
-        found = scaffold_page_tests.scenario_tests(plan, "home")
+        found = scaffold_page_tests.scenario_tests(plan, "prompts")
         self.assertEqual(found, ["tests/page/page-studio.test.mjs", "tests/page/page-setup.test.mjs"])
         self.assertEqual(scaffold_page_tests.scenario_tests(plan, "games")[0], "tests/page/page-games.test.mjs")
 

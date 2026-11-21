@@ -1,4 +1,4 @@
-// Home and the Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs; Prompts,
+// The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs; Prompts,
 // the Emulator and the emulator beside the chat are page-prompts, page-emulator and page-emulator-side .test.mjs).
 // Run alone: node tests/page/page-games.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
@@ -7,13 +7,8 @@ import { gamesStudio } from './games-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async helpers => {
-  const { act, ctx, dom, scenario, text, heading, HOME, click, tab, settle, button, key, check, answered, complete } = helpers
+  const { act, ctx, dom, scenario, text, heading, click, tab, settle, button, key, check, answered, complete } = helpers
   const { games, studio } = await gamesStudio(helpers)
-  check('Home continues with the most recently built game from the games RPC', () => {
-    assert.equal(heading(), HOME)
-    assert.equal(dom.window.document.querySelector('.cs-cont .name').textContent, 'Comet Drift')
-    assert.match(text(), /Chat: Comet Drift — first level/)
-  })
   await tab('Games')
   // A game's card by its title (games-fixture.mjs: the fixture's orders differ, so never by position).
   const cards = () => [...dom.window.document.querySelectorAll('.cs-gcard')]

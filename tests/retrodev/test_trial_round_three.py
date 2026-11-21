@@ -172,7 +172,7 @@ class New(ScaffoldCase):
         then = line_with(out, "then:")
         self.assertLess(then.index("commit"), then.index("retrodev check"))
         self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
-        out = self.new("tab", "home", "rdprobe-extra", as_json=False)  # not itself, but the branch's feature is
+        out = self.new("tab", "prompts", "rdprobe-extra", as_json=False)  # not itself, but the branch's feature is
         then = line_with(out, "then:")
         self.assertLess(then.index("commit"), then.index("retrodev check"), "the branch, not just this scaffold")
         self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
@@ -184,7 +184,7 @@ class New(ScaffoldCase):
 
     def test_a_branch_the_clean_install_does_not_cover_says_check_then_commit(self):
         git(self.tree, "update-ref", "refs/remotes/origin/dev", "HEAD")  # the real files are dev's own here
-        out = self.new("tab", "home", "rdprobe-extra", as_json=False)
+        out = self.new("tab", "prompts", "rdprobe-extra", as_json=False)
         self.assertEqual(
             line_with(out, "then:"), "then: python tools/retrodev check, commit, python tools/retrodev ship"
         )

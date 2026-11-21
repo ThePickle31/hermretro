@@ -5,6 +5,7 @@ import { sendPromptToChat } from '#app/chat-insert.js'
 import { ID } from '#app/ids.js'
 import { RPC_INSTALL, RPC_STUDIO_PROFILE } from '#app/rpc.js'
 import { SETUP_PROMPT } from '#pages/prompts/index.js'
+import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
 
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)).data
@@ -26,6 +27,10 @@ export function useInstall({ enabled }) {
 
 /** Hermes creates the profile; the plugin then makes it a hermretro one. */
 async function createStudioProfile(profile) {
+  if (isUpdating()) {
+    throw new Error(UPDATING_MESSAGE)
+  }
+
   if (!profile.studio?.exists) {
     await host.request('profiles.create', profile.create)
   }
@@ -61,6 +66,8 @@ export function useInstaller({ ctx, status, install, toolchainDone }) {
   const profile = status.data?.profile
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed)
   const node = nodeState(status.data?.node)
+  // While hermretro updates, the install and the profile setup wait (their buttons read `updating`).
+  const updating = useUpdating()
 
   const makeProfile = () => {
     if (!needsProfile) {
@@ -79,6 +86,12 @@ export function useInstaller({ ctx, status, install, toolchainDone }) {
 
   const start = async () => {
     if (starting) {
+      return
+    }
+
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE)
+
       return
     }
 
@@ -125,5 +138,21 @@ export function useInstaller({ ctx, status, install, toolchainDone }) {
         ? 'failed'
         : 'review'
 
-  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying }
+  return {
+    ask,
+    data,
+    elsewhere,
+    failure: failure ?? data?.install?.error ?? null,
+    makeProfile,
+    needsProfile,
+    node,
+    phase,
+    profileWork,
+    start,
+    starting,
+    state,
+    unsupported,
+    updating,
+    verifying
+  }
 }

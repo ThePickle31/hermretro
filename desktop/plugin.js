@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 fa4b4e82e0654e64b8e9837921b17223c7b1f4a74992595e08b7d1b7751cdd69
- * body: sha256 6e1dd545441effa2d5e7c52ef2ec1f33c5f6e3a729ac7aa77a7dc658643eb0db
+ * sources: sha256 49859f270bd6f1fd926604b675484195aa0cf7e8752f85f973385103600167c2
+ * body: sha256 3fe03fb40f96f4e1f8da3813565567bbab6b91b466cd9a3b9b44f233fa5c786e
  */
 // page/sdk.js
 import {
@@ -39,6 +39,86 @@ var AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}`;
 var PLUGINS_HREF = `/capabilities?tab=plugins&plugin=${ID}`;
 var AGENT = "HermRetro";
 
+// page/pages/build/assets/assets.css.js
+var ASSETS_CSS = `
+/* images */
+.cs-b-strip { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.cs-b-more { color: var(--ui-text-quaternary); font-size: 11px; }
+.cs-b-th { align-items: center; appearance: none; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-secondary) 0 50%) 0 0 / 8px 8px; border: 0; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); cursor: zoom-in; display: inline-flex; flex: none; height: 40px; justify-content: center; overflow: hidden; padding: 0; transition: box-shadow .15s ease, transform .15s ease; width: 40px; }
+.cs-b-th:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); transform: translateY(-1px); }
+.cs-b-th img { height: 100%; image-rendering: pixelated; object-fit: contain; width: 100%; }
+.cs-b-spr { display: block; height: 100%; image-rendering: pixelated; max-height: 100%; max-width: 100%; object-fit: contain; width: 100%; }
+.cs-b-th.xs { border-radius: 4px; height: 20px; width: 20px; }
+.cs-b-th.lg { border-radius: 8px; height: 84px; width: 112px; }
+.cs-b-th.cs-b-reply-img { border-radius: 6px; display: flex; margin: 10px 0; max-width: 100%; }
+.cs-b-th.cs-b-reply-img.loading { height: 120px; width: 160px; }
+.cs-b-sprite { align-items: center; appearance: none; background: var(--ui-bg-secondary); border: 0; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: inherit; cursor: zoom-in; display: flex; font: inherit; gap: 14px; margin: 4px 0; max-width: 100%; padding: 10px 16px 10px 10px; text-align: left; transition: box-shadow .15s ease; }
+.cs-b-sprite:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); }
+.cs-b-sprite-stage { align-items: center; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-editor) 0 50%) 0 0 / 12px 12px; border-radius: 7px; display: flex; flex: none; height: 120px; justify-content: center; width: 120px; }
+.cs-b-sprite-stage img { image-rendering: pixelated; max-height: 100%; max-width: 100%; }
+.cs-b-th.screen { aspect-ratio: 160 / 144; border-radius: 4px; height: auto; width: 100%; }
+.cs-b-th.fresh { animation: cs-b-pop .35s ease-out; box-shadow: inset 0 0 0 1px var(--ui-accent), 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+.cs-b-th.loading { animation: cs-b-skel 1.2s ease-in-out infinite; background: var(--ui-bg-quaternary); cursor: default; }
+@keyframes cs-b-pop { from { opacity: 0; transform: scale(.85); } }
+@keyframes cs-b-skel { 50% { opacity: .45; } }
+`;
+
+// page/pages/build/attract/attract.css.js
+var ATTRACT_CSS = `
+/* New Game attract mode: the level behind the form, dimmed; the form floats over it as frosted glass, apart from the game */
+.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); --cs-at-glass: color-mix(in srgb, var(--cs-at-bg) 60%, transparent); }
+.cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
+.cs-at canvas { bottom: 0; filter: saturate(.78); image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .4; position: absolute; }
+.cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
+/* the header above the form, so the game switcher's menu opens over it; the composer above the choice cards, so its
+   model picker opens over them (the glass's backdrop-filter makes each a stacking context that would trap it) */
+.cs-b-attract > .cs-b-head { z-index: 2; }
+.cs-b-attract .cs-b-new .cs-title { align-self: center; text-shadow: 0 2px 0 color-mix(in srgb, var(--cs-at-bg) 70%, black), 0 0 18px var(--cs-at-bg), 0 0 6px var(--cs-at-bg); }
+.cs-b-attract .cs-b-new .cs-b-comp { position: relative; z-index: 2; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-b-attract .cs-b-opt { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); }
+.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass)); }
+`;
+
+// page/pages/build/build-responsive.css.js
+var BUILD_RESPONSIVE_CSS = `
+@container (max-width: 640px) {
+  .cs-b-sw-pop.cs-b-builds { width: min(420px, calc(100cqi - 24px)); }
+  .cs-b-bc-head { padding: 10px 12px 2px 12px; }
+  .cs-b-bc-sum, .cs-b-bc-changes, .cs-b-ba, .cs-b-bc-foot, .cs-b-bc-details { padding-left: 12px; padding-right: 12px; }
+  .cs-b-ba-pair { gap: 8px; }
+  .cs-b-gist { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-b-spin, .cs-b-shimmer, .cs-b-pulse, .cs-b-live.on, .cs-b-game .dot.wait, .cs-b-th.loading, .cs-b-skel i { animation: none; }
+  .cs-b-shimmer { color: var(--ui-text-primary); }
+  .cs-b-user, .cs-b-her, .cs-b-tool, .cs-b-card, .cs-b-pc, .cs-b-latest, .cs-b-lb, .cs-b-dim, .cs-b-status, .cs-b-th.fresh { animation: none; }
+  .cs-b-wk-body { transition: none; }
+  .cs-b-mp-pop, .cs-b-sw-pop, .cs-b-ctx { animation: none; }
+}
+`;
+
+// page/pages/build/build.css.js
+var BUILD_CSS = `
+/* build: games rail · the conversation with the agent (the game plays inside it) */
+.cs-pad.build { gap: 0; padding: 0; }
+.cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
+.cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
+.cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
+.cs-b-game { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 7px 8px; text-align: left; transition: background .12s ease; }
+.cs-b-game[aria-current] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); color: var(--ui-text-primary); }
+.cs-b-game:hover, .cs-b-game:focus-visible { background: var(--ui-bg-quaternary); }
+.cs-b-game .nm { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.cs-b-game .nm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-game .nm small { color: var(--ui-text-quaternary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-game.wait .nm small { color: var(--ui-yellow); }
+.cs-b-game .dot { background: var(--ui-text-quaternary); border-radius: 50%; flex: none; height: 6px; width: 6px; }
+.cs-b-game .dot.good { background: var(--ui-green); } .cs-b-game .dot.warn { background: var(--ui-yellow); } .cs-b-game .dot.bad { background: var(--ui-red); } .cs-b-game .dot.accent { background: var(--ui-accent); }
+.cs-b-game .dot.new { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); height: 7px; width: 7px; }
+.cs-b-game .dot.wait { animation: cs-b-pulse-y 1.6s infinite; background: var(--ui-yellow); height: 7px; width: 7px; }
+.cs-b-spin { animation: cs-b-spin .9s linear infinite; border: 2px solid var(--ui-accent); border-radius: 50%; border-right-color: transparent; display: inline-block; flex: none; height: 10px; width: 10px; }
+@keyframes cs-b-spin { to { transform: rotate(360deg); } }
+`;
+
 // page/shared/styles/tokens.js
 var C = {
   primary: "var(--ui-text-primary)",
@@ -69,44 +149,34 @@ var S = {
 var MONO = "var(--dt-font-mono, 'JetBrains Mono', ui-monospace, monospace)";
 var DISPLAY = "'Collapse', var(--dt-font-sans, system-ui), sans-serif";
 
-// page/pages/home/home.css.js
-var HOME_CSS = `
-/* home: hero, then Continue / Start something / Studio */
-.cs-home { display: flex; flex-direction: column; gap: clamp(28px, 3cqi, 48px); }
-.cs-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) clamp(150px, 22cqi, 380px); }
-.cs-hero > .cs-col { gap: 16px; }
-.cs-hero h2 { font-size: clamp(38px, 5cqi, 92px); }
-.cs-band { border-top: 1px solid var(--ui-stroke-secondary); display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, .8fr); }
-.cs-band > section { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 22px clamp(18px, 2.4cqi, 40px) 8px; }
-.cs-band > section:first-child { padding-left: 0; }
-.cs-band > section + section { border-left: 1px solid var(--ui-stroke-tertiary); }
-.cs-band h3 { margin: 0; }
-.cs-cont { align-items: start; display: grid; gap: 18px; grid-template-columns: clamp(120px, 11cqi, 200px) minmax(0, 1fr); }
-.cs-cont .name { font: 700 clamp(24px, 2.4cqi, 40px)/.9 ${DISPLAY}; letter-spacing: .03em; margin: 0; overflow-wrap: anywhere; text-transform: uppercase; }
-.cs-screen { aspect-ratio: 10 / 9; background: var(--ui-bg-tertiary); display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
-.cs-screen.ph { align-content: center; color: var(--ui-text-quaternary); display: grid; font: 700 10px/1.4 ${MONO}; letter-spacing: .1em; padding: 10px; text-align: center; text-transform: uppercase; }
-.cs-quick { display: flex; flex-direction: column; }
-.cs-quick button { all: unset; border-top: 1px solid var(--ui-stroke-tertiary); cursor: pointer; display: grid; gap: 2px 12px; grid-template-columns: 1fr auto; padding: 11px 0; }
-.cs-quick button:last-child { border-bottom: 1px solid var(--ui-stroke-tertiary); }
-.cs-quick .t { color: var(--ui-text-primary); font-weight: 600; }
-.cs-quick .d { color: var(--ui-text-tertiary); font-size: 12px; grid-column: 1; }
-.cs-quick .a { align-self: center; color: var(--ui-text-quaternary); font: 700 10px ${MONO}; grid-column: 2; grid-row: 1 / span 2; letter-spacing: .12em; text-transform: uppercase; }
-.cs-quick button:hover .t, .cs-quick button:hover .a { color: var(--ui-accent); }
-.cs-quick button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.cs-quick button[disabled] { cursor: default; opacity: .45; pointer-events: none; }
-.cs-bar7 { display: flex; gap: 3px; }
-.cs-bar7 i { background: var(--ui-stroke-secondary); flex: 1; height: 4px; }
-.cs-bar7 i.on { background: var(--ui-green); }
-.cs-bar7 i.cur { background: var(--ui-accent); }
-.cs-stat { display: flex; flex-direction: column; gap: 9px; margin: 0; }
-.cs-stat div { display: flex; font-size: 12.5px; gap: 12px; justify-content: space-between; }
-.cs-stat dt { color: var(--ui-text-tertiary); }
-.cs-stat dd { align-items: center; color: var(--ui-text-primary); display: flex; font: 11.5px ${MONO}; gap: 6px; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-stat dd i { background: var(--ui-text-quaternary); flex: none; height: 6px; width: 6px; }
-.cs-stat dd i.good { background: var(--ui-green); }
-.cs-stat dd i.warn { background: var(--ui-yellow); }
-.cs-stat dd i.bad { background: var(--ui-red); }
-.cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
+// page/pages/build/cart-shelf.css.js
+var CART_SHELF_CSS = `
+/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
+.cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
+.cs-b-shelf-probe { height: 0; width: 0; }
+.cs-b-attract { --cs-b-cap: 38px; }
+/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
+.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
+.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
+/* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
+   cartridges stay clickable the rest of the time */
+.cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
+.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
+.cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
+.cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
+.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
+.cs-b-shelf-cart .cap b, .cs-b-shelf-cart .cap small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-shelf-cart .cap b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
+.cs-b-shelf-cart:has(.cs-cart:hover) .cap b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) .cap b { color: var(--ui-accent); }
+.cs-b-shelf-cart .cap small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
+.cs-b-shelf-cart.wait .cap small { color: var(--ui-yellow); }
+.cs-b-shelf-cart .cap small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
+.cs-b-shelf-cart .cap small .dot.wait { background: var(--ui-yellow); }
+.cs-b-shelf-cart .cap small .dot.new { background: var(--ui-accent); }
+.cs-b-shelf-cart .cap small .cs-b-spin { height: 8px; width: 8px; }
+.cs-b-shelf-more { align-items: center; aspect-ratio: 299 / 340; background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 55%, transparent); border: 2px dashed var(--ui-text-quaternary, var(--ui-text-tertiary)); border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: grid; font: 700 18px ${MONO}; justify-content: center; width: 100px; }
+.cs-b-shelf-more:hover, .cs-b-shelf-more:focus-visible { border-color: var(--ui-accent); color: var(--ui-accent); }
+.cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
 `;
 
 // page/app/rpc-names.js
@@ -354,3082 +424,18 @@ function studioError(error, what) {
   return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in, then press Refresh.` : message || "Unknown error";
 }
 
-// page/app/chat-insert.js
-async function insertText(target, text2) {
-  try {
-    return await host.composer.insertText(target, text2, { mode: "block" }) === true;
-  } catch {
-    return false;
-  }
+// page/app/update/lock.js
+var UPDATE_LOCK = atom(false);
+function isUpdating() {
+  return Boolean(UPDATE_LOCK.get());
 }
-async function insertWhenMounted(ctx, target, text2) {
-  const sleep = (ms) => new Promise((resolve) => ctx.setTimeout(resolve, ms));
-  for (const delay of [150, 250, 400, 600, 900]) {
-    await sleep(delay);
-    if (await insertText(target, text2)) {
-      return true;
-    }
-  }
-  return false;
+function useUpdating() {
+  return Boolean(useValue(UPDATE_LOCK));
 }
-var promptAdded = () => host.notify({ kind: "success", message: "Prompt added to the composer" });
-async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
-  const target = studioTarget();
-  if (!target) {
-    const copied2 = await ctx.os.writeClipboard(prompt).catch(() => false);
-    host.notify({
-      kind: "warning",
-      message: `The hermretro profile is not set up yet, so no chat can use this prompt. Create it on Setup (Profile step), then ask Hermes there${copied2 ? "; the prompt is copied" : ""}.`
-    });
-    return;
-  }
-  const profile = target.profile;
-  if (!profile && !fresh) {
-    if (await insertText(null, prompt)) {
-      promptAdded();
-      return;
-    }
-    const focused = host.state.focusedSessionId.get();
-    if (focused && await insertText(focused, prompt)) {
-      promptAdded();
-      return;
-    }
-  }
-  if (typeof host.newChat === "function") {
-    try {
-      profile ? host.newChat(profile) : host.newChat();
-      if (await insertWhenMounted(ctx, "new", prompt)) {
-        promptAdded();
-        return;
-      }
-    } catch {
-    }
-  }
-  const copied = await ctx.os.writeClipboard(prompt).catch(() => false);
-  host.notify(
-    copied ? { kind: "info", message: "Prompt copied — paste it into a chat to use it." } : { kind: "warning", message: "Could not reach a chat composer or the clipboard. Copy the prompt from the page." }
-  );
+function setUpdating(active) {
+  UPDATE_LOCK.set(Boolean(active));
 }
-async function openGameChat(game) {
-  const stored = game?.chat?.sessionId;
-  const target = studioTarget();
-  const inStudio = game?.chat?.profile ? game.chat.profile === STUDIO_PROFILE : true;
-  if (!stored || !target || !inStudio || typeof host.openSession !== "function") {
-    return false;
-  }
-  try {
-    await host.openSession(stored, target.profile ? { profile: target.profile } : {});
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function sendToGameChat(ctx, game, text2) {
-  if (await openGameChat(game) && await insertWhenMounted(ctx, null, text2)) {
-    promptAdded();
-    return;
-  }
-  await sendPromptToChat(ctx, text2);
-}
-
-// page/pages/games/games.css.js
-var GAMES_CSS = `
-/* games: Shelf of real cartridges */
-.cs-dev { align-items: center; background: var(--ui-bg-quaternary); display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 11px 14px; }
-.cs-dev .dot { background: var(--ui-text-quaternary); flex: none; height: 8px; width: 8px; }
-.cs-dev.on .dot { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
-.cs-dev .nm { color: var(--ui-text-primary); font-weight: 600; }
-.cs-shelf { display: grid; gap: clamp(18px, 2.2cqi, 36px) clamp(16px, 2cqi, 30px); grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(200px, 15cqi, 300px)), 1fr)); }
-.cs-gcard { display: grid; gap: 10px; grid-template-rows: auto 1fr auto; min-width: 0; }
-.cs-cart { all: unset; aspect-ratio: 299 / 340; container-type: inline-size; cursor: pointer; display: block; position: relative; transition: transform .16s ease; width: 100%; }
-.cs-cart::before { background: var(--cs-cart) center / 100% 100% no-repeat; content: ''; inset: 0; position: absolute; }
-.cs-gcard:hover .cs-cart, .cs-cart:focus-visible { transform: translateY(-5px) rotate(-1deg); }
-.cs-cart:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
-.cs-cart .slot { border-radius: 1.5cqw; display: grid; height: 56.76%; left: 13.38%; overflow: hidden; place-items: center; position: absolute; top: 28.82%; width: 73.24%; }
-.cs-cart .slot img { display: block; height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
-.cs-cart .ph { align-content: center; background: var(--ui-bg-elevated); color: var(--ui-text-tertiary); display: grid; font: 700 5cqw/1.3 ${MONO}; gap: 3cqw; height: 100%; letter-spacing: .06em; padding: 6cqw; text-align: center; text-transform: uppercase; width: 100%; }
-.cs-cart .ph small { color: var(--ui-text-quaternary); font-size: 3.6cqw; }
-.cs-cart .hov { display: grid; inset: 0; opacity: 0; place-items: center; position: absolute; transition: opacity .15s; }
-.cs-gcard:hover .cs-cart .hov, .cs-cart:focus-visible .hov { opacity: 1; }
-.cs-cart .hov span { background: var(--ui-accent); border-radius: 50%; color: var(--ui-bg-editor); display: grid; height: 18cqw; place-items: center; width: 18cqw; }
-.cs-cart.ghost::before { filter: grayscale(1); opacity: .28; }
-.cs-cart.ghost .slot { color: var(--ui-text-secondary); }
-.cs-gcard .info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.cs-gcard h3 { font: 700 20px/1 ${DISPLAY}; letter-spacing: .03em; margin: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-.cs-gtag { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-meta { color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; }
-.cs-gtag.none { color: var(--ui-text-quaternary); font-style: italic; }
-.cs-gtag.bad { color: var(--ui-red); }
-.cs-gline { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; min-height: 18px; }
-.cs-gst { align-items: center; display: inline-flex; font: 700 10px/1 ${MONO}; gap: 6px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
-.cs-gst i { background: currentColor; border-radius: 50%; height: 7px; width: 7px; }
-.cs-gst.good { color: var(--ui-green); } .cs-gst.warn { color: var(--ui-yellow); } .cs-gst.bad { color: var(--ui-red); } .cs-gst.quiet { color: var(--ui-text-tertiary); }
-.cs-cart .nocover { align-items: center; background: color-mix(in srgb, black 72%, transparent); border-radius: 1cqw; bottom: 17.5%; color: white; display: inline-flex; font: 700 3.4cqw/1 ${MONO}; gap: 1.4cqw; letter-spacing: .08em; padding: 1.4cqw 2.2cqw; position: absolute; right: 16%; text-transform: uppercase; }
-.cs-split { display: inline-flex; position: relative; }
-.cs-split > button, .cs-split > span > button { align-items: center; appearance: none; border: 1px solid transparent; cursor: pointer; display: inline-flex; font: 500 12.5px/1 inherit; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap; }
-.cs-split .main { border-radius: 6px 0 0 6px; }
-.cs-split .caret { border-radius: 0 6px 6px 0; padding: 0 8px; }
-.cs-split .solid { background: var(--ui-accent); color: var(--ui-bg-editor); }
-.cs-split .caret.solid { border-left-color: color-mix(in srgb, var(--ui-bg-editor) 35%, transparent); }
-.cs-split .solid:hover:not(:disabled) { filter: brightness(1.08); }
-.cs-split .outline { background: transparent; border-color: var(--ui-stroke-secondary); color: var(--ui-text-primary); }
-.cs-split .caret.outline { border-left-width: 0; }
-.cs-split .outline:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
-.cs-split button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.cs-split button:disabled { cursor: default; opacity: .6; }
-.cs-gmenu { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; left: 0; min-width: 230px; padding: 4px; position: absolute; top: calc(100% + 6px); z-index: 40; }
-.cs-gmenu button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 9px; outline: none; padding: 7px 9px; text-align: left; white-space: nowrap; }
-.cs-gmenu button:hover:not(:disabled), .cs-gmenu button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-gmenu button:disabled { color: var(--ui-text-quaternary); cursor: default; }
-.cs-gmenu em { color: var(--ui-text-quaternary); font-size: 11px; font-style: normal; margin-left: auto; padding-left: 12px; }
-.cs-hwchip { align-items: center; appearance: none; background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-radius: 999px; color: var(--ui-text-secondary); display: inline-flex; font: 700 10.5px/1 ${MONO}; gap: 8px; letter-spacing: .08em; padding: 7px 11px; text-transform: uppercase; white-space: nowrap; }
-button.cs-hwchip { cursor: pointer; }
-button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-hwchip i { background: var(--ui-text-quaternary); border-radius: 50%; height: 7px; width: 7px; }
-.cs-hwchip.on i { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
-.cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
-.cs-empty > .cs-col { gap: 16px; }
-.cs-empty > .cs-art { max-width: 340px; }
-.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
-.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-`;
-
-// page/app/events.js
-function createEvents() {
-  const declared = /* @__PURE__ */ new Map();
-  const listeners = /* @__PURE__ */ new Map();
-  const known = (name) => {
-    if (!declared.has(name)) {
-      throw new Error(`unknown page event "${name}": declare it in the owning page's index.js (events: { '${name}': '...' })`);
-    }
-  };
-  return {
-    declare(name, owner, doc) {
-      if (declared.has(name)) {
-        throw new Error(`page event "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page owns each event`);
-      }
-      declared.set(name, { owner, doc });
-    },
-    declared: () => new Map(declared),
-    on(name, fn) {
-      known(name);
-      const set = listeners.get(name) ?? /* @__PURE__ */ new Set();
-      listeners.set(name, set);
-      set.add(fn);
-      return () => set.delete(fn);
-    },
-    emit(name, payload) {
-      known(name);
-      for (const fn of [...listeners.get(name) ?? []]) {
-        try {
-          fn(payload);
-        } catch (error) {
-          console.error(`[hermretro] a listener of "${name}" failed:`, error);
-        }
-      }
-    }
-  };
-}
-var PAGE_EVENTS = createEvents();
-var emit = (name, payload) => PAGE_EVENTS.emit(name, payload);
-
-// page/shared/ui/art.js
-function Art() {
-  return jsx("div", { "aria-hidden": true, className: "cs-art" });
-}
-function Flyer() {
-  const wing = (side) => jsx("div", { className: `wing ${side}`, children: jsx("div", { className: "ink" }) }, side);
-  return jsxs("div", {
-    "aria-hidden": true,
-    className: "cs-flyer",
-    children: [
-      jsx("div", {
-        className: "drift",
-        children: jsx("div", {
-          className: "lift",
-          children: jsxs("div", {
-            className: "tilt",
-            children: [wing("l"), wing("r"), jsx("div", { className: "body", children: jsx("div", { className: "ink" }) }, "body")]
-          })
-        })
-      }),
-      jsx("div", { className: "shadow" })
-    ]
-  });
-}
-
-// page/shared/ui/links.js
-var LINKS = {
-  node: "https://nodejs.org/",
-  firmware: "https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx",
-  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg"
-};
-function ExternalLink({ ctx, href, children, variant = "link" }) {
-  return jsxs(Button, {
-    onClick: () => void ctx.os.openExternal(href),
-    size: variant === "link" ? "inline" : "sm",
-    variant,
-    children: [children, jsx(Codicon, { name: "link-external", size: 12 })]
-  });
-}
-function CommandLine({ command }) {
-  return jsxs("div", {
-    style: { ...S.row, gap: 4 },
-    children: [
-      jsx("code", { className: "font-mono", style: S.code, children: command }),
-      jsx(CopyButton, { appearance: "icon", label: "Copy command", text: command })
-    ]
-  });
-}
-
-// page/shared/ui/text.js
-function Lede({ children }) {
-  return jsx("p", { className: "cs-lede", children });
-}
-function Small({ children, tone }) {
-  return jsx("p", { className: tone === "warn" ? "cs-small cs-warn" : "cs-small", children });
-}
-function Facts({ rows }) {
-  return jsx("dl", {
-    className: "cs-facts",
-    children: rows.flatMap(([term, text2]) => [jsx("dt", { children: term }, `t-${term}`), jsx("dd", { children: text2 }, `d-${term}`)])
-  });
-}
-
-// page/shared/ui/page.js
-function Footer({ ctx }) {
-  return jsxs("footer", {
-    className: "cs-foot",
-    children: [
-      jsxs("div", {
-        className: "cs-row",
-        style: { gap: 16 },
-        children: [
-          jsx(ExternalLink, { ctx, href: LINKS.quickstart, children: "ModRetro Chromatic quickstart" })
-        ]
-      }),
-      jsx("p", {
-        className: "cs-faint",
-        children: "For original, user-created ROMs only. Do not use it for piracy or commercial games. Developer Mode is at your own risk. hermretro is an independent plugin and is not made or endorsed by ModRetro."
-      })
-    ]
-  });
-}
-function PageHead({ number, label, title, lede, children }) {
-  return jsxs("div", {
-    className: "cs-page-head",
-    children: [
-      jsxs("div", {
-        className: "cs-col",
-        children: [
-          label ? jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: number }), label] }) : null,
-          jsx("h2", { className: "cs-word cs-title", children: title }),
-          lede ? jsx(Lede, { children: lede }) : null
-        ]
-      }),
-      children ? jsx("div", { className: "cs-row", children }) : null
-    ]
-  });
-}
-function AsyncButton({ run, disabled, icon, title, variant = "outline", children }) {
-  const [pending, setPending] = useState(false);
-  return jsx(Tip, {
-    label: title ?? children,
-    children: jsx("span", {
-      style: { display: "inline-flex" },
-      children: jsxs(Button, {
-        disabled: disabled || pending,
-        onClick: async () => {
-          setPending(true);
-          try {
-            await run();
-          } finally {
-            setPending(false);
-          }
-        },
-        size: "sm",
-        variant,
-        "aria-label": icon && typeof children === "string" ? children : void 0,
-        children: [icon ? jsx(Codicon, { name: pending ? "loading" : icon, size: 14, spinning: pending }) : null, icon ? jsx("span", { className: "cs-lbl", children }) : children]
-      })
-    })
-  });
-}
-
-// page/pages/games/games-folder.js
-async function openFolder(ctx, path) {
-  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
-  if (!shown) {
-    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-    host.notify({ kind: "info", message: copied ? "The games folder is on the computer running Hermes. Its path is copied." : path });
-  }
-}
-function GamesFolder({ ctx, path }) {
-  if (typeof path !== "string" || !path) {
-    return null;
-  }
-  return jsxs("div", {
-    className: "cs-gfolder",
-    children: [
-      jsx("span", { className: "cs-faint", children: "Games folder" }),
-      jsx("span", { className: "cs-mono", title: path, children: path }),
-      jsxs(Button, {
-        onClick: () => void openFolder(ctx, path),
-        size: "sm",
-        variant: "ghost",
-        children: [jsx(Codicon, { name: "folder-opened", size: 14 }), "Open games folder"]
-      })
-    ]
-  });
-}
-
-// page/shared/ui/working.js
-var LEMNISCATE = "M0 0C.35-.6 1.15-.6 1.15 0S.35.6 0 0-1.15-.6-1.15 0-.35.6 0 0Z";
-function Working({ children, quiet = false }) {
-  return jsxs("div", {
-    className: quiet ? "cs-watch quiet" : "cs-watch",
-    role: "status",
-    children: [
-      jsxs("svg", {
-        "aria-hidden": true,
-        className: "cs-lem",
-        viewBox: "-1.25 -0.62 2.5 1.24",
-        children: [
-          jsx("path", { className: "track", d: LEMNISCATE, pathLength: 100 }),
-          jsx("path", { className: "run", d: LEMNISCATE, pathLength: 100 })
-        ]
-      }),
-      jsx("span", { children })
-    ]
-  });
-}
-
-// page/app/game-prompts.js
-var gameLabel = (game) => `"${game.title}"${game.projectRoot ? ` (${game.projectRoot})` : ""}`;
-function buildPrompt(game) {
-  return `Build ${gameLabel(game)} and its playable web player, so I can play it on the Emulator page of hermretro.`;
-}
-
-// page/app/slots.js
-function createSlots() {
-  const declared = /* @__PURE__ */ new Map();
-  const filled = /* @__PURE__ */ new Map();
-  const known = (name) => {
-    if (!declared.has(name)) {
-      throw new Error(`unknown UI slot "${name}": declare it in the host page's index.js (slots: { '${name}': '...' })`);
-    }
-  };
-  return {
-    declare(name, owner, doc) {
-      if (declared.has(name)) {
-        throw new Error(`UI slot "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page hosts each slot`);
-      }
-      declared.set(name, { owner, doc });
-      filled.set(name, []);
-    },
-    declared: () => new Map(declared),
-    fill(name, Component, from) {
-      known(name);
-      if (typeof Component !== "function") {
-        throw new Error(`${from} contributes something that is not a component to the UI slot "${name}"`);
-      }
-      filled.get(name).push(Component);
-    },
-    contributions(name) {
-      known(name);
-      return filled.get(name);
-    }
-  };
-}
-var PAGE_SLOTS = createSlots();
-function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
-  const list = slots.contributions(name);
-  return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
-}
-
-// page/pages/games/cartridge.js
-function Cartridge({ game, title, note = null, label, disabled = false, play = false, onClick, className = "" }) {
-  const thumb = game?.thumb ?? null;
-  return jsxs("button", {
-    "aria-label": label ?? title,
-    className: className ? `cs-cart ${className}` : "cs-cart",
-    disabled,
-    onClick,
-    type: "button",
-    children: [
-      jsx(
-        "span",
-        {
-          className: "slot",
-          children: thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, draggable: false, src: thumb }) : jsxs("span", { className: "ph", children: [title, note ? jsx("small", { children: note }, "note") : null] })
-        },
-        "slot"
-      ),
-      thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }, "nocover") : null,
-      play ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }, "hov") : null
-    ]
-  });
-}
-
-// page/app/format.js
-function formatBytes(bytes, { approx = false, unit = null } = {}) {
-  if (unit === "MB") {
-    bytes = bytes || 0;
-  }
-  if (!Number.isFinite(bytes) || bytes < 0) {
-    return "";
-  }
-  const mb = bytes / 1e6;
-  const text2 = unit === "MB" ? `${Math.round(mb).toLocaleString()} MB` : unit === "KB" ? `${Math.max(1, Math.round(bytes / 1024))} KB` : mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
-  return approx ? `≈ ${text2}` : text2;
-}
-function shortPath(path, keep = 4) {
-  if (!path) {
-    return null;
-  }
-  const parts = String(path).split(/[\\/]/).filter(Boolean);
-  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
-}
-
-// page/shared/ui/time.js
-function ago(seconds, now) {
-  const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
-  if (elapsed < 5) {
-    return "just now";
-  }
-  if (elapsed < 60) {
-    return `${elapsed}s ago`;
-  }
-  if (elapsed < 3600) {
-    return `${Math.round(elapsed / 60)} min ago`;
-  }
-  return `${Math.round(elapsed / 3600)} h ago`;
-}
-function useNow(active, every = 1e3) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) {
-      return void 0;
-    }
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), every);
-    return () => clearInterval(id);
-  }, [active, every]);
-  return now;
-}
-function spanWords(ms) {
-  const seconds = Math.max(0, Math.round(ms / 1e3));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return minutes < 60 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-function clock(ms) {
-  const seconds = Math.max(0, Math.floor(ms / 1e3));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-function timeOfDay(at) {
-  if (!at) {
-    return "";
-  }
-  try {
-    return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
-
-// page/pages/prompts/prompts.css.js
-var PROMPTS_CSS = `
-/* prompts: Reader */
-.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
-.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
-.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
-.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
-.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
-.cs-rgrp.first { padding-top: 0; }
-.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
-.cs-ritem:hover { color: var(--ui-text-primary); }
-.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
-.cs-ritem.off { color: var(--ui-text-quaternary); }
-.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
-.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
-.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
-.cs-params input:focus { border-bottom-color: var(--ui-accent); }
-.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
-`;
-
-// page/app/prompt-button.js
-function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
-  return jsx(AsyncButton, { disabled, icon: "comment-discussion", run: () => sendPromptToChat(ctx, prompt, { fresh }), title: "Puts the prompt in a chat, not sent", variant, children: label });
-}
-
-// page/pages/prompts/library.js
-var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
-var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
-var PROMPT_SECTIONS = [
-  {
-    id: "plan",
-    n: "01",
-    title: "Plan",
-    prompts: [
-      {
-        id: "plan",
-        title: "Plan a game",
-        src: "hermes",
-        text: "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project."
-      }
-    ]
-  },
-  {
-    id: "create",
-    n: "02",
-    title: "Create",
-    prompts: [
-      {
-        id: "new-game",
-        title: "Create a new game",
-        src: "modretro",
-        text: "Use hermretro to create and select a new GB Studio project at {folder}/{name}. Make a small exploration game where a gardener collects three seeds and plants them to unlock a gate.",
-        defaults: { name: "MoonGarden" },
-        note: "The parent folder must already exist."
-      },
-      {
-        id: "remix",
-        title: "Remix an example",
-        src: "modretro",
-        text: "Use hermretro to create and select a Wrecklight remix at {folder}/{name}. Show me its rooms and controls, then help me turn the opening area into an abandoned research station.",
-        defaults: { name: "MyWrecklight" },
-        note: "The Wrecklight source is not bundled; the agent will ask for a local copy if needed."
-      }
-    ]
-  },
-  {
-    id: "play",
-    n: "03",
-    title: "Play",
-    prompts: [
-      {
-        id: "play-game",
-        title: "Play my game",
-        src: "modretro",
-        text: "Build my selected game and show it to me in the emulator beside the chat so I can play it. Show me the new build there whenever we make a change worth trying."
-      },
-      {
-        id: "playtest",
-        title: "Build and playtest",
-        src: "hermes",
-        text: "Build my selected game, then run an automated playtest: boot it, walk around the first room, and show me real frames from the emulator."
-      }
-    ]
-  },
-  {
-    id: "polish",
-    n: "04",
-    title: "Polish",
-    prompts: [
-      {
-        id: "scene",
-        title: "Add a scene",
-        src: "modretro",
-        text: "Add a village scene to my selected project with three houses, a central fountain, and a character I can talk to. Connect it to the starting area."
-      },
-      {
-        id: "artwork",
-        title: "Characters and artwork",
-        src: "modretro",
-        text: "Create a small robot player sprite with idle and walking animations that fit this project's style and Game Boy hardware limits. Add it to the game and show it in a scene."
-      },
-      {
-        id: "palette",
-        title: "Update the palette",
-        src: "modretro",
-        text: "Give this scene a moonlit palette with cool blue shadows and warm window lights. Check readability and show the result from the emulator."
-      },
-      {
-        id: "audit",
-        title: "Hardware limits audit",
-        src: "modretro",
-        text: "Audit my project's backgrounds and sprites for Game Boy hardware limits. Identify problems and fix any assets that would prevent a successful build."
-      }
-    ]
-  },
-  {
-    id: "device",
-    n: "05",
-    title: "On your Chromatic",
-    prompts: [
-      {
-        id: "stream",
-        title: "Stream to Chromatic",
-        src: "modretro",
-        hw: true,
-        text: "Stream a two-minute live demo of my built ROM to the connected Chromatic so I can try its controls, video, and audio."
-      },
-      {
-        id: "flash",
-        title: "Flash a cartridge",
-        src: "modretro",
-        hw: true,
-        text: "Flash my built homebrew ROM to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks."
-      }
-    ]
-  }
-];
-var ALL_PROMPTS = PROMPT_SECTIONS.flatMap((section) => section.prompts.map((prompt) => ({ ...prompt, section })));
-var promptById = (id) => ALL_PROMPTS.find((prompt) => prompt.id === id) ?? ALL_PROMPTS[0];
-var FLASH_PROMPT = promptById("flash").text;
-var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
-
-// page/pages/prompts/prompts-page.js
-function fillPrompt(prompt, values) {
-  return prompt.text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);
-}
-function promptFields(prompt) {
-  return [...new Set([...prompt.text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]))];
-}
-var WHAT_HAPPENS = {
-  device: "Hermes asks for your approval before it touches the device, unless Approvals are turned off.",
-  create: "Hermes creates the project in that folder, selects it for the chat and builds the first ROM. It then shows up on the Games page.",
-  other: "Works on the game selected in that chat. Start with Create if the chat has none yet."
-};
-function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardwareOn, profileLabel, defaultFolder, onSetUpDevice, onGo }) {
-  const [query, setQuery] = useState("");
-  const [edits, setEdits] = useState({});
-  const [names, setNames] = useState({});
-  const [folder, setFolder] = useState(() => {
-    try {
-      return storage.get("promptFolder", null);
-    } catch {
-      return null;
-    }
-  });
-  const listRef = useRef(null);
-  const needle = query.trim().toLowerCase();
-  const matches = (prompt2) => !needle || `${prompt2.title} ${prompt2.text} ${prompt2.section.title}`.toLowerCase().includes(needle);
-  const visible = ALL_PROMPTS.filter(matches);
-  const prompt = visible.find((item) => item.id === selected) ?? visible[0] ?? promptById(selected);
-  const locked = Boolean(prompt.hw) && !hardwareOn;
-  const values = { folder: folder ?? defaultFolder ?? "~", name: names[prompt.id] ?? prompt.defaults?.name ?? "MyGame" };
-  const text2 = edits[prompt.id] ?? fillPrompt(prompt, values);
-  const fields = promptFields(prompt);
-  const canChat = gameReady && !locked;
-  const state = useRef({});
-  state.current = { visible, prompt, onSelect };
-  useEffect(() => {
-    const onKey = (event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" || event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      const target = event.target;
-      if (target && (target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName ?? "") || target.tagName === "INPUT" && target.type !== "search")) {
-        return;
-      }
-      const { visible: list, prompt: current, onSelect: select } = state.current;
-      const index = list.findIndex((item) => item.id === current.id);
-      const next = list[Math.max(0, Math.min(list.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
-      if (next) {
-        event.preventDefault();
-        select(next.id);
-        ctx.setTimeout(() => listRef.current?.querySelector?.(`[data-prompt="${next.id}"]`)?.focus?.(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  const setField = (key, value) => {
-    setEdits((previous) => ({ ...previous, [prompt.id]: void 0 }));
-    if (key === "folder") {
-      setFolder(value);
-      try {
-        storage.set("promptFolder", value);
-      } catch {
-      }
-    } else {
-      setNames((previous) => ({ ...previous, [prompt.id]: value }));
-    }
-  };
-  const groups = PROMPT_SECTIONS.map((section) => ({ section, items: visible.filter((item) => item.section === section) })).filter((group) => group.items.length);
-  return [
-    jsx(PageHead, {
-      label: `Prompts · ${ALL_PROMPTS.length} ready to use`,
-      lede: jsxs("span", {
-        children: [
-          "Every prompt opens a chat in ",
-          jsx("span", { className: "cs-mono", children: profileLabel }),
-          " with the text in its composer, ready for you to edit and send. Or copy it and paste it anywhere."
-        ]
-      }),
-      number: "02",
-      title: "Start building"
-    }, "head"),
-    jsxs(
-      "div",
-      {
-        className: "cs-reader",
-        children: [
-          jsxs("nav", {
-            "aria-label": "Prompts",
-            className: "cs-rlist",
-            ref: listRef,
-            children: [
-              jsxs("label", {
-                className: "cs-search",
-                children: [
-                  jsx(Codicon, { name: "search", size: 14 }),
-                  jsx("input", { "aria-label": "Find a prompt", onChange: (event) => setQuery(event.target.value), placeholder: "Find a prompt", type: "search", value: query })
-                ]
-              }),
-              groups.length ? groups.flatMap(({ section, items }, index) => [
-                jsxs("span", { className: index ? "cs-rgrp" : "cs-rgrp first", children: [jsx("span", { children: section.title }), jsx("span", { children: items.length })] }, `g-${section.id}`),
-                ...items.map(
-                  (item) => jsxs(
-                    "button",
-                    {
-                      "aria-current": item.id === prompt.id ? "true" : void 0,
-                      className: item.hw && !hardwareOn ? "cs-ritem off" : "cs-ritem",
-                      "data-prompt": item.id,
-                      onClick: () => onSelect(item.id),
-                      type: "button",
-                      children: [jsx("span", { children: item.title }), item.hw && !hardwareOn ? jsx("span", { className: "cs-tag quiet", children: "device" }) : null]
-                    },
-                    item.id
-                  )
-                )
-              ]) : jsx(Small, { children: "No prompts match." }),
-              jsxs("p", {
-                className: "cs-faint",
-                style: { paddingTop: 18 },
-                children: [jsx("span", { className: "cs-key", children: "↑" }), " ", jsx("span", { className: "cs-key", children: "↓" }), " to move through the list"]
-              })
-            ]
-          }),
-          jsxs("section", {
-            "aria-label": prompt.title,
-            className: "cs-rdetail",
-            children: [
-              jsxs("div", {
-                className: "cs-col",
-                style: { gap: 10 },
-                children: [
-                  jsxs("p", {
-                    className: "cs-eyebrow",
-                    children: [
-                      jsx("span", { className: "cs-accent", children: prompt.section.n }),
-                      prompt.section.title,
-                      jsx("span", { className: "cs-tag quiet", children: prompt.src === "modretro" ? "ModRetro quickstart" : "Hermes" }),
-                      locked ? jsx("span", { className: "cs-tag warn", children: "Needs your Chromatic" }) : null
-                    ]
-                  }),
-                  jsx("h3", { className: "cs-word", style: { fontSize: "clamp(28px, 3cqi, 52px)" }, children: prompt.title })
-                ]
-              }),
-              fields.length ? jsx("div", {
-                className: "cs-params",
-                children: fields.flatMap((key) => [
-                  jsx("label", { htmlFor: `cs-f-${key}`, children: key === "folder" ? "Parent folder" : "Project name" }, `l-${key}`),
-                  jsx("input", { id: `cs-f-${key}`, onChange: (event) => setField(key, event.target.value), spellCheck: false, value: values[key] }, `i-${key}`)
-                ])
-              }) : null,
-              jsx("textarea", {
-                "aria-label": "Prompt text",
-                onChange: (event) => setEdits((previous) => ({ ...previous, [prompt.id]: event.target.value })),
-                spellCheck: false,
-                value: text2
-              }),
-              prompt.note ? jsx("p", { className: "cs-faint", children: prompt.note }) : null,
-              jsxs("div", {
-                className: "cs-actions",
-                children: [
-                  jsx(PromptButton, { ctx, disabled: !canChat, fresh: true, label: "Start a new chat", prompt: text2, variant: "default" }),
-                  jsx(AsyncButton, {
-                    disabled: !canChat,
-                    icon: "insert",
-                    run: () => sendPromptToChat(ctx, text2),
-                    title: "Adds the prompt to the hermretro chat you were last in, else a new one",
-                    variant: "secondary",
-                    children: "Add to current chat"
-                  }),
-                  jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: text2 }),
-                  jsx("span", { className: "cs-grow" }),
-                  edits[prompt.id] !== void 0 ? jsx(Button, { onClick: () => setEdits((previous) => ({ ...previous, [prompt.id]: void 0 })), size: "sm", variant: "ghost", children: "Reset text" }) : null
-                ]
-              }),
-              locked ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "Streaming and flashing need your Chromatic set up. You can still read and copy those prompts." }),
-                  jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
-                ]
-              }) : !gameReady ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "After setup: these prompts need the game toolchain, so the chat buttons turn on once it is installed." }),
-                  jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "outline", children: "Continue setup" })
-                ]
-              }) : null,
-              jsxs("div", {
-                className: "cs-uses",
-                children: [
-                  jsx("p", { className: "cs-eyebrow", children: "What happens" }),
-                  jsx(Small, { children: prompt.hw ? WHAT_HAPPENS.device : prompt.section.id === "create" ? WHAT_HAPPENS.create : WHAT_HAPPENS.other }),
-                  jsx("span", { className: "cs-faint", children: "Nothing is sent until you press send in the chat." })
-                ]
-              })
-            ]
-          }),
-          jsx(Art, {})
-        ]
-      },
-      "reader"
-    )
-  ];
-}
-function Prompts({ shell }) {
-  return jsx(PromptsPage, {
-    ctx: shell.ctx,
-    defaultFolder: shell.newGameFolder,
-    gameReady: shell.gameReady,
-    hardwareOn: shell.hardwareOn,
-    onGo: shell.go,
-    onSelect: shell.setPromptId,
-    onSetUpDevice: shell.setUpDevice,
-    profileLabel: shell.profileLabel,
-    selected: shell.promptId,
-    storage: shell.ctx.storage
-  });
-}
-
-// page/pages/prompts/index.js
-var PROMPTS_PAGE = {
-  id: "prompts",
-  label: "Prompts",
-  Page: Prompts,
-  css: [PROMPTS_CSS]
-};
-
-// page/pages/games/model.js
-var KIND_LABELS = { gbstudio: "GB Studio", gbdk: "GBDK" };
-var GAME_STATES = {
-  ready: ["good", "Ready"],
-  changed: ["warn", "Changed since last build"],
-  failed: ["bad", "Build failed"],
-  unbuilt: ["quiet", "Not built yet"]
-};
-function gameMeta(game, { kind = true, now = Date.now() } = {}) {
-  return [
-    kind ? KIND_LABELS[game.kind] ?? game.kind ?? null : null,
-    game.rom?.size ? formatBytes(game.rom.size, { unit: "KB" }) : null,
-    game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : "never built"
-  ].filter(Boolean);
-}
-function latestGame(games) {
-  const list = [...games ?? []].sort((a, b) => (b.rom?.builtAt ?? 0) - (a.rom?.builtAt ?? 0));
-  return list.find((game) => game.webExport) ?? list[0] ?? null;
-}
-function installPrompt(game) {
-  return FLASH_PROMPT.replace("my built homebrew ROM", `the built ROM of ${gameLabel(game)}`);
-}
-function fixPrompt(game) {
-  return `The last build of ${gameLabel(game)} failed${game.error ? `:
-${game.error}
-` : ". "}Find the cause, fix it, rebuild, and show me the result.`;
-}
-
-// page/pages/games/game-card.js
-var COVER_PROMPT = "Make this game’s card: draw a 160x144 pixel-art cover in the game’s own palette and write its tagline, description and genres, with chromatic_game_info.";
-var GAME_STATUS = {
-  ready: ["good", "Ready"],
-  changed: ["warn", "Changed"],
-  failed: ["bad", "Build failed"],
-  unbuilt: ["quiet", "Not built"]
-};
-function primaryAction(ctx, game, onPlay) {
-  if (game.state === "failed") {
-    return { icon: "tools", label: "Fix in chat", tone: "outline", title: "Puts the build error in its chat, not sent", run: () => sendToGameChat(ctx, game, fixPrompt(game)) };
-  }
-  if (game.state === "unbuilt") {
-    return { icon: "play", label: "Build in chat", title: "Puts a build prompt in its chat, not sent", run: () => sendToGameChat(ctx, game, buildPrompt(game)) };
-  }
-  if (game.state === "changed") {
-    return { icon: "play", label: "Build & play", title: `Edited since its last build: puts a build prompt in its chat, not sent. ${AGENT} shows it beside the chat when it is built.`, run: () => sendToGameChat(ctx, game, buildPrompt(game)) };
-  }
-  return { icon: "play", label: "Play", title: `Play ${game.displayTitle || game.title} on the Emulator page`, run: () => onPlay(game.id) };
-}
-async function revealGame(ctx, game) {
-  const path = game.projectRoot;
-  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
-  if (!shown) {
-    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-    host.notify({ kind: "info", message: copied ? "The game is on the computer running Hermes. Its folder path is copied." : path });
-  }
-}
-function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const wrap = useRef(null);
-  const title = game.displayTitle || game.title;
-  const action = primaryAction(ctx, game, onPlay);
-  const built = game.state !== "failed" && game.state !== "unbuilt";
-  const card = game.card ?? null;
-  useEffect(() => {
-    if (!open) {
-      return void 0;
-    }
-    const items = () => [...wrap.current?.querySelectorAll?.(".cs-gmenu button:not(:disabled)") ?? []];
-    const onDown = (event) => {
-      if (wrap.current && !wrap.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        wrap.current?.querySelector(".cs-split .caret")?.focus?.();
-      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        const list = items();
-        const at = list.indexOf(document.activeElement);
-        event.preventDefault();
-        list[(at + (event.key === "ArrowDown" ? 1 : list.length - 1)) % list.length]?.focus?.();
-      }
-    };
-    items()[0]?.focus?.();
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  const run = async (fn) => {
-    setOpen(false);
-    setPending(true);
-    try {
-      await fn();
-    } finally {
-      setPending(false);
-    }
-  };
-  const item = (icon, label, fn, { disabled = false, why } = {}) => jsxs(
-    "button",
-    {
-      disabled,
-      onClick: () => void run(fn),
-      role: "menuitem",
-      title: why,
-      type: "button",
-      children: [jsx(Codicon, { name: icon, size: 13 }), jsx("span", { children: label }), why && disabled ? jsx("em", { children: why }) : null]
-    },
-    label
-  );
-  const rows = [
-    game.state === "changed" && game.webExport ? item("play", "Play last build", () => onPlay(game.id)) : null,
-    built ? item("desktop-download", "Install on Chromatic", () => sendToGameChat(ctx, game, installPrompt(game)), {
-      disabled: !hardwareOn || !game.rom,
-      why: !hardwareOn ? "Needs your Chromatic" : !game.rom ? "Build it first" : "Puts the flash prompt in its chat; Hermes asks before writing"
-    }) : null,
-    item("comment-discussion", "Open its chat", () => openGameChat(game), { disabled: !game.chat, why: game.chat ? game.chat.title || void 0 : "No chat recorded" }),
-    !card?.complete && onMakeCover ? item("sparkle", game.cover ? "Finish card" : "Make cover art", () => onMakeCover(game)) : null,
-    game.projectRoot ? item("folder-opened", "Show in folder", () => revealGame(ctx, game)) : null,
-    // What other pages add to this menu (games/index.js declares the slot).
-    jsx(Slot, { name: "games.cardMenu", props: { ctx, game, hardwareOn, item } }, "more")
-  ].filter(Boolean);
-  return jsxs("div", {
-    className: "cs-split",
-    ref: wrap,
-    children: [
-      jsx(Tip, {
-        label: action.title,
-        children: jsxs("button", {
-          className: `main ${action.tone ?? "solid"}`,
-          disabled: pending,
-          onClick: () => void run(action.run),
-          type: "button",
-          children: [jsx(Codicon, { name: action.icon, size: 13 }), action.label]
-        })
-      }),
-      jsx("button", {
-        "aria-expanded": open,
-        "aria-haspopup": "menu",
-        "aria-label": `More for ${title}`,
-        className: `caret ${action.tone ?? "solid"}`,
-        onClick: () => setOpen(!open),
-        type: "button",
-        children: jsx(Codicon, { name: "chevron-down", size: 12 })
-      }),
-      open ? jsx("div", { "aria-label": `${title} actions`, className: "cs-gmenu", role: "menu", children: rows }) : null
-    ]
-  });
-}
-function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
-  const title = game.displayTitle || game.title;
-  const card = game.card ?? null;
-  const playable = game.state !== "unbuilt" && game.state !== "failed";
-  const [tone, status] = GAME_STATUS[game.state] ?? GAME_STATUS.unbuilt;
-  const meta = gameMeta(game, { kind: false });
-  const built = meta[meta.length - 1];
-  return jsxs("article", {
-    className: "cs-gcard",
-    children: [
-      jsx(Cartridge, {
-        disabled: !playable,
-        game,
-        label: playable ? `Play ${title}` : title,
-        note: playable ? "Title screen after first play" : "No build yet",
-        onClick: () => onPlay(game.id),
-        play: playable,
-        title
-      }),
-      jsxs("div", {
-        className: "info",
-        children: [
-          jsx("h3", { title, children: title }),
-          game.state === "failed" && game.error ? jsx("p", { className: "cs-gtag bad", title: game.error, children: game.error }) : card?.tagline ? jsx("p", { className: "cs-gtag", title: [card.description || card.tagline, card.genres?.length ? card.genres.join(" · ") : null].filter(Boolean).join("\n"), children: card.tagline }) : jsx("p", { className: "cs-gtag none", children: "No description yet" }),
-          jsxs("div", {
-            className: "cs-gline",
-            title: meta.join(" · "),
-            children: [jsxs("span", { className: `cs-gst ${tone}`, children: [jsx("i", {}), status] }), jsx("span", { children: built })]
-          })
-        ]
-      }),
-      jsx(GameActions, { ctx, game, hardwareOn, onMakeCover, onPlay })
-    ]
-  });
-}
-
-// page/pages/games/games-page.js
-function DeviceStrip({ hardwareOn, onSetUpDevice }) {
-  return hardwareOn ? jsxs("div", {
-    className: "cs-dev on",
-    children: [
-      jsx("span", { className: "dot" }),
-      jsx("span", { className: "nm", children: "Chromatic hardware tools are on" }),
-      jsx(Small, { children: "Install puts the flash prompt in the game's chat. Hermes asks before it writes the cartridge, unless Approvals are off." })
-    ]
-  }) : jsxs("div", {
-    className: "cs-dev",
-    children: [
-      jsx("span", { className: "dot" }),
-      jsx("span", { className: "nm", children: "Playing in the emulator." }),
-      jsx(Small, { children: "Set up a Chromatic to install games on a real cartridge." }),
-      jsx("span", { className: "cs-grow" }),
-      jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
-    ]
-  });
-}
-function InstallButton({ ctx, game, hardwareOn, label = "Install" }) {
-  return jsx(AsyncButton, {
-    disabled: !hardwareOn || !game.rom,
-    icon: "desktop-download",
-    run: () => sendToGameChat(ctx, game, installPrompt(game)),
-    title: !hardwareOn ? "Needs your Chromatic" : !game.rom ? "Build it first" : "Puts the flash prompt in this game's chat; Hermes asks before writing",
-    variant: "outline",
-    children: label
-  });
-}
-function DeviceChip({ hardwareOn, onSetUpDevice }) {
-  return hardwareOn ? jsx(Tip, {
-    label: "Install puts the flash prompt in the game's chat. Hermes asks before it writes the cartridge, unless Approvals are off.",
-    children: jsxs("span", { className: "cs-hwchip on", children: [jsx("i", {}), "Chromatic tools on"] })
-  }) : jsx(Tip, {
-    label: "Set up a Chromatic to install games on a real cartridge.",
-    children: jsxs("button", { className: "cs-hwchip", onClick: onSetUpDevice, type: "button", children: [jsx("i", {}), "Emulator only · Set up my Chromatic"] })
-  });
-}
-function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
-  const list = games.data?.games;
-  const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
-  const newGame = jsxs(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
-  if (games.isError || games.data && !Array.isArray(list)) {
-    return [
-      jsx(PageHead, { title: "Your games" }, "head"),
-      jsxs("div", {
-        className: "cs-col",
-        style: { gap: 12, maxWidth: "72ch" },
-        children: [
-          jsx(Lede, { children: games.isError ? studioError(games.error, "list your games") : games.data?.error || "The games list could not be read." }),
-          jsx("div", { children: newGame })
-        ]
-      }, "err")
-    ];
-  }
-  if (!list) {
-    return [jsx(PageHead, { title: "Your games" }, "head"), jsx(Working, { quiet: true, children: "Reading your games…" }, "wait")];
-  }
-  if (!list.length) {
-    return [
-      jsx(DeviceStrip, { hardwareOn, onSetUpDevice }, "dev"),
-      jsxs(
-        "div",
-        {
-          className: "cs-empty",
-          children: [
-            jsxs("div", {
-              className: "cs-col",
-              children: [
-                jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "03" }), "Games"] }),
-                jsx("h2", { className: "cs-word cs-title", children: "No games yet" }),
-                jsx(Lede, {
-                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic. Start with a new game or remix the example."
-                }),
-                jsxs("div", {
-                  className: "cs-actions",
-                  children: [
-                    jsx(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: "Create a new game" }),
-                    jsx(Button, { onClick: () => onOpenPrompt("remix"), size: "sm", variant: "outline", children: "Remix Wrecklight" })
-                  ]
-                }),
-                jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." }),
-                folder
-              ]
-            }),
-            jsx(Art, {})
-          ]
-        },
-        "empty"
-      )
-    ];
-  }
-  return [
-    jsx(PageHead, { title: "Your games", children: [jsx(DeviceChip, { hardwareOn, onSetUpDevice }, "hw"), jsx("span", { style: { display: "contents" }, children: newGame }, "new")] }, "head"),
-    jsxs(
-      "div",
-      {
-        className: "cs-shelf",
-        children: [
-          ...list.map((game) => jsx(GameCard, { ctx, game, hardwareOn, onMakeCover, onPlay }, game.id)),
-          jsxs(
-            "article",
-            {
-              className: "cs-gcard",
-              children: [
-                jsx("button", {
-                  "aria-label": "New game",
-                  className: "cs-cart ghost",
-                  onClick: () => onOpenPrompt("new-game"),
-                  type: "button",
-                  children: jsx("span", {
-                    className: "slot",
-                    children: jsxs("span", {
-                      className: "cs-col",
-                      style: { alignItems: "center", gap: 8 },
-                      children: [jsx(Codicon, { name: "add", size: 26 }), jsx("span", { className: "cs-eyebrow", children: "New game" })]
-                    })
-                  })
-                }),
-                jsxs("div", {
-                  className: "info",
-                  children: [
-                    jsx("h3", { style: { color: "var(--ui-text-tertiary)" }, children: "Blank cartridge" }),
-                    jsx("p", { className: "cs-gtag none", children: "Make a new game with Hermes" })
-                  ]
-                })
-              ]
-            },
-            "new"
-          )
-        ]
-      },
-      "shelf"
-    ),
-    folder
-  ];
-}
-function Games({ shell }) {
-  return jsx(GamesPage, {
-    ctx: shell.ctx,
-    games: shell.games,
-    hardwareOn: shell.hardwareOn,
-    // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
-    onMakeCover: (game) => {
-      emit("games.coverRequested", { game, prompt: COVER_PROMPT });
-      shell.go("build");
-    },
-    onOpenPrompt: shell.openPrompt,
-    onPlay: shell.play,
-    onSetUpDevice: shell.setUpDevice
-  });
-}
-
-// page/pages/games/state-tag.js
-function StateTag({ game }) {
-  const [tone, label] = GAME_STATES[game.state] ?? GAME_STATES.unbuilt;
-  return jsx("span", { className: `cs-tag ${tone}`, children: label });
-}
-
-// page/pages/games/index.js
-var GAMES_PAGE = {
-  id: "games",
-  label: "Games",
-  Page: Games,
-  css: [GAMES_CSS],
-  events: {
-    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent."
-  },
-  slots: {
-    "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
-  },
-  contributes: {
-    "emulator.barActions": [InstallButton]
-  }
-};
-
-// page/pages/setup/onboarding/onboarding.css.js
-var ONBOARDING_CSS = `
-/* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
-.cs-onb { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: min(78vh, 900px); }
-.cs-onb[data-screen='install'] { justify-content: flex-start; padding-top: clamp(8px, 2cqi, 32px); }
-.cs-onb-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) minmax(200px, 30cqi); }
-.cs-onb-hero h1 { font-size: clamp(44px, 6.6cqi, 108px); }
-.cs-onb-hero .cs-art { max-width: 460px; }
-.cs-onb-title { font-size: clamp(38px, 5cqi, 84px); }
-.cs-onb-split { align-items: start; display: grid; gap: clamp(28px, 4.5cqi, 80px); grid-template-columns: minmax(260px, 420px) minmax(0, 1fr); }
-.cs-onb-steps { align-items: center; color: var(--ui-text-tertiary); display: flex; font: 700 10.5px/1 ${MONO}; gap: 6px; letter-spacing: .14em; margin-left: auto; text-transform: uppercase; }
-.cs-onb-steps i { background: var(--ui-stroke-tertiary); display: block; height: 3px; width: 34px; }
-.cs-onb-steps i.done { background: var(--ui-green); }
-.cs-onb-steps i.cur { background: var(--ui-accent); }
-.cs-onb-steps span { margin-left: 10px; white-space: nowrap; }
-.cs-onb-facts { background: var(--ui-bg-quaternary); display: grid; gap: 7px 18px; grid-template-columns: max-content minmax(0, 1fr); margin: 0; padding: 14px 16px; }
-.cs-onb-facts dt { color: var(--ui-text-tertiary); font-size: 12px; }
-.cs-onb-facts dd { color: var(--ui-text-primary); font: 12px ${MONO}; margin: 0; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
-.cs-onb-facts dd.path { color: var(--ui-text-tertiary); }
-.cs-onb-facts dd.good { color: var(--ui-green); }
-.cs-onb-facts dd.bad { color: var(--ui-red); }
-.cs-dl { border-collapse: collapse; width: 100%; }
-.cs-dl th { border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); font: 700 9.5px/1 ${MONO}; letter-spacing: .12em; padding: 0 12px 9px 0; text-align: left; text-transform: uppercase; }
-.cs-dl td { border-bottom: 1px solid var(--ui-stroke-tertiary); padding: 10px 12px 10px 0; vertical-align: top; }
-.cs-dl .g { padding-right: 10px; padding-top: 12px; width: 24px; }
-.cs-dl td.n { color: var(--ui-text-primary); font-weight: 600; }
-.cs-dl td.n .p { color: var(--ui-text-quaternary); display: block; font-size: 11.5px; font-weight: 400; margin-top: 2px; }
-.cs-dl td.v, .cs-dl td.s { color: var(--ui-text-tertiary); font: 11.5px/1.6 ${MONO}; }
-.cs-dl .z { padding-right: 0; text-align: right; white-space: nowrap; }
-.cs-dl td.z { color: var(--ui-text-secondary); font: 11.5px/1.6 ${MONO}; }
-.cs-dl td.z.done { color: var(--ui-green); }
-.cs-dl td.z.running { color: var(--ui-accent); }
-.cs-dl td.z.failed { color: var(--ui-red); }
-.cs-dl tr[data-state='pending'] td.n { color: var(--ui-text-tertiary); }
-.cs-log { background: var(--ui-bg-quaternary); color: var(--ui-text-tertiary); font: 11.5px/1.75 ${MONO}; overflow-wrap: anywhere; padding: 12px 16px; }
-.cs-log .ok { color: var(--ui-green); }
-.cs-log .run { color: var(--ui-accent); }
-.cs-log .w { color: var(--ui-text-primary); }
-.cs-log .bad { color: var(--ui-red); }
-.cs-progress { background: var(--ui-stroke-tertiary); height: 4px; overflow: hidden; position: relative; }
-.cs-progress > b { background: var(--ui-accent); inset: 0 auto 0 0; position: absolute; transition: width .6s ease; }
-.cs-hwcards { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 440px)); }
-.cs-hwcard { align-items: center; appearance: none; background: var(--ui-bg-quaternary); border: 0; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); color: inherit; cursor: pointer; display: flex; font: inherit; gap: 22px; min-height: 190px; padding: 22px; text-align: left; transition: box-shadow .12s; }
-.cs-hwcard:hover, .cs-hwcard.primary { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
-.cs-hwcard:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.cs-hwcard .t { color: var(--ui-text-primary); font-size: 28px; }
-.cs-hwart { flex: none; height: 140px; width: 78px; }
-.cs-hwart.screen { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-accent); display: grid; place-items: center; }
-.cs-hwart.device { background: var(--ui-text-secondary); -webkit-mask: var(--cs-fly-body) center / contain no-repeat; mask: var(--cs-fly-body) center / contain no-repeat; }
-.cs-idea { background: var(--ui-bg-quaternary); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; flex-direction: column; gap: 12px; max-width: 760px; padding: 14px 16px; }
-.cs-idea:focus-within { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
-.cs-idea textarea { background: transparent; border: 0; color: var(--ui-text-primary); font-family: inherit; font-size: 15px; line-height: 1.5; min-height: 66px; outline: none; padding: 0; resize: vertical; width: 100%; }
-.cs-idea textarea::placeholder { color: var(--ui-text-quaternary); }
-.cs-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
-.cs-ideas button { appearance: none; background: transparent; border: 0; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); cursor: pointer; font: 700 10px/1 ${MONO}; letter-spacing: .1em; padding: 9px 11px; text-transform: uppercase; }
-.cs-ideas button:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-text-primary); }
-.cs-ideas button:disabled { cursor: default; opacity: .5; }
-.cs-repair { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); box-shadow: inset 2px 0 0 var(--ui-yellow); color: var(--ui-text-primary); display: flex; gap: 10px; padding: 9px 14px; }
-.cs-repair > i { color: var(--ui-yellow); }
-.cs-repair > span { flex: 1; }
-@container (max-width: 1000px) {
-  .cs-dl .s { display: none; }
-}
-@container (max-width: 860px) {
-  .cs-onb-split, .cs-onb-hero { grid-template-columns: minmax(0, 1fr); }
-  .cs-onb-hero .cs-art { display: none; }
-  .cs-hwcards { grid-template-columns: minmax(0, 1fr); }
-  .cs-onb-steps span { display: none; }
-}
-`;
-
-// page/pages/setup/setup.css.js
-var SETUP_CSS = `
-/* setup: rail, current step, flying Chromatic */
-.cs-setup { align-items: start; display: grid; gap: clamp(24px, 3.6cqi, 64px); grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 820px) minmax(130px, 1fr); }
-.cs-rail { display: flex; flex-direction: column; position: sticky; top: 76px; }
-.cs-rail-group { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 0 0 8px; text-transform: uppercase; }
-.cs-rail-group.second { padding-top: 22px; }
-.cs-rail-item { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-tertiary); cursor: pointer; display: grid; font: inherit; gap: 8px; grid-template-columns: 22px 1fr 14px; margin: 0 -8px; padding: 7px 8px; text-align: left; transition: color .1s, background-color .1s; }
-.cs-rail-item:hover { color: var(--ui-text-primary); transition: none; }
-.cs-rail-item .n { color: var(--ui-text-quaternary); font: 700 11px ${MONO}; }
-.cs-rail-item[data-state='done'] { color: var(--ui-text-secondary); }
-.cs-rail-item[data-state='skipped'] .l { color: var(--ui-text-quaternary); text-decoration: line-through; }
-.cs-rail-item[data-auto] { color: var(--ui-text-primary); font-weight: 600; }
-.cs-rail-item[data-auto] .n { color: var(--ui-accent); }
-.cs-rail-item[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
-.cs-meter { display: flex; gap: 3px; margin: 18px 0 8px; }
-.cs-meter button { appearance: none; background: transparent; border: 0; cursor: pointer; flex: 1; min-width: 0; padding: 4px 0; }
-.cs-meter button > i { background: var(--ui-stroke-tertiary); display: block; height: 3px; }
-.cs-meter button[data-state='done'] > i { background: var(--ui-green); }
-.cs-meter button[data-state='skipped'] > i { background: var(--ui-stroke-secondary); opacity: .5; }
-.cs-meter button[data-auto] > i { background: var(--ui-accent); }
-.cs-meter button.gap { margin-left: 6px; }
-.cs-stage { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-.cs-stage-head { display: flex; flex-direction: column; gap: 14px; }
-.cs-stage-foot { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-top: 4px; padding-top: 14px; }
-.cs-content { display: flex; flex-direction: column; gap: 18px; }
-.cs-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
-.cs-prompt { background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); font: 12.5px/1.6 ${MONO}; margin: 0; overflow-wrap: anywhere; padding: 13px 16px 13px 34px; position: relative; user-select: text; white-space: pre-wrap; }
-.cs-prompt::before { color: var(--ui-accent); content: '❯'; left: 14px; position: absolute; top: 13px; }
-.cs-facts { display: grid; gap: 9px 22px; grid-template-columns: max-content 1fr; margin: 0; }
-.cs-facts dt { color: var(--ui-text-tertiary); font: 700 10px/2 ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-facts dd { color: var(--ui-text-secondary); margin: 0; }
-.cs-watch { align-items: center; background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); display: flex; gap: 12px; padding: 11px 14px; }
-.cs-watch.quiet { background: transparent; color: var(--ui-text-tertiary); font-size: 12px; gap: 8px; padding: 0; }
-.cs-lem { flex: none; height: 18px; width: 34px; }
-.cs-watch.quiet .cs-lem { height: 12px; width: 24px; }
-.cs-lem path { fill: none; }
-.cs-lem .track { stroke: var(--ui-stroke-tertiary); stroke-width: .07; }
-.cs-lem .run { animation: cs-lem 1.4s linear infinite; stroke: var(--ui-accent); stroke-dasharray: 18 82; stroke-linecap: round; stroke-width: .11; }
-@keyframes cs-lem { to { stroke-dashoffset: -100; } }
-.cs-glyph .cs-dash { animation: cs-dash 1s linear infinite; }
-@keyframes cs-dash { to { stroke-dashoffset: -10; } }
-.cs-comps { display: flex; flex-direction: column; }
-.cs-comp { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: grid; gap: 4px 12px; grid-template-columns: 14px minmax(0, 1fr) auto auto; padding: 8px 0; }
-.cs-comp:last-child { border-bottom: 1px solid var(--ui-stroke-tertiary); }
-.cs-comp .name { color: var(--ui-text-primary); }
-.cs-comp .name small { color: var(--ui-text-quaternary); font-size: 11px; margin-left: 6px; }
-.cs-comp .ver { color: var(--ui-text-tertiary); font: 11px ${MONO}; text-align: right; }
-.cs-comp .st { font: 700 9.5px ${MONO}; letter-spacing: .1em; min-width: 82px; text-align: right; text-transform: uppercase; }
-.cs-comp .detail { color: var(--ui-text-quaternary); font-size: 11.5px; grid-column: 2 / -1; }
-.cs-comp .st.ready { color: var(--ui-green); }
-.cs-comp .st.missing { color: var(--ui-yellow); }
-.cs-comp .st.incompatible { color: var(--ui-red); }
-.cs-comp .st.optional, .cs-comp .st.unknown { color: var(--ui-text-quaternary); }
-.cs-kbd { background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-bottom-width: 3px; color: var(--ui-text-primary); display: inline-grid; font: 700 12px ${MONO}; height: 30px; min-width: 30px; padding: 0 8px; place-items: center; }
-.cs-warnline { align-items: flex-start; color: var(--ui-text-primary); display: flex; font-weight: 500; gap: 10px; }
-.cs-warnline > span:first-child { color: var(--ui-yellow); display: inline-flex; padding-top: 2px; }
-.cs-choice { border-bottom: 1px solid var(--ui-stroke-tertiary); border-top: 1px solid var(--ui-stroke-tertiary); display: grid; grid-template-columns: 1fr 1fr; }
-.cs-choice > div { display: flex; flex-direction: column; gap: 8px; padding: 20px 24px 22px 0; }
-.cs-choice > div + div { border-left: 1px solid var(--ui-stroke-tertiary); padding-left: 24px; padding-right: 0; }
-.cs-choice h3 { color: var(--ui-text-primary); font-size: 16px; font-weight: 600; margin: 0; }
-.cs-choice .cs-actions { margin-top: auto; padding-top: 8px; }
-`;
-
-// page/shared/ui/glyph.js
-var INDICATOR = {
-  done: { icon: "pass-filled", color: C.good, label: "Done" },
-  todo: { icon: "circle-large-outline", color: C.warn, label: "To do" },
-  optional: { icon: "circle-large-outline", color: C.quaternary, label: "Optional" },
-  waiting: { icon: "circle-large-outline", color: C.quaternary, label: "Waiting" },
-  checking: { icon: "loading", color: C.tertiary, label: "Checking", spinning: true },
-  error: { icon: "error", color: C.bad, label: "Problem" },
-  skipped: { icon: "dash", color: C.quaternary, label: "Skipped" },
-  blocked: { icon: "circle-slash", color: C.warn, label: "Not available" }
-};
-function Glyph({ state }) {
-  const label = (INDICATOR[state] ?? INDICATOR.waiting).label;
-  const ink = "var(--background, var(--ui-bg-editor))";
-  let shape;
-  if (state === "done") {
-    shape = [
-      jsx("rect", { fill: C.good, height: 12, width: 12, x: 1, y: 1 }, "box"),
-      jsx("path", { d: "M4 7.2l2 2 4-4.4", fill: "none", stroke: ink, strokeWidth: 1.6 }, "tick")
-    ];
-  } else if (state === "error") {
-    shape = [
-      jsx("rect", { fill: C.bad, height: 12, width: 12, x: 1, y: 1 }, "box"),
-      jsx("path", { d: "M7 4v4M7 9.6v.8", stroke: ink, strokeWidth: 1.6 }, "mark")
-    ];
-  } else if (state === "checking") {
-    shape = jsx("rect", {
-      className: "cs-dash",
-      fill: "none",
-      height: 11,
-      stroke: "var(--ui-accent)",
-      strokeDasharray: "3 2",
-      strokeWidth: 1.4,
-      width: 11,
-      x: 1.5,
-      y: 1.5
-    });
-  } else if (state === "skipped") {
-    shape = jsx("path", { d: "M3 7h8", stroke: C.quaternary, strokeWidth: 1.4 });
-  } else {
-    shape = [
-      jsx("rect", {
-        fill: "none",
-        height: 11,
-        stroke: state === "blocked" ? C.warn : state === "todo" ? C.tertiary : C.quaternary,
-        strokeWidth: 1.2,
-        width: 11,
-        x: 1.5,
-        y: 1.5
-      }, "box"),
-      state === "blocked" ? jsx("path", { d: "M4 10l6-6", stroke: C.warn, strokeWidth: 1.2 }, "slash") : null
-    ];
-  }
-  return jsx("svg", { "aria-label": label, className: "cs-glyph", height: 14, role: "img", viewBox: "0 0 14 14", width: 14, children: shape });
-}
-function Chip({ tone = "", children }) {
-  return jsxs("span", { className: `cs-chip ${tone}`, children: [jsx("i", {}), children] });
-}
-
-// page/app/prompt-block.js
-function PromptActions({ ctx, prompt, primaryLabel = "Use in chat", primaryVariant = "secondary" }) {
-  const [pending, setPending] = useState(false);
-  const run = async () => {
-    if (pending) {
-      return;
-    }
-    setPending(true);
-    try {
-      await sendPromptToChat(ctx, prompt);
-    } finally {
-      setPending(false);
-    }
-  };
-  return jsxs("div", {
-    className: "cs-actions",
-    children: [
-      jsxs(Button, {
-        disabled: pending,
-        onClick: () => void run(),
-        size: "sm",
-        variant: primaryVariant,
-        children: [jsx(Codicon, { name: pending ? "loading" : "comment-discussion", size: 14, spinning: pending }), primaryLabel]
-      }),
-      jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: prompt })
-    ]
-  });
-}
-function PromptBlock({ ctx, prompt, label }) {
-  return jsxs("div", {
-    className: "cs-col",
-    style: { gap: 10 },
-    children: [jsx("p", { className: "cs-prompt", children: prompt }), jsx(PromptActions, { ctx, primaryLabel: label, primaryVariant: "default", prompt })]
-  });
-}
-
-// page/pages/setup/steps.js
-var HARDWARE_STEPS = ["firmware", "devmode", "devicecli", "hardware"];
-var STEP_ORDER = ["profile", "toolchain", ...HARDWARE_STEPS];
-var STEP_TITLES = {
-  profile: "Create the hermretro profile",
-  toolchain: "Install the game toolchain",
-  firmware: "Update your Chromatic",
-  devmode: "Activate Developer Mode",
-  devicecli: "Install ModRetro's device software",
-  hardware: "Turn on hardware tools"
-};
-var MANUAL_STEPS = { firmware: "firmwareDone", devmode: "devmodeDone" };
-function useSetupMemory(ctx) {
-  const [memory, setMemory] = useState(() => {
-    try {
-      return { ...ctx.storage.get("setup", {}) ?? {} };
-    } catch {
-      return {};
-    }
-  });
-  const update = (patch) => setMemory((previous) => {
-    const next = { ...previous, ...patch };
-    try {
-      ctx.storage.set("setup", next);
-    } catch {
-    }
-    return next;
-  });
-  return [memory, update];
-}
-function toolchainStateKnown(status, doctor) {
-  return Boolean(status.data?.ok) && (Boolean(doctor.data) || doctor.isError);
-}
-function toolchainState(data, doctor) {
-  const report = doctor.data;
-  const engine = data.engine ?? {};
-  if (doctor.isError || report && !report.ok) {
-    return "error";
-  }
-  if (!report) {
-    return "checking";
-  }
-  return (report.missing_required ?? []).length || !engine.present || engine.verified === false ? "todo" : "done";
-}
-function computeSteps({ backend, status, doctor, memory }) {
-  const data = backend === "ok" ? status.data : null;
-  const cli = data?.deps?.device_cli;
-  const states = {
-    // A backend that says nothing about profiles predates this step and cannot make one.
-    profile: !data ? "waiting" : !data.profile || data.profile.is_studio ? "done" : "todo",
-    toolchain: !data ? "waiting" : nodeState(data.node).ok ? toolchainState(data, doctor) : "blocked",
-    firmware: memory.firmwareDone ? "done" : "todo",
-    devmode: memory.devmodeDone ? "done" : "todo",
-    devicecli: !cli ? "waiting" : cli.state === "installed" || cli.state === "bundled" ? "done" : cli.state === "unsupported" ? "blocked" : "todo",
-    hardware: !data ? "waiting" : data.hardware_enabled ? "done" : "todo"
-  };
-  return STEP_ORDER.map((id) => {
-    const hardware = HARDWARE_STEPS.includes(id);
-    const state = hardware && memory.hardwareSkipped && states[id] !== "done" ? "skipped" : states[id];
-    return {
-      id,
-      title: STEP_TITLES[id],
-      hardware,
-      manual: id in MANUAL_STEPS,
-      state,
-      complete: state === "done" || state === "skipped"
-    };
-  });
-}
-var STEP_SHORT = {
-  profile: "Studio profile",
-  toolchain: "Game toolchain",
-  firmware: "Firmware",
-  devmode: "Developer Mode",
-  devicecli: "Device software",
-  hardware: "Hardware tools"
-};
-
-// page/pages/setup/hardware-steps.js
-function Confirm({ step, update }) {
-  return step.state === "done" ? jsx(Button, { onClick: () => update({ [MANUAL_STEPS[step.id]]: false }), size: "sm", variant: "ghost", children: "Mark as not done" }) : jsxs(Button, {
-    onClick: () => update({ [MANUAL_STEPS[step.id]]: true }),
-    size: "sm",
-    variant: "default",
-    children: [jsx(Codicon, { name: "check", size: 14 }), "I've done this"]
-  });
-}
-function FirmwareBody({ ctx, step, update }) {
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: "Install the latest firmware with ModRetro's Chromatic Firmware Updater. This happens in ModRetro's app, not in Hermes, so confirm here when it is done."
-      }),
-      jsxs("div", {
-        className: "cs-actions",
-        children: [
-          jsx(ExternalLink, { ctx, href: LINKS.firmware, variant: "outline", children: "Open the Firmware Updater guide" }),
-          jsx(Confirm, { step, update })
-        ]
-      })
-    ]
-  });
-}
-function Keys({ keys }) {
-  return jsxs("span", {
-    className: "cs-row",
-    style: { gap: 6 },
-    children: keys.flatMap((key, index) => [
-      index ? jsx("span", { className: "cs-faint", children: "+" }, `p${index}`) : null,
-      jsx("kbd", { className: "cs-kbd", children: key }, key)
-    ])
-  });
-}
-function DevModeBody({ step, update }) {
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: "Developer Mode lets this computer write your games to the cartridge. In ModRetro's Chromatic Firmware Updater press"
-      }),
-      jsxs("div", {
-        className: "cs-row",
-        style: { gap: 10 },
-        children: [
-          jsx(Keys, { keys: ["Ctrl", "I"] }),
-          jsx("span", { className: "cs-faint", children: "or, on macOS," }),
-          jsx(Keys, { keys: ["⌘", "I"] })
-        ]
-      }),
-      jsx(Small, { children: "then enter the activation code included with the Chromatic: Codex Edition." }),
-      jsxs("div", {
-        className: "cs-warnline",
-        children: [
-          jsx("span", { children: jsx(Codicon, { name: "warning", size: 14 }) }),
-          jsx("span", { children: "Activation happens only in ModRetro's Updater. Never type the code into a chat." })
-        ]
-      }),
-      jsx("div", { className: "cs-actions", children: jsx(Confirm, { step, update }) })
-    ]
-  });
-}
-function DeviceSoftwareBody({ ctx, step, status }) {
-  const cli = status.data?.deps?.device_cli;
-  if (!cli) {
-    return jsx(Small, {
-      children: status.data?.ok ? "Not reported yet. Start a new chat to finish loading the plugin." : "Checked once the plugin is on."
-    });
-  }
-  if (step.state === "done") {
-    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ""} is installed in hermretro's folder.` });
-  }
-  if (cli.state === "unsupported") {
-    return jsx(Small, { tone: "warn", children: cli.detail || "ModRetro does not publish its device software for this computer." });
-  }
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it in hermretro's folder."
-      }),
-      jsx(Facts, {
-        rows: [
-          [
-            "Source",
-            jsxs("span", {
-              children: [
-                "ModRetro's npm package, checked against pinned hashes. ",
-                cli.terms ? jsx(ExternalLink, { ctx, href: cli.terms, children: "ModRetro's terms" }) : null
-              ]
-            })
-          ],
-          ["Approval", "Hermes asks for your approval before downloading, unless Approvals are turned off."]
-        ]
-      }),
-      jsx(PromptBlock, { ctx, label: "Install in chat", prompt: DEVICE_CLI_PROMPT })
-    ]
-  });
-}
-var HARDWARE_ABILITIES = ["Detect the device", "Stream", "Flash a cartridge", "Capture"];
-function HardwareBody({ step }) {
-  const on = step.state === "done";
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: on ? "Hardware tools are on for this profile: device detection, streaming, flashing and capture are available." : 'Device detection, streaming, flashing and capture are off until you allow them. Turn on "Chromatic hardware tools" in the plugin settings; this page continues once it is on.'
-      }),
-      jsx("div", {
-        className: "cs-row",
-        style: { gap: 6 },
-        children: HARDWARE_ABILITIES.map((label) => jsx(Chip, { tone: on ? "good" : "", children: label }, label))
-      }),
-      jsx(Small, {
-        children: "Writing a cartridge, streaming and driver setup ask for your approval first, unless Approvals are turned off in Hermes."
-      }),
-      jsx("div", {
-        className: "cs-actions",
-        children: jsxs(Button, {
-          onClick: () => host.navigate(AGENT_SETTINGS_HREF),
-          size: "sm",
-          variant: on ? "outline" : "default",
-          children: [jsx(Codicon, { name: "settings-gear", size: 14 }), "Open plugin settings"]
-        })
-      })
-    ]
-  });
-}
-function HardwareChoice({ steps, update }) {
-  const remaining = steps.filter((step) => step.hardware && step.state !== "done").length;
-  return jsxs("section", {
-    "aria-live": "polite",
-    className: "cs-stage",
-    children: [
-      jsxs("div", {
-        className: "cs-stage",
-        style: { display: "contents" },
-        children: [
-          jsxs("div", {
-            className: "cs-stage-head",
-            children: [
-              jsxs("p", {
-                className: "cs-eyebrow",
-                children: [jsx("span", { className: "cs-accent", children: "Steps 1–2 done" }), jsx("span", { children: "The emulator is ready" })]
-              }),
-              jsx("h2", { className: "cs-word cs-title", children: "Ready to make games" })
-            ]
-          }),
-          jsx(Lede, {
-            children: "Hermes can now create, build and playtest your games, and you play them on the Emulator page, with sound. A physical Chromatic is optional: set it up now, or any time later."
-          }),
-          jsxs("div", {
-            className: "cs-choice",
-            children: [
-              jsxs("div", {
-                children: [
-                  jsx("p", { className: "cs-eyebrow", children: "Emulator" }),
-                  jsx("h3", { children: "Start making games" }),
-                  jsx(Small, { children: "Build and play everything inside Hermes. Nothing else to install." }),
-                  jsx("div", {
-                    className: "cs-actions",
-                    children: jsxs(Button, {
-                      onClick: () => update({ hardwareSkipped: true, hardwareWanted: false }),
-                      size: "sm",
-                      variant: "default",
-                      children: ["Start making games", jsx(Codicon, { name: "arrow-right", size: 14 })]
-                    })
-                  })
-                ]
-              }),
-              jsxs("div", {
-                children: [
-                  jsx("p", { className: "cs-eyebrow", children: "ModRetro Chromatic" }),
-                  jsx("h3", { children: "I have a Chromatic" }),
-                  jsx(Small, {
-                    children: `${remaining} more ${remaining === 1 ? "step" : "steps"} to stream your games to the handheld and write them to a cartridge: firmware, Developer Mode, ModRetro's device software and hardware tools.`
-                  }),
-                  jsx("div", {
-                    className: "cs-actions",
-                    children: jsx(Button, {
-                      onClick: () => update({ hardwareSkipped: false, hardwareWanted: true }),
-                      size: "sm",
-                      variant: "outline",
-                      children: "Set up my Chromatic"
-                    })
-                  })
-                ]
-              })
-            ]
-          }),
-          jsx("span", { className: "cs-faint", children: "You can change this any time: the Chromatic steps stay in the setup list." })
-        ]
-      })
-    ]
-  });
-}
-
-// page/pages/setup/setup-complete.js
-function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
-  const data = status.data ?? {};
-  const report = doctor.data?.ok ? doctor.data : null;
-  const tools = (report?.components ?? []).filter((component) => component.status === "ready" && !component.optional && component.id !== "node" && component.id !== "runtime").map((component) => `${component.label ?? component.id} ${component.detected ?? ""}`.trim());
-  const cli = data.deps?.device_cli;
-  return jsxs("section", {
-    "aria-live": "polite",
-    className: "cs-stage",
-    children: [
-      jsxs("div", {
-        className: "cs-stage-head",
-        children: [
-          jsxs("p", {
-            className: "cs-eyebrow",
-            children: [
-              jsx("span", { className: "cs-accent", children: "●" }),
-              emulatorOnly ? `Steps 1–2 done · emulator only` : `All ${steps.length} steps done`
-            ]
-          }),
-          jsx("h2", { className: "cs-word cs-title", children: "Setup is complete" })
-        ]
-      }),
-      jsx(Lede, {
-        children: emulatorOnly ? "Everything the emulator needs is installed and verified. A Chromatic is optional: set it up any time to stream games to it and write cartridges. Open any step to review it." : "Everything is installed and verified, including your Chromatic. Open any step to review it."
-      }),
-      jsx(Facts, {
-        rows: [
-          ["Profile", data.profile?.name ?? data.via_profile ?? "this profile"],
-          ["Toolchain", [tools.join(" · "), data.engine?.version ? `engine ${data.engine.version}` : ""].filter(Boolean).join(" · ") || "Ready"],
-          [
-            "Chromatic",
-            data.hardware_enabled ? `Device software${cli?.version ? ` ${cli.version}` : ""} · hardware tools on` : "Not set up: streaming and flashing are off"
-          ]
-        ]
-      }),
-      jsxs("div", {
-        className: "cs-actions",
-        children: [
-          jsx(Button, { onClick: () => onGo("home"), size: "sm", variant: "default", children: "Go to the studio" }),
-          jsxs(Button, {
-            disabled: rechecking,
-            onClick: onRecheck,
-            size: "sm",
-            variant: "ghost",
-            children: [jsx(Codicon, { name: "refresh", size: 14, spinning: rechecking }), "Check everything again"]
-          }),
-          emulatorOnly ? jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" }) : null
-        ]
-      })
-    ]
-  });
-}
-
-// page/pages/setup/install/installer.js
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
-}
-var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
-function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, "install"],
-    queryFn: fetchInstall,
-    enabled,
-    refetchInterval: enabled ? installInterval : false,
-    staleTime: 1e3,
-    retry: false
-  });
-}
-async function createStudioProfile(profile) {
-  if (!profile.studio?.exists) {
-    await host.request("profiles.create", profile.create);
-  }
-  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
-  if (!data?.ok) {
-    throw new Error(data?.error || "The profile could not be set up.");
-  }
-}
-var profileCreation = null;
-function createStudioProfileOnce(profile) {
-  profileCreation ??= createStudioProfile(profile).finally(() => {
-    profileCreation = null;
-  });
-  return profileCreation;
-}
-function useInstaller({ ctx, status, install, toolchainDone }) {
-  const [starting, setStarting] = useState(false);
-  const [failure, setFailure] = useState(null);
-  const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
-  const [elsewhere, setElsewhere] = useState(false);
-  const data = install.data;
-  const unsupported = install.isError && describeRequestError(install.error).notLoaded;
-  const state = data?.install?.state ?? "idle";
-  const profile = status.data?.profile;
-  const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
-  const node = nodeState(status.data?.node);
-  const makeProfile = () => {
-    if (!needsProfile) {
-      return;
-    }
-    setProfileWork({ state: "running", error: null });
-    createStudioProfileOnce(profile).then(
-      () => {
-        setProfileWork({ state: "done", error: null });
-        status.refetch?.();
-      },
-      (error) => setProfileWork({ state: "failed", error: String(error?.message ?? error) })
-    );
-  };
-  const start = async () => {
-    if (starting) {
-      return;
-    }
-    setStarting(true);
-    setFailure(null);
-    makeProfile();
-    try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
-      if (answer?.code === "OPERATION_IN_PROGRESS") {
-        setElsewhere(true);
-        return;
-      }
-      if (!answer?.ok) {
-        throw new Error(answer?.error || "The install could not start.");
-      }
-      setElsewhere(false);
-      await install.refetch?.();
-    } catch (error) {
-      setFailure(describeRequestError(error).message || String(error?.message ?? error));
-    } finally {
-      setStarting(false);
-    }
-  };
-  const ask = () => sendPromptToChat(
-    ctx,
-    `${SETUP_PROMPT}
-
-The install on the hermretro page stopped with this error:
-${failure ?? data?.install?.error ?? "unknown error"}`,
-    { fresh: true }
-  );
-  const verifying = (state === "done" || elsewhere) && !toolchainDone;
-  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
-  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
-}
-
-// page/pages/setup/profile-step.js
-var PROFILE_FACTS = [
-  ["Sign-in", "It uses your existing sign-in and keys, so there is nothing to log in to again."],
-  ["Skills", "hermretro and its six skills are turned on there, with a game-developer persona."],
-  ["Tools", "Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults."],
-  ["Approvals", "Kept on (smart mode), so installing device software and anything that touches your Chromatic goes through an approval check."]
-];
-function ProfileBody({ status }) {
-  const profile = status.data?.profile;
-  const [working, setWorking] = useState(false);
-  const [failure, setFailure] = useState(null);
-  if (!status.data?.ok || !profile) {
-    return jsx(Small, { children: "Checked once the plugin is on." });
-  }
-  if (profile.is_studio) {
-    return jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` });
-  }
-  const create = async () => {
-    if (working) {
-      return;
-    }
-    setWorking(true);
-    setFailure(null);
-    try {
-      await createStudioProfileOnce(profile);
-      host.notify({ kind: "success", message: "hermretro profile created" });
-      status.refetch?.();
-    } catch (error) {
-      setFailure(String(error?.message ?? error));
-    } finally {
-      setWorking(false);
-    }
-  };
-  const starting = profile.studio?.installed && !working;
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: "hermretro works in its own Hermes profile, so it has exactly the tools and skills game development needs, and your other chats stay as they are."
-      }),
-      jsx(Facts, { rows: PROFILE_FACTS }),
-      starting ? jsxs("div", {
-        className: "cs-col",
-        children: [
-          jsx(Working, { children: "The profile is created. Waiting for Hermes to start it…" }),
-          jsx("div", {
-            children: jsx(Button, { disabled: working, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
-          })
-        ]
-      }) : working ? jsx(Working, { children: "Creating the profile…" }) : jsxs("div", {
-        className: "cs-actions",
-        children: [
-          jsx(Button, { onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
-          jsx("span", { className: "cs-faint", children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
-        ]
-      }),
-      failure ? jsx("p", { className: "cs-error", children: failure }) : null
-    ]
-  });
-}
-
-// page/pages/setup/install/install-panel.js
-var ROW_LABEL = { done: "verified", running: "installing", failed: "failed", pending: "" };
-function DownloadTable({ manifest, install, phase, profileRow }) {
-  const components = install?.run?.components ?? {};
-  const current = install?.current;
-  const rows = (manifest?.items ?? []).map((item) => {
-    const component = components[item.component];
-    const state = phase === "done" || install?.state === "done" ? "done" : component?.state ?? (phase === "review" ? null : "pending");
-    return { ...item, state, running: state === "running" && current === item.component };
-  });
-  const row = (item) => jsxs(
-    "tr",
-    {
-      "data-state": item.state ?? void 0,
-      children: [
-        item.state ? jsx("td", { className: "g", children: jsx(Glyph, { state: { done: "done", running: "checking", failed: "error", pending: "waiting" }[item.state] }) }) : null,
-        jsxs("td", { className: "n", children: [item.name, jsx("span", { className: "p", children: item.purpose })] }),
-        jsx("td", { className: "v", children: item.version }),
-        jsx("td", { className: "s", children: item.source }),
-        jsx("td", {
-          className: `z ${item.state ?? ""}`,
-          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, { approx: item.approx }) : "no download"
-        })
-      ]
-    },
-    item.id
-  );
-  const live = phase !== "review";
-  return jsxs("table", {
-    className: "cs-dl",
-    children: [
-      jsx("thead", {
-        children: jsxs("tr", {
-          children: [
-            live ? jsx("th", { className: "g" }) : null,
-            jsx("th", { children: "Component" }),
-            jsx("th", { children: "Version" }),
-            jsx("th", { className: "s", children: "From" }),
-            jsx("th", { className: "z", children: live ? "Status" : "Download" })
-          ]
-        })
-      }),
-      jsx("tbody", {
-        children: [
-          profileRow ? row({
-            id: "profile",
-            name: "Your hermretro profile",
-            purpose: "A Hermes profile with just the game tools and skills",
-            version: "",
-            source: "this computer",
-            bytes: 0,
-            state: live ? profileRow : null
-          }) : null,
-          ...rows.map((item) => row({ ...item, state: live ? item.state : null }))
-        ]
-      })
-    ]
-  });
-}
-function InstallLog({ install, phase }) {
-  const components = install?.run?.components ?? {};
-  const lines = [];
-  for (const id of ["gbdk", "cli", "uv", "emulator"]) {
-    const component = components[id];
-    for (const check of component?.checks ?? []) {
-      lines.push(
-        jsxs("div", {
-          children: [
-            jsx("span", { className: "ok", children: "✓ " }),
-            `${check.file}  sha256 ${String(check.sha256).slice(0, 8)}…  ${check.reused ? "verified (cached)" : "verified"}`
-          ]
-        }, `${id}:${check.file}`)
-      );
-    }
-    if (component?.state === "done" && !component.checks?.length) {
-      lines.push(jsxs("div", { children: [jsx("span", { className: "ok", children: "✓ " }), `${id} ${component.version ?? ""} already installed, checked`] }, `${id}:reused`));
-    }
-    if (component?.state === "failed") {
-      lines.push(jsxs("div", { className: "bad", children: ["✗ ", `${id}: ${component.error ?? "failed"}`] }, `${id}:failed`));
-    }
-  }
-  if (phase === "running" && install?.current) {
-    const label = (install.current === "cli" ? "GB Studio and its packages" : { gbdk: "GBDK", uv: "uv", emulator: "Python, PyBoy and Pillow" }[install.current]) ?? install.current;
-    lines.push(jsxs("div", { className: "w", children: [jsx("span", { className: "run", children: "↓ " }), `Installing ${label}…`] }, "now"));
-  }
-  return lines.length ? jsx("div", { "aria-live": "polite", className: "cs-log", role: "log", children: lines }) : null;
-}
-function InstallFacts({ manifest, status, root }) {
-  const node = nodeState(status.data?.node);
-  return jsxs("dl", {
-    className: "cs-onb-facts",
-    children: [
-      jsx("dt", { children: "Download" }),
-      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, { approx: true }) }),
-      jsx("dt", { children: "On disk" }),
-      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, { approx: true }) }),
-      jsx("dt", { children: "Installs to" }),
-      jsx("dd", { className: "path", title: root ?? "", children: shortPath(root) ?? "the plugin's deps folder" }),
-      jsx("dt", { children: "Already here" }),
-      jsx("dd", { className: node.ok ? "good" : "bad", children: node.ok ? `Node.js ${node.version} (from Hermes)` : "Node.js not found" })
-    ]
-  });
-}
-function InstallProgress({ install, phase, verifying, elsewhere }) {
-  if (phase !== "running") {
-    return null;
-  }
-  if (elsewhere && install?.state !== "running") {
-    return jsx(Working, { children: "The tools are being installed from a chat. This page moves on when they are verified." });
-  }
-  const fraction = Math.max(0.02, Math.min(1, install?.fraction ?? 0));
-  const downloaded = install?.downloaded_bytes ?? 0;
-  return jsxs("div", {
-    className: "cs-col",
-    style: { gap: 8 },
-    children: [
-      jsxs("div", {
-        className: "cs-row cs-mono",
-        style: { justifyContent: "space-between", fontSize: 11.5 },
-        children: [
-          jsx("span", { children: verifying ? "Checking the installed tools…" : `${Math.round(fraction * 100)}%` }),
-          jsx("span", { className: "cs-faint", children: downloaded > 0 ? `${formatBytes(downloaded)} downloaded` : install?.seeded ? "Using files already on this computer" : "" })
-        ]
-      }),
-      jsx("div", { className: "cs-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(fraction * 100), children: jsx("b", { style: { width: `${fraction * 100}%` } }) })
-    ]
-  });
-}
-function InstallActions({ installer, compact = false }) {
-  const { phase, start, starting, ask, node, unsupported } = installer;
-  if (unsupported) {
-    return jsxs("div", {
-      className: "cs-col",
-      style: { gap: 10 },
-      children: [
-        jsx(Small, { tone: "warn", children: "This hermretro backend cannot install from the page yet. Update the plugin, or let Hermes do it in a chat." }),
-        jsx("div", { className: "cs-actions", children: jsx(AsyncButton, { icon: "comment-discussion", run: ask, variant: "default", children: "Set up in chat" }) })
-      ]
-    });
-  }
-  if (!node.ok) {
-    return jsx(Small, {
-      tone: "warn",
-      children: node.version ? `Found Node.js ${node.version}, which is too old (hermretro needs ${node.required} or newer). Update Hermes, then come back.` : `Node.js was not found. Hermes normally installs it; run "hermes update", restart Hermes, then come back.`
-    });
-  }
-  if (phase === "done" && installer.needsProfile) {
-    return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
-      className: "cs-actions",
-      children: jsx(Button, { onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
-    });
-  }
-  if (phase === "done" && installer.profileWork.state !== "failed") {
-    return jsx(Working, { quiet: true, children: "Tools verified. Waiting for Hermes to start the hermretro profile…" });
-  }
-  if (phase === "review") {
-    return jsx("div", {
-      className: "cs-actions",
-      children: jsxs(Button, {
-        disabled: starting,
-        onClick: () => void start(),
-        size: compact ? "sm" : "lg",
-        variant: "default",
-        children: [jsx(Codicon, { name: "cloud-download", size: 14 }), "Download and install"]
-      })
-    });
-  }
-  if (phase === "failed") {
-    return jsxs("div", {
-      className: "cs-actions",
-      children: [
-        jsxs(Button, {
-          disabled: starting,
-          onClick: () => void start(),
-          size: compact ? "sm" : "lg",
-          variant: "default",
-          children: [jsx(Codicon, { name: "refresh", size: 14 }), "Try again"]
-        }),
-        jsx(AsyncButton, { icon: "comment-discussion", run: ask, title: "Opens a chat with the error in it, not sent", children: "Ask Hermes to fix it" })
-      ]
-    });
-  }
-  return null;
-}
-function InstallError({ installer }) {
-  const { failure, phase, profileWork } = installer;
-  return [
-    phase === "failed" && failure ? jsx("p", { className: "cs-error", children: failure }, "error") : null,
-    profileWork.state === "failed" ? jsx("p", { className: "cs-error", children: `The hermretro profile could not be created: ${profileWork.error}` }, "profile") : null
-  ];
-}
-function profileRowState(installer, profileStep, status) {
-  const profile = status.data?.profile;
-  if (!profile) {
-    return null;
-  }
-  if (profileStep?.state === "done") {
-    return "done";
-  }
-  if (installer.profileWork.state === "failed") {
-    return "failed";
-  }
-  return installer.profileWork.state !== "idle" || profile.studio?.installed ? "running" : "pending";
-}
-function InstallPanel({ ctx, status, install, step, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone: step.state === "done" });
-  const data = install.data;
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
-      jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase: installer.phase, verifying: installer.verifying }),
-      data?.manifest ? jsx(DownloadTable, { install: data.install, manifest: data.manifest, phase: installer.phase, profileRow: profileRowState(installer, profileStep, status) }) : install.isError ? null : jsx(Working, { quiet: true, children: "Reading the download list…" }),
-      jsx(InstallLog, { install: data?.install, phase: installer.phase }),
-      ...InstallError({ installer }),
-      jsx(InstallActions, { compact: true, installer })
-    ]
-  });
-}
-
-// page/pages/setup/remove-tools.js
-function RemoveTools({ status, doctor }) {
-  const [state, setState] = useState("idle");
-  const [failure, setFailure] = useState(null);
-  const remove = async () => {
-    setState("working");
-    setFailure(null);
-    try {
-      const { data } = await callBackend(RPC_REMOVE_TOOLS, {}, 12e4);
-      if (!data?.ok) {
-        throw new Error(data?.error || "The tools could not be removed.");
-      }
-      host.notify({ kind: "success", message: `Downloaded tools removed (${formatBytes(data.removed_bytes, { unit: "MB" })}). Your games are untouched.` });
-      status.refetch?.();
-      doctor.refetch?.();
-      setState("idle");
-    } catch (error) {
-      const { message, notLoaded } = describeRequestError(error);
-      setFailure(notLoaded ? "This hermretro backend cannot remove the tools yet. Restart Hermes, then try again." : message || String(error));
-      setState("idle");
-    }
-  };
-  return jsxs("div", {
-    className: "cs-col",
-    style: { gap: 8 },
-    children: [
-      state === "confirm" ? jsxs("div", {
-        className: "cs-actions",
-        children: [
-          jsx("span", { children: "Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute)." }),
-          jsx(Button, { onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
-          jsx(Button, { onClick: () => setState("idle"), size: "sm", variant: "ghost", children: "Cancel" })
-        ]
-      }) : jsx("div", {
-        children: jsx(Button, {
-          disabled: state === "working",
-          onClick: () => setState("confirm"),
-          size: "sm",
-          variant: "ghost",
-          children: state === "working" ? "Removing…" : "Remove downloaded tools"
-        })
-      }),
-      failure ? jsx("p", { className: "cs-error", children: failure }) : null
-    ]
-  });
-}
-
-// page/pages/setup/toolchain-step.js
-var COMPONENT_STATUS = { ready: "Ready", missing: "Missing", incompatible: "Incompatible", unknown: "Unknown" };
-function ComponentRow({ component }) {
-  const status = component.optional && component.status !== "ready" ? "optional" : component.status ?? "unknown";
-  const versions = [
-    component.required ? `needs ${component.required}` : null,
-    component.detected ? `found ${component.detected}` : component.status === "missing" ? "not found" : null
-  ].filter(Boolean).join(" · ");
-  return jsxs("div", {
-    className: "cs-comp",
-    children: [
-      jsx(Glyph, { state: component.status === "ready" ? "done" : component.status === "incompatible" ? "error" : "todo" }),
-      jsxs("span", {
-        className: "name",
-        children: [component.label ?? component.id, component.optional ? jsx("small", { children: "optional" }) : null]
-      }),
-      jsx("span", { className: "ver", children: versions }),
-      jsx("span", { className: `st ${status}`, children: status === "optional" ? "Optional" : COMPONENT_STATUS[status] ?? "Unknown" }),
-      component.detail ? jsx("span", { className: "detail", children: component.detail }) : null
-    ]
-  });
-}
-function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
-  if (!status.data?.ok) {
-    return jsx(Small, { children: "Checked once the plugin is on." });
-  }
-  const platform = status.data.platform;
-  const engine = status.data.engine ?? {};
-  const deps = status.data.deps ?? {};
-  const report = doctor.data;
-  const rows = (report?.ok ? report.components ?? [] : []).filter((component) => component.id !== "node" && component.id !== "runtime").map((component) => jsx(ComponentRow, { component }, component.id ?? component.label));
-  return jsxs("div", {
-    className: "cs-content",
-    children: [
-      jsx(Lede, {
-        children: "The compilers and emulator that turn a project into a real Game Boy Color ROM and let Hermes playtest it: GB Studio, GBDK and PyBoy."
-      }),
-      step.state === "error" ? jsxs("div", {
-        className: "cs-col",
-        style: { gap: 10 },
-        children: [
-          jsx("p", {
-            className: "cs-error",
-            children: `Toolchain check failed: ${report?.error || describeRequestError(doctor.error).message || "unknown error"}`
-          }),
-          jsx("div", {
-            className: "cs-actions",
-            children: jsxs(Button, {
-              disabled: doctor.isFetching,
-              onClick: () => void doctor.refetch?.(),
-              size: "sm",
-              variant: "default",
-              children: [jsx(Codicon, { name: "refresh", size: 14, spinning: doctor.isFetching }), "Check again"]
-            })
-          })
-        ]
-      }) : null,
-      platform && platform.qualified === false ? jsx(Small, {
-        tone: "warn",
-        children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : platform.node_arch && platform.machine && platform.node_arch !== platform.machine ? `The Node.js hermretro found is built for ${platform.node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine === "arm64" ? "Apple Silicon" : platform.machine} version of Node.js (for example with Homebrew in /opt/homebrew).` : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
-      }) : null,
-      (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
-      step.state === "done" || step.state === "error" ? jsx("div", {
-        className: "cs-comps",
-        children: [
-          jsx(ComponentRow, {
-            component: {
-              id: "engine",
-              label: "Chromatic engine",
-              status: engine.present ? engine.verified === false ? "incompatible" : "ready" : "missing",
-              detected: engine.present ? engine.version : "",
-              detail: engine.detail || (engine.present && engine.verified === false ? "Engine could not be verified." : "")
-            }
-          }, "engine"),
-          ...rows
-        ]
-      }) : null,
-      !report && step.state === "checking" ? jsx(Working, { quiet: true, children: "Checking installed tools…" }) : null,
-      deps.toolchain_root && step.state === "done" ? jsxs("span", {
-        className: "cs-faint",
-        children: [
-          "Install folder: ",
-          jsx("span", { className: "cs-mono", children: deps.toolchain_root }),
-          deps.toolchain_cache_reused_from ? ". Downloads were reused from an existing ModRetro install on this computer." : ""
-        ]
-      }) : null,
-      step.state === "done" ? jsx(RemoveTools, { doctor, status }) : null
-    ]
-  });
-}
-
-// page/pages/setup/wizard.js
-function stepBody(step, props) {
-  switch (step.id) {
-    case "profile":
-      return jsx(ProfileBody, props);
-    case "toolchain":
-      return jsx(ToolchainBody, { ...props, step });
-    case "firmware":
-      return jsx(FirmwareBody, { ...props, step });
-    case "devmode":
-      return jsx(DevModeBody, { ...props, step });
-    case "devicecli":
-      return jsx(DeviceSoftwareBody, { ...props, step });
-    default:
-      return jsx(HardwareBody, { ...props, step });
-  }
-}
-function StepRail({ steps, shownId, autoId, onPick, skipped }) {
-  const done = steps.filter((step) => step.state === "done").length;
-  const item = (step, position) => jsxs(
-    "button",
-    {
-      "aria-current": step.id === shownId ? "step" : void 0,
-      className: "cs-rail-item",
-      "data-auto": step.id === autoId ? "" : void 0,
-      "data-state": step.state,
-      onClick: () => onPick(step.id),
-      type: "button",
-      children: [
-        jsx("span", { className: "n", children: String(position + 1).padStart(2, "0") }),
-        jsx("span", { className: "l", children: STEP_SHORT[step.id] }),
-        jsx(Glyph, { state: step.state })
-      ]
-    },
-    step.id
-  );
-  return jsxs("nav", {
-    "aria-label": "Setup steps",
-    className: "cs-rail",
-    children: [
-      jsx("span", { className: "cs-rail-group", children: "Make games" }),
-      ...steps.filter((step) => !step.hardware).map((step) => item(step, steps.indexOf(step))),
-      jsxs("span", { className: "cs-rail-group second", children: [jsx("span", { children: "Your Chromatic" }), jsx("span", { children: "optional" })] }),
-      ...steps.filter((step) => step.hardware).map((step) => item(step, steps.indexOf(step))),
-      jsx("div", {
-        className: "cs-meter",
-        children: steps.map(
-          (step, position) => jsx(
-            "button",
-            {
-              "aria-label": `Step ${position + 1}: ${step.title} (${(INDICATOR[step.state] ?? INDICATOR.waiting).label})`,
-              className: step.id === HARDWARE_STEPS[0] ? "gap" : void 0,
-              "data-auto": step.id === autoId ? "" : void 0,
-              "data-state": step.state,
-              onClick: () => onPick(step.id),
-              type: "button",
-              children: jsx("i", {})
-            },
-            step.id
-          )
-        )
-      }),
-      jsx("span", { className: "cs-faint cs-mono", children: `${done} / ${steps.length} done${skipped ? " · emulator only" : ""}` })
-    ]
-  });
-}
-function StepStage({ step, number, total, children, footer }) {
-  const tag = step.state === "done" ? jsx("span", { className: "cs-tag good", children: "Done" }) : step.state === "error" ? jsx("span", { className: "cs-tag bad", children: "Problem" }) : step.state === "skipped" ? jsx("span", { className: "cs-tag quiet", children: "Skipped" }) : step.hardware ? jsx("span", { className: "cs-tag quiet", children: "Only for a physical Chromatic" }) : null;
-  return jsxs("section", {
-    "aria-live": "polite",
-    className: "cs-stage",
-    children: [
-      jsxs("div", {
-        className: "cs-stage-head",
-        children: [
-          jsxs("p", {
-            className: "cs-eyebrow",
-            children: [
-              jsx("span", { className: "cs-accent", children: `Step ${number} of ${total}` }),
-              jsx("span", { children: step.hardware ? "Your Chromatic" : "Make games" }),
-              tag
-            ]
-          }),
-          jsx("h2", { className: "cs-word cs-title", children: step.title })
-        ]
-      }),
-      children,
-      footer
-    ]
-  });
-}
-function SetupWizard({ ctx, steps, shown, autoId, backend, status, doctor, gateway, install, update, onPick, onContinue }) {
-  const position = steps.indexOf(shown);
-  const reviewing = shown.id !== autoId;
-  const waiting = !reviewing && !shown.manual && !shown.complete && shown.state !== "blocked";
-  const left = [];
-  const right = [];
-  if (position > 0) {
-    left.push(
-      jsxs(
-        Button,
-        {
-          onClick: () => onPick(steps[position - 1].id),
-          size: "sm",
-          variant: "ghost",
-          children: [jsx(Codicon, { name: "arrow-left", size: 14 }), "Back"]
-        },
-        "back"
-      )
-    );
-  }
-  if (waiting) {
-    left.push(jsx(Working, { quiet: true, children: "Checking automatically; this page moves on when the step is done." }, "waiting"));
-  }
-  if (shown.hardware && !shown.complete) {
-    right.push(
-      jsx(Button, { onClick: () => update({ hardwareSkipped: true }), size: "sm", variant: "ghost", children: "Skip, I'll use the emulator" }, "skip")
-    );
-  }
-  if (shown.state === "skipped") {
-    right.push(
-      jsx(
-        Button,
-        { onClick: () => update({ hardwareSkipped: false, hardwareWanted: true }), size: "sm", variant: "outline", children: "Set up my Chromatic" },
-        "unskip"
-      )
-    );
-  }
-  if (reviewing) {
-    right.push(
-      jsxs(
-        Button,
-        { onClick: onContinue, size: "sm", variant: "default", children: ["Continue", jsx(Codicon, { name: "arrow-right", size: 14 })] },
-        "continue"
-      )
-    );
-  }
-  const footer = left.length || right.length ? jsxs("div", {
-    className: "cs-stage-foot",
-    children: [jsx("div", { className: "cs-row", style: { flex: "1 1 auto" }, children: left }), jsx("div", { className: "cs-row", children: right })]
-  }) : null;
-  return jsx(StepStage, {
-    step: shown,
-    number: position + 1,
-    total: steps.length,
-    footer,
-    children: jsxs("div", {
-      className: "cs-content",
-      children: [
-        shown.state === "skipped" ? jsx(Small, { children: "Skipped: you are using the emulator. Streaming and flashing stay off until your Chromatic is set up." }) : null,
-        stepBody(shown, { backend, ctx, doctor, gateway, install, status, steps, update })
-      ]
-    })
-  });
-}
-
-// page/pages/setup/setup-page.js
-function SetupPage({ shell }) {
-  const { autoId, backend, choosing, ctx, doctor, gateway, install, memory, pick, shown, status, steps, update } = shell;
-  return jsxs("div", {
-    className: "cs-setup",
-    children: [
-      jsx(StepRail, { autoId, onPick: pick, shownId: shown?.id ?? null, skipped: Boolean(memory.hardwareSkipped), steps }, "rail"),
-      shown ? jsx(SetupWizard, { autoId, backend, ctx, doctor, gateway, install, onContinue: shell.unpin, onPick: pick, shown, status, steps, update }, "wizard") : choosing ? jsx(HardwareChoice, { steps, update }, "choice") : jsx(
-        SetupComplete,
-        {
-          doctor,
-          emulatorOnly: shell.emulatorOnly,
-          onGo: shell.go,
-          onRecheck: shell.refresh,
-          onSetUpDevice: shell.setUpDevice,
-          rechecking: shell.refreshing,
-          status,
-          steps
-        },
-        "complete"
-      ),
-      jsx(Flyer, {}, "flyer")
-    ]
-  });
-}
-
-// page/pages/setup/onboarding/onboarding.js
-var ONBOARD_STAGES = [
-  ["install", "Install"],
-  ["chromatic", "Your hardware"],
-  ["make", "First game"]
-];
-function OnboardHeader({ stage }) {
-  const index = ONBOARD_STAGES.findIndex(([id]) => id === stage);
-  return jsxs("header", {
-    className: "cs-top",
-    children: [
-      jsxs("span", { className: "cs-brand", style: { cursor: "default" }, children: ["herm", jsx("span", { children: "retro" })] }),
-      index >= 0 ? jsxs("div", {
-        "aria-label": `Setup, step ${index + 1} of ${ONBOARD_STAGES.length}: ${ONBOARD_STAGES[index][1]}`,
-        className: "cs-onb-steps",
-        role: "img",
-        children: [
-          ...ONBOARD_STAGES.map(([id], position) => jsx("i", { className: position < index ? "done" : position === index ? "cur" : "" }, id)),
-          jsx("span", { children: `${index + 1} / ${ONBOARD_STAGES.length} · ${ONBOARD_STAGES[index][1]}` })
-        ]
-      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) })
-    ]
-  });
-}
-function OnboardWelcome({ manifest, onStart }) {
-  return jsxs("div", {
-    className: "cs-onb-hero",
-    children: [
-      jsxs("div", {
-        className: "cs-col",
-        style: { gap: 24 },
-        children: [
-          jsxs("p", {
-            className: "cs-eyebrow",
-            children: [jsx("span", { className: "cs-accent", children: "● Welcome" }), jsx("span", { children: "First-time setup · a few minutes" })]
-          }),
-          jsxs("h1", { className: "cs-word", children: ["Make a game.", jsx("br", {}), jsx("span", { className: "cs-accent", children: "Play it tonight." })] }),
-          jsx(Lede, {
-            children: "hermretro turns a chat with Hermes into a real Game Boy Color game. Before your first game it needs the tools that build and playtest ROMs. Everything goes into the plugin's own folder."
-          }),
-          jsxs("div", {
-            className: "cs-actions",
-            style: { gap: 16 },
-            children: [
-              jsxs(Button, { onClick: onStart, size: "lg", variant: "default", children: ["Get started", jsx(Codicon, { name: "arrow-right", size: 14 })] }),
-              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, { approx: true })} download · ${formatBytes(manifest.disk_bytes, { approx: true })} on disk` }) : null
-            ]
-          })
-        ]
-      }),
-      jsx(Art, {})
-    ]
-  });
-}
-function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone });
-  const data = install.data;
-  const { phase } = installer;
-  const title = phase === "failed" ? ["One part ", jsx("span", { className: "cs-bad", children: "didn't finish" }, "a")] : phase === "review" ? ["Here's what gets ", jsx("span", { className: "cs-accent", children: "downloaded" }, "a")] : ["Setting up the ", jsx("span", { className: "cs-accent", children: "studio" }, "a")];
-  const lede = phase === "failed" ? "Nothing is broken, and the parts that finished are kept. Try again, or ask Hermes to look at the error." : phase === "review" ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into hermretro's folder in your Hermes home, where your games live too." : "You can leave this page: the install keeps running, and this page moves on when the tools are verified.";
-  return jsxs("div", {
-    className: "cs-onb-split",
-    children: [
-      jsxs("div", {
-        className: "cs-col",
-        style: { gap: 22 },
-        children: [
-          jsxs("p", {
-            className: "cs-eyebrow",
-            children: [
-              jsx("span", { className: phase === "failed" ? "cs-bad" : "cs-accent", children: "Step 1 of 3" }),
-              jsx("span", { children: { review: "Install", running: "Installing", failed: "Stopped", done: "Installed" }[phase] })
-            ]
-          }),
-          jsx("h2", { className: "cs-word cs-title", children: title }),
-          jsx(Lede, { children: lede }),
-          jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
-          jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase, verifying: installer.verifying }),
-          ...InstallError({ installer }),
-          jsx(InstallActions, { installer })
-        ]
-      }),
-      jsxs("div", {
-        className: "cs-col",
-        style: { gap: 18 },
-        children: [
-          data?.manifest ? jsx(DownloadTable, { install: data.install, manifest: data.manifest, phase, profileRow: profileRowState(installer, profileStep, status) }) : install.isError && !installer.unsupported ? jsx("p", { className: "cs-error", children: describeRequestError(install.error).message }) : installer.unsupported ? null : jsx(Working, { quiet: true, children: "Reading the download list…" }),
-          jsx(InstallLog, { install: data?.install, phase }),
-          data?.manifest && !data.manifest.exact ? jsx("span", { className: "cs-faint", children: `Sizes were measured on ${data.manifest.measured_on} and are approximate here.` }) : null
-        ]
-      })
-    ]
-  });
-}
-function OnboardChromatic({ onEmulator, onDevice }) {
-  const card = ({ tag, tone, title, text: text2, onClick, art, primary }) => jsxs("button", {
-    className: primary ? "cs-hwcard primary" : "cs-hwcard",
-    onClick,
-    type: "button",
-    children: [
-      art,
-      jsxs("span", {
-        className: "cs-col",
-        style: { gap: 8 },
-        children: [
-          jsx("span", { className: `cs-tag ${tone}`, style: { alignSelf: "flex-start" }, children: tag }),
-          jsx("span", { className: "cs-word t", children: title }),
-          jsx("span", { className: "cs-small", children: text2 })
-        ]
-      })
-    ]
-  });
-  return jsxs("div", {
-    className: "cs-col",
-    style: { gap: 28 },
-    children: [
-      jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "Step 2 of 3" }), jsx("span", { children: "Your hardware" })] }),
-      jsxs("h2", { className: "cs-word cs-onb-title", children: ["Do you have a ", jsx("span", { className: "cs-accent", children: "Chromatic?" })] }),
-      jsx(Lede, { children: "Every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge." }),
-      jsxs("div", {
-        className: "cs-hwcards",
-        children: [
-          card({
-            art: jsx("span", { "aria-hidden": true, className: "cs-hwart screen", children: jsx(Codicon, { name: "play", size: 22 }) }),
-            onClick: onEmulator,
-            primary: true,
-            tag: "Ready now",
-            text: "Make and play games in the emulator. You can add a Chromatic later from Setup.",
-            title: "Not yet",
-            tone: "good"
-          }),
-          card({
-            art: jsx("span", { "aria-hidden": true, className: "cs-hwart device" }),
-            onClick: onDevice,
-            tag: "4 more steps",
-            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
-            title: "Yes, I have one",
-            tone: "quiet"
-          })
-        ]
-      })
-    ]
-  });
-}
-var IDEAS = [
-  ["Tiny platformer", "a tiny platformer where a frog hops across lily pads to reach home"],
-  ["Top-down adventure", "a top-down adventure where a gardener collects three seeds to open a gate"],
-  ["Puzzle game", "a short puzzle game about pushing crates onto switches"],
-  ["Spooky story", "a spooky little story game set in an abandoned lighthouse"]
-];
-function makePrompt(idea) {
-  const text2 = idea.trim();
-  return text2 ? `Use hermretro to make a new Game Boy Color game: ${text2}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.` : NEW_GAME_PROMPT;
-}
-function OnboardMake({ ctx, onDone }) {
-  const [idea, setIdea] = useState("");
-  const [busy, setBusy] = useState(false);
-  const go = async (prompt) => {
-    if (busy) {
-      return;
-    }
-    setBusy(true);
-    try {
-      await sendPromptToChat(ctx, prompt, { fresh: true });
-      onDone();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return jsxs("div", {
-    className: "cs-onb-hero",
-    children: [
-      jsxs("div", {
-        className: "cs-col",
-        style: { gap: 22 },
-        children: [
-          jsxs("p", {
-            className: "cs-eyebrow",
-            children: [jsx("span", { className: "cs-good", children: "● Studio ready" }), jsx("span", { children: "Step 3 of 3" })]
-          }),
-          jsxs("h2", { className: "cs-word cs-onb-title", children: ["What do you", jsx("br", {}), "want to ", jsx("span", { className: "cs-accent", children: "make?" })] }),
-          jsxs("div", {
-            className: "cs-idea",
-            children: [
-              jsx("textarea", {
-                "aria-label": "Your game idea",
-                onChange: (event) => setIdea(event.target.value),
-                onKeyDown: (event) => {
-                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                    event.preventDefault();
-                    void go(makePrompt(idea));
-                  }
-                },
-                placeholder: "A frog who delivers mail across a flooded town…",
-                rows: 3,
-                value: idea
-              }),
-              jsxs("div", {
-                className: "cs-row",
-                style: { justifyContent: "space-between" },
-                children: [
-                  jsx("span", { className: "cs-faint", children: "Hermes asks a few questions, then builds the first room. The prompt opens in a new chat." }),
-                  jsxs(Button, {
-                    disabled: busy,
-                    onClick: () => void go(makePrompt(idea)),
-                    size: "sm",
-                    variant: "default",
-                    children: ["Start in chat", jsx(Codicon, { name: "arrow-right", size: 14 })]
-                  })
-                ]
-              })
-            ]
-          }),
-          jsxs("div", {
-            "aria-label": "Ideas",
-            className: "cs-ideas",
-            role: "group",
-            children: [
-              ...IDEAS.map(([label, text2]) => jsx("button", { onClick: () => setIdea(text2), type: "button", children: label }, label)),
-              jsx("button", { disabled: busy, onClick: () => void go(promptById("plan").text), type: "button", children: "Plan it first" }, "plan")
-            ]
-          }),
-          jsx("div", { children: jsx(Button, { onClick: onDone, size: "sm", variant: "ghost", children: "Skip, take me to the studio" }) })
-        ]
-      }),
-      jsx(Art, {})
-    ]
-  });
-}
-function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice }) {
-  const toolchain = steps.find((step) => step.id === "toolchain");
-  const profileStep = steps.find((step) => step.id === "profile");
-  let body;
-  if (screen2 === "checking") {
-    body = jsx(Working, { children: "Checking what is already installed…" });
-  } else if (screen2 === "welcome") {
-    body = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
-  } else if (screen2 === "install") {
-    body = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
-  } else if (screen2 === "chromatic") {
-    body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
-  } else {
-    body = jsx(OnboardMake, { ctx, onDone: onFinish });
-  }
-  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body });
-}
-
-// page/pages/setup/index.js
-function SetupBadge({ nav }) {
-  return nav.setupPending ? jsx("i", { "aria-label": "setup is not finished", className: "pip", role: "img" }) : null;
-}
-var SETUP_PAGE = {
-  id: "setup",
-  label: "Setup",
-  Page: SetupPage,
-  Badge: SetupBadge,
-  css: [SETUP_CSS, ONBOARDING_CSS]
-};
-
-// page/shared/ui/screen.js
-function Screen({ game, className = "cs-screen" }) {
-  return game?.thumb ? jsx("img", { alt: `${game.title} title screen`, className, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: `${className} ph`, children: game?.title ?? "" });
-}
-
-// page/pages/home/home-page.js
-var QUICK_STARTS = [
-  { id: "start", title: "Start a new game", text: "Hermes asks what you want to make, creates it and shows the first frame." },
-  { id: "remix", title: "Remix an example", text: "Start from Wrecklight and make it your own." },
-  { id: "plan", title: "Plan a game", text: "A short interview, then a brief, backlog and test plan." },
-  { id: "play-game", title: "Play my game", text: "Hermes builds the selected game and shows it to you in the emulator beside the chat." }
-];
-function SetupBar({ steps, autoId }) {
-  return jsx("div", {
-    "aria-hidden": true,
-    className: "cs-bar7",
-    children: steps.map((step) => jsx("i", { className: step.complete ? "on" : step.id === autoId ? "cur" : "" }, step.id))
-  });
-}
-function ContinuePanel({ ctx, steps, auto, autoId, choosing, games, onGo, onPlay }) {
-  if (auto) {
-    const title = choosing ? "Emulator or Chromatic?" : `Next: ${STEP_SHORT[auto.id]}`;
-    return [
-      jsx("p", { className: "cs-eyebrow", children: jsx("span", { className: "cs-accent", children: "Continue setup" }) }, "e"),
-      jsx("h3", { className: "cs-word", style: { fontSize: "clamp(24px, 2.4cqi, 40px)" }, children: title }, "h"),
-      jsx(SetupBar, { autoId, steps }, "bar"),
-      jsx(
-        Small,
-        {
-          children: choosing ? "The emulator is ready. Choose whether to set up a physical Chromatic too." : auto.hardware ? "Only for a physical Chromatic. You can skip it and use the emulator." : "The page installs what is missing into hermretro's folder, then moves on by itself."
-        },
-        "s"
-      ),
-      jsx("div", { className: "cs-actions", children: jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "default", children: "Continue setup" }) }, "a")
-    ];
-  }
-  const eyebrow = jsx("p", { className: "cs-eyebrow", children: jsx("span", { className: "cs-accent", children: "Continue" }) }, "e");
-  if (games.isError || games.data?.games === void 0) {
-    return [
-      eyebrow,
-      games.isError ? jsx(Small, { children: studioError(games.error, "list your games") }, "err") : jsx(Working, { quiet: true, children: "Reading your games…" }, "wait")
-    ];
-  }
-  const game = latestGame(games.data.games);
-  if (!game) {
-    return [
-      eyebrow,
-      jsx("h3", { className: "cs-word", style: { fontSize: "clamp(24px, 2.4cqi, 40px)" }, children: "No games yet" }, "h"),
-      jsx(Small, { children: "Games you make with Hermes land here, ready to play on the Emulator page." }, "s"),
-      jsx("div", { className: "cs-actions", children: jsx(PromptButton, { ctx, label: "Start a new game", prompt: NEW_GAME_PROMPT, variant: "default" }) }, "a")
-    ];
-  }
-  return [
-    eyebrow,
-    jsxs(
-      "div",
-      {
-        className: "cs-cont",
-        children: [
-          jsx(Screen, { game }),
-          jsxs("div", {
-            className: "cs-col",
-            style: { gap: 10 },
-            children: [
-              jsx("h3", { className: "name", children: game.title }),
-              jsxs("div", { className: "cs-row", style: { gap: 10 }, children: [jsx(StateTag, { game }), jsx("span", { className: "cs-meta", children: gameMeta(game).join(" · ") })] }),
-              game.chat?.title ? jsx("span", { className: "cs-faint", children: `Chat: ${game.chat.title}` }) : null,
-              jsxs("div", {
-                className: "cs-actions",
-                children: [
-                  game.chat ? jsx(AsyncButton, { icon: "comment-discussion", run: () => openGameChat(game), title: "Open the chat this game was made in", variant: "default", children: "Open chat" }) : null,
-                  jsxs(Button, {
-                    disabled: game.state === "unbuilt",
-                    onClick: () => onPlay(game.id),
-                    size: "sm",
-                    variant: game.chat ? "outline" : "default",
-                    children: [jsx(Codicon, { name: "play", size: 14 }), "Play"]
-                  })
-                ]
-              })
-            ]
-          })
-        ]
-      },
-      "cont"
-    )
-  ];
-}
-function HomePage({ ctx, steps, auto, autoId, choosing, status, doctor, memory, games, onGo, onPlay, onOpenPrompt, onSetUpDevice }) {
-  const ready = !auto;
-  const hardwareOn = Boolean(status.data?.hardware_enabled);
-  const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn;
-  const counted = steps.filter((step) => !step.hardware || memory.hardwareWanted || hardwareOn);
-  const done = counted.filter((step) => step.state === "done").length;
-  const [busy, setBusy] = useState(null);
-  const quick = async (item) => {
-    if (item.id === "remix") {
-      onOpenPrompt("remix");
-      return;
-    }
-    setBusy(item.id);
-    try {
-      await sendPromptToChat(ctx, item.id === "start" ? NEW_GAME_PROMPT : promptById(item.id).text);
-    } finally {
-      setBusy(null);
-    }
-  };
-  const toolchain = toolchainState(status.data, doctor);
-  const gameCount = games.data?.games?.length;
-  const statRow = (term, tone, value) => jsxs("div", { children: [jsx("dt", { children: term }), jsxs("dd", { title: String(value), children: [jsx("i", { className: tone }), value] })] }, term);
-  return jsxs("div", {
-    className: "cs-home",
-    children: [
-      jsxs("div", {
-        className: "cs-hero",
-        children: [
-          jsxs("div", {
-            className: "cs-col",
-            children: [
-              jsxs("p", {
-                className: "cs-eyebrow",
-                children: [
-                  jsx("span", { className: "cs-accent", children: "●" }),
-                  ready ? emulatorOnly ? "Ready to make games in the emulator" : "Setup is complete" : `Setup: ${done} of ${counted.length} done`
-                ]
-              }),
-              jsxs("h2", {
-                className: "cs-word",
-                children: ["Make a game.", jsx("br", {}), jsx("span", { className: "cs-accent", children: "Play it tonight." })]
-              }),
-              jsx(Lede, {
-                children: "Build your game by chatting. Hermes builds and playtests it; you play it on the Emulator page, with sound, or on your Chromatic."
-              }),
-              jsxs("div", {
-                className: "cs-actions",
-                children: [
-                  ready ? jsx(PromptButton, { ctx, fresh: true, label: "Start a new game", prompt: NEW_GAME_PROMPT, variant: "default" }) : jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "default", children: "Continue setup" }),
-                  ready && emulatorOnly ? jsx(Small, { children: "Your Chromatic is not set up, so streaming and flashing are off." }) : null,
-                  ready && emulatorOnly ? jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" }) : null
-                ]
-              })
-            ]
-          }),
-          jsx(Art, {})
-        ]
-      }),
-      jsxs("div", {
-        className: "cs-band",
-        children: [
-          jsx("section", { children: ContinuePanel({ ctx, auto, autoId, choosing, games, onGo, onPlay, steps }) }),
-          jsxs("section", {
-            children: [
-              jsxs("p", { className: "cs-eyebrow", children: ["Start something", ready ? null : jsx("span", { className: "cs-draft", children: "after setup" })] }),
-              jsx("div", {
-                className: "cs-quick",
-                children: QUICK_STARTS.map(
-                  (item) => jsxs(
-                    "button",
-                    {
-                      disabled: !ready || busy !== null,
-                      onClick: () => void quick(item),
-                      type: "button",
-                      children: [
-                        jsx("span", { className: "t", children: item.title }),
-                        jsx("span", { className: "a", children: item.id === "remix" ? "Open prompt →" : busy === item.id ? "Opening…" : "Use in chat →" }),
-                        jsx("span", { className: "d", children: item.text })
-                      ]
-                    },
-                    item.id
-                  )
-                )
-              }),
-              jsx("div", { children: jsx("button", { className: "cs-link", onClick: () => onGo("prompts"), type: "button", children: `All ${ALL_PROMPTS.length} prompts →` }) })
-            ]
-          }),
-          jsxs("section", {
-            children: [
-              jsx("p", { className: "cs-eyebrow", children: "Studio" }),
-              jsxs("dl", {
-                className: "cs-stat",
-                children: [
-                  statRow("Setup", ready ? "good" : "warn", `${done} of ${counted.length} done`),
-                  statRow("Profile", status.data?.profile?.is_studio === false ? "warn" : "good", status.data?.profile?.name ?? status.data?.via_profile ?? "this profile"),
-                  statRow("Toolchain", { done: "good", todo: "warn", error: "bad" }[toolchain] ?? "", { done: "ready", todo: "missing", error: "check failed" }[toolchain] ?? "checking…"),
-                  statRow("Chromatic", hardwareOn ? "good" : "", hardwareOn ? "on" : emulatorOnly ? "emulator only" : "not set up"),
-                  statRow("Games", "", gameCount === void 0 ? games.isError ? "unavailable" : "…" : String(gameCount))
-                ]
-              }),
-              jsxs("div", {
-                className: "cs-row",
-                style: { gap: 14 },
-                children: [
-                  jsx("button", { className: "cs-link", onClick: () => onGo("setup"), type: "button", children: "Setup →" }),
-                  jsx("button", { className: "cs-link", onClick: () => onGo("games"), type: "button", children: "Games →" })
-                ]
-              })
-            ]
-          })
-        ]
-      })
-    ]
-  });
-}
-function Home({ shell }) {
-  return jsx(HomePage, {
-    auto: shell.auto,
-    autoId: shell.autoId,
-    choosing: shell.choosing,
-    ctx: shell.ctx,
-    doctor: shell.doctor,
-    games: shell.games,
-    memory: shell.memory,
-    onGo: shell.go,
-    onOpenPrompt: shell.openPrompt,
-    onPlay: shell.play,
-    onSetUpDevice: shell.setUpDevice,
-    status: shell.status,
-    steps: shell.steps
-  });
-}
-
-// page/pages/home/index.js
-var HOME_PAGE = {
-  id: "home",
-  label: "Home",
-  Page: Home,
-  css: [HOME_CSS]
-};
-
-// page/pages/build/assets/assets.css.js
-var ASSETS_CSS = `
-/* images */
-.cs-b-strip { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.cs-b-more { color: var(--ui-text-quaternary); font-size: 11px; }
-.cs-b-th { align-items: center; appearance: none; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-secondary) 0 50%) 0 0 / 8px 8px; border: 0; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); cursor: zoom-in; display: inline-flex; flex: none; height: 40px; justify-content: center; overflow: hidden; padding: 0; transition: box-shadow .15s ease, transform .15s ease; width: 40px; }
-.cs-b-th:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); transform: translateY(-1px); }
-.cs-b-th img { height: 100%; image-rendering: pixelated; object-fit: contain; width: 100%; }
-.cs-b-spr { display: block; height: 100%; image-rendering: pixelated; max-height: 100%; max-width: 100%; object-fit: contain; width: 100%; }
-.cs-b-th.xs { border-radius: 4px; height: 20px; width: 20px; }
-.cs-b-th.lg { border-radius: 8px; height: 84px; width: 112px; }
-.cs-b-th.cs-b-reply-img { border-radius: 6px; display: flex; margin: 10px 0; max-width: 100%; }
-.cs-b-th.cs-b-reply-img.loading { height: 120px; width: 160px; }
-.cs-b-sprite { align-items: center; appearance: none; background: var(--ui-bg-secondary); border: 0; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: inherit; cursor: zoom-in; display: flex; font: inherit; gap: 14px; margin: 4px 0; max-width: 100%; padding: 10px 16px 10px 10px; text-align: left; transition: box-shadow .15s ease; }
-.cs-b-sprite:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-b-sprite-stage { align-items: center; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-editor) 0 50%) 0 0 / 12px 12px; border-radius: 7px; display: flex; flex: none; height: 120px; justify-content: center; width: 120px; }
-.cs-b-sprite-stage img { image-rendering: pixelated; max-height: 100%; max-width: 100%; }
-.cs-b-th.screen { aspect-ratio: 160 / 144; border-radius: 4px; height: auto; width: 100%; }
-.cs-b-th.fresh { animation: cs-b-pop .35s ease-out; box-shadow: inset 0 0 0 1px var(--ui-accent), 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); }
-.cs-b-th.loading { animation: cs-b-skel 1.2s ease-in-out infinite; background: var(--ui-bg-quaternary); cursor: default; }
-@keyframes cs-b-pop { from { opacity: 0; transform: scale(.85); } }
-@keyframes cs-b-skel { 50% { opacity: .45; } }
-`;
-
-// page/pages/build/attract/attract.css.js
-var ATTRACT_CSS = `
-/* New Game attract mode: the level behind the form, dimmed; the form floats over it as frosted glass, apart from the game */
-.cs-b-attract { --cs-at-bg: var(--ui-bg-editor); --cs-at-glass: color-mix(in srgb, var(--cs-at-bg) 60%, transparent); }
-.cs-at { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 0; }
-.cs-at canvas { bottom: 0; filter: saturate(.78); image-rendering: pixelated; image-rendering: crisp-edges; left: 0; opacity: .4; position: absolute; }
-.cs-b-attract > :not(.cs-at) { position: relative; z-index: 1; }
-/* the header above the form, so the game switcher's menu opens over it; the composer above the choice cards, so its
-   model picker opens over them (the glass's backdrop-filter makes each a stacking context that would trap it) */
-.cs-b-attract > .cs-b-head { z-index: 2; }
-.cs-b-attract .cs-b-new .cs-title { align-self: center; text-shadow: 0 2px 0 color-mix(in srgb, var(--cs-at-bg) 70%, black), 0 0 18px var(--cs-at-bg), 0 0 6px var(--cs-at-bg); }
-.cs-b-attract .cs-b-new .cs-b-comp { position: relative; z-index: 2; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary), 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
-.cs-b-attract .cs-b-opt { -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass); }
-.cs-b-attract .cs-b-opt.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--cs-at-glass)); }
-`;
-
-// page/pages/build/build-responsive.css.js
-var BUILD_RESPONSIVE_CSS = `
-@container (max-width: 640px) {
-  .cs-b-sw-pop.cs-b-builds { width: min(420px, calc(100cqi - 24px)); }
-  .cs-b-bc-head { padding: 10px 12px 2px 12px; }
-  .cs-b-bc-sum, .cs-b-bc-changes, .cs-b-ba, .cs-b-bc-foot, .cs-b-bc-details { padding-left: 12px; padding-right: 12px; }
-  .cs-b-ba-pair { gap: 8px; }
-  .cs-b-gist { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cs-b-spin, .cs-b-shimmer, .cs-b-pulse, .cs-b-live.on, .cs-b-game .dot.wait, .cs-b-th.loading, .cs-b-skel i { animation: none; }
-  .cs-b-shimmer { color: var(--ui-text-primary); }
-  .cs-b-user, .cs-b-her, .cs-b-tool, .cs-b-card, .cs-b-pc, .cs-b-latest, .cs-b-lb, .cs-b-dim, .cs-b-status, .cs-b-th.fresh { animation: none; }
-  .cs-b-wk-body { transition: none; }
-  .cs-b-mp-pop, .cs-b-sw-pop, .cs-b-ctx { animation: none; }
-}
-`;
-
-// page/pages/build/build.css.js
-var BUILD_CSS = `
-/* build: games rail · the conversation with the agent (the game plays inside it) */
-.cs-pad.build { gap: 0; padding: 0; }
-.cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
-.cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
-.cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
-.cs-b-game { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 7px 8px; text-align: left; transition: background .12s ease; }
-.cs-b-game[aria-current] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); color: var(--ui-text-primary); }
-.cs-b-game:hover, .cs-b-game:focus-visible { background: var(--ui-bg-quaternary); }
-.cs-b-game .nm { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.cs-b-game .nm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-game .nm small { color: var(--ui-text-quaternary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-game.wait .nm small { color: var(--ui-yellow); }
-.cs-b-game .dot { background: var(--ui-text-quaternary); border-radius: 50%; flex: none; height: 6px; width: 6px; }
-.cs-b-game .dot.good { background: var(--ui-green); } .cs-b-game .dot.warn { background: var(--ui-yellow); } .cs-b-game .dot.bad { background: var(--ui-red); } .cs-b-game .dot.accent { background: var(--ui-accent); }
-.cs-b-game .dot.new { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); height: 7px; width: 7px; }
-.cs-b-game .dot.wait { animation: cs-b-pulse-y 1.6s infinite; background: var(--ui-yellow); height: 7px; width: 7px; }
-.cs-b-spin { animation: cs-b-spin .9s linear infinite; border: 2px solid var(--ui-accent); border-radius: 50%; border-right-color: transparent; display: inline-block; flex: none; height: 10px; width: 10px; }
-@keyframes cs-b-spin { to { transform: rotate(360deg); } }
-`;
-
-// page/pages/build/cart-shelf.css.js
-var CART_SHELF_CSS = `
-/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
-.cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
-.cs-b-shelf-probe { height: 0; width: 0; }
-.cs-b-attract { --cs-b-cap: 38px; }
-/* the cartridges' bottoms on the ground's top; their captions hang below it, over the ground, at a fixed height */
-.cs-b-shelf { align-items: flex-end; bottom: calc(var(--cs-at-ground, 48px) - var(--cs-b-cap)); display: flex; gap: 26px; left: 50%; pointer-events: none; transform: translateX(-50%); }
-.cs-b-attract:has(> .cs-b-shelf) .cs-b-new { padding-bottom: calc(var(--cs-at-ground, 48px) + 140px); }
-/* the form's menus (the model picker) open over the shelf: the form comes forward only while one is open, so the
-   cartridges stay clickable the rest of the time */
-.cs-b-attract:has(.cs-b-mp-pop) > .cs-b-new { z-index: 2; }
-.cs-b-shelf-cart { align-items: center; display: flex; flex-direction: column; pointer-events: auto; text-align: center; width: 100px; }
-.cs-b-shelf-cart .cs-cart { filter: drop-shadow(0 6px 6px color-mix(in srgb, black 45%, transparent)); width: 100px; }
-.cs-b-shelf-cart .cs-cart:hover, .cs-b-shelf-cart .cs-cart:focus-visible { transform: translateY(-10px) rotate(-2deg); }
-.cs-b-shelf-cart .cap { align-items: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; height: var(--cs-b-cap); justify-content: flex-start; padding-top: 3px; }
-.cs-b-shelf-cart .cap b, .cs-b-shelf-cart .cap small { background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 80%, transparent); max-width: 120px; overflow: hidden; padding: 0 6px; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-shelf-cart .cap b { color: var(--ui-text-primary); font-size: 12px; font-weight: 600; line-height: 16px; }
-.cs-b-shelf-cart:has(.cs-cart:hover) .cap b, .cs-b-shelf-cart:has(.cs-cart:focus-visible) .cap b { color: var(--ui-accent); }
-.cs-b-shelf-cart .cap small { align-items: center; color: var(--ui-text-secondary); display: inline-flex; font-size: 10.5px; gap: 5px; line-height: 15px; }
-.cs-b-shelf-cart.wait .cap small { color: var(--ui-yellow); }
-.cs-b-shelf-cart .cap small .dot { border-radius: 50%; flex: none; height: 7px; width: 7px; }
-.cs-b-shelf-cart .cap small .dot.wait { background: var(--ui-yellow); }
-.cs-b-shelf-cart .cap small .dot.new { background: var(--ui-accent); }
-.cs-b-shelf-cart .cap small .cs-b-spin { height: 8px; width: 8px; }
-.cs-b-shelf-more { align-items: center; aspect-ratio: 299 / 340; background: color-mix(in srgb, var(--cs-at-bg, var(--ui-bg-editor)) 55%, transparent); border: 2px dashed var(--ui-text-quaternary, var(--ui-text-tertiary)); border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: grid; font: 700 18px ${MONO}; justify-content: center; width: 100px; }
-.cs-b-shelf-more:hover, .cs-b-shelf-more:focus-visible { border-color: var(--ui-accent); color: var(--ui-accent); }
-.cs-b-shelf-more:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
-`;
+var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
 
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
@@ -4118,8 +1124,16 @@ async function createBuildChat(title, pick = null) {
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return false;
+  }
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored);
+    if (isUpdating()) {
+      host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+      return false;
+    }
   }
   const chat = BUILD_CHATS.get()[stored];
   const now = Date.now();
@@ -4178,12 +1192,21 @@ async function resumeBuildChat(stored) {
   if (!chat?.runtime || chat.resuming) {
     return;
   }
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return;
+  }
   patchChat(stored, (current) => ({ ...current, resuming: true, lostFailure: null }));
   try {
     const snapshot = await chatRequest("session.resume", { session_id: stored, omit_messages: true }, 6e4);
     const runtime = snapshot?.session_id ?? chat.runtime;
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? [];
     for (const turn of lostTurns(pending)) {
+      if (isUpdating()) {
+        patchChat(stored, (current) => ({ ...current, resuming: false }));
+        host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+        return;
+      }
       await chatRequest("prompt.resolve_unknown", { session_id: runtime, admission_id: turn.id });
     }
     const waiting = Array.isArray(pending) && pending.some((row) => row?.status === "queued");
@@ -5397,6 +2420,210 @@ var releaseLive = (surface) => {
   }
 };
 
+// page/app/chat-insert.js
+async function insertText(target, text2) {
+  try {
+    return await host.composer.insertText(target, text2, { mode: "block" }) === true;
+  } catch {
+    return false;
+  }
+}
+async function insertWhenMounted(ctx, target, text2) {
+  const sleep = (ms) => new Promise((resolve) => ctx.setTimeout(resolve, ms));
+  for (const delay of [150, 250, 400, 600, 900]) {
+    await sleep(delay);
+    if (await insertText(target, text2)) {
+      return true;
+    }
+  }
+  return false;
+}
+var promptAdded = () => host.notify({ kind: "success", message: "Prompt added to the composer" });
+async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
+  const target = studioTarget();
+  if (!target) {
+    const copied2 = await ctx.os.writeClipboard(prompt).catch(() => false);
+    host.notify({
+      kind: "warning",
+      message: `The hermretro profile is not set up yet, so no chat can use this prompt. Create it on Setup (Profile step), then ask Hermes there${copied2 ? "; the prompt is copied" : ""}.`
+    });
+    return;
+  }
+  const profile = target.profile;
+  if (!profile && !fresh) {
+    if (await insertText(null, prompt)) {
+      promptAdded();
+      return;
+    }
+    const focused = host.state.focusedSessionId.get();
+    if (focused && await insertText(focused, prompt)) {
+      promptAdded();
+      return;
+    }
+  }
+  if (typeof host.newChat === "function") {
+    try {
+      profile ? host.newChat(profile) : host.newChat();
+      if (await insertWhenMounted(ctx, "new", prompt)) {
+        promptAdded();
+        return;
+      }
+    } catch {
+    }
+  }
+  const copied = await ctx.os.writeClipboard(prompt).catch(() => false);
+  host.notify(
+    copied ? { kind: "info", message: "Prompt copied — paste it into a chat to use it." } : { kind: "warning", message: "Could not reach a chat composer or the clipboard. Copy the prompt from the page." }
+  );
+}
+async function openGameChat(game) {
+  const stored = game?.chat?.sessionId;
+  const target = studioTarget();
+  const inStudio = game?.chat?.profile ? game.chat.profile === STUDIO_PROFILE : true;
+  if (!stored || !target || !inStudio || typeof host.openSession !== "function") {
+    return false;
+  }
+  try {
+    await host.openSession(stored, target.profile ? { profile: target.profile } : {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function sendToGameChat(ctx, game, text2) {
+  if (await openGameChat(game) && await insertWhenMounted(ctx, null, text2)) {
+    promptAdded();
+    return;
+  }
+  await sendPromptToChat(ctx, text2);
+}
+
+// page/app/game-prompts.js
+var gameLabel = (game) => `"${game.title}"${game.projectRoot ? ` (${game.projectRoot})` : ""}`;
+function buildPrompt(game) {
+  return `Build ${gameLabel(game)} and its playable web player, so I can play it on the Emulator page of hermretro.`;
+}
+
+// page/shared/ui/links.js
+var LINKS = {
+  node: "https://nodejs.org/",
+  firmware: "https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx",
+  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg",
+  releases: "https://github.com/ThePickle31/hermretro/releases"
+};
+function ExternalLink({ ctx, href, children, variant = "link" }) {
+  return jsxs(Button, {
+    onClick: () => void ctx.os.openExternal(href),
+    size: variant === "link" ? "inline" : "sm",
+    variant,
+    children: [children, jsx(Codicon, { name: "link-external", size: 12 })]
+  });
+}
+function CommandLine({ command }) {
+  return jsxs("div", {
+    style: { ...S.row, gap: 4 },
+    children: [
+      jsx("code", { className: "font-mono", style: S.code, children: command }),
+      jsx(CopyButton, { appearance: "icon", label: "Copy command", text: command })
+    ]
+  });
+}
+
+// page/shared/ui/text.js
+function Lede({ children }) {
+  return jsx("p", { className: "cs-lede", children });
+}
+function Small({ children, tone }) {
+  return jsx("p", { className: tone === "warn" ? "cs-small cs-warn" : "cs-small", children });
+}
+function Facts({ rows }) {
+  return jsx("dl", {
+    className: "cs-facts",
+    children: rows.flatMap(([term, text2]) => [jsx("dt", { children: term }, `t-${term}`), jsx("dd", { children: text2 }, `d-${term}`)])
+  });
+}
+
+// page/shared/ui/page.js
+function Footer({ ctx }) {
+  return jsxs("footer", {
+    className: "cs-foot",
+    children: [
+      jsxs("div", {
+        className: "cs-row",
+        style: { gap: 16 },
+        children: [
+          jsx(ExternalLink, { ctx, href: LINKS.quickstart, children: "ModRetro Chromatic quickstart" })
+        ]
+      }),
+      jsx("p", {
+        className: "cs-faint",
+        children: "For original, user-created ROMs only. Do not use it for piracy or commercial games. Developer Mode is at your own risk. hermretro is an independent plugin and is not made or endorsed by ModRetro."
+      })
+    ]
+  });
+}
+function PageHead({ number, label, title, lede, children }) {
+  return jsxs("div", {
+    className: "cs-page-head",
+    children: [
+      jsxs("div", {
+        className: "cs-col",
+        children: [
+          label ? jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: number }), label] }) : null,
+          jsx("h2", { className: "cs-word cs-title", children: title }),
+          lede ? jsx(Lede, { children: lede }) : null
+        ]
+      }),
+      children ? jsx("div", { className: "cs-row", children }) : null
+    ]
+  });
+}
+function AsyncButton({ run, disabled, icon, title, variant = "outline", children }) {
+  const [pending, setPending] = useState(false);
+  return jsx(Tip, {
+    label: title ?? children,
+    children: jsx("span", {
+      style: { display: "inline-flex" },
+      children: jsxs(Button, {
+        disabled: disabled || pending,
+        onClick: async () => {
+          setPending(true);
+          try {
+            await run();
+          } finally {
+            setPending(false);
+          }
+        },
+        size: "sm",
+        variant,
+        "aria-label": icon && typeof children === "string" ? children : void 0,
+        children: [icon ? jsx(Codicon, { name: pending ? "loading" : icon, size: 14, spinning: pending }) : null, icon ? jsx("span", { className: "cs-lbl", children }) : children]
+      })
+    })
+  });
+}
+
+// page/shared/ui/working.js
+var LEMNISCATE = "M0 0C.35-.6 1.15-.6 1.15 0S.35.6 0 0-1.15-.6-1.15 0-.35.6 0 0Z";
+function Working({ children, quiet = false }) {
+  return jsxs("div", {
+    className: quiet ? "cs-watch quiet" : "cs-watch",
+    role: "status",
+    children: [
+      jsxs("svg", {
+        "aria-hidden": true,
+        className: "cs-lem",
+        viewBox: "-1.25 -0.62 2.5 1.24",
+        children: [
+          jsx("path", { className: "track", d: LEMNISCATE, pathLength: 100 }),
+          jsx("path", { className: "run", d: LEMNISCATE, pathLength: 100 })
+        ]
+      }),
+      jsx("span", { children })
+    ]
+  });
+}
+
 // page/app/player/stage.js
 function playableSha(game) {
   return game?.web?.sha256 ?? game?.rom?.sha256 ?? null;
@@ -6372,6 +3599,60 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
       showPanel ? null : jsx(KeyHints, {})
     ]
   });
+}
+
+// page/shared/ui/time.js
+function ago(seconds, now) {
+  const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
+  if (elapsed < 5) {
+    return "just now";
+  }
+  if (elapsed < 60) {
+    return `${elapsed}s ago`;
+  }
+  if (elapsed < 3600) {
+    return `${Math.round(elapsed / 60)} min ago`;
+  }
+  return `${Math.round(elapsed / 3600)} h ago`;
+}
+function useNow(active, every = 1e3) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) {
+      return void 0;
+    }
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), every);
+    return () => clearInterval(id);
+  }, [active, every]);
+  return now;
+}
+function spanWords(ms) {
+  const seconds = Math.max(0, Math.round(ms / 1e3));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+function clock(ms) {
+  const seconds = Math.max(0, Math.floor(ms / 1e3));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function timeOfDay(at) {
+  if (!at) {
+    return "";
+  }
+  try {
+    return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+// page/shared/ui/screen.js
+function Screen({ game, className = "cs-screen" }) {
+  return game?.thumb ? jsx("img", { alt: `${game.title} title screen`, className, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: `${className} ph`, children: game?.title ?? "" });
 }
 
 // page/pages/build/player/play-card.js
@@ -8668,6 +5949,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
 }
 function LostTurnCard({ chat, stored }) {
   const waiting = chat.queued?.length ?? 0;
+  const updating = useUpdating();
   return jsxs("div", {
     className: "cs-b-card warn",
     children: [
@@ -8679,7 +5961,7 @@ function LostTurnCard({ chat, stored }) {
       chat.lostFailure ? jsx("p", { className: "cs-small", children: chat.lostFailure }) : null,
       jsx("div", {
         className: "cs-row",
-        children: jsx(Button, { disabled: Boolean(chat.resuming), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
+        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
       })
     ]
   });
@@ -8890,7 +6172,7 @@ var NEW_GAME_MODES = [
   { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
   { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
 ];
-function BuildNewGame({ onStart, picker = null }) {
+function BuildNewGame({ onStart, picker = null, updating = false }) {
   const [idea, setIdea] = useState("");
   const [mode, setMode] = useState("build");
   const [busy, setBusy] = useState(false);
@@ -8904,7 +6186,7 @@ function BuildNewGame({ onStart, picker = null }) {
     }
   }, [idea]);
   const start = async () => {
-    if (starting.current || !idea.trim()) {
+    if (starting.current || !idea.trim() || updating) {
       return;
     }
     starting.current = true;
@@ -8954,9 +6236,9 @@ function BuildNewGame({ onStart, picker = null }) {
               jsx("button", {
                 "aria-label": mode === "plan" ? "Start planning" : "Start building",
                 className: "cs-b-send",
-                disabled: busy || !idea.trim(),
+                disabled: busy || updating || !idea.trim(),
                 onClick: () => void start(),
-                title: mode === "plan" ? "Start planning" : "Start building",
+                title: updating ? "hermretro is updating. You can start in a moment." : mode === "plan" ? "Start planning" : "Start building",
                 type: "button",
                 children: [jsx(Codicon, { name: "arrow-up", size: 14 }, "icon"), jsx("span", { className: "cs-sr", children: busy ? "Starting…" : "Start" }, "label")]
               })
@@ -11490,15 +8772,15 @@ var DRAW = {
     }
   },
   drawPipe(t, x, y, h = 2) {
-    const p = this.p, w = 2 * T, cap = 12, body = h * T - cap;
+    const p = this.p, w = 2 * T, cap = 12, body2 = h * T - cap;
     this.px(t, p.pipe[3], x, y, w, cap);
     this.px(t, p.pipe[0], x + 1, y + 1, w - 2, cap - 2);
     this.px(t, p.pipe[2], x + 5, y + 1, 4, cap - 2);
     this.px(t, p.pipe[1], x + w - 9, y + 1, 7, cap - 2);
-    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body);
-    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body);
-    this.px(t, p.pipe[2], x + 8, y + cap, 4, body);
-    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body);
+    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body2);
+    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body2);
+    this.px(t, p.pipe[2], x + 8, y + cap, 4, body2);
+    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body2);
   },
   drawCannon(t, x, y, dir = -1) {
     t.drawImage(this.spr.cannon[dir < 0 ? 0 : 1], dir < 0 ? x - 2 : x, y);
@@ -11838,6 +9120,973 @@ function AttractLevel() {
   }, []);
   return jsx("div", { "aria-hidden": true, className: "cs-at", ref: box, children: jsx("canvas", { ref: cv }) });
 }
+
+// page/pages/games/games.css.js
+var GAMES_CSS = `
+/* games: Shelf of real cartridges */
+.cs-dev { align-items: center; background: var(--ui-bg-quaternary); display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 11px 14px; }
+.cs-dev .dot { background: var(--ui-text-quaternary); flex: none; height: 8px; width: 8px; }
+.cs-dev.on .dot { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
+.cs-dev .nm { color: var(--ui-text-primary); font-weight: 600; }
+.cs-shelf { display: grid; gap: clamp(18px, 2.2cqi, 36px) clamp(16px, 2cqi, 30px); grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(200px, 15cqi, 300px)), 1fr)); }
+.cs-gcard { display: grid; gap: 10px; grid-template-rows: auto 1fr auto; min-width: 0; }
+.cs-cart { all: unset; aspect-ratio: 299 / 340; container-type: inline-size; cursor: pointer; display: block; position: relative; transition: transform .16s ease; width: 100%; }
+.cs-cart::before { background: var(--cs-cart) center / 100% 100% no-repeat; content: ''; inset: 0; position: absolute; }
+.cs-gcard:hover .cs-cart, .cs-cart:focus-visible { transform: translateY(-5px) rotate(-1deg); }
+.cs-cart:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
+.cs-cart .slot { border-radius: 1.5cqw; display: grid; height: 56.76%; left: 13.38%; overflow: hidden; place-items: center; position: absolute; top: 28.82%; width: 73.24%; }
+.cs-cart .slot img { display: block; height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.cs-cart .ph { align-content: center; background: var(--ui-bg-elevated); color: var(--ui-text-tertiary); display: grid; font: 700 5cqw/1.3 ${MONO}; gap: 3cqw; height: 100%; letter-spacing: .06em; padding: 6cqw; text-align: center; text-transform: uppercase; width: 100%; }
+.cs-cart .ph small { color: var(--ui-text-quaternary); font-size: 3.6cqw; }
+.cs-cart .hov { display: grid; inset: 0; opacity: 0; place-items: center; position: absolute; transition: opacity .15s; }
+.cs-gcard:hover .cs-cart .hov, .cs-cart:focus-visible .hov { opacity: 1; }
+.cs-cart .hov span { background: var(--ui-accent); border-radius: 50%; color: var(--ui-bg-editor); display: grid; height: 18cqw; place-items: center; width: 18cqw; }
+.cs-cart.ghost::before { filter: grayscale(1); opacity: .28; }
+.cs-cart.ghost .slot { color: var(--ui-text-secondary); }
+.cs-gcard .info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cs-gcard h3 { font: 700 20px/1 ${DISPLAY}; letter-spacing: .03em; margin: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.cs-gtag { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-meta { color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; }
+.cs-gtag.none { color: var(--ui-text-quaternary); font-style: italic; }
+.cs-gtag.bad { color: var(--ui-red); }
+.cs-gline { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font: 11px ${MONO}; gap: 4px 12px; min-height: 18px; }
+.cs-gst { align-items: center; display: inline-flex; font: 700 10px/1 ${MONO}; gap: 6px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.cs-gst i { background: currentColor; border-radius: 50%; height: 7px; width: 7px; }
+.cs-gst.good { color: var(--ui-green); } .cs-gst.warn { color: var(--ui-yellow); } .cs-gst.bad { color: var(--ui-red); } .cs-gst.quiet { color: var(--ui-text-tertiary); }
+.cs-cart .nocover { align-items: center; background: color-mix(in srgb, black 72%, transparent); border-radius: 1cqw; bottom: 17.5%; color: white; display: inline-flex; font: 700 3.4cqw/1 ${MONO}; gap: 1.4cqw; letter-spacing: .08em; padding: 1.4cqw 2.2cqw; position: absolute; right: 16%; text-transform: uppercase; }
+.cs-split { display: inline-flex; position: relative; }
+.cs-split > button, .cs-split > span > button { align-items: center; appearance: none; border: 1px solid transparent; cursor: pointer; display: inline-flex; font: 500 12.5px/1 inherit; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap; }
+.cs-split .main { border-radius: 6px 0 0 6px; }
+.cs-split .caret { border-radius: 0 6px 6px 0; padding: 0 8px; }
+.cs-split .solid { background: var(--ui-accent); color: var(--ui-bg-editor); }
+.cs-split .caret.solid { border-left-color: color-mix(in srgb, var(--ui-bg-editor) 35%, transparent); }
+.cs-split .solid:hover:not(:disabled) { filter: brightness(1.08); }
+.cs-split .outline { background: transparent; border-color: var(--ui-stroke-secondary); color: var(--ui-text-primary); }
+.cs-split .caret.outline { border-left-width: 0; }
+.cs-split .outline:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
+.cs-split button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-split button:disabled { cursor: default; opacity: .6; }
+.cs-gmenu { animation: cs-b-in .1s ease-out; background: linear-gradient(var(--ui-bg-tertiary, var(--ui-bg-secondary)), var(--ui-bg-tertiary, var(--ui-bg-secondary))), var(--ui-bg-editor); border-radius: 8px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; gap: 1px; left: 0; min-width: 230px; padding: 4px; position: absolute; top: calc(100% + 6px); z-index: 40; }
+.cs-gmenu button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 9px; outline: none; padding: 7px 9px; text-align: left; white-space: nowrap; }
+.cs-gmenu button:hover:not(:disabled), .cs-gmenu button:focus-visible { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-gmenu button:disabled { color: var(--ui-text-quaternary); cursor: default; }
+.cs-gmenu em { color: var(--ui-text-quaternary); font-size: 11px; font-style: normal; margin-left: auto; padding-left: 12px; }
+.cs-hwchip { align-items: center; appearance: none; background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-radius: 999px; color: var(--ui-text-secondary); display: inline-flex; font: 700 10.5px/1 ${MONO}; gap: 8px; letter-spacing: .08em; padding: 7px 11px; text-transform: uppercase; white-space: nowrap; }
+button.cs-hwchip { cursor: pointer; }
+button.cs-hwchip:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-hwchip i { background: var(--ui-text-quaternary); border-radius: 50%; height: 7px; width: 7px; }
+.cs-hwchip.on i { background: var(--ui-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-green) 22%, transparent); }
+.cs-empty { align-items: start; display: grid; gap: 48px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); }
+.cs-empty > .cs-col { gap: 16px; }
+.cs-empty > .cs-art { max-width: 340px; }
+.cs-gfolder { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; min-width: 0; }
+.cs-gfolder > .cs-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
+// page/app/events.js
+function createEvents() {
+  const declared = /* @__PURE__ */ new Map();
+  const listeners = /* @__PURE__ */ new Map();
+  const known = (name) => {
+    if (!declared.has(name)) {
+      throw new Error(`unknown page event "${name}": declare it in the owning page's index.js (events: { '${name}': '...' })`);
+    }
+  };
+  return {
+    declare(name, owner, doc) {
+      if (declared.has(name)) {
+        throw new Error(`page event "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page owns each event`);
+      }
+      declared.set(name, { owner, doc });
+    },
+    declared: () => new Map(declared),
+    on(name, fn) {
+      known(name);
+      const set = listeners.get(name) ?? /* @__PURE__ */ new Set();
+      listeners.set(name, set);
+      set.add(fn);
+      return () => set.delete(fn);
+    },
+    emit(name, payload) {
+      known(name);
+      for (const fn of [...listeners.get(name) ?? []]) {
+        try {
+          fn(payload);
+        } catch (error) {
+          console.error(`[hermretro] a listener of "${name}" failed:`, error);
+        }
+      }
+    }
+  };
+}
+var PAGE_EVENTS = createEvents();
+var emit = (name, payload) => PAGE_EVENTS.emit(name, payload);
+
+// page/shared/ui/art.js
+function Art() {
+  return jsx("div", { "aria-hidden": true, className: "cs-art" });
+}
+function Flyer() {
+  const wing = (side) => jsx("div", { className: `wing ${side}`, children: jsx("div", { className: "ink" }) }, side);
+  return jsxs("div", {
+    "aria-hidden": true,
+    className: "cs-flyer",
+    children: [
+      jsx("div", {
+        className: "drift",
+        children: jsx("div", {
+          className: "lift",
+          children: jsxs("div", {
+            className: "tilt",
+            children: [wing("l"), wing("r"), jsx("div", { className: "body", children: jsx("div", { className: "ink" }) }, "body")]
+          })
+        })
+      }),
+      jsx("div", { className: "shadow" })
+    ]
+  });
+}
+
+// page/pages/games/games-folder.js
+async function openFolder(ctx, path) {
+  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+  if (!shown) {
+    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+    host.notify({ kind: "info", message: copied ? "The games folder is on the computer running Hermes. Its path is copied." : path });
+  }
+}
+function GamesFolder({ ctx, path }) {
+  if (typeof path !== "string" || !path) {
+    return null;
+  }
+  return jsxs("div", {
+    className: "cs-gfolder",
+    children: [
+      jsx("span", { className: "cs-faint", children: "Games folder" }),
+      jsx("span", { className: "cs-mono", title: path, children: path }),
+      jsxs(Button, {
+        onClick: () => void openFolder(ctx, path),
+        size: "sm",
+        variant: "ghost",
+        children: [jsx(Codicon, { name: "folder-opened", size: 14 }), "Open games folder"]
+      })
+    ]
+  });
+}
+
+// page/app/slots.js
+function createSlots() {
+  const declared = /* @__PURE__ */ new Map();
+  const filled = /* @__PURE__ */ new Map();
+  const known = (name) => {
+    if (!declared.has(name)) {
+      throw new Error(`unknown UI slot "${name}": declare it in the host page's index.js (slots: { '${name}': '...' })`);
+    }
+  };
+  return {
+    declare(name, owner, doc) {
+      if (declared.has(name)) {
+        throw new Error(`UI slot "${name}" is declared by both ${declared.get(name).owner} and ${owner}: one page hosts each slot`);
+      }
+      declared.set(name, { owner, doc });
+      filled.set(name, []);
+    },
+    declared: () => new Map(declared),
+    fill(name, Component, from) {
+      known(name);
+      if (typeof Component !== "function") {
+        throw new Error(`${from} contributes something that is not a component to the UI slot "${name}"`);
+      }
+      filled.get(name).push(Component);
+    },
+    contributions(name) {
+      known(name);
+      return filled.get(name);
+    }
+  };
+}
+var PAGE_SLOTS = createSlots();
+function Slot({ name, props = {}, slots = PAGE_SLOTS }) {
+  const list = slots.contributions(name);
+  return list.length ? list.map((Component, index) => jsx(Component, { ...props }, `${name}:${index}`)) : null;
+}
+
+// page/pages/games/cartridge.js
+function Cartridge({ game, title, note = null, label, disabled = false, play = false, onClick, className = "" }) {
+  const thumb = game?.thumb ?? null;
+  return jsxs("button", {
+    "aria-label": label ?? title,
+    className: className ? `cs-cart ${className}` : "cs-cart",
+    disabled,
+    onClick,
+    type: "button",
+    children: [
+      jsx(
+        "span",
+        {
+          className: "slot",
+          children: thumb ? jsx("img", { alt: game.cover ? `${title} cover art` : `${title} title screen`, draggable: false, src: thumb }) : jsxs("span", { className: "ph", children: [title, note ? jsx("small", { children: note }, "note") : null] })
+        },
+        "slot"
+      ),
+      thumb && !game.cover ? jsxs("span", { className: "nocover", children: [jsx(Codicon, { name: "sparkle", size: 9 }), "No cover"] }, "nocover") : null,
+      play ? jsx("span", { className: "hov", children: jsx("span", { children: jsx(Codicon, { name: "play", size: 22 }) }) }, "hov") : null
+    ]
+  });
+}
+
+// page/app/format.js
+function formatBytes(bytes, { approx = false, unit = null } = {}) {
+  if (unit === "MB") {
+    bytes = bytes || 0;
+  }
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "";
+  }
+  const mb = bytes / 1e6;
+  const text2 = unit === "MB" ? `${Math.round(mb).toLocaleString()} MB` : unit === "KB" ? `${Math.max(1, Math.round(bytes / 1024))} KB` : mb >= 1e3 ? `${(mb / 1e3).toFixed(1)} GB` : mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+  return approx ? `≈ ${text2}` : text2;
+}
+function shortPath(path, keep = 4) {
+  if (!path) {
+    return null;
+  }
+  const parts = String(path).split(/[\\/]/).filter(Boolean);
+  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
+}
+
+// page/pages/prompts/prompts.css.js
+var PROMPTS_CSS = `
+/* prompts: Reader */
+.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
+.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
+.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
+.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
+.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
+.cs-rgrp.first { padding-top: 0; }
+.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
+.cs-ritem:hover { color: var(--ui-text-primary); }
+.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
+.cs-ritem.off { color: var(--ui-text-quaternary); }
+.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
+.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
+.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
+.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
+.cs-params input:focus { border-bottom-color: var(--ui-accent); }
+.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
+`;
+
+// page/app/prompt-button.js
+function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
+  return jsx(AsyncButton, { disabled, icon: "comment-discussion", run: () => sendPromptToChat(ctx, prompt, { fresh }), title: "Puts the prompt in a chat, not sent", variant, children: label });
+}
+
+// page/pages/prompts/library.js
+var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
+var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
+var PROMPT_SECTIONS = [
+  {
+    id: "plan",
+    n: "01",
+    title: "Plan",
+    prompts: [
+      {
+        id: "plan",
+        title: "Plan a game",
+        src: "hermes",
+        text: "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project."
+      }
+    ]
+  },
+  {
+    id: "create",
+    n: "02",
+    title: "Create",
+    prompts: [
+      {
+        id: "new-game",
+        title: "Create a new game",
+        src: "modretro",
+        text: "Use hermretro to create and select a new GB Studio project at {folder}/{name}. Make a small exploration game where a gardener collects three seeds and plants them to unlock a gate.",
+        defaults: { name: "MoonGarden" },
+        note: "The parent folder must already exist."
+      },
+      {
+        id: "remix",
+        title: "Remix an example",
+        src: "modretro",
+        text: "Use hermretro to create and select a Wrecklight remix at {folder}/{name}. Show me its rooms and controls, then help me turn the opening area into an abandoned research station.",
+        defaults: { name: "MyWrecklight" },
+        note: "The Wrecklight source is not bundled; the agent will ask for a local copy if needed."
+      }
+    ]
+  },
+  {
+    id: "play",
+    n: "03",
+    title: "Play",
+    prompts: [
+      {
+        id: "play-game",
+        title: "Play my game",
+        src: "modretro",
+        text: "Build my selected game and show it to me in the emulator beside the chat so I can play it. Show me the new build there whenever we make a change worth trying."
+      },
+      {
+        id: "playtest",
+        title: "Build and playtest",
+        src: "hermes",
+        text: "Build my selected game, then run an automated playtest: boot it, walk around the first room, and show me real frames from the emulator."
+      }
+    ]
+  },
+  {
+    id: "polish",
+    n: "04",
+    title: "Polish",
+    prompts: [
+      {
+        id: "scene",
+        title: "Add a scene",
+        src: "modretro",
+        text: "Add a village scene to my selected project with three houses, a central fountain, and a character I can talk to. Connect it to the starting area."
+      },
+      {
+        id: "artwork",
+        title: "Characters and artwork",
+        src: "modretro",
+        text: "Create a small robot player sprite with idle and walking animations that fit this project's style and Game Boy hardware limits. Add it to the game and show it in a scene."
+      },
+      {
+        id: "palette",
+        title: "Update the palette",
+        src: "modretro",
+        text: "Give this scene a moonlit palette with cool blue shadows and warm window lights. Check readability and show the result from the emulator."
+      },
+      {
+        id: "audit",
+        title: "Hardware limits audit",
+        src: "modretro",
+        text: "Audit my project's backgrounds and sprites for Game Boy hardware limits. Identify problems and fix any assets that would prevent a successful build."
+      }
+    ]
+  },
+  {
+    id: "device",
+    n: "05",
+    title: "On your Chromatic",
+    prompts: [
+      {
+        id: "stream",
+        title: "Stream to Chromatic",
+        src: "modretro",
+        hw: true,
+        text: "Stream a two-minute live demo of my built ROM to the connected Chromatic so I can try its controls, video, and audio."
+      },
+      {
+        id: "flash",
+        title: "Flash a cartridge",
+        src: "modretro",
+        hw: true,
+        text: "Flash my built homebrew ROM to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks."
+      }
+    ]
+  }
+];
+var ALL_PROMPTS = PROMPT_SECTIONS.flatMap((section) => section.prompts.map((prompt) => ({ ...prompt, section })));
+var promptById = (id) => ALL_PROMPTS.find((prompt) => prompt.id === id) ?? ALL_PROMPTS[0];
+var FLASH_PROMPT = promptById("flash").text;
+var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
+
+// page/pages/prompts/prompts-page.js
+function fillPrompt(prompt, values) {
+  return prompt.text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);
+}
+function promptFields(prompt) {
+  return [...new Set([...prompt.text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]))];
+}
+var WHAT_HAPPENS = {
+  device: "Hermes asks for your approval before it touches the device, unless Approvals are turned off.",
+  create: "Hermes creates the project in that folder, selects it for the chat and builds the first ROM. It then shows up on the Games page.",
+  other: "Works on the game selected in that chat. Start with Create if the chat has none yet."
+};
+function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardwareOn, profileLabel, defaultFolder, onSetUpDevice, onGo }) {
+  const [query, setQuery] = useState("");
+  const [edits, setEdits] = useState({});
+  const [names, setNames] = useState({});
+  const [folder, setFolder] = useState(() => {
+    try {
+      return storage.get("promptFolder", null);
+    } catch {
+      return null;
+    }
+  });
+  const listRef = useRef(null);
+  const needle = query.trim().toLowerCase();
+  const matches = (prompt2) => !needle || `${prompt2.title} ${prompt2.text} ${prompt2.section.title}`.toLowerCase().includes(needle);
+  const visible = ALL_PROMPTS.filter(matches);
+  const prompt = visible.find((item) => item.id === selected) ?? visible[0] ?? promptById(selected);
+  const locked = Boolean(prompt.hw) && !hardwareOn;
+  const values = { folder: folder ?? defaultFolder ?? "~", name: names[prompt.id] ?? prompt.defaults?.name ?? "MyGame" };
+  const text2 = edits[prompt.id] ?? fillPrompt(prompt, values);
+  const fields = promptFields(prompt);
+  const canChat = gameReady && !locked;
+  const state = useRef({});
+  state.current = { visible, prompt, onSelect };
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const target = event.target;
+      if (target && (target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName ?? "") || target.tagName === "INPUT" && target.type !== "search")) {
+        return;
+      }
+      const { visible: list, prompt: current, onSelect: select } = state.current;
+      const index = list.findIndex((item) => item.id === current.id);
+      const next = list[Math.max(0, Math.min(list.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
+      if (next) {
+        event.preventDefault();
+        select(next.id);
+        ctx.setTimeout(() => listRef.current?.querySelector?.(`[data-prompt="${next.id}"]`)?.focus?.(), 0);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const setField = (key, value) => {
+    setEdits((previous) => ({ ...previous, [prompt.id]: void 0 }));
+    if (key === "folder") {
+      setFolder(value);
+      try {
+        storage.set("promptFolder", value);
+      } catch {
+      }
+    } else {
+      setNames((previous) => ({ ...previous, [prompt.id]: value }));
+    }
+  };
+  const groups = PROMPT_SECTIONS.map((section) => ({ section, items: visible.filter((item) => item.section === section) })).filter((group) => group.items.length);
+  return [
+    jsx(PageHead, {
+      label: `Prompts · ${ALL_PROMPTS.length} ready to use`,
+      lede: jsxs("span", {
+        children: [
+          "Every prompt opens a chat in ",
+          jsx("span", { className: "cs-mono", children: profileLabel }),
+          " with the text in its composer, ready for you to edit and send. Or copy it and paste it anywhere."
+        ]
+      }),
+      number: "02",
+      title: "Start building"
+    }, "head"),
+    jsxs(
+      "div",
+      {
+        className: "cs-reader",
+        children: [
+          jsxs("nav", {
+            "aria-label": "Prompts",
+            className: "cs-rlist",
+            ref: listRef,
+            children: [
+              jsxs("label", {
+                className: "cs-search",
+                children: [
+                  jsx(Codicon, { name: "search", size: 14 }),
+                  jsx("input", { "aria-label": "Find a prompt", onChange: (event) => setQuery(event.target.value), placeholder: "Find a prompt", type: "search", value: query })
+                ]
+              }),
+              groups.length ? groups.flatMap(({ section, items }, index) => [
+                jsxs("span", { className: index ? "cs-rgrp" : "cs-rgrp first", children: [jsx("span", { children: section.title }), jsx("span", { children: items.length })] }, `g-${section.id}`),
+                ...items.map(
+                  (item) => jsxs(
+                    "button",
+                    {
+                      "aria-current": item.id === prompt.id ? "true" : void 0,
+                      className: item.hw && !hardwareOn ? "cs-ritem off" : "cs-ritem",
+                      "data-prompt": item.id,
+                      onClick: () => onSelect(item.id),
+                      type: "button",
+                      children: [jsx("span", { children: item.title }), item.hw && !hardwareOn ? jsx("span", { className: "cs-tag quiet", children: "device" }) : null]
+                    },
+                    item.id
+                  )
+                )
+              ]) : jsx(Small, { children: "No prompts match." }),
+              jsxs("p", {
+                className: "cs-faint",
+                style: { paddingTop: 18 },
+                children: [jsx("span", { className: "cs-key", children: "↑" }), " ", jsx("span", { className: "cs-key", children: "↓" }), " to move through the list"]
+              })
+            ]
+          }),
+          jsxs("section", {
+            "aria-label": prompt.title,
+            className: "cs-rdetail",
+            children: [
+              jsxs("div", {
+                className: "cs-col",
+                style: { gap: 10 },
+                children: [
+                  jsxs("p", {
+                    className: "cs-eyebrow",
+                    children: [
+                      jsx("span", { className: "cs-accent", children: prompt.section.n }),
+                      prompt.section.title,
+                      jsx("span", { className: "cs-tag quiet", children: prompt.src === "modretro" ? "ModRetro quickstart" : "Hermes" }),
+                      locked ? jsx("span", { className: "cs-tag warn", children: "Needs your Chromatic" }) : null
+                    ]
+                  }),
+                  jsx("h3", { className: "cs-word", style: { fontSize: "clamp(28px, 3cqi, 52px)" }, children: prompt.title })
+                ]
+              }),
+              fields.length ? jsx("div", {
+                className: "cs-params",
+                children: fields.flatMap((key) => [
+                  jsx("label", { htmlFor: `cs-f-${key}`, children: key === "folder" ? "Parent folder" : "Project name" }, `l-${key}`),
+                  jsx("input", { id: `cs-f-${key}`, onChange: (event) => setField(key, event.target.value), spellCheck: false, value: values[key] }, `i-${key}`)
+                ])
+              }) : null,
+              jsx("textarea", {
+                "aria-label": "Prompt text",
+                onChange: (event) => setEdits((previous) => ({ ...previous, [prompt.id]: event.target.value })),
+                spellCheck: false,
+                value: text2
+              }),
+              prompt.note ? jsx("p", { className: "cs-faint", children: prompt.note }) : null,
+              jsxs("div", {
+                className: "cs-actions",
+                children: [
+                  jsx(PromptButton, { ctx, disabled: !canChat, fresh: true, label: "Start a new chat", prompt: text2, variant: "default" }),
+                  jsx(AsyncButton, {
+                    disabled: !canChat,
+                    icon: "insert",
+                    run: () => sendPromptToChat(ctx, text2),
+                    title: "Adds the prompt to the hermretro chat you were last in, else a new one",
+                    variant: "secondary",
+                    children: "Add to current chat"
+                  }),
+                  jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: text2 }),
+                  jsx("span", { className: "cs-grow" }),
+                  edits[prompt.id] !== void 0 ? jsx(Button, { onClick: () => setEdits((previous) => ({ ...previous, [prompt.id]: void 0 })), size: "sm", variant: "ghost", children: "Reset text" }) : null
+                ]
+              }),
+              locked ? jsxs("div", {
+                className: "cs-note",
+                children: [
+                  jsx(Small, { children: "Streaming and flashing need your Chromatic set up. You can still read and copy those prompts." }),
+                  jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
+                ]
+              }) : !gameReady ? jsxs("div", {
+                className: "cs-note",
+                children: [
+                  jsx(Small, { children: "After setup: these prompts need the game toolchain, so the chat buttons turn on once it is installed." }),
+                  jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "outline", children: "Continue setup" })
+                ]
+              }) : null,
+              jsxs("div", {
+                className: "cs-uses",
+                children: [
+                  jsx("p", { className: "cs-eyebrow", children: "What happens" }),
+                  jsx(Small, { children: prompt.hw ? WHAT_HAPPENS.device : prompt.section.id === "create" ? WHAT_HAPPENS.create : WHAT_HAPPENS.other }),
+                  jsx("span", { className: "cs-faint", children: "Nothing is sent until you press send in the chat." })
+                ]
+              })
+            ]
+          }),
+          jsx(Art, {})
+        ]
+      },
+      "reader"
+    )
+  ];
+}
+function Prompts({ shell }) {
+  return jsx(PromptsPage, {
+    ctx: shell.ctx,
+    defaultFolder: shell.newGameFolder,
+    gameReady: shell.gameReady,
+    hardwareOn: shell.hardwareOn,
+    onGo: shell.go,
+    onSelect: shell.setPromptId,
+    onSetUpDevice: shell.setUpDevice,
+    profileLabel: shell.profileLabel,
+    selected: shell.promptId,
+    storage: shell.ctx.storage
+  });
+}
+
+// page/pages/prompts/index.js
+var PROMPTS_PAGE = {
+  id: "prompts",
+  label: "Prompts",
+  Page: Prompts,
+  css: [PROMPTS_CSS]
+};
+
+// page/pages/games/model.js
+var KIND_LABELS = { gbstudio: "GB Studio", gbdk: "GBDK" };
+var GAME_STATES = {
+  ready: ["good", "Ready"],
+  changed: ["warn", "Changed since last build"],
+  failed: ["bad", "Build failed"],
+  unbuilt: ["quiet", "Not built yet"]
+};
+function gameMeta(game, { kind = true, now = Date.now() } = {}) {
+  return [
+    kind ? KIND_LABELS[game.kind] ?? game.kind ?? null : null,
+    game.rom?.size ? formatBytes(game.rom.size, { unit: "KB" }) : null,
+    game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : "never built"
+  ].filter(Boolean);
+}
+function latestGame(games) {
+  const list = [...games ?? []].sort((a, b) => (b.rom?.builtAt ?? 0) - (a.rom?.builtAt ?? 0));
+  return list.find((game) => game.webExport) ?? list[0] ?? null;
+}
+function installPrompt(game) {
+  return FLASH_PROMPT.replace("my built homebrew ROM", `the built ROM of ${gameLabel(game)}`);
+}
+function fixPrompt(game) {
+  return `The last build of ${gameLabel(game)} failed${game.error ? `:
+${game.error}
+` : ". "}Find the cause, fix it, rebuild, and show me the result.`;
+}
+
+// page/pages/games/game-card.js
+var COVER_PROMPT = "Make this game’s card: draw a 160x144 pixel-art cover in the game’s own palette and write its tagline, description and genres, with chromatic_game_info.";
+var GAME_STATUS = {
+  ready: ["good", "Ready"],
+  changed: ["warn", "Changed"],
+  failed: ["bad", "Build failed"],
+  unbuilt: ["quiet", "Not built"]
+};
+function primaryAction(ctx, game, onPlay) {
+  if (game.state === "failed") {
+    return { icon: "tools", label: "Fix in chat", tone: "outline", title: "Puts the build error in its chat, not sent", run: () => sendToGameChat(ctx, game, fixPrompt(game)) };
+  }
+  if (game.state === "unbuilt") {
+    return { icon: "play", label: "Build in chat", title: "Puts a build prompt in its chat, not sent", run: () => sendToGameChat(ctx, game, buildPrompt(game)) };
+  }
+  if (game.state === "changed") {
+    return { icon: "play", label: "Build & play", title: `Edited since its last build: puts a build prompt in its chat, not sent. ${AGENT} shows it beside the chat when it is built.`, run: () => sendToGameChat(ctx, game, buildPrompt(game)) };
+  }
+  return { icon: "play", label: "Play", title: `Play ${game.displayTitle || game.title} on the Emulator page`, run: () => onPlay(game.id) };
+}
+async function revealGame(ctx, game) {
+  const path = game.projectRoot;
+  const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+  if (!shown) {
+    const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+    host.notify({ kind: "info", message: copied ? "The game is on the computer running Hermes. Its folder path is copied." : path });
+  }
+}
+function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const wrap = useRef(null);
+  const title = game.displayTitle || game.title;
+  const action = primaryAction(ctx, game, onPlay);
+  const built = game.state !== "failed" && game.state !== "unbuilt";
+  const card = game.card ?? null;
+  useEffect(() => {
+    if (!open) {
+      return void 0;
+    }
+    const items = () => [...wrap.current?.querySelectorAll?.(".cs-gmenu button:not(:disabled)") ?? []];
+    const onDown = (event) => {
+      if (wrap.current && !wrap.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        wrap.current?.querySelector(".cs-split .caret")?.focus?.();
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        const list = items();
+        const at = list.indexOf(document.activeElement);
+        event.preventDefault();
+        list[(at + (event.key === "ArrowDown" ? 1 : list.length - 1)) % list.length]?.focus?.();
+      }
+    };
+    items()[0]?.focus?.();
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const run = async (fn) => {
+    setOpen(false);
+    setPending(true);
+    try {
+      await fn();
+    } finally {
+      setPending(false);
+    }
+  };
+  const item = (icon, label, fn, { disabled = false, why } = {}) => jsxs(
+    "button",
+    {
+      disabled,
+      onClick: () => void run(fn),
+      role: "menuitem",
+      title: why,
+      type: "button",
+      children: [jsx(Codicon, { name: icon, size: 13 }), jsx("span", { children: label }), why && disabled ? jsx("em", { children: why }) : null]
+    },
+    label
+  );
+  const rows = [
+    game.state === "changed" && game.webExport ? item("play", "Play last build", () => onPlay(game.id)) : null,
+    built ? item("desktop-download", "Install on Chromatic", () => sendToGameChat(ctx, game, installPrompt(game)), {
+      disabled: !hardwareOn || !game.rom,
+      why: !hardwareOn ? "Needs your Chromatic" : !game.rom ? "Build it first" : "Puts the flash prompt in its chat; Hermes asks before writing"
+    }) : null,
+    item("comment-discussion", "Open its chat", () => openGameChat(game), { disabled: !game.chat, why: game.chat ? game.chat.title || void 0 : "No chat recorded" }),
+    !card?.complete && onMakeCover ? item("sparkle", game.cover ? "Finish card" : "Make cover art", () => onMakeCover(game)) : null,
+    game.projectRoot ? item("folder-opened", "Show in folder", () => revealGame(ctx, game)) : null,
+    // What other pages add to this menu (games/index.js declares the slot).
+    jsx(Slot, { name: "games.cardMenu", props: { ctx, game, hardwareOn, item } }, "more")
+  ].filter(Boolean);
+  return jsxs("div", {
+    className: "cs-split",
+    ref: wrap,
+    children: [
+      jsx(Tip, {
+        label: action.title,
+        children: jsxs("button", {
+          className: `main ${action.tone ?? "solid"}`,
+          disabled: pending,
+          onClick: () => void run(action.run),
+          type: "button",
+          children: [jsx(Codicon, { name: action.icon, size: 13 }), action.label]
+        })
+      }),
+      jsx("button", {
+        "aria-expanded": open,
+        "aria-haspopup": "menu",
+        "aria-label": `More for ${title}`,
+        className: `caret ${action.tone ?? "solid"}`,
+        onClick: () => setOpen(!open),
+        type: "button",
+        children: jsx(Codicon, { name: "chevron-down", size: 12 })
+      }),
+      open ? jsx("div", { "aria-label": `${title} actions`, className: "cs-gmenu", role: "menu", children: rows }) : null
+    ]
+  });
+}
+function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
+  const title = game.displayTitle || game.title;
+  const card = game.card ?? null;
+  const playable = game.state !== "unbuilt" && game.state !== "failed";
+  const [tone, status] = GAME_STATUS[game.state] ?? GAME_STATUS.unbuilt;
+  const meta = gameMeta(game, { kind: false });
+  const built = meta[meta.length - 1];
+  return jsxs("article", {
+    className: "cs-gcard",
+    children: [
+      jsx(Cartridge, {
+        disabled: !playable,
+        game,
+        label: playable ? `Play ${title}` : title,
+        note: playable ? "Title screen after first play" : "No build yet",
+        onClick: () => onPlay(game.id),
+        play: playable,
+        title
+      }),
+      jsxs("div", {
+        className: "info",
+        children: [
+          jsx("h3", { title, children: title }),
+          game.state === "failed" && game.error ? jsx("p", { className: "cs-gtag bad", title: game.error, children: game.error }) : card?.tagline ? jsx("p", { className: "cs-gtag", title: [card.description || card.tagline, card.genres?.length ? card.genres.join(" · ") : null].filter(Boolean).join("\n"), children: card.tagline }) : jsx("p", { className: "cs-gtag none", children: "No description yet" }),
+          jsxs("div", {
+            className: "cs-gline",
+            title: meta.join(" · "),
+            children: [jsxs("span", { className: `cs-gst ${tone}`, children: [jsx("i", {}), status] }), jsx("span", { children: built })]
+          })
+        ]
+      }),
+      jsx(GameActions, { ctx, game, hardwareOn, onMakeCover, onPlay })
+    ]
+  });
+}
+
+// page/pages/games/games-page.js
+function DeviceStrip({ hardwareOn, onSetUpDevice }) {
+  return hardwareOn ? jsxs("div", {
+    className: "cs-dev on",
+    children: [
+      jsx("span", { className: "dot" }),
+      jsx("span", { className: "nm", children: "Chromatic hardware tools are on" }),
+      jsx(Small, { children: "Install puts the flash prompt in the game's chat. Hermes asks before it writes the cartridge, unless Approvals are off." })
+    ]
+  }) : jsxs("div", {
+    className: "cs-dev",
+    children: [
+      jsx("span", { className: "dot" }),
+      jsx("span", { className: "nm", children: "Playing in the emulator." }),
+      jsx(Small, { children: "Set up a Chromatic to install games on a real cartridge." }),
+      jsx("span", { className: "cs-grow" }),
+      jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
+    ]
+  });
+}
+function InstallButton({ ctx, game, hardwareOn, label = "Install" }) {
+  return jsx(AsyncButton, {
+    disabled: !hardwareOn || !game.rom,
+    icon: "desktop-download",
+    run: () => sendToGameChat(ctx, game, installPrompt(game)),
+    title: !hardwareOn ? "Needs your Chromatic" : !game.rom ? "Build it first" : "Puts the flash prompt in this game's chat; Hermes asks before writing",
+    variant: "outline",
+    children: label
+  });
+}
+function DeviceChip({ hardwareOn, onSetUpDevice }) {
+  return hardwareOn ? jsx(Tip, {
+    label: "Install puts the flash prompt in the game's chat. Hermes asks before it writes the cartridge, unless Approvals are off.",
+    children: jsxs("span", { className: "cs-hwchip on", children: [jsx("i", {}), "Chromatic tools on"] })
+  }) : jsx(Tip, {
+    label: "Set up a Chromatic to install games on a real cartridge.",
+    children: jsxs("button", { className: "cs-hwchip", onClick: onSetUpDevice, type: "button", children: [jsx("i", {}), "Emulator only · Set up my Chromatic"] })
+  });
+}
+function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
+  const list = games.data?.games;
+  const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
+  const newGame = jsxs(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
+  if (games.isError || games.data && !Array.isArray(list)) {
+    return [
+      jsx(PageHead, { title: "Your games" }, "head"),
+      jsxs("div", {
+        className: "cs-col",
+        style: { gap: 12, maxWidth: "72ch" },
+        children: [
+          jsx(Lede, { children: games.isError ? studioError(games.error, "list your games") : games.data?.error || "The games list could not be read." }),
+          jsx("div", { children: newGame })
+        ]
+      }, "err")
+    ];
+  }
+  if (!list) {
+    return [jsx(PageHead, { title: "Your games" }, "head"), jsx(Working, { quiet: true, children: "Reading your games…" }, "wait")];
+  }
+  if (!list.length) {
+    return [
+      jsx(DeviceStrip, { hardwareOn, onSetUpDevice }, "dev"),
+      jsxs(
+        "div",
+        {
+          className: "cs-empty",
+          children: [
+            jsxs("div", {
+              className: "cs-col",
+              children: [
+                jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "03" }), "Games"] }),
+                jsx("h2", { className: "cs-word cs-title", children: "No games yet" }),
+                jsx(Lede, {
+                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic. Start with a new game or remix the example."
+                }),
+                jsxs("div", {
+                  className: "cs-actions",
+                  children: [
+                    jsx(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: "Create a new game" }),
+                    jsx(Button, { onClick: () => onOpenPrompt("remix"), size: "sm", variant: "outline", children: "Remix Wrecklight" })
+                  ]
+                }),
+                jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." }),
+                folder
+              ]
+            }),
+            jsx(Art, {})
+          ]
+        },
+        "empty"
+      )
+    ];
+  }
+  return [
+    jsx(PageHead, { title: "Your games", children: [jsx(DeviceChip, { hardwareOn, onSetUpDevice }, "hw"), jsx("span", { style: { display: "contents" }, children: newGame }, "new")] }, "head"),
+    jsxs(
+      "div",
+      {
+        className: "cs-shelf",
+        children: [
+          ...list.map((game) => jsx(GameCard, { ctx, game, hardwareOn, onMakeCover, onPlay }, game.id)),
+          jsxs(
+            "article",
+            {
+              className: "cs-gcard",
+              children: [
+                jsx("button", {
+                  "aria-label": "New game",
+                  className: "cs-cart ghost",
+                  onClick: () => onOpenPrompt("new-game"),
+                  type: "button",
+                  children: jsx("span", {
+                    className: "slot",
+                    children: jsxs("span", {
+                      className: "cs-col",
+                      style: { alignItems: "center", gap: 8 },
+                      children: [jsx(Codicon, { name: "add", size: 26 }), jsx("span", { className: "cs-eyebrow", children: "New game" })]
+                    })
+                  })
+                }),
+                jsxs("div", {
+                  className: "info",
+                  children: [
+                    jsx("h3", { style: { color: "var(--ui-text-tertiary)" }, children: "Blank cartridge" }),
+                    jsx("p", { className: "cs-gtag none", children: "Make a new game with Hermes" })
+                  ]
+                })
+              ]
+            },
+            "new"
+          )
+        ]
+      },
+      "shelf"
+    ),
+    folder
+  ];
+}
+function Games({ shell }) {
+  return jsx(GamesPage, {
+    ctx: shell.ctx,
+    games: shell.games,
+    hardwareOn: shell.hardwareOn,
+    // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
+    onMakeCover: (game) => {
+      emit("games.coverRequested", { game, prompt: COVER_PROMPT });
+      shell.go("build");
+    },
+    onOpenPrompt: shell.openPrompt,
+    onPlay: shell.play,
+    onSetUpDevice: shell.setUpDevice
+  });
+}
+
+// page/pages/games/index.js
+var GAMES_PAGE = {
+  id: "games",
+  label: "Games",
+  Page: Games,
+  css: [GAMES_CSS],
+  events: {
+    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent."
+  },
+  slots: {
+    "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
+  },
+  contributes: {
+    "emulator.barActions": [InstallButton]
+  }
+};
 
 // page/pages/build/switcher.js
 function switcherEntries(games, pending, states, selected) {
@@ -12237,7 +10486,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
+function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
@@ -12334,7 +10583,17 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   useEffect(() => {
     openWhenDone.current = false;
   }, [game?.id]);
+  const refuseWhileUpdating = () => {
+    if (!isUpdating()) {
+      return false;
+    }
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return true;
+  };
   const startGame = async ({ idea, name, plan }) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
@@ -12375,6 +10634,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   }
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
   const send = async (text2, attachments = [], shown = text2) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     if (!fresh) {
       if (stored) {
         await sendBuildChat(stored, text2, shown, attachments);
@@ -12431,7 +10693,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     onLibraryChanged();
   };
   const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored) {
+    if (!game || !shownStored || refuseWhileUpdating()) {
       return false;
     }
     try {
@@ -12504,7 +10766,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx("span", { className: "cs-grow" }),
       game && (builds.length || shownStored) ? jsx(BuildsMenu, {
         builds,
-        busy: Boolean(shownChat?.busy),
+        busy: Boolean(shownChat?.busy || updating),
         game,
         onRestore: restoreBuild,
         onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
@@ -12524,9 +10786,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     })
   });
-  let body;
+  let body2;
   if (elsewhere) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-empty",
       children: jsx("p", {
         className: "cs-small",
@@ -12534,7 +10796,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else if (shownChat?.missing) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
@@ -12542,7 +10804,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (shownChat?.failure) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-error", children: `Could not open this conversation: ${shownChat.failure}` }),
@@ -12550,7 +10812,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (!shownChat?.items?.length && !shownChat?.busy) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-tx",
       children: jsxs("div", {
         className: "cs-b-col",
@@ -12564,7 +10826,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else {
-    body = jsx(Transcript, {
+    body2 = jsx(Transcript, {
       chat: shownChat,
       ctx,
       empty: emptyState,
@@ -12582,22 +10844,22 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     children: [
       jsx(AttractLevel, {}, "level"),
       header,
-      jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
   }) : jsxs("div", {
     className: "cs-b-chat",
     children: [
       header,
-      body,
+      body2,
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
-        disabled: Boolean(elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
+        disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
         onSend: (text2, attachments) => void send(text2, attachments),
         onStop: () => void stopBuildChat(shownStored),
         picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored }) : null,
-        placeholder: shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+        placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
       })
@@ -12605,6 +10867,1592 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   });
   return jsx("div", { className: "cs-b", children: main });
 }
+
+// page/pages/setup/onboarding/onboarding.css.js
+var ONBOARDING_CSS = `
+/* first-run onboarding: welcome, what gets downloaded / installing, Chromatic?, first game */
+.cs-onb { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: min(78vh, 900px); }
+.cs-onb[data-screen='install'] { justify-content: flex-start; padding-top: clamp(8px, 2cqi, 32px); }
+.cs-onb-hero { align-items: center; display: grid; gap: clamp(24px, 4cqi, 72px); grid-template-columns: minmax(0, 1fr) minmax(200px, 30cqi); }
+.cs-onb-hero h1 { font-size: clamp(44px, 6.6cqi, 108px); }
+.cs-onb-hero .cs-art { max-width: 460px; }
+.cs-onb-title { font-size: clamp(38px, 5cqi, 84px); }
+.cs-onb-split { align-items: start; display: grid; gap: clamp(28px, 4.5cqi, 80px); grid-template-columns: minmax(260px, 420px) minmax(0, 1fr); }
+.cs-onb-steps { align-items: center; color: var(--ui-text-tertiary); display: flex; font: 700 10.5px/1 ${MONO}; gap: 6px; letter-spacing: .14em; margin-left: auto; text-transform: uppercase; }
+.cs-onb-steps i { background: var(--ui-stroke-tertiary); display: block; height: 3px; width: 34px; }
+.cs-onb-steps i.done { background: var(--ui-green); }
+.cs-onb-steps i.cur { background: var(--ui-accent); }
+.cs-onb-steps span { margin-left: 10px; white-space: nowrap; }
+.cs-onb-facts { background: var(--ui-bg-quaternary); display: grid; gap: 7px 18px; grid-template-columns: max-content minmax(0, 1fr); margin: 0; padding: 14px 16px; }
+.cs-onb-facts dt { color: var(--ui-text-tertiary); font-size: 12px; }
+.cs-onb-facts dd { color: var(--ui-text-primary); font: 12px ${MONO}; margin: 0; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.cs-onb-facts dd.path { color: var(--ui-text-tertiary); }
+.cs-onb-facts dd.good { color: var(--ui-green); }
+.cs-onb-facts dd.bad { color: var(--ui-red); }
+.cs-dl { border-collapse: collapse; width: 100%; }
+.cs-dl th { border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); font: 700 9.5px/1 ${MONO}; letter-spacing: .12em; padding: 0 12px 9px 0; text-align: left; text-transform: uppercase; }
+.cs-dl td { border-bottom: 1px solid var(--ui-stroke-tertiary); padding: 10px 12px 10px 0; vertical-align: top; }
+.cs-dl .g { padding-right: 10px; padding-top: 12px; width: 24px; }
+.cs-dl td.n { color: var(--ui-text-primary); font-weight: 600; }
+.cs-dl td.n .p { color: var(--ui-text-quaternary); display: block; font-size: 11.5px; font-weight: 400; margin-top: 2px; }
+.cs-dl td.v, .cs-dl td.s { color: var(--ui-text-tertiary); font: 11.5px/1.6 ${MONO}; }
+.cs-dl .z { padding-right: 0; text-align: right; white-space: nowrap; }
+.cs-dl td.z { color: var(--ui-text-secondary); font: 11.5px/1.6 ${MONO}; }
+.cs-dl td.z.done { color: var(--ui-green); }
+.cs-dl td.z.running { color: var(--ui-accent); }
+.cs-dl td.z.failed { color: var(--ui-red); }
+.cs-dl tr[data-state='pending'] td.n { color: var(--ui-text-tertiary); }
+.cs-log { background: var(--ui-bg-quaternary); color: var(--ui-text-tertiary); font: 11.5px/1.75 ${MONO}; overflow-wrap: anywhere; padding: 12px 16px; }
+.cs-log .ok { color: var(--ui-green); }
+.cs-log .run { color: var(--ui-accent); }
+.cs-log .w { color: var(--ui-text-primary); }
+.cs-log .bad { color: var(--ui-red); }
+.cs-progress { background: var(--ui-stroke-tertiary); height: 4px; overflow: hidden; position: relative; }
+.cs-progress > b { background: var(--ui-accent); inset: 0 auto 0 0; position: absolute; transition: width .6s ease; }
+.cs-hwcards { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 440px)); }
+.cs-hwcard { align-items: center; appearance: none; background: var(--ui-bg-quaternary); border: 0; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); color: inherit; cursor: pointer; display: flex; font: inherit; gap: 22px; min-height: 190px; padding: 22px; text-align: left; transition: box-shadow .12s; }
+.cs-hwcard:hover, .cs-hwcard.primary { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+.cs-hwcard:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-hwcard .t { color: var(--ui-text-primary); font-size: 28px; }
+.cs-hwart { flex: none; height: 140px; width: 78px; }
+.cs-hwart.screen { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-accent); display: grid; place-items: center; }
+.cs-hwart.device { background: var(--ui-text-secondary); -webkit-mask: var(--cs-fly-body) center / contain no-repeat; mask: var(--cs-fly-body) center / contain no-repeat; }
+.cs-idea { background: var(--ui-bg-quaternary); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; flex-direction: column; gap: 12px; max-width: 760px; padding: 14px 16px; }
+.cs-idea:focus-within { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+.cs-idea textarea { background: transparent; border: 0; color: var(--ui-text-primary); font-family: inherit; font-size: 15px; line-height: 1.5; min-height: 66px; outline: none; padding: 0; resize: vertical; width: 100%; }
+.cs-idea textarea::placeholder { color: var(--ui-text-quaternary); }
+.cs-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-ideas button { appearance: none; background: transparent; border: 0; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); cursor: pointer; font: 700 10px/1 ${MONO}; letter-spacing: .1em; padding: 9px 11px; text-transform: uppercase; }
+.cs-ideas button:hover { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-text-primary); }
+.cs-ideas button:disabled { cursor: default; opacity: .5; }
+.cs-repair { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); box-shadow: inset 2px 0 0 var(--ui-yellow); color: var(--ui-text-primary); display: flex; gap: 10px; padding: 9px 14px; }
+.cs-repair > i { color: var(--ui-yellow); }
+.cs-repair > span { flex: 1; }
+@container (max-width: 1000px) {
+  .cs-dl .s { display: none; }
+}
+@container (max-width: 860px) {
+  .cs-onb-split, .cs-onb-hero { grid-template-columns: minmax(0, 1fr); }
+  .cs-onb-hero .cs-art { display: none; }
+  .cs-hwcards { grid-template-columns: minmax(0, 1fr); }
+  .cs-onb-steps span { display: none; }
+}
+`;
+
+// page/pages/setup/setup.css.js
+var SETUP_CSS = `
+/* setup: rail, current step, flying Chromatic */
+.cs-setup { align-items: start; display: grid; gap: clamp(24px, 3.6cqi, 64px); grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 820px) minmax(130px, 1fr); }
+.cs-rail { display: flex; flex-direction: column; position: sticky; top: 76px; }
+.cs-rail-group { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 0 0 8px; text-transform: uppercase; }
+.cs-rail-group.second { padding-top: 22px; }
+.cs-rail-item { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-tertiary); cursor: pointer; display: grid; font: inherit; gap: 8px; grid-template-columns: 22px 1fr 14px; margin: 0 -8px; padding: 7px 8px; text-align: left; transition: color .1s, background-color .1s; }
+.cs-rail-item:hover { color: var(--ui-text-primary); transition: none; }
+.cs-rail-item .n { color: var(--ui-text-quaternary); font: 700 11px ${MONO}; }
+.cs-rail-item[data-state='done'] { color: var(--ui-text-secondary); }
+.cs-rail-item[data-state='skipped'] .l { color: var(--ui-text-quaternary); text-decoration: line-through; }
+.cs-rail-item[data-auto] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-rail-item[data-auto] .n { color: var(--ui-accent); }
+.cs-rail-item[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-meter { display: flex; gap: 3px; margin: 18px 0 8px; }
+.cs-meter button { appearance: none; background: transparent; border: 0; cursor: pointer; flex: 1; min-width: 0; padding: 4px 0; }
+.cs-meter button > i { background: var(--ui-stroke-tertiary); display: block; height: 3px; }
+.cs-meter button[data-state='done'] > i { background: var(--ui-green); }
+.cs-meter button[data-state='skipped'] > i { background: var(--ui-stroke-secondary); opacity: .5; }
+.cs-meter button[data-auto] > i { background: var(--ui-accent); }
+.cs-meter button.gap { margin-left: 6px; }
+.cs-stage { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.cs-stage-head { display: flex; flex-direction: column; gap: 14px; }
+.cs-stage-foot { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-top: 4px; padding-top: 14px; }
+.cs-content { display: flex; flex-direction: column; gap: 18px; }
+.cs-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-prompt { background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); font: 12.5px/1.6 ${MONO}; margin: 0; overflow-wrap: anywhere; padding: 13px 16px 13px 34px; position: relative; user-select: text; white-space: pre-wrap; }
+.cs-prompt::before { color: var(--ui-accent); content: '❯'; left: 14px; position: absolute; top: 13px; }
+.cs-facts { display: grid; gap: 9px 22px; grid-template-columns: max-content 1fr; margin: 0; }
+.cs-facts dt { color: var(--ui-text-tertiary); font: 700 10px/2 ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-facts dd { color: var(--ui-text-secondary); margin: 0; }
+.cs-watch { align-items: center; background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); display: flex; gap: 12px; padding: 11px 14px; }
+.cs-watch.quiet { background: transparent; color: var(--ui-text-tertiary); font-size: 12px; gap: 8px; padding: 0; }
+.cs-lem { flex: none; height: 18px; width: 34px; }
+.cs-watch.quiet .cs-lem { height: 12px; width: 24px; }
+.cs-lem path { fill: none; }
+.cs-lem .track { stroke: var(--ui-stroke-tertiary); stroke-width: .07; }
+.cs-lem .run { animation: cs-lem 1.4s linear infinite; stroke: var(--ui-accent); stroke-dasharray: 18 82; stroke-linecap: round; stroke-width: .11; }
+@keyframes cs-lem { to { stroke-dashoffset: -100; } }
+.cs-glyph .cs-dash { animation: cs-dash 1s linear infinite; }
+@keyframes cs-dash { to { stroke-dashoffset: -10; } }
+.cs-comps { display: flex; flex-direction: column; }
+.cs-comp { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: grid; gap: 4px 12px; grid-template-columns: 14px minmax(0, 1fr) auto auto; padding: 8px 0; }
+.cs-comp:last-child { border-bottom: 1px solid var(--ui-stroke-tertiary); }
+.cs-comp .name { color: var(--ui-text-primary); }
+.cs-comp .name small { color: var(--ui-text-quaternary); font-size: 11px; margin-left: 6px; }
+.cs-comp .ver { color: var(--ui-text-tertiary); font: 11px ${MONO}; text-align: right; }
+.cs-comp .st { font: 700 9.5px ${MONO}; letter-spacing: .1em; min-width: 82px; text-align: right; text-transform: uppercase; }
+.cs-comp .detail { color: var(--ui-text-quaternary); font-size: 11.5px; grid-column: 2 / -1; }
+.cs-comp .st.ready { color: var(--ui-green); }
+.cs-comp .st.missing { color: var(--ui-yellow); }
+.cs-comp .st.incompatible { color: var(--ui-red); }
+.cs-comp .st.optional, .cs-comp .st.unknown { color: var(--ui-text-quaternary); }
+.cs-kbd { background: transparent; border: 1px solid var(--ui-stroke-tertiary); border-bottom-width: 3px; color: var(--ui-text-primary); display: inline-grid; font: 700 12px ${MONO}; height: 30px; min-width: 30px; padding: 0 8px; place-items: center; }
+.cs-warnline { align-items: flex-start; color: var(--ui-text-primary); display: flex; font-weight: 500; gap: 10px; }
+.cs-warnline > span:first-child { color: var(--ui-yellow); display: inline-flex; padding-top: 2px; }
+.cs-choice { border-bottom: 1px solid var(--ui-stroke-tertiary); border-top: 1px solid var(--ui-stroke-tertiary); display: grid; grid-template-columns: 1fr 1fr; }
+.cs-choice > div { display: flex; flex-direction: column; gap: 8px; padding: 20px 24px 22px 0; }
+.cs-choice > div + div { border-left: 1px solid var(--ui-stroke-tertiary); padding-left: 24px; padding-right: 0; }
+.cs-choice h3 { color: var(--ui-text-primary); font-size: 16px; font-weight: 600; margin: 0; }
+.cs-choice .cs-actions { margin-top: auto; padding-top: 8px; }
+`;
+
+// page/shared/ui/glyph.js
+var INDICATOR = {
+  done: { icon: "pass-filled", color: C.good, label: "Done" },
+  todo: { icon: "circle-large-outline", color: C.warn, label: "To do" },
+  optional: { icon: "circle-large-outline", color: C.quaternary, label: "Optional" },
+  waiting: { icon: "circle-large-outline", color: C.quaternary, label: "Waiting" },
+  checking: { icon: "loading", color: C.tertiary, label: "Checking", spinning: true },
+  error: { icon: "error", color: C.bad, label: "Problem" },
+  skipped: { icon: "dash", color: C.quaternary, label: "Skipped" },
+  blocked: { icon: "circle-slash", color: C.warn, label: "Not available" }
+};
+function Glyph({ state }) {
+  const label = (INDICATOR[state] ?? INDICATOR.waiting).label;
+  const ink = "var(--background, var(--ui-bg-editor))";
+  let shape;
+  if (state === "done") {
+    shape = [
+      jsx("rect", { fill: C.good, height: 12, width: 12, x: 1, y: 1 }, "box"),
+      jsx("path", { d: "M4 7.2l2 2 4-4.4", fill: "none", stroke: ink, strokeWidth: 1.6 }, "tick")
+    ];
+  } else if (state === "error") {
+    shape = [
+      jsx("rect", { fill: C.bad, height: 12, width: 12, x: 1, y: 1 }, "box"),
+      jsx("path", { d: "M7 4v4M7 9.6v.8", stroke: ink, strokeWidth: 1.6 }, "mark")
+    ];
+  } else if (state === "checking") {
+    shape = jsx("rect", {
+      className: "cs-dash",
+      fill: "none",
+      height: 11,
+      stroke: "var(--ui-accent)",
+      strokeDasharray: "3 2",
+      strokeWidth: 1.4,
+      width: 11,
+      x: 1.5,
+      y: 1.5
+    });
+  } else if (state === "skipped") {
+    shape = jsx("path", { d: "M3 7h8", stroke: C.quaternary, strokeWidth: 1.4 });
+  } else {
+    shape = [
+      jsx("rect", {
+        fill: "none",
+        height: 11,
+        stroke: state === "blocked" ? C.warn : state === "todo" ? C.tertiary : C.quaternary,
+        strokeWidth: 1.2,
+        width: 11,
+        x: 1.5,
+        y: 1.5
+      }, "box"),
+      state === "blocked" ? jsx("path", { d: "M4 10l6-6", stroke: C.warn, strokeWidth: 1.2 }, "slash") : null
+    ];
+  }
+  return jsx("svg", { "aria-label": label, className: "cs-glyph", height: 14, role: "img", viewBox: "0 0 14 14", width: 14, children: shape });
+}
+function Chip({ tone = "", children }) {
+  return jsxs("span", { className: `cs-chip ${tone}`, children: [jsx("i", {}), children] });
+}
+
+// page/app/prompt-block.js
+function PromptActions({ ctx, prompt, primaryLabel = "Use in chat", primaryVariant = "secondary" }) {
+  const [pending, setPending] = useState(false);
+  const run = async () => {
+    if (pending) {
+      return;
+    }
+    setPending(true);
+    try {
+      await sendPromptToChat(ctx, prompt);
+    } finally {
+      setPending(false);
+    }
+  };
+  return jsxs("div", {
+    className: "cs-actions",
+    children: [
+      jsxs(Button, {
+        disabled: pending,
+        onClick: () => void run(),
+        size: "sm",
+        variant: primaryVariant,
+        children: [jsx(Codicon, { name: pending ? "loading" : "comment-discussion", size: 14, spinning: pending }), primaryLabel]
+      }),
+      jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: prompt })
+    ]
+  });
+}
+function PromptBlock({ ctx, prompt, label }) {
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 10 },
+    children: [jsx("p", { className: "cs-prompt", children: prompt }), jsx(PromptActions, { ctx, primaryLabel: label, primaryVariant: "default", prompt })]
+  });
+}
+
+// page/pages/setup/steps.js
+var HARDWARE_STEPS = ["firmware", "devmode", "devicecli", "hardware"];
+var STEP_ORDER = ["profile", "toolchain", ...HARDWARE_STEPS];
+var STEP_TITLES = {
+  profile: "Create the hermretro profile",
+  toolchain: "Install the game toolchain",
+  firmware: "Update your Chromatic",
+  devmode: "Activate Developer Mode",
+  devicecli: "Install ModRetro's device software",
+  hardware: "Turn on hardware tools"
+};
+var MANUAL_STEPS = { firmware: "firmwareDone", devmode: "devmodeDone" };
+function useSetupMemory(ctx) {
+  const [memory, setMemory] = useState(() => {
+    try {
+      return { ...ctx.storage.get("setup", {}) ?? {} };
+    } catch {
+      return {};
+    }
+  });
+  const update = (patch) => setMemory((previous) => {
+    const next = { ...previous, ...patch };
+    try {
+      ctx.storage.set("setup", next);
+    } catch {
+    }
+    return next;
+  });
+  return [memory, update];
+}
+function toolchainStateKnown(status, doctor) {
+  return Boolean(status.data?.ok) && (Boolean(doctor.data) || doctor.isError);
+}
+function toolchainState(data, doctor) {
+  const report = doctor.data;
+  const engine = data.engine ?? {};
+  if (doctor.isError || report && !report.ok) {
+    return "error";
+  }
+  if (!report) {
+    return "checking";
+  }
+  return (report.missing_required ?? []).length || !engine.present || engine.verified === false ? "todo" : "done";
+}
+function computeSteps({ backend, status, doctor, memory }) {
+  const data = backend === "ok" ? status.data : null;
+  const cli = data?.deps?.device_cli;
+  const states = {
+    // A backend that says nothing about profiles predates this step and cannot make one.
+    profile: !data ? "waiting" : !data.profile || data.profile.is_studio ? "done" : "todo",
+    toolchain: !data ? "waiting" : nodeState(data.node).ok ? toolchainState(data, doctor) : "blocked",
+    firmware: memory.firmwareDone ? "done" : "todo",
+    devmode: memory.devmodeDone ? "done" : "todo",
+    devicecli: !cli ? "waiting" : cli.state === "installed" || cli.state === "bundled" ? "done" : cli.state === "unsupported" ? "blocked" : "todo",
+    hardware: !data ? "waiting" : data.hardware_enabled ? "done" : "todo"
+  };
+  return STEP_ORDER.map((id) => {
+    const hardware = HARDWARE_STEPS.includes(id);
+    const state = hardware && memory.hardwareSkipped && states[id] !== "done" ? "skipped" : states[id];
+    return {
+      id,
+      title: STEP_TITLES[id],
+      hardware,
+      manual: id in MANUAL_STEPS,
+      state,
+      complete: state === "done" || state === "skipped"
+    };
+  });
+}
+var STEP_SHORT = {
+  profile: "Studio profile",
+  toolchain: "Game toolchain",
+  firmware: "Firmware",
+  devmode: "Developer Mode",
+  devicecli: "Device software",
+  hardware: "Hardware tools"
+};
+
+// page/pages/setup/hardware-steps.js
+function Confirm({ step, update }) {
+  return step.state === "done" ? jsx(Button, { onClick: () => update({ [MANUAL_STEPS[step.id]]: false }), size: "sm", variant: "ghost", children: "Mark as not done" }) : jsxs(Button, {
+    onClick: () => update({ [MANUAL_STEPS[step.id]]: true }),
+    size: "sm",
+    variant: "default",
+    children: [jsx(Codicon, { name: "check", size: 14 }), "I've done this"]
+  });
+}
+function FirmwareBody({ ctx, step, update }) {
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: "Install the latest firmware with ModRetro's Chromatic Firmware Updater. This happens in ModRetro's app, not in Hermes, so confirm here when it is done."
+      }),
+      jsxs("div", {
+        className: "cs-actions",
+        children: [
+          jsx(ExternalLink, { ctx, href: LINKS.firmware, variant: "outline", children: "Open the Firmware Updater guide" }),
+          jsx(Confirm, { step, update })
+        ]
+      })
+    ]
+  });
+}
+function Keys({ keys }) {
+  return jsxs("span", {
+    className: "cs-row",
+    style: { gap: 6 },
+    children: keys.flatMap((key, index) => [
+      index ? jsx("span", { className: "cs-faint", children: "+" }, `p${index}`) : null,
+      jsx("kbd", { className: "cs-kbd", children: key }, key)
+    ])
+  });
+}
+function DevModeBody({ step, update }) {
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: "Developer Mode lets this computer write your games to the cartridge. In ModRetro's Chromatic Firmware Updater press"
+      }),
+      jsxs("div", {
+        className: "cs-row",
+        style: { gap: 10 },
+        children: [
+          jsx(Keys, { keys: ["Ctrl", "I"] }),
+          jsx("span", { className: "cs-faint", children: "or, on macOS," }),
+          jsx(Keys, { keys: ["⌘", "I"] })
+        ]
+      }),
+      jsx(Small, { children: "then enter the activation code included with the Chromatic: Codex Edition." }),
+      jsxs("div", {
+        className: "cs-warnline",
+        children: [
+          jsx("span", { children: jsx(Codicon, { name: "warning", size: 14 }) }),
+          jsx("span", { children: "Activation happens only in ModRetro's Updater. Never type the code into a chat." })
+        ]
+      }),
+      jsx("div", { className: "cs-actions", children: jsx(Confirm, { step, update }) })
+    ]
+  });
+}
+function DeviceSoftwareBody({ ctx, step, status }) {
+  const cli = status.data?.deps?.device_cli;
+  if (!cli) {
+    return jsx(Small, {
+      children: status.data?.ok ? "Not reported yet. Start a new chat to finish loading the plugin." : "Checked once the plugin is on."
+    });
+  }
+  if (step.state === "done") {
+    return jsx(Lede, { children: `ModRetro Chromatic CLI${cli.version ? ` ${cli.version}` : ""} is installed in hermretro's folder.` });
+  }
+  if (cli.state === "unsupported") {
+    return jsx(Small, { tone: "warn", children: cli.detail || "ModRetro does not publish its device software for this computer." });
+  }
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: "hermretro talks to the device through ModRetro's own Chromatic CLI. It is ModRetro's software, so it is not included: Hermes downloads it from ModRetro, checks it, and keeps it in hermretro's folder."
+      }),
+      jsx(Facts, {
+        rows: [
+          [
+            "Source",
+            jsxs("span", {
+              children: [
+                "ModRetro's npm package, checked against pinned hashes. ",
+                cli.terms ? jsx(ExternalLink, { ctx, href: cli.terms, children: "ModRetro's terms" }) : null
+              ]
+            })
+          ],
+          ["Approval", "Hermes asks for your approval before downloading, unless Approvals are turned off."]
+        ]
+      }),
+      jsx(PromptBlock, { ctx, label: "Install in chat", prompt: DEVICE_CLI_PROMPT })
+    ]
+  });
+}
+var HARDWARE_ABILITIES = ["Detect the device", "Stream", "Flash a cartridge", "Capture"];
+function HardwareBody({ step }) {
+  const on = step.state === "done";
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: on ? "Hardware tools are on for this profile: device detection, streaming, flashing and capture are available." : 'Device detection, streaming, flashing and capture are off until you allow them. Turn on "Chromatic hardware tools" in the plugin settings; this page continues once it is on.'
+      }),
+      jsx("div", {
+        className: "cs-row",
+        style: { gap: 6 },
+        children: HARDWARE_ABILITIES.map((label) => jsx(Chip, { tone: on ? "good" : "", children: label }, label))
+      }),
+      jsx(Small, {
+        children: "Writing a cartridge, streaming and driver setup ask for your approval first, unless Approvals are turned off in Hermes."
+      }),
+      jsx("div", {
+        className: "cs-actions",
+        children: jsxs(Button, {
+          onClick: () => host.navigate(AGENT_SETTINGS_HREF),
+          size: "sm",
+          variant: on ? "outline" : "default",
+          children: [jsx(Codicon, { name: "settings-gear", size: 14 }), "Open plugin settings"]
+        })
+      })
+    ]
+  });
+}
+function HardwareChoice({ steps, update }) {
+  const remaining = steps.filter((step) => step.hardware && step.state !== "done").length;
+  return jsxs("section", {
+    "aria-live": "polite",
+    className: "cs-stage",
+    children: [
+      jsxs("div", {
+        className: "cs-stage",
+        style: { display: "contents" },
+        children: [
+          jsxs("div", {
+            className: "cs-stage-head",
+            children: [
+              jsxs("p", {
+                className: "cs-eyebrow",
+                children: [jsx("span", { className: "cs-accent", children: "Steps 1–2 done" }), jsx("span", { children: "The emulator is ready" })]
+              }),
+              jsx("h2", { className: "cs-word cs-title", children: "Ready to make games" })
+            ]
+          }),
+          jsx(Lede, {
+            children: "Hermes can now create, build and playtest your games, and you play them on the Emulator page, with sound. A physical Chromatic is optional: set it up now, or any time later."
+          }),
+          jsxs("div", {
+            className: "cs-choice",
+            children: [
+              jsxs("div", {
+                children: [
+                  jsx("p", { className: "cs-eyebrow", children: "Emulator" }),
+                  jsx("h3", { children: "Start making games" }),
+                  jsx(Small, { children: "Build and play everything inside Hermes. Nothing else to install." }),
+                  jsx("div", {
+                    className: "cs-actions",
+                    children: jsxs(Button, {
+                      onClick: () => update({ hardwareSkipped: true, hardwareWanted: false }),
+                      size: "sm",
+                      variant: "default",
+                      children: ["Start making games", jsx(Codicon, { name: "arrow-right", size: 14 })]
+                    })
+                  })
+                ]
+              }),
+              jsxs("div", {
+                children: [
+                  jsx("p", { className: "cs-eyebrow", children: "ModRetro Chromatic" }),
+                  jsx("h3", { children: "I have a Chromatic" }),
+                  jsx(Small, {
+                    children: `${remaining} more ${remaining === 1 ? "step" : "steps"} to stream your games to the handheld and write them to a cartridge: firmware, Developer Mode, ModRetro's device software and hardware tools.`
+                  }),
+                  jsx("div", {
+                    className: "cs-actions",
+                    children: jsx(Button, {
+                      onClick: () => update({ hardwareSkipped: false, hardwareWanted: true }),
+                      size: "sm",
+                      variant: "outline",
+                      children: "Set up my Chromatic"
+                    })
+                  })
+                ]
+              })
+            ]
+          }),
+          jsx("span", { className: "cs-faint", children: "You can change this any time: the Chromatic steps stay in the setup list." })
+        ]
+      })
+    ]
+  });
+}
+
+// page/pages/setup/setup-complete.js
+function versionFact(data, update) {
+  const version = data.plugin?.version ?? "?";
+  if (!update) {
+    return version;
+  }
+  if (update.ready && update.phase === "idle") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · a new version is ready`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update" }),
+        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
+      ]
+    });
+  }
+  if (update.phase === "partial") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · the update is not finished`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
+      ]
+    });
+  }
+  if (update.phase === "updating") {
+    return `${version} · updating…`;
+  }
+  const standing = {
+    failed: "the update did not go through: see the update in the header",
+    review: "the update waits for your answer in the header",
+    restart: "updated: quit and reopen Hermes to finish"
+  }[update.phase];
+  if (standing) {
+    return `${version} · ${standing}`;
+  }
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked && !update.ready ? `${version} · up to date` : version;
+}
+function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
+  const data = status.data ?? {};
+  const report = doctor.data?.ok ? doctor.data : null;
+  const tools = (report?.components ?? []).filter((component) => component.status === "ready" && !component.optional && component.id !== "node" && component.id !== "runtime").map((component) => `${component.label ?? component.id} ${component.detected ?? ""}`.trim());
+  const cli = data.deps?.device_cli;
+  return jsxs("section", {
+    "aria-live": "polite",
+    className: "cs-stage",
+    children: [
+      jsxs("div", {
+        className: "cs-stage-head",
+        children: [
+          jsxs("p", {
+            className: "cs-eyebrow",
+            children: [
+              jsx("span", { className: "cs-accent", children: "●" }),
+              emulatorOnly ? `Steps 1–2 done · emulator only` : `All ${steps.length} steps done`
+            ]
+          }),
+          jsx("h2", { className: "cs-word cs-title", children: "Setup is complete" })
+        ]
+      }),
+      jsx(Lede, {
+        children: emulatorOnly ? "Everything the emulator needs is installed and verified. A Chromatic is optional: set it up any time to stream games to it and write cartridges. Open any step to review it." : "Everything is installed and verified, including your Chromatic. Open any step to review it."
+      }),
+      jsx(Facts, {
+        rows: [
+          ["hermretro", versionFact(data, pluginUpdate)],
+          ["Profile", data.profile?.name ?? data.via_profile ?? "this profile"],
+          ["Toolchain", [tools.join(" · "), data.engine?.version ? `engine ${data.engine.version}` : ""].filter(Boolean).join(" · ") || "Ready"],
+          [
+            "Chromatic",
+            data.hardware_enabled ? `Device software${cli?.version ? ` ${cli.version}` : ""} · hardware tools on` : "Not set up: streaming and flashing are off"
+          ]
+        ]
+      }),
+      jsxs("div", {
+        className: "cs-actions",
+        children: [
+          jsx(Button, { onClick: () => onGo("build"), size: "sm", variant: "default", children: "Go to the studio" }),
+          jsxs(Button, {
+            disabled: rechecking,
+            onClick: onRecheck,
+            size: "sm",
+            variant: "ghost",
+            children: [jsx(Codicon, { name: "refresh", size: 14, spinning: rechecking }), "Check everything again"]
+          }),
+          emulatorOnly ? jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" }) : null
+        ]
+      })
+    ]
+  });
+}
+
+// page/pages/setup/install/installer.js
+async function fetchInstall() {
+  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
+}
+var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
+function useInstall({ enabled }) {
+  return useQuery({
+    queryKey: [ID, "install"],
+    queryFn: fetchInstall,
+    enabled,
+    refetchInterval: enabled ? installInterval : false,
+    staleTime: 1e3,
+    retry: false
+  });
+}
+async function createStudioProfile(profile) {
+  if (isUpdating()) {
+    throw new Error(UPDATING_MESSAGE);
+  }
+  if (!profile.studio?.exists) {
+    await host.request("profiles.create", profile.create);
+  }
+  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
+  if (!data?.ok) {
+    throw new Error(data?.error || "The profile could not be set up.");
+  }
+}
+var profileCreation = null;
+function createStudioProfileOnce(profile) {
+  profileCreation ??= createStudioProfile(profile).finally(() => {
+    profileCreation = null;
+  });
+  return profileCreation;
+}
+function useInstaller({ ctx, status, install, toolchainDone }) {
+  const [starting, setStarting] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
+  const [elsewhere, setElsewhere] = useState(false);
+  const data = install.data;
+  const unsupported = install.isError && describeRequestError(install.error).notLoaded;
+  const state = data?.install?.state ?? "idle";
+  const profile = status.data?.profile;
+  const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
+  const node = nodeState(status.data?.node);
+  const updating = useUpdating();
+  const makeProfile = () => {
+    if (!needsProfile) {
+      return;
+    }
+    setProfileWork({ state: "running", error: null });
+    createStudioProfileOnce(profile).then(
+      () => {
+        setProfileWork({ state: "done", error: null });
+        status.refetch?.();
+      },
+      (error) => setProfileWork({ state: "failed", error: String(error?.message ?? error) })
+    );
+  };
+  const start = async () => {
+    if (starting) {
+      return;
+    }
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
+      return;
+    }
+    setStarting(true);
+    setFailure(null);
+    makeProfile();
+    try {
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
+      if (answer?.code === "OPERATION_IN_PROGRESS") {
+        setElsewhere(true);
+        return;
+      }
+      if (!answer?.ok) {
+        throw new Error(answer?.error || "The install could not start.");
+      }
+      setElsewhere(false);
+      await install.refetch?.();
+    } catch (error) {
+      setFailure(describeRequestError(error).message || String(error?.message ?? error));
+    } finally {
+      setStarting(false);
+    }
+  };
+  const ask = () => sendPromptToChat(
+    ctx,
+    `${SETUP_PROMPT}
+
+The install on the hermretro page stopped with this error:
+${failure ?? data?.install?.error ?? "unknown error"}`,
+    { fresh: true }
+  );
+  const verifying = (state === "done" || elsewhere) && !toolchainDone;
+  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
+  return {
+    ask,
+    data,
+    elsewhere,
+    failure: failure ?? data?.install?.error ?? null,
+    makeProfile,
+    needsProfile,
+    node,
+    phase,
+    profileWork,
+    start,
+    starting,
+    state,
+    unsupported,
+    updating,
+    verifying
+  };
+}
+
+// page/pages/setup/profile-step.js
+var PROFILE_FACTS = [
+  ["Sign-in", "It uses your existing sign-in and keys, so there is nothing to log in to again."],
+  ["Skills", "hermretro and its six skills are turned on there, with a game-developer persona."],
+  ["Tools", "Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults."],
+  ["Approvals", "Kept on (smart mode), so installing device software and anything that touches your Chromatic goes through an approval check."]
+];
+function ProfileBody({ status }) {
+  const profile = status.data?.profile;
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
+  if (!status.data?.ok || !profile) {
+    return jsx(Small, { children: "Checked once the plugin is on." });
+  }
+  if (profile.is_studio) {
+    return jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` });
+  }
+  const create = async () => {
+    if (working) {
+      return;
+    }
+    setWorking(true);
+    setFailure(null);
+    try {
+      await createStudioProfileOnce(profile);
+      host.notify({ kind: "success", message: "hermretro profile created" });
+      status.refetch?.();
+    } catch (error) {
+      setFailure(String(error?.message ?? error));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const starting = profile.studio?.installed && !working;
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: "hermretro works in its own Hermes profile, so it has exactly the tools and skills game development needs, and your other chats stay as they are."
+      }),
+      jsx(Facts, { rows: PROFILE_FACTS }),
+      starting ? jsxs("div", {
+        className: "cs-col",
+        children: [
+          jsx(Working, { children: "The profile is created. Waiting for Hermes to start it…" }),
+          jsx("div", {
+            children: jsx(Button, { disabled: working || updating, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
+          })
+        ]
+      }) : working ? jsx(Working, { children: "Creating the profile…" }) : jsxs("div", {
+        className: "cs-actions",
+        children: [
+          jsx(Button, { disabled: updating, onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
+          jsx("span", { className: "cs-faint", children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
+        ]
+      }),
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
+}
+
+// page/pages/setup/install/install-panel.js
+var ROW_LABEL = { done: "verified", running: "installing", failed: "failed", pending: "" };
+function DownloadTable({ manifest, install, phase, profileRow }) {
+  const components = install?.run?.components ?? {};
+  const current = install?.current;
+  const rows = (manifest?.items ?? []).map((item) => {
+    const component = components[item.component];
+    const state = phase === "done" || install?.state === "done" ? "done" : component?.state ?? (phase === "review" ? null : "pending");
+    return { ...item, state, running: state === "running" && current === item.component };
+  });
+  const row = (item) => jsxs(
+    "tr",
+    {
+      "data-state": item.state ?? void 0,
+      children: [
+        item.state ? jsx("td", { className: "g", children: jsx(Glyph, { state: { done: "done", running: "checking", failed: "error", pending: "waiting" }[item.state] }) }) : null,
+        jsxs("td", { className: "n", children: [item.name, jsx("span", { className: "p", children: item.purpose })] }),
+        jsx("td", { className: "v", children: item.version }),
+        jsx("td", { className: "s", children: item.source }),
+        jsx("td", {
+          className: `z ${item.state ?? ""}`,
+          children: item.state && item.state !== "pending" ? ROW_LABEL[item.state] : item.bytes ? formatBytes(item.bytes, { approx: item.approx }) : "no download"
+        })
+      ]
+    },
+    item.id
+  );
+  const live = phase !== "review";
+  return jsxs("table", {
+    className: "cs-dl",
+    children: [
+      jsx("thead", {
+        children: jsxs("tr", {
+          children: [
+            live ? jsx("th", { className: "g" }) : null,
+            jsx("th", { children: "Component" }),
+            jsx("th", { children: "Version" }),
+            jsx("th", { className: "s", children: "From" }),
+            jsx("th", { className: "z", children: live ? "Status" : "Download" })
+          ]
+        })
+      }),
+      jsx("tbody", {
+        children: [
+          profileRow ? row({
+            id: "profile",
+            name: "Your hermretro profile",
+            purpose: "A Hermes profile with just the game tools and skills",
+            version: "",
+            source: "this computer",
+            bytes: 0,
+            state: live ? profileRow : null
+          }) : null,
+          ...rows.map((item) => row({ ...item, state: live ? item.state : null }))
+        ]
+      })
+    ]
+  });
+}
+function InstallLog({ install, phase }) {
+  const components = install?.run?.components ?? {};
+  const lines = [];
+  for (const id of ["gbdk", "cli", "uv", "emulator"]) {
+    const component = components[id];
+    for (const check of component?.checks ?? []) {
+      lines.push(
+        jsxs("div", {
+          children: [
+            jsx("span", { className: "ok", children: "✓ " }),
+            `${check.file}  sha256 ${String(check.sha256).slice(0, 8)}…  ${check.reused ? "verified (cached)" : "verified"}`
+          ]
+        }, `${id}:${check.file}`)
+      );
+    }
+    if (component?.state === "done" && !component.checks?.length) {
+      lines.push(jsxs("div", { children: [jsx("span", { className: "ok", children: "✓ " }), `${id} ${component.version ?? ""} already installed, checked`] }, `${id}:reused`));
+    }
+    if (component?.state === "failed") {
+      lines.push(jsxs("div", { className: "bad", children: ["✗ ", `${id}: ${component.error ?? "failed"}`] }, `${id}:failed`));
+    }
+  }
+  if (phase === "running" && install?.current) {
+    const label = (install.current === "cli" ? "GB Studio and its packages" : { gbdk: "GBDK", uv: "uv", emulator: "Python, PyBoy and Pillow" }[install.current]) ?? install.current;
+    lines.push(jsxs("div", { className: "w", children: [jsx("span", { className: "run", children: "↓ " }), `Installing ${label}…`] }, "now"));
+  }
+  return lines.length ? jsx("div", { "aria-live": "polite", className: "cs-log", role: "log", children: lines }) : null;
+}
+function InstallFacts({ manifest, status, root }) {
+  const node = nodeState(status.data?.node);
+  return jsxs("dl", {
+    className: "cs-onb-facts",
+    children: [
+      jsx("dt", { children: "Download" }),
+      jsx("dd", { children: formatBytes(manifest?.bytes ?? 0, { approx: true }) }),
+      jsx("dt", { children: "On disk" }),
+      jsx("dd", { children: formatBytes(manifest?.disk_bytes ?? 0, { approx: true }) }),
+      jsx("dt", { children: "Installs to" }),
+      jsx("dd", { className: "path", title: root ?? "", children: shortPath(root) ?? "the plugin's deps folder" }),
+      jsx("dt", { children: "Already here" }),
+      jsx("dd", { className: node.ok ? "good" : "bad", children: node.ok ? `Node.js ${node.version} (from Hermes)` : "Node.js not found" })
+    ]
+  });
+}
+function InstallProgress({ install, phase, verifying, elsewhere }) {
+  if (phase !== "running") {
+    return null;
+  }
+  if (elsewhere && install?.state !== "running") {
+    return jsx(Working, { children: "The tools are being installed from a chat. This page moves on when they are verified." });
+  }
+  const fraction = Math.max(0.02, Math.min(1, install?.fraction ?? 0));
+  const downloaded = install?.downloaded_bytes ?? 0;
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 8 },
+    children: [
+      jsxs("div", {
+        className: "cs-row cs-mono",
+        style: { justifyContent: "space-between", fontSize: 11.5 },
+        children: [
+          jsx("span", { children: verifying ? "Checking the installed tools…" : `${Math.round(fraction * 100)}%` }),
+          jsx("span", { className: "cs-faint", children: downloaded > 0 ? `${formatBytes(downloaded)} downloaded` : install?.seeded ? "Using files already on this computer" : "" })
+        ]
+      }),
+      jsx("div", { className: "cs-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(fraction * 100), children: jsx("b", { style: { width: `${fraction * 100}%` } }) })
+    ]
+  });
+}
+function InstallActions({ installer, compact = false }) {
+  const { phase, start, starting, ask, node, unsupported } = installer;
+  if (unsupported) {
+    return jsxs("div", {
+      className: "cs-col",
+      style: { gap: 10 },
+      children: [
+        jsx(Small, { tone: "warn", children: "This hermretro backend cannot install from the page yet. Update the plugin, or let Hermes do it in a chat." }),
+        jsx("div", { className: "cs-actions", children: jsx(AsyncButton, { icon: "comment-discussion", run: ask, variant: "default", children: "Set up in chat" }) })
+      ]
+    });
+  }
+  if (!node.ok) {
+    return jsx(Small, {
+      tone: "warn",
+      children: node.version ? `Found Node.js ${node.version}, which is too old (hermretro needs ${node.required} or newer). Update Hermes, then come back.` : `Node.js was not found. Hermes normally installs it; run "hermes update", restart Hermes, then come back.`
+    });
+  }
+  if (phase === "done" && installer.needsProfile) {
+    return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
+      className: "cs-actions",
+      children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
+    });
+  }
+  if (phase === "done" && installer.profileWork.state !== "failed") {
+    return jsx(Working, { quiet: true, children: "Tools verified. Waiting for Hermes to start the hermretro profile…" });
+  }
+  if (phase === "review") {
+    return jsx("div", {
+      className: "cs-actions",
+      children: jsxs(Button, {
+        disabled: starting || installer.updating,
+        onClick: () => void start(),
+        size: compact ? "sm" : "lg",
+        variant: "default",
+        children: [jsx(Codicon, { name: "cloud-download", size: 14 }), "Download and install"]
+      })
+    });
+  }
+  if (phase === "failed") {
+    return jsxs("div", {
+      className: "cs-actions",
+      children: [
+        jsxs(Button, {
+          disabled: starting || installer.updating,
+          onClick: () => void start(),
+          size: compact ? "sm" : "lg",
+          variant: "default",
+          children: [jsx(Codicon, { name: "refresh", size: 14 }), "Try again"]
+        }),
+        jsx(AsyncButton, { icon: "comment-discussion", run: ask, title: "Opens a chat with the error in it, not sent", children: "Ask Hermes to fix it" })
+      ]
+    });
+  }
+  return null;
+}
+function InstallError({ installer }) {
+  const { failure, phase, profileWork } = installer;
+  return [
+    phase === "failed" && failure ? jsx("p", { className: "cs-error", children: failure }, "error") : null,
+    profileWork.state === "failed" ? jsx("p", { className: "cs-error", children: `The hermretro profile could not be created: ${profileWork.error}` }, "profile") : null
+  ];
+}
+function profileRowState(installer, profileStep, status) {
+  const profile = status.data?.profile;
+  if (!profile) {
+    return null;
+  }
+  if (profileStep?.state === "done") {
+    return "done";
+  }
+  if (installer.profileWork.state === "failed") {
+    return "failed";
+  }
+  return installer.profileWork.state !== "idle" || profile.studio?.installed ? "running" : "pending";
+}
+function InstallPanel({ ctx, status, install, step, profileStep }) {
+  const installer = useInstaller({ ctx, install, status, toolchainDone: step.state === "done" });
+  const data = install.data;
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
+      jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase: installer.phase, verifying: installer.verifying }),
+      data?.manifest ? jsx(DownloadTable, { install: data.install, manifest: data.manifest, phase: installer.phase, profileRow: profileRowState(installer, profileStep, status) }) : install.isError ? null : jsx(Working, { quiet: true, children: "Reading the download list…" }),
+      jsx(InstallLog, { install: data?.install, phase: installer.phase }),
+      ...InstallError({ installer }),
+      jsx(InstallActions, { compact: true, installer })
+    ]
+  });
+}
+
+// page/pages/setup/remove-tools.js
+function RemoveTools({ status, doctor }) {
+  const [state, setState] = useState("idle");
+  const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
+  const remove = async () => {
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
+      setState("idle");
+      return;
+    }
+    setState("working");
+    setFailure(null);
+    try {
+      const { data } = await callBackend(RPC_REMOVE_TOOLS, {}, 12e4);
+      if (!data?.ok) {
+        throw new Error(data?.error || "The tools could not be removed.");
+      }
+      host.notify({ kind: "success", message: `Downloaded tools removed (${formatBytes(data.removed_bytes, { unit: "MB" })}). Your games are untouched.` });
+      status.refetch?.();
+      doctor.refetch?.();
+      setState("idle");
+    } catch (error) {
+      const { message, notLoaded } = describeRequestError(error);
+      setFailure(notLoaded ? "This hermretro backend cannot remove the tools yet. Restart Hermes, then try again." : message || String(error));
+      setState("idle");
+    }
+  };
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 8 },
+    children: [
+      state === "confirm" ? jsxs("div", {
+        className: "cs-actions",
+        children: [
+          jsx("span", { children: "Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute)." }),
+          jsx(Button, { disabled: updating, onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
+          jsx(Button, { onClick: () => setState("idle"), size: "sm", variant: "ghost", children: "Cancel" })
+        ]
+      }) : jsx("div", {
+        children: jsx(Button, {
+          disabled: state === "working" || updating,
+          onClick: () => setState("confirm"),
+          size: "sm",
+          variant: "ghost",
+          children: state === "working" ? "Removing…" : "Remove downloaded tools"
+        })
+      }),
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
+}
+
+// page/pages/setup/toolchain-step.js
+var COMPONENT_STATUS = { ready: "Ready", missing: "Missing", incompatible: "Incompatible", unknown: "Unknown" };
+function ComponentRow({ component }) {
+  const status = component.optional && component.status !== "ready" ? "optional" : component.status ?? "unknown";
+  const versions = [
+    component.required ? `needs ${component.required}` : null,
+    component.detected ? `found ${component.detected}` : component.status === "missing" ? "not found" : null
+  ].filter(Boolean).join(" · ");
+  return jsxs("div", {
+    className: "cs-comp",
+    children: [
+      jsx(Glyph, { state: component.status === "ready" ? "done" : component.status === "incompatible" ? "error" : "todo" }),
+      jsxs("span", {
+        className: "name",
+        children: [component.label ?? component.id, component.optional ? jsx("small", { children: "optional" }) : null]
+      }),
+      jsx("span", { className: "ver", children: versions }),
+      jsx("span", { className: `st ${status}`, children: status === "optional" ? "Optional" : COMPONENT_STATUS[status] ?? "Unknown" }),
+      component.detail ? jsx("span", { className: "detail", children: component.detail }) : null
+    ]
+  });
+}
+function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
+  if (!status.data?.ok) {
+    return jsx(Small, { children: "Checked once the plugin is on." });
+  }
+  const platform = status.data.platform;
+  const engine = status.data.engine ?? {};
+  const deps = status.data.deps ?? {};
+  const report = doctor.data;
+  const rows = (report?.ok ? report.components ?? [] : []).filter((component) => component.id !== "node" && component.id !== "runtime").map((component) => jsx(ComponentRow, { component }, component.id ?? component.label));
+  return jsxs("div", {
+    className: "cs-content",
+    children: [
+      jsx(Lede, {
+        children: "The compilers and emulator that turn a project into a real Game Boy Color ROM and let Hermes playtest it: GB Studio, GBDK and PyBoy."
+      }),
+      step.state === "error" ? jsxs("div", {
+        className: "cs-col",
+        style: { gap: 10 },
+        children: [
+          jsx("p", {
+            className: "cs-error",
+            children: `Toolchain check failed: ${report?.error || describeRequestError(doctor.error).message || "unknown error"}`
+          }),
+          jsx("div", {
+            className: "cs-actions",
+            children: jsxs(Button, {
+              disabled: doctor.isFetching,
+              onClick: () => void doctor.refetch?.(),
+              size: "sm",
+              variant: "default",
+              children: [jsx(Codicon, { name: "refresh", size: 14, spinning: doctor.isFetching }), "Check again"]
+            })
+          })
+        ]
+      }) : null,
+      platform && platform.qualified === false ? jsx(Small, {
+        tone: "warn",
+        children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : platform.node_arch && platform.machine && platform.node_arch !== platform.machine ? `The Node.js hermretro found is built for ${platform.node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine === "arm64" ? "Apple Silicon" : platform.machine} version of Node.js (for example with Homebrew in /opt/homebrew).` : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
+      }) : null,
+      (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
+      step.state === "done" || step.state === "error" ? jsx("div", {
+        className: "cs-comps",
+        children: [
+          jsx(ComponentRow, {
+            component: {
+              id: "engine",
+              label: "Chromatic engine",
+              status: engine.present ? engine.verified === false ? "incompatible" : "ready" : "missing",
+              detected: engine.present ? engine.version : "",
+              detail: engine.detail || (engine.present && engine.verified === false ? "Engine could not be verified." : "")
+            }
+          }, "engine"),
+          ...rows
+        ]
+      }) : null,
+      !report && step.state === "checking" ? jsx(Working, { quiet: true, children: "Checking installed tools…" }) : null,
+      deps.toolchain_root && step.state === "done" ? jsxs("span", {
+        className: "cs-faint",
+        children: [
+          "Install folder: ",
+          jsx("span", { className: "cs-mono", children: deps.toolchain_root }),
+          deps.toolchain_cache_reused_from ? ". Downloads were reused from an existing ModRetro install on this computer." : ""
+        ]
+      }) : null,
+      step.state === "done" ? jsx(RemoveTools, { doctor, status }) : null
+    ]
+  });
+}
+
+// page/pages/setup/wizard.js
+function stepBody(step, props) {
+  switch (step.id) {
+    case "profile":
+      return jsx(ProfileBody, props);
+    case "toolchain":
+      return jsx(ToolchainBody, { ...props, step });
+    case "firmware":
+      return jsx(FirmwareBody, { ...props, step });
+    case "devmode":
+      return jsx(DevModeBody, { ...props, step });
+    case "devicecli":
+      return jsx(DeviceSoftwareBody, { ...props, step });
+    default:
+      return jsx(HardwareBody, { ...props, step });
+  }
+}
+function StepRail({ steps, shownId, autoId, onPick, skipped }) {
+  const done = steps.filter((step) => step.state === "done").length;
+  const item = (step, position) => jsxs(
+    "button",
+    {
+      "aria-current": step.id === shownId ? "step" : void 0,
+      className: "cs-rail-item",
+      "data-auto": step.id === autoId ? "" : void 0,
+      "data-state": step.state,
+      onClick: () => onPick(step.id),
+      type: "button",
+      children: [
+        jsx("span", { className: "n", children: String(position + 1).padStart(2, "0") }),
+        jsx("span", { className: "l", children: STEP_SHORT[step.id] }),
+        jsx(Glyph, { state: step.state })
+      ]
+    },
+    step.id
+  );
+  return jsxs("nav", {
+    "aria-label": "Setup steps",
+    className: "cs-rail",
+    children: [
+      jsx("span", { className: "cs-rail-group", children: "Make games" }),
+      ...steps.filter((step) => !step.hardware).map((step) => item(step, steps.indexOf(step))),
+      jsxs("span", { className: "cs-rail-group second", children: [jsx("span", { children: "Your Chromatic" }), jsx("span", { children: "optional" })] }),
+      ...steps.filter((step) => step.hardware).map((step) => item(step, steps.indexOf(step))),
+      jsx("div", {
+        className: "cs-meter",
+        children: steps.map(
+          (step, position) => jsx(
+            "button",
+            {
+              "aria-label": `Step ${position + 1}: ${step.title} (${(INDICATOR[step.state] ?? INDICATOR.waiting).label})`,
+              className: step.id === HARDWARE_STEPS[0] ? "gap" : void 0,
+              "data-auto": step.id === autoId ? "" : void 0,
+              "data-state": step.state,
+              onClick: () => onPick(step.id),
+              type: "button",
+              children: jsx("i", {})
+            },
+            step.id
+          )
+        )
+      }),
+      jsx("span", { className: "cs-faint cs-mono", children: `${done} / ${steps.length} done${skipped ? " · emulator only" : ""}` })
+    ]
+  });
+}
+function StepStage({ step, number, total, children, footer }) {
+  const tag = step.state === "done" ? jsx("span", { className: "cs-tag good", children: "Done" }) : step.state === "error" ? jsx("span", { className: "cs-tag bad", children: "Problem" }) : step.state === "skipped" ? jsx("span", { className: "cs-tag quiet", children: "Skipped" }) : step.hardware ? jsx("span", { className: "cs-tag quiet", children: "Only for a physical Chromatic" }) : null;
+  return jsxs("section", {
+    "aria-live": "polite",
+    className: "cs-stage",
+    children: [
+      jsxs("div", {
+        className: "cs-stage-head",
+        children: [
+          jsxs("p", {
+            className: "cs-eyebrow",
+            children: [
+              jsx("span", { className: "cs-accent", children: `Step ${number} of ${total}` }),
+              jsx("span", { children: step.hardware ? "Your Chromatic" : "Make games" }),
+              tag
+            ]
+          }),
+          jsx("h2", { className: "cs-word cs-title", children: step.title })
+        ]
+      }),
+      children,
+      footer
+    ]
+  });
+}
+function SetupWizard({ ctx, steps, shown, autoId, backend, status, doctor, gateway, install, update, onPick, onContinue }) {
+  const position = steps.indexOf(shown);
+  const reviewing = shown.id !== autoId;
+  const waiting = !reviewing && !shown.manual && !shown.complete && shown.state !== "blocked";
+  const left = [];
+  const right = [];
+  if (position > 0) {
+    left.push(
+      jsxs(
+        Button,
+        {
+          onClick: () => onPick(steps[position - 1].id),
+          size: "sm",
+          variant: "ghost",
+          children: [jsx(Codicon, { name: "arrow-left", size: 14 }), "Back"]
+        },
+        "back"
+      )
+    );
+  }
+  if (waiting) {
+    left.push(jsx(Working, { quiet: true, children: "Checking automatically; this page moves on when the step is done." }, "waiting"));
+  }
+  if (shown.hardware && !shown.complete) {
+    right.push(
+      jsx(Button, { onClick: () => update({ hardwareSkipped: true }), size: "sm", variant: "ghost", children: "Skip, I'll use the emulator" }, "skip")
+    );
+  }
+  if (shown.state === "skipped") {
+    right.push(
+      jsx(
+        Button,
+        { onClick: () => update({ hardwareSkipped: false, hardwareWanted: true }), size: "sm", variant: "outline", children: "Set up my Chromatic" },
+        "unskip"
+      )
+    );
+  }
+  if (reviewing) {
+    right.push(
+      jsxs(
+        Button,
+        { onClick: onContinue, size: "sm", variant: "default", children: ["Continue", jsx(Codicon, { name: "arrow-right", size: 14 })] },
+        "continue"
+      )
+    );
+  }
+  const footer = left.length || right.length ? jsxs("div", {
+    className: "cs-stage-foot",
+    children: [jsx("div", { className: "cs-row", style: { flex: "1 1 auto" }, children: left }), jsx("div", { className: "cs-row", children: right })]
+  }) : null;
+  return jsx(StepStage, {
+    step: shown,
+    number: position + 1,
+    total: steps.length,
+    footer,
+    children: jsxs("div", {
+      className: "cs-content",
+      children: [
+        shown.state === "skipped" ? jsx(Small, { children: "Skipped: you are using the emulator. Streaming and flashing stay off until your Chromatic is set up." }) : null,
+        stepBody(shown, { backend, ctx, doctor, gateway, install, status, steps, update })
+      ]
+    })
+  });
+}
+
+// page/pages/setup/setup-page.js
+function SetupPage({ shell }) {
+  const { autoId, backend, choosing, ctx, doctor, gateway, install, memory, pick, shown, status, steps, update } = shell;
+  return jsxs("div", {
+    className: "cs-setup",
+    children: [
+      jsx(StepRail, { autoId, onPick: pick, shownId: shown?.id ?? null, skipped: Boolean(memory.hardwareSkipped), steps }, "rail"),
+      shown ? jsx(SetupWizard, { autoId, backend, ctx, doctor, gateway, install, onContinue: shell.unpin, onPick: pick, shown, status, steps, update }, "wizard") : choosing ? jsx(HardwareChoice, { steps, update }, "choice") : jsx(
+        SetupComplete,
+        {
+          doctor,
+          emulatorOnly: shell.emulatorOnly,
+          onGo: shell.go,
+          onRecheck: shell.refresh,
+          onSetUpDevice: shell.setUpDevice,
+          pluginUpdate: shell.pluginUpdate,
+          rechecking: shell.refreshing,
+          status,
+          steps
+        },
+        "complete"
+      ),
+      jsx(Flyer, {}, "flyer")
+    ]
+  });
+}
+
+// page/pages/setup/onboarding/onboarding.js
+var ONBOARD_STAGES = [
+  ["install", "Install"],
+  ["chromatic", "Your hardware"],
+  ["make", "First game"]
+];
+function OnboardHeader({ stage, end = null }) {
+  const index = ONBOARD_STAGES.findIndex(([id]) => id === stage);
+  return jsxs("header", {
+    className: "cs-top",
+    children: [
+      jsxs("span", { className: "cs-brand", style: { cursor: "default" }, children: ["herm", jsx("span", { children: "retro" })] }),
+      index >= 0 ? jsxs("div", {
+        "aria-label": `Setup, step ${index + 1} of ${ONBOARD_STAGES.length}: ${ONBOARD_STAGES[index][1]}`,
+        className: "cs-onb-steps",
+        role: "img",
+        children: [
+          ...ONBOARD_STAGES.map(([id], position) => jsx("i", { className: position < index ? "done" : position === index ? "cur" : "" }, id)),
+          jsx("span", { children: `${index + 1} / ${ONBOARD_STAGES.length} · ${ONBOARD_STAGES[index][1]}` })
+        ]
+      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) }),
+      end ? jsx("div", { className: "cs-top-end", children: end }) : null
+    ]
+  });
+}
+function OnboardWelcome({ manifest, onStart }) {
+  return jsxs("div", {
+    className: "cs-onb-hero",
+    children: [
+      jsxs("div", {
+        className: "cs-col",
+        style: { gap: 24 },
+        children: [
+          jsxs("p", {
+            className: "cs-eyebrow",
+            children: [jsx("span", { className: "cs-accent", children: "● Welcome" }), jsx("span", { children: "First-time setup · a few minutes" })]
+          }),
+          jsxs("h1", { className: "cs-word", children: ["Make a game.", jsx("br", {}), jsx("span", { className: "cs-accent", children: "Play it tonight." })] }),
+          jsx(Lede, {
+            children: "hermretro turns a chat with Hermes into a real Game Boy Color game. Before your first game it needs the tools that build and playtest ROMs. Everything goes into the plugin's own folder."
+          }),
+          jsxs("div", {
+            className: "cs-actions",
+            style: { gap: 16 },
+            children: [
+              jsxs(Button, { onClick: onStart, size: "lg", variant: "default", children: ["Get started", jsx(Codicon, { name: "arrow-right", size: 14 })] }),
+              manifest ? jsx("span", { className: "cs-faint cs-mono", children: `${formatBytes(manifest.bytes, { approx: true })} download · ${formatBytes(manifest.disk_bytes, { approx: true })} on disk` }) : null
+            ]
+          })
+        ]
+      }),
+      jsx(Art, {})
+    ]
+  });
+}
+function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
+  const installer = useInstaller({ ctx, install, status, toolchainDone });
+  const data = install.data;
+  const { phase } = installer;
+  const title = phase === "failed" ? ["One part ", jsx("span", { className: "cs-bad", children: "didn't finish" }, "a")] : phase === "review" ? ["Here's what gets ", jsx("span", { className: "cs-accent", children: "downloaded" }, "a")] : ["Setting up the ", jsx("span", { className: "cs-accent", children: "studio" }, "a")];
+  const lede = phase === "failed" ? "Nothing is broken, and the parts that finished are kept. Try again, or ask Hermes to look at the error." : phase === "review" ? "Every file is pinned to an exact version and checked against its SHA-256 before it is used. Nothing is installed system-wide: it all goes into hermretro's folder in your Hermes home, where your games live too." : "You can leave this page: the install keeps running, and this page moves on when the tools are verified.";
+  return jsxs("div", {
+    className: "cs-onb-split",
+    children: [
+      jsxs("div", {
+        className: "cs-col",
+        style: { gap: 22 },
+        children: [
+          jsxs("p", {
+            className: "cs-eyebrow",
+            children: [
+              jsx("span", { className: phase === "failed" ? "cs-bad" : "cs-accent", children: "Step 1 of 3" }),
+              jsx("span", { children: { review: "Install", running: "Installing", failed: "Stopped", done: "Installed" }[phase] })
+            ]
+          }),
+          jsx("h2", { className: "cs-word cs-title", children: title }),
+          jsx(Lede, { children: lede }),
+          jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
+          jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase, verifying: installer.verifying }),
+          ...InstallError({ installer }),
+          jsx(InstallActions, { installer })
+        ]
+      }),
+      jsxs("div", {
+        className: "cs-col",
+        style: { gap: 18 },
+        children: [
+          data?.manifest ? jsx(DownloadTable, { install: data.install, manifest: data.manifest, phase, profileRow: profileRowState(installer, profileStep, status) }) : install.isError && !installer.unsupported ? jsx("p", { className: "cs-error", children: describeRequestError(install.error).message }) : installer.unsupported ? null : jsx(Working, { quiet: true, children: "Reading the download list…" }),
+          jsx(InstallLog, { install: data?.install, phase }),
+          data?.manifest && !data.manifest.exact ? jsx("span", { className: "cs-faint", children: `Sizes were measured on ${data.manifest.measured_on} and are approximate here.` }) : null
+        ]
+      })
+    ]
+  });
+}
+function OnboardChromatic({ onEmulator, onDevice }) {
+  const card = ({ tag, tone, title, text: text2, onClick, art, primary }) => jsxs("button", {
+    className: primary ? "cs-hwcard primary" : "cs-hwcard",
+    onClick,
+    type: "button",
+    children: [
+      art,
+      jsxs("span", {
+        className: "cs-col",
+        style: { gap: 8 },
+        children: [
+          jsx("span", { className: `cs-tag ${tone}`, style: { alignSelf: "flex-start" }, children: tag }),
+          jsx("span", { className: "cs-word t", children: title }),
+          jsx("span", { className: "cs-small", children: text2 })
+        ]
+      })
+    ]
+  });
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 28 },
+    children: [
+      jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "Step 2 of 3" }), jsx("span", { children: "Your hardware" })] }),
+      jsxs("h2", { className: "cs-word cs-onb-title", children: ["Do you have a ", jsx("span", { className: "cs-accent", children: "Chromatic?" })] }),
+      jsx(Lede, { children: "Every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge." }),
+      jsxs("div", {
+        className: "cs-hwcards",
+        children: [
+          card({
+            art: jsx("span", { "aria-hidden": true, className: "cs-hwart screen", children: jsx(Codicon, { name: "play", size: 22 }) }),
+            onClick: onEmulator,
+            primary: true,
+            tag: "Ready now",
+            text: "Make and play games in the emulator. You can add a Chromatic later from Setup.",
+            title: "Not yet",
+            tone: "good"
+          }),
+          card({
+            art: jsx("span", { "aria-hidden": true, className: "cs-hwart device" }),
+            onClick: onDevice,
+            tag: "4 more steps",
+            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
+            title: "Yes, I have one",
+            tone: "quiet"
+          })
+        ]
+      })
+    ]
+  });
+}
+var IDEAS = [
+  ["Tiny platformer", "a tiny platformer where a frog hops across lily pads to reach home"],
+  ["Top-down adventure", "a top-down adventure where a gardener collects three seeds to open a gate"],
+  ["Puzzle game", "a short puzzle game about pushing crates onto switches"],
+  ["Spooky story", "a spooky little story game set in an abandoned lighthouse"]
+];
+function makePrompt(idea) {
+  const text2 = idea.trim();
+  return text2 ? `Use hermretro to make a new Game Boy Color game: ${text2}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.` : NEW_GAME_PROMPT;
+}
+function OnboardMake({ ctx, onDone }) {
+  const [idea, setIdea] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = async (prompt) => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPromptToChat(ctx, prompt, { fresh: true });
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return jsxs("div", {
+    className: "cs-onb-hero",
+    children: [
+      jsxs("div", {
+        className: "cs-col",
+        style: { gap: 22 },
+        children: [
+          jsxs("p", {
+            className: "cs-eyebrow",
+            children: [jsx("span", { className: "cs-good", children: "● Studio ready" }), jsx("span", { children: "Step 3 of 3" })]
+          }),
+          jsxs("h2", { className: "cs-word cs-onb-title", children: ["What do you", jsx("br", {}), "want to ", jsx("span", { className: "cs-accent", children: "make?" })] }),
+          jsxs("div", {
+            className: "cs-idea",
+            children: [
+              jsx("textarea", {
+                "aria-label": "Your game idea",
+                onChange: (event) => setIdea(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    void go(makePrompt(idea));
+                  }
+                },
+                placeholder: "A frog who delivers mail across a flooded town…",
+                rows: 3,
+                value: idea
+              }),
+              jsxs("div", {
+                className: "cs-row",
+                style: { justifyContent: "space-between" },
+                children: [
+                  jsx("span", { className: "cs-faint", children: "Hermes asks a few questions, then builds the first room. The prompt opens in a new chat." }),
+                  jsxs(Button, {
+                    disabled: busy,
+                    onClick: () => void go(makePrompt(idea)),
+                    size: "sm",
+                    variant: "default",
+                    children: ["Start in chat", jsx(Codicon, { name: "arrow-right", size: 14 })]
+                  })
+                ]
+              })
+            ]
+          }),
+          jsxs("div", {
+            "aria-label": "Ideas",
+            className: "cs-ideas",
+            role: "group",
+            children: [
+              ...IDEAS.map(([label, text2]) => jsx("button", { onClick: () => setIdea(text2), type: "button", children: label }, label)),
+              jsx("button", { disabled: busy, onClick: () => void go(promptById("plan").text), type: "button", children: "Plan it first" }, "plan")
+            ]
+          }),
+          jsx("div", { children: jsx(Button, { onClick: onDone, size: "sm", variant: "ghost", children: "Skip, take me to the studio" }) })
+        ]
+      }),
+      jsx(Art, {})
+    ]
+  });
+}
+function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice }) {
+  const toolchain = steps.find((step) => step.id === "toolchain");
+  const profileStep = steps.find((step) => step.id === "profile");
+  let body2;
+  if (screen2 === "checking") {
+    body2 = jsx(Working, { children: "Checking what is already installed…" });
+  } else if (screen2 === "welcome") {
+    body2 = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
+  } else if (screen2 === "install") {
+    body2 = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
+  } else if (screen2 === "chromatic") {
+    body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
+  } else {
+    body2 = jsx(OnboardMake, { ctx, onDone: onFinish });
+  }
+  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body2 });
+}
+
+// page/pages/setup/index.js
+function SetupBadge({ nav }) {
+  return nav.setupPending ? jsx("i", { "aria-label": "setup is not finished", className: "pip", role: "img" }) : null;
+}
+var SETUP_PAGE = {
+  id: "setup",
+  label: "Setup",
+  Page: SetupPage,
+  Badge: SetupBadge,
+  css: [SETUP_CSS, ONBOARDING_CSS]
+};
 
 // page/pages/build/studio-needed.js
 function StudioNeeded({ status }) {
@@ -12662,7 +12510,7 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
 }
 
 // page/pages/build/chat/events.js
@@ -13450,7 +13298,9 @@ var BASE_CSS = `
 .cs-warn { color: var(--ui-yellow); }
 .cs-bad { color: var(--ui-red); }
 .cs-good { color: var(--ui-green); }
-.cs-draft { color: var(--ui-yellow); font: 700 9.5px ${MONO}; letter-spacing: .1em; text-transform: uppercase; }
+.cs-foot { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding-top: 16px; }
+.cs-screen { aspect-ratio: 10 / 9; background: var(--ui-bg-tertiary); display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.cs-screen.ph { align-content: center; color: var(--ui-text-quaternary); display: grid; font: 700 10px/1.4 ${MONO}; letter-spacing: .1em; padding: 10px; text-align: center; text-transform: uppercase; }
 .cs-link { all: unset; color: var(--ui-accent); cursor: pointer; font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
 .cs-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cs-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
@@ -13458,10 +13308,6 @@ var BASE_CSS = `
 
 // page/shared/styles/responsive.css.js
 var RESPONSIVE_CSS = `
-@container (max-width: 1100px) {
-  .cs-band { grid-template-columns: 1fr 1fr; }
-  .cs-band > section:nth-child(3) { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); grid-column: 1 / -1; padding-left: 0; }
-}
 @container (max-width: 1000px) {
   .cs-setup { grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 1fr); }
   .cs-setup > .cs-flyer { display: none; }
@@ -13471,7 +13317,7 @@ var RESPONSIVE_CSS = `
   .cs-empty > .cs-art { display: none; }
 }
 /* Narrow main pane (an emulator tab docked beside it, a small window): the header stays one row.
-   The segments tighten, Refresh keeps only its icon, the wordmark goes (Home does the same) and, as
+   The segments tighten, Refresh keeps only its icon, the wordmark goes and, as
    a last resort, the segments scroll sideways. The player bar stops wrapping the same way and, below
    560px, its buttons keep only their icons (each has a tooltip and an aria-label). */
 @container (max-width: 900px) {
@@ -13495,12 +13341,10 @@ var RESPONSIVE_CSS = `
   .cs-rp-focus { padding: 0 6px; }
 }
 @container (max-width: 760px) {
-  .cs-setup, .cs-hero, .cs-band, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
+  .cs-setup, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
   .cs-rail, .cs-rlist { position: static; }
   .cs-rail-item, .cs-rail-group { display: none; }
   .cs-meter { margin-top: 0; }
-  .cs-hero > .cs-art { display: none; }
-  .cs-band > section { border-left: 0 !important; border-top: 1px solid var(--ui-stroke-tertiary); padding-left: 0; }
   .cs-choice { grid-template-columns: 1fr; }
   .cs-choice > div + div { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); padding-left: 0; }
 }
@@ -13587,6 +13431,39 @@ var SHELL_CSS = `
 .cs-tab-body { display: contents; }
 `;
 
+// page/app/update/update.css.js
+var UPDATE_CSS = `
+.cs-top-end { align-items: center; gap: 10px; }
+.cs-upd { position: relative; }
+.cs-upd-chip { appearance: none; border: 0; color: var(--ui-text-primary); cursor: pointer; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.cs-upd-chip.accent { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-upd-chip.accent > i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); }
+.cs-upd-chip.good { background: color-mix(in srgb, var(--ui-green) 13%, transparent); }
+.cs-upd-chip.warn { background: color-mix(in srgb, var(--ui-yellow) 12%, transparent); }
+.cs-upd-chip.bad { background: color-mix(in srgb, var(--ui-red) 12%, transparent); }
+.cs-upd-chip:hover { filter: brightness(1.15); }
+.cs-upd-chip:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-upd-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 14px 36px color-mix(in srgb, black 40%, transparent); display: flex; flex-direction: column;
+  gap: 8px; padding: 14px 16px; position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); z-index: 30; }
+.cs-upd-pop h3 { font-size: 17px; }
+.cs-upd-pop p { color: var(--ui-text-secondary); font-size: 13px; line-height: 1.45; margin: 0; }
+.cs-upd-pop .cs-eyebrow { color: var(--ui-text-tertiary); }
+.cs-upd-kv { align-items: baseline; display: flex; gap: 10px; }
+.cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.cs-upd-fill { flex: 1; }
+.cs-upd-pop p.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); color: var(--ui-text-primary); display: flex; gap: 8px; padding: 7px 9px; }
+.cs-upd-wait > :first-child { color: var(--ui-yellow); flex: none; margin-top: 2px; }
+.cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
+.cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
+.cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
+.cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
+.cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
+.cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
+`;
+
 // page/app/style.js
 var stylesheet = "";
 function composeStyles(pages) {
@@ -13594,6 +13471,7 @@ function composeStyles(pages) {
   return [
     BASE_CSS,
     SHELL_CSS,
+    UPDATE_CSS,
     FLYER_CSS,
     ...pages.filter((page) => !page.cssLast).flatMap(chunks),
     RESPONSIVE_CSS,
@@ -13959,7 +13837,7 @@ var EMULATOR_PAGE = {
 };
 
 // page/pages/index.js
-var PAGES = [HOME_PAGE, BUILD_PAGE, SETUP_PAGE, PROMPTS_PAGE, GAMES_PAGE, EMULATOR_PAGE];
+var PAGES = [BUILD_PAGE, SETUP_PAGE, PROMPTS_PAGE, GAMES_PAGE, EMULATOR_PAGE];
 
 // page/app/registry.js
 var PAGE_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "tabs", "Badge", "pad", "BelowPlayer", "css", "cssLast", "events", "listens", "slots", "contributes", "register"]);
@@ -15205,8 +15083,362 @@ function shrinkFrame(dataUrl) {
   });
 }
 
+// page/app/update/flow.js
+var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
+var UPDATE_MARKER = "update";
+var UPDATE_TIMEOUT_MS = 3e5;
+function requestOn(target, method, params, timeoutMs) {
+  return target.route ? host.requestProfile(target.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function installTarget(installedIn) {
+  const profile = installedIn?.linked ? null : installedIn?.profile ?? null;
+  if (!profile) {
+    return null;
+  }
+  let active = null;
+  try {
+    active = host.state.profile?.get?.() ?? null;
+  } catch {
+    active = null;
+  }
+  if (profile === active) {
+    return { route: null, profile };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    return null;
+  }
+  const routes = await host.profileRoutes().catch(() => []) ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === profile);
+  return route ? { route, profile } : null;
+}
+async function studioReloadTarget(exists = false) {
+  const known = studioTarget();
+  if (known) {
+    return { route: known.route, profile: STUDIO_PROFILE };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    if (exists) {
+      throw new Error("this Hermes cannot reach the hermretro profile from here");
+    }
+    return null;
+  }
+  const routes = await host.profileRoutes() ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === STUDIO_PROFILE);
+  if (route) {
+    return { route, profile: STUDIO_PROFILE };
+  }
+  if (exists) {
+    throw new Error("the hermretro profile is not reachable right now");
+  }
+  return null;
+}
+var BUSY_STATUSES = /* @__PURE__ */ new Set(["starting", "working", "waiting", "streaming"]);
+async function busyChats(studio) {
+  if (!studio) {
+    return [];
+  }
+  const answer = await requestOn(studio, "session.active_list", {}, 15e3);
+  const sessions = Array.isArray(answer?.sessions) ? answer.sessions : [];
+  return sessions.filter((session) => BUSY_STATUSES.has(session?.status)).map((session) => String(session.title || session.preview || "a chat").trim());
+}
+function busySentence(chats) {
+  const names = chats.slice(0, 2).map((name) => `"${name}"`).join(" and ");
+  return chats.length === 1 ? `A game is being built in ${names}. You can update when it finishes.` : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? "…" : ""}). You can update when they finish.`;
+}
+function pluginRow(list) {
+  const rows = Array.isArray(list?.plugins) ? list.plugins : [];
+  return rows.find((row) => row?.name === ID || row?.key === ID) ?? null;
+}
+async function refreshDesktopHalf() {
+  const reconcile = globalThis.window?.hermesDesktop?.reconcileDesktopPlugins;
+  if (typeof reconcile !== "function") {
+    return false;
+  }
+  try {
+    await reconcile();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function reloadStudio(studio) {
+  const toggle = (enable) => requestOn(studio, "plugins.manage", { action: "toggle", name: ID, enable }, 6e4);
+  await toggle(false);
+  let answer = null;
+  for (let attempt = 0; attempt < 2 && !answer?.ok; attempt += 1) {
+    answer = await toggle(true).catch(() => null);
+  }
+  if (!answer?.ok) {
+    throw new Error("hermretro could not be switched back on in the hermretro profile.");
+  }
+  return Boolean(answer.gateway_reloaded) && !answer.restart_required;
+}
+async function runUpdate({
+  install,
+  studio,
+  options = {},
+  resume = false,
+  busy = async () => [],
+  onStep = () => {
+  },
+  onWaiting = () => {
+  },
+  installed = () => {
+  },
+  refused = () => {
+  },
+  remember: remember3 = () => {
+  },
+  waitMs = 2e3,
+  checkTries = 5
+}) {
+  let building;
+  try {
+    building = await busy();
+  } catch (error) {
+    return { kind: "failed", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+  }
+  if (building.length) {
+    return { kind: "busy", chats: building };
+  }
+  onStep(0);
+  installed();
+  const refuse = (outcome) => {
+    if (!resume) {
+      refused();
+    }
+    return outcome;
+  };
+  let result;
+  try {
+    result = await requestOn(install, "plugins.manage", { action: "update", name: ID, ...options }, UPDATE_TIMEOUT_MS);
+  } catch (error) {
+    const message = String(error?.message ?? error ?? "The update did not finish.");
+    return typeof error?.code === "number" ? refuse({ kind: "failed", error: message }) : { kind: "partial", error: `Hermes's answer was lost (${message}), so the update may not have finished` };
+  }
+  if (result?.scan_blocked) {
+    const findings = Array.isArray(result.scan_findings) ? result.scan_findings : [];
+    return refuse(
+      result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { ...options, force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}).` }
+    );
+  }
+  if (result?.consent_required) {
+    return refuse(
+      options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : {
+        kind: "review",
+        findings: [],
+        lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+        retry: { ...options, accept_capabilities: true }
+      }
+    );
+  }
+  if (!result?.ok) {
+    return refuse({ kind: "failed", error: result?.error ?? "The update did not finish." });
+  }
+  if (result.unchanged && !resume) {
+    return refuse({ kind: "current" });
+  }
+  let restart = Boolean(result.restart_required);
+  onStep(1);
+  if (studio && studio.profile !== install.profile) {
+    let finished;
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) };
+    }
+    if (!finished?.ok) {
+      return { kind: "partial", error: `the hermretro profile's settings were not updated (${finished?.error ?? "no answer"})` };
+    }
+    for (let failures = 0; ; ) {
+      let chats;
+      try {
+        chats = await busy();
+        failures = 0;
+      } catch (error) {
+        failures += 1;
+        if (failures >= checkTries) {
+          return { kind: "partial", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+        }
+        chats = null;
+      }
+      if (chats && !chats.length) {
+        break;
+      }
+      if (chats) {
+        onWaiting(chats);
+      }
+      await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+    }
+    onWaiting(null);
+    try {
+      restart = !await reloadStudio(studio) || restart;
+    } catch (error) {
+      return { kind: "partial", error: String(error?.message ?? error) };
+    }
+  }
+  onStep(2);
+  remember3({ result: "updated", restart, at: Date.now() });
+  return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
+}
+
+// page/app/update/chip.js
+var CHIP = {
+  idle: ["accent", "Update ready"],
+  updating: ["accent", "Updating"],
+  review: ["warn", "Needs a look"],
+  failed: ["bad", "Update failed"],
+  restart: ["warn", "Restart to finish"],
+  partial: ["bad", "Finish update"],
+  done: ["good", "Updated"]
+};
+function Steps({ step, waiting }) {
+  const labels = waiting?.length ? UPDATE_STEPS.map((label, index) => index === 1 ? `Waiting for "${waiting[0]}" to finish building` : label) : UPDATE_STEPS;
+  return jsx("ol", {
+    className: "cs-upd-steps",
+    children: labels.map(
+      (label, index) => jsxs(
+        "li",
+        {
+          "data-state": index < step ? "done" : index === step ? "now" : "todo",
+          children: [
+            index < step ? jsx(Codicon, { name: "check", size: 12 }) : index === step ? jsx(Codicon, { name: "loading", size: 12, spinning: true }) : jsx("i", {}),
+            label
+          ]
+        },
+        label
+      )
+    )
+  });
+}
+function Findings({ review }) {
+  const lines = review.findings.length ? review.findings.slice(0, 6).map((f) => `${String(f.severity ?? "").toUpperCase()}  ${f.file ?? ""}:${f.line ?? ""}  ${f.description || f.category || ""}`) : review.lines.slice(0, 8);
+  return lines.length ? jsx("pre", { className: "cs-upd-pre", children: lines.join("\n") }) : null;
+}
+function body(update) {
+  const actions = (...children) => jsx("div", { className: "cs-upd-acts", children });
+  const whatsNew = jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new");
+  switch (update.phase) {
+    case "updating":
+      return ["Updating…", jsx(Steps, { step: update.step, waiting: update.waiting }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
+    case "review":
+      return [
+        "Review the new version",
+        jsx(
+          "p",
+          {
+            children: update.review?.findings?.length ? "Hermes's security check found something to look at before installing it. Nothing has changed yet." : "The new version adds to what hermretro can do in Hermes. Nothing has changed yet."
+          },
+          "p"
+        ),
+        update.review ? jsx(Findings, { review: update.review }, "f") : null,
+        actions(
+          jsx(Button, { onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
+          jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no")
+        )
+      ];
+    case "failed":
+      return [
+        "Couldn't update",
+        jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
+        actions(
+          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "partial":
+      return [
+        "Almost there",
+        jsx(
+          "p",
+          { children: `The new version is installed, but ${String(update.error ?? "its last steps did not finish").replace(/\.$/, "")}. Finish the update to load it everywhere.` },
+          "p"
+        ),
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }, "finish"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "restart":
+      return [
+        "Almost done",
+        jsx("p", { children: "The new version is installed. Quit and reopen Hermes to finish loading it; until then hermretro keeps working." }, "p"),
+        actions(jsx(Button, { onClick: () => update.setOpen(false), size: "sm", variant: "outline", children: "Got it" }, "ok"))
+      ];
+    case "done":
+      return ["Up to date", jsx("p", { children: "Your games, library and chats are kept. New chats use the new version." }, "p"), actions(whatsNew)];
+    default:
+      return [
+        "A new version is ready",
+        jsx("p", { children: "Your games, library and chats are kept. It takes about a minute." }, "p"),
+        update.version ? jsxs("p", { className: "cs-upd-kv", children: [jsx("b", { children: "Installed" }), update.version] }, "kv") : null,
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
+          whatsNew,
+          jsx("span", { className: "cs-upd-fill" }, "fill"),
+          jsx(Button, { onClick: update.later, size: "sm", variant: "ghost", children: "Later" }, "later")
+        )
+      ];
+  }
+}
+function UpdateChip({ update }) {
+  const root = useRef(null);
+  const { open, phase, setOpen } = update;
+  useEffect(() => {
+    if (!open || phase === "updating") {
+      return void 0;
+    }
+    const away = (event) => {
+      if (!root.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", escape, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("keydown", escape, true);
+    };
+  }, [open, phase]);
+  if (!update.visible) {
+    return null;
+  }
+  const [tone, label] = CHIP[phase] ?? CHIP.idle;
+  const [title, ...rest] = body(update);
+  return jsxs("span", {
+    className: "cs-upd",
+    ref: root,
+    children: [
+      jsxs("button", {
+        "aria-expanded": open,
+        "aria-haspopup": "dialog",
+        "aria-label": `hermretro: ${label}`,
+        className: `cs-chip cs-upd-chip ${tone}`,
+        "data-phase": phase,
+        onClick: () => setOpen(!open),
+        title: label,
+        type: "button",
+        children: [phase === "updating" ? jsx(Codicon, { name: "loading", size: 11, spinning: true }) : jsx("i", {}), jsx("span", { className: "cs-lbl", children: label })]
+      }),
+      open ? jsxs("div", {
+        "aria-label": "hermretro update",
+        className: "cs-upd-pop",
+        role: "dialog",
+        children: [jsx("p", { className: "cs-eyebrow", children: "hermretro" }), jsx("h3", { className: "cs-word", children: title }), ...rest]
+      }) : null
+    ]
+  });
+}
+
 // page/app/nav.js
-function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null }) {
+function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
   const page = nav.page;
   return jsxs("header", {
     className: "cs-top",
@@ -15215,9 +15447,9 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
         className: "cs-top-start",
         children: [
           jsxs("button", {
-            "aria-label": "hermretro home",
+            "aria-label": "hermretro: Build",
             className: "cs-brand",
-            onClick: () => onGo("home"),
+            onClick: () => onGo("build"),
             type: "button",
             children: ["herm", jsx("span", { children: "retro" })]
           }),
@@ -15249,22 +15481,25 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
           )
         )
       }),
-      jsx("div", {
+      jsxs("div", {
         className: "cs-top-end",
-        children: jsx(Tip, {
-          label: "Check the setup and reload the studio",
-          children: jsx("span", {
-            style: { display: "inline-flex" },
-            children: jsxs(Button, {
-              "aria-label": "Refresh",
-              disabled: refreshing,
-              onClick: onRefresh,
-              size: "sm",
-              variant: "ghost",
-              children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+        children: [
+          update ? jsx(UpdateChip, { update }, "update") : null,
+          jsx(Tip, {
+            label: "Check the setup and reload the studio",
+            children: jsx("span", {
+              style: { display: "inline-flex" },
+              children: jsxs(Button, {
+                "aria-label": "Refresh",
+                disabled: refreshing,
+                onClick: onRefresh,
+                size: "sm",
+                variant: "ghost",
+                children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+              })
             })
-          })
-        })
+          }, "refresh")
+        ]
       })
     ]
   });
@@ -15273,16 +15508,16 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
 // page/app/not-running.js
 function NotRunning({ backend, status, gateway }) {
   let title = "Checking hermretro…";
-  let body = jsx(Working, { children: "Asking the plugin for its status." });
+  let body2 = jsx(Working, { children: "Asking the plugin for its status." });
   if (backend === "offline") {
     title = "Waiting for Hermes";
-    body = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
+    body2 = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
   } else if (backend === "error") {
     title = "hermretro reported a problem";
-    body = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
+    body2 = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
   } else if (backend === "failed") {
     title = "Could not read hermretro's status";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
@@ -15292,7 +15527,7 @@ function NotRunning({ backend, status, gateway }) {
   } else if (backend === "unavailable") {
     const { message, notLoaded } = describeRequestError(status.error);
     title = "hermretro is not switched on in any profile";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, {
@@ -15328,7 +15563,7 @@ function NotRunning({ backend, status, gateway }) {
           className: "cs-stage-head",
           children: [jsx("p", { className: "cs-eyebrow", children: "Status" }), jsx("h2", { className: "cs-word cs-title", children: title })]
         }),
-        body
+        body2
       ]
     })
   });
@@ -15374,16 +15609,217 @@ function PageView({ page, shell }) {
   return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
 }
 
+// page/app/update/use-update.js
+var CHECK_EVERY_MS = 30 * 6e4;
+var MARKER_FRESH_MS = 15 * 6e4;
+var DONE_SHOWN_MS = 1e4;
+var BUSY_EVERY_MS = 5e3;
+var INSTALLING = "The game tools are being installed. You can update when that finishes.";
+var PENDING = "updatePending";
+function pendingUpdate(ctx) {
+  try {
+    const pending = ctx.storage.get(PENDING, null);
+    return pending && typeof pending === "object" ? pending : null;
+  } catch {
+    return null;
+  }
+}
+function takeMarker(ctx) {
+  try {
+    const marker = ctx.storage.get(UPDATE_MARKER, null);
+    if (marker) {
+      ctx.storage.set(UPDATE_MARKER, null);
+    }
+    return marker && Date.now() - Number(marker.at ?? 0) < MARKER_FRESH_MS ? marker : null;
+  } catch {
+    return null;
+  }
+}
+function remember2(ctx, key, value) {
+  try {
+    ctx.storage.set(key, value);
+  } catch {
+  }
+}
+function usePluginUpdate({ ctx, status, running, installing = false }) {
+  const queryClient = useQueryClient();
+  const installedIn = status.data?.plugin?.installed_in ?? null;
+  const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
+  const check = useQuery({
+    queryKey: [ID, "plugin-update", profile],
+    queryFn: async () => {
+      const target2 = await installTarget(installedIn);
+      return target2 ? { target: target2, row: pluginRow(await requestOn(target2, "plugins.manage", { action: "list" }, 6e4)) } : { target: null, row: null };
+    },
+    enabled: running && Boolean(profile),
+    refetchInterval: CHECK_EVERY_MS,
+    staleTime: CHECK_EVERY_MS / 2,
+    refetchOnWindowFocus: false,
+    retry: false
+  });
+  const [state, setState] = useState(() => {
+    const marker = takeMarker(ctx);
+    if (marker) {
+      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true };
+    }
+    const pending = pendingUpdate(ctx);
+    return pending ? { phase: "partial", step: 0, error: pending.error ?? null } : { phase: "idle", step: 0 };
+  });
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return ctx.storage.get("updateLater", null);
+    } catch {
+      return null;
+    }
+  });
+  const busy = useRef(false);
+  const installingNow = useRef(installing);
+  installingNow.current = installing;
+  const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
+  useEffect(() => {
+    if (!state.announce) {
+      return void 0;
+    }
+    host.notify(
+      state.phase === "restart" ? { kind: "warning", message: "hermretro was updated. Quit and reopen Hermes to finish loading it." } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
+    );
+    if (state.phase !== "done") {
+      return void 0;
+    }
+    ctx.setTimeout?.(() => setState((current) => current.phase === "done" ? { phase: "idle", step: 0 } : current), DONE_SHOWN_MS);
+    return void 0;
+  }, []);
+  const row = check.data?.row ?? null;
+  const target = check.data?.target ?? null;
+  const ready = row?.update_available === true && Boolean(target);
+  const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
+  const building = useQuery({
+    queryKey: [ID, "update-busy"],
+    queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
+    enabled: running && (ready && state.phase === "idle" || state.phase === "partial"),
+    refetchInterval: BUSY_EVERY_MS,
+    retry: false
+  });
+  const fresher = state.raced && (building.dataUpdatedAt ?? 0) > state.racedAt;
+  const chats = !fresher && state.raced || (Array.isArray(building.data) ? building.data : []);
+  useEffect(() => {
+    if (fresher) {
+      setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
+    }
+  }, [fresher]);
+  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null;
+  const start = async (options = {}) => {
+    if (busy.current || !target) {
+      return;
+    }
+    if (blocked) {
+      setOpen(true);
+      return;
+    }
+    busy.current = true;
+    setUpdating(true);
+    setOpen(true);
+    setState({ phase: "updating", step: 0 });
+    const resume = Boolean(pendingUpdate(ctx));
+    let outcome;
+    try {
+      let studio = null;
+      try {
+        studio = await studioReloadTarget(studioExists);
+      } catch (error) {
+        outcome = { kind: "failed", error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` };
+      }
+      outcome ??= await runUpdate({
+        install: target,
+        studio,
+        options,
+        resume,
+        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
+        onStep: (step) => setState((current) => ({ ...current, step })),
+        onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
+        installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
+        refused: () => remember2(ctx, PENDING, null),
+        remember: (marker) => {
+          remember2(ctx, PENDING, null);
+          remember2(ctx, UPDATE_MARKER, marker);
+        }
+      });
+    } finally {
+      busy.current = false;
+      setUpdating(false);
+    }
+    void queryClient.invalidateQueries({ queryKey: [ID] });
+    const half = outcome.kind === "partial" || pendingUpdate(ctx) && ["failed", "blocked"].includes(outcome.kind);
+    if (half) {
+      remember2(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null });
+      setState({ phase: "partial", step: 0, error: outcome.error ?? null });
+    } else if (outcome.kind === "updated") {
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2 });
+    } else if (outcome.kind === "current") {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+      host.notify({ kind: "success", message: "hermretro is already up to date." });
+    } else if (outcome.kind === "busy") {
+      setState((current) => ({
+        phase: resume ? "partial" : "idle",
+        step: 0,
+        error: resume ? current.error ?? null : null,
+        raced: outcome.chats,
+        racedAt: building.dataUpdatedAt ?? 0
+      }));
+    } else if (outcome.kind === "review") {
+      setState({ phase: "review", step: 0, review: outcome });
+    } else {
+      setState({ phase: "failed", step: 0, error: outcome.error });
+    }
+  };
+  const phase = state.phase;
+  const visible = phase !== "idle" || ready && !later2;
+  return {
+    visible,
+    ready,
+    // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
+    checked: Boolean(row),
+    linked: Boolean(installedIn?.linked),
+    phase,
+    step: state.step,
+    // why Update is refused right now (a build under way, the toolchain installing), or null
+    blocked,
+    // the chats a running update waits for before it reloads the hermretro profile, or null
+    waiting: state.waiting ?? null,
+    error: state.error ?? null,
+    review: state.review ?? null,
+    version: status.data?.plugin?.version ?? null,
+    open,
+    setOpen,
+    start: () => void start(),
+    agree: () => void start(state.review?.retry ?? {}),
+    cancel: () => {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+    },
+    later: () => {
+      const key = row?.update_target ?? "ready";
+      setDismissed(key);
+      remember2(ctx, "updateLater", key);
+      setOpen(false);
+    },
+    whatsNew: () => void ctx.os?.openExternal?.(LINKS.releases),
+    openPlugins: () => host.navigate(PLUGINS_HREF)
+  };
+}
+
 // page/app/studio-page.js
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
   const [page, setPage] = useState(() => {
     try {
-      const stored = ctx.storage.get("page", "home");
-      return pageById(stored) ? stored : "home";
+      const stored = ctx.storage.get("page", "build");
+      return pageById(stored) ? stored : "build";
     } catch {
-      return "home";
+      return "build";
     }
   });
   const [pinned, setPinned] = useState(null);
@@ -15438,6 +15874,7 @@ function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
   const install = useInstall({ enabled: wantInstall });
   const installState = install.data?.install?.state ?? null;
+  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
   const lastInstall = useRef(installState);
   useEffect(() => {
     const before = lastInstall.current;
@@ -15448,7 +15885,7 @@ function StudioPage({ ctx }) {
   }, [installState]);
   const finishOnboarding = () => {
     update({ onboarded: true });
-    go("home");
+    go("build");
   };
   useEffect(() => {
     const toolchainOpen = toolchainStep && toolchainStep.state !== "done" && toolchainStep.state !== "checking";
@@ -15579,6 +16016,8 @@ function StudioPage({ ctx }) {
     pick,
     unpin: () => setPinned(null),
     install,
+    // Hermes's update of hermretro: the header chip, and the version row on the Setup page
+    pluginUpdate,
     gameReady,
     hardwareOn,
     emulatorOnly,
@@ -15620,11 +16059,11 @@ function StudioPage({ ctx }) {
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
   };
-  let body;
+  let body2;
   if (!running) {
-    body = [jsx(NotRunning, { backend, gateway, status }, "off")];
+    body2 = [jsx(NotRunning, { backend, gateway, status }, "off")];
   } else if (onboardScreen) {
-    body = [
+    body2 = [
       jsx(
         Onboarding,
         { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
@@ -15632,7 +16071,7 @@ function StudioPage({ ctx }) {
       )
     ];
   } else {
-    body = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
+    body2 = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
   }
   const pad = running && !onboardScreen ? currentPage.pad ?? null : null;
   const broken = running && settled && !onboardScreen && page !== "setup" ? steps.find((step) => !step.hardware && !step.complete) : null;
@@ -15651,7 +16090,14 @@ function StudioPage({ ctx }) {
       },
       children: [
         jsx(PageStyle, {}, "style"),
-        onboardScreen ? jsx(OnboardHeader, { stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null }, "nav") : jsx(
+        onboardScreen ? jsx(
+          OnboardHeader,
+          {
+            end: pluginUpdate.visible ? jsx(UpdateChip, { update: pluginUpdate }) : null,
+            stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null
+          },
+          "nav"
+        ) : jsx(
           StudioNav,
           {
             nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
@@ -15659,6 +16105,7 @@ function StudioPage({ ctx }) {
             onRefresh: refresh,
             pages: NAV_PAGES,
             refreshing,
+            update: pluginUpdate,
             viaProfile
           },
           "nav"
@@ -15668,14 +16115,15 @@ function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
-              running && status.data?.restart_needed ? jsxs(
+              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
+              running && status.data?.restart_needed && pluginUpdate.phase !== "restart" ? jsxs(
                 "div",
                 {
                   className: "cs-repair",
                   role: "status",
                   children: [
                     jsx(Codicon, { name: "refresh", size: 14 }),
-                    jsx("span", { children: "hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart)." })
+                    jsx("span", { children: "hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish." })
                   ]
                 },
                 "restart"
@@ -15693,7 +16141,7 @@ function StudioPage({ ctx }) {
                 },
                 "repair"
               ) : null,
-              ...body,
+              ...body2,
               stage,
               pad && currentPage.BelowPlayer ? jsx(currentPage.BelowPlayer, { shell }, "side") : null,
               pad ? null : jsx(Footer, { ctx }, "foot")

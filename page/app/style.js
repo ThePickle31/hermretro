@@ -7,6 +7,7 @@ import { BASE_CSS } from '#shared/styles/base.css.js'
 import { RESPONSIVE_CSS } from '#shared/styles/responsive.css.js'
 import { FLYER_CSS } from '#shared/ui/flyer.css.js'
 import { SHELL_CSS } from './shell.css.js'
+import { UPDATE_CSS } from './update/update.css.js'
 
 let stylesheet = ''
 
@@ -17,6 +18,7 @@ export function composeStyles(pages) {
   return [
     BASE_CSS,
     SHELL_CSS,
+    UPDATE_CSS,
     FLYER_CSS,
     ...pages.filter(page => !page.cssLast).flatMap(chunks),
     RESPONSIVE_CSS,

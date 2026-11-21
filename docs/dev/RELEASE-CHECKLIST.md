@@ -12,7 +12,7 @@ broker or `backend/system/host.py`), run this on a MacBook and on a Linux deskto
    and the message is gone.
 2. Open the hermretro page. Setup lists the downloads; run the install. It finishes, and Setup shows every step
    green. Note the time.
-3. Make a game from an idea on Home. The Build page shows the chat, the steps get words (no raw tool names), a
+3. Make a game from an idea on Build's New Game. The Build page shows the chat, the steps get words (no raw tool names), a
    build finishes, and the game opens in the emulator beside the chat.
 4. Play it with the keyboard for a minute: picture, sound, input, no stutter. Pause, resume, open it full size.
 5. Ask for a change ("make the player faster"). It rebuilds, the emulator reloads the new build, and the build

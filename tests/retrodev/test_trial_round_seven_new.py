@@ -240,15 +240,17 @@ class Tool(ScaffoldCase):
 
 class Tab(ScaffoldCase):
     def test_a_taken_id_says_what_the_folder_is_and_how_to_keep_the_label(self):
-        write(self.tree, "page/pages/home/rdprobe-x/index.js", "// The probe's own background.\nexport const X = 1\n")
-        write(self.tree, "page/pages/home/rdprobe-y/notes.txt", "x\n")
+        write(
+            self.tree, "page/pages/prompts/rdprobe-x/index.js", "// The probe's own background.\nexport const X = 1\n"
+        )
+        write(self.tree, "page/pages/prompts/rdprobe-y/notes.txt", "x\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Folders")
-        out = self.new("tab", "home", "rdprobe-x", "--label", "Probe", code=1)
-        self.assertIn("page/pages/home/rdprobe-x exists: The probe's own background.", out["error"]["message"])
-        self.assertIn("python tools/retrodev new tab home rdprobe-x-tab --label Probe", out["error"]["fix"])
-        out = self.new("tab", "home", "rdprobe-y", code=1)
-        self.assertIn("page/pages/home/rdprobe-y exists: an existing folder", out["error"]["message"])
+        out = self.new("tab", "prompts", "rdprobe-x", "--label", "Probe", code=1)
+        self.assertIn("page/pages/prompts/rdprobe-x exists: The probe's own background.", out["error"]["message"])
+        self.assertIn("python tools/retrodev new tab prompts rdprobe-x-tab --label Probe", out["error"]["fix"])
+        out = self.new("tab", "prompts", "rdprobe-y", code=1)
+        self.assertIn("page/pages/prompts/rdprobe-y exists: an existing folder", out["error"]["message"])
         self.assertIn("--label 'Rdprobe y'", out["error"]["fix"])
 
 

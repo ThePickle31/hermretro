@@ -3,6 +3,7 @@ import { Button, host, jsx, jsxs, useState } from '#sdk'
 import { createStudioProfileOnce } from './install/installer.js'
 import { Facts, Lede, Small } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
+import { useUpdating } from '#app/update/lock.js'
 
 const PROFILE_FACTS = [
   ['Sign-in', 'It uses your existing sign-in and keys, so there is nothing to log in to again.'],
@@ -15,6 +16,7 @@ export function ProfileBody({ status }) {
   const profile = status.data?.profile
   const [working, setWorking] = useState(false)
   const [failure, setFailure] = useState(null)
+  const updating = useUpdating()
 
   if (!status.data?.ok || !profile) {
     return jsx(Small, { children: 'Checked once the plugin is on.' })
@@ -59,7 +61,7 @@ export function ProfileBody({ status }) {
             children: [
               jsx(Working, { children: 'The profile is created. Waiting for Hermes to start it…' }),
               jsx('div', {
-                children: jsx(Button, { disabled: working, onClick: create, size: 'sm', variant: 'ghost', children: 'Set it up again' })
+                children: jsx(Button, { disabled: working || updating, onClick: create, size: 'sm', variant: 'ghost', children: 'Set it up again' })
               })
             ]
           })
@@ -68,7 +70,7 @@ export function ProfileBody({ status }) {
           : jsxs('div', {
               className: 'cs-actions',
               children: [
-                jsx(Button, { onClick: create, size: 'sm', variant: 'default', children: 'Create the hermretro profile' }),
+                jsx(Button, { disabled: updating, onClick: create, size: 'sm', variant: 'default', children: 'Create the hermretro profile' }),
                 jsx('span', { className: 'cs-faint', children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
               ]
             }),

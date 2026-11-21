@@ -81,7 +81,7 @@ await runScenario(async helpers => {
     assert.deepEqual(posted.filter(message => message.type === 'key').map(message => [message.key, message.down]), [['ArrowLeft', true], ['ArrowLeft', false]])
   })
   const kept2 = frame()
-  await tab('Home')
+  await tab('Prompts')
   check('leaving the Emulator keeps the frame loaded but hidden, and holds the game', () => {
     assert.ok(frame() === kept2, 'the player frame is retained'); assert.ok(dom.window.document.querySelector('.cs-rp-stage.off'))
     assert.deepEqual(posted.at(-1), { cs: 'cmd', type: 'hold' })
