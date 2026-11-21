@@ -14,6 +14,7 @@ import functools
 import http.server
 import posixpath
 import shlex
+import socketserver
 import urllib.parse
 from pathlib import Path
 
@@ -49,10 +50,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class LoopbackServer(http.server.ThreadingHTTPServer):
+    """Without HTTPServer.server_bind's socket.getfqdn(host): a reverse DNS lookup of 127.0.0.1 that can take
+    about 35 s on a Mac."""
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 def make_server(folder: Path, assets: Path) -> http.server.ThreadingHTTPServer:
     """A loopback server on a free port for ``folder`` (its port: server.server_address[1])."""
     handler = type("PreviewHandler", (Handler,), {"assets": assets.resolve()})
-    return http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(handler, directory=str(folder)))
+    return LoopbackServer(("127.0.0.1", 0), functools.partial(handler, directory=str(folder)))
 
 
 def build(ctx, out: Path, desktop: Path) -> Path:

@@ -334,6 +334,8 @@ class Preview(RepoCase):
         self.addCleanup(server.shutdown)
         host, port = server.server_address[:2]
         self.assertEqual(host, "127.0.0.1")
+        # HTTPServer would have looked 127.0.0.1 up in DNS (socket.getfqdn: "localhost"), about 35 s on a Mac.
+        self.assertEqual(server.server_name, "127.0.0.1", "the preview server must not look its address up")
 
         def get(path):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as answer:
