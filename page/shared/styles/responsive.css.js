@@ -3,8 +3,6 @@ export const RESPONSIVE_CSS = `
 @container (max-width: 1000px) {
   .cs-setup { grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 1fr); }
   .cs-setup > .cs-flyer { display: none; }
-  .cs-reader { grid-template-columns: clamp(200px, 26cqi, 280px) minmax(0, 1fr); }
-  .cs-reader > .cs-art { display: none; }
   .cs-empty { grid-template-columns: 1fr; }
   .cs-empty > .cs-art { display: none; }
 }
@@ -33,8 +31,8 @@ export const RESPONSIVE_CSS = `
   .cs-rp-focus { padding: 0 6px; }
 }
 @container (max-width: 760px) {
-  .cs-setup, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
-  .cs-rail, .cs-rlist { position: static; }
+  .cs-setup, .cs-page-head { grid-template-columns: 1fr; }
+  .cs-rail { position: static; }
   .cs-rail-item, .cs-rail-group { display: none; }
   .cs-meter { margin-top: 0; }
   .cs-choice { grid-template-columns: 1fr; }

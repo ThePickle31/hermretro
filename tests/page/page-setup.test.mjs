@@ -11,8 +11,8 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   await render()
   // The registry test (registry.test.mjs) pins every page in nav order; here the shell draws them, the built-in ones
   // first, so a page added at the end (python tools/retrodev new page) changes only the registry and its test.
-  check('one segmented control in the header: Build · Setup · Prompts · Games · Emulator, opening on Build', () => {
-    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent).slice(0, 5), ['Build', 'Setup', 'Prompts', 'Games', 'Emulator'])
+  check('one segmented control in the header: Build · Setup · Games · Emulator, opening on Build', () => {
+    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent), ['Build', 'Setup', 'Games', 'Emulator'])
     assert.equal(currentTab(), 'Build')
   })
   check('with the backend off there are no setup steps, only how to switch it on', () => {
@@ -30,7 +30,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.storage = {}
   scenario.status = answered(firstRun); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await render()
-  check('first run: only the welcome, no segmented nav or prompts', () => {
+  check('first run: only the welcome, no segmented nav', () => {
     assert.ok(!nav())
     assert.equal(dom.window.document.querySelector('h1')?.textContent, WELCOME)
     assert.ok(button('Get started')); shows(/≈ 708 MB download · ≈ 2\.3 GB on disk/)
@@ -218,6 +218,13 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('device software step waits for the backend', () => {
     assert.equal(heading(), "Install ModRetro's device software"); shows(/Install in chat/)
   })
+  scenario.calls.length = 0; scenario.inserted.length = 0
+  await click('Install in chat'); await settle()
+  check('device setup puts its request in the studio composer without sending', () => {
+    assert.deepEqual(scenario.calls[0], ['insert', null])
+    assert.deepEqual(scenario.inserted.at(-1), [null, "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic."])
+    assert.ok(!scenario.calls.some(call => /send|submit/i.test(call[0])))
+  })
   scenario.status = answered(status({ deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('installed') } }))
   await render()
   check('device software detected: moves to hardware tools', () => { assert.equal(heading(), 'Turn on hardware tools') })
@@ -229,15 +236,6 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.equal(scenario.storage.setup.hardwareSkipped, true)
     assert.ok(!nav().querySelector('.pip'), 'no dot once setup is complete')
   })
-  await tab('Prompts')
-  await click('Flash a cartridge', dom.window.document.querySelector('nav[aria-label="Prompts"]'))
-  check('in emulator-only mode the hardware prompts are shown but locked', () => {
-    assert.equal(dom.window.document.querySelector('h2').textContent, 'Start building')
-    assert.equal(dom.window.document.querySelector('.cs-rdetail h3').textContent, 'Flash a cartridge')
-    shows(/Needs your Chromatic/)
-    assert.ok(button('Start a new chat').disabled && button('Add to current chat').disabled, 'a locked prompt cannot go to a chat')
-    assert.ok(dom.window.document.querySelector('[data-copy]'), 'but it can still be copied')
-  })
   check('polling slows down once setup is complete', () => {
     assert.equal(scenario.queries.filter(query => query.key === 'status').at(-1).refetchInterval, 30000)
   })
@@ -248,11 +246,6 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('everything verified: setup complete', () => {
     assert.equal(heading(), 'Setup is complete'); shows(/All 6 steps done/)
   })
-  await tab('Prompts')
-  check('hardware prompts unlock once hardware tools are on', () => {
-    hides('Needs your Chromatic'); assert.ok(!button('Start a new chat').disabled)
-  })
-  await tab('Setup')
   await click('Studio profile')
   check('a finished setup can be reviewed and left again', () => {
     assert.equal(heading(), 'Create the hermretro profile'); shows(/Continue/)
@@ -275,10 +268,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   delete scenario.byMethod['plugin.hermretro.remove_tools']
   await click('Continue')
 
-  // 6. Something breaks later: the page says so instead of showing prompts.
+  // 6. Something breaks later: the page shows the backend explanation.
   scenario.status = notLoaded
   await render()
-  check('a backend that goes away replaces the prompts with the explanation', () => {
+  check('a backend that goes away replaces Setup with the explanation', () => {
     assert.equal(heading(), 'hermretro is not switched on in any profile')
   })
 
@@ -304,18 +297,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   scenario.status = answered(found)
   await render()
-  await tab('Prompts')
+  await tab('Games')
   check('the page says which profile it is showing', () => {
-    assert.equal(heading(), 'Start building')
     const chip = dom.window.document.querySelector('.cs-top .cs-top-profile')
     assert.equal(chip?.textContent, 'chromatic-dev'); assert.match(chip.getAttribute('aria-label'), /Showing the "chromatic-dev" profile/)
-  })
-  scenario.calls.length = 0
-  await click('Start a new chat')
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('"Start a new chat" never opens a chat outside the hermretro profile, nor uses the current composer', () => {
-    assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
-    assert.match(scenario.notices.at(-1).message, /hermretro profile is not set up yet/)
   })
   scenario.ambient = complete
   const direct = await scenario.fns.status()
@@ -337,7 +322,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.status = answered(complete)
   await render()
   check('once status answers again the page is back and the Setup card is gone', () => {
-    assert.equal(heading(), 'Start building'); hides('Check what is already installed')
+    assert.equal(currentTab(), 'Games'); hides('Check what is already installed')
   })
 
   // 8a. The Build page runs only in the hermretro profile: no fallback to the profile the app is on.
@@ -366,6 +351,6 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   delete scenario.byMethod['plugin.hermretro.studio_profile']
   scenario.status = answered(complete)
-  await render(); await tab('Prompts')
+  await render(); await tab('Games')
   await act(async () => { root.unmount() })
 })

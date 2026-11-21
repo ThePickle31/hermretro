@@ -57,10 +57,10 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
       })
 }
 
-export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
+export function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, 'folder')
-  const newGame = jsxs(Button, { onClick: () => onOpenPrompt('new-game'), size: 'sm', variant: 'default', children: [jsx(Codicon, { name: 'add', size: 14 }), 'New game'] })
+  const newGame = jsxs(Button, { onClick: onNewGame, size: 'sm', variant: 'default', children: [jsx(Codicon, { name: 'add', size: 14 }), 'New game'] })
 
   if (games.isError || (games.data && !Array.isArray(list))) {
     return [
@@ -91,18 +91,13 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetU
             jsxs('div', {
               className: 'cs-col',
               children: [
-                jsxs('p', { className: 'cs-eyebrow', children: [jsx('span', { className: 'cs-accent', children: '03' }), 'Games'] }),
                 jsx('h2', { className: 'cs-word cs-title', children: 'No games yet' }),
                 jsx(Lede, {
-                  children:
-                    'Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic. Start with a new game or remix the example.'
+                  children: 'Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic.'
                 }),
-                jsxs('div', {
+                jsx('div', {
                   className: 'cs-actions',
-                  children: [
-                    jsx(Button, { onClick: () => onOpenPrompt('new-game'), size: 'sm', variant: 'default', children: 'Create a new game' }),
-                    jsx(Button, { onClick: () => onOpenPrompt('remix'), size: 'sm', variant: 'outline', children: 'Remix Wrecklight' })
-                  ]
+                  children: jsx(Button, { onClick: onNewGame, size: 'sm', variant: 'default', children: 'Create a new game' })
                 }),
                 jsx('p', { className: 'cs-faint', children: 'Already have a GB Studio project? Ask Hermes to select it and it shows up here.' }),
                 folder
@@ -132,7 +127,7 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetU
                 jsx('button', {
                   'aria-label': 'New game',
                   className: 'cs-cart ghost',
-                  onClick: () => onOpenPrompt('new-game'),
+                  onClick: onNewGame,
                   type: 'button',
                   children: jsx('span', {
                     className: 'slot',
@@ -173,7 +168,10 @@ export function Games({ shell }) {
       emit('games.coverRequested', { game, prompt: COVER_PROMPT })
       shell.go('build')
     },
-    onOpenPrompt: shell.openPrompt,
+    onNewGame: () => {
+      emit('games.newGameRequested')
+      shell.go('build')
+    },
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice
   })

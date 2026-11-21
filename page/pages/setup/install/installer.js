@@ -4,8 +4,10 @@ import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { ID } from '#app/ids.js'
 import { RPC_INSTALL, RPC_STUDIO_PROFILE } from '#app/rpc.js'
-import { SETUP_PROMPT } from '#pages/prompts/index.js'
 import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
+
+const SETUP_PROMPT =
+  'Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.'
 
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)).data

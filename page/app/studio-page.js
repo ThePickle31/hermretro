@@ -58,7 +58,6 @@ export function StudioPage({ ctx }) {
   })
   // Step the user chose to look at; null follows the first incomplete step.
   const [pinned, setPinned] = useState(null)
-  const [promptId, setPromptId] = useState('new-game')
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false })
   const { backend, doctor, gateway, status } = useBackend(polling)
   const refreshing = status.isFetching || doctor.isFetching
@@ -192,10 +191,6 @@ export function StudioPage({ ctx }) {
     setPinned(null)
     go('setup')
   }
-  const openPrompt = id => {
-    setPromptId(id)
-    go('prompts')
-  }
 
   // ── games and the player ──
   const onEmulator = page === 'emulator'
@@ -326,30 +321,14 @@ export function StudioPage({ ctx }) {
     install,
     // Hermes's update of hermretro: the header chip, and the version row on the Setup page
     pluginUpdate,
-    gameReady,
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and prompts
+    // games
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
     play,
-    openPrompt,
-    promptId,
-    setPromptId,
-    // New games go in the plugin's games folder (the backend reports it); an older backend without it falls
-    // back to the folder of the latest game.
-    newGameFolder: (() => {
-      if (typeof games.data?.gamesDir === 'string' && games.data.gamesDir) {
-        return games.data.gamesDir
-      }
-
-      const root = latestGame(gameList)?.projectRoot
-
-      return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, '') || null : null
-    })(),
-    profileLabel: routing.profile ?? status.data?.profile?.name ?? 'this profile',
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,

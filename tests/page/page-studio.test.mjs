@@ -53,7 +53,8 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     assert.ok(dom.window.document.querySelector('.cs-flyer') === flyerNode, 'the flyer element is retained')
   })
   await click('Continue')
-  await tab('Prompts')
+  scenario.games = answered({ games: [] })
+  await tab('Games')
   check('the page carries its stylesheet and artwork', () => {
     const css = dom.window.document.querySelector('style')?.textContent ?? ''
     assert.match(css, /\.cs-page/); assert.match(css, /prefers-reduced-motion/)
@@ -63,11 +64,12 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     for (const name of ['--cs-hermes', '--cs-cart', '--cs-fly-body', '--cs-fly-wing']) assert.match(vars, new RegExp(`${name}: url\\("data:image/png;base64,`))
   })
   await fresh.close()
-  // Home was removed: a page remembered from before then opens on Build.
-  scenario.storage = { ...kept, page: 'home' }
-  const remembered = await mount(page)
-  check('a remembered Home page opens on Build', () => { assert.equal(currentTab(), 'Build') })
-  await remembered.close()
+  for (const removed of ['home', 'prompts']) {
+    scenario.storage = { ...kept, page: removed }
+    const remembered = await mount(page)
+    check(`a remembered ${removed} page opens on Build`, () => { assert.equal(currentTab(), 'Build') })
+    await remembered.close()
+  }
   scenario.storage = kept
 
   // 11. The dedicated profile: the first step creates it, then the page moves over to it.
@@ -115,13 +117,20 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   })
   scenario.status = answered(moved)
   await studioPage.rerender()
-  await tab('Prompts')
-  scenario.calls.length = 0
-  await click('Start a new chat')
+  // The first-game planning action still drafts in the routed studio profile, never the active composer.
+  const setupMemory = scenario.storage
+  scenario.storage = { setup: { onboardStarted: true, hardwareSkipped: true } }
+  const onboarding = await mount(page)
+  scenario.calls.length = 0; scenario.inserted.length = 0
+  await click('Plan it first')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('setup is complete and prompts open chats in the studio profile', () => {
-    assert.equal(heading(), 'Start building'); assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
+  check('onboarding planning opens a draft in the studio profile without sending it', () => {
+    assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
+    assert.match(scenario.inserted.at(-1)?.[1], /plan a small Game Boy Color game before we build anything/)
+    assert.ok(!scenario.calls.some(call => /send|submit/i.test(call[0])))
   })
+  await onboarding.close()
+  scenario.storage = setupMemory
   scenario.byProfile = {}
   scenario.ambient = installer({ exists: true })
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: false, code: 'NAME_TAKEN', error: 'A profile named hermretro already exists and was not made by hermretro.' }

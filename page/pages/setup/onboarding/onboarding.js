@@ -13,7 +13,6 @@ import {
   profileRowState
 } from '#pages/setup/install/install-panel.js'
 import { useInstaller } from '#pages/setup/install/installer.js'
-import { NEW_GAME_PROMPT, promptById } from '#pages/prompts/index.js'
 import { Art } from '#shared/ui/art.js'
 import { Lede } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
@@ -199,6 +198,11 @@ function OnboardChromatic({ onEmulator, onDevice }) {
   })
 }
 
+const NEW_GAME_PROMPT =
+  'Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.'
+const PLAN_GAME_PROMPT =
+  'Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project.'
+
 const IDEAS = [
   ['Tiny platformer', 'a tiny platformer where a frog hops across lily pads to reach home'],
   ['Top-down adventure', 'a top-down adventure where a gardener collects three seeds to open a gate'],
@@ -283,7 +287,7 @@ function OnboardMake({ ctx, onDone }) {
             role: 'group',
             children: [
               ...IDEAS.map(([label, text]) => jsx('button', { onClick: () => setIdea(text), type: 'button', children: label }, label)),
-              jsx('button', { disabled: busy, onClick: () => void go(promptById('plan').text), type: 'button', children: 'Plan it first' }, 'plan')
+              jsx('button', { disabled: busy, onClick: () => void go(PLAN_GAME_PROMPT), type: 'button', children: 'Plan it first' }, 'plan')
             ]
           }),
           jsx('div', { children: jsx(Button, { onClick: onDone, size: 'sm', variant: 'ghost', children: 'Skip, take me to the studio' }) })

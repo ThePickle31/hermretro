@@ -272,22 +272,22 @@ test("a page's own Page is its first tab's once it has tabs", () => {
   assert.equal(ownPage({ id: 'p', tabs: [{ id: 'a', Page: First }, { id: 'b', Page: Own }] }), First)
 })
 
-test('Prompts draws from pageShell(), the fixture a host recipe uses', async () => {
-  const shown = await render(jsx(ownPage(pageOf('prompts')), { shell: pageShell({ profileLabel: 'probe-profile' }) }))
+test('Games draws from pageShell(), the fixture a host recipe uses', async () => {
+  const shown = await render(jsx(ownPage(pageOf('games')), { shell: pageShell() }))
 
-  assert.ok(shown.node.querySelector('.cs-reader'), 'the Reader rendered')
-  assert.ok(shown.node.textContent.includes('Start a new chat'), 'with its actions')
+  assert.ok(shown.node.querySelector('.cs-empty'), 'the empty shelf rendered')
+  assert.ok(shown.node.textContent.includes('Create a new game'), 'with its action')
   await shown.close()
 })
 
-// The real shell (page/app/studio-page.js) with a probe in Prompts' place: pageShell() has exactly its fields, each
+// The real shell (page/app/studio-page.js) with a probe in Games' place: pageShell() has exactly its fields, each
 // with the same kind of value, so a page that starts reading any shell field (shell.viaProfile) finds it there.
 test("pageShell() matches the shell a page really gets", async () => {
   const { StudioPage } = await import('../../page/app/studio-page.js')
-  const probe = pageOf('prompts')
+  const probe = pageOf('games')
   const original = probe.Page
   const seen = []
-  const storage = { page: 'prompts', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
+  const storage = { page: 'games', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
   const real = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
 
   scenario.status = answered({ ok: true, via_profile: 'hermretro', hardware_enabled: false, project: null, plugin: { version: '9' }, node: { ok: true }, engine: { present: true, verified: true },
@@ -302,7 +302,7 @@ test("pageShell() matches the shell a page really gets", async () => {
     const shell = seen.at(-1)
     const fixture = pageShell()
     // null or a value, by setup state and routing
-    const scalar = new Set(['auto', 'autoId', 'choosing', 'shown', 'viaProfile', 'newGameFolder'])
+    const scalar = new Set(['auto', 'autoId', 'choosing', 'shown', 'viaProfile'])
     const missing = Object.keys(fixture).filter(key => !(key in shell))
     const absent = Object.keys(shell).filter(key => !(key in fixture))
     const differ = Object.keys(fixture).filter(key => key in shell && !scalar.has(key) && shapeOf(shell[key]) !== shapeOf(fixture[key]))

@@ -11,7 +11,8 @@ objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game
 **Tabs:** none (its areas are subfolders, not tabs).
 
 **Events:** emits none. Listens to `games.coverRequested` (opens that game with the cover prompt in its
-message box, not sent) and `emulator.presented` (plays the presented game in its conversation).
+message box, not sent), `games.newGameRequested` (opens the New Game form without starting a chat) and
+`emulator.presented` (plays the presented game in its conversation).
 
 **Slots:** declares none, contributes none.
 

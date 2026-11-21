@@ -29,7 +29,7 @@ OWN = "page/pages/rdprobe-own"
 
 
 def inline_page(case, page_id: str = "rdprobe-own", exported: bool = False) -> None:
-    """A probe page whose index.js defines its own Page (as prompts does), committed."""
+    """A probe page whose index.js defines its own Page (as a page may), committed."""
     name = "".join(part.title() for part in page_id.split("-"))
     export = "export " if exported else ""
     write(
@@ -73,7 +73,7 @@ class Guard(unittest.TestCase):
         for step in tree_test.REAL_STEPS:
             where = "page/pages" if step[0] in ("tab", "slot", "contribution") else "backend"
             self.assertTrue((ROOT / where / step[1]).is_dir(), step)
-        self.assertIn(["slot", "prompts"], [step[:2] for step in tree_test.REAL_STEPS])
+        self.assertIn(["slot", "build"], [step[:2] for step in tree_test.REAL_STEPS])
 
     def test_the_real_steps_follow_a_tree_whose_pages_have_tabs_and_whose_listeners_are_taken(self):  # review 1, 0
         with tempfile.TemporaryDirectory() as temp:

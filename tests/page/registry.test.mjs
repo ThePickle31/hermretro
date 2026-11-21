@@ -49,7 +49,7 @@ async function render(element) {
 test('the registry lists every page folder once, in nav order, each describing itself', () => {
   const folders = readdirSync(path.join(ROOT, 'page', 'pages')).filter(name => statSync(path.join(ROOT, 'page', 'pages', name)).isDirectory())
 
-  assert.deepEqual(PAGES.map(page => page.id), ['build', 'setup', 'prompts', 'games', 'emulator'])
+  assert.deepEqual(PAGES.map(page => page.id), ['build', 'setup', 'games', 'emulator'])
   assert.deepEqual([...folders].sort(), PAGES.map(page => page.id).sort(), 'every folder under page/pages/ is a page in page/pages/index.js')
   assert.deepEqual(pageProblems(PAGES), [])
   assert.equal(NAV_PAGES, PAGES)
@@ -104,7 +104,7 @@ test("each page's own Page is imported into index.js from its own file, not defi
 test('events are declared once, by the page their name starts with', () => {
   const declared = PAGE_EVENTS.declared()
 
-  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested'])
+  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested', 'games.newGameRequested'])
 
   for (const [name, { owner }] of declared) {
     assert.ok(name.startsWith(`${owner}.`), name)
@@ -277,14 +277,14 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
   await act(async () => { root.unmount(); beside.root.unmount(); plain.root.unmount() })
 })
 
-// The shell every Page gets, from the real StudioPage, with a probe in Prompts' place.
+// The shell every Page gets, from the real StudioPage, with a probe in Games' place.
 test('a page sees shell.viaProfile: the profile the studio page queries', async () => {
   const { StudioPage } = await import('../../page/app/studio-page.js')
   const { scenario } = await import('./sdk-stub.mjs')
-  const probe = PAGES.find(page => page.id === 'prompts')
+  const probe = PAGES.find(page => page.id === 'games')
   const original = probe.Page
   const seen = []
-  const storage = { page: 'prompts', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
+  const storage = { page: 'games', setup: { onboarded: true, onboardStarted: true, hardwareSkipped: true } }
   const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } }, os: {} }
   const answered = data => ({ data, isFetching: false, isPending: false })
   const ready = { state: 'installed', version: '1.2.1' }

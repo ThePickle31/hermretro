@@ -1,5 +1,4 @@
-// The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs; Prompts,
-// the Emulator and the emulator beside the chat are page-prompts, page-emulator and page-emulator-side .test.mjs).
+// The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs).
 // Run alone: node tests/page/page-games.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
@@ -7,7 +6,7 @@ import { gamesStudio } from './games-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async helpers => {
-  const { act, ctx, dom, scenario, text, heading, click, tab, settle, button, key, check, answered, complete } = helpers
+  const { act, ctx, dom, scenario, text, heading, click, tab, currentTab, settle, button, key, check, answered, complete } = helpers
   const { games, studio } = await gamesStudio(helpers)
   await tab('Games')
   // A game's card by its title (games-fixture.mjs: the fixture's orders differ, so never by position).
@@ -29,6 +28,23 @@ await runScenario(async helpers => {
     assert.match(cards().at(-1).textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
   })
+  const opensNewGame = async (label, scope, name) => {
+    scenario.storage.buildSelected = games[0].id
+    scenario.calls.length = 0; scenario.inserted.length = 0
+    await click(label, scope)
+    check(`${name} opens Build's New Game form without starting a chat`, () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(scenario.storage.buildSelected, 'new')
+      const form = dom.window.document.querySelector('.cs-b-new')
+      assert.ok(form?.querySelector('textarea[aria-label="Your game idea"]'), 'the new idea box is shown')
+      assert.deepEqual([...form.querySelectorAll('[role="radio"] b')].map(mode => mode.textContent), ['Build it', 'Plan first'])
+      assert.ok(!scenario.calls.flat().some(value => ['newChat', 'session.create', 'session.load', 'prompt.submit'].includes(value)))
+      assert.equal(scenario.inserted.length, 0)
+    })
+    await tab('Games')
+  }
+  await opensNewGame('New game', dom.window.document.querySelector('.cs-page-head'), 'The shelf header')
+  await opensNewGame('New game', dom.window.document.querySelector('.cs-shelf'), 'The blank cartridge')
   scenario.revealed = null
   await click('Open games folder')
   check('the shelf shows the games folder and opens it', () => {
@@ -86,8 +102,10 @@ await runScenario(async helpers => {
   scenario.games = { isError: true, isFetching: false, error: Object.assign(new Error('unknown method'), { code: -32601 }) }
   await studio.rerender()
   check('a backend without the games RPC is reported honestly', () => { assert.match(text(), /cannot list your games yet/) })
+  await opensNewGame('New game', dom.window.document, 'The library error action')
   scenario.games = answered({ games: [], device: { hardwareEnabled: true, skipped: false } })
   await studio.rerender()
-  check('an empty library offers a new game and the remix', () => { assert.equal(heading(), 'No games yet'); assert.match(text(), /Remix Wrecklight/) })
+  check('the empty library drops the example prompt shortcut', () => { assert.equal(heading(), 'No games yet'); assert.doesNotMatch(text(), /Remix Wrecklight/) })
+  await opensNewGame('Create a new game', dom.window.document, 'The empty library action')
   await studio.close()
 })

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 90a4cb97d326871b7ee114ea1053f6a14be0bfe4cc5cd4fffa0d6939a81f611b
- * body: sha256 4e48fe191299fc836825850f53ced2669b9e10d50533063f139108596fe40de0
+ * sources: sha256 b1bfd9ced689d6c2d4be54da3daabb1e27510d63b3a3914e0fc9abdbe328b4c0
+ * body: sha256 167190ef8eba7914a5cb4fd0658de6b07486ef2d3c91aad6c9f8aa95ca928535
  */
 // page/sdk.js
 import {
@@ -10655,379 +10655,6 @@ function shortPath(path, keep = 4) {
   return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
 }
 
-// page/pages/prompts/prompts.css.js
-var PROMPTS_CSS = `
-/* prompts: Reader */
-.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
-.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
-.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
-.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
-.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
-.cs-rgrp.first { padding-top: 0; }
-.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
-.cs-ritem:hover { color: var(--ui-text-primary); }
-.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
-.cs-ritem.off { color: var(--ui-text-quaternary); }
-.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
-.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
-.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
-.cs-params input:focus { border-bottom-color: var(--ui-accent); }
-.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
-`;
-
-// page/app/prompt-button.js
-function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
-  return jsx(AsyncButton, { disabled, icon: "comment-discussion", run: () => sendPromptToChat(ctx, prompt, { fresh }), title: "Puts the prompt in a chat, not sent", variant, children: label });
-}
-
-// page/pages/prompts/library.js
-var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
-var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
-var PROMPT_SECTIONS = [
-  {
-    id: "plan",
-    n: "01",
-    title: "Plan",
-    prompts: [
-      {
-        id: "plan",
-        title: "Plan a game",
-        src: "hermes",
-        text: "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project."
-      }
-    ]
-  },
-  {
-    id: "create",
-    n: "02",
-    title: "Create",
-    prompts: [
-      {
-        id: "new-game",
-        title: "Create a new game",
-        src: "modretro",
-        text: "Use hermretro to create and select a new GB Studio project at {folder}/{name}. Make a small exploration game where a gardener collects three seeds and plants them to unlock a gate.",
-        defaults: { name: "MoonGarden" },
-        note: "The parent folder must already exist."
-      },
-      {
-        id: "remix",
-        title: "Remix an example",
-        src: "modretro",
-        text: "Use hermretro to create and select a Wrecklight remix at {folder}/{name}. Show me its rooms and controls, then help me turn the opening area into an abandoned research station.",
-        defaults: { name: "MyWrecklight" },
-        note: "The Wrecklight source is not bundled; the agent will ask for a local copy if needed."
-      }
-    ]
-  },
-  {
-    id: "play",
-    n: "03",
-    title: "Play",
-    prompts: [
-      {
-        id: "play-game",
-        title: "Play my game",
-        src: "modretro",
-        text: "Build my selected game and show it to me in the emulator beside the chat so I can play it. Show me the new build there whenever we make a change worth trying."
-      },
-      {
-        id: "playtest",
-        title: "Build and playtest",
-        src: "hermes",
-        text: "Build my selected game, then run an automated playtest: boot it, walk around the first room, and show me real frames from the emulator."
-      }
-    ]
-  },
-  {
-    id: "polish",
-    n: "04",
-    title: "Polish",
-    prompts: [
-      {
-        id: "scene",
-        title: "Add a scene",
-        src: "modretro",
-        text: "Add a village scene to my selected project with three houses, a central fountain, and a character I can talk to. Connect it to the starting area."
-      },
-      {
-        id: "artwork",
-        title: "Characters and artwork",
-        src: "modretro",
-        text: "Create a small robot player sprite with idle and walking animations that fit this project's style and Game Boy hardware limits. Add it to the game and show it in a scene."
-      },
-      {
-        id: "palette",
-        title: "Update the palette",
-        src: "modretro",
-        text: "Give this scene a moonlit palette with cool blue shadows and warm window lights. Check readability and show the result from the emulator."
-      },
-      {
-        id: "audit",
-        title: "Hardware limits audit",
-        src: "modretro",
-        text: "Audit my project's backgrounds and sprites for Game Boy hardware limits. Identify problems and fix any assets that would prevent a successful build."
-      }
-    ]
-  },
-  {
-    id: "device",
-    n: "05",
-    title: "On your Chromatic",
-    prompts: [
-      {
-        id: "stream",
-        title: "Stream to Chromatic",
-        src: "modretro",
-        hw: true,
-        text: "Stream a two-minute live demo of my built ROM to the connected Chromatic so I can try its controls, video, and audio."
-      },
-      {
-        id: "flash",
-        title: "Flash a cartridge",
-        src: "modretro",
-        hw: true,
-        text: "Flash my built homebrew ROM to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks."
-      }
-    ]
-  }
-];
-var ALL_PROMPTS = PROMPT_SECTIONS.flatMap((section) => section.prompts.map((prompt) => ({ ...prompt, section })));
-var promptById = (id) => ALL_PROMPTS.find((prompt) => prompt.id === id) ?? ALL_PROMPTS[0];
-var FLASH_PROMPT = promptById("flash").text;
-var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
-
-// page/pages/prompts/prompts-page.js
-function fillPrompt(prompt, values) {
-  return prompt.text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);
-}
-function promptFields(prompt) {
-  return [...new Set([...prompt.text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]))];
-}
-var WHAT_HAPPENS = {
-  device: "Hermes asks for your approval before it touches the device, unless Approvals are turned off.",
-  create: "Hermes creates the project in that folder, selects it for the chat and builds the first ROM. It then shows up on the Games page.",
-  other: "Works on the game selected in that chat. Start with Create if the chat has none yet."
-};
-function PromptsPage({ ctx, storage, selected, onSelect, gameReady, hardwareOn, profileLabel, defaultFolder, onSetUpDevice, onGo }) {
-  const [query, setQuery] = useState("");
-  const [edits, setEdits] = useState({});
-  const [names, setNames] = useState({});
-  const [folder, setFolder] = useState(() => {
-    try {
-      return storage.get("promptFolder", null);
-    } catch {
-      return null;
-    }
-  });
-  const listRef = useRef(null);
-  const needle = query.trim().toLowerCase();
-  const matches = (prompt2) => !needle || `${prompt2.title} ${prompt2.text} ${prompt2.section.title}`.toLowerCase().includes(needle);
-  const visible = ALL_PROMPTS.filter(matches);
-  const prompt = visible.find((item) => item.id === selected) ?? visible[0] ?? promptById(selected);
-  const locked = Boolean(prompt.hw) && !hardwareOn;
-  const values = { folder: folder ?? defaultFolder ?? "~", name: names[prompt.id] ?? prompt.defaults?.name ?? "MyGame" };
-  const text2 = edits[prompt.id] ?? fillPrompt(prompt, values);
-  const fields = promptFields(prompt);
-  const canChat = gameReady && !locked;
-  const state = useRef({});
-  state.current = { visible, prompt, onSelect };
-  useEffect(() => {
-    const onKey = (event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" || event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      const target = event.target;
-      if (target && (target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName ?? "") || target.tagName === "INPUT" && target.type !== "search")) {
-        return;
-      }
-      const { visible: list, prompt: current, onSelect: select } = state.current;
-      const index = list.findIndex((item) => item.id === current.id);
-      const next = list[Math.max(0, Math.min(list.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
-      if (next) {
-        event.preventDefault();
-        select(next.id);
-        ctx.setTimeout(() => listRef.current?.querySelector?.(`[data-prompt="${next.id}"]`)?.focus?.(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  const setField = (key, value) => {
-    setEdits((previous) => ({ ...previous, [prompt.id]: void 0 }));
-    if (key === "folder") {
-      setFolder(value);
-      try {
-        storage.set("promptFolder", value);
-      } catch {
-      }
-    } else {
-      setNames((previous) => ({ ...previous, [prompt.id]: value }));
-    }
-  };
-  const groups = PROMPT_SECTIONS.map((section) => ({ section, items: visible.filter((item) => item.section === section) })).filter((group) => group.items.length);
-  return [
-    jsx(PageHead, {
-      label: `Prompts · ${ALL_PROMPTS.length} ready to use`,
-      lede: jsxs("span", {
-        children: [
-          "Every prompt opens a chat in ",
-          jsx("span", { className: "cs-mono", children: profileLabel }),
-          " with the text in its composer, ready for you to edit and send. Or copy it and paste it anywhere."
-        ]
-      }),
-      number: "02",
-      title: "Start building"
-    }, "head"),
-    jsxs(
-      "div",
-      {
-        className: "cs-reader",
-        children: [
-          jsxs("nav", {
-            "aria-label": "Prompts",
-            className: "cs-rlist",
-            ref: listRef,
-            children: [
-              jsxs("label", {
-                className: "cs-search",
-                children: [
-                  jsx(Codicon, { name: "search", size: 14 }),
-                  jsx("input", { "aria-label": "Find a prompt", onChange: (event) => setQuery(event.target.value), placeholder: "Find a prompt", type: "search", value: query })
-                ]
-              }),
-              groups.length ? groups.flatMap(({ section, items }, index) => [
-                jsxs("span", { className: index ? "cs-rgrp" : "cs-rgrp first", children: [jsx("span", { children: section.title }), jsx("span", { children: items.length })] }, `g-${section.id}`),
-                ...items.map(
-                  (item) => jsxs(
-                    "button",
-                    {
-                      "aria-current": item.id === prompt.id ? "true" : void 0,
-                      className: item.hw && !hardwareOn ? "cs-ritem off" : "cs-ritem",
-                      "data-prompt": item.id,
-                      onClick: () => onSelect(item.id),
-                      type: "button",
-                      children: [jsx("span", { children: item.title }), item.hw && !hardwareOn ? jsx("span", { className: "cs-tag quiet", children: "device" }) : null]
-                    },
-                    item.id
-                  )
-                )
-              ]) : jsx(Small, { children: "No prompts match." }),
-              jsxs("p", {
-                className: "cs-faint",
-                style: { paddingTop: 18 },
-                children: [jsx("span", { className: "cs-key", children: "↑" }), " ", jsx("span", { className: "cs-key", children: "↓" }), " to move through the list"]
-              })
-            ]
-          }),
-          jsxs("section", {
-            "aria-label": prompt.title,
-            className: "cs-rdetail",
-            children: [
-              jsxs("div", {
-                className: "cs-col",
-                style: { gap: 10 },
-                children: [
-                  jsxs("p", {
-                    className: "cs-eyebrow",
-                    children: [
-                      jsx("span", { className: "cs-accent", children: prompt.section.n }),
-                      prompt.section.title,
-                      jsx("span", { className: "cs-tag quiet", children: prompt.src === "modretro" ? "ModRetro quickstart" : "Hermes" }),
-                      locked ? jsx("span", { className: "cs-tag warn", children: "Needs your Chromatic" }) : null
-                    ]
-                  }),
-                  jsx("h3", { className: "cs-word", style: { fontSize: "clamp(28px, 3cqi, 52px)" }, children: prompt.title })
-                ]
-              }),
-              fields.length ? jsx("div", {
-                className: "cs-params",
-                children: fields.flatMap((key) => [
-                  jsx("label", { htmlFor: `cs-f-${key}`, children: key === "folder" ? "Parent folder" : "Project name" }, `l-${key}`),
-                  jsx("input", { id: `cs-f-${key}`, onChange: (event) => setField(key, event.target.value), spellCheck: false, value: values[key] }, `i-${key}`)
-                ])
-              }) : null,
-              jsx("textarea", {
-                "aria-label": "Prompt text",
-                onChange: (event) => setEdits((previous) => ({ ...previous, [prompt.id]: event.target.value })),
-                spellCheck: false,
-                value: text2
-              }),
-              prompt.note ? jsx("p", { className: "cs-faint", children: prompt.note }) : null,
-              jsxs("div", {
-                className: "cs-actions",
-                children: [
-                  jsx(PromptButton, { ctx, disabled: !canChat, fresh: true, label: "Start a new chat", prompt: text2, variant: "default" }),
-                  jsx(AsyncButton, {
-                    disabled: !canChat,
-                    icon: "insert",
-                    run: () => sendPromptToChat(ctx, text2),
-                    title: "Adds the prompt to the hermretro chat you were last in, else a new one",
-                    variant: "secondary",
-                    children: "Add to current chat"
-                  }),
-                  jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: text2 }),
-                  jsx("span", { className: "cs-grow" }),
-                  edits[prompt.id] !== void 0 ? jsx(Button, { onClick: () => setEdits((previous) => ({ ...previous, [prompt.id]: void 0 })), size: "sm", variant: "ghost", children: "Reset text" }) : null
-                ]
-              }),
-              locked ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "Streaming and flashing need your Chromatic set up. You can still read and copy those prompts." }),
-                  jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
-                ]
-              }) : !gameReady ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "After setup: these prompts need the game toolchain, so the chat buttons turn on once it is installed." }),
-                  jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "outline", children: "Continue setup" })
-                ]
-              }) : null,
-              jsxs("div", {
-                className: "cs-uses",
-                children: [
-                  jsx("p", { className: "cs-eyebrow", children: "What happens" }),
-                  jsx(Small, { children: prompt.hw ? WHAT_HAPPENS.device : prompt.section.id === "create" ? WHAT_HAPPENS.create : WHAT_HAPPENS.other }),
-                  jsx("span", { className: "cs-faint", children: "Nothing is sent until you press send in the chat." })
-                ]
-              })
-            ]
-          }),
-          jsx(Art, {})
-        ]
-      },
-      "reader"
-    )
-  ];
-}
-function Prompts({ shell }) {
-  return jsx(PromptsPage, {
-    ctx: shell.ctx,
-    defaultFolder: shell.newGameFolder,
-    gameReady: shell.gameReady,
-    hardwareOn: shell.hardwareOn,
-    onGo: shell.go,
-    onSelect: shell.setPromptId,
-    onSetUpDevice: shell.setUpDevice,
-    profileLabel: shell.profileLabel,
-    selected: shell.promptId,
-    storage: shell.ctx.storage
-  });
-}
-
-// page/pages/prompts/index.js
-var PROMPTS_PAGE = {
-  id: "prompts",
-  label: "Prompts",
-  Page: Prompts,
-  css: [PROMPTS_CSS]
-};
-
 // page/pages/games/model.js
 var KIND_LABELS = { gbstudio: "GB Studio", gbdk: "GBDK" };
 var GAME_STATES = {
@@ -11048,7 +10675,7 @@ function latestGame(games) {
   return list.find((game) => game.webExport) ?? list[0] ?? null;
 }
 function installPrompt(game) {
-  return FLASH_PROMPT.replace("my built homebrew ROM", `the built ROM of ${gameLabel(game)}`);
+  return `Flash the built ROM of ${gameLabel(game)} to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks.`;
 }
 function fixPrompt(game) {
   return `The last build of ${gameLabel(game)} failed${game.error ? `:
@@ -11256,10 +10883,10 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
     children: jsxs("button", { className: "cs-hwchip", onClick: onSetUpDevice, type: "button", children: [jsx("i", {}), "Emulator only · Set up my Chromatic"] })
   });
 }
-function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
+function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games;
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
-  const newGame = jsxs(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
+  const newGame = jsxs(Button, { onClick: onNewGame, size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
   if (games.isError || games.data && !Array.isArray(list)) {
     return [
       jsx(PageHead, { title: "Your games" }, "head"),
@@ -11287,17 +10914,13 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
             jsxs("div", {
               className: "cs-col",
               children: [
-                jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "03" }), "Games"] }),
                 jsx("h2", { className: "cs-word cs-title", children: "No games yet" }),
                 jsx(Lede, {
-                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic. Start with a new game or remix the example."
+                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic."
                 }),
-                jsxs("div", {
+                jsx("div", {
                   className: "cs-actions",
-                  children: [
-                    jsx(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: "Create a new game" }),
-                    jsx(Button, { onClick: () => onOpenPrompt("remix"), size: "sm", variant: "outline", children: "Remix Wrecklight" })
-                  ]
+                  children: jsx(Button, { onClick: onNewGame, size: "sm", variant: "default", children: "Create a new game" })
                 }),
                 jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." }),
                 folder
@@ -11326,7 +10949,7 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
                 jsx("button", {
                   "aria-label": "New game",
                   className: "cs-cart ghost",
-                  onClick: () => onOpenPrompt("new-game"),
+                  onClick: onNewGame,
                   type: "button",
                   children: jsx("span", {
                     className: "slot",
@@ -11365,7 +10988,10 @@ function Games({ shell }) {
       emit("games.coverRequested", { game, prompt: COVER_PROMPT });
       shell.go("build");
     },
-    onOpenPrompt: shell.openPrompt,
+    onNewGame: () => {
+      emit("games.newGameRequested");
+      shell.go("build");
+    },
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice
   });
@@ -11378,7 +11004,8 @@ var GAMES_PAGE = {
   Page: Games,
   css: [GAMES_CSS],
   events: {
-    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent."
+    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent.",
+    "games.newGameRequested": "New game was picked on the shelf. Build opens its New Game form without starting a chat."
   },
   slots: {
     "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
@@ -12477,6 +12104,7 @@ var STEP_SHORT = {
 };
 
 // page/pages/setup/hardware-steps.js
+var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
 function Confirm({ step, update }) {
   return step.state === "done" ? jsx(Button, { onClick: () => update({ [MANUAL_STEPS[step.id]]: false }), size: "sm", variant: "ghost", children: "Mark as not done" }) : jsxs(Button, {
     onClick: () => update({ [MANUAL_STEPS[step.id]]: true }),
@@ -12770,6 +12398,7 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
 }
 
 // page/pages/setup/install/installer.js
+var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
 }
@@ -13639,6 +13268,8 @@ function OnboardChromatic({ onEmulator, onDevice }) {
     ]
   });
 }
+var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
+var PLAN_GAME_PROMPT = "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project.";
 var IDEAS = [
   ["Tiny platformer", "a tiny platformer where a frog hops across lily pads to reach home"],
   ["Top-down adventure", "a top-down adventure where a gardener collects three seeds to open a gate"],
@@ -13714,7 +13345,7 @@ function OnboardMake({ ctx, onDone }) {
             role: "group",
             children: [
               ...IDEAS.map(([label, text2]) => jsx("button", { onClick: () => setIdea(text2), type: "button", children: label }, label)),
-              jsx("button", { disabled: busy, onClick: () => void go(promptById("plan").text), type: "button", children: "Plan it first" }, "plan")
+              jsx("button", { disabled: busy, onClick: () => void go(PLAN_GAME_PROMPT), type: "button", children: "Plan it first" }, "plan")
             ]
           }),
           jsx("div", { children: jsx(Button, { onClick: onDone, size: "sm", variant: "ghost", children: "Skip, take me to the studio" }) })
@@ -14488,11 +14119,14 @@ var VIEWER_CSS = `
 `;
 
 // page/pages/build/index.js
-function coverRequested({ game, prompt }, ctx) {
+function rememberSelection(ctx, id) {
   try {
-    ctx.storage.set("buildSelected", game.id);
+    ctx.storage.set("buildSelected", id);
   } catch {
   }
+}
+function coverRequested({ game, prompt }, ctx) {
+  rememberSelection(ctx, game.id);
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false;
   injectBuildDraft(own ? game.session.storedId : "", prompt);
 }
@@ -14525,6 +14159,7 @@ var BUILD_PAGE = {
   register: watchBuildChats,
   listens: {
     "games.coverRequested": coverRequested,
+    "games.newGameRequested": (_payload, ctx) => rememberSelection(ctx, "new"),
     "emulator.presented": (presentation) => notePresented(presentation)
   }
 };
@@ -14651,8 +14286,6 @@ var RESPONSIVE_CSS = `
 @container (max-width: 1000px) {
   .cs-setup { grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 1fr); }
   .cs-setup > .cs-flyer { display: none; }
-  .cs-reader { grid-template-columns: clamp(200px, 26cqi, 280px) minmax(0, 1fr); }
-  .cs-reader > .cs-art { display: none; }
   .cs-empty { grid-template-columns: 1fr; }
   .cs-empty > .cs-art { display: none; }
 }
@@ -14681,8 +14314,8 @@ var RESPONSIVE_CSS = `
   .cs-rp-focus { padding: 0 6px; }
 }
 @container (max-width: 760px) {
-  .cs-setup, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
-  .cs-rail, .cs-rlist { position: static; }
+  .cs-setup, .cs-page-head { grid-template-columns: 1fr; }
+  .cs-rail { position: static; }
   .cs-rail-item, .cs-rail-group { display: none; }
   .cs-meter { margin-top: 0; }
   .cs-choice { grid-template-columns: 1fr; }
@@ -15177,7 +14810,7 @@ var EMULATOR_PAGE = {
 };
 
 // page/pages/index.js
-var PAGES = [BUILD_PAGE, SETUP_PAGE, PROMPTS_PAGE, GAMES_PAGE, EMULATOR_PAGE];
+var PAGES = [BUILD_PAGE, SETUP_PAGE, GAMES_PAGE, EMULATOR_PAGE];
 
 // page/app/registry.js
 var PAGE_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "tabs", "Badge", "pad", "BelowPlayer", "css", "cssLast", "events", "listens", "slots", "contributes", "register"]);
@@ -16796,9 +16429,9 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null,
           // The profile the studio works in, when it is not the one the app is on: a quiet chip, the
           // explanation in its tooltip.
           viaProfile ? jsx(Tip, {
-            label: `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+            label: `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
             children: jsxs("span", {
-              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
               className: "cs-top-profile",
               children: [jsx(Codicon, { name: "account", size: 12 }), viaProfile]
             })
@@ -17163,7 +16796,6 @@ function StudioPage({ ctx }) {
     }
   });
   const [pinned, setPinned] = useState(null);
-  const [promptId, setPromptId] = useState("new-game");
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
   const { backend, doctor, gateway, status } = useBackend(polling);
   const refreshing = status.isFetching || doctor.isFetching;
@@ -17252,10 +16884,6 @@ function StudioPage({ ctx }) {
     update({ hardwareSkipped: false, hardwareWanted: true, onboarded: true });
     setPinned(null);
     go("setup");
-  };
-  const openPrompt = (id) => {
-    setPromptId(id);
-    go("prompts");
   };
   const onEmulator = page === "emulator";
   const games = useQuery({
@@ -17358,28 +16986,14 @@ function StudioPage({ ctx }) {
     install,
     // Hermes's update of hermretro: the header chip, and the version row on the Setup page
     pluginUpdate,
-    gameReady,
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and prompts
+    // games
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, "games"] }),
     play,
-    openPrompt,
-    promptId,
-    setPromptId,
-    // New games go in the plugin's games folder (the backend reports it); an older backend without it falls
-    // back to the folder of the latest game.
-    newGameFolder: (() => {
-      if (typeof games.data?.gamesDir === "string" && games.data.gamesDir) {
-        return games.data.gamesDir;
-      }
-      const root = latestGame(gameList)?.projectRoot;
-      return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, "") || null : null;
-    })(),
-    profileLabel: routing.profile ?? status.data?.profile?.name ?? "this profile",
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,

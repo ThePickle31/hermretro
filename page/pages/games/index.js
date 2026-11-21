@@ -13,7 +13,8 @@ export const GAMES_PAGE = {
   Page: Games,
   css: [GAMES_CSS],
   events: {
-    'games.coverRequested': 'Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent.'
+    'games.coverRequested': 'Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent.',
+    'games.newGameRequested': 'New game was picked on the shelf. Build opens its New Game form without starting a chat.'
   },
   slots: {
     'games.cardMenu':

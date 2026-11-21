@@ -24,14 +24,17 @@ import { VIEWER_CSS } from './viewer/viewer.css.js'
 export { buildShowing, isBuildSession } from './chat/store.js'
 export { toolResultObject, unwrapCalls } from './chat/tool-results.js'
 
-/** Make cover art on the Games shelf: open that game here with the request in its message box, not sent. */
-function coverRequested({ game, prompt }, ctx) {
+function rememberSelection(ctx, id) {
   try {
-    ctx.storage.set('buildSelected', game.id)
+    ctx.storage.set('buildSelected', id)
   } catch {
     // this visit only
   }
+}
 
+/** Make cover art on the Games shelf: open that game here with the request in its message box, not sent. */
+function coverRequested({ game, prompt }, ctx) {
+  rememberSelection(ctx, game.id)
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false
 
   injectBuildDraft(own ? game.session.storedId : '', prompt)
@@ -66,6 +69,7 @@ export const BUILD_PAGE = {
   register: watchBuildChats,
   listens: {
     'games.coverRequested': coverRequested,
+    'games.newGameRequested': (_payload, ctx) => rememberSelection(ctx, 'new'),
     'emulator.presented': presentation => notePresented(presentation)
   }
 }

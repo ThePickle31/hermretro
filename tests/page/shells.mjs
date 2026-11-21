@@ -4,7 +4,7 @@
 // fields, each with the same kind of value), so a field the shell gains or a page starts reading shows up as a
 // failure, not as an undefined prop.
 //   import { pageShell, ownPage } from './shells.mjs'
-//   render(jsx(ownPage(pageOf('prompts')), { shell: pageShell({ games: answered({ games: [game] }) }) }))
+//   render(jsx(ownPage(pageOf('games')), { shell: pageShell({ games: answered({ games: [game] }) }) }))
 
 /** A query result as the shell holds it (the stub's useQuery answer): `{ data, isFetching, isPending }`. */
 export const answered = data => ({ data, isFetching: false, isPending: false })
@@ -22,13 +22,13 @@ export function ownPage(page) {
  * strings; viaProfile is the profile the page's queries go to, or null when it is the app's; memory is the setup
  * memory object `{}`; steps is the list of setup steps `[]` (`{ id, complete, hardware? }`) and gameList the games;
  * auto and shown are a step or null, autoId the next step's id (or 'ready' / 'not-running' / 'choice'), choosing a
- * boolean; pluginUpdate is the update state (app/update/use-update.js, nothing ready); player is the shell's one player (`{ game, query, ... }`); go, openPrompt, play, setUpDevice and the
+ * boolean; pluginUpdate is the update state (app/update/use-update.js, nothing ready); player is the shell's one player (`{ game, query, ... }`); go, play, setUpDevice and the
  * other functions are actions. `overrides` replaces any of them.
  */
 export function pageShell(overrides = {}) {
   return {
     ctx: { storage: { get: (key, fallback) => fallback, set: noop }, os: {} },
-    page: 'prompts',
+    page: 'games',
     go: noop,
     refresh: noop,
     refreshing: false,
@@ -49,7 +49,6 @@ export function pageShell(overrides = {}) {
     install: { isFetching: false, isPending: true },
     pluginUpdate: { visible: false, ready: false, checked: false, linked: false, phase: 'idle', step: 0, error: null, review: null,
       version: null, open: false, setOpen: noop, start: noop, agree: noop, cancel: noop, later: noop, whatsNew: noop, openPlugins: noop },
-    gameReady: true,
     hardwareOn: false,
     emulatorOnly: false,
     setUpDevice: noop,
@@ -57,11 +56,6 @@ export function pageShell(overrides = {}) {
     gameList: [],
     gamesChanged: noop,
     play: noop,
-    openPrompt: noop,
-    promptId: 'new-game',
-    setPromptId: noop,
-    newGameFolder: null,
-    profileLabel: 'hermretro',
     player: {
       game: null,
       query: answered(null),
