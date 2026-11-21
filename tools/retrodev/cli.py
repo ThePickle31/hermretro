@@ -314,9 +314,10 @@ def dispatch(ctx: config.Context, args: argparse.Namespace) -> int:
                 dry_run=args.dry_run,
                 draft=args.draft,
                 checklist=args.checklist,
+                with_next=args.with_next,
             )
         if args.action == "next":
-            return release_next.run(ctx, args.owner_words, dry_run=args.dry_run)
+            return release_next.run(ctx, args.owner_words, dry_run=args.dry_run, after=args.after)
         if args.action == "prepare":
             return release.prepare(ctx, args.owner_words, rc=args.rc, named=args.version)
         if args.action == "publish":

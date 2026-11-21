@@ -340,8 +340,14 @@ class Verify(ReleaseCase):
         self.assertEqual(self.publish()[0], 0)
         self.clear_log()
         view = {"tagName": f"v{NEXT}", "isDraft": True, "isPrerelease": False, "body": body, "url": URL}
-        self.gh.answers[("release", "view", f"v{NEXT}", "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
+        readback = ("release", "view", f"v{NEXT}", "--json", release_verify.FIELDS)
+        self.gh.answers[readback] = (0, json.dumps(view), "")
         self.gh.answers[("release", "edit")] = (0, "", "")
+
+        def published(_args):
+            self.gh.answers[readback] = (0, json.dumps(dict(view, isDraft=False)), "")
+
+        self.gh.effects[("release", "edit", f"v{NEXT}", "--draft=false")] = published
         return sha
 
     def test_verify_checks_the_draft_and_publishes_only_when_asked(self):

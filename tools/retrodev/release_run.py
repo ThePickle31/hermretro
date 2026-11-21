@@ -1,28 +1,8 @@
-"""release run --owner-words "..." [--rc] [--version X.Y.Z] [--draft] [--dry-run]: a release, in one command.
+"""Prepare and publish a release on the owner's words; see REFERENCE.md, Releases, for the gates.
 
-Only when the owner asks for a release. It chains the release steps, each skipped when its record says it is done,
-so running the same command again after any stop resumes where it stopped:
-
-    1 prepare   release prepare (release.py): the chore/release-X.Y.Z pull request, or no_pr when the base branch
-                already says the version (then 2 and 3 are skipped). That is the usual case: release next moved
-                dev to this version right after the last release, so dev's green head is released as it is
-    2 approve   the owner's release words are the approval of that pull request, given only after checking that it
-                changes nothing but plugin.yaml's `version:` line (else 3: needs the owner); bound to its head
-    3 land      land <n> (land.py): reviews, CI on the exact head, the squash merge; the head is checked again first
-    4 wait      the push run on the release commit: polled every [release] ci_poll seconds up to ci_timeout
-                (policy.toml); still running: 2, with the command that resumes here. A failed run gets its failed
-                jobs rerun once (a flaky runner); failing again stops the release
-    5 publish   release publish <version> (release_publish.py): its gates, main, the tag, the draft release
-    6 verify    release verify <version> --publish (release_verify.py): its checks, then the release is published
-                (GitHub keeps a published release's notes editable; its tag is locked). --draft stops before this
-    7 next      a stable release only: release next (release_next.py) moves dev to the next version
-
-Before step 1 a new release is refused when the base branch has nothing since the last stable tag besides version
-lines, and a still-open next-version pull request for another version (the owner named a different one) is closed.
-The version it works on is kept in the release record (`run`), and every printed command names it (--version), so
-a rerun takes the same release. --dry-run fetches nothing and changes nothing: it prints what is done and what it
-would run, and every command it prints keeps --dry-run (a step with no dry run of its own, prepare and approve, is
-described, not printed as a command).
+Prepare, approve and land the version PR only if needed, wait for CI on the pinned commit, make the draft,
+then verify and publish. A retry resumes the named version. A dry run changes nothing; --draft stops at the
+draft. Next-version preparation is separate unless a stable release explicitly uses --with-next.
 """
 
 from __future__ import annotations
@@ -46,11 +26,14 @@ from . import (
 from .output import OWNER, WAITING, Failure, cmd
 
 
-def command(words: str, rc: bool, version: str | None, dry_run: bool, draft: bool = False) -> str:
+def command(
+    words: str, rc: bool, version: str | None, dry_run: bool, draft: bool = False, with_next: bool = False
+) -> str:
     """This command as an agent reruns it: the chosen version pinned, the owner's words quoted."""
     argv = ["python", "tools/retrodev", "release", "run"] + (["--rc"] if rc else [])
     argv += ["--version", release.stable(version)] if version else []
-    argv += ["--owner-words", words] + (["--draft"] if draft else []) + (["--dry-run"] if dry_run else [])
+    argv += ["--owner-words", words] + (["--draft"] if draft else []) + (["--with-next"] if with_next else [])
+    argv += ["--dry-run"] if dry_run else []
     return shlex.join(argv)
 
 
@@ -110,11 +93,11 @@ def unapprove(ctx, branch: str, number: int) -> None:
 
 
 class Run:
-    def __init__(self, ctx, words: str, rc: bool, version: str, dry_run: bool, draft: bool = False):
+    def __init__(self, ctx, words: str, rc: bool, version: str, dry_run: bool, draft: bool, with_next: bool):
         self.ctx, self.words, self.rc, self.version, self.dry_run = ctx, words, rc, version, dry_run
-        self.draft = draft
+        self.draft, self.with_next = draft, with_next
         self.checklist: str | None = None  # the owner's real-machine checklist result, for the notes
-        self.again = command(words, rc, version, dry_run, draft)
+        self.again = command(words, rc, version, dry_run, draft, with_next)
         self.steps: list[dict] = []
         self.waiting = False  # a dry run past a step that is not done: the rest is only what it would do
 
@@ -274,34 +257,27 @@ class Run:
         argv = ["python", "tools/retrodev", "release", "publish", version]
         if self.waiting:
             self.would("publish", shlex.join(argv + ["--dry-run"]))
-            if not self.draft:
-                self.would("verify", f"release verify for {version}, then publish it (its checks first)")
-                if not self.rc:
-                    self.would("next", release_next.command(self.words, dry_run=True))
-            ctx.out.say("dry run: nothing was prepared, approved, merged, pushed, tagged or published")
-            return 0
-        ctx.out.say(f"running: {shlex.join(argv + (['--dry-run'] if self.dry_run else []))}")
-        try:
-            release_publish.run(ctx, version, dry_run=self.dry_run, checklist=self.checklist)
-        except Failure as failure:
-            raise resumable(failure, self.again)
+        else:
+            ctx.out.say(f"running: {shlex.join(argv + (['--dry-run'] if self.dry_run else []))}")
+            try:
+                release_publish.run(ctx, version, dry_run=self.dry_run, checklist=self.checklist)
+            except Failure as failure:
+                raise resumable(failure, self.again)
+            if self.dry_run:
+                self.step("publish", "would run the commands above")
         if self.dry_run:
-            self.step("publish", "would run the commands above")
             if not self.draft:
                 self.would("verify", f"release verify for {version}, then publish it (its checks first)")
-                if not self.rc:
-                    self.would("next", release_next.command(self.words, dry_run=True))
+                self.next_version()
             ctx.out.say("dry run: nothing was prepared, approved, merged, pushed, tagged or published")
             return 0
         url = (self.record().get("published_draft") or {}).get("url") or ""
         self.step("publish", f"done: draft release {url}")
         if self.draft:
-            nxt = command(self.words, self.rc, self.version, False)  # the same run without --draft resumes at verify
+            nxt = command(self.words, self.rc, self.version, False, with_next=self.with_next)
             self.ctx.out.set(url=url, next=nxt)
             self.ctx.out.say(f"draft release: {url}")
-            self.ctx.out.say(
-                f"next: read the draft with the owner; after their go: {nxt} (it publishes, then moves on)"
-            )
+            self.ctx.out.say(f"next: read the draft with the owner; after their go: {nxt} (it publishes)")
             return 0
         return self.verify()
 
@@ -321,12 +297,19 @@ class Run:
         return self.next_version()
 
     def next_version(self) -> int:
-        """Step 7, stable releases only: dev moves to the next version (release next), so the next release needs
-        no version pull request. Its failure leaves the release as it is (published): rerun to finish it."""
-        if self.rc:
+        """Separate next-version work from verified publication; run inline only when explicitly requested."""
+        if self.rc or (self.record().get("next") or {}).get("merged"):
+            return 0
+        followup = release_next.command(self.words, dry_run=self.dry_run, after=self.version)
+        if self.dry_run and self.with_next:
+            self.would("next", followup)
+            return 0
+        self.ctx.out.set(next_version={"status": "pending", "command": followup})
+        if self.dry_run or not self.with_next:
+            self.ctx.out.say(f"separate follow-up (next version): {followup}")
             return 0
         try:
-            release_next.run(self.ctx, self.words)
+            release_next.run(self.ctx, self.words, after=self.version)
         except Failure as failure:
             raise Failure(
                 f"released, but dev did not move to the next version: {failure.message}",
@@ -335,6 +318,7 @@ class Run:
                 failure.code,
                 failure.data,
             )
+        self.ctx.out.set(next_version={"status": "done"})
         self.step("next", f"done: {self.ctx.remote_base} says the next version")
         return 0
 
@@ -347,32 +331,41 @@ def run(
     dry_run: bool = False,
     draft: bool = False,
     checklist: str | None = None,
+    with_next: bool = False,
 ) -> int:
     try:
         words = release.words_gate(words)
     except Failure as failure:
-        shown = command("<their exact words>", rc, named, dry_run, draft)
+        shown = command("<their exact words>", rc, named, dry_run, draft, with_next)
         raise Failure(failure.message, f"ask the owner; when they ask for a release: {shown}", failure.code)
     if named and release.parse(named)[3] is not None:
-        raise Failure("--version takes X.Y.Z; --rc adds the -rc.M", command(words, True, None, dry_run, draft) + " ...")
+        raise Failure(
+            "--version takes X.Y.Z; --rc adds the -rc.M", command(words, True, None, dry_run, draft, with_next) + " ..."
+        )
     if ctx.top.resolve() != ctx.main().resolve():
         raise Failure(
             f"release run runs from the main checkout ({ctx.main()}): land removes the release worktree",
-            f"{cmd('cd', ctx.main())} && {command(words, rc, named, dry_run, draft)}",
+            f"{cmd('cd', ctx.main())} && {command(words, rc, named, dry_run, draft, with_next)}",
         )
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     version = release_guard.choose(ctx, rc, named)
-    flow = Run(ctx, words, rc, version, dry_run, draft)
+    flow = Run(ctx, words, rc, version, dry_run, draft, with_next)
     flow.checklist = checklist
     rec = flow.record()
     ctx.out.set(version=version, dry_run=dry_run, resume=flow.again)
     ctx.out.say(f"release {version}" + (" (dry run)" if dry_run else "") + f": {flow.again}")
     if rec.get("published"):
-        ctx.out.say(f"{version} is published already ({rec['published'].get('url')})")
-        if dry_run or rc or (rec.get("next") or {}).get("merged"):
+        if dry_run:
+            ctx.out.say(f"{version} is recorded as published")
             return 0
-        return flow.next_version()  # a run stopped after publishing: finish moving dev on
+        try:
+            info = release_verify.published_view(ctx, version)
+        except Failure as failure:
+            raise resumable(failure, flow.again)
+        ctx.out.set(url=info["url"], published=True)
+        ctx.out.say(f"{version} is published already ({info['url']})")
+        return 0 if draft else flow.next_version()
     if not rec.get("run"):  # a new release: something to release, and no next-version pull request in its way
         if not release_guard.news(ctx):
             previous = release.previous_stable(ctx)

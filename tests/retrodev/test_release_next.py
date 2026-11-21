@@ -1,4 +1,4 @@
-"""release run without --draft: release verify --publish, then release next moves dev to the next version.
+"""Verified publication and its separate next-version work (or inline with --with-next).
 
 Against the temp origin of test_release with the fake GitHub of test_release_run; the next version's pull request
 is #41, merged for real into the origin.
@@ -19,10 +19,11 @@ load_tests = parallel
 AFTER = "0.0.3"  # the version release next moves dev to after NEXT
 NEXT_PR = "41"
 NEXT_BRANCH = f"chore/release-{AFTER}"
+LIVE_URL = f"https://github.com/o/r/releases/tag/v{NEXT}"
 
 
 class Publishes(RunCase):
-    """Without --draft: release verify --publish, then release next moves dev on (its pull request is #41)."""
+    """Once publication is verified, release next can move dev on (its pull request is #41)."""
 
     def setUp(self):
         super().setUp()
@@ -35,6 +36,10 @@ class Publishes(RunCase):
         self.gh.answers[("pr", "checks", NEXT_PR)] = (0, json.dumps(GREEN), "")
         self.gh.effects[("release", "create")] = self.drafted
         self.gh.answers[("release", "edit")] = (0, "", "")
+        self.gh.effects[("release", "edit", f"v{NEXT}", "--draft=false")] = lambda args: self.published(args[2])
+
+    def release_run(self, *extra: str, as_json: bool = True):
+        return super().release_run("--with-next", *extra, as_json=as_json)
 
     def created(self, args) -> None:
         head = args[args.index("--head") + 1]
@@ -86,15 +91,41 @@ class Publishes(RunCase):
 
     def published(self, tag: str) -> None:
         """GitHub now shows the release as published (whatever gh said)."""
-        view = dict(self.view_info, isDraft=False)
+        view = dict(self.view_info, isDraft=False, url=LIVE_URL)
         self.gh.answers[("release", "view", tag, "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
 
     def dev_version(self) -> str:
         git(self.main, "fetch", "-q", "origin")
         return git(self.main, "show", "origin/dev:plugin.yaml").strip()
 
+    def test_default_returns_the_verified_url_before_next_version_work(self):
+        code, data = super().release_run()
+        assert isinstance(data, dict)
+        self.assertEqual((code, data.get("published"), data.get("url")), (0, True, LIVE_URL), data)
+        self.assertEqual(data["next_version"]["status"], "pending")
+        self.assertIn(f"--after {NEXT}", data["next_version"]["command"])
+        self.assertEqual(self.dev_version(), f"version: {NEXT}")
+        self.assertEqual(len(self.gh.called("pr", "create")), 1, "the next version's PR has not started")
+        mismatch, data = self.run_cli("release", "next", "--owner-words", WORDS, "--after", AFTER, as_json=True)
+        self.assertEqual(mismatch, 1, data)
+        self.assertEqual(len(self.gh.called("pr", "create")), 1)
+        code, data = self.run_cli("release", "next", "--owner-words", WORDS, "--after", NEXT, as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertEqual(self.dev_version(), f"version: {AFTER}")
+
+    def test_a_successful_write_that_is_still_a_draft_cannot_start_followups(self):
+        del self.gh.effects[("release", "edit", f"v{NEXT}", "--draft=false")]
+        code, data = self.release_run()
+        assert isinstance(data, dict)
+        self.assertEqual(code, 1, data)
+        self.assertIn("could not confirm", data["error"]["message"])
+        self.assertIn("--with-next", data["error"]["fix"])
+        self.assertFalse((state.load_release(self.main, NEXT) or {}).get("published"))
+        self.assertEqual(len(self.gh.called("pr", "create")), 1)
+
     def test_one_command_publishes_then_dev_moves_to_the_next_version(self):
         code, data = self.release_run()
+        assert isinstance(data, dict)
         self.assertEqual(code, 0, data)
         steps = [s["step"] for s in data["run_steps"]]
         self.assertEqual(steps, ["prepare", "approve", "land", "wait", "publish", "verify", "next"], data)
@@ -108,7 +139,7 @@ class Publishes(RunCase):
         self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not run", notes[0][-1])
         order = [i for i, c in enumerate(self.gh.calls) if c[:2] == ["release", "edit"]]
         self.assertEqual([self.gh.calls[i][3] for i in order], ["--notes", "--draft=false"])
-        self.assertEqual(data["url"], URL)
+        self.assertEqual(data["url"], LIVE_URL)
         installs = [entry for entry in self.check_log() if entry.get("script")]
         self.assertEqual(len(installs), 1, "verify reused publish's update check on the same commit")
         self.assertEqual(self.dev_version(), f"version: {AFTER}")
@@ -155,14 +186,10 @@ class Publishes(RunCase):
         self.assertEqual(len([c for c in self.gh.called("pr", "create") if NEXT_BRANCH in c]), 1, "the same #41")
         self.assertEqual(self.dev_version(), f"version: {AFTER}")
 
-    def test_a_release_github_published_while_failing_is_recorded_on_resume_and_never_chosen_again(self):
+    def test_a_release_github_published_while_failing_is_confirmed_by_readback(self):
         tag = f"v{NEXT}"
         self.gh.answers[("release", "edit", tag, "--draft=false")] = (1, "", "HTTP 502: Bad Gateway")
-        self.gh.effects[("release", "edit", tag, "--draft=false")] = lambda _args: self.published(tag)
         code, data = self.release_run()
-        self.assertEqual(code, 1, data)
-        self.assertFalse(state.load_release(self.main, NEXT).get("published"), "the record missed the publish")
-        code, data = self.release_run("--version", NEXT)  # the printed command
         self.assertEqual(code, 0, data)
         self.assertTrue(state.load_release(self.main, NEXT)["published"]["reconciled"])
         self.assertEqual(self.dev_version(), f"version: {AFTER}")

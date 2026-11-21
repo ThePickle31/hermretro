@@ -272,7 +272,7 @@ def parser(sub, common) -> None:
     steps = p.add_subparsers(dest="action", required=True, metavar="<action>")
     run = steps.add_parser(
         "run",
-        help="the version pull request when needed, publish, then dev moves to the next version",
+        help="the version pull request when needed, then publish and report any follow-ups",
         parents=[common],
     )
     run.add_argument(
@@ -281,6 +281,7 @@ def parser(sub, common) -> None:
     run.add_argument("--rc", action="store_true", help="a release candidate (X.Y.Z-rc.M; main does not move)")
     run.add_argument("--version", help="the version the owner named (default: the next patch, or the one started)")
     run.add_argument("--draft", action="store_true", help="stop at the draft release (the owner reads it first)")
+    run.add_argument("--with-next", action="store_true", help="also finish the next version's PR after publication")
     checklist = "the real-machine checklist's result, for the notes (e.g. 'passed on a MacBook Pro M3')"
     run.add_argument("--checklist", metavar="RESULT", help=checklist)
     run.add_argument("--dry-run", action="store_true", help="print what is done and what it would run; change nothing")
@@ -297,4 +298,5 @@ def parser(sub, common) -> None:
     verify.add_argument("--publish", action="store_true", help="publish it when every check is ok")
     nxt = steps.add_parser("next", help="dev moves to the next version (its version pull request)", parents=[common])
     nxt.add_argument("--owner-words", help="the owner's exact words asking for releases (approve that pull request)")
+    nxt.add_argument("--after", metavar="VERSION", help="prepare the next version only after this stable release")
     nxt.add_argument("--dry-run", action="store_true", help="say what it would do; change nothing")

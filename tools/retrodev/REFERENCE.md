@@ -328,10 +328,10 @@ number>` records it (the time, and that the agent did it) in the same record; `-
 refused. Exit 2 while a step is left, an unrecorded manual one included (the next one named, with its `--done`), 0
 only when every step is done. It never changes `engine/` itself. `--dry-run` records and runs nothing
 
-### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--draft] [--checklist "..."] [--dry-run]`
+### `release run [--rc] [--version X.Y.Z] --owner-words "..." [--draft] [--with-next] [--checklist "..."] [--dry-run]`
 
 The usual way: the version pull request only when dev does not say the version yet, CI on the release commit, the
-draft, the published release (`--draft` stops at the draft), then `release next`. Below
+draft, and the verified published URL (`--draft` stops at the draft). `--with-next` also runs the next-version PR. Below
 
 ### `release prepare [--rc] [--version X.Y.Z] --owner-words "..."`
 
@@ -345,10 +345,10 @@ The gates, the update check, then main, the tag and the draft release. Below
 
 Reads the draft and proves the update path; `--publish` publishes it. Below
 
-### `release next --owner-words "..." [--dry-run]`
+### `release next --owner-words "..." [--after VERSION] [--dry-run]`
 
-Right after a stable release (release run runs it): dev moves to the next version through its version pull request,
-so the next release needs none. Below
+Separately after a stable release: dev moves to the next version through its version pull request, so the next
+release needs none. The printed follow-up uses `--after` so a stale command cannot act on a later release. Below
 
 ## new
 
@@ -739,8 +739,9 @@ there (every command it prints names the version it chose, `--version X.Y.Z`, wh
   from the same release, is reused, not run again), then the release is published. GitHub keeps a published
   release's title and notes editable; its tag is locked, and the gates proved it first. `--draft` stops before this
   step and prints the same command without `--draft`, which resumes here once the owner has read the draft;
-- for a stable release, `release next` with the same words (below). A stop there leaves the release published; the
-  printed command (`--version X.Y.Z`) resumes at this step.
+- reads the published release back from GitHub and returns its live URL. For a stable release, the output includes
+  a separate `release next` command with the same words, pinned to that release. Run it as a separate job, or use
+  `--with-next` to do it inline. A stop in the follow-up leaves the release published; the printed command resumes it.
 
 A new release (no record of this command yet) is refused when `dev` has nothing since the newest stable tag besides
 the `version:` line, and a next-version pull request `release next` opened for another version than this one (the

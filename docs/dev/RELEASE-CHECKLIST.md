@@ -48,6 +48,8 @@ the previous stable release that publish ran on the same commit counts); `--publ
 ## Then release
 
 The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release run` (the
-version pull request only when `dev` does not say the version yet, then publish and the published release, then
-`release next` moves `dev` to the next version; `--draft` stops at the draft), or its steps one at a time, `release
+version pull request only when `dev` does not say the version yet, then publish and report the verified URL;
+`--draft` stops at the draft), or its steps one at a time, `release
 prepare`, `release publish`, `release verify` and `release next` (`tools/retrodev/README.md`, "Releases").
+After reporting publication, run the printed `release next` command separately to prepare `dev`, or use
+`release run --with-next` to wait for that work inline.

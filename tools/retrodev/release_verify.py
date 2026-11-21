@@ -22,6 +22,29 @@ from .output import OWNER, Failure
 FIELDS = "tagName,isDraft,isPrerelease,body,url,name"
 
 
+def published_view(ctx, version: str) -> dict:
+    """Read the live release, not the draft URL captured before the write."""
+    tag = f"v{version}"
+    code, out, err = github.gh(ctx, ["release", "view", tag, "--json", FIELDS], check=False)
+    try:
+        info = json.loads(out) if code == 0 else None
+    except ValueError:
+        info = None
+    if (
+        not isinstance(info, dict)
+        or info.get("tagName") != tag
+        or info.get("isDraft") is not False
+        or info.get("isPrerelease") is not (release.parse(version)[3] is not None)
+        or not isinstance(info.get("url"), str)
+        or not info["url"].strip()
+    ):
+        detail = f": {(err or out).strip()[:200]}" if code else ""
+        raise Failure(
+            f"could not confirm {tag} is published{detail}", f"python tools/retrodev release verify {version} --publish"
+        )
+    return info
+
+
 def remote_tag(ctx, tag: str) -> str | None:
     """The commit the remote's tag points at (peeled), or None."""
     _code, out, _err = repo.run(["git", "ls-remote", "--tags", ctx.remote, f"refs/tags/{tag}*"], ctx.top)
@@ -68,7 +91,7 @@ def run(ctx, version: str, publish: bool = False) -> int:
     found: list[Gate] = []
     code, out, err = github.gh(ctx, ["release", "view", tag, "--json", FIELDS], check=False)
     info = json.loads(out) if code == 0 and out.strip() else None
-    if info is None:
+    if not isinstance(info, dict) or info.get("tagName") != tag or type(info.get("isDraft")) is not bool:
         raise Failure(
             f"there is no release {tag} on GitHub ({(err or out).strip()[:200]})",
             f"python tools/retrodev release publish {version} (it makes the draft)",
@@ -139,7 +162,7 @@ def run(ctx, version: str, publish: bool = False) -> int:
     ctx.out.say(f"{tag} checks out: {info.get('url')}")
     if not info.get("isDraft"):
         ctx.out.say("it is published already (published releases are immutable)")
-        ctx.out.set(published=True)
+        ctx.out.set(published=True, url=info.get("url"))
         rec = state.load_release(ctx.top, version) or {}
         approved = (rec.get("approved") or {}).get("sha")
         if not rec.get("published") and approved and approved == sha:  # published, but the record was not saved
@@ -152,10 +175,20 @@ def run(ctx, version: str, publish: bool = False) -> int:
         ctx.out.set(published=False)
         return 0
     ctx.out.say("publishing: a published release is immutable (its tag and files can never change)")
-    github.gh(ctx, ["release", "edit", tag, "--draft=false"])
+    code, out, err = github.gh(ctx, ["release", "edit", tag, "--draft=false"], check=False)
+    try:
+        info = published_view(ctx, version)
+    except Failure:
+        if code:
+            raise github.failed(["release", "edit", tag, "--draft=false"], err or out) from None
+        raise
+    if remote_tag(ctx, tag) != sha:
+        raise Failure(f"{tag} changed during publication", "inspect the remote tag before continuing", OWNER)
     rec = state.load_release(ctx.top, version) or {"version": version}
     rec["published"] = {"at": state.now(), "sha": sha, "url": info.get("url")}
+    if code:
+        rec["published"]["reconciled"] = True  # the write returned an error but GitHub applied it
     state.save_release(ctx.top, rec)
-    ctx.out.set(published=True)
+    ctx.out.set(release=info, published=True, url=info["url"])
     ctx.out.say(f"published {tag}: {info.get('url')}")
     return 0

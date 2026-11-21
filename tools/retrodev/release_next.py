@@ -46,10 +46,10 @@ Made by an agent (Hermes, retrodev release next) for the owner.
 """
 
 
-def command(words: str, dry_run: bool = False) -> str:
-    return cmd(
-        "python", "tools/retrodev", "release", "next", "--owner-words", words, *(["--dry-run"] if dry_run else [])
-    )
+def command(words: str, dry_run: bool = False, after: str | None = None) -> str:
+    argv = ["python", "tools/retrodev", "release", "next", "--owner-words", words]
+    argv += ["--after", after] if after else []
+    return cmd(*argv, *(["--dry-run"] if dry_run else []))
 
 
 def next_patch(version: str) -> str:
@@ -95,7 +95,7 @@ def finish_landing(ctx, released: str) -> None:
     if found is None:  # unknown is not "not merged": its landing may be left half done
         raise Failure(
             f"GitHub did not say whether #{number} (the next version's pull request) is merged",
-            f"gh pr view {number}; then {command(kept.get('words') or '<the owner words>')} again (it resumes)",
+            f"gh pr view {number}; then {command(kept.get('words') or '<the owner words>', after=released)} again (it resumes)",
         )
     if found != "MERGED":
         return
@@ -139,20 +139,28 @@ def open_it(ctx, released: str, version: str, words: str) -> int:
     return int(number)
 
 
-def run(ctx, words: str | None, dry_run: bool = False) -> int:
+def run(ctx, words: str | None, dry_run: bool = False, after: str | None = None) -> int:
     try:
         words = release.words_gate(words)
     except Failure as failure:
-        raise Failure(failure.message, f"ask the owner; then {command('<their exact words>', dry_run)}", failure.code)
+        raise Failure(
+            failure.message, f"ask the owner; then {command('<their exact words>', dry_run, after)}", failure.code
+        )
+    again = command(words, dry_run, after)
     if ctx.top.resolve() != ctx.main().resolve():
         raise Failure(
             f"release next runs from the main checkout ({ctx.main()}): land removes the worktree",
-            f"{cmd('cd', ctx.main())} && {command(words, dry_run)}",
+            f"{cmd('cd', ctx.main())} && {again}",
         )
     if not dry_run:
         repo.git(["fetch", "--quiet", "--tags", ctx.remote], ctx.top)
     released, current, version = target(ctx)
     ctx.out.set(released=released, dev_version=current, next=version, dry_run=dry_run)
+    if after and after != released:
+        raise Failure(
+            f"expected stable release {after}, found {released or 'none'}",
+            "check the release before preparing another version",
+        )
     if released and not dry_run:
         finish_landing(ctx, released)
     if not released:
@@ -162,7 +170,7 @@ def run(ctx, words: str | None, dry_run: bool = False) -> int:
         ctx.out.say(f"{ctx.remote_base} already says {current} (newer than {released}): nothing to do")
         return 0
     branch = f"chore/release-{version}"
-    again = command(words, dry_run)
+
     found = recorded(ctx, released, version) or github.branch_pr(ctx, branch)
     if found and found.get("state") == "MERGED":
         ctx.out.say(f"#{found['number']} set {version} on {ctx.remote_base} already (fetch to see it): nothing to do")
