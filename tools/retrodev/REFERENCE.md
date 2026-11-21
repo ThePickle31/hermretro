@@ -653,9 +653,9 @@ refused for merge conflicts says the same. Then, from the records (`records.next
 - **every finding answered, nothing new pushed**: the next round judges the answers, unless every finding of the
   last due round was rated low (a low finding may be answered `Deferred: <where it is recorded>`)
 - **the last due round had findings, all answered**: no further round: on to CI with this head, recorded as the one
-  accepted for that round (`accepted` in the review record). A push that shows a reviewer nothing new since
-  the round's head (an empty commit, a clean merge of `dev`, a rebuilt generated file) is no fix: findings above low
-  then still get the judging round
+  accepted for that round (`accepted` in the review record). A fix is a commit of the pull request's own
+  that changes a file the reviewer is shown; an empty commit, a merge of `dev` or a rebuilt generated file is none:
+  findings above low then still get the judging round
 - **a push after the accepted head (a CI fix, say), fewer than 3 rounds ran**: a round reviews the new head
 - **3 rounds ran and the head moved past round 3's clean head or the accepted head**: exit 3 (`action:
   reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not

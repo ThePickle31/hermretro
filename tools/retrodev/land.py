@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import ci, gates, github, land_carry, land_depth, land_gates, land_merge, reviews, ship
+from . import ci, gates, github, land_depth, land_gates, land_merge, reviews, ship
 from .gates import Gate
 from .land_merge import progress
 from .output import FAILED, OWNER, Failure, cmd
@@ -189,9 +189,9 @@ def review_step(
     if no_review and not rec.get("skipped"):
         # Who decided is not known here (an agent can pass --no-review too), so only the reason given is recorded.
         rec = records.mark_skipped(root, number, (reason or "").strip() or NO_REVIEW, notes)
-    rec = land_depth.apply(ctx, tree, land_carry.carry(ctx, tree, rec, sha), sha)
+    rec = land_depth.standing(ctx, tree, rec, sha)
     action = decide(rec, sha)
-    ctx.out.set(review_action=action, review_depth=land_depth.shown(rec))
+    ctx.out.set(review_action=action, review_depth=land_depth.shown(rec, action))
     if action == "needs-owner":
         raise owner_failure(rec, number)
     if action == "reviews-exhausted":
@@ -284,9 +284,7 @@ def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = No
         code = failure.code
         ctx.out.say(f"gates: {failure.message}")
     head = info.get("headRefOid") or ""
-    rec = land_depth.apply(
-        ctx, tree, land_carry.carry(ctx, tree, reviews.load(ctx, number), head, save=False), head, save=False
-    )
+    rec = land_depth.standing(ctx, tree, reviews.load(ctx, number), head, save=False)
     action = decide(rec, head)
     if reviews.unanswered(rec):
         action = "answer"
@@ -305,6 +303,9 @@ def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = No
     ctx.out.say(f"would: {words.get(action, action)}" + ("" if not code else " (once the gates pass)"))
     ctx.out.say("dry run: nothing was reviewed, readied or merged")
     ctx.out.set(
-        action=action, review=reviews.rounds(rec), review_depth=land_depth.shown(rec), landing=record.get("land")
+        action=action,
+        review=reviews.rounds(rec),
+        review_depth=land_depth.shown(rec, action),
+        landing=record.get("land"),
     )
     return code

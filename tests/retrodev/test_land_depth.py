@@ -112,6 +112,8 @@ class Depth(LandCase):
         self.assertEqual(self.run_cli("answer", PR, "1", "--all", "Wrong: the test exists, see its output")[0], 0)
         code, out = self.land("--dry-run", as_json=False)
         self.assertIn("would: probe the reviewer, then run review round 2", out)
+        depth = self.land("--dry-run")[1]["review_depth"]
+        self.assertEqual((depth["rounds"], depth["total"]), (1, 2), "the round about to run counts")
         self.reviewer("OK\n", reply("s2"))
         code, data = self.land()
         self.assertEqual(code, 0, data)
@@ -224,10 +226,31 @@ class Depth(LandCase):
         code, out = self.land("--dry-run", as_json=False)
         self.assertIn(f"{name} is new since round 1's head", out)
         self.assertIn("would: probe the reviewer, then run review round 2", out)
+        self.assertNotIn("the review carries over", out)
         self.reviewer("OK\n", reply("s2"))
-        code, data = self.land()
-        self.assertEqual(code, 0, data)
-        self.assertEqual(records.valid_rounds(self.record())[-1]["sha"], head)
+        code, out = self.land(as_json=False)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("the review carries over", out)
+        rec = self.record()
+        self.assertEqual((records.valid_rounds(rec)[-1]["sha"], rec.get("carried")), (head, None))
+        code, out = self.run_cli("summary", PR)
+        self.assertNotIn("merged in after the review", out)
+        self.assertNotIn("not reviewed", out)
+
+    def test_a_sync_after_dev_took_one_of_the_edits_is_no_fix_for_a_disputed_finding(self):
+        def change(tree):
+            self.commit(tree, "backend/library/core.py", "VALUE = 2\n", TITLE)
+            self.commit(tree, "docs/value.md", "# Two\n", "Document the value")
+
+        tree = self.open_pr(change=change)
+        self.reviewer("OK\n", reply("s1", findings=1))
+        self.assertEqual(self.land()[0], 1)
+        self.assertEqual(self.run_cli("answer", PR, "1", "0", "Wrong: the test exists, see its output")[0], 0)
+        self.on_dev("docs/value.md", "# Two\n")  # dev takes that edit itself: it leaves the pull request's diff
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
+        self.publish(tree)
+        code, data = self.land("--dry-run")
+        self.assertEqual((data["action"], data["review_depth"]["same_patch"]), ("review", True), data)
 
 
 if __name__ == "__main__":

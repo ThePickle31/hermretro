@@ -13,19 +13,19 @@ never more than records.MAX_ROUNDS. Two more facts go with it, both read by reco
   depth['unseen']      second_round files the head changes that the last reviewed head did not (a later push, or a
                        merge of the base branch that moved an edited file there): the head is reviewed itself, no
                        clean, accepted or carried review stands for it, until MAX_ROUNDS ran
-  depth['same_patch']  the head shows a reviewer nothing new since the last reviewed head (an empty commit, a clean
-                       merge of the base branch, a rebuilt generated file), or that cannot be told: no fix was
-                       pushed, so findings above low that were only disputed still get their judging round The answer is recomputed on every land from the current head and findings (a
+  depth['same_patch']  no commit of the pull request's own since the last reviewed head changes what a reviewer is
+                       shown (an empty commit, a merge of the base branch, a rebuilt generated file), or that
+                       cannot be told: no fix was pushed, so findings above low that were only disputed still get
+                       their judging round The answer is recomputed on every land from the current head and findings (a
 later push that touches a second_round file raises it) and kept in the review record as record['depth'] =
 {rounds, why}, which records.next_action reads and the readable copy (notes/reviews/pr<N>.md) shows.
 """
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
-from . import repo, reviews
+from . import land_carry, repo, reviews
 from .review import inputs, records
 
 
@@ -40,35 +40,31 @@ def changed(ctx, tree: Path | None, sha: str) -> list[str] | None:
     return None if code else sorted(name for name in out.split("\0") if name)
 
 
-def base_of(ctx, tree: Path, sha: str) -> str:
-    return repo.git(["merge-base", ctx.remote_base, sha], tree, check=False).strip()
-
-
-def digest(ctx, tree: Path, sha: str) -> str | None:
-    """What the reviewer is shown of the pull request at ``sha`` (inputs.pathspec: generated files and lockfiles
-    left out), without context, blob names or line numbers, so the base branch moving under it changes nothing."""
-    point = base_of(ctx, tree, sha)
-    code, out, _err = repo.run(["git", "diff", "--no-renames", "--binary", "-U0", point, sha, *inputs.pathspec()], tree)
-    if not point or code:
-        return None
-    kept = ["@@" if line.startswith("@@") else line for line in out.splitlines() if not line.startswith("index ")]
-    return hashlib.sha256("\n".join(kept).encode("utf-8", "surrogateescape")).hexdigest()
-
-
 def same_patch(ctx, tree: Path | None, seen: str | None, sha: str) -> bool:
-    """Whether ``sha`` changes nothing a reviewer is shown since the reviewed head ``seen`` (no fix was pushed), or
-    that cannot be told. On the same base the two trees are compared directly, generated files aside; after a merge
-    of the base branch their patches are (so a fix that only moves the same lines elsewhere then reads as none: the
-    careful side, it costs a round)."""
+    """Whether no fix was pushed since the reviewed head ``seen``, or that cannot be told. A fix is a commit of the
+    pull request's own (not a merge, not the base branch's) that changes a file a reviewer is shown
+    (inputs.EXCLUDED: generated files and lockfiles are not), on a head whose shown files differ from ``seen``'s.
+    So an empty commit, a rebuilt bundle, a merge of the base branch (whatever it does to the pull request's diff)
+    and a change taken back again are none; a change made inside a merge's conflict resolution is none either, the
+    careful side: it costs a round."""
     if not seen or seen == sha:
         return False
     if tree is None:
         return True
-    if base_of(ctx, tree, seen) and base_of(ctx, tree, seen) == base_of(ctx, tree, sha):
-        code, _out, _err = repo.run(["git", "diff", "--quiet", "--no-renames", seen, sha, *inputs.pathspec()], tree)
-        return code != 1  # 1: they differ; anything else but 0 cannot be told
-    now = digest(ctx, tree, sha)
-    return now is None or now == digest(ctx, tree, seen)
+    code, _out, _err = repo.run(["git", "diff", "--quiet", "--no-renames", seen, sha, *inputs.pathspec()], tree)
+    if code != 1:
+        return True  # 0: nothing a reviewer is shown differs; else it cannot be told
+    try:
+        if not repo.is_ancestor(tree, seen, sha):
+            return True
+        own = repo.git(["rev-list", "--no-merges", sha, "^" + seen, "^" + ctx.remote_base], tree).split()
+        for commit in own:
+            names = repo.git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--no-renames", commit], tree)
+            if any(name and name not in inputs.EXCLUDED for name in names.split("\0")):
+                return False
+    except (repo.GitError, ValueError):
+        return True
+    return True
 
 
 def risky(ctx, tree: Path | None, sha: str) -> list[str] | None:
@@ -108,11 +104,22 @@ def decide(ctx, tree: Path | None, rec: dict, sha: str) -> dict:
     return {"rounds": rounds, "why": why, "same_patch": same_patch(ctx, tree, seen, sha), "unseen": unseen}
 
 
-def shown(rec: dict) -> dict:
-    """The depth as answers report it, with ``total``: the rounds due or already run, whichever is more (a round
-    that judged disputed findings, or reviewed a later push, is beyond ``rounds``)."""
+def shown(rec: dict, action: str | None = None) -> dict:
+    """The depth as answers report it, with ``total``: the rounds due, already run or about to run (``action`` is
+    'review'), whichever is most: a round that judges disputed findings, or reviews a later push, is beyond
+    ``rounds``."""
     depth = rec.get("depth") or {}
-    return {**depth, "total": max(records.depth(rec), len(records.valid_rounds(rec)))}
+    ran = len(records.valid_rounds(rec)) + (1 if action == "review" else 0)
+    return {**depth, "total": min(records.MAX_ROUNDS, max(records.depth(rec), ran))}
+
+
+def standing(ctx, tree: Path | None, rec: dict, sha: str, save: bool = True) -> dict:
+    """The record with its depth up to date and, where a review may stand for ``sha``, the carry (land_carry). A
+    head that must be reviewed itself (depth['unseen']) gets no carry recorded or announced."""
+    rec = apply(ctx, tree, rec, sha, save)
+    if rec["depth"]["unseen"] and len(records.valid_rounds(rec)) < records.MAX_ROUNDS:
+        return rec
+    return land_carry.carry(ctx, tree, rec, sha, save=save)
 
 
 def apply(ctx, tree: Path | None, rec: dict, sha: str, save: bool = True) -> dict:
