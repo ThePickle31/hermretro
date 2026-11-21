@@ -125,6 +125,23 @@ def flat(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def manifest_list(manifest: str, key: str) -> list[str]:
+    """Every item of a top-level list in plugin.yaml, which writes each as `  - name`: an item in any other form
+    fails here instead of being skipped by a pattern that only matches the usual one."""
+    found = re.search(rf"^{key}:\n", manifest, re.M)
+    if not found:
+        raise AssertionError(f"plugin.yaml has no {key} list")
+    items = []
+    for line in manifest[found.end() :].splitlines():
+        if line and not line.startswith(" "):
+            break  # the next top-level key
+        if line.strip():
+            if not re.fullmatch(r"  - \w+", line):
+                raise AssertionError(f"plugin.yaml {key}: {line.strip()!r} is not a plain `  - name` item")
+            items.append(line[4:])
+    return items
+
+
 class LockStep(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -162,17 +179,23 @@ class LockStep(unittest.TestCase):
 
     def test_the_manifest_declares_exactly_the_tools_and_hooks_registered(self):
         manifest = read("plugin.yaml")
-        # Every entry, whatever its name: an unregistered one in the list must fail as much as a missing one.
-        listed = re.findall(r"^  - (\w+)$", manifest.split("provides_tools:")[1], re.M)
+        # Every entry, whatever its form: an unregistered one in the list must fail as much as a missing one.
+        listed = manifest_list(manifest, "provides_tools")
         self.assertEqual(set(listed), self.tools, "plugin.yaml provides_tools")
         engine = [schema["name"] for schema in contracts.hermes_schemas()]
         # plugin-owned tools first, then the engine's in pinned order: the registration order Hermes sees.
         self.assertEqual(listed[-len(engine) :], engine, "plugin.yaml's tail is not the engine's pinned order")
         self.assertEqual(len(set(listed)), len(listed), "plugin.yaml names a tool twice")
-        hooks = manifest.split("provides_hooks:")[1].split("provides_tools:")[0]
         self.assertEqual(
-            set(re.findall(r"^  - (\w+)$", hooks, re.M)), set(self.calls["hook"]), "plugin.yaml provides_hooks"
+            set(manifest_list(manifest, "provides_hooks")), set(self.calls["hook"]), "plugin.yaml provides_hooks"
         )
+
+    def test_a_manifest_entry_in_another_form_is_refused_not_skipped(self):
+        for entry in ("- unregistered-tool", '- "unregistered_tool"', "-  spaced", "- name # a note"):
+            with self.subTest(entry=entry), self.assertRaises(AssertionError) as caught:
+                manifest_list(f"provides_tools:\n  - chromatic_a\n  {entry}\nnext: 1\n", "provides_tools")
+            self.assertIn(entry, str(caught.exception))
+        self.assertEqual(manifest_list("provides_tools:\n  - a\n\n  - b\nnext:\n  - c\n", "provides_tools"), ["a", "b"])
 
     def test_the_contract_states_the_real_tool_counts(self):
         engine = len(json.loads(paths.PINNED_TOOLS.read_text())["tools"])

@@ -107,7 +107,9 @@ class OldBroker(unittest.TestCase):
         # broker judges idleness only when the test asks, and time moves only when the test says so: no sleep races.
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:  # short: a Unix socket path is at most 104 bytes
             broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.1)
+            self.addCleanup(broker.stop)  # registered at once: a failed wait below still stops the broker
             held = update_check.hold_open(broker.path)
+            self.addCleanup(held.close)
             broker.wait_for_connections(1)  # accepted, not just connected
             broker.advance(1.0)  # long past the deadline: only the held connection keeps the broker up
 
@@ -121,17 +123,13 @@ class OldBroker(unittest.TestCase):
                     new_client.connect(broker.path)  # refused when the old broker idled out
                 return "driven"
 
-            try:
-                self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
-                self.assertFalse(broker.gone, "the old broker idled out during the new drive")
-                self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
-                broker.wait_for_connections(0)
-                broker.advance(1.0)  # released, it idles out as before, on the same judgement
-                self.assertTrue(broker.check_idle_once(), "released, the old broker idles out as before")
-                self.assertTrue(broker.gone)
-            finally:
-                held.close()
-                broker.stop()
+            self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
+            self.assertFalse(broker.gone, "the old broker idled out during the new drive")
+            self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
+            broker.wait_for_connections(0)
+            broker.advance(1.0)  # released, it idles out as before, on the same judgement
+            self.assertTrue(broker.check_idle_once(), "released, the old broker idles out as before")
+            self.assertTrue(broker.gone)
 
     def test_a_gone_old_broker_stops_before_the_new_drive_and_releases_the_hold(self):
         held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

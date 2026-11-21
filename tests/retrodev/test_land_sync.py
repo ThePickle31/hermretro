@@ -200,6 +200,17 @@ class DevMergedAfterReview(LandCase):
         carried = self.review_record()["carried"]
         self.assertEqual([(c["head"], c["reviewed"], c["resolution_lines"]) for c in carried], [(head, reviewed, 0)])
 
+    def test_a_resolution_that_adds_code_beside_the_comments_needs_a_new_round(self):
+        """The same clean comment-only merge, but the resolution also adds 25 lines of code: over the limit, so
+        the merged head is reviewed again instead of carrying the review over."""
+        _tree, _reviewed, head = self.noqa_conflict(extra="".join(f"value{n} = {n}\n" for n in range(25)))
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.hermes.calls), 2, "25 code lines beside the comments: a probe, then round 2")
+        self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
+        self.assertNotIn("carried", self.review_record())
+
     def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
         """Both sides change a binary file and sync keeps the branch's: the merged tree equals git's own merge
         (0 lines differ), but a binary conflict cannot be judged in lines, so it is reviewed."""
@@ -278,10 +289,6 @@ class DevMergedAfterReview(LandCase):
         code, data = self.land()
         self.assertEqual(code, 0, data)
         self.assertEqual(len(self.hermes.calls), 2, "a probe, then round 2")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CodeLines(unittest.TestCase):
@@ -373,3 +380,7 @@ class MergeTreeOutput(unittest.TestCase):
         ]:
             with self.subTest(out=out):
                 self.assertIsNone(land_carry.merge_tree_output(code, out))
+
+
+if __name__ == "__main__":
+    unittest.main()
