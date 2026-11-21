@@ -156,12 +156,13 @@ class Depth(LandCase):
         self.reviewer("OK\n", reply("s2", findings=1))  # the judging round finds something else
         code, data = self.land()
         self.assertEqual((code, data["round"], data["last_round"]), (1, 2, True), data)
+        self.assertEqual((data["review_depth"]["rounds"], data["review_depth"]["total"]), (1, 2), data)
         name = self.second_round_name()
         self.commit(tree, name, "export const probe = 1\n", "Fix round 2, and touch a second-round file")
         head = self.publish(tree)
         self.assertEqual(self.run_cli("answer", PR, "2", "0", "Fixed: the test")[0], 0)
         code, out = self.land("--dry-run", as_json=False)
-        self.assertIn(f"another round: it now changes {name}", out)
+        self.assertIn(f"this head is reviewed itself: {name} is new since round 2's head", out)
         self.assertIn("would: probe the reviewer, then run review round 3", out)
         self.reviewer("OK\n", reply("s3"))
         code, data = self.land()
@@ -179,12 +180,54 @@ class Depth(LandCase):
         self.assertIn("would: probe the reviewer, then run review round 2", out)
         self.on_dev("docs/other.md", "# Other\n")  # a clean merge of dev changes the tree, not the patch
         self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
-        self.publish(tree)
+        self.commit(tree, "desktop/plugin.js", "// built\nexport const a = 2\n", "Rebuild the bundle")
+        self.publish(tree)  # a generated file is not shown to the reviewer: still no fix
         self.assertTrue(self.land("--dry-run")[1]["review_depth"]["same_patch"])
         self.reviewer("OK\n", reply("s2"))
         code, data = self.land()
         self.assertEqual(code, 0, data)
         self.assertEqual([entry["round"] for entry in records.valid_rounds(self.record())], [1, 2])
+
+    def test_a_rebuilt_generated_file_is_no_fix_and_the_same_lines_moved_elsewhere_are_one(self):
+        self.on_dev("docs/steps.md", "one\ntwo\nthree\n")
+        git(self.main, "pull", "-q", "--ff-only", "origin", "dev")
+        tree = self.open_pr(change=lambda t: self.commit(t, "docs/steps.md", "one\nNEW\ntwo\nthree\n", TITLE))
+        self.reviewer("OK\n", reply("s1", findings=1))
+        self.assertEqual(self.land()[0], 1)
+        self.assertEqual(self.run_cli("answer", PR, "1", "0", "Fixed, see the push")[0], 0)
+        self.commit(tree, "desktop/plugin.js", "// built\nexport const a = 2\n", "Rebuild the bundle")
+        self.publish(tree)
+        code, data = self.land("--dry-run")
+        self.assertEqual((data["action"], data["review_depth"]["same_patch"]), ("review", True), data)
+        self.commit(tree, "docs/steps.md", "one\ntwo\nthree\nNEW\n", "Move the line where it belongs")
+        self.publish(tree)
+        self.hermes.calls.clear()
+        code, data = self.land()
+        self.assertEqual((code, data["review_action"], self.hermes.calls), (0, "fix-then-merge", []), data)
+
+    def test_a_clean_review_does_not_carry_to_a_sync_that_moves_the_edit_into_a_second_round_file(self):
+        tree = self.open_pr()
+        self.reviewer("OK\n", reply("s1"))
+        self.ci(PENDING, code=8)
+        self.assertEqual(self.land()[0], 2)  # clean, waiting for CI
+        name = self.second_round_name()
+        self.on_dev("docs/other.md", "# Other\n")
+        other = self.base / "other"
+        (other / name).parent.mkdir(parents=True, exist_ok=True)
+        git(other, "mv", "backend/library/core.py", name)
+        git(other, "commit", "-q", "-m", "Move the module")
+        git(other, "push", "-q", "origin", "dev")
+        self.assertEqual(self.run_cli("sync", cwd=tree)[0], 0)
+        self.assertEqual((tree / name).read_text(), "VALUE = 2\n", "git carried the edit to the new path")
+        head = self.publish(tree)
+        self.ci(GREEN)
+        code, out = self.land("--dry-run", as_json=False)
+        self.assertIn(f"{name} is new since round 1's head", out)
+        self.assertIn("would: probe the reviewer, then run review round 2", out)
+        self.reviewer("OK\n", reply("s2"))
+        code, data = self.land()
+        self.assertEqual(code, 0, data)
+        self.assertEqual(records.valid_rounds(self.record())[-1]["sha"], head)
 
 
 if __name__ == "__main__":

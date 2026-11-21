@@ -220,8 +220,11 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     if not rounds:
         return "review"
     last = rounds[-1]
-    head = reviewed_as(record, head or record.get("head") or last["sha"])
+    head = head or record.get("head") or last["sha"]
     exhausted = len(rounds) >= MAX_ROUNDS
+    if head != last["sha"] and (record.get("depth") or {}).get("unseen") and not exhausted:
+        return "review"  # it changes a second_round file no round saw: no earlier review stands for this head
+    head = reviewed_as(record, head)
     if last["result"]["verdict"] == "clean":
         if head == last["sha"]:
             return "merge" if ci_green else "wait-ci"

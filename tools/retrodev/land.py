@@ -163,7 +163,7 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         total=total,
     )
     rec = land_depth.apply(ctx, tree, records.load(root, number), sha)  # a high finding adds a round
-    ctx.out.set(review_depth=rec["depth"])
+    ctx.out.set(review_depth=land_depth.shown(rec))
     status = result["status"]
     if status == "skipped":
         ctx.out.say(f"reviews skipped: {rec['skipped']['reason']}; merging on green CI (recorded)")
@@ -191,7 +191,7 @@ def review_step(
         rec = records.mark_skipped(root, number, (reason or "").strip() or NO_REVIEW, notes)
     rec = land_depth.apply(ctx, tree, land_carry.carry(ctx, tree, rec, sha), sha)
     action = decide(rec, sha)
-    ctx.out.set(review_action=action, review_depth=rec["depth"])
+    ctx.out.set(review_action=action, review_depth=land_depth.shown(rec))
     if action == "needs-owner":
         raise owner_failure(rec, number)
     if action == "reviews-exhausted":
@@ -304,5 +304,7 @@ def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = No
     ctx.out.say(f"review depth: {rec['depth']['why']}")
     ctx.out.say(f"would: {words.get(action, action)}" + ("" if not code else " (once the gates pass)"))
     ctx.out.say("dry run: nothing was reviewed, readied or merged")
-    ctx.out.set(action=action, review=reviews.rounds(rec), review_depth=rec["depth"], landing=record.get("land"))
+    ctx.out.set(
+        action=action, review=reviews.rounds(rec), review_depth=land_depth.shown(rec), landing=record.get("land")
+    )
     return code

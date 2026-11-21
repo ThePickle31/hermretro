@@ -131,6 +131,20 @@ class NextAction(unittest.TestCase):
         rec["carried"].append({"head": "e", "reviewed": "c", "resolution_lines": 0})
         self.assertEqual(records.next_action(rec, True, head="e"), "merge")
 
+    def test_a_second_round_file_no_round_saw_gets_the_head_reviewed_whatever_stands_for_it(self):
+        clean = record(rnd(1, "a", "clean"), depth=1)
+        clean["carried"] = [{"head": "b", "reviewed": "a", "resolution_lines": 0}]
+        self.assertEqual(records.next_action(clean, True, head="b"), "merge")
+        clean["depth"]["unseen"] = ["page/app/update/flow.js"]
+        self.assertEqual(records.next_action(clean, True, head="b"), "review")
+        self.assertEqual(records.next_action(clean, True, head="a"), "merge", "the reviewed head itself")
+        accepted = record(rnd(1, "a"), depth=1, accepted={"head": "b", "round": 1})
+        accepted["depth"]["unseen"] = ["x"]
+        self.assertEqual(records.next_action(accepted, True, head="b"), "review")
+        spent = record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c", "clean"), depth=1)
+        spent["depth"]["unseen"] = ["x"]
+        self.assertEqual(records.next_action(spent, True, head="d"), "reviews-exhausted")
+
     def test_a_push_with_the_same_patch_is_no_fix(self):
         rec = record(rnd(1, "a"), depth=1)
         rec["depth"]["same_patch"] = True
