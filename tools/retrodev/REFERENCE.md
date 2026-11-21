@@ -378,10 +378,12 @@ scaffolds or the files whose
 structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds,
 nor a change to `page/pages/index.js` or `step-words.js` made only of the lines `new page` and `new tool` write there,
 `[checks.new_lines]`),
-and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after checking the baseline, it adds probes on real
-features and pages, including more tabs on the now-tabbed Setup page. It then runs the full unit and page suites
-in that same copy, so tests that pin the real tree's current content fail in CI. The baseline page suite runs once;
-the baseline unit suite is reused from CI's unit job when unit is not part of the same invocation. `check` runs it in
+and CI's page job runs it with `RD_SCAFFOLD_FULL=nested` on pushes to `dev`, on relevant pull requests (see
+`SCAFFOLD` in `tools/ci/changes.py`), and nightly. Other pull requests run `RD_SCAFFOLD_FULL=smoke`, only the guard
+test in fast mode. The nested run adds probes on real features and pages, including more tabs on the now-tabbed
+Setup page, then runs the full unit and page suites in that copy so tests that pin the real tree fail in CI. The
+baseline page suite runs once; CI reuses its unit job for the baseline when the same invocation does not run unit.
+`check` runs it in
 that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
 runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
 copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
