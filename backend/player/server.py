@@ -20,6 +20,7 @@ import logging
 import mimetypes
 import re
 import secrets
+import socketserver
 import threading
 import uuid
 from datetime import UTC, datetime
@@ -430,6 +431,15 @@ def parse_multipart(content_type: str, body: bytes) -> dict:
 # -- the server ---------------------------------------------------------------------------
 
 
+class _LoopbackHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer without HTTPServer.server_bind's socket.getfqdn(host): a reverse DNS lookup of
+    127.0.0.1 that took about 35 s on GitHub's Apple Silicon runners and can stall a Mac's first "show the game"."""
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 class PlayerServer:
     def __init__(self, resolve):
         """``resolve(id) -> Path | None`` maps a game id to its project root."""
@@ -437,7 +447,7 @@ class PlayerServer:
         self.token = secrets.token_hex(32)
         self.generations: dict[str, list[str]] = {}
         self.lock = threading.Lock()
-        server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        server = _LoopbackHTTPServer(("127.0.0.1", 0), _Handler)
         server.daemon_threads = True
         server.player = self  # type: ignore[attr-defined]
         self.httpd = server

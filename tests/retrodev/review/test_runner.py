@@ -2,9 +2,11 @@
 
 import json
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
+import retrodev
 from tests.retrodev.review.helpers import FakeHermes, fixture
 
 from retrodev.review import runner
@@ -21,6 +23,12 @@ def finding(**changes):
 
 class Command(unittest.TestCase):
     def test_review_command(self):
+        policy = tomllib.loads((Path(retrodev.__file__).resolve().parent / "policy.toml").read_text())["config"]
+        # The reviewer's defaults are the policy's, so a model bump moves both and this test with them.
+        self.assertEqual(
+            (runner.DEFAULTS["provider"], runner.DEFAULTS["model"], runner.DEFAULTS["reasoning"]),
+            (policy["review_provider"], policy["review_model"], policy["review_reasoning"]),
+        )
         cmd = runner.command(SETTINGS, brief=Path("/r/brief.md"))
         self.assertEqual(
             cmd,
@@ -35,11 +43,11 @@ class Command(unittest.TestCase):
                 "--oneshot",
                 "-Q",
                 "--provider",
-                "openai-codex",
+                policy["review_provider"],
                 "-m",
-                "gpt-6.1-sol",
+                policy["review_model"],
                 "--reasoning",
-                "high",
+                policy["review_reasoning"],
                 "-t",
                 "file",
             ],
@@ -50,7 +58,7 @@ class Command(unittest.TestCase):
         self.assertIn("--resume", cmd)
         self.assertEqual(cmd[cmd.index("--resume") + 1], "s1")
         self.assertEqual(cmd[cmd.index("-m") + 1], "m2")
-        self.assertEqual(cmd[cmd.index("--provider") + 1], "openai-codex")
+        self.assertEqual(cmd[cmd.index("--provider") + 1], runner.DEFAULTS["provider"])
         self.assertEqual(cmd[cmd.index("--reasoning") + 1], "low")
 
     def test_no_profile_no_command(self):

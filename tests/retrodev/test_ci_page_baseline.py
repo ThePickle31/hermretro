@@ -42,7 +42,7 @@ def check_py():
 
 class TheUnitSuiteNeverSeesTheScaffoldModes(unittest.TestCase):
     def test_rd_scaffold_variables_stay_out_of_the_unit_run(self):
-        unit_home = check_py().unit_home  # tools/py/unit_home.py, as check.py imports it
+        unit_home = check_py().unit_shards.unit_home  # tools/py/unit_home.py, as check.py's unit run imports it
         source = {"PATH": "/bin", "RD_SCAFFOLD_FULL": "nested", "RD_SCAFFOLD_BASE": "page", "RD_SCAFFOLD_KEEP": "1"}
         env = unit_home.unit_env("/h", "/b", "/t", source=source)
         self.assertEqual([key for key in env if key.startswith("RD_SCAFFOLD_")], [])

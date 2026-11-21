@@ -266,6 +266,7 @@ def rpc_assets(ctx):
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be listed."}
             items = []
+            truncated = False
             cover = cover_path(root)
             if cover.is_file():
                 stat = cover.stat()
@@ -282,6 +283,7 @@ def rpc_assets(ctx):
                 )
             for image, real, kind in project_images(root):
                 if len(items) >= ASSET_LIST_LIMIT:
+                    truncated = True  # a picture is left out; at exactly the cap there is none
                     break
                 meta = _read_json(image.with_name(image.name + ".gbsres"), 2 * 1024 * 1024) or {}
                 stat = real.stat()
@@ -296,7 +298,7 @@ def rpc_assets(ctx):
                         "bytes": stat.st_size,
                     }
                 )
-            return {"ok": True, "root": str(root), "assets": items, "truncated": len(items) >= ASSET_LIST_LIMIT}
+            return {"ok": True, "root": str(root), "assets": items, "truncated": truncated}
         except Exception as error:
             logger.exception("hermretro assets failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}

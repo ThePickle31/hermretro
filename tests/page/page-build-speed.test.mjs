@@ -238,14 +238,26 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   scenario.byMethod['config.set'] = plainSet
   await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: true } }) })
   await settle()
+  await open()
   check('long provider and model names wrap instead of being cut', () => {
-    const css = dom.window.document.querySelector('style')?.textContent ?? ''
-    for (const rule of ['.cs-b-mp-head {', '.cs-b-mp-head b {', '.cs-b-mp-label {', '.cs-b-mp-label.two > span {', '.cs-b-mp-row {', '.cs-b-mp-ehead {', '.cs-b-mp-emodel {']) {
-      const text = css.split('\n').find(line => line.startsWith(rule)) ?? ''
-      assert.ok(text, `${rule} exists`)
-      assert.ok(!/text-overflow: ellipsis|white-space: nowrap/.test(text), `${rule} does not cut its words`)
-    }
+    // The rendered picker's own rules, not a synthetic probe that only rejects nowrap: a rule missing from
+    // the stylesheet now fails instead of counting as a pass.
+    const css = el => dom.window.getComputedStyle(el)
+    const prop = (el, name) => css(el).getPropertyValue(name).trim()
+    assert.equal(prop(pop().querySelector('.cs-b-mp-head'), 'flex-wrap'), 'wrap', 'the head wraps provider and count')
+    assert.equal(prop(pop().querySelector('.cs-b-mp-head b'), 'overflow-wrap'), 'anywhere', 'the provider name breaks')
+    assert.equal(prop(pop().querySelector('.cs-b-mp-label'), 'overflow-wrap'), 'anywhere', 'a model name breaks')
+    assert.equal(prop(pop().querySelector('.cs-b-mp-ehead'), 'flex-wrap'), 'wrap', 'the effort heading wraps')
+    assert.equal(prop(pop().querySelector('.cs-b-mp-emodel'), 'overflow-wrap'), 'anywhere', 'the effort model name breaks')
   })
+  await press(tile('Starred'))
+  check('the starred list names each row\u2019s provider on a second line that wraps too', () => {
+    const label = pop().querySelector('.cs-b-mp-label.two')
+    assert.ok(label, 'the starred list mixes providers, so it names each row\u2019s')
+    assert.equal(dom.window.getComputedStyle(label.querySelector('span')).getPropertyValue('overflow-wrap').trim(), 'anywhere')
+  })
+  await press(tile('ChatGPT or Codex Subscription'))
+  await key('keydown', 'Escape')
 
   // Review round 3: a message sent right after a switch waits for it, the Standard reset included.
   const calls = []

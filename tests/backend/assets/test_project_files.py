@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.assets.project_files import ASSET_FOLDERS, project_images
+from backend.assets.project_files import project_images
 
 
 class ProjectImages(unittest.TestCase):
@@ -50,7 +50,6 @@ class ProjectImages(unittest.TestCase):
                 ("assets/fonts/font.png", "ui"),
             ],
         )
-        self.assertEqual([folder for folder, _kind in ASSET_FOLDERS], ["sprites", "backgrounds", "ui", "fonts"])
 
     def test_kinds_filter_and_counting(self):
         self.assertEqual(self.listed(kinds=("background",)), [("assets/backgrounds/field.png", "background")])

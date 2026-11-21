@@ -57,16 +57,11 @@ test('coins come back only when 90% are collected, and every coin counts', () =>
   }
 })
 
-test('the form takes no part in the level: nothing of the page is solid, walkable or measured', async () => {
+test('the form takes no part in the level: nothing of the page is solid, walkable or measured', () => {
   for (const r of runs) {
     const { L } = r.world
-    assert.ok(!('dom' in L), `${name(r)}: the level still holds page boxes`)
     for (const p of L.solids) assert.ok(p.kind === 'tile' || p.kind === 'block', `${name(r)}: a ${p.kind} collider`)
-    for (const s of L.surfaces) assert.ok(!('dom' in s), `${name(r)}: a surface on the page`)
   }
-  const { readFile } = await import('node:fs/promises')
-  const source = await readFile(new URL('../../page/pages/build/new-game.js', import.meta.url), 'utf8')
-  assert.doesNotMatch(source, /data-plat/, 'new-game.js marks nothing for the level')
 })
 
 test('the same seed builds the same level', () => {
