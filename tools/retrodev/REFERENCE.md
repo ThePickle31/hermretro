@@ -735,8 +735,8 @@ there (every command it prints names the version it chose, `--version X.Y.Z`, wh
   A failed push run has its failed jobs rerun once (`gh run rerun <id> --failed`, recorded per commit: a flaky
   runner); failing again stops the release;
 - `release publish <version>`, with all its gates, up to the draft;
-- `release verify <version> --publish`: its checks (the update check `release publish` just passed on that commit,
-  from the same release, is reused, not run again), then the release is published. GitHub keeps a published
+- `release verify <version> --publish`: reuses a saved local upgrade pass for the exact pair of commits. CI
+  evidence is rechecked and, if no longer available, the local upgrade runs. GitHub keeps a published
   release's title and notes editable; its tag is locked, and the gates proved it first. `--draft` stops before this
   step and prints the same command without `--draft`, which resumes here once the owner has read the draft;
 - for a stable release, `release next` with the same words (below). A stop there leaves the release published; the
@@ -777,7 +777,9 @@ three steps below remain, to run or resume one at a time:
    `plugin.yaml` says the version; "All checks pass" is green on that exact commit (`gh api
    repos/{owner}/{repo}/commits/<sha>/check-runs`; still running: exit 2); `origin/main` is an ancestor of it (main
    only fast-forwards; otherwise exit 3); the tag is free or already at that commit. Next, the upgrade must be
-   proven from the preceding stable release to the exact candidate. Only the repository's successful `dev` push
+   proven from the preceding published stable release to the exact candidate. GitHub identifies the published
+   baseline, and its tag must resolve to the same commit locally and on the remote. A baseline that cannot be
+   confirmed stops the release. Only the repository's successful `dev` push
    workflow attempt can supply evidence: the upgrade step must have succeeded and logged both full commit SHAs;
    the job also identifies the pinned Hermes runtime. The baseline must be a published, immutable release.
    If evidence is absent, unavailable or mismatched, `tools/ci/clean_install_check.py --update-from` runs locally

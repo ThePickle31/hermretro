@@ -2,9 +2,8 @@
 
 Checks, all reported: the release exists (gh release view --json) and its notes are not empty; the tag is on the
 remote; for a stable release it points at main's head and plugin.yaml there says the version; for a candidate
-it is a prerelease on a base-branch commit. Then `tools/ci/clean_install_check.py --update-from v<previous stable>`
-runs on the tagged commit in a throwaway checkout: users of the last release update to it (a pass release publish
-kept for that commit and starting release counts, so it runs once per release). With --publish and
+it is a prerelease on a base-branch commit. Pin the preceding published stable commit and prove it updates to the
+candidate. A matching local pass counts; CI evidence is rechecked and otherwise the local upgrade runs. With --publish and
 everything ok, it says that a published release is immutable and runs `gh release edit v<version> --draft=false`.
 --publish also needs the authorization: the owner's words recorded for this version (release prepare), the tag at
 the very commit `release publish` approved after all its gates passed (kept in the release record), and the
@@ -15,7 +14,7 @@ from __future__ import annotations
 
 import json
 
-from . import gates, github, release, release_publish, repo, state
+from . import gates, github, release, release_ci, release_publish, repo, state
 from .gates import Gate
 from .output import OWNER, Failure
 
@@ -24,9 +23,7 @@ FIELDS = "tagName,isDraft,isPrerelease,body,url,name"
 
 def remote_tag(ctx, tag: str) -> str | None:
     """The commit the remote's tag points at (peeled), or None."""
-    _code, out, _err = repo.run(["git", "ls-remote", "--tags", ctx.remote, f"refs/tags/{tag}*"], ctx.top)
-    refs = {line.split("\t")[1]: line.split("\t")[0] for line in out.splitlines() if "\t" in line}
-    return refs.get(f"refs/tags/{tag}^{{}}") or refs.get(f"refs/tags/{tag}")
+    return repo.peeled_remote_tag(ctx.top, ctx.remote, tag)
 
 
 def remote_head(ctx, branch: str) -> str | None:
@@ -118,10 +115,10 @@ def run(ctx, version: str, publish: bool = False) -> int:
             if has == release.stable(version)
             else Gate("plugin.yaml says the version", False, f"plugin.yaml at the tag says {has}", "ask the owner")
         )
-        start = release_publish.update_from(ctx, version)
+        published = release_ci.prior_release(ctx, sha, version)
         rec = state.load_release(ctx.top, version) or {"version": version}
-        result = release_publish.install_check(ctx, rec, sha, start)
-        detail = f"from {start}: {result['detail']}" if start else result["detail"]
+        result = release_publish.install_check(ctx, rec, sha, published)
+        detail = f"from {published.tag}: {result['detail']}"
         found.append(
             gates.passed("update from the last release", detail)
             if result["ok"]

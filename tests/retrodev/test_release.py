@@ -17,6 +17,11 @@ WORDS = "make a release"
 PR = "40"
 NEXT = "0.0.2"
 URL = f"https://github.com/o/r/releases/tag/v{NEXT}"
+RELEASES = ("api", "--paginate", "--slurp", "repos/{owner}/{repo}/releases?per_page=100")
+
+
+def published_release(tag: str) -> dict:
+    return {"tag_name": tag, "draft": False, "prerelease": False, "published_at": "then", "immutable": True}
 
 
 def runs(conclusion: str | None, status: str = "completed") -> str:
@@ -32,6 +37,7 @@ class ReleaseCase(RepoCase):
         git(self.main, "push", "-q", "origin", "dev:main", "refs/tags/v0.0.1")
         self.gh.answers[("release", "view")] = (1, "", "release not found")
         self.gh.answers[("release", "create")] = (0, URL + "\n", "")
+        self.gh.answers[RELEASES] = (0, json.dumps([[published_release("v0.0.1")]]), "")
 
     def remote(self, ref: str) -> str:
         return git(self.origin, "rev-parse", "-q", "--verify", ref, check=False).strip()

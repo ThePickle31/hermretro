@@ -118,9 +118,7 @@ def ci_gate(ctx, sha: str) -> Gate:
 def tag_state(ctx, tag: str, sha: str) -> tuple[str, Gate]:
     """'new', 'local' (made here, not pushed), 'pushed' (on the remote at sha); a tag elsewhere is refused."""
     local = repo.head(ctx.top, f"refs/tags/{tag}")
-    _code, out, _err = repo.run(["git", "ls-remote", "--tags", ctx.remote, f"refs/tags/{tag}*"], ctx.top)
-    remote = {line.split("\t")[1]: line.split("\t")[0] for line in out.splitlines() if "\t" in line}
-    pushed = remote.get(f"refs/tags/{tag}^{{}}") or remote.get(f"refs/tags/{tag}")
+    pushed = repo.peeled_remote_tag(ctx.top, ctx.remote, tag)
     for where, at in (("here", local), (ctx.remote, pushed)):
         if at and at != sha:
             return "", Gate(
@@ -172,36 +170,27 @@ def shown(step: dict) -> str:
     return (env + " " if env else "") + cmd(*step["run"])
 
 
-def update_from(ctx, version: str) -> str | None:
-    """The release users update from: the newest stable tag before ``version`` (v-prefixed), or None."""
-    previous = release.previous_stable(ctx, version)
-    return f"v{previous}" if previous else None
-
-
-def install_check(ctx, rec: dict, sha: str, start: str | None, *, dry_run: bool = False) -> dict:
+def install_check(ctx, rec: dict, sha: str, published: release_ci.Baseline) -> dict:
     """Reuse a local pass for the exact pair; otherwise prove the current CI attempt or run the local check."""
-    baseline = repo.head(ctx.top, f"refs/tags/{start}") if start else None
+    start, baseline, _immutable = published
     kept = (rec.get("install") or {}).get(sha, {})
     if (
         kept.get("ok")
         and kept.get("source") == "local"
-        and kept.get("from") == (start or "")
+        and kept.get("from") == start
         and kept.get("baseline") == baseline
-        and (not start or baseline)
     ):
         return {"ok": True, "detail": f"{kept['detail']} (saved local run at {kept['at']})"}
-    if dry_run:
-        return {"ok": True, "detail": "would use exact CI upgrade evidence, or run the local upgrade check"}
-    proof = release_ci.evidence(ctx, sha, start, baseline)
+    proof = release_ci.evidence(ctx, sha, published)
     if proof:
         result = {"ok": True, "detail": f"CI run {proof['run']} attempt {proof['attempt']}, Hermes {proof['hermes']}"}
     else:
-        result = trial.install_check(ctx, sha, baseline or start)
+        result = trial.install_check(ctx, sha, baseline)
     entry = {
         "ok": result["ok"],
         "at": state.now(),
         "detail": result["detail"],
-        "from": start or "",
+        "from": start,
         "baseline": baseline,
         "source": "ci" if proof else "local",
         "evidence": proof,
@@ -213,11 +202,13 @@ def install_check(ctx, rec: dict, sha: str, start: str | None, *, dry_run: bool 
 
 def install_gate(ctx, rec: dict, sha: str, dry_run: bool, version: str) -> Gate:
     name = "clean install and update check"
-    start = update_from(ctx, version)
-    result = install_check(ctx, rec, sha, start, dry_run=dry_run)
+    if dry_run:
+        return gates.passed(name, "would pin the published baseline and use exact CI evidence or run the local upgrade")
+    published = release_ci.prior_release(ctx, sha, version)
+    result = install_check(ctx, rec, sha, published)
     if not result["ok"]:
         return Gate(name, False, result["detail"], "read the update check's FIX above; fix it on dev, then again")
-    return gates.passed(name, result["detail"])
+    return gates.passed(name, f"from {published.tag}: {result['detail']}")
 
 
 def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) -> int:
@@ -277,7 +268,7 @@ def run(ctx, version: str, dry_run: bool = False, checklist: str | None = None) 
         rec["approved"] = {"sha": sha, "at": state.now(), "gates": [gate.name for gate in found]}
         state.save_release(ctx.top, rec)
     if not dry_run and not todo[-1]["done"]:  # the notes, for gh release create (dry run: written by the real run)
-        previous = release.previous_stable(ctx, version)
+        previous = rec["install"][sha]["from"].removeprefix("v")
         text = release_notes.write(ctx, version, sha, previous, rec.get("checklist"), rc)
         state.write_atomic(notes_path(ctx, version), text)
         ctx.out.set(notes=str(notes_path(ctx, version)))

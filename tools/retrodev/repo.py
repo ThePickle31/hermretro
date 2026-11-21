@@ -170,6 +170,16 @@ def remote_ref(remote: str, name: str) -> str:
     return f"refs/remotes/{remote}/{name}"
 
 
+def peeled_remote_tag(cwd: Path | str, remote: str, tag: str) -> str | None:
+    """The exact remote tag's target, preferring the peeled commit for an annotated tag."""
+    ref = f"refs/tags/{tag}"
+    code, out, _err = run(["git", "ls-remote", "--tags", remote, ref, ref + "^{}"], cwd)
+    if code:
+        return None
+    refs = {name: sha for sha, name in (line.split("\t", 1) for line in out.splitlines() if "\t" in line)}
+    return refs.get(ref + "^{}") or refs.get(ref)
+
+
 def merge_base(cwd: Path | str, base: str) -> str | None:
     return git(["merge-base", base, "HEAD"], cwd, check=False).strip() or None
 

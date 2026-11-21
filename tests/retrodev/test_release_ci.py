@@ -8,7 +8,7 @@ from retrodev.config import Context
 from retrodev.output import Out
 
 from tests.retrodev.fixture import git, parallel
-from tests.retrodev.test_release import NEXT, ReleaseCase, runs
+from tests.retrodev.test_release import NEXT, RELEASES, ReleaseCase, published_release, runs
 
 load_tests = parallel
 SLUG = "o/r"
@@ -27,7 +27,7 @@ class Evidence(ReleaseCase):
         git(self.main, "remote", "add", "proof", f"https://github.com/{SLUG}.git")
         self.ctx = Context.make(self.main, Out(stream=io.StringIO()), gh_runner=self.gh, fakes=self.fakes)
         self.ctx.local["remote"] = "proof"
-        self.release = {"tag_name": TAG, "draft": False, "prerelease": False, "published_at": "then", "immutable": True}
+        self.published = release_ci.Baseline(TAG, self.old, immutable=True)
         self.workflow: dict = dict(
             GREEN,
             id=123,
@@ -58,12 +58,11 @@ class Evidence(ReleaseCase):
         self.gh.answers[("api", path)] = (0, json.dumps(document), "")
 
     def proof(self, *, restore_logs=True):
-        self.reply(f"{ROOT}/releases/tags/{TAG}", self.release)
         self.reply(self.lookup, {"total_count": 1, "workflow_runs": [self.workflow]})
         self.reply(self.jobs, {"total_count": 1, "jobs": [self.job]})
         if restore_logs:
             self.gh.answers[self.logs] = (0, self.log, "")
-        return release_ci.evidence(self.ctx, self.sha, TAG, self.old)
+        return release_ci.evidence(self.ctx, self.sha, self.published)
 
     def test_success_from_either_ci_job_records_the_runtime_and_full_shas(self):
         for name in release_ci.UPGRADE_JOBS:
@@ -71,7 +70,7 @@ class Evidence(ReleaseCase):
                 self.job["name"] = name
                 self.assertEqual(self.proof(), dict(run=123, attempt=2, job=456, baseline=self.old, hermes=HERMES))
         rec = state.load_release(self.main, NEXT) or {}
-        result = release_publish.install_check(self.ctx, rec, self.sha, TAG)
+        result = release_publish.install_check(self.ctx, rec, self.sha, self.published)
         self.assertTrue(result["ok"], result)
         self.assertIn(HERMES, result["detail"])
         self.assertEqual(self.check_log(), [], "no duplicate local run")
@@ -79,9 +78,8 @@ class Evidence(ReleaseCase):
         self.assertEqual(saved["install"][self.sha]["source"], "ci")
 
     def test_mismatches_cannot_credit_an_upgrade(self):
+        self.assertIsNone(release_ci.evidence(self.ctx, self.sha, self.published._replace(immutable=False)))
         for target, key, bad in (
-            (self.release, "draft", True),
-            (self.release, "immutable", False),
             (self.workflow, "event", "pull_request"),
             (self.workflow, "path", ".github/workflows/nightly.yml"),
             (self.workflow, "head_sha", "b" * 40),
@@ -116,11 +114,42 @@ class Evidence(ReleaseCase):
     def test_incomplete_evidence_uses_the_local_upgrade_instead(self):
         self.assertIsNotNone(self.proof())
         rec = state.load_release(self.main, NEXT) or {}
-        self.assertTrue(release_publish.install_check(self.ctx, rec, self.sha, TAG)["ok"])
+        self.assertTrue(release_publish.install_check(self.ctx, rec, self.sha, self.published)["ok"])
         self.job["run_attempt"] = 1
         self.assertIsNone(self.proof())
-        result = release_publish.install_check(self.ctx, rec, self.sha, TAG)
+        result = release_publish.install_check(self.ctx, rec, self.sha, self.published)
         self.assertTrue(result["ok"], result)
         self.assertEqual(self.check_log()[0]["script"], ["--update-from", self.old])
         saved = state.load_release(self.main, NEXT) or {}
         self.assertEqual(saved["install"][self.sha]["source"], "local")
+
+
+class PreviousPublished(ReleaseCase):
+    def test_fallback_uses_the_published_predecessor_instead_of_an_intervening_draft(self):
+        old = self.remote(f"refs/tags/{TAG}^{{commit}}")
+        draft = self.merged_release()
+        draft_tag = f"v{NEXT}"
+        git(self.main, "tag", "-a", draft_tag, draft, "-m", "Intervening draft")
+        git(self.main, "push", "-q", "origin", f"{draft}:refs/heads/main", f"refs/tags/{draft_tag}")
+        later = f"0.0.{3}"
+        sha = self.merged_release(later)
+        history = [[dict(published_release(draft_tag), draft=True, published_at=None)], [published_release(TAG)]]
+        self.gh.answers[RELEASES] = (0, json.dumps(history), "")
+        code, result = self.publish(later)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(self.check_log()[0]["script"], ["--update-from", old])
+        saved = state.load_release(self.main, later) or {}
+        self.assertEqual(saved["install"][sha]["from"], TAG)
+
+    def test_an_unconfirmed_upgrade_baseline_blocks_the_release(self):
+        self.merged_release()
+        main = self.remote("refs/heads/main")
+        for response in ((1, "", "HTTP 403"), (0, "[[]]", ""), (0, '{"message":"bad shape"}', "")):
+            self.gh.answers[RELEASES] = response
+            code, result = self.publish()
+            self.assertEqual(code, 1, result)
+            assert isinstance(result, dict)
+            self.assertIn("upgrade unverified", result["error"]["message"])
+            self.assertEqual(self.remote("refs/heads/main"), main)
+        self.assertEqual(self.gh.called("release", "create"), [])
+        self.assertEqual(self.check_log(), [])
