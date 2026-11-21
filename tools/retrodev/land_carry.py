@@ -1,6 +1,6 @@
 """A head that only merged the base branch after its review keeps that review (land; `sync` makes such heads).
 
-The reviewed head is the last round's clean head, or the head accepted with round 3's fixes. A later head counts as
+The reviewed head is the last round's clean head, or the head accepted with the last round's fixes. A later head counts as
 reviewed when it descends from it, every commit since (beyond the base branch's own) is a merge or touches only
 generated files, and the merges changed nothing of their own: the head's tree is what git merges the reviewed head
 and the base branch into by itself (git merge-tree), generated files aside. What a conflict resolution changed
@@ -21,15 +21,13 @@ from .review import records
 
 
 def reviewed_head(rec: dict) -> str | None:
-    """The head the reviews cleared: the last round's clean head, or the head accepted after round 3."""
+    """The head the reviews cleared: the last round's clean head, or the head accepted with its fixes."""
     rounds = records.valid_rounds(rec)
     if rec.get("skipped") or not rounds or rec["rounds"][-1].get("stopped"):
         return None
     if rounds[-1]["result"]["verdict"] == "clean":
         return rounds[-1]["sha"]
-    if len(rounds) >= records.MAX_ROUNDS:
-        return (rec.get("accepted") or {}).get("head")
-    return None
+    return records.accepted_head(rec)
 
 
 def only_merges(ctx, tree: Path, reviewed: str, head: str, generated: list[str]) -> bool:

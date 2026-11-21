@@ -353,12 +353,9 @@ def check_scan(args) -> str:
     return f"safe ({report['findings']} minor notes)"
 
 
-def scaffold_fix(test: list[str]) -> str:
-    """The command that reruns the scaffold test and keeps its copy: python -B, so no bytecode lands in the tree."""
-    return (
-        "python -B " + " ".join(test[1:]) + " with RD_SCAFFOLD_FULL=1 in its environment (it skips without it; "
-        "RD_SCAFFOLD_KEEP=1 as well keeps the copy it made to look into)"
-    )
+def scaffold_fix(test: list[str], mode: str) -> str:
+    """Rerun the failing scaffold mode and keep its copy without writing bytecode."""
+    return f"RD_SCAFFOLD_FULL={mode} RD_SCAFFOLD_KEEP=1 python -B " + " ".join(test[1:])
 
 
 UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
@@ -401,6 +398,7 @@ def scaffold_test(mode: str) -> tuple[list[str], str]:
     select = ["-k", SMOKE] if mode == "smoke" else []
     test = [sys.executable, "-m", "unittest", "-v", *select, "tests.retrodev.test_scaffold_tree"]
     return test, "1" if mode == "smoke" else mode
+
 
 
 def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
@@ -458,7 +456,7 @@ def check_scaffold(args) -> str:
     if mode == "smoke" and not re.search(r"^Ran [1-9]\d* tests? in ", result.stderr, re.M):
         raise AssertionError(f"the smoke ran no test (-k {SMOKE})\nFIX: set SMOKE in tools/check.py to the guard test")
     if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test))
+        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test, mode))
     return "retrodev new of every kind passes the " + ("focused checks (smoke)" if mode == "smoke" else "real checks")
 
 

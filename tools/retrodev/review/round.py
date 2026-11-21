@@ -42,6 +42,7 @@ def run_round(
     env=None,
     db: Path | None = None,
     branch: str | None = None,
+    total: int | None = None,
 ) -> dict:
     """Run the next round of ``pr`` at ``sha``. Returns {status, action, round, result, audit, record, probe,
     attempts, inputs}; ``action`` is records.next_action as if CI were green (the caller checks CI).
@@ -92,6 +93,7 @@ def run_round(
             last_reviewed=last_reviewed,
             root=root,
             brief_override=brief_override,
+            total=max(round_no, total or records.depth(record)),
         )
         started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         before = audit_mod.snapshot(repo, prepared.src, branch, ls_remote)

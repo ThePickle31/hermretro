@@ -167,6 +167,14 @@ mechanical = ["Format*", "*(no code changes)*"]
 # A head that only merged dev after its review (sync) keeps the review when its merge resolution changed at most
 # this many lines beyond git's own merge (generated files aside); recorded and shown by summary. More: reviewed.
 max_sync_resolution_lines = 20
+# Review rounds (land_depth.py): one, and the head that answers its findings merges on green CI. A pull request that
+# changes a file matching these gets a second round, which reviews the fixes: where the high-severity findings of
+# the first 80 pull requests were (the update flow, land's own gates, cleanup, releases) and what every user's
+# install runs through (the broker, the studio profile, page routing, the update check). A high-severity finding
+# adds the round after it for any pull request. Empty: one round unless a finding is high.
+second_round = ["page/app/update/*", "page/app/routing.js", "backend/broker/*", "backend/setup/studio_profile.py",
+                "tools/ci/update_check.py", "tools/retrodev/land*", "tools/retrodev/review/*", "tools/retrodev/gc.py",
+                "tools/retrodev/release*"]
 
 [restart]
 # What the owner must do after the change lands in a checkout Hermes loads.
