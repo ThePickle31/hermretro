@@ -74,10 +74,11 @@ and `.dev/` are not linted.
 
 ## CI tiers
 
-- **Every pull request** (`.github/workflows/ci.yml`): unit on Linux (Python 3.11 and 3.14), Apple Silicon and
-  Intel macOS; bundle and page; scan; `plugins validate`, the clean install and the update from the newest release
-  with the oldest supported Hermes.
-  About 3 minutes.
+- **Every pull request** (`.github/workflows/ci.yml`): plugin and repository unit tests on Linux (Python 3.11 and
+  3.14), Apple Silicon and Intel macOS. The dev CLI suite also runs on Linux and Apple Silicon; on Intel it runs
+  on the `dev` push, so it still covers the exact commit eligible for release. To reproduce the Intel PR lane,
+  run `python tools/check.py unit --strict --unit-product-only`. CI also runs bundle and page, the install scan,
+  `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
   `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).

@@ -84,22 +84,28 @@ def need(tool: str) -> str:
     return found
 
 
-def check_unit(_args) -> str:
+def check_unit(args) -> str:
     # In an empty home and an empty TMPDIR (tools/py/unit_home.py): a write meant for the real home, or a temp
     # folder a test never removed, shows up and names its test module.
+    product_only = getattr(args, "unit_product_only", False)
     with (
         tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
         tempfile.TemporaryDirectory(prefix="hermretro-tmp-", dir=short_tmp()) as tmp,
         tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
     ):
         slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
+        env = unit_home.unit_env(home, bytecode, tmp)
+        if product_only:
+            env["HERMRETRO_UNIT_PRODUCT_ONLY"] = "1"
         result = run(
             [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env=unit_home.unit_env(home, bytecode, tmp),
+            env=env,
         )
-        leaked = (
-            "" if result.returncode else unit_home.leaks(home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env))
-        )
+        leaked = ""
+        if not result.returncode:
+            leaked = unit_home.leaks(
+                home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env), product_only=product_only
+            )
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
@@ -114,7 +120,8 @@ def check_unit(_args) -> str:
     slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
     # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
     noted = unit_home.layout_note(lines, unit_home.branch_files(run) if "layout warning: " in result.stderr else [])
-    return (ran[-1] if ran else "ok") + noted + slow
+    scope = "plugin and repository only; " if product_only else ""
+    return f"{scope}{ran[-1] if ran else 'ok'}{noted}{slow}"
 
 
 def check_bundle(args) -> str:
@@ -502,8 +509,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("checks", nargs="*", help="fast (default), full, fix, or check names: " + ", ".join(ALL))
     parser.add_argument("--hermes-source")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--unit-product-only", action="store_true", help="with unit alone: omit the development CLI suite"
+    )
     args = parser.parse_args(argv)
     names = args.checks or ["fast"]
+    if args.unit_product_only and names != ["unit"]:
+        parser.error("--unit-product-only can only be used with unit alone")
     if names == ["fix"]:
         return fix(args)
     if names[0] == "lint-files":  # retrodev new: only the files it wrote, with lint's own tools and settings
