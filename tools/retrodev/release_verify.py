@@ -22,9 +22,15 @@ from .output import OWNER, Failure
 FIELDS = "tagName,isDraft,isPrerelease,body,url,name"
 
 
+class MissingRelease(Failure):
+    """GitHub confirmed the named release is missing, rather than failing to answer."""
+
+
 def release_view(ctx, version: str) -> dict:
     tag = f"v{version}"
     code, out, err = github.gh(ctx, ["release", "view", tag, "--json", FIELDS], check=False)
+    if code == 1 and not out.strip() and err.strip() == "release not found":
+        raise MissingRelease(f"there is no release {tag} on GitHub", f"inspect the release with gh release view {tag}")
     try:
         info = json.loads(out) if code == 0 else None
     except ValueError:
@@ -49,6 +55,14 @@ def require_published(version: str, info: dict) -> None:
         )
 
 
+def require_kind(version: str, info: dict) -> None:
+    rc = release.parse(version)[3] is not None
+    if info.get("isPrerelease") is not rc:
+        tag = f"v{version}"
+        kind = "a prerelease" if rc else "a stable release"
+        raise Failure(f"{tag} must be {kind}", f"inspect the release type with gh release view {tag}")
+
+
 def reconcile(ctx, version: str, rec: dict, info: dict | None = None) -> dict | None:
     """Recover the result of publication, not permission to publish a draft."""
     approved = (rec.get("approved") or {}).get("sha")
@@ -58,7 +72,12 @@ def reconcile(ctx, version: str, rec: dict, info: dict | None = None) -> dict | 
             raise Failure(f"{tag} has no recorded publication approval", "inspect the release record", OWNER)
         return None
     if info is None:
-        info = release_view(ctx, version)
+        try:
+            info = release_view(ctx, version)
+        except MissingRelease:
+            if rec.get("published"):
+                raise
+            return None
     if info["isDraft"] and not rec.get("published"):
         return None
     require_published(version, info)
@@ -121,6 +140,7 @@ def run(ctx, version: str, publish: bool = False) -> int:
         ctx.out.say(f"{tag} is published already (immutable): {info['url']}")
         ctx.out.set(published=True, url=info["url"])
         return 0
+    require_kind(version, info)
     notes = (info.get("body") or "").strip()
     found.append(
         gates.passed("notes", f"{len(notes.splitlines())} line(s)")
@@ -191,6 +211,15 @@ def run(ctx, version: str, publish: bool = False) -> int:
         ctx.out.say(f"next: read the draft ({info.get('url')}), then release verify {version} --publish")
         ctx.out.set(published=False)
         return 0
+    latest = release_view(ctx, version)
+    require_kind(version, latest)
+    if not latest["isDraft"]:
+        reconcile(ctx, version, rec, latest)
+        ctx.out.set(release=latest, published=True, url=latest["url"])
+        ctx.out.say(f"{tag} is published already (immutable): {latest['url']}")
+        return 0
+    if remote_tag(ctx, tag) != sha:
+        raise Failure(f"{tag} changed before publication", "inspect the remote tag before continuing", OWNER)
     ctx.out.say("publishing: a published release is immutable (its tag and files can never change)")
     code, out, err = github.gh(ctx, ["release", "edit", tag, "--draft=false"], check=False)
     try:

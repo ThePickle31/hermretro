@@ -146,6 +146,42 @@ class Publishes(RunCase):
         self.assertEqual(len(self.gh.called(*write)), 1)
         self.assertEqual(len(self.gh.called("pr", "create")), 1)
 
+    def test_a_deleted_draft_is_recreated_but_an_unknown_read_does_not_write(self):
+        self.assertEqual(self.release_run("--draft")[0], 0)
+        tag = f"v{NEXT}"
+        self.gh.calls.clear()
+        unknown = ("release", "view", tag, "--json", release_verify.FIELDS)
+        for response in ((1, "", "HTTP 502"), (0, '{"malformed": true}', "")):
+            self.gh.answers[unknown] = response
+            self.assertEqual(self.release_run("--version", NEXT, "--draft")[0], 1)
+        self.assertEqual(self.gh.called("release", "create"), [])
+        self.assertEqual(self.gh.called("release", "edit"), [])
+
+        for fields in (release_verify.FIELDS, "url"):
+            self.gh.answers[("release", "view", tag, "--json", fields)] = (1, "", "release not found")
+        code, data = self.release_run("--version", NEXT, "--draft")
+        self.assertEqual(code, 0, data)
+        self.assertEqual(len(self.gh.called("release", "create")), 1)
+
+    def test_a_stable_draft_marked_as_prerelease_is_not_published(self):
+        self.assertEqual(self.release_run("--draft")[0], 0)
+        tag = f"v{NEXT}"
+        wrong = dict(self.view_info, isPrerelease=True)
+        self.gh.answers[("release", "view", tag, "--json", release_verify.FIELDS)] = (0, json.dumps(wrong), "")
+        code, data = self.run_cli("release", "verify", NEXT, "--publish", as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertEqual(self.gh.called("release", "edit", tag, "--draft=false"), [])
+        self.assertNotIn("published", state.load_release(self.main, NEXT) or {})
+
+    def test_a_matching_tag_on_a_draft_cannot_start_a_next_version_pr(self):
+        self.assertEqual(self.release_run("--draft")[0], 0)
+        self.gh.calls.clear()
+        code, data = self.run_cli("release", "next", "--owner-words", WORDS, "--after", NEXT, as_json=True)
+        self.assertEqual(code, 1, data)
+        self.assertEqual(self.gh.called("pr", "create"), [])
+        self.assertEqual(self.gh.called("pr", "merge"), [])
+        self.assertNotIn("next", state.load_release(self.main, NEXT) or {})
+
     def test_one_command_publishes_then_dev_moves_to_the_next_version(self):
         code, data = self.release_run()
         assert isinstance(data, dict)

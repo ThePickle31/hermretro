@@ -801,7 +801,8 @@ three steps below remain, to run or resume one at a time:
    refused, exit 3); when all is well, it says that a published release is immutable and runs `gh release edit
    v<version> --draft=false`.
 
-4. `release next --owner-words "..."`: when `dev`'s `plugin.yaml` still says the newest stable release's version,
+4. `release next --owner-words "..."`: confirms the newest stable tag is published on GitHub. When `dev`'s
+   `plugin.yaml` still says that version,
    it opens `chore/release-X.Y.Z` for the next patch ("Version X.Y.Z for the next release": the `version:` line only,
    made, checked and shipped as prepare makes one; a pull request an earlier run opened, kept in the released
    version's record as `next`, is resumed instead), approves it with those words as a release approval scoped to that

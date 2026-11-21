@@ -1,6 +1,6 @@
 """release next --owner-words "..." [--dry-run]: dev moves to the next version right after a release.
 
-Run by `release run` once a stable release is tagged, and on its own (the first time, or after a run stopped).
+Run after a stable release is public, on its own or inline with `release run --with-next`.
 When dev's plugin.yaml still says the newest stable release's version, it opens the next patch's version pull
 request (chore/release-X.Y.Z, titled "Version X.Y.Z for the next release": the `version:` line only; started,
 checked and shipped as release prepare does), approves it with the owner's release words as a release approval
@@ -15,7 +15,21 @@ run stopped) is resumed, never opened twice. The pull request is kept in the rel
 
 from __future__ import annotations
 
-from . import approve, checks, gates, github, land, land_merge, release, repo, reviews, ship, start, state
+from . import (
+    approve,
+    checks,
+    gates,
+    github,
+    land,
+    land_merge,
+    release,
+    release_verify,
+    repo,
+    reviews,
+    ship,
+    start,
+    state,
+)
 from .output import Failure, cmd
 
 
@@ -162,6 +176,10 @@ def run(ctx, words: str | None, dry_run: bool = False, after: str | None = None)
             "check the release before preparing another version",
         )
     if released and not dry_run:
+        try:
+            release_verify.require_published(released, release_verify.release_view(ctx, released))
+        except Failure as failure:
+            raise Failure(failure.message, f"check gh release view v{released}, then {again}", failure.code) from None
         finish_landing(ctx, released)
     if not released:
         ctx.out.say("no stable release is tagged yet: nothing to move on from")
