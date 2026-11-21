@@ -158,7 +158,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   await render()
   check('after an update the page asks for a Hermes restart', () => {
     const banners = [...dom.window.document.querySelectorAll('.cs-repair')].map(node => node.textContent).join(' ')
-    assert.match(banners, /hermretro was updated\. Restart Hermes to finish/)
+    assert.match(banners, /hermretro was updated, but Hermes is still running the old version\. Quit and reopen Hermes to finish/)
   })
   await act(async () => { root.render(null) })
 

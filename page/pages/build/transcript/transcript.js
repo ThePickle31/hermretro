@@ -12,6 +12,7 @@ import {
   useState
 } from '#sdk'
 import { resumeBuildChat } from '#pages/build/chat/actions.js'
+import { useUpdating } from '#app/update/lock.js'
 import { InlinePlayer } from '#pages/build/player/inline-player.js'
 import { PlayCard } from '#pages/build/player/play-card.js'
 import { AssetViewer } from '#pages/build/viewer/asset-viewer.js'
@@ -293,6 +294,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
  *  says to go on. */
 function LostTurnCard({ chat, stored }) {
   const waiting = chat.queued?.length ?? 0
+  const updating = useUpdating()
 
   return jsxs('div', {
     className: 'cs-b-card warn',
@@ -307,7 +309,7 @@ function LostTurnCard({ chat, stored }) {
       chat.lostFailure ? jsx('p', { className: 'cs-small', children: chat.lostFailure }) : null,
       jsx('div', {
         className: 'cs-row',
-        children: jsx(Button, { disabled: Boolean(chat.resuming), onClick: () => void resumeBuildChat(stored), size: 'sm', children: chat.resuming ? 'Continuing…' : 'Continue' })
+        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored), size: 'sm', children: chat.resuming ? 'Continuing…' : 'Continue' })
       })
     ]
   })

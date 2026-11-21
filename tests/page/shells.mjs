@@ -22,7 +22,7 @@ export function ownPage(page) {
  * strings; viaProfile is the profile the page's queries go to, or null when it is the app's; memory is the setup
  * memory object `{}`; steps is the list of setup steps `[]` (`{ id, complete, hardware? }`) and gameList the games;
  * auto and shown are a step or null, autoId the next step's id (or 'ready' / 'not-running' / 'choice'), choosing a
- * boolean; player is the shell's one player (`{ game, query, ... }`); go, openPrompt, play, setUpDevice and the
+ * boolean; pluginUpdate is the update state (app/update/use-update.js, nothing ready); player is the shell's one player (`{ game, query, ... }`); go, openPrompt, play, setUpDevice and the
  * other functions are actions. `overrides` replaces any of them.
  */
 export function pageShell(overrides = {}) {
@@ -47,6 +47,8 @@ export function pageShell(overrides = {}) {
     pick: noop,
     unpin: noop,
     install: { isFetching: false, isPending: true },
+    pluginUpdate: { visible: false, ready: false, checked: false, linked: false, phase: 'idle', step: 0, error: null, review: null,
+      version: null, open: false, setOpen: noop, start: noop, agree: noop, cancel: noop, later: noop, whatsNew: noop, openPlugins: noop },
     gameReady: true,
     hardwareOn: false,
     emulatorOnly: false,

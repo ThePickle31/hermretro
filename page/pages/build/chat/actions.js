@@ -2,6 +2,7 @@
 import { host } from '#sdk'
 import { describeRequestError } from '#app/backend.js'
 import { studioTarget } from '#app/routing.js'
+import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { attachmentLine } from './attachments.js'
 import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
@@ -111,8 +112,22 @@ export async function createBuildChat(title, pick = null) {
 /** Send a message. Never throws: a failure shows up in the transcript (with the words the user sent).
  *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. */
 export async function sendBuildChat(stored, text, shown = text, attachments = []) {
+  // An update is swapping and reloading the plugin: no new turn starts until it is done.
+  if (isUpdating()) {
+    host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+    return false
+  }
+
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored)
+
+    // An update may have started while the conversation opened.
+    if (isUpdating()) {
+      host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+      return false
+    }
   }
 
   const chat = BUILD_CHATS.get()[stored]
@@ -201,6 +216,13 @@ export async function resumeBuildChat(stored) {
     return
   }
 
+  // Dropping the lost turn releases the messages waiting behind it: not while an update reloads the plugin.
+  if (isUpdating()) {
+    host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+    return
+  }
+
   patchChat(stored, current => ({ ...current, resuming: true, lostFailure: null }))
 
   try {
@@ -210,6 +232,14 @@ export async function resumeBuildChat(stored) {
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? []
 
     for (const turn of lostTurns(pending)) {
+      // An update may have started while this waited: stay paused, nothing released.
+      if (isUpdating()) {
+        patchChat(stored, current => ({ ...current, resuming: false }))
+        host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
+
+        return
+      }
+
       await chatRequest('prompt.resolve_unknown', { session_id: runtime, admission_id: turn.id })
     }
 

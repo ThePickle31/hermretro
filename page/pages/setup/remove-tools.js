@@ -3,12 +3,21 @@ import { Button, host, jsx, jsxs, useState } from '#sdk'
 import { callBackend, describeRequestError } from '#app/backend.js'
 import { formatBytes } from '#app/format.js'
 import { RPC_REMOVE_TOOLS } from '#app/rpc.js'
+import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
 
 export function RemoveTools({ status, doctor }) {
   const [state, setState] = useState('idle') // idle · confirm · working
   const [failure, setFailure] = useState(null)
+  const updating = useUpdating()
 
   const remove = async () => {
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE)
+      setState('idle')
+
+      return
+    }
+
     setState('working')
     setFailure(null)
 
@@ -40,13 +49,13 @@ export function RemoveTools({ status, doctor }) {
             className: 'cs-actions',
             children: [
               jsx('span', { children: 'Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute).' }),
-              jsx(Button, { onClick: () => void remove(), size: 'sm', variant: 'destructive', children: 'Remove' }),
+              jsx(Button, { disabled: updating, onClick: () => void remove(), size: 'sm', variant: 'destructive', children: 'Remove' }),
               jsx(Button, { onClick: () => setState('idle'), size: 'sm', variant: 'ghost', children: 'Cancel' })
             ]
           })
         : jsx('div', {
             children: jsx(Button, {
-              disabled: state === 'working',
+              disabled: state === 'working' || updating,
               onClick: () => setState('confirm'),
               size: 'sm',
               variant: 'ghost',

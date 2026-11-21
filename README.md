@@ -20,10 +20,13 @@ From a terminal:
 hermes plugins install ThePickle31/hermretro --enable
 ```
 
-Update later with `hermes plugins update hermretro` (or Capabilities → Plugins), in the profile you installed it
-into. The hermretro profile holds a link to that copy, so it follows; Hermes refuses an update run from inside
-the hermretro profile. Then restart Hermes (quit and reopen the app): until then it keeps running the old code,
-and the hermretro page says so.
+When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears beside Refresh in
+the hermretro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
+copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
+that copy) and then refreshes itself, with no restart. Update waits while a game is being built: it is disabled while
+a hermretro chat is working (the popover names it) or the game tools are installing. The terminal way still works: `hermes plugins update
+hermretro` (or Capabilities → Plugins) in the profile you installed it into, then quit and reopen Hermes (Hermes
+refuses an update run from inside the hermretro profile).
 
 For development, link a checkout instead:
 

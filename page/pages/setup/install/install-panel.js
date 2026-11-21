@@ -189,7 +189,7 @@ export function InstallActions({ installer, compact = false }) {
       ? jsx(Working, { children: 'Creating the hermretro profile…' })
       : jsx('div', {
           className: 'cs-actions',
-          children: jsx(Button, { onClick: installer.makeProfile, size: compact ? 'sm' : 'lg', variant: 'default', children: 'Create the hermretro profile' })
+          children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? 'sm' : 'lg', variant: 'default', children: 'Create the hermretro profile' })
         })
   }
 
@@ -201,7 +201,7 @@ export function InstallActions({ installer, compact = false }) {
     return jsx('div', {
       className: 'cs-actions',
       children: jsxs(Button, {
-        disabled: starting,
+        disabled: starting || installer.updating,
         onClick: () => void start(),
         size: compact ? 'sm' : 'lg',
         variant: 'default',
@@ -215,7 +215,7 @@ export function InstallActions({ installer, compact = false }) {
       className: 'cs-actions',
       children: [
         jsxs(Button, {
-          disabled: starting,
+          disabled: starting || installer.updating,
           onClick: () => void start(),
           size: compact ? 'sm' : 'lg',
           variant: 'default',

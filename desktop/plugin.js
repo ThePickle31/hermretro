@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 74aec03d3ff19cc7aa01fffdf0d6d2b79e6877ffcb6e064eba5be3decd6d090f
- * body: sha256 9a53028462cc2e650fa421035e7b3232c328636c30a49416ba1017bf87d04a67
+ * sources: sha256 49859f270bd6f1fd926604b675484195aa0cf7e8752f85f973385103600167c2
+ * body: sha256 3fe03fb40f96f4e1f8da3813565567bbab6b91b466cd9a3b9b44f233fa5c786e
  */
 // page/sdk.js
 import {
@@ -423,6 +423,19 @@ function studioError(error, what) {
   const { message, notLoaded } = describeRequestError(error);
   return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in, then press Refresh.` : message || "Unknown error";
 }
+
+// page/app/update/lock.js
+var UPDATE_LOCK = atom(false);
+function isUpdating() {
+  return Boolean(UPDATE_LOCK.get());
+}
+function useUpdating() {
+  return Boolean(useValue(UPDATE_LOCK));
+}
+function setUpdating(active) {
+  UPDATE_LOCK.set(Boolean(active));
+}
+var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
 
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
@@ -1111,8 +1124,16 @@ async function createBuildChat(title, pick = null) {
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return false;
+  }
   if (!BUILD_CHATS.get()[stored]?.runtime) {
     await openBuildChat(stored);
+    if (isUpdating()) {
+      host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+      return false;
+    }
   }
   const chat = BUILD_CHATS.get()[stored];
   const now = Date.now();
@@ -1171,12 +1192,21 @@ async function resumeBuildChat(stored) {
   if (!chat?.runtime || chat.resuming) {
     return;
   }
+  if (isUpdating()) {
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return;
+  }
   patchChat(stored, (current) => ({ ...current, resuming: true, lostFailure: null }));
   try {
     const snapshot = await chatRequest("session.resume", { session_id: stored, omit_messages: true }, 6e4);
     const runtime = snapshot?.session_id ?? chat.runtime;
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? [];
     for (const turn of lostTurns(pending)) {
+      if (isUpdating()) {
+        patchChat(stored, (current) => ({ ...current, resuming: false }));
+        host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+        return;
+      }
       await chatRequest("prompt.resolve_unknown", { session_id: runtime, admission_id: turn.id });
     }
     const waiting = Array.isArray(pending) && pending.some((row) => row?.status === "queued");
@@ -2478,7 +2508,8 @@ function buildPrompt(game) {
 var LINKS = {
   node: "https://nodejs.org/",
   firmware: "https://support.modretro.com/en_us/articles/chromatic-firmware-updater-ryhoYnzCx",
-  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg"
+  quickstart: "https://support.modretro.com/en_us/chromatic-codex-edition-quickstart-guide-By1iOlcMg",
+  releases: "https://github.com/ThePickle31/hermretro/releases"
 };
 function ExternalLink({ ctx, href, children, variant = "link" }) {
   return jsxs(Button, {
@@ -5918,6 +5949,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
 }
 function LostTurnCard({ chat, stored }) {
   const waiting = chat.queued?.length ?? 0;
+  const updating = useUpdating();
   return jsxs("div", {
     className: "cs-b-card warn",
     children: [
@@ -5929,7 +5961,7 @@ function LostTurnCard({ chat, stored }) {
       chat.lostFailure ? jsx("p", { className: "cs-small", children: chat.lostFailure }) : null,
       jsx("div", {
         className: "cs-row",
-        children: jsx(Button, { disabled: Boolean(chat.resuming), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
+        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
       })
     ]
   });
@@ -6140,7 +6172,7 @@ var NEW_GAME_MODES = [
   { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
   { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
 ];
-function BuildNewGame({ onStart, picker = null }) {
+function BuildNewGame({ onStart, picker = null, updating = false }) {
   const [idea, setIdea] = useState("");
   const [mode, setMode] = useState("build");
   const [busy, setBusy] = useState(false);
@@ -6154,7 +6186,7 @@ function BuildNewGame({ onStart, picker = null }) {
     }
   }, [idea]);
   const start = async () => {
-    if (starting.current || !idea.trim()) {
+    if (starting.current || !idea.trim() || updating) {
       return;
     }
     starting.current = true;
@@ -6204,9 +6236,9 @@ function BuildNewGame({ onStart, picker = null }) {
               jsx("button", {
                 "aria-label": mode === "plan" ? "Start planning" : "Start building",
                 className: "cs-b-send",
-                disabled: busy || !idea.trim(),
+                disabled: busy || updating || !idea.trim(),
                 onClick: () => void start(),
-                title: mode === "plan" ? "Start planning" : "Start building",
+                title: updating ? "hermretro is updating. You can start in a moment." : mode === "plan" ? "Start planning" : "Start building",
                 type: "button",
                 children: [jsx(Codicon, { name: "arrow-up", size: 14 }, "icon"), jsx("span", { className: "cs-sr", children: busy ? "Starting…" : "Start" }, "label")]
               })
@@ -8740,15 +8772,15 @@ var DRAW = {
     }
   },
   drawPipe(t, x, y, h = 2) {
-    const p = this.p, w = 2 * T, cap = 12, body = h * T - cap;
+    const p = this.p, w = 2 * T, cap = 12, body2 = h * T - cap;
     this.px(t, p.pipe[3], x, y, w, cap);
     this.px(t, p.pipe[0], x + 1, y + 1, w - 2, cap - 2);
     this.px(t, p.pipe[2], x + 5, y + 1, 4, cap - 2);
     this.px(t, p.pipe[1], x + w - 9, y + 1, 7, cap - 2);
-    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body);
-    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body);
-    this.px(t, p.pipe[2], x + 8, y + cap, 4, body);
-    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body);
+    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body2);
+    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body2);
+    this.px(t, p.pipe[2], x + 8, y + cap, 4, body2);
+    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body2);
   },
   drawCannon(t, x, y, dir = -1) {
     t.drawImage(this.spr.cannon[dir < 0 ? 0 : 1], dir < 0 ? x - 2 : x, y);
@@ -10454,7 +10486,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged }) {
+function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
@@ -10551,7 +10583,17 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   useEffect(() => {
     openWhenDone.current = false;
   }, [game?.id]);
+  const refuseWhileUpdating = () => {
+    if (!isUpdating()) {
+      return false;
+    }
+    host.notify({ kind: "warning", message: UPDATING_MESSAGE });
+    return true;
+  };
   const startGame = async ({ idea, name, plan }) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
@@ -10592,6 +10634,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   }
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
   const send = async (text2, attachments = [], shown = text2) => {
+    if (refuseWhileUpdating()) {
+      return;
+    }
     if (!fresh) {
       if (stored) {
         await sendBuildChat(stored, text2, shown, attachments);
@@ -10648,7 +10693,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     onLibraryChanged();
   };
   const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored) {
+    if (!game || !shownStored || refuseWhileUpdating()) {
       return false;
     }
     try {
@@ -10721,7 +10766,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx("span", { className: "cs-grow" }),
       game && (builds.length || shownStored) ? jsx(BuildsMenu, {
         builds,
-        busy: Boolean(shownChat?.busy),
+        busy: Boolean(shownChat?.busy || updating),
         game,
         onRestore: restoreBuild,
         onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
@@ -10741,9 +10786,9 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     })
   });
-  let body;
+  let body2;
   if (elsewhere) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-empty",
       children: jsx("p", {
         className: "cs-small",
@@ -10751,7 +10796,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else if (shownChat?.missing) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
@@ -10759,7 +10804,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (shownChat?.failure) {
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-error", children: `Could not open this conversation: ${shownChat.failure}` }),
@@ -10767,7 +10812,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       ]
     });
   } else if (!shownChat?.items?.length && !shownChat?.busy) {
-    body = jsx("div", {
+    body2 = jsx("div", {
       className: "cs-b-tx",
       children: jsxs("div", {
         className: "cs-b-col",
@@ -10781,7 +10826,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       })
     });
   } else {
-    body = jsx(Transcript, {
+    body2 = jsx(Transcript, {
       chat: shownChat,
       ctx,
       empty: emptyState,
@@ -10799,22 +10844,22 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     children: [
       jsx(AttractLevel, {}, "level"),
       header,
-      jsx(BuildNewGame, { onStart: startGame, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
   }) : jsxs("div", {
     className: "cs-b-chat",
     children: [
       header,
-      body,
+      body2,
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
-        disabled: Boolean(elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
+        disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
         onSend: (text2, attachments) => void send(text2, attachments),
         onStop: () => void stopBuildChat(shownStored),
         picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored }) : null,
-        placeholder: shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+        placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
       })
@@ -11331,7 +11376,46 @@ function HardwareChoice({ steps, update }) {
 }
 
 // page/pages/setup/setup-complete.js
-function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
+function versionFact(data, update) {
+  const version = data.plugin?.version ?? "?";
+  if (!update) {
+    return version;
+  }
+  if (update.ready && update.phase === "idle") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · a new version is ready`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update" }),
+        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
+      ]
+    });
+  }
+  if (update.phase === "partial") {
+    return jsxs("span", {
+      className: "cs-note",
+      children: [
+        `${version} · the update is not finished`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }),
+        update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
+      ]
+    });
+  }
+  if (update.phase === "updating") {
+    return `${version} · updating…`;
+  }
+  const standing = {
+    failed: "the update did not go through: see the update in the header",
+    review: "the update waits for your answer in the header",
+    restart: "updated: quit and reopen Hermes to finish"
+  }[update.phase];
+  if (standing) {
+    return `${version} · ${standing}`;
+  }
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked && !update.ready ? `${version} · up to date` : version;
+}
+function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
   const data = status.data ?? {};
   const report = doctor.data?.ok ? doctor.data : null;
   const tools = (report?.components ?? []).filter((component) => component.status === "ready" && !component.optional && component.id !== "node" && component.id !== "runtime").map((component) => `${component.label ?? component.id} ${component.detected ?? ""}`.trim());
@@ -11358,6 +11442,7 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
       }),
       jsx(Facts, {
         rows: [
+          ["hermretro", versionFact(data, pluginUpdate)],
           ["Profile", data.profile?.name ?? data.via_profile ?? "this profile"],
           ["Toolchain", [tools.join(" · "), data.engine?.version ? `engine ${data.engine.version}` : ""].filter(Boolean).join(" · ") || "Ready"],
           [
@@ -11400,6 +11485,9 @@ function useInstall({ enabled }) {
   });
 }
 async function createStudioProfile(profile) {
+  if (isUpdating()) {
+    throw new Error(UPDATING_MESSAGE);
+  }
   if (!profile.studio?.exists) {
     await host.request("profiles.create", profile.create);
   }
@@ -11426,6 +11514,7 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
   const profile = status.data?.profile;
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
   const node = nodeState(status.data?.node);
+  const updating = useUpdating();
   const makeProfile = () => {
     if (!needsProfile) {
       return;
@@ -11441,6 +11530,10 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
   };
   const start = async () => {
     if (starting) {
+      return;
+    }
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
       return;
     }
     setStarting(true);
@@ -11473,7 +11566,23 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   );
   const verifying = (state === "done" || elsewhere) && !toolchainDone;
   const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
-  return { ask, data, elsewhere, failure: failure ?? data?.install?.error ?? null, makeProfile, needsProfile, node, phase, profileWork, start, starting, state, unsupported, verifying };
+  return {
+    ask,
+    data,
+    elsewhere,
+    failure: failure ?? data?.install?.error ?? null,
+    makeProfile,
+    needsProfile,
+    node,
+    phase,
+    profileWork,
+    start,
+    starting,
+    state,
+    unsupported,
+    updating,
+    verifying
+  };
 }
 
 // page/pages/setup/profile-step.js
@@ -11487,6 +11596,7 @@ function ProfileBody({ status }) {
   const profile = status.data?.profile;
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
   if (!status.data?.ok || !profile) {
     return jsx(Small, { children: "Checked once the plugin is on." });
   }
@@ -11522,13 +11632,13 @@ function ProfileBody({ status }) {
         children: [
           jsx(Working, { children: "The profile is created. Waiting for Hermes to start it…" }),
           jsx("div", {
-            children: jsx(Button, { disabled: working, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
+            children: jsx(Button, { disabled: working || updating, onClick: create, size: "sm", variant: "ghost", children: "Set it up again" })
           })
         ]
       }) : working ? jsx(Working, { children: "Creating the profile…" }) : jsxs("div", {
         className: "cs-actions",
         children: [
-          jsx(Button, { onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
+          jsx(Button, { disabled: updating, onClick: create, size: "sm", variant: "default", children: "Create the hermretro profile" }),
           jsx("span", { className: "cs-faint", children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
         ]
       }),
@@ -11686,7 +11796,7 @@ function InstallActions({ installer, compact = false }) {
   if (phase === "done" && installer.needsProfile) {
     return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
       className: "cs-actions",
-      children: jsx(Button, { onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
+      children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
     });
   }
   if (phase === "done" && installer.profileWork.state !== "failed") {
@@ -11696,7 +11806,7 @@ function InstallActions({ installer, compact = false }) {
     return jsx("div", {
       className: "cs-actions",
       children: jsxs(Button, {
-        disabled: starting,
+        disabled: starting || installer.updating,
         onClick: () => void start(),
         size: compact ? "sm" : "lg",
         variant: "default",
@@ -11709,7 +11819,7 @@ function InstallActions({ installer, compact = false }) {
       className: "cs-actions",
       children: [
         jsxs(Button, {
-          disabled: starting,
+          disabled: starting || installer.updating,
           onClick: () => void start(),
           size: compact ? "sm" : "lg",
           variant: "default",
@@ -11761,7 +11871,13 @@ function InstallPanel({ ctx, status, install, step, profileStep }) {
 function RemoveTools({ status, doctor }) {
   const [state, setState] = useState("idle");
   const [failure, setFailure] = useState(null);
+  const updating = useUpdating();
   const remove = async () => {
+    if (isUpdating()) {
+      setFailure(UPDATING_MESSAGE);
+      setState("idle");
+      return;
+    }
     setState("working");
     setFailure(null);
     try {
@@ -11787,12 +11903,12 @@ function RemoveTools({ status, doctor }) {
         className: "cs-actions",
         children: [
           jsx("span", { children: "Delete the downloaded tools? Your games stay. Building again needs a new install (about a minute)." }),
-          jsx(Button, { onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
+          jsx(Button, { disabled: updating, onClick: () => void remove(), size: "sm", variant: "destructive", children: "Remove" }),
           jsx(Button, { onClick: () => setState("idle"), size: "sm", variant: "ghost", children: "Cancel" })
         ]
       }) : jsx("div", {
         children: jsx(Button, {
-          disabled: state === "working",
+          disabled: state === "working" || updating,
           onClick: () => setState("confirm"),
           size: "sm",
           variant: "ghost",
@@ -12066,6 +12182,7 @@ function SetupPage({ shell }) {
           onGo: shell.go,
           onRecheck: shell.refresh,
           onSetUpDevice: shell.setUpDevice,
+          pluginUpdate: shell.pluginUpdate,
           rechecking: shell.refreshing,
           status,
           steps
@@ -12083,7 +12200,7 @@ var ONBOARD_STAGES = [
   ["chromatic", "Your hardware"],
   ["make", "First game"]
 ];
-function OnboardHeader({ stage }) {
+function OnboardHeader({ stage, end = null }) {
   const index = ONBOARD_STAGES.findIndex(([id]) => id === stage);
   return jsxs("header", {
     className: "cs-top",
@@ -12097,7 +12214,8 @@ function OnboardHeader({ stage }) {
           ...ONBOARD_STAGES.map(([id], position) => jsx("i", { className: position < index ? "done" : position === index ? "cur" : "" }, id)),
           jsx("span", { children: `${index + 1} / ${ONBOARD_STAGES.length} · ${ONBOARD_STAGES[index][1]}` })
         ]
-      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) })
+      }) : jsx("span", { className: "cs-onb-steps", children: jsx("span", { children: "First-time setup" }) }),
+      end ? jsx("div", { className: "cs-top-end", children: end }) : null
     ]
   });
 }
@@ -12309,19 +12427,19 @@ function OnboardMake({ ctx, onDone }) {
 function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice }) {
   const toolchain = steps.find((step) => step.id === "toolchain");
   const profileStep = steps.find((step) => step.id === "profile");
-  let body;
+  let body2;
   if (screen2 === "checking") {
-    body = jsx(Working, { children: "Checking what is already installed…" });
+    body2 = jsx(Working, { children: "Checking what is already installed…" });
   } else if (screen2 === "welcome") {
-    body = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
+    body2 = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
   } else if (screen2 === "install") {
-    body = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
+    body2 = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
   } else if (screen2 === "chromatic") {
-    body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
+    body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
   } else {
-    body = jsx(OnboardMake, { ctx, onDone: onFinish });
+    body2 = jsx(OnboardMake, { ctx, onDone: onFinish });
   }
-  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body });
+  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body2 });
 }
 
 // page/pages/setup/index.js
@@ -12392,7 +12510,7 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
 }
 
 // page/pages/build/chat/events.js
@@ -13313,6 +13431,39 @@ var SHELL_CSS = `
 .cs-tab-body { display: contents; }
 `;
 
+// page/app/update/update.css.js
+var UPDATE_CSS = `
+.cs-top-end { align-items: center; gap: 10px; }
+.cs-upd { position: relative; }
+.cs-upd-chip { appearance: none; border: 0; color: var(--ui-text-primary); cursor: pointer; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.cs-upd-chip.accent { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.cs-upd-chip.accent > i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent); }
+.cs-upd-chip.good { background: color-mix(in srgb, var(--ui-green) 13%, transparent); }
+.cs-upd-chip.warn { background: color-mix(in srgb, var(--ui-yellow) 12%, transparent); }
+.cs-upd-chip.bad { background: color-mix(in srgb, var(--ui-red) 12%, transparent); }
+.cs-upd-chip:hover { filter: brightness(1.15); }
+.cs-upd-chip:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.cs-upd-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 14px 36px color-mix(in srgb, black 40%, transparent); display: flex; flex-direction: column;
+  gap: 8px; padding: 14px 16px; position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); z-index: 30; }
+.cs-upd-pop h3 { font-size: 17px; }
+.cs-upd-pop p { color: var(--ui-text-secondary); font-size: 13px; line-height: 1.45; margin: 0; }
+.cs-upd-pop .cs-eyebrow { color: var(--ui-text-tertiary); }
+.cs-upd-kv { align-items: baseline; display: flex; gap: 10px; }
+.cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
+.cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.cs-upd-fill { flex: 1; }
+.cs-upd-pop p.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); color: var(--ui-text-primary); display: flex; gap: 8px; padding: 7px 9px; }
+.cs-upd-wait > :first-child { color: var(--ui-yellow); flex: none; margin-top: 2px; }
+.cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
+.cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
+.cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
+.cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
+.cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
+.cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
+`;
+
 // page/app/style.js
 var stylesheet = "";
 function composeStyles(pages) {
@@ -13320,6 +13471,7 @@ function composeStyles(pages) {
   return [
     BASE_CSS,
     SHELL_CSS,
+    UPDATE_CSS,
     FLYER_CSS,
     ...pages.filter((page) => !page.cssLast).flatMap(chunks),
     RESPONSIVE_CSS,
@@ -14931,8 +15083,362 @@ function shrinkFrame(dataUrl) {
   });
 }
 
+// page/app/update/flow.js
+var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
+var UPDATE_MARKER = "update";
+var UPDATE_TIMEOUT_MS = 3e5;
+function requestOn(target, method, params, timeoutMs) {
+  return target.route ? host.requestProfile(target.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function installTarget(installedIn) {
+  const profile = installedIn?.linked ? null : installedIn?.profile ?? null;
+  if (!profile) {
+    return null;
+  }
+  let active = null;
+  try {
+    active = host.state.profile?.get?.() ?? null;
+  } catch {
+    active = null;
+  }
+  if (profile === active) {
+    return { route: null, profile };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    return null;
+  }
+  const routes = await host.profileRoutes().catch(() => []) ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === profile);
+  return route ? { route, profile } : null;
+}
+async function studioReloadTarget(exists = false) {
+  const known = studioTarget();
+  if (known) {
+    return { route: known.route, profile: STUDIO_PROFILE };
+  }
+  if (typeof host.profileRoutes !== "function" || typeof host.requestProfile !== "function") {
+    if (exists) {
+      throw new Error("this Hermes cannot reach the hermretro profile from here");
+    }
+    return null;
+  }
+  const routes = await host.profileRoutes() ?? [];
+  const route = routes.find((candidate) => routeProfile(candidate) === STUDIO_PROFILE);
+  if (route) {
+    return { route, profile: STUDIO_PROFILE };
+  }
+  if (exists) {
+    throw new Error("the hermretro profile is not reachable right now");
+  }
+  return null;
+}
+var BUSY_STATUSES = /* @__PURE__ */ new Set(["starting", "working", "waiting", "streaming"]);
+async function busyChats(studio) {
+  if (!studio) {
+    return [];
+  }
+  const answer = await requestOn(studio, "session.active_list", {}, 15e3);
+  const sessions = Array.isArray(answer?.sessions) ? answer.sessions : [];
+  return sessions.filter((session) => BUSY_STATUSES.has(session?.status)).map((session) => String(session.title || session.preview || "a chat").trim());
+}
+function busySentence(chats) {
+  const names = chats.slice(0, 2).map((name) => `"${name}"`).join(" and ");
+  return chats.length === 1 ? `A game is being built in ${names}. You can update when it finishes.` : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? "…" : ""}). You can update when they finish.`;
+}
+function pluginRow(list) {
+  const rows = Array.isArray(list?.plugins) ? list.plugins : [];
+  return rows.find((row) => row?.name === ID || row?.key === ID) ?? null;
+}
+async function refreshDesktopHalf() {
+  const reconcile = globalThis.window?.hermesDesktop?.reconcileDesktopPlugins;
+  if (typeof reconcile !== "function") {
+    return false;
+  }
+  try {
+    await reconcile();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function reloadStudio(studio) {
+  const toggle = (enable) => requestOn(studio, "plugins.manage", { action: "toggle", name: ID, enable }, 6e4);
+  await toggle(false);
+  let answer = null;
+  for (let attempt = 0; attempt < 2 && !answer?.ok; attempt += 1) {
+    answer = await toggle(true).catch(() => null);
+  }
+  if (!answer?.ok) {
+    throw new Error("hermretro could not be switched back on in the hermretro profile.");
+  }
+  return Boolean(answer.gateway_reloaded) && !answer.restart_required;
+}
+async function runUpdate({
+  install,
+  studio,
+  options = {},
+  resume = false,
+  busy = async () => [],
+  onStep = () => {
+  },
+  onWaiting = () => {
+  },
+  installed = () => {
+  },
+  refused = () => {
+  },
+  remember: remember3 = () => {
+  },
+  waitMs = 2e3,
+  checkTries = 5
+}) {
+  let building;
+  try {
+    building = await busy();
+  } catch (error) {
+    return { kind: "failed", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+  }
+  if (building.length) {
+    return { kind: "busy", chats: building };
+  }
+  onStep(0);
+  installed();
+  const refuse = (outcome) => {
+    if (!resume) {
+      refused();
+    }
+    return outcome;
+  };
+  let result;
+  try {
+    result = await requestOn(install, "plugins.manage", { action: "update", name: ID, ...options }, UPDATE_TIMEOUT_MS);
+  } catch (error) {
+    const message = String(error?.message ?? error ?? "The update did not finish.");
+    return typeof error?.code === "number" ? refuse({ kind: "failed", error: message }) : { kind: "partial", error: `Hermes's answer was lost (${message}), so the update may not have finished` };
+  }
+  if (result?.scan_blocked) {
+    const findings = Array.isArray(result.scan_findings) ? result.scan_findings : [];
+    return refuse(
+      result.scan_verdict === "caution" && !options.force ? { kind: "review", findings, lines: [], retry: { ...options, force: true } } : { kind: "blocked", error: `Hermes's security check stopped this version (${result.scan_verdict ?? "blocked"}).` }
+    );
+  }
+  if (result?.consent_required) {
+    return refuse(
+      options.accept_capabilities ? { kind: "failed", error: result.error ?? "Hermes did not apply the update." } : {
+        kind: "review",
+        findings: [],
+        lines: Array.isArray(result.delta_lines) ? result.delta_lines : [],
+        retry: { ...options, accept_capabilities: true }
+      }
+    );
+  }
+  if (!result?.ok) {
+    return refuse({ kind: "failed", error: result?.error ?? "The update did not finish." });
+  }
+  if (result.unchanged && !resume) {
+    return refuse({ kind: "current" });
+  }
+  let restart = Boolean(result.restart_required);
+  onStep(1);
+  if (studio && studio.profile !== install.profile) {
+    let finished;
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) };
+    }
+    if (!finished?.ok) {
+      return { kind: "partial", error: `the hermretro profile's settings were not updated (${finished?.error ?? "no answer"})` };
+    }
+    for (let failures = 0; ; ) {
+      let chats;
+      try {
+        chats = await busy();
+        failures = 0;
+      } catch (error) {
+        failures += 1;
+        if (failures >= checkTries) {
+          return { kind: "partial", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+        }
+        chats = null;
+      }
+      if (chats && !chats.length) {
+        break;
+      }
+      if (chats) {
+        onWaiting(chats);
+      }
+      await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+    }
+    onWaiting(null);
+    try {
+      restart = !await reloadStudio(studio) || restart;
+    } catch (error) {
+      return { kind: "partial", error: String(error?.message ?? error) };
+    }
+  }
+  onStep(2);
+  remember3({ result: "updated", restart, at: Date.now() });
+  return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
+}
+
+// page/app/update/chip.js
+var CHIP = {
+  idle: ["accent", "Update ready"],
+  updating: ["accent", "Updating"],
+  review: ["warn", "Needs a look"],
+  failed: ["bad", "Update failed"],
+  restart: ["warn", "Restart to finish"],
+  partial: ["bad", "Finish update"],
+  done: ["good", "Updated"]
+};
+function Steps({ step, waiting }) {
+  const labels = waiting?.length ? UPDATE_STEPS.map((label, index) => index === 1 ? `Waiting for "${waiting[0]}" to finish building` : label) : UPDATE_STEPS;
+  return jsx("ol", {
+    className: "cs-upd-steps",
+    children: labels.map(
+      (label, index) => jsxs(
+        "li",
+        {
+          "data-state": index < step ? "done" : index === step ? "now" : "todo",
+          children: [
+            index < step ? jsx(Codicon, { name: "check", size: 12 }) : index === step ? jsx(Codicon, { name: "loading", size: 12, spinning: true }) : jsx("i", {}),
+            label
+          ]
+        },
+        label
+      )
+    )
+  });
+}
+function Findings({ review }) {
+  const lines = review.findings.length ? review.findings.slice(0, 6).map((f) => `${String(f.severity ?? "").toUpperCase()}  ${f.file ?? ""}:${f.line ?? ""}  ${f.description || f.category || ""}`) : review.lines.slice(0, 8);
+  return lines.length ? jsx("pre", { className: "cs-upd-pre", children: lines.join("\n") }) : null;
+}
+function body(update) {
+  const actions = (...children) => jsx("div", { className: "cs-upd-acts", children });
+  const whatsNew = jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new");
+  switch (update.phase) {
+    case "updating":
+      return ["Updating…", jsx(Steps, { step: update.step, waiting: update.waiting }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
+    case "review":
+      return [
+        "Review the new version",
+        jsx(
+          "p",
+          {
+            children: update.review?.findings?.length ? "Hermes's security check found something to look at before installing it. Nothing has changed yet." : "The new version adds to what hermretro can do in Hermes. Nothing has changed yet."
+          },
+          "p"
+        ),
+        update.review ? jsx(Findings, { review: update.review }, "f") : null,
+        actions(
+          jsx(Button, { onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
+          jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no")
+        )
+      ];
+    case "failed":
+      return [
+        "Couldn't update",
+        jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
+        actions(
+          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "partial":
+      return [
+        "Almost there",
+        jsx(
+          "p",
+          { children: `The new version is installed, but ${String(update.error ?? "its last steps did not finish").replace(/\.$/, "")}. Finish the update to load it everywhere.` },
+          "p"
+        ),
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }, "finish"),
+          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
+        )
+      ];
+    case "restart":
+      return [
+        "Almost done",
+        jsx("p", { children: "The new version is installed. Quit and reopen Hermes to finish loading it; until then hermretro keeps working." }, "p"),
+        actions(jsx(Button, { onClick: () => update.setOpen(false), size: "sm", variant: "outline", children: "Got it" }, "ok"))
+      ];
+    case "done":
+      return ["Up to date", jsx("p", { children: "Your games, library and chats are kept. New chats use the new version." }, "p"), actions(whatsNew)];
+    default:
+      return [
+        "A new version is ready",
+        jsx("p", { children: "Your games, library and chats are kept. It takes about a minute." }, "p"),
+        update.version ? jsxs("p", { className: "cs-upd-kv", children: [jsx("b", { children: "Installed" }), update.version] }, "kv") : null,
+        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
+        actions(
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
+          whatsNew,
+          jsx("span", { className: "cs-upd-fill" }, "fill"),
+          jsx(Button, { onClick: update.later, size: "sm", variant: "ghost", children: "Later" }, "later")
+        )
+      ];
+  }
+}
+function UpdateChip({ update }) {
+  const root = useRef(null);
+  const { open, phase, setOpen } = update;
+  useEffect(() => {
+    if (!open || phase === "updating") {
+      return void 0;
+    }
+    const away = (event) => {
+      if (!root.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", escape, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("keydown", escape, true);
+    };
+  }, [open, phase]);
+  if (!update.visible) {
+    return null;
+  }
+  const [tone, label] = CHIP[phase] ?? CHIP.idle;
+  const [title, ...rest] = body(update);
+  return jsxs("span", {
+    className: "cs-upd",
+    ref: root,
+    children: [
+      jsxs("button", {
+        "aria-expanded": open,
+        "aria-haspopup": "dialog",
+        "aria-label": `hermretro: ${label}`,
+        className: `cs-chip cs-upd-chip ${tone}`,
+        "data-phase": phase,
+        onClick: () => setOpen(!open),
+        title: label,
+        type: "button",
+        children: [phase === "updating" ? jsx(Codicon, { name: "loading", size: 11, spinning: true }) : jsx("i", {}), jsx("span", { className: "cs-lbl", children: label })]
+      }),
+      open ? jsxs("div", {
+        "aria-label": "hermretro update",
+        className: "cs-upd-pop",
+        role: "dialog",
+        children: [jsx("p", { className: "cs-eyebrow", children: "hermretro" }), jsx("h3", { className: "cs-word", children: title }), ...rest]
+      }) : null
+    ]
+  });
+}
+
 // page/app/nav.js
-function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null }) {
+function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
   const page = nav.page;
   return jsxs("header", {
     className: "cs-top",
@@ -14975,22 +15481,25 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
           )
         )
       }),
-      jsx("div", {
+      jsxs("div", {
         className: "cs-top-end",
-        children: jsx(Tip, {
-          label: "Check the setup and reload the studio",
-          children: jsx("span", {
-            style: { display: "inline-flex" },
-            children: jsxs(Button, {
-              "aria-label": "Refresh",
-              disabled: refreshing,
-              onClick: onRefresh,
-              size: "sm",
-              variant: "ghost",
-              children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+        children: [
+          update ? jsx(UpdateChip, { update }, "update") : null,
+          jsx(Tip, {
+            label: "Check the setup and reload the studio",
+            children: jsx("span", {
+              style: { display: "inline-flex" },
+              children: jsxs(Button, {
+                "aria-label": "Refresh",
+                disabled: refreshing,
+                onClick: onRefresh,
+                size: "sm",
+                variant: "ghost",
+                children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
+              })
             })
-          })
-        })
+          }, "refresh")
+        ]
       })
     ]
   });
@@ -14999,16 +15508,16 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null 
 // page/app/not-running.js
 function NotRunning({ backend, status, gateway }) {
   let title = "Checking hermretro…";
-  let body = jsx(Working, { children: "Asking the plugin for its status." });
+  let body2 = jsx(Working, { children: "Asking the plugin for its status." });
   if (backend === "offline") {
     title = "Waiting for Hermes";
-    body = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
+    body2 = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
   } else if (backend === "error") {
     title = "hermretro reported a problem";
-    body = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
+    body2 = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
   } else if (backend === "failed") {
     title = "Could not read hermretro's status";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
@@ -15018,7 +15527,7 @@ function NotRunning({ backend, status, gateway }) {
   } else if (backend === "unavailable") {
     const { message, notLoaded } = describeRequestError(status.error);
     title = "hermretro is not switched on in any profile";
-    body = jsxs("div", {
+    body2 = jsxs("div", {
       className: "cs-content",
       children: [
         jsx(Lede, {
@@ -15054,7 +15563,7 @@ function NotRunning({ backend, status, gateway }) {
           className: "cs-stage-head",
           children: [jsx("p", { className: "cs-eyebrow", children: "Status" }), jsx("h2", { className: "cs-word cs-title", children: title })]
         }),
-        body
+        body2
       ]
     })
   });
@@ -15098,6 +15607,207 @@ function TabbedPage({ page, shell }) {
 }
 function PageView({ page, shell }) {
   return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
+}
+
+// page/app/update/use-update.js
+var CHECK_EVERY_MS = 30 * 6e4;
+var MARKER_FRESH_MS = 15 * 6e4;
+var DONE_SHOWN_MS = 1e4;
+var BUSY_EVERY_MS = 5e3;
+var INSTALLING = "The game tools are being installed. You can update when that finishes.";
+var PENDING = "updatePending";
+function pendingUpdate(ctx) {
+  try {
+    const pending = ctx.storage.get(PENDING, null);
+    return pending && typeof pending === "object" ? pending : null;
+  } catch {
+    return null;
+  }
+}
+function takeMarker(ctx) {
+  try {
+    const marker = ctx.storage.get(UPDATE_MARKER, null);
+    if (marker) {
+      ctx.storage.set(UPDATE_MARKER, null);
+    }
+    return marker && Date.now() - Number(marker.at ?? 0) < MARKER_FRESH_MS ? marker : null;
+  } catch {
+    return null;
+  }
+}
+function remember2(ctx, key, value) {
+  try {
+    ctx.storage.set(key, value);
+  } catch {
+  }
+}
+function usePluginUpdate({ ctx, status, running, installing = false }) {
+  const queryClient = useQueryClient();
+  const installedIn = status.data?.plugin?.installed_in ?? null;
+  const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
+  const check = useQuery({
+    queryKey: [ID, "plugin-update", profile],
+    queryFn: async () => {
+      const target2 = await installTarget(installedIn);
+      return target2 ? { target: target2, row: pluginRow(await requestOn(target2, "plugins.manage", { action: "list" }, 6e4)) } : { target: null, row: null };
+    },
+    enabled: running && Boolean(profile),
+    refetchInterval: CHECK_EVERY_MS,
+    staleTime: CHECK_EVERY_MS / 2,
+    refetchOnWindowFocus: false,
+    retry: false
+  });
+  const [state, setState] = useState(() => {
+    const marker = takeMarker(ctx);
+    if (marker) {
+      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true };
+    }
+    const pending = pendingUpdate(ctx);
+    return pending ? { phase: "partial", step: 0, error: pending.error ?? null } : { phase: "idle", step: 0 };
+  });
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return ctx.storage.get("updateLater", null);
+    } catch {
+      return null;
+    }
+  });
+  const busy = useRef(false);
+  const installingNow = useRef(installing);
+  installingNow.current = installing;
+  const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
+  useEffect(() => {
+    if (!state.announce) {
+      return void 0;
+    }
+    host.notify(
+      state.phase === "restart" ? { kind: "warning", message: "hermretro was updated. Quit and reopen Hermes to finish loading it." } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
+    );
+    if (state.phase !== "done") {
+      return void 0;
+    }
+    ctx.setTimeout?.(() => setState((current) => current.phase === "done" ? { phase: "idle", step: 0 } : current), DONE_SHOWN_MS);
+    return void 0;
+  }, []);
+  const row = check.data?.row ?? null;
+  const target = check.data?.target ?? null;
+  const ready = row?.update_available === true && Boolean(target);
+  const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
+  const building = useQuery({
+    queryKey: [ID, "update-busy"],
+    queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
+    enabled: running && (ready && state.phase === "idle" || state.phase === "partial"),
+    refetchInterval: BUSY_EVERY_MS,
+    retry: false
+  });
+  const fresher = state.raced && (building.dataUpdatedAt ?? 0) > state.racedAt;
+  const chats = !fresher && state.raced || (Array.isArray(building.data) ? building.data : []);
+  useEffect(() => {
+    if (fresher) {
+      setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
+    }
+  }, [fresher]);
+  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null;
+  const start = async (options = {}) => {
+    if (busy.current || !target) {
+      return;
+    }
+    if (blocked) {
+      setOpen(true);
+      return;
+    }
+    busy.current = true;
+    setUpdating(true);
+    setOpen(true);
+    setState({ phase: "updating", step: 0 });
+    const resume = Boolean(pendingUpdate(ctx));
+    let outcome;
+    try {
+      let studio = null;
+      try {
+        studio = await studioReloadTarget(studioExists);
+      } catch (error) {
+        outcome = { kind: "failed", error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` };
+      }
+      outcome ??= await runUpdate({
+        install: target,
+        studio,
+        options,
+        resume,
+        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
+        onStep: (step) => setState((current) => ({ ...current, step })),
+        onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
+        installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
+        refused: () => remember2(ctx, PENDING, null),
+        remember: (marker) => {
+          remember2(ctx, PENDING, null);
+          remember2(ctx, UPDATE_MARKER, marker);
+        }
+      });
+    } finally {
+      busy.current = false;
+      setUpdating(false);
+    }
+    void queryClient.invalidateQueries({ queryKey: [ID] });
+    const half = outcome.kind === "partial" || pendingUpdate(ctx) && ["failed", "blocked"].includes(outcome.kind);
+    if (half) {
+      remember2(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null });
+      setState({ phase: "partial", step: 0, error: outcome.error ?? null });
+    } else if (outcome.kind === "updated") {
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2 });
+    } else if (outcome.kind === "current") {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+      host.notify({ kind: "success", message: "hermretro is already up to date." });
+    } else if (outcome.kind === "busy") {
+      setState((current) => ({
+        phase: resume ? "partial" : "idle",
+        step: 0,
+        error: resume ? current.error ?? null : null,
+        raced: outcome.chats,
+        racedAt: building.dataUpdatedAt ?? 0
+      }));
+    } else if (outcome.kind === "review") {
+      setState({ phase: "review", step: 0, review: outcome });
+    } else {
+      setState({ phase: "failed", step: 0, error: outcome.error });
+    }
+  };
+  const phase = state.phase;
+  const visible = phase !== "idle" || ready && !later2;
+  return {
+    visible,
+    ready,
+    // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
+    checked: Boolean(row),
+    linked: Boolean(installedIn?.linked),
+    phase,
+    step: state.step,
+    // why Update is refused right now (a build under way, the toolchain installing), or null
+    blocked,
+    // the chats a running update waits for before it reloads the hermretro profile, or null
+    waiting: state.waiting ?? null,
+    error: state.error ?? null,
+    review: state.review ?? null,
+    version: status.data?.plugin?.version ?? null,
+    open,
+    setOpen,
+    start: () => void start(),
+    agree: () => void start(state.review?.retry ?? {}),
+    cancel: () => {
+      setState({ phase: "idle", step: 0 });
+      setOpen(false);
+    },
+    later: () => {
+      const key = row?.update_target ?? "ready";
+      setDismissed(key);
+      remember2(ctx, "updateLater", key);
+      setOpen(false);
+    },
+    whatsNew: () => void ctx.os?.openExternal?.(LINKS.releases),
+    openPlugins: () => host.navigate(PLUGINS_HREF)
+  };
 }
 
 // page/app/studio-page.js
@@ -15164,6 +15874,7 @@ function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
   const install = useInstall({ enabled: wantInstall });
   const installState = install.data?.install?.state ?? null;
+  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
   const lastInstall = useRef(installState);
   useEffect(() => {
     const before = lastInstall.current;
@@ -15305,6 +16016,8 @@ function StudioPage({ ctx }) {
     pick,
     unpin: () => setPinned(null),
     install,
+    // Hermes's update of hermretro: the header chip, and the version row on the Setup page
+    pluginUpdate,
     gameReady,
     hardwareOn,
     emulatorOnly,
@@ -15346,11 +16059,11 @@ function StudioPage({ ctx }) {
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
   };
-  let body;
+  let body2;
   if (!running) {
-    body = [jsx(NotRunning, { backend, gateway, status }, "off")];
+    body2 = [jsx(NotRunning, { backend, gateway, status }, "off")];
   } else if (onboardScreen) {
-    body = [
+    body2 = [
       jsx(
         Onboarding,
         { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
@@ -15358,7 +16071,7 @@ function StudioPage({ ctx }) {
       )
     ];
   } else {
-    body = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
+    body2 = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
   }
   const pad = running && !onboardScreen ? currentPage.pad ?? null : null;
   const broken = running && settled && !onboardScreen && page !== "setup" ? steps.find((step) => !step.hardware && !step.complete) : null;
@@ -15377,7 +16090,14 @@ function StudioPage({ ctx }) {
       },
       children: [
         jsx(PageStyle, {}, "style"),
-        onboardScreen ? jsx(OnboardHeader, { stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null }, "nav") : jsx(
+        onboardScreen ? jsx(
+          OnboardHeader,
+          {
+            end: pluginUpdate.visible ? jsx(UpdateChip, { update: pluginUpdate }) : null,
+            stage: ONBOARD_STAGES.some(([id]) => id === onboardScreen) ? onboardScreen : null
+          },
+          "nav"
+        ) : jsx(
           StudioNav,
           {
             nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
@@ -15385,6 +16105,7 @@ function StudioPage({ ctx }) {
             onRefresh: refresh,
             pages: NAV_PAGES,
             refreshing,
+            update: pluginUpdate,
             viaProfile
           },
           "nav"
@@ -15394,14 +16115,15 @@ function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
-              running && status.data?.restart_needed ? jsxs(
+              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
+              running && status.data?.restart_needed && pluginUpdate.phase !== "restart" ? jsxs(
                 "div",
                 {
                   className: "cs-repair",
                   role: "status",
                   children: [
                     jsx(Codicon, { name: "refresh", size: 14 }),
-                    jsx("span", { children: "hermretro was updated. Restart Hermes to finish: quit and reopen the app (or run hermes gateway restart)." })
+                    jsx("span", { children: "hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish." })
                   ]
                 },
                 "restart"
@@ -15419,7 +16141,7 @@ function StudioPage({ ctx }) {
                 },
                 "repair"
               ) : null,
-              ...body,
+              ...body2,
               stage,
               pad && currentPage.BelowPlayer ? jsx(currentPage.BelowPlayer, { shell }, "side") : null,
               pad ? null : jsx(Footer, { ctx }, "foot")

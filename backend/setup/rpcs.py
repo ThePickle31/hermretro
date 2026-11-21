@@ -92,7 +92,12 @@ def rpc_status(ctx):
             node = paths.find_node()
             answer = {
                 "ok": True,
-                "plugin": {"id": paths.PLUGIN_ID, "version": paths.PLUGIN_VERSION},
+                "plugin": {
+                    "id": paths.PLUGIN_ID,
+                    "version": paths.PLUGIN_VERSION,
+                    # The profile Hermes installed this copy into: updates run there.
+                    "installed_in": studio_profile.installed_in(),
+                },
                 # Linux and macOS on arm64 or x64 are supported alike; Rosetta works but is slow.
                 "platform": _platform_report(),
                 "node": {

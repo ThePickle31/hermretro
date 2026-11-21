@@ -3,7 +3,56 @@ import { Button, Codicon, jsx, jsxs } from '#sdk'
 import { Facts, Lede } from '#shared/ui/text.js'
 
 /** Everything is verified (or the Chromatic part was skipped). */
-export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo }) {
+/** The hermretro row: the installed version and whether Hermes has a newer one (the header chip runs the update). */
+function versionFact(data, update) {
+  const version = data.plugin?.version ?? '?'
+
+  if (!update) {
+    return version
+  }
+
+  if (update.ready && update.phase === 'idle') {
+    return jsxs('span', {
+      className: 'cs-note',
+      children: [
+        `${version} · a new version is ready`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Update' }),
+        jsxs(Button, { onClick: update.whatsNew, size: 'sm', variant: 'link', children: ["What's new", jsx(Codicon, { name: 'link-external', size: 12 })] }),
+        update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
+      ]
+    })
+  }
+
+  if (update.phase === 'partial') {
+    return jsxs('span', {
+      className: 'cs-note',
+      children: [
+        `${version} · the update is not finished`,
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Finish update' }),
+        update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
+      ]
+    })
+  }
+
+  if (update.phase === 'updating') {
+    return `${version} · updating…`
+  }
+
+  // Anything but a finished or untouched install: say where the update stands, never "up to date".
+  const standing = {
+    failed: 'the update did not go through: see the update in the header',
+    review: 'the update waits for your answer in the header',
+    restart: 'updated: quit and reopen Hermes to finish'
+  }[update.phase]
+
+  if (standing) {
+    return `${version} · ${standing}`
+  }
+
+  return update.linked ? `${version} · a linked checkout: update it with git` : update.checked && !update.ready ? `${version} · up to date` : version
+}
+
+export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, rechecking, onSetUpDevice, onGo, pluginUpdate = null }) {
   const data = status.data ?? {}
   const report = doctor.data?.ok ? doctor.data : null
   const tools = (report?.components ?? [])
@@ -35,6 +84,7 @@ export function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, 
       }),
       jsx(Facts, {
         rows: [
+          ['hermretro', versionFact(data, pluginUpdate)],
           ['Profile', data.profile?.name ?? data.via_profile ?? 'this profile'],
           ['Toolchain', [tools.join(' · '), data.engine?.version ? `engine ${data.engine.version}` : ''].filter(Boolean).join(' · ') || 'Ready'],
           [
