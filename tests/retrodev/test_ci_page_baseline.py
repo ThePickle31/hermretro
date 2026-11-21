@@ -199,7 +199,7 @@ class FlowFixes(RepoCase):
         self.assertIn("page: 3 files: 0 errors, 1 warnings (warnings: page/a.js:208)", summary)
 
 
-class WholeScaffoldCheckFirstRoundNine(unittest.TestCase):
+class WholeScaffoldCheckFirst(unittest.TestCase):
     def check_py(self):
         spec = importlib.util.spec_from_file_location("check_py_probe_nine_first", ROOT / "tools/check.py")
         assert spec and spec.loader
@@ -263,7 +263,7 @@ class WholeScaffoldCheckFirstRoundNine(unittest.TestCase):
         self.assertEqual(shown, "not ok 1 - rdprobe", "the failure shows, not only that there was one")
 
 
-class PageFailureRoundTwelve(RepoCase):
+class PageFailure(RepoCase):
     def test_a_failing_page_file_shows_its_own_assertion_not_only_test_failed(self):
         said = check_py().page_failure(SPEC)
         self.assertIn("tests/page/page-build.test.mjs failed:", said)

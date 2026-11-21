@@ -423,7 +423,7 @@ Make a folder `page/pages/{page}/<tab>/`{taken} with an `index.js` exporting `{{
 """
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)

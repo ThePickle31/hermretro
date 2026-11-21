@@ -92,7 +92,7 @@ class FastGate(RepoCase):
         self.assertNotIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
 
 
-class AcceptanceInputsRoundTwenty(RepoCase):
+class AcceptanceInputs(RepoCase):
     def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
         """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
         run's data (its tree_passed is still the fast checks')."""
@@ -155,7 +155,7 @@ class AcceptanceInputsRoundTwenty(RepoCase):
                 self.checked(tree, cached=False)
 
 
-class AcceptanceContractRoundTwentyOne(RepoCase):
+class AcceptanceContract(RepoCase):
     def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
         """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
         run's data (its tree_passed is still the fast checks')."""

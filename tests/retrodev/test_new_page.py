@@ -36,7 +36,7 @@ def add_bullet(doc: str, label: str, bullet: str) -> str:
     return doc.replace(f"\n### {label}\n\n", f"\n### {label}\n\n- {bullet}\n", 1)
 
 
-class PageRoundEightNew(ScaffoldCase):
+class Page(ScaffoldCase):
     def test_the_next_steps_name_every_place_that_lists_the_pages(self):
         steps = joined(self.new("page", "rdprobe-board"))
         self.assertIn("README.md 'What works today'", steps)
@@ -47,7 +47,7 @@ class PageRoundEightNew(ScaffoldCase):
         self.assertIn("## Pages", (ROOT / "docs/dev/STUDIO-PAGES.md").read_text())
 
 
-class PagesStepsRoundThirteen(ScaffoldCase):
+class PagesSteps(ScaffoldCase):
     def test_new_page_tab_and_rpc_point_to_the_page_s_subsection_and_following_them_keeps_the_table_test(self):
         page = joined(self.new("page", "rdprobe-notes", "--label", "Notes"))
         self.assertIn("a row in its Pages table (cells of at most 160 characters) plus a new `### Notes`", page)

@@ -335,7 +335,7 @@ PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + bytes(range(256))
 ART = "player/art.png"
 
 
-class BlobsRoundEightBinary(RepoCase):
+class Blobs(RepoCase):
     def test_git_output_that_is_not_utf_8_never_raises(self):
         tree = self.worktree("fix/blob")
         (tree / ART).parent.mkdir(parents=True, exist_ok=True)

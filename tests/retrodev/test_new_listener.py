@@ -16,7 +16,7 @@ load_tests = parallel
 EVENT = "library.build_reported"
 
 
-class ListenerRoundEightNew(ScaffoldCase):
+class Listener(ScaffoldCase):
     def test_the_listener_takes_the_event_s_payload_keys_keyword_only(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         self.new("feature", "rdprobe_ears")
@@ -54,7 +54,7 @@ class ListenerRoundEightNew(ScaffoldCase):
         ast.parse(self.read("tests/backend/rdprobe_ears/test_listener_on_history_rdprobe_caught.py"))
 
 
-class ListenerDryRunRoundEighteen(ScaffoldCase):
+class ListenerDryRun(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -75,7 +75,7 @@ class ListenerDryRunRoundEighteen(ScaffoldCase):
         self.assertIn("no front door declares the event 'history.rdprobe_later'", refused["error"]["message"])
 
 
-class ListenerStubRoundFifteen(ScaffoldCase):
+class ListenerStub(ScaffoldCase):
     def test_the_placeholder_has_a_line_of_its_own_and_host_logger_is_a_step(self):
         write(self.tree, "backend/library/__init__.py", (ROOT / "backend/library/__init__.py").read_text())
         git(self.tree, "add", "-A")

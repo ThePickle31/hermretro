@@ -37,7 +37,7 @@ Make a folder `page/pages/{page}/<tab>/`{taken} with an `index.js` exporting `{{
 """
 
 
-class SlotRoundEightNew(ScaffoldCase):
+class Slot(ScaffoldCase):
     def test_the_readme_line_ends_the_doc_before_contributes(self):
         self.new("page", "rdprobe-shelf")
         out = self.new("slot", "rdprobe-shelf", "more", "--doc", "Buttons after the lede. Props: { ctx }")
@@ -68,7 +68,7 @@ class SlotRoundElevenNew(ScaffoldCase):
         self.assertIn("**Slots:** declares `emulator.barActions`: ", emulator)
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
@@ -106,7 +106,7 @@ class ScaffoldsRoundFourteen(ScaffoldCase):
         self.assertTrue(all(len(line) <= 120 for line in block.split("\n")), block)
 
 
-class SlotOnADeclaringPageRoundSixteen(ScaffoldCase):
+class SlotOnADeclaringPage(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -140,7 +140,7 @@ class SlotOnADeclaringPageRoundSixteen(ScaffoldCase):
         self.assertIn("Also declares `<page>.<name>`: <doc>.", retrodev_docs("REFERENCE.md"))
 
 
-class WrappedSlotsRoundSixteen(unittest.TestCase):
+class WrappedSlots(unittest.TestCase):
     def test_each_fills_sentence_follows_its_own_slot_when_wrapping_split_the_boundary(self):
         for gap in ("Also\ndeclares `games.cardBadge`", "Also declares\n`games.cardBadge`"):
             text = (

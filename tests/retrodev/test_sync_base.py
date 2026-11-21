@@ -35,7 +35,7 @@ STEP = '  log("step");'
 NEW_LINE = "const megabytes = Math.round(bytes / 1000000);"
 
 
-class SyncPickaxeFromTheBaseRoundSeventeen(RepoCase):
+class SyncPickaxeFromTheBase(RepoCase):
     def test_the_hint_searches_the_base_line_and_names_the_file_that_took_it(self):
         self.on_dev(SIZE, SIZE_TEXT, "Sizes")
         git(self.main, "fetch", "-q", "origin")
@@ -61,7 +61,7 @@ class SyncPickaxeFromTheBaseRoundSeventeen(RepoCase):
         self.assertIn(moved[:7], hint)
 
 
-class SyncHintPerHunkRoundSeventeen(RepoCase):
+class SyncHintPerHunk(RepoCase):
     def test_each_hunk_names_where_its_own_base_lines_went(self):
         self.on_dev(SIZE, TWO_TEXT, "Sizes and speeds")
         git(self.main, "fetch", "-q", "origin")
@@ -108,7 +108,7 @@ class SyncHintPerHunkRoundSeventeen(RepoCase):
         )
 
 
-class SyncHintNoGuessRoundSeventeen(RepoCase):
+class SyncHintNoGuess(RepoCase):
     def test_ambiguous_context_never_names_a_dev_file_holding_the_branch_s_own_line(self):
         around = "\n".join([STEP] * 3)
         self.on_dev(SIZE, f"{around}\n{BASE_LINE}\n{around}\n", "Sizes")

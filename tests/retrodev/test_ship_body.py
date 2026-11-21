@@ -193,7 +193,7 @@ class FlowFixes(RepoCase):
         self.assertIn("nothing to ship: the branch changes no file", gate["message"])
 
 
-class TitleAndBodyRoundEight(RepoCase):
+class TitleAndBody(RepoCase):
     def test_check_names_a_missing_body_and_check_status_and_ship_suggest_the_plan_s_title(self):
         tree = self.worktree("fix/nobody")
         path = self.main / "notes/plans/nobody.md"
@@ -217,7 +217,7 @@ class TitleAndBodyRoundEight(RepoCase):
         self.assertIn("--title 'Nobody gets a body'", out)
 
 
-class StatusRoundFive(RepoCase):
+class Status(RepoCase):
     def test_ship_without_a_title_still_runs_and_reports_every_gate(self):
         tree = self.worktree("feat/goalie")
         write(tree, "docs/loose.md", "# uncommitted\n")
@@ -230,7 +230,7 @@ class StatusRoundFive(RepoCase):
         self.assertIn("FIX: python tools/retrodev ship --title", out)
 
 
-class ShipRoundFour(RepoCase):
+class Ship(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)
@@ -310,7 +310,7 @@ class ShipRoundFour(RepoCase):
         self.assertIsNone(git(self.origin, "rev-parse", "-q", "--verify", "feat/goalie", check=False).strip() or None)
 
 
-class TitleRoundNine(RepoCase):
+class Title(RepoCase):
     def test_check_status_and_ship_say_why_they_skip_the_plan_s_title(self):
         tree = self.worktree("feat/longer")
         path = self.main / "notes/plans/longer.md"
@@ -330,7 +330,7 @@ class TitleRoundNine(RepoCase):
         self.assertIn(why, out)
 
 
-class MadeByRoundNine(RepoCase):
+class MadeBy(RepoCase):
     def test_start_and_check_say_how_to_name_the_agent(self):
         self.commit(
             self.main, ".github/pull_request_template.md", (ROOT / ".github/pull_request_template.md").read_text()
@@ -354,7 +354,7 @@ class MadeByRoundNine(RepoCase):
         self.assertNotIn("RETRODEV_AGENT", out.strip().splitlines()[-1], "a named agent needs no hint")
 
 
-class BodyRoundSeven(RepoCase):
+class Body(RepoCase):
     def started(self) -> Path:
         self.commit(
             self.main, ".github/pull_request_template.md", (ROOT / ".github/pull_request_template.md").read_text()
@@ -454,7 +454,7 @@ class MadeByRoundTen(RepoCase):
         self.assertIn("names no agent:", older)
 
 
-class FlowRoundTwo(RepoCase):
+class Flow(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)

@@ -16,7 +16,7 @@ SHARED_PLAN = FILLED_PLAN.replace("Make {topic} work.", "Make {topic} work, in t
 )
 
 
-class SharedPlanRoundTen(RepoCase):
+class SharedPlan(RepoCase):
     def started(self, name: str, topic: str = "duo") -> str:
         code, out = self.run_cli("start", name, "--plan", topic, "--no-setup")
         self.assertEqual(code, 0, out)
@@ -64,7 +64,7 @@ class SharedPlanRoundTen(RepoCase):
         self.assertIn(ship.SHARED, first)
 
 
-class SharedAfterLandingRoundTenReview(RepoCase):
+class SharedAfterLanding(RepoCase):
     def ctx(self):
         return config.Context.make(self.main, output.Out(stream=io.StringIO()))
 

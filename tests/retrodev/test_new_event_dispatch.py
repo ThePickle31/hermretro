@@ -13,7 +13,7 @@ load_tests = alone
 DISPATCHER = "backend/system/events.py"
 
 
-class EventRoundSevenAlone(ScaffoldCase):
+class Event(ScaffoldCase):
     def test_the_generated_emitter_reaches_a_listener_through_the_real_dispatcher(self):  # review 2, 1
         write(self.tree, DISPATCHER, (ROOT / DISPATCHER).read_text())
         git(self.tree, "add", "-A")

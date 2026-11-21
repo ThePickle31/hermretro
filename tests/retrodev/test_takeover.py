@@ -40,7 +40,7 @@ def line_with_RoundTen(text: str, start: str) -> str:
     return next((line for line in text.splitlines() if line.startswith(start)), "")
 
 
-class TakeoverRoundEight(RepoCase):
+class Takeover(RepoCase):
     def pushed(self, branch: str) -> Path:
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
@@ -63,7 +63,7 @@ class TakeoverRoundEight(RepoCase):
         self.assertTrue((self.main / "notes/pr/extra.md").is_file(), out)
 
 
-class TakeoverAgentRoundFifteen(RepoCase):
+class TakeoverAgent(RepoCase):
     def test_the_plan_approve_step_names_the_agent_while_it_is_unset(self):
         self.assertEqual(gates.agent_prefix({}), "RETRODEV_AGENT='<agent, model>' ")
         # round seventeen: a set variable is printed with its real value (the new process may not have it)
@@ -207,7 +207,7 @@ class TakeoverRoundSeven(RepoCase):
         self.assertEqual(sh("python tools/retrodev status", tree).count(f"{runner} "), 0)  # synced: its own again
 
 
-class TakeoverRecordsTheAgentRoundSeventeen(RepoCase):
+class TakeoverRecordsTheAgent(RepoCase):
     def test_plan_approve_without_the_variable_names_the_agent_takeover_saw(self):
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
@@ -284,7 +284,7 @@ class TakeoverRoundSix(RepoCase):
         self.assertIn("origin/feat/nobody does not exist after the fetch", out)
 
 
-class PathsRoundTen(RepoCase):
+class Paths(RepoCase):
     def pushed(self) -> None:
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
@@ -334,7 +334,7 @@ class TakeoverRoundTwelve(RepoCase):
         self.assertIn(f"(it also writes the pull request body {body})", out)
 
 
-class TakeoverAdviceRoundTwenty(RepoCase):
+class TakeoverAdvice(RepoCase):
     def pushed(self, retrodev_too: bool) -> None:
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))

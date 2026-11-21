@@ -95,7 +95,7 @@ def label_of(door: str) -> str:
     return found.group(2)
 
 
-class TabDesignHeadingRoundFifteen(ScaffoldCase):
+class TabDesignHeading(ScaffoldCase):
     def test_the_hint_names_the_page_s_real_heading(self):
         self.assertEqual(
             scaffold_readme.design_heading(PAGES_DOC, "Build"),
@@ -124,7 +124,7 @@ class TabDesignHeadingRoundFifteen(ScaffoldCase):
         self.assertNotIn("`### <Page>`", said)
 
 
-class TabsNoneLineRoundFifteen(ScaffoldCase):
+class TabsNoneLine(ScaffoldCase):
     def test_a_none_line_s_parenthetical_goes_with_it(self):
         line = "**Tabs:** none (its areas are subfolders, not tabs)."
         self.assertEqual(
@@ -143,7 +143,7 @@ class TabsNoneLineRoundFifteen(ScaffoldCase):
         self.assertEqual(tabs, "**Tabs:** `main` (`main/index.js`), `history` (`history/index.js`).")
 
 
-class TabTestsRoundFifteen(ScaffoldCase):
+class TabTests(ScaffoldCase):
     def test_the_step_names_the_page_s_own_files_or_a_new_one_for_the_tab(self):
         write(self.tree, "tests/page/page-build-shelf.test.mjs", "await tab('Build')\n")
         write(self.tree, "tests/page/page-build.test.mjs", "await tab('Build')\n")
@@ -162,7 +162,7 @@ class TabTestsRoundFifteen(ScaffoldCase):
         self.assertNotIn("the page's checks are in", said)
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -211,7 +211,7 @@ class NewRoundFour(ScaffoldCase):
         self.assertIn("page", [name for entry in self.check_log() for name in entry["names"]])
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +258,7 @@ class ScaffoldsRoundFourteen(ScaffoldCase):
         )
 
 
-class TabRoundNineNew(ScaffoldCase):
+class Tab(ScaffoldCase):
     def test_a_page_with_a_player_under_it_says_it_stays_under_every_tab(self):
         self.new("page", "rdprobe-play")
         door = self.tree / "page/pages/rdprobe-play/index.js"
@@ -275,7 +275,7 @@ class TabRoundNineNew(ScaffoldCase):
         self.assertEqual(order, sorted(order))
 
 
-class TabExampleRoundNineteen(ScaffoldCase):
+class TabExample(ScaffoldCase):
     def test_new_tab_points_at_the_runnable_example_when_the_doc_has_it(self):
         self.commit(self.tree, PAGES, PAGES_TEXT, "A pages doc")
         said = " ".join(self.new("tab", "build", "extra", "--dry-run")["next"])

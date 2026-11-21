@@ -65,7 +65,7 @@ def helpers_for(test: str, rendered: str) -> list[str]:
     return scaffold_page_tests.slot_helpers(plan, "t.test.mjs", "menu.js")
 
 
-class ContributionRoundElevenNew(ScaffoldCase):
+class Contribution(ScaffoldCase):
     def host(self, declared: bool) -> None:
         self.new("page", "rdprobe-host")
         if declared:
@@ -94,7 +94,7 @@ class ContributionRoundElevenNew(ScaffoldCase):
         self.assertIn("done: tests/page/registry.test.mjs: added RdprobeOther", text)
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
@@ -186,7 +186,7 @@ class ContributionRoundNineNew(ScaffoldCase):
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 
 
-class ContributionNamesRoundNineReview(ScaffoldCase):
+class ContributionNames(ScaffoldCase):
     def host(self) -> None:
         self.new("page", "rdprobe-host")
         self.new("slot", "rdprobe-host", "extra", "--doc", "Buttons at the end. Props: { ctx }")
@@ -265,7 +265,7 @@ class ContributionNamesRoundNineReview(ScaffoldCase):
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 
 
-class QuotedSiblingsRoundNineReview(ScaffoldCase):
+class QuotedSiblings(ScaffoldCase):
     def test_new_slot_sees_a_double_quoted_declaration_and_keeps_double_quoted_list_entries(self):
         self.new("page", "rdprobe-host")
         door = "page/pages/rdprobe-host/index.js"
@@ -295,7 +295,7 @@ class QuotedSiblingsRoundNineReview(ScaffoldCase):
         self.assertIn("'rd.a': 'Doc.', 'rd.b': 'Doc.'", grown)
 
 
-class NewStepsRoundSixteen(ScaffoldCase):
+class NewSteps(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -360,7 +360,7 @@ class ContributionRoundTenNew(ScaffoldCase):
         self.assertIn("scenario.notices", steps)
 
 
-class BoundedHelpersRoundTenReview(unittest.TestCase):
+class BoundedHelpers(unittest.TestCase):
     MENU = "jsx('div', { className: 'cs-menu', children: jsx(Slot, { name: 'games.cardMenu' }) })\n"
 
     def test_adjacent_short_helpers_are_each_their_own_function(self):

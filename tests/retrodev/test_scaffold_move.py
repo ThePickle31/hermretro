@@ -192,7 +192,7 @@ def agent_row(text: str, feature: str) -> str:
     return next(line for line in rows if line.startswith(f"| `backend/{feature}/` |"))
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -371,7 +371,7 @@ class NewRoundFour(ScaffoldCase):
             git(self.tree, "commit", "-q", "-m", "Back")
 
 
-class FromPageShowsRoundTwentyOne(ScaffoldCase):
+class FromPageShows(ScaffoldCase):
     PAGE = "rdprobe-shows"
 
     def page_with(self, shows: str) -> str:

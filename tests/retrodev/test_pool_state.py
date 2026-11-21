@@ -130,7 +130,7 @@ print("\\n".join(test.id() for test in flat(found)))
 """
 
 
-class PoolRoundFour(unittest.TestCase):
+class Pool(unittest.TestCase):
     def test_walking_the_discovered_suite_reaches_every_test_id(self):
         # In a process of its own: discovery imports every test module, whose first import changes sys.path.
         ids = subprocess.run(

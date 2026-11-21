@@ -18,7 +18,7 @@ load_tests = parallel
 ROOT = Path(retrodev.__file__).resolve().parents[2]
 
 
-class TempSpaceRoundEight(unittest.TestCase):
+class TempSpace(unittest.TestCase):
     def test_the_copy_leaves_a_short_folder_under_1_gb_and_says_so(self):
         free = {"/short": GIB // 2}
         chosen, note = copy_base("/short", free=lambda path: free.get(path, 2 * GIB))
@@ -33,7 +33,7 @@ class TempSpaceRoundEight(unittest.TestCase):
         self.assertIn("not a git repository", str(raised.exception))
 
 
-class GuardRoundFive(unittest.TestCase):
+class Guard(unittest.TestCase):
     def test_the_guard_runs_every_kind_and_the_real_steps_name_real_features_and_pages(self):
         kinds = {step[0] for step in tree_test.STEPS + tree_test.REAL_STEPS}
         self.assertEqual(kinds, {"feature", "rpc", "tool", "event", "listener", "page", "tab", "slot", "contribution"})
@@ -73,7 +73,7 @@ class GuardRoundFive(unittest.TestCase):
         self.assertTrue(all(name.startswith("rdreal") for name in names), names)
 
 
-class WholeModuleFirstRoundNineReview(unittest.TestCase):
+class WholeModuleFirst(unittest.TestCase):
     def case(self, failing: set[str], log: list[str]) -> unittest.TestCase:
         """A slow test whose copies are empty folders and whose suites fail when named in ``failing``."""
         case = tree_test.GeneratedCodePassesTheRealChecks("test_tab_from_page_passes_its_own_checks_lint_and_bundle")

@@ -113,7 +113,7 @@ class ScaffoldModes(RepoCase):
         self.assertIn("skipped, so not proven here: acceptance (PR CI runs it only when its changes select it)", out)
 
 
-class NestedScaffoldRoundFourteen(RepoCase):
+class NestedScaffold(RepoCase):
     def test_the_nested_mode_comes_from_the_caller_and_keeps_its_own_pass(self):
         tree = self.worktree("fix/probe")
         self.commit(tree, "tests/repo/test_probe.py", "VALUE = 1\n")  # once a nested trigger: adds nothing now

@@ -343,7 +343,7 @@ class FlowFixes(RepoCase):
         self.assertIn("only start and land need it", row["detail"])
 
 
-class DoctorRunRoundEight(RepoCase):
+class DoctorRun(RepoCase):
     def test_doctor_prints_the_space_warning_with_its_fix(self):
         self.fakes["tmp_free"] = 10
         _code, out = self.run_cli("doctor")
@@ -351,7 +351,7 @@ class DoctorRunRoundEight(RepoCase):
         self.assertIn("FIX: free space in ", out)
 
 
-class SharedAfterLandingRoundTenReview(RepoCase):
+class SharedAfterLanding(RepoCase):
     def ctx(self):
         return config.Context.make(self.main, output.Out(stream=io.StringIO()))
 

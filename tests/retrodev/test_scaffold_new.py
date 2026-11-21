@@ -46,7 +46,7 @@ sys.exit(code)
 NEW_COMMAND = re.compile(r"(?:python tools/retrodev |(?<=\| ))new [a-z]+")
 
 
-class DryRunAnywhereRoundNineNew(ScaffoldCase):
+class DryRunAnywhere(ScaffoldCase):
     def test_a_dry_run_on_dev_lists_the_files_and_writes_nothing(self):
         git(self.tree, "switch", "-q", "-c", "master")  # a protected branch, holding the real files new reads
         state = Path(git(self.main, "rev-parse", "--git-common-dir").strip())
@@ -65,7 +65,7 @@ class DryRunAnywhereRoundNineNew(ScaffoldCase):
         self.assertIn("only on a work branch", out)
 
 
-class PreExistingRoundTwelveNew(ScaffoldCase):
+class PreExisting(ScaffoldCase):
     def standin(self, path: str = "", text: str = "x  =  1\n", check: str = FORMAT_CHECK) -> None:
         write(self.tree, "tools/check.py", check)
         if path:
@@ -141,7 +141,7 @@ class PreExistingRoundTwelveNew(ScaffoldCase):
         self.assertEqual(scaffold_checks.unproven(ctx, ok[:2], ["lint", "bundle", "page"]), ["page"], "no row")
 
 
-class PreviewsRoundTwenty(ScaffoldCase):
+class Previews(ScaffoldCase):
     def test_a_text_dry_run_shows_the_next_steps_as_a_preview_and_writes_nothing(self):
         text = self.new("feature", "rdprobe_tw", "--dry-run", as_json=False)
         lines = text.splitlines()

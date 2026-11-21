@@ -61,7 +61,7 @@ def run_in_copy(case, code: str) -> str:
 RPCS_LINE = re.compile(r"^- RPCs \(([^)]*)\): (.*?)(\.(?:\s.*)?)$")
 
 
-class RpcRoundSevenNew(ScaffoldCase):
+class Rpc(ScaffoldCase):
     def test_module_keeps_the_rpc_modules_and_the_text_the_line_holds_already(self):  # review 1, 2
         readme = self.read("backend/history/README.md")
         files, names, tail = rpcs_parts(line_of(readme, "- RPCs"))

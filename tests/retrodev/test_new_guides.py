@@ -31,7 +31,7 @@ def described(kind: str) -> str:
 STANDARD = "  # noqa: E402 - the repository root goes on sys.path first"
 
 
-class GuidanceRoundTwenty(ScaffoldCase):
+class Guidance(ScaffoldCase):
     def test_generic_tool_step_words_say_they_are_generic_and_chosen_words_do_not(self):
         steps = " ".join(self.new("tool", "history", "rdprobe_words")["next"])
         self.assertIn("'Running rdprobe words' / 'Ran rdprobe words'", steps)
@@ -95,7 +95,7 @@ class GuidanceRoundTwenty(ScaffoldCase):
             self.assertEqual((blank, alone.split(": ")[0]), ("", "Run alone"), path.name)
 
 
-class NewKindsRoundTwoRoundTwo(ScaffoldCase):
+class NewKinds(ScaffoldCase):
     def test_every_generated_test_gives_its_noqa_reason_and_imports_tests_support_as_a_package(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         write(self.tree, "tests/support.py", "def isolated_home(test):\n    pass\n")

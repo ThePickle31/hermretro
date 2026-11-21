@@ -42,7 +42,7 @@ SOURCE = "page/pages/games/styles.css.js"
 MOVED_TO = "page/shared/styles/base.css.js"
 
 
-class SyncRoundEleven(RepoCase):
+class Sync(RepoCase):
     def moved(self, elsewhere: bool) -> tuple[Path, dict]:
         self.on_dev("backend/library/names.py", DOC, "Names")
         git(self.main, "fetch", "-q", "origin")
@@ -96,7 +96,7 @@ class SyncRoundSeven(RepoCase):
             git(tree, "merge", "--abort")
 
 
-class SyncMoveHintRoundSixteen(RepoCase):
+class SyncMoveHint(RepoCase):
     def test_a_rule_moved_to_another_source_names_that_source_never_the_bundle(self):
         self.on_dev(SOURCE, "export const CSS = `\n" + RULE + "`\n", "A rule")
         git(self.main, "fetch", "-q", "origin")

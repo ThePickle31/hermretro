@@ -84,7 +84,7 @@ def event_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 DISPATCHER = "backend/system/events.py"
 
 
-class EventTestRoundEighteen(ScaffoldCase):
+class EventTest(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -131,7 +131,7 @@ class EventTestRoundEighteen(ScaffoldCase):
         self.assertNotIn("give each isolated_home(self)", steps)
 
 
-class EventContractRowRoundEighteen(ScaffoldCase):
+class EventContractRow(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -163,7 +163,7 @@ class EventContractRowRoundEighteen(ScaffoldCase):
         self.assertEqual(scaffold_backend.when_cell("A build was kept"), "a build was kept")
 
 
-class ReadmeTestsLineRoundEighteen(ScaffoldCase):
+class ReadmeTestsLine(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -190,7 +190,7 @@ class ReadmeTestsLineRoundEighteen(ScaffoldCase):
         self.assertEqual(self.readme_tests("library"), "`tests/backend/library/`.")
 
 
-class EventRoundElevenNew(ScaffoldCase):
+class Event(ScaffoldCase):
     def library_door(self) -> None:
         write(self.tree, "backend/library/__init__.py", DOOR)
         git(self.tree, "add", "-A")
@@ -233,7 +233,7 @@ class EventRoundElevenNew(ScaffoldCase):
         self.assertIn("`` `key` (what it holds) `` per `--payload` part", retrodev_docs("REFERENCE.md"))
 
 
-class EventBrokerRoundFifteen(ScaffoldCase):
+class EventBroker(ScaffoldCase):
     def test_the_steps_say_the_broker_never_emits(self):
         said = " ".join(self.new("event", "history", "rdprobe_moved", "--payload", "game=<id>")["next"])
         self.assertIn(
@@ -247,7 +247,7 @@ class EventBrokerRoundFifteen(ScaffoldCase):
         self.assertIn("`git mv tests/backend/<feature>/test_event_<old>.py", reference)
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -327,7 +327,7 @@ class EventRoundSevenNew(ScaffoldCase):
         self.assertIn("emits.rdprobe_any(example=1)", self.read("tests/backend/history/test_event_rdprobe_any.py"))
 
 
-class LongEventDocstringRoundSeventeen(ScaffoldCase):
+class LongEventDocstring(ScaffoldCase):
     def test_the_emits_docstring_wraps_at_120_columns(self):
         payload = "game=<the library id of the game whose build finished>, rom=<the built ROM's path>, ok=<bool>"
         self.new("event", "history", "rdprobe_build_finished_everywhere", "--payload", payload)
@@ -369,7 +369,7 @@ class EventRoundTenNew(ScaffoldCase):
         self.assertIn("### Changing an event's payload or name", retrodev_docs("REFERENCE.md"))
 
 
-class NewKindsRoundTwoRoundTwo(ScaffoldCase):
+class NewKinds(ScaffoldCase):
     def test_an_event_says_when_lists_its_keys_and_sits_after_its_owner_s_rows(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         payload = "game=<id> (None without a project, or a list), root=<project>"

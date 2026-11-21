@@ -38,7 +38,7 @@ class FlowFixes(RepoCase):
         self.assertIn("next: python tools/retrodev plan new ghost", out)
 
 
-class StatusRoundFive(RepoCase):
+class Status(RepoCase):
     def test_behind_dev_without_a_plan_syncs_first_and_says_so_up_front(self):
         tree = self.worktree("feat/goalie")
         self.on_dev("docs/other.md", "# Other\n")
@@ -55,7 +55,7 @@ class StatusRoundFive(RepoCase):
         self.assertIn("then python tools/retrodev plan new goalie", step)
 
 
-class ShipRoundFour(RepoCase):
+class Ship(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)
@@ -143,7 +143,7 @@ class StatusRoundThree(RepoCase):
             self.assertNotIn("none written", out)
 
 
-class FlowRoundTwo(RepoCase):
+class Flow(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)

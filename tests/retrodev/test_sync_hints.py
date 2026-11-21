@@ -70,7 +70,7 @@ MOVING_RoundFourteen = "def moving_block():\n    return 2\n\n\nKEEP = 1\n"
 MOVING_RoundSix = "def keep():\n    return 1\n\n\ndef moving_block():\n    return 2\n\n\ndef tail():\n    return 3\n"
 
 
-class SyncRoundEight(RepoCase):
+class Sync(RepoCase):
     def conflicted(self) -> Path:
         self.on_dev("backend/library/both.py", "VALUE = 1\n", "Both")
         git(self.main, "fetch", "-q", "origin")
@@ -119,7 +119,7 @@ class SyncRoundEight(RepoCase):
         self.assertNotIn("neither side had", out)
 
 
-class SyncBinaryRoundEightBinary(RepoCase):
+class SyncBinary(RepoCase):
     def bytes_on_dev(self, name: str, data: bytes) -> None:
         other = self.base / "other"
         if not other.exists():
@@ -217,7 +217,7 @@ class SyncRoundEleven(RepoCase):
         )
 
 
-class SyncHunkLinesRoundFourteen(RepoCase):
+class SyncHunkLines(RepoCase):
     def test_each_hunk_s_step_has_its_own_line_before_the_fix(self):
         name = "backend/library/moving.py"
         self.on_dev(name, MOVING_RoundFourteen, "A block")
@@ -237,7 +237,7 @@ class SyncHunkLinesRoundFourteen(RepoCase):
         git(tree, "merge", "--abort")
 
 
-class SyncFollowUpRoundNineteen(RepoCase):
+class SyncFollowUp(RepoCase):
     def conflicted(self, elsewhere: bool):
         """A branch edits the helper in names.py while dev moves it to folders.py (or deletes it); the first sync
         stops on the conflict."""
@@ -363,7 +363,7 @@ class SyncRoundSix(RepoCase):
         )
 
 
-class SyncNextStepRoundSixteen(RepoCase):
+class SyncNextStep(RepoCase):
     def merged(self, branch: str, record: dict | None = None) -> str:
         tree = self.worktree(branch)
         if record:
@@ -385,7 +385,7 @@ class SyncNextStepRoundSixteen(RepoCase):
         self.assertEqual(said, "python tools/retrodev check, then ship again")
 
 
-class SyncRewriteRoundThirteen(RepoCase):
+class SyncRewrite(RepoCase):
     def test_a_row_dev_rewrote_into_a_subsection_says_take_dev_s_side_and_where_to_redo_it(self):
         name = "docs/dev/STUDIO-PAGES.md"
         self.on_dev(name, ROWS, "Pages")
@@ -486,7 +486,7 @@ class SyncRoundTwelve(RepoCase):
         self.assertEqual(sync.unseen_lines(["a b", "c d e", "f g", "EXTRA = 4"], ours, theirs), 1)
 
 
-class SyncProseRoundTwentyOne(RepoCase):
+class SyncProse(RepoCase):
     def test_a_reworded_prose_resolution_still_warns_and_says_it_needs_no_commit_of_its_own(self):
         doc = "docs/guide.md"
         self.on_dev(doc, "# Guide\n\nThe page shows games.\n", "Guide")

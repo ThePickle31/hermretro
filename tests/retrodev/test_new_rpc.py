@@ -81,7 +81,7 @@ PAGES_TEXT = (
 )
 
 
-class RpcRoundEightNew(ScaffoldCase):
+class Rpc(ScaffoldCase):
     def test_the_module_suggestion_reads_the_one_size_rule(self):  # follow-up of #60: one source for the size
         warn = tomllib.loads((ROOT / "tools/layout.toml").read_text())["size"]["warn"]
         self.assertEqual(scaffold_rpc.big_rpcs(), warn - scaffold_rpc.MODULE_MARGIN)
@@ -129,7 +129,7 @@ class RpcRoundEightNew(ScaffoldCase):
         self.assertIn("{ id }", rows["captures"])  # what the rule names as the older form
 
 
-class RpcBesideItsFeatureRoundEighteen(ScaffoldCase):
+class RpcBesideItsFeature(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -162,7 +162,7 @@ class RpcBesideItsFeatureRoundEighteen(ScaffoldCase):
         self.assertIn("O.\n\n### `new` — z\n\nNew.\n\n## Studio pages", alone)
 
 
-class RpcActionStepRoundEighteen(ScaffoldCase):
+class RpcActionStep(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -184,7 +184,7 @@ class RpcActionStepRoundEighteen(ScaffoldCase):
         self.assertIn("scenario.byMethod['plugin.hermretro.rdprobe_undo'] = params => ({ ok: true })", steps)
 
 
-class ToolAndRpcRoundElevenNew(ScaffoldCase):
+class ToolAndRpc(ScaffoldCase):
     def test_a_game_rpc_says_to_check_what_games_returns_first(self):
         steps = joined(self.new("rpc", "history", "rdprobe_rom", "--game"))
         self.assertIn(
@@ -194,7 +194,7 @@ class ToolAndRpcRoundElevenNew(ScaffoldCase):
         )
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -232,7 +232,7 @@ class NewRoundFour(ScaffoldCase):
         self.assertIn("queryKey: [ID, 'rdprobe_recent', shell.viaProfile]", steps)
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
@@ -317,7 +317,7 @@ class RpcRoundNineNew(ScaffoldCase):
         self.assertEqual(scaffold_rpc.page_rpcs(later), ["a"], "the next section's table is not the page table")
 
 
-class RpcPageDocsRoundNineteen(ScaffoldCase):
+class RpcPageDocs(ScaffoldCase):
     def page_step(self, *argv) -> str:
         steps = self.new("rpc", "history", *argv)["next"]
         return next(step for step in steps if step.startswith("if a page shows it"))
@@ -406,7 +406,7 @@ class RpcRoundSevenNew(ScaffoldCase):
                 self.assertEqual(answer({"echo": 1}), {"ok": True, "echo": 1}, name)
 
 
-class ReservedScenarioKeysRoundSeventeen(ScaffoldCase):
+class ReservedScenarioKeys(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -444,7 +444,7 @@ class ReservedScenarioKeysRoundSeventeen(ScaffoldCase):
         self.assertFalse({"status", "doctor", "activity", "games", "player"} & reserved, reserved)
 
 
-class NewStepsRoundSixteen(ScaffoldCase):
+class NewSteps(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -492,7 +492,7 @@ class NewRoundThree(ScaffoldCase):
         self.assertNotIn("data:", studio)
 
 
-class RpcSizeRoundTwenty(ScaffoldCase):
+class RpcSize(ScaffoldCase):
     def padded(self, lines: int) -> None:
         source = (ROOT / "backend/history/rpcs.py").read_text()  # whatever the real file holds: padded to `lines`
         pad = lines - len(source.splitlines())
@@ -535,7 +535,7 @@ class RpcSizeRoundTwenty(ScaffoldCase):
         self.assertIn("--module rdprobe_size_game_rpcs --game --dry-run", " ".join(out["notes"]))
 
 
-class NewKindsRoundTwoRoundTwo(ScaffoldCase):
+class NewKinds(ScaffoldCase):
     def test_rpc_next_steps_show_the_page_query_and_the_test_answer(self):
         out = self.new("rpc", "history", "rdprobe_recent")
         steps = " ".join(out["next"])

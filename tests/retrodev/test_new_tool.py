@@ -59,7 +59,7 @@ def last_feature_row(text: str) -> str:
     return [line for line in lines[start:end] if line.startswith("| `backend/")][-1]
 
 
-class ToolRoundEightNew(ScaffoldCase):
+class Tool(ScaffoldCase):
     def test_the_tool_test_calls_the_handler_function_itself(self):
         self.new("tool", "history", "rdprobe_peek")
         test = self.read("tests/backend/history/test_tool_rdprobe_peek.py")
@@ -72,7 +72,7 @@ class ToolRoundEightNew(ScaffoldCase):
         self.assertIn("rdprobe_more_handler", self.read("backend/history/rdprobe_more_tools.py"))
 
 
-class ToolImportSortedRoundEighteen(ScaffoldCase):
+class ToolImportSorted(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -87,7 +87,7 @@ class ToolImportSortedRoundEighteen(ScaffoldCase):
         self.assertEqual(imports[-2:], ["from . import probe_tools", "from . import provision"])
 
 
-class ToolAndRpcRoundElevenNew(ScaffoldCase):
+class ToolAndRpc(ScaffoldCase):
     def test_a_project_tool_names_the_library_game_helper_with_its_real_signature(self):
         for name in ("__init__.py", "tool_args.py"):
             write(self.tree, f"backend/library/{name}", (ROOT / f"backend/library/{name}").read_text())
@@ -105,7 +105,7 @@ class ToolAndRpcRoundElevenNew(ScaffoldCase):
         self.assertIn("self.home = isolated_home(self)", self.read("tests/backend/library/test_tool_rdprobe_picked.py"))
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -166,7 +166,7 @@ class NewRoundFour(ScaffoldCase):
         )
 
 
-class ScaffoldsRoundFourteen(ScaffoldCase):
+class Scaffolds(ScaffoldCase):
     def real(self, *names: str) -> None:
         for name in names:
             (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
@@ -245,7 +245,7 @@ class ToolRoundSevenNew(ScaffoldCase):
         self.assertEqual(len(listed), len(set(listed)), listed)
 
 
-class ToolSelectedGameRoundSeventeen(ScaffoldCase):
+class ToolSelectedGame(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -267,7 +267,7 @@ class ToolSelectedGameRoundSeventeen(ScaffoldCase):
         self.assertIn("def list_captures(root: Path, identifier: str)", (ROOT / "backend/player/server.py").read_text())
 
 
-class NewStepsRoundSixteen(ScaffoldCase):
+class NewSteps(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -319,7 +319,7 @@ class NewRoundThree(ScaffoldCase):
             )
 
 
-class NewToolRoundTwentyOne(ScaffoldCase):
+class NewTool(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):

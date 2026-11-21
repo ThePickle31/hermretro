@@ -95,7 +95,7 @@ EVENTS = {
 '''
 
 
-class ListenerRoundElevenNew(ScaffoldCase):
+class Listener(ScaffoldCase):
     def test_only_tests_that_emit_the_event_are_listed(self):
         self.new("event", "history", "rdprobe_moved", "--payload", "game=<id>", "--when", "a probe moved")
         write(
@@ -117,7 +117,7 @@ class ListenerRoundElevenNew(ScaffoldCase):
         self.assertIn("these tests emit history.rdprobe_moved", mocked)
 
 
-class NewRoundFive(ScaffoldCase):
+class New(ScaffoldCase):
     def ran(self, *argv) -> list[str]:
         self.clear_log()
         code, out = self.run_cli("new", *argv, cwd=self.tree)
@@ -152,7 +152,7 @@ class NewRoundFive(ScaffoldCase):
         self.assertNotIn("only in the gateway", retrodev_docs())
 
 
-class ListenerPreviewRoundNineteen(ScaffoldCase):
+class ListenerPreview(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -203,7 +203,7 @@ class ListenerRoundSevenNew(ScaffoldCase):
         self.assertNotIn("null", test)
 
 
-class ListenerLogsRoundSeventeen(ScaffoldCase):
+class ListenerLogs(ScaffoldCase):
     def test_the_listener_steps_say_how_to_assert_a_log(self):
         said = " ".join(self.new("listener", "history", "history.build_kept")["next"])
         self.assertIn('with self.assertLogs(listeners.host.logger, "<LEVEL>"):`, the level the listener logs at', said)
@@ -346,7 +346,7 @@ class ListenerRoundTwelveNew(ScaffoldCase):
             self.assertIn(place, reference)
 
 
-class NewKindsRoundTwoRoundTwo(ScaffoldCase):
+class NewKinds(ScaffoldCase):
     def test_the_listener_test_uses_isolated_home_when_tests_support_has_it(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")
         self.new("feature", "rdprobe_ears")

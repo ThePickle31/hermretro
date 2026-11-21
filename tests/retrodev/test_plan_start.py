@@ -238,7 +238,7 @@ class FlowFixes(RepoCase):
         self.assertIn(f"worktree_root = ''  (policy; resolves to {root})", out)
 
 
-class TitleAndBodyRoundEight(RepoCase):
+class TitleAndBody(RepoCase):
     def test_the_plan_template_asks_for_a_title_and_present_tense(self):
         self.run_cli("plan", "new", "titled")
         text = (self.main / "notes/plans/titled.md").read_text()
@@ -247,7 +247,7 @@ class TitleAndBodyRoundEight(RepoCase):
         self.assertEqual(plan.unfilled(FILLED_PLAN.format(topic="t")), [])
 
 
-class StartNamesEmptySectionsRoundEighteen(RepoCase):
+class StartNamesEmptySections(RepoCase):
     def test_start_prints_the_sections_left_empty_and_copies_the_plan_s_risk(self):
         self.new_plan("risky")
         self.run_cli("plan", "approve", "risky", "--words", "start")
@@ -277,7 +277,7 @@ class StartNamesEmptySectionsRoundEighteen(RepoCase):
         self.assertIn("'## Risk and rollback'", out["error"]["message"])
 
 
-class StartNoPlanRoundEleven(RepoCase):
+class StartNoPlan(RepoCase):
     def test_start_no_plan_writes_the_template_body_and_names_its_path(self):
         code, out = self.run_cli("start", "docs/tidy", "--no-plan", "--no-setup")
         self.assertEqual(code, 0, out)
@@ -293,13 +293,13 @@ class StartNoPlanRoundEleven(RepoCase):
         self.assertIn("with `--no-plan`, the template", retrodev_docs("README.md"))
 
 
-class DocsRoundFourteen(RepoCase):
+class Docs(RepoCase):
     def test_the_plan_template_says_where_a_page_s_tests_are_named(self):
         tested = plan.TEMPLATE[plan.TEMPLATE.index("## How it is tested") :].split("##")[1]
         self.assertIn("each page README's Tests: line names the test file that covers it", " ".join(tested.split()))
 
 
-class TitleRoundNine(RepoCase):
+class Title(RepoCase):
     def test_the_template_says_the_limit_and_where_files_go_points_to_dry_run(self):
         self.assertIn("Title: <!-- One plain sentence, at most 100 characters, no trailing period", plan.TEMPLATE)
         where = plan.TEMPLATE.split("## Where files go")[1].split("##")[0]
@@ -322,7 +322,7 @@ class TitleRoundNine(RepoCase):
         self.assertEqual(code, 0, out)
 
 
-class ProjectToolRoundNineteen(ScaffoldCase):
+class ProjectTool(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -336,7 +336,7 @@ class ProjectToolRoundNineteen(ScaffoldCase):
         self.assertIn("tests/repo/registration.json", what)
 
 
-class PlanApproveRoundSeven(RepoCase):
+class PlanApprove(RepoCase):
     def test_two_linked_worktrees_both_behind_dev_each_get_their_next_step(self):  # review 3, 0
         trees = [self.worktree(name) for name in ("feat/pair", "fix/pair-two")]
         record = state.load_branch(self.main, "fix/pair-two")
@@ -354,7 +354,7 @@ class PlanApproveRoundSeven(RepoCase):
             )
 
 
-class BodyRoundSix(RepoCase):
+class Body(RepoCase):
     def started(self, topic: str = "goalie") -> Path:
         self.new_plan(topic)
         self.run_cli("plan", "approve", topic, "--words", "start")
@@ -400,7 +400,7 @@ class BodyRoundSix(RepoCase):
         self.assertIn("no body yet: ship writes notes/pr/t.md from the template when it is missing", step)
 
 
-class PathsRoundTen(RepoCase):
+class Paths(RepoCase):
     def pushed(self) -> None:
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
@@ -418,7 +418,7 @@ class PathsRoundTen(RepoCase):
         self.assertIn(f"fill in {body} as you go: notes/ is in the main checkout, shared by every worktree", step)
 
 
-class ApproveRoundTen(RepoCase):
+class Approve(RepoCase):
     def test_plan_approve_rewrites_the_status_line_with_the_day_and_the_words(self):
         path = self.main / "notes/plans/stat.md"
         text = FILLED_PLAN.format(topic="stat").replace(

@@ -47,7 +47,7 @@ sys.exit(0 if result.wasSuccessful() else 1)
 """
 
 
-class ToolRoundEightNew(ScaffoldCase):
+class Tool(ScaffoldCase):
     def test_project_outside_library_is_refused_without_the_shared_helpers(self):
         out = self.new("tool", "history", "rdprobe_proj", "--project", code=1)
         self.assertIn("backend/hermes/tool_args.py", out["error"]["message"])
@@ -66,7 +66,7 @@ class ToolRoundEightNew(ScaffoldCase):
         self.assertNotIn("--project", joined(self.new("tool", "history", "rdprobe_flat")))
 
 
-class ProjectToolRoundNineteen(ScaffoldCase):
+class ProjectTool(ScaffoldCase):
     def real(self, *patterns: str) -> None:
         for pattern in patterns:
             for path in ROOT.glob(pattern):
@@ -94,7 +94,7 @@ class ProjectToolRoundNineteen(ScaffoldCase):
         self.assertIn(str(project["maxLength"]), caps)
 
 
-class ToolProjectRoundSixNew(ScaffoldCase):
+class ToolProject(ScaffoldCase):
     def test_root_is_narrowed_and_the_codes_in_use_are_listed(self):
         self.new("feature", "rdprobe_lib")
         write(self.tree, "backend/rdprobe_lib/tool_args.py", (ROOT / "backend/library/tool_args.py").read_text())
@@ -169,7 +169,7 @@ class ToolProjectRoundThree(ScaffoldCase):
         self.assertIn("from .tool_args import tool_error, tool_project", self.read("backend/rdprobe_lib/far_tools.py"))
 
 
-class NewKindsRoundTwoRoundTwo(ScaffoldCase):
+class NewKinds(ScaffoldCase):
     def test_a_tool_in_its_own_module_is_taken_in_by_tools_py(self):
         out = self.new("tool", "history", "rdprobe_mod", "--module", "rdprobe_extra")
         self.assertIn("backend/history/rdprobe_extra.py", out["created"])

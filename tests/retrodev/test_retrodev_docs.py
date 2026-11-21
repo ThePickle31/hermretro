@@ -56,7 +56,7 @@ def line_with_RoundTwo(text: str, start: str) -> str:
     return next(line for line in text.splitlines() if line.lstrip().startswith(start))
 
 
-class DocsRoundEighteen(unittest.TestCase):
+class Docs(unittest.TestCase):
     def test_the_readme_and_reference_say_it(self):
         readme = (ROOT / "tools/retrodev/README.md").read_text()
         quick = readme.split("## Quick path", 1)[1].split("\n5. ", 1)[0]
@@ -89,7 +89,7 @@ class DocsRoundFourteen(RepoCase):
             self.assertIn(edited, section)
 
 
-class ReadmeRoundNine(unittest.TestCase):
+class Readme(unittest.TestCase):
     def test_no_line_of_the_readme_or_the_reference_runs_past_600_characters(self):
         for name in ("README.md", "REFERENCE.md"):
             text = (ROOT / "tools/retrodev" / name).read_text()
@@ -110,7 +110,7 @@ class ReadmeRoundNine(unittest.TestCase):
             self.assertIn(f"### `new {kind} ", reference, kind)  # one sub-section per kind
 
 
-class QuickPathRoundSeven(unittest.TestCase):
+class QuickPath(unittest.TestCase):
     def test_the_readme_opens_with_a_numbered_quick_path(self):  # round eight: first, after the title paragraph
         text = (ROOT / "tools/retrodev/README.md").read_text()
         parts = text.split("\n\n")
@@ -132,7 +132,7 @@ class QuickPathRoundSeven(unittest.TestCase):
             self.assertIn(step, block)
 
 
-class RenameSectionRoundSeventeen(unittest.TestCase):
+class RenameSection(unittest.TestCase):
     def test_the_readme_says_how_to_rename_a_module(self):
         section = retrodev_docs("README.md").split("### Rename or move a module")[1].split("\n## ")[0]
         for said in ("git grep -n <old>", "tests/retrodev", "tools/retrodev/", "docs/", "shadow", "check.py fix"):
@@ -140,7 +140,7 @@ class RenameSectionRoundSeventeen(unittest.TestCase):
         self.assertLessEqual(len(section.strip().splitlines()), 7)
 
 
-class TakeoverRoundSix(RepoCase):
+class Takeover(RepoCase):
     def pushed(self, branch: str) -> None:
         """A teammate's branch, pushed from their own clone; dev moves on after it."""
         mate = self.base / "mate"
@@ -157,7 +157,7 @@ class TakeoverRoundSix(RepoCase):
         self.assertNotIn("<root>", section)
 
 
-class PathsRoundTen(RepoCase):
+class Paths(RepoCase):
     def pushed(self) -> None:
         mate = self.base / "mate"
         git(self.base, "clone", "-q", "-b", "dev", str(self.origin), str(mate))
@@ -172,7 +172,7 @@ class PathsRoundTen(RepoCase):
         self.assertIn("check What changed still matches the code; start copied it from the plan", seven)
 
 
-class ToolRoundTenNew(ScaffoldCase):
+class Tool(ScaffoldCase):
     def test_the_reference_says_how_tools_py_splits(self):
         text = retrodev_docs("REFERENCE.md")
         self.assertIn("when `tools.py` is over 400 lines", text)
@@ -212,7 +212,7 @@ class ReadmeRoundTwentyOne(unittest.TestCase):
         self.assertIn("`from .<new> import X as X`", retrodev_docs("README.md"))
 
 
-class FlowRoundTwo(RepoCase):
+class Flow(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)

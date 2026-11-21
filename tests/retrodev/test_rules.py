@@ -200,7 +200,7 @@ ROOT = Path(retrodev.__file__).resolve().parents[2]
 LONG = "Show how many builds each game of the library has had, newest first, on the Home page's shelf and in Game"
 
 
-class QuotingRoundFifteen(RepoCase):
+class Quoting(RepoCase):
     def test_a_title_with_an_apostrophe_is_double_quoted_and_still_one_word(self):
         title = "Fix the player's frame"
         said = ship.command(title)
@@ -217,7 +217,7 @@ class QuotingRoundFifteen(RepoCase):
         self.assertEqual(output.cmd("a b", "plain"), "'a b' plain")  # no apostrophe: unchanged
 
 
-class TitleRoundNine(RepoCase):
+class Title(RepoCase):
     def test_the_gate_names_the_problem_and_the_length(self):
         self.assertEqual(len(LONG), 105)
         gate = gates.title_gate(LONG)
@@ -230,7 +230,7 @@ class TitleRoundNine(RepoCase):
         self.assertTrue(gates.title_gate("Keep the goalie in goal").ok)
 
 
-class PlanApproveRoundSeven(RepoCase):
+class PlanApprove(RepoCase):
     def test_no_retrodev_function_binds_the_name_of_a_module_it_imports(self):  # review 3, 0: the same flaw anywhere
         found = []
         for path in sorted((ROOT / "tools" / "retrodev").rglob("*.py")):

@@ -23,7 +23,7 @@ def line_with(text: str, start: str) -> str:
     return next(line for line in text.splitlines() if line.lstrip().startswith(start))
 
 
-class CheckRoundFive(RepoCase):
+class Check(RepoCase):
     def test_a_scaffold_skipped_for_a_failing_unit_suite_says_so(self):
         tree = self.worktree("chore/templates")
         self.commit(tree, "tools/retrodev/templates/tool/tool.py.tmpl", "# changed\n")
@@ -49,7 +49,7 @@ class CheckRoundFour(RepoCase):
         self.assertEqual([entry["names"] for entry in self.check_log()], [["lint"], ["scaffold"]])
 
 
-class BudgetsRoundNine(RepoCase):
+class Budgets(RepoCase):
     def test_only_passing_runs_count(self):
         tree = self.worktree()
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
@@ -61,7 +61,7 @@ class BudgetsRoundNine(RepoCase):
         self.assertEqual(len(checks.budget_warnings(ctx, slow, None, False, {"scaffold": 60.0})), 1)
 
 
-class PageFirstRoundNine(RepoCase):
+class PageFirst(RepoCase):
     def test_a_base_tree_that_fails_page_reports_scaffold_skipped(self):
         tree = self.worktree("feat/pages")
         self.commit(tree, "tools/retrodev/scaffold.py", "# changed\n")  # scaffold is due
@@ -91,7 +91,7 @@ class PageFirstRoundNine(RepoCase):
         self.assertIn("page", entry["base"].split(","))
 
 
-class StatusRoundThree(RepoCase):
+class Status(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)
@@ -141,7 +141,7 @@ class CheckRoundThree(RepoCase):
         self.assertIn("FIX: fix scaffold", out)
 
 
-class FlowRoundTwo(RepoCase):
+class Flow(RepoCase):
     def passed(self, tree, name):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         record = state.load_branch(self.main, name)

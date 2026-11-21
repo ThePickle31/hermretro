@@ -28,7 +28,7 @@ Make a folder `page/pages/{page}/<tab>/`{taken} with an `index.js` exporting `{{
 """
 
 
-class SyncedTakeoverBodyRoundEighteen(RepoCase):
+class SyncedTakeoverBody(RepoCase):
     def warning(self, tree, what: str) -> str:
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         return body_names.warning(ctx, GOOD_BODY.replace("Things.", what)) or ""
@@ -54,7 +54,7 @@ class SyncedTakeoverBodyRoundEighteen(RepoCase):
         self.assertIn("`tools/old_helpers.py`", away)  # its tree still has the helper itself
 
 
-class BodyNamesRoundEleven(RepoCase):
+class BodyNames(RepoCase):
     def ready(self, said: str) -> Path:
         tree = self.worktree("docs/tidy")
         self.commit(tree, "backend/library/games.py", "def built_rom(root):\n    return root / 'build.gb'\n", "Rom")
@@ -89,7 +89,7 @@ class BodyNamesRoundEleven(RepoCase):
         self.assertIn("warns, never fails", retrodev_docs("REFERENCE.md"))
 
 
-class BodyCitationsRoundFifteen(RepoCase):
+class BodyCitations(RepoCase):
     def setUp(self):
         super().setUp()
         self.tree = self.worktree("docs/debug")
@@ -114,7 +114,7 @@ class BodyCitationsRoundFifteen(RepoCase):
         self.assertIn("`tools/x.py`", self.warning("- Documents the gateway; changed `tools/x.py`."))
 
 
-class BodyBareNamesRoundFourteen(RepoCase):
+class BodyBareNames(RepoCase):
     def warning(self, what: str) -> str:
         tree = self.worktree("fix/core")
         self.commit(tree, "backend/library/core.py", "VALUE = 2\n")
@@ -153,7 +153,7 @@ class BodyBareNamesRoundFourteen(RepoCase):
         self.assertIn("names the file(s) `desktop/other.js`, which the", said)
 
 
-class DocsOnlyBodyRoundSeventeen(RepoCase):
+class DocsOnlyBody(RepoCase):
     def warning(self, tree, what: str) -> str:
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         return body_names.warning(ctx, GOOD_BODY.replace("Things.", what)) or ""
@@ -174,7 +174,7 @@ class DocsOnlyBodyRoundSeventeen(RepoCase):
         self.assertIn("`tools/retrodev/sync.py`", self.warning(code, said))
 
 
-class BodyDroppedInMergeRoundSixteen(RepoCase):
+class BodyDroppedInMerge(RepoCase):
     def test_a_file_the_branch_s_own_commit_changed_is_quiet_after_a_merge_dropped_it(self):
         tree = self.worktree("fix/notes")
         self.commit(tree, "docs/dev/DEBUGGING.md", "# Debugging\n\nThe same words.\n")
@@ -207,7 +207,7 @@ class BodyDroppedInMergeRoundSixteen(RepoCase):
         self.assertIsNone(body_names.warning(ctx, body))
 
 
-class BodyCitedPathsRoundThirteen(RepoCase):
+class BodyCitedPaths(RepoCase):
     def warning(self, what: str) -> str:
         if not hasattr(self, "tree"):
             self.tree = self.worktree("fix/core")
@@ -285,7 +285,7 @@ class BodyCitedPathsRoundThirteen(RepoCase):
         self.assertEqual(self.warning("- Changed `backend/library/core.py`, per `backend/hermes/glue.py`."), "")
 
 
-class BodyPathsRoundTwelve(RepoCase):
+class BodyPaths(RepoCase):
     def test_what_changed_naming_a_file_the_branch_did_not_touch_warns(self):
         tree = self.worktree("fix/core")
         self.commit(tree, "backend/library/core.py", "VALUE = 2\n")
