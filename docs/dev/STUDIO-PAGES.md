@@ -331,22 +331,25 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   generation it learned from the snapshot; the lost turn is not re-run). Waiting messages then run;
   with none, Continue sends "Continue where you left off" (shown as "Continue"). A message sent while
   paused waits ("Waiting · sent when you continue").
-- **Model and effort** (user picked mockup C, "one button, one panel"): one button under the message
-  box, "<mark> Claude Opus 5.5 · High". It opens connected providers (left; `model.options`, only
-  `authenticated` ones with models), that provider's models (right; search covers every provider and
-  names each match's provider; ids shown as names: `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag,
-  "fast mode" from `capabilities`), and an Effort row (Off only when the model can disable reasoning;
-  Minimal, Low, Medium, High, X-high, Max). A ChatGPT or Codex Subscription (`openai-codex`) model whose
-  `capabilities` list `fast` also gets Speed (Normal / Fast) beside Effort; the panel widens to 720 px for it, and
-  where the window or the box that scrolls the composer is too narrow, Speed moves under Effort instead. Fast shows
-  as a bolt on the button and is sent as `config.set {key: 'fast', value: 'fast'|'normal'}` (from
-  `session.info.fast`); picking a model without fast mode sets it back to normal, because Hermes's priority tier
-  would also turn on another provider's own fast mode. Changes are per conversation, never the profile default:
+- **Model and effort** (user picked mockup C, "one button, one panel"; its panel redrawn after the user's
+  reference, round 2 direction F1): one button under the message box, "<mark> Claude Opus 5.5 · High". Its
+  560 px panel (narrower, with shorter words, where the window or the box that scrolls the composer is narrower)
+  has a rail on the left (Starred, one mark per `authenticated` provider with models from `model.options`, name on
+  hover; two letters when two providers share a first letter; + opens Settings > Providers), the models in the
+  middle (search covers every provider and groups matches under each provider's name; ids shown as names:
+  `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag; a star on each row, kept in the page's storage as
+  `buildModelStars` because Hermes's own starred list is not open to plugins), Effort as a list on the right (Off
+  only when the model can disable reasoning; Minimal, Low, Medium, High, X-high, Max; what the level is for under
+  it), and a bar along the bottom. The bar has Standard / Fast only for a ChatGPT or Codex Subscription
+  (`openai-codex`) model whose `capabilities` list `fast`; Fast shows as a bolt on the button and is sent as
+  `config.set {key: 'fast', value: 'fast'|'normal'}` (read back from `session.info.fast`); picking a model without
+  fast mode sets it back to normal, because Hermes's priority tier would also turn on another provider's own fast
+  mode. Changes are per conversation, never the profile default:
   `config.set {session_id, key: 'model', value: '<model> --provider <slug> --session'}` and
   `{key: 'reasoning', value}`; the app's client turns both into `session.mutate` on the canonical
   gateway (a raw `config.set` model is refused there with `use_session_mutation_model`). The current
   values come from `info` of `session.create`/`session.resume` and `session.info` events. A pick made
-  while HermRetro works is held ("next message") and applied when the turn ends. A model that asks
+  while HermRetro works is held ("next message", and the bar says so) and applied when the turn ends. A model that asks
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
   use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,

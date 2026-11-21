@@ -501,19 +501,24 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   const chip = () => build14m.node.querySelector('.cs-b-mp-chip')
   const pop = () => build14m.node.querySelector('.cs-b-mp-pop')
   check('the message box shows the conversation\'s model and effort in plain words', () => {
-    assert.equal(chip().textContent, 'CClaude Opus 5.5·High')
+    assert.equal(chip().textContent, 'ClClaude Opus 5.5·High')
   })
   await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
-  check('the panel lists connected providers only, the current one\'s models, and the effort levels', () => {
+  check('the panel has a rail of connected providers only, the current one\'s models, and the effort levels', () => {
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-prov .cs-b-mp-pname')].map(node => node.textContent), ['Claude Subscription', 'ChatGPT or Codex Subscription'])
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row .cs-b-mp-label')].map(node => node.textContent), ['Claude Opus 5.5', 'Claude Sonnet 5.5', 'Claude Haiku 4.5'])
-    assert.equal(pop().querySelector('.cs-b-mp-row[aria-selected="true"]').textContent, 'Claude Opus 5.51M')
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-seg button')].map(node => node.textContent), ['Off', 'Minimal', 'Low', 'Medium', 'High', 'X-high', 'Max'])
-    assert.equal(pop().querySelector('.cs-b-seg button[aria-checked="true"]').textContent, 'High')
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-prov')].map(node => node.firstChild.textContent), ['Cl', 'Ch'], 'two providers starting with C get two letters')
+    assert.equal(pop().querySelector('.cs-b-mp-prov[aria-pressed="true"]').getAttribute('aria-label'), 'Claude Subscription')
+    assert.equal(pop().querySelector('.cs-b-mp-row[aria-selected="true"]').textContent, 'ClClaude Opus 5.51M')
+    assert.match(pop().querySelector('.cs-b-mp-head').textContent, /^Claude Subscription· 3 models$/)
+    assert.deepEqual([...pop().querySelectorAll('[aria-label="Effort"] button')].map(node => node.textContent), ['Off', 'Minimal', 'Low', 'Medium', 'High', 'X-high', 'Max'])
+    assert.equal(pop().querySelector('[aria-label="Effort"] button[aria-checked="true"]').textContent, 'High')
+    assert.ok(!pop().querySelector('[aria-label="Speed"]'), 'no Standard / Fast for a Claude model')
   })
   await typeInto(pop().querySelector('input[aria-label="Search models"]'), 'sol')
-  check('search looks through every provider and names each match\'s provider', () => {
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.textContent), ['GPT-6.1 SolChatGPT or Codex Subscriptionfast mode', 'GPT-6 SolChatGPT or Codex Subscription900Kfast mode'])
+  check('search looks through every provider and groups the matches under each provider\'s name', () => {
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-group')].map(node => node.textContent), ['ChatGPT or Codex Subscription'])
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.textContent), ['ChGPT-6.1 Sol', 'ChGPT-6 Sol900K'])
   })
   await act(async () => { pop().querySelectorAll('.cs-b-mp-row')[0].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()

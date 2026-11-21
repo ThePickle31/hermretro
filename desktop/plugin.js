@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 396073c53dd2acdf89c8ae1c1060f62a38a4cf1bcd3dee7c0fb28c9d45ec074e
- * body: sha256 619fec7c354b0ac71a66b623e5b54e2def30dce4e35bed358e738ffb87555519
+ * sources: sha256 53b615f442aa8ab6bf0ee8fb4600c01781937d07da793d7cd5c38e25fd11322f
+ * body: sha256 f081b4e6b2b46d03f3b68ef1c5a3f6550b80ff63e94d2a4a9a64dda4fa208fba
  */
 // page/sdk.js
 import {
@@ -1874,70 +1874,217 @@ function modelName(id) {
   return { name: name || String(id ?? ""), tags };
 }
 var providerMark = (name) => (String(name ?? "?").replace(/[^A-Za-z0-9]/g, "")[0] ?? "?").toUpperCase();
+function providerMarks(providers) {
+  const letters = providers.map((item) => String(item.name ?? item.slug ?? "?").replace(/[^A-Za-z0-9]/g, ""));
+  const first = letters.map((word) => (word[0] ?? "?").toUpperCase());
+  return new Map(providers.map((item, index) => [
+    item.slug,
+    first.filter((letter) => letter === first[index]).length > 1 ? first[index] + (letters[index][1] ?? "").toLowerCase() : first[index]
+  ]));
+}
+
+// page/pages/build/composer/model-list.js
+var STARRED = "*starred";
+var starKey = (provider, model) => `${provider}:${model}`;
+function useModelRows(providers, tab, needle, stars) {
+  return useMemo(() => {
+    const row = (item2, model) => ({ model, provider: item2.slug, providerName: item2.name, caps: item2.capabilities?.[model] ?? null });
+    if (needle) {
+      return providers.map((item2) => ({
+        name: item2.name,
+        rows: item2.models.filter((model) => model.toLowerCase().includes(needle) || modelName(model).name.toLowerCase().includes(needle)).map((model) => row(item2, model))
+      })).filter((group) => group.rows.length);
+    }
+    if (tab === STARRED) {
+      return [{ name: null, rows: providers.flatMap((item2) => item2.models.filter((model) => stars.has(starKey(item2.slug, model))).map((model) => row(item2, model))) }];
+    }
+    const item = providers.find((provider) => provider.slug === tab);
+    return item ? [{ name: null, rows: item.models.map((model) => row(item, model)) }] : [];
+  }, [providers, tab, needle, stars]);
+}
+function ProviderRail({ providers, marks, tab, onTab, onConnect }) {
+  const tile = (key, label, mark, extra = {}) => jsxs(
+    "button",
+    {
+      "aria-label": label,
+      "aria-pressed": tab === key,
+      className: `cs-b-mp-tile${extra.className ? ` ${extra.className}` : ""}`,
+      onClick: () => onTab(key),
+      title: label,
+      type: "button",
+      children: [mark, jsx("span", { className: "cs-sr cs-b-mp-pname", children: label })]
+    },
+    key
+  );
+  return jsxs("div", {
+    "aria-label": "Providers",
+    className: "cs-b-mp-rail",
+    role: "group",
+    children: [
+      tile(STARRED, "Starred", jsx(Codicon, { name: "star-full", size: 14 }), { className: "cs-b-mp-starred" }),
+      jsx("span", { "aria-hidden": true, className: "cs-b-mp-sep" }),
+      ...providers.map((item) => tile(item.slug, item.name, jsx("span", { "aria-hidden": true, children: marks.get(item.slug) }), { className: "cs-b-mp-prov" })),
+      jsx("span", { className: "cs-grow" }),
+      jsx("button", {
+        "aria-label": "Connect another provider",
+        className: "cs-b-mp-tile",
+        onClick: onConnect,
+        title: "Connect another provider",
+        type: "button",
+        children: jsx(Codicon, { name: "add", size: 14 })
+      })
+    ]
+  });
+}
+function ModelRow({ row, mark, on, starred, withProvider, onChoose, onStar }) {
+  const label = modelName(row.model);
+  return jsxs("div", {
+    className: `cs-b-mp-item${on ? " on" : ""}${starred ? " starred" : ""}`,
+    children: [
+      jsxs("button", {
+        "aria-selected": on,
+        className: "cs-b-mp-row",
+        onClick: () => onChoose(row),
+        role: "option",
+        title: `${row.model} · ${row.providerName}`,
+        type: "button",
+        children: [
+          jsx("span", { "aria-hidden": true, className: "cs-b-mp-glyph", children: mark }),
+          // The starred list mixes providers: each row names its own under the model.
+          withProvider ? jsxs("span", { className: "cs-b-mp-label two", children: [jsx("span", { children: label.name }), jsx("small", { className: "cs-b-mp-from", children: row.providerName })] }) : jsx("span", { className: "cs-b-mp-label", children: label.name }),
+          ...label.tags.map((tag) => jsx("span", { className: "cs-b-mp-tag", children: tag }, tag)),
+          on ? jsx("span", { className: "cs-b-mp-check", children: jsx(Codicon, { name: "check", size: 12 }) }) : null
+        ]
+      }),
+      jsx("button", {
+        "aria-label": starred ? `Unstar ${label.name}` : `Star ${label.name}`,
+        "aria-pressed": starred,
+        className: "cs-b-mp-star",
+        onClick: () => onStar(row),
+        title: starred ? "Unstar" : "Star",
+        type: "button",
+        children: jsx(Codicon, { name: starred ? "star-full" : "star-empty", size: 12 })
+      })
+    ]
+  });
+}
+function ModelList({ groups, marks, head, search, query, setQuery, placeholder, shown, stars, onChoose, onStar, empty, withProvider }) {
+  const first = groups[0]?.rows[0];
+  return jsxs("div", {
+    className: "cs-b-mp-models",
+    children: [
+      jsxs("label", {
+        className: "cs-b-mp-search",
+        children: [
+          jsx(Codicon, { name: "search", size: 12 }),
+          jsx("input", {
+            "aria-label": "Search models",
+            onChange: (event) => setQuery(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter" && first) {
+                event.preventDefault();
+                onChoose(first);
+              }
+            },
+            placeholder,
+            ref: search,
+            value: query
+          })
+        ]
+      }),
+      head ? jsx("div", { className: "cs-b-mp-head", children: head }) : null,
+      jsx("div", {
+        className: "cs-b-mp-list",
+        role: "listbox",
+        children: groups.some((group) => group.rows.length) ? groups.flatMap((group) => [
+          group.name ? jsx("div", { className: "cs-b-mp-group", children: group.name }, `g:${group.name}`) : null,
+          ...group.rows.map(
+            (row) => jsx(
+              ModelRow,
+              {
+                mark: marks.get(row.provider),
+                on: row.model === shown.model && row.provider === shown.provider,
+                onChoose,
+                onStar,
+                row,
+                starred: stars.has(starKey(row.provider, row.model)),
+                withProvider
+              },
+              starKey(row.provider, row.model)
+            )
+          )
+        ]) : jsx("p", { className: "cs-faint", children: empty })
+      })
+    ]
+  });
+}
+var connectProvider = (close) => () => {
+  close();
+  host.navigate?.("/settings?tab=providers");
+};
 
 // page/pages/build/composer/model-settings.js
-var FAST_HINT = "Quicker, uses more of your plan";
-function ModelSettings({ caps, shown, speed, beside, disabled, onEffort, onFast }) {
-  const fixedEffort = caps ? caps.reasoning === false : false;
-  const efforts = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
-  const effortGroup = jsxs("div", {
-    className: "cs-b-mp-group cs-b-mp-effortgroup",
+var FAST_HINT = "Quicker replies. Uses more of your plan";
+function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
+  const fixed = caps ? caps.reasoning === false : false;
+  const levels = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
+  const picked = EFFORTS.find(([key]) => key === shown.effort);
+  return jsxs("div", {
+    className: "cs-b-mp-effort",
     children: [
       jsxs("div", {
-        className: "cs-row",
+        className: "cs-b-mp-ehead",
         children: [
-          jsx("span", { className: "cs-eyebrow", children: "Effort" }),
-          jsx("span", { className: "cs-grow" }),
-          jsx("span", { className: "cs-faint", children: fixedEffort ? "This model has a fixed effort" : EFFORTS.find(([key]) => key === shown.effort)?.[2] ?? "The model’s default" })
+          jsx("span", { children: "Effort" }),
+          shown.model ? jsx("span", { className: "cs-b-mp-emodel", title: shown.model, children: modelName(shown.model).name }) : null
         ]
       }),
       jsx("div", {
         "aria-label": "Effort",
-        className: "cs-b-seg",
+        className: "cs-b-mp-levels",
         role: "radiogroup",
-        children: efforts.map(
-          ([key, label]) => jsx(
+        children: levels.map(
+          ([key, label, hint]) => jsxs(
             "button",
             {
               "aria-checked": shown.effort === key,
-              disabled: disabled || fixedEffort,
+              disabled: disabled || fixed,
               onClick: () => key !== shown.effort && onEffort(key),
               role: "radio",
+              title: hint,
               type: "button",
-              children: label
+              children: [label, shown.effort === key ? jsx(Codicon, { name: "check", size: 12 }, "check") : null]
             },
             key
           )
         )
+      }),
+      narrow ? null : jsxs("div", {
+        className: "cs-b-mp-enote",
+        children: fixed ? [jsx("b", { children: "Fixed" }, "b"), "This model has a fixed effort"] : picked ? [jsx("b", { children: picked[1] }, "b"), picked[2]] : [jsx("b", { children: "Default" }, "b"), "The model’s own effort"]
       })
     ]
   });
-  const speedGroup = speed ? jsxs("div", {
-    className: "cs-b-mp-group cs-b-mp-speed",
+}
+function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
+  return jsxs("div", {
+    className: "cs-b-mp-bar",
     children: [
-      jsxs("div", {
-        className: "cs-row",
-        children: [
-          jsx("span", { className: "cs-eyebrow", children: "Speed" }),
-          beside ? null : jsx("span", { className: "cs-grow" }),
-          beside ? null : jsx("span", { className: "cs-faint", children: shown.fast ? FAST_HINT : "Standard speed" })
-        ]
-      }),
-      jsx("div", {
+      speed ? jsx("div", {
         "aria-label": "Speed",
-        className: "cs-b-seg",
+        className: "cs-b-seg cs-b-mp-speed",
         role: "radiogroup",
         children: [
-          ["normal", false, "Normal", "Standard speed"],
-          ["fast", true, jsxs("span", { className: "cs-b-mp-fastlabel", children: [jsx(Codicon, { name: "zap", size: 11 }), "Fast"] }), FAST_HINT]
+          ["normal", false, "Standard", "Standard speed"],
+          ["fast", true, [jsx(Codicon, { name: "zap", size: 11 }, "zap"), "Fast"], FAST_HINT]
         ].map(
           ([key, on, label, title]) => jsx(
             "button",
             {
-              "aria-checked": shown.fast === on,
+              "aria-checked": fast === on,
               className: on ? "cs-b-mp-fast" : void 0,
               disabled,
-              onClick: () => on !== shown.fast && onFast(on, { model: shown.model, provider: shown.provider }),
+              onClick: () => on !== fast && onFast(on),
               role: "radio",
               title,
               type: "button",
@@ -1946,18 +2093,21 @@ function ModelSettings({ caps, shown, speed, beside, disabled, onEffort, onFast 
             key
           )
         )
+      }) : null,
+      jsx("span", { className: "cs-grow" }),
+      held ? jsx("span", { className: "cs-b-mp-held", children: narrow ? "Switches after this turn" : `Switches when ${AGENT} finishes this turn` }) : jsxs("button", {
+        className: "cs-b-mp-manage",
+        onClick: onManage,
+        type: "button",
+        children: [narrow ? "Providers" : "Manage providers", jsx(Codicon, { name: "chevron-right", size: 11 }, "go")]
       })
     ]
-  }) : null;
-  return jsxs("div", {
-    className: `cs-b-mp-effort${speed && beside ? " beside" : ""}`,
-    children: [effortGroup, speedGroup]
   });
 }
 
 // page/pages/build/composer/model-picker.js
-var PANEL = 580;
-var PANEL_WITH_SPEED = 720;
+var PANEL = 560;
+var NARROW = 500;
 function useModelOptions(runtime) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
@@ -1982,29 +2132,52 @@ function panelArea(node) {
   }
   return [start, end];
 }
-function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function useStars(ctx) {
+  const [stars, setStars] = useState(() => {
+    try {
+      const saved = ctx?.storage?.get?.("buildModelStars", []);
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch {
+      return /* @__PURE__ */ new Set();
+    }
+  });
+  const toggle = (key) => {
+    const next = new Set(stars);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setStars(next);
+    try {
+      ctx?.storage?.set?.("buildModelStars", [...next]);
+    } catch {
+    }
+  };
+  return [stars, toggle];
+}
+function ModelPicker({ ctx, value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
+  const [stars, toggleStar] = useStars(ctx);
   const box = useRef(null);
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
   const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? "", fast: held?.fast ?? value?.fast ?? false };
+  const marks = useMemo(() => providerMarks(providers), [providers]);
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
   const caps = current?.capabilities?.[shown.model] ?? null;
   const speed = hasFastMode(shown.provider, caps);
-  const activeTab = providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
+  const activeTab = tab === STARRED || providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
+  const activeProvider = providers.find((item) => item.slug === activeTab) ?? null;
   const needle = query.trim().toLowerCase();
-  const rows = useMemo(() => {
-    const list = needle ? providers : providers.filter((item) => item.slug === activeTab);
-    return list.flatMap(
-      (item) => item.models.filter((model) => !needle || model.toLowerCase().includes(needle) || modelName(model).name.toLowerCase().includes(needle)).map((model) => ({ model, provider: item.slug, providerName: item.name, caps: item.capabilities?.[model] ?? null }))
-    );
-  }, [providers, activeTab, needle]);
+  const groups = useModelRows(providers, activeTab, needle, stars);
   const name = shown.model ? modelName(shown.model).name : "Default model";
   const [place, setPlace] = useState(null);
+  const narrow = Boolean(place && place.width < NARROW);
   useLayoutEffect(() => {
     if (!open || !box.current?.getBoundingClientRect) {
       setPlace(null);
@@ -2012,17 +2185,16 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
     }
     const left = box.current.getBoundingClientRect().left;
     const [start, end] = panelArea(box.current);
-    const room = end - start - 24;
-    const beside = speed && room >= PANEL_WITH_SPEED;
-    const width = Math.min(beside ? PANEL_WITH_SPEED : PANEL, room);
+    const width = Math.min(PANEL, end - start - 24);
     const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width));
-    setPlace({ left: shift, width, beside });
-  }, [open, speed]);
+    setPlace({ left: shift, width });
+  }, [open]);
   useEffect(() => {
     if (!open) {
       return void 0;
     }
     setQuery("");
+    setTab(null);
     const focus = () => search.current?.focus?.();
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(focus);
@@ -2058,6 +2230,10 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
       onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
     }
   };
+  const close = () => setOpen(false);
+  const count = activeProvider ? activeProvider.total_models ?? activeProvider.models.length : 0;
+  const head = needle ? null : activeTab === STARRED ? [jsx("b", { children: "Starred" }, "b"), narrow ? null : jsx("span", { children: "· from every provider" }, "n")] : activeProvider ? [jsx("b", { title: activeProvider.name, children: activeProvider.name }, "b"), jsx("span", { children: narrow ? `· ${count}` : `· ${count} ${count === 1 ? "model" : "models"}` }, "n")] : null;
+  const empty = needle ? "No model matches." : activeTab === STARRED ? "Star a model with its ☆ to keep it here." : !data && !options?.isError ? "Loading…" : options?.isError ? "Could not list the models." : "No provider is connected.";
   return jsxs("div", {
     className: "cs-b-mp",
     ref: box,
@@ -2071,7 +2247,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
         title: shown.model ? `${shown.model} · ${current?.name ?? shown.provider ?? ""}` : "Model and effort",
         type: "button",
         children: [
-          signedOut ? jsx(Codicon, { name: "warning", size: 12 }) : jsx("span", { "aria-hidden": true, className: "cs-b-mp-mark", children: providerMark(current?.name ?? shown.provider) }),
+          signedOut ? jsx(Codicon, { name: "warning", size: 12 }) : jsx("span", { "aria-hidden": true, className: "cs-b-mp-mark", children: marks.get(current?.slug) ?? providerMark(shown.provider) }),
           jsx("span", { className: "cs-b-mp-name", children: signedOut ? `${shown.provider} is signed out` : name }),
           !signedOut ? jsx("span", { className: "cs-b-mp-dot", children: "·" }) : null,
           !signedOut ? jsx("span", { className: "cs-b-mp-effortname", children: effortLabel(shown.effort) }) : null,
@@ -2082,7 +2258,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
       }),
       open ? jsxs("div", {
         "aria-label": "Model and effort",
-        className: `cs-b-mp-pop${up ? " up" : ""}${place && place.width < 520 ? " narrow" : ""}`,
+        className: `cs-b-mp-pop${up ? " up" : ""}${narrow ? " narrow" : ""}`,
         role: "dialog",
         style: place ? { left: place.left, width: place.width } : void 0,
         children: [
@@ -2097,111 +2273,44 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
           jsxs("div", {
             className: "cs-b-mp-body",
             children: [
-              jsxs("div", {
-                className: "cs-b-mp-providers",
-                children: [
-                  jsx("span", { className: "cs-eyebrow", children: "Providers" }),
-                  ...providers.map(
-                    (item) => jsxs(
-                      "button",
-                      {
-                        "aria-pressed": !needle && item.slug === activeTab,
-                        className: "cs-b-mp-prov",
-                        onClick: () => {
-                          setTab(item.slug);
-                          setQuery("");
-                        },
-                        title: item.name,
-                        type: "button",
-                        children: [
-                          jsx("span", { className: "cs-b-mp-pname", children: item.name }),
-                          jsx("small", { children: item.total_models ?? item.models.length })
-                        ]
-                      },
-                      item.slug
-                    )
-                  ),
-                  !data && !options?.isError ? jsx("span", { className: "cs-faint", children: "Loading…" }) : null,
-                  options?.isError ? jsx("span", { className: "cs-faint", children: "Could not list the models." }) : null,
-                  data && !providers.length ? jsx("span", { className: "cs-faint", children: "No provider is connected." }) : null,
-                  jsx("span", { className: "cs-grow" }),
-                  jsxs("button", {
-                    className: "cs-b-link",
-                    onClick: () => {
-                      setOpen(false);
-                      host.navigate?.("/settings?tab=providers");
-                    },
-                    type: "button",
-                    children: [jsx(Codicon, { name: "add", size: 11 }), " Connect another"]
-                  })
-                ]
+              jsx(ProviderRail, {
+                marks,
+                onConnect: connectProvider(close),
+                onTab: (key) => {
+                  setTab(key);
+                  setQuery("");
+                },
+                providers,
+                tab: needle ? null : activeTab
               }),
-              jsxs("div", {
-                className: "cs-b-mp-models",
-                children: [
-                  jsxs("label", {
-                    className: "cs-b-mp-search",
-                    children: [
-                      jsx(Codicon, { name: "search", size: 12 }),
-                      jsx("input", {
-                        "aria-label": "Search models",
-                        onChange: (event) => setQuery(event.target.value),
-                        onKeyDown: (event) => {
-                          if (event.key === "Enter" && rows[0]) {
-                            event.preventDefault();
-                            choose(rows[0]);
-                          }
-                        },
-                        placeholder: needle || !activeTab ? "Search every provider" : `Search ${providers.find((item) => item.slug === activeTab)?.name ?? ""}`,
-                        ref: search,
-                        value: query
-                      })
-                    ]
-                  }),
-                  jsx("div", {
-                    className: "cs-b-mp-list",
-                    role: "listbox",
-                    children: rows.length ? rows.map((row) => {
-                      const label = modelName(row.model);
-                      const on = row.model === shown.model && row.provider === shown.provider;
-                      return jsxs(
-                        "button",
-                        {
-                          "aria-selected": on,
-                          className: "cs-b-mp-row",
-                          onClick: () => choose(row),
-                          role: "option",
-                          title: row.model,
-                          type: "button",
-                          children: [
-                            jsx("span", { className: "cs-b-mp-check", children: on ? jsx(Codicon, { name: "check", size: 12 }) : null }),
-                            jsxs("span", {
-                              className: "cs-b-mp-label",
-                              children: [label.name, needle ? jsx("small", { children: row.providerName }) : null]
-                            }),
-                            jsx("span", { className: "cs-grow" }),
-                            ...label.tags.map((tag) => jsx("span", { className: "cs-b-mp-tag", children: tag }, tag)),
-                            row.caps?.fast ? jsx("span", { className: "cs-b-mp-tag", children: "fast mode" }) : null
-                          ]
-                        },
-                        `${row.provider}:${row.model}`
-                      );
-                    }) : jsx("p", { className: "cs-faint", children: needle ? "No model matches." : "Pick a provider." })
-                  }),
-                  jsx(ModelSettings, { beside: Boolean(place?.beside), caps, disabled, onEffort, onFast, shown, speed })
-                ]
-              })
+              jsx(ModelList, {
+                empty,
+                groups,
+                head,
+                marks,
+                onChoose: choose,
+                onStar: (row) => toggleStar(starKey(row.provider, row.model)),
+                placeholder: "Search models",
+                query,
+                search,
+                setQuery,
+                shown,
+                stars,
+                withProvider: !needle && activeTab === STARRED
+              }),
+              jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
             ]
           }),
-          held ? jsx("p", { className: "cs-b-mp-foot", children: `Switches when ${AGENT} finishes this turn.` }) : null
+          jsx(SpeedBar, { disabled, fast: shown.fast, held: Boolean(held), narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
         ]
       }) : null
     ]
   });
 }
-function ChatModelPicker({ stored, chat, disabled }) {
+function ChatModelPicker({ ctx, stored, chat, disabled }) {
   const options = useModelOptions(chat?.runtime ?? null);
   return jsx(ModelPicker, {
+    ctx,
     confirm: chat?.pickConfirm ?? null,
     disabled,
     held: chat?.busy ? chat?.heldPick ?? null : null,
@@ -2217,6 +2326,7 @@ function ChatModelPicker({ stored, chat, disabled }) {
 function DraftModelPicker({ ctx, pick, onPick, up = true }) {
   const options = useModelOptions(null);
   return jsx(ModelPicker, {
+    ctx,
     up,
     onEffort: (effort) => onPick({ ...pick, effort }),
     // The draft keeps the model the speed was picked for (the profile's default when none was picked).
@@ -3506,7 +3616,7 @@ function usePlaytest(ctx, gameId, n, report) {
 var PANEL_WIDTH = 300;
 var FOLD_WIDTH = 34;
 var STAGE_PAD = 16;
-var NARROW = 760;
+var NARROW2 = 760;
 var HEIGHT_SHARE = 0.74;
 function useRoom(ref) {
   const [room, setRoom] = useState({ width: 0, height: typeof window === "undefined" ? 800 : window.innerHeight });
@@ -3571,7 +3681,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const [sending, setSending] = useState(false);
   const room = useRoom(rootRef);
   const full = useFullScreen(screenRef);
-  const narrow = room.width > 0 && room.width < NARROW;
+  const narrow = room.width > 0 && room.width < NARROW2;
   const showPanel = annotate.active || panelOpen;
   const complete = playtest.counts.complete;
   useEffect(() => {
@@ -10934,7 +11044,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
         disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
         onSend: (text2, attachments) => void send(text2, attachments),
         onStop: () => void stopBuildChat(shownStored),
-        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored }) : null,
+        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
         placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
@@ -12701,7 +12811,7 @@ var MENTIONS_CSS = `
 
 // page/pages/build/composer/model-picker.css.js
 var MODEL_PICKER_CSS = `
-/* model and effort */
+/* model and effort: the button under the message box */
 .cs-b-mp { position: relative; min-width: 0; }
 .cs-b-mp-chip { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-secondary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 6px; max-width: 100%; min-width: 0; padding: 4px 8px 4px 5px; transition: background .12s ease, color .12s ease; white-space: nowrap; }
 .cs-b-mp-chip:hover, .cs-b-mp-chip.open { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
@@ -12712,49 +12822,66 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-dot { color: var(--ui-text-quaternary); }
 .cs-b-mp-next { border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: 4px; color: var(--ui-accent); font-size: 10px; line-height: 15px; padding: 0 5px; }
 .cs-b-mp-mark { align-items: center; background: color-mix(in srgb, var(--ui-accent) 22%, var(--ui-bg-quaternary)); border-radius: 4px; color: var(--ui-text-primary); display: inline-flex; flex: none; font: 800 9px/1 var(--dt-font-sans, inherit); height: 16px; justify-content: center; width: 16px; }
-.cs-b-mp-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; left: 0; max-width: calc(100vw - 24px); overflow: hidden; position: absolute; top: calc(100% + 6px); width: 580px; z-index: 30; }
-.cs-b-mp-pop.up { bottom: calc(100% + 8px); top: auto; }
-.cs-b-mp-body { display: flex; min-height: 0; }
-.cs-b-mp-providers { border-right: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 2px; padding: 10px 6px; width: 190px; }
-.cs-b-mp-providers > .cs-eyebrow { padding: 0 8px 4px; }
-.cs-b-mp-providers > .cs-faint { padding: 4px 8px; }
-.cs-b-mp-providers > .cs-b-link { align-self: flex-start; padding: 6px 8px; }
-.cs-b-mp-prov, .cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 7px; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 8px; min-width: 0; padding: 6px 8px; text-align: left; width: 100%; }
-.cs-b-mp-prov:hover, .cs-b-mp-row:hover { background: var(--ui-bg-quaternary); }
-.cs-b-mp-prov[aria-pressed='true'] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); }
-.cs-b-mp-pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-mp-prov small { color: var(--ui-text-quaternary); font-size: 10.5px; }
-.cs-b-mp-models { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.cs-b-mp-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); display: flex; gap: 8px; padding: 8px 12px; }
-.cs-b-mp-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 12.5px; min-width: 0; outline: none; }
-.cs-b-mp-list { display: flex; flex-direction: column; max-height: 236px; overflow-y: auto; overscroll-behavior: contain; padding: 6px; }
-.cs-b-mp-list > .cs-faint { margin: 0; padding: 10px; }
-.cs-b-mp-row[aria-selected='true'] { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
-.cs-b-mp-check { color: var(--ui-accent); display: inline-flex; flex: none; width: 14px; }
-.cs-b-mp-label { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-mp-label small { color: var(--ui-text-quaternary); font-size: 10.5px; }
-.cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
-.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; }
-.cs-b-mp-effort.beside { flex-direction: row; gap: 14px; }
-.cs-b-mp-group { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.cs-b-mp-effortgroup { flex: 1; }
-.cs-b-mp-group > .cs-row { gap: 8px; min-height: 17px; min-width: 0; white-space: nowrap; }
-.cs-b-mp-group > .cs-row > .cs-faint { overflow: hidden; text-overflow: ellipsis; }
-.cs-b-mp-effort.beside .cs-b-mp-speed { flex: none; }
-.cs-b-mp-speed .cs-b-seg button { padding: 5px 12px; white-space: nowrap; }
-.cs-b-mp-fastlabel { align-items: center; display: inline-flex; gap: 4px; justify-content: center; vertical-align: top; }
-.cs-b-seg button.cs-b-mp-fast[aria-checked='true'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-yellow); }
 .cs-b-mp-bolt { align-items: center; color: var(--ui-yellow); display: inline-flex; flex: none; }
+/* the panel: provider rail | models | effort, and the speed bar along the bottom */
+.cs-b-mp-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; left: 0; max-width: calc(100vw - 24px); overflow: hidden; position: absolute; top: calc(100% + 6px); width: 560px; z-index: 30; }
+.cs-b-mp-pop.up { bottom: calc(100% + 8px); top: auto; }
+.cs-b-mp-body { display: flex; height: 304px; min-height: 0; }
+.cs-b-mp-rail { align-items: center; border-right: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 4px; overflow-y: auto; padding: 8px 0; scrollbar-width: none; width: 46px; }
+.cs-b-mp-tile { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 7px; color: var(--ui-text-tertiary); cursor: pointer; display: flex; flex: none; font: 800 12px/1 var(--dt-font-sans, inherit); height: 30px; justify-content: center; position: relative; width: 30px; }
+.cs-b-mp-tile:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-tile[aria-pressed='true'] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-tile[aria-pressed='true']::before { background: var(--ui-accent); border-radius: 0 2px 2px 0; content: ''; height: 18px; left: -8px; position: absolute; top: 6px; width: 2px; }
+.cs-b-mp-sep { background: var(--ui-stroke-tertiary); flex: none; height: 1px; margin: 2px 0; width: 22px; }
+.cs-b-mp-models { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.cs-b-mp-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin: 8px 10px 2px; padding: 5px 6px; }
+.cs-b-mp-search:focus-within { border-bottom-color: var(--ui-accent); }
+.cs-b-mp-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 13px; min-width: 0; outline: none; }
+.cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; font-size: 11px; gap: 5px; min-width: 0; padding: 6px 16px 2px; white-space: nowrap; }
+.cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-head span { flex: none; }
+.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px; }
+.cs-b-mp-list > .cs-faint { margin: 0; padding: 10px 8px; }
+.cs-b-mp-group { color: var(--ui-text-quaternary); flex: none; font: 700 9.5px/1.3 var(--dt-font-mono, ui-monospace, monospace); letter-spacing: .12em; padding: 8px 8px 3px; text-transform: uppercase; }
+.cs-b-mp-item { align-items: center; border-radius: 7px; display: flex; flex: none; min-width: 0; }
+.cs-b-mp-item:hover { background: var(--ui-bg-quaternary); }
+.cs-b-mp-item.on { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+.cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; flex: 1; font: inherit; font-size: 13px; gap: 8px; min-width: 0; padding: 6px 4px 6px 8px; text-align: left; white-space: nowrap; }
+.cs-b-mp-glyph { color: var(--ui-text-quaternary); flex: none; font: 800 10px/1 var(--dt-font-sans, inherit); text-align: center; width: 16px; }
+.cs-b-mp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
+.cs-b-mp-check { color: var(--ui-text-secondary); display: inline-flex; flex: none; }
+.cs-b-mp-label.two { display: flex; flex-direction: column; white-space: normal; }
+.cs-b-mp-label.two > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-mp-from { color: var(--ui-text-quaternary); font-size: 11px; line-height: 1.3; }
+.cs-b-mp-star { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-quaternary); cursor: pointer; display: inline-flex; flex: none; height: 24px; justify-content: center; margin-right: 4px; opacity: 0; width: 24px; }
+.cs-b-mp-item:hover .cs-b-mp-star, .cs-b-mp-item.on .cs-b-mp-star, .cs-b-mp-star:focus-visible, .cs-b-mp-item.starred .cs-b-mp-star { opacity: 1; }
+.cs-b-mp-star:hover { color: var(--ui-text-primary); }
+.cs-b-mp-item.starred .cs-b-mp-star { color: var(--ui-yellow); }
+.cs-b-mp-effort { border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; min-height: 0; padding: 8px 0 0; width: 172px; }
+.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 5px 14px 6px; white-space: nowrap; }
+.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-levels { display: flex; flex-direction: column; }
+.cs-b-mp-levels button { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 13px; justify-content: space-between; padding: 5px 14px; text-align: left; white-space: nowrap; }
+.cs-b-mp-levels button:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
+.cs-b-mp-levels button[aria-checked='true'] { background: color-mix(in srgb, var(--ui-accent) 10%, transparent); }
+.cs-b-mp-levels button:disabled { color: var(--ui-text-quaternary); cursor: default; }
+.cs-b-mp-enote { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-tertiary); font-size: 11px; line-height: 1.35; margin-top: auto; padding: 8px 14px 10px; }
+.cs-b-mp-enote b { color: var(--ui-text-primary); display: block; font-size: 12px; font-weight: 500; }
+.cs-b-mp-bar { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; gap: 10px; min-height: 44px; padding: 7px 10px; }
 .cs-b-seg { background: var(--ui-bg-quaternary); border-radius: 8px; display: flex; gap: 2px; padding: 2px; }
-.cs-b-seg button { appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; flex: 1; font: inherit; font-size: 11.5px; padding: 5px 0; transition: background .12s ease, color .12s ease; }
+.cs-b-seg button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 4px; padding: 4px 10px; transition: background .12s ease, color .12s ease; white-space: nowrap; }
 .cs-b-seg button:hover:not(:disabled) { color: var(--ui-text-primary); }
 .cs-b-seg button[aria-checked='true'] { background: var(--ui-bg-secondary); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-primary); }
+.cs-b-seg button.cs-b-mp-fast[aria-checked='true'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-yellow); }
 .cs-b-seg button:disabled { cursor: default; opacity: .5; }
+.cs-b-mp-manage { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 4px; padding: 4px 6px; white-space: nowrap; }
+.cs-b-mp-manage:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-held { color: var(--ui-text-tertiary); font-size: 11.5px; white-space: nowrap; }
 .cs-b-mp-confirm { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, var(--ui-bg-secondary)); border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 8px 12px; }
-.cs-b-mp-foot { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-tertiary); font-size: 11.5px; margin: 0; padding: 7px 12px; }
+.cs-b-mp-pop.narrow .cs-b-mp-effort { width: 120px; }
+.cs-b-mp-pop.narrow .cs-b-mp-emodel { display: none; }
 .cs-b-comp-row { align-items: center; display: flex; gap: 8px; min-width: 0; }
-.cs-b-mp-pop.narrow .cs-b-mp-providers { width: 140px; }
-.cs-b-mp-pop.narrow .cs-b-seg button { font-size: 10.5px; }
 @container (max-width: 560px) { .cs-b-mp-name, .cs-b-mp-dot { display: none; } }
 .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .cs-b-link { appearance: none; background: none; border: 0; color: var(--ui-accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
@@ -12817,13 +12944,10 @@ var HEADER_CSS = `
 // page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
 /* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
-   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title). The box that
-   scrolls is wider than what it shows, so the model panel (up to 720 px, from the model button) fits inside it. */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 840px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
-.cs-b-new { --cs-b-new-w: calc(680px - 2 * clamp(14px, 3cqi, 28px)); }
-.cs-b-new > :not(.cs-title) { box-sizing: border-box; margin-inline: auto; max-width: var(--cs-b-new-w); width: 100%; }
-.cs-b-new .cs-title { margin: 0; max-width: var(--cs-b-new-w); text-align: center; }
-.cs-b-new .cs-b-comp { margin: 0 auto; max-width: var(--cs-b-new-w); width: 100%; }
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+.cs-b-new .cs-title { margin: 0; text-align: center; }
+.cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }
 .cs-b-opts { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
 @container (max-width: 560px) { .cs-b-opts { grid-template-columns: 1fr; } }
