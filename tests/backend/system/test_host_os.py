@@ -42,17 +42,42 @@ class HostOs(unittest.TestCase):
             deep.mkdir()
             link = parent / "short"
             link.symlink_to(deep, target_is_directory=True)
-            replacement = host_os.engine_tempdir({"TMPDIR": str(link), "XDG_RUNTIME_DIR": str(parent)})
+            replacement = host_os.engine_tempdir({"TMPDIR": str(link)})
             assert replacement is not None
             with replacement as directory:
                 path = Path(directory)
                 self.assertEqual(path, path.resolve())
+                self.assertEqual(path.parent, Path("/tmp").resolve())
+                self.assertTrue(path.name.startswith(f"hrt-{os.getpid()}-"), "named for the broker that owns it")
                 self.assertLessEqual(len(os.fsencode(path)), 64)
                 self.assertEqual(path.stat().st_uid, os.getuid())
                 self.assertEqual(path.stat().st_mode & 0o777, 0o700)
             self.assertFalse(path.exists())
             self.assertTrue(link.is_symlink())
             self.assertTrue(deep.is_dir())
+
+    def test_an_owner_only_folder_under_a_replaceable_ancestor_is_never_a_fallback(self):
+        # Another user who can write the non-sticky ancestor could rename the private folder away and put their
+        # own in its place after a worker was given its name.
+        with tempfile.TemporaryDirectory(prefix="hr-", dir="/tmp") as base:
+            shared = Path(base).resolve() / "shared"
+            shared.mkdir()
+            shared.chmod(0o777)  # writable by everyone, no sticky bit
+            leaf = shared / "run"
+            leaf.mkdir(mode=0o700)
+            deep = Path(base).resolve() / ("x" * 120)
+            deep.mkdir()
+            self.assertEqual(host_os._short_temp_parent(str(leaf)), leaf, "the leaf alone looks private")
+            self.assertIsNone(host_os._short_temp_parent(str(leaf), chain=True))
+            replacement = host_os.engine_tempdir({"TMPDIR": str(deep), "XDG_RUNTIME_DIR": str(leaf)})
+            assert replacement is not None
+            with replacement as directory:
+                self.assertEqual(Path(directory).parent, Path("/tmp").resolve(), "the environment's folder was used")
+            with mock.patch.object(host_os, "SYSTEM_TEMP", str(leaf)):
+                self.assertFalse(host_os.engine_temp_ready({"TMPDIR": str(deep)}))
+                with self.assertRaises(OSError):
+                    host_os.engine_tempdir({"TMPDIR": str(deep)})
+            self.assertEqual(list(leaf.iterdir()), [])
 
     def test_temp_unavailable_reports_the_fix(self):
         with mock.patch.object(host_os, "_short_temp_parent", return_value=None):

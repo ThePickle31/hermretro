@@ -91,6 +91,8 @@ class NodeArchitecture(unittest.TestCase):
             tried.append(candidate)
             return None
 
+        paths._failed_probes.clear()  # every candidate is probed: none is cooling down from an earlier failure
+        self.addCleanup(paths._failed_probes.clear)
         with (
             mock.patch.dict(os.environ, {"PATH": ""}),
             mock.patch.object(paths, "_node_stamp", return_value=(0,)),

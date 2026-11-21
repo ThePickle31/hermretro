@@ -157,6 +157,43 @@ class NodeDiscovery(unittest.TestCase):
                 self.assertEqual(paths.find_node()["version"], "25.9.1")
                 self.assertEqual(probe.call_count, 2)
 
+    def test_a_failed_candidate_before_a_working_one_is_not_probed_on_every_lookup(self):
+        self.addCleanup(paths._failed_probes.clear)
+        with tempfile.TemporaryDirectory() as tmp:
+            stalled, working = Path(tmp) / "shim" / "node", Path(tmp) / "bin" / "node"
+            for node, version in ((stalled, "stalls"), (working, "v24.1.0")):
+                node.parent.mkdir()
+                node.write_text(f"#!/bin/sh\necho {version}\n")
+                node.chmod(0o755)
+            probed: list[str] = []
+
+            def probe(path):  # the stalled shim times out after 10 s in real life
+                probed.append(path)
+                return (24, 1, 0) if path == str(working) else None
+
+            real_stamp = paths._node_stamp
+            with (
+                mock.patch.dict(os.environ, {"HERMRETRO_NODE": str(stalled), "PATH": str(working.parent), "HOME": tmp}),
+                mock.patch.object(
+                    paths,
+                    "_node_stamp",
+                    side_effect=lambda p: real_stamp(p) if p in (str(stalled), str(working)) else None,
+                ),
+                mock.patch.object(paths, "_node_version", side_effect=probe),
+            ):
+                for _ in range(3):
+                    self.assertEqual(paths.find_node()["path"], str(working))
+                self.assertEqual(probed.count(str(stalled)), 1, "the failed candidate was probed again at once")
+                stalled.write_text("#!/bin/sh\necho v24.2.0 \n")  # changed: probe it now
+                paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 2)
+                paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 2)
+                with mock.patch.object(paths, "PROBE_RETRY_SECONDS", 0):  # and again once the cooldown is over
+                    paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 3)
+                self.assertEqual(probed.count(str(working)), 1, "the working one stays cached")
+
 
 class HermesHomeHandOver(unittest.TestCase):
     """backend.system never imports Hermes: the Hermes layer hands over how to ask (system/hermes_home.py).

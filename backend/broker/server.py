@@ -19,6 +19,7 @@ from pathlib import Path
 
 from ..system import host as host_os, paths
 from .broker import Broker
+from .engine import sanitized_environment
 from .lane import Denied
 
 
@@ -57,6 +58,10 @@ class Handler(socketserver.StreamRequestHandler):
                             "loaded_fingerprint": broker.code_fingerprint,
                             "plugin_root": str(paths.PLUGIN_ROOT),
                             "engine": broker.engine_check,
+                            # What every new worker inherits, so a client can replace an idle broker whose
+                            # Node was removed or whose temporary folder cannot work (read now, not at start).
+                            "node": broker.node,
+                            "temp_ok": host_os.engine_temp_ready(sanitized_environment()),
                         }
                     elif request.get("op") == "call":
                         request["_client_pid"] = peer_pid  # kernel-reported, for the trace only
