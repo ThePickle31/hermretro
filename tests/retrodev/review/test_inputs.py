@@ -49,6 +49,14 @@ class Prepare(unittest.TestCase):
         self.assertNotIn("plugin.js", (self.r1.review / "stat.txt").read_text())
         self.assertIn("backend/b.py", (self.r1.review / "diff.patch").read_text())
 
+    def test_the_round_line_says_how_many_rounds_this_pull_request_gets(self):
+        self.assertEqual(inputs.round_section(1, {}, {}), "THIS IS ROUND 1 of 3.")
+        one = inputs.round_section(1, {}, {}, 1)
+        self.assertTrue(one.startswith("THIS IS ROUND 1 of 1 (the last)."), one)
+        self.assertIn("true severity", one)
+        self.assertEqual(inputs.round_section(1, {}, {}, 2), "THIS IS ROUND 1 of 2.")
+        self.assertTrue(inputs.round_section(2, {1: "x"}, {}, 2).startswith("THIS IS ROUND 2 of 2 (the last)."))
+
     def test_brief(self):
         brief = self.r1.brief.read_text()
         self.assertIn("pull request #7", brief)
