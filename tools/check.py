@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -400,15 +401,14 @@ def scaffold_test(mode: str) -> tuple[list[str], str]:
     return test, "1" if mode == "smoke" else mode
 
 
-
-def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
+def scaffold_baseline(args, mode: str, environ: Mapping[str, str] | None = None) -> tuple[list[str], list[str]]:
     """(the suites run on the tree before new, those taken as covered elsewhere). Nested adds unit, except in GitHub
     Actions when this invocation does not run unit itself: CI's unit job runs it on every system for the same
     commit, so the page job would only repeat it (and a failure there is already red, with its tests named)."""
-    environ = os.environ if environ is None else environ
+    env = os.environ if environ is None else environ
     if mode != "nested":
         return ["page"], []
-    if environ.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
+    if env.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
         return ["page"], ["unit"]
     return ["unit", "page"], []
 
