@@ -13,7 +13,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
 | scaffold | `python tools/check.py scaffold` | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
-| clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
+| clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit once, in its default profile; the page's onboarding on a real Hermes gateway makes `hermretro` (linking that install); tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
 While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
@@ -81,8 +81,10 @@ and `.dev/` are not linted.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
   `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).
-- **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
-  and integration on Linux, Apple Silicon and Intel macOS.
+  For the same changes, the clean install (with its onboarding on the gateway) also runs on Apple Silicon macOS (job
+  `onboarding`, oldest supported Hermes).
+- **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux, Apple
+  Silicon and Intel macOS, and integration on the same three.
 
 The single required check is **All checks pass**.
 
@@ -104,8 +106,17 @@ rename `FIX:`.
 
 ## The clean install and update checks
 
-`tools/ci/clean_install_check.py` installs the committed checkout into a throwaway Hermes home (the `hermretro`
-profile and the default one; the install scanner must not ask) and checks the tools register only in `hermretro`.
+`tools/ci/clean_install_check.py` installs the committed checkout once into a throwaway Hermes home's default profile,
+as a user does (the install scanner must not ask). Then `tools/ci/onboarding_check.py` makes the page's onboarding
+calls with Hermes's own Python through that home's real gateway (`connect_gateway`, which starts one that ends itself
+when idle; the check stops it afterwards by the pid it recorded for that home only): `plugin.hermretro.status`,
+Hermes's `profiles.create` with the parameters the status names, `plugin.hermretro.studio_profile` (the real
+handler, running the `hermes` config commands in the new profile) and the status again, then Hermes's
+`profiles.describe` of `hermretro`. It fails unless the profile is the one created, links the one install (no second
+copy), reports itself installed and has the chromatic toolset enabled with exactly `plugin.yaml`'s tool count. Last,
+`hermes tools list` must show chromatic enabled in `hermretro` and absent from the default profile. No model,
+credentials, hardware or toolchain download. With `--hermes-python`, a `hermes` running that Python goes first on
+`PATH`, so the studio handler configures the profile with the Hermes under test.
 With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`): it installs REF (default: the newest
 stable `v*` tag on `origin/main`, else local `main`) from a local bare copy of the repository, uses it as the page
 does (studio profile, a library game, a New Game chat, a running broker), moves the copy's `main` to HEAD and runs

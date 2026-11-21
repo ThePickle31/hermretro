@@ -188,10 +188,36 @@ jobs:
     if: needs.changes.outputs.engine == 'true'
     uses: ./.github/workflows/integration.yml
 
+  # The clean install with the page's onboarding on a real Hermes gateway (tools/ci/onboarding_check.py), on Apple
+  # Silicon macOS too, for the same changes as the integration tier (the backend, the toolchain, CI); Linux runs it in
+  # `validate` on every pull request, and the nightly adds Intel macOS. Oldest supported Hermes, as `validate`.
+  onboarding:
+    name: Clean install and onboarding (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/hermes
+        with:
+          ref: ${{ env.HERMES_REF }}
+      - name: python tools/ci/clean_install_check.py
+        run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
+
   all-checks-pass:
     name: All checks pass
     if: always()
-    needs: [base, unit, page, scan, validate, changes, integration]
+    needs: [base, unit, page, scan, validate, changes, integration, onboarding]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

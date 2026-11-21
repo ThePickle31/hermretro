@@ -1,6 +1,7 @@
-# Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
-# verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
-# and Intel macOS. A failed scheduled night opens (or comments on) the issue "Nightly failed", labelled ci.
+# Every night: hermretro against the newest Hermes (main) on Linux, Apple Silicon and Intel macOS, so a Hermes change
+# that breaks installs, the onboarding on its gateway, the scanner verdict or registration is noticed before users
+# update; and the real-engine tier on the same three. A failed scheduled night opens (or comments on) the issue
+# "Nightly failed", labelled ci.
 # GitHub runs scheduled workflows only from the default branch (main); the jobs check out and test dev, where new
 # work lands. A pull request that changes this file, integration.yml or the Hermes action runs it on its own
 # commit (not a required check: read it with gh pr checks).
@@ -33,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

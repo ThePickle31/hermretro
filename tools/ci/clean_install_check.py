@@ -5,10 +5,13 @@
     python tools/ci/clean_install_check.py --update-from <tag>  # an installed release updates to this commit
     python tools/ci/clean_install_check.py --update-from          # from the newest release on origin/main
 
-Creates the `hermretro` profile, installs the committed checkout into it and into the default profile
-(Hermes's install scanner runs on both; a caution or a block fails here, because nothing can confirm), then
-checks the agent side registers only in `hermretro`. Needs no model, no network beyond Git and touches no
-real Hermes home (HOME is a temp folder too). Every failure ends with a "FIX:" line.
+As a user does: installs the committed checkout once, into the ordinary (default) profile (Hermes's install scanner
+runs; a caution or a block fails here, because nothing can confirm), then onboards the way the page does, through
+the throwaway home's real Hermes gateway (tools/ci/onboarding_check.py): Hermes's `profiles.create` makes the
+`hermretro` profile and the plugin's own `studio_profile` RPC finishes it, linking that one install. Then
+`hermes tools list` must show the chromatic toolset enabled in `hermretro` and absent from the default profile.
+Needs no model, no credentials, no network beyond Git and touches no real Hermes home (HOME is a temp folder too).
+Every failure ends with a "FIX:" line.
 
 Its throwaway folder goes in HERMRETRO_CLEAN_INSTALL_TMP, else TMPDIR, else /tmp (`work_parent`): never inside the
 real Hermes home, and short enough for the broker's socket path (a TMPDIR that is not is passed over; such a
@@ -64,17 +67,28 @@ def main(argv: list[str] | None = None) -> int:
         if args.update_from:
             return _update_check().update(args, hermes, Path(tmp).resolve(), root)
         studio = root / "profiles" / "hermretro"
-        run = runner(hermes, Path(tmp), {"HERMRETRO_HOME": str(Path(tmp) / "hermretro")})
+        onboarding = _onboarding_check()
+        extra = {
+            "HERMRETRO_HOME": str(Path(tmp) / "hermretro"),
+            **onboarding.hermes_on_path(Path(tmp), args.hermes_python),
+        }
+        run = runner(hermes, Path(tmp), extra)
 
-        source = f"file://{ROOT}"
-        run(root, "profile", "create", "hermretro", "--no-alias", "--no-skills")
-        for home in (studio, root):
-            run(home, "plugins", "install", source, "--enable", "--yes-deps")
+        run(root, "plugins", "install", f"file://{ROOT}", "--enable", "--yes-deps")  # once, in the ordinary profile
+        problems = onboarding.onboard(
+            args.hermes_python, Path(tmp).resolve(), root, environment(Path(tmp), root, extra)
+        )
+        if problems:  # the profile is not there to list: the onboarding's own finding is the one to read
+            print("\n".join(problems), file=sys.stderr)
+            return 1
         problems = registers_only_in_studio(run, root, studio)
         if problems:
             print("\n".join(problems) + "\nFIX: check __init__.register and studio_profile.is_studio", file=sys.stderr)
             return 1
-    print("ok: installs cleanly; the agent side registers only in the hermretro profile")
+    print(
+        "ok: installs cleanly once; the page's onboarding on a real gateway makes the hermretro profile, which links "
+        "that install, and the agent side registers only there"
+    )
     return 0
 
 
@@ -119,6 +133,13 @@ def _update_check():
     return update_check
 
 
+def _onboarding_check():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import onboarding_check
+
+    return onboarding_check
+
+
 def environment(tmp: Path, home: Path, extra: dict | None = None) -> dict:
     # Nothing from a surrounding Hermes or hermretro session (profile pins, session ids, real home), and no
     # systemd unit id (a broker would ask systemd for a scope of its own).
@@ -153,14 +174,27 @@ def runner(hermes: list[str], tmp: Path, extra: dict | None = None, fix: str = "
     return run
 
 
-def _lists_chromatic(listing: str) -> bool:  # a toolset row, not a mention in some message
-    return any(re.match(r"^\W*(enabled|disabled)?\W*chromatic\b", line.strip()) for line in listing.splitlines())
+def _chromatic_rows(listing: str) -> list[str]:  # toolset rows, not a mention in some message
+    return [
+        line.strip()
+        for line in listing.splitlines()
+        if re.match(r"^\W*(enabled|disabled)?\W*chromatic\b", line.strip())
+    ]
+
+
+def _lists_chromatic(listing: str) -> bool:
+    return bool(_chromatic_rows(listing))
 
 
 def registers_only_in_studio(run, root: Path, studio: Path) -> list[str]:
     problems = []
-    if not _lists_chromatic(run(studio, "tools", "list")):
+    rows = _chromatic_rows(run(studio, "tools", "list"))
+    for row in rows:
+        print(f"  hermretro: {row}")
+    if not rows:
         problems.append("the hermretro profile does not list the chromatic toolset")
+    elif not any("enabled" in row and "disabled" not in row for row in rows):
+        problems.append(f"the hermretro profile lists the chromatic toolset but not enabled: {rows}")
     if _lists_chromatic(run(root, "tools", "list")):
         problems.append("the default profile lists the chromatic toolset (it must exist only in hermretro)")
     return problems
