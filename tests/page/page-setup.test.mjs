@@ -147,9 +147,21 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.byMethod['plugin.hermretro.install'] = { ok: false, code: 'OPERATION_IN_PROGRESS', error: 'Another setup operation is already running' }
   await click('Download and install'); await settle()
   delete scenario.byMethod['plugin.hermretro.install']
-  check('install already running in a chat: waits and keeps checking, no failure', () => {
-    shows(/being installed from a chat/); assert.ok(!button('Try again'))
+  check('install already running in a chat (an older backend that cannot say so): waits, with Check again, no failure', () => {
+    shows(/being installed from a chat/); assert.ok(!button('Try again')); assert.ok(button('Check again'))
+  })
+  scenario.install = installAnswer({ state: 'idle', elsewhere: true })
+  await render()
+  check('the backend says a chat holds the setup lock: the tools check repeats while it does', () => {
+    shows(/being installed from a chat/)
     assert.equal(scenario.queries.filter(query => query.key === 'doctor').at(-1).refetchInterval, 8000)
+  })
+  scenario.install = installAnswer({ state: 'idle', elsewhere: false })
+  await render()
+  check("the chat's install ended without the tools: the page says so and offers its own install", () => {
+    shows(/install that was running in a chat stopped before the tools were ready/)
+    assert.ok(button('Download and install') && !button('Download and install').disabled)
+    assert.equal(scenario.queries.filter(query => query.key === 'doctor').at(-1).refetchInterval, false)
   })
   await act(async () => { root.render(null) })
 
@@ -181,9 +193,9 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(!dom.window.document.querySelector('.cs-repair'), 'no repair banner on the Setup page itself')
     hides('Start building', 'prompt library must not show during setup')
   })
-  check('toolchain step polls the check; status polls fast during setup', () => {
+  check('the toolchain step does not repeat the tools check while it is only read; status polls fast during setup', () => {
     const last = key => scenario.queries.filter(query => query.key === key).at(-1)
-    assert.equal(last('doctor').refetchInterval, 8000)
+    assert.equal(last('doctor').refetchInterval, false)
     assert.equal(last('status').refetchInterval, 4000)
   })
 

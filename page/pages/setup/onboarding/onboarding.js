@@ -1,17 +1,10 @@
 // First-run onboarding: welcome, install, Chromatic or not, first game.
-import { Button, Codicon, jsx, jsxs, useState } from '#sdk'
+import { Button, Codicon, jsx, jsxs, useEffect, useRef, useState } from '#sdk'
 import { describeRequestError } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { formatBytes } from '#app/format.js'
-import {
-  DownloadTable,
-  InstallActions,
-  InstallError,
-  InstallFacts,
-  InstallLog,
-  InstallProgress,
-  profileRowState
-} from '#pages/setup/install/install-panel.js'
+import { InstallActions, InstallError, InstallProgress } from '#pages/setup/install/install-actions.js'
+import { DownloadTable, InstallFacts, InstallLog, profileRowState } from '#pages/setup/install/install-panel.js'
 import { useInstaller } from '#pages/setup/install/installer.js'
 import { Art } from '#shared/ui/art.js'
 import { Lede } from '#shared/ui/text.js'
@@ -85,8 +78,8 @@ function OnboardWelcome({ manifest, onStart }) {
   })
 }
 
-function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone })
+function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doctor }) {
+  const installer = useInstaller({ ctx, doctor, install, status, toolchainDone })
   const data = install.data
   const { phase } = installer
   const title =
@@ -298,7 +291,7 @@ function OnboardMake({ ctx, onDone }) {
   })
 }
 
-export function Onboarding({ ctx, screen, status, install, steps, update, onFinish, onDevice }) {
+export function Onboarding({ ctx, screen, status, install, steps, update, onFinish, onDevice, doctor }) {
   const toolchain = steps.find(step => step.id === 'toolchain')
   const profileStep = steps.find(step => step.id === 'profile')
   let body
@@ -308,12 +301,31 @@ export function Onboarding({ ctx, screen, status, install, steps, update, onFini
   } else if (screen === 'welcome') {
     body = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) })
   } else if (screen === 'install') {
-    body = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === 'done' })
+    body = jsx(OnboardInstall, { ctx, doctor, install, profileStep, status, toolchainDone: toolchain?.state === 'done' })
   } else if (screen === 'chromatic') {
     body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) })
   } else {
     body = jsx(OnboardMake, { ctx, onDone: onFinish })
   }
 
-  return jsx('section', { 'aria-live': 'polite', className: 'cs-onb', 'data-screen': screen, children: body })
+  // A new screen moves focus to its heading (announced once); the section is not a live region, or every
+  // progress tick would be read out.
+  const section = useRef(null)
+  const shown = useRef(screen)
+
+  useEffect(() => {
+    if (shown.current === screen) {
+      return
+    }
+
+    shown.current = screen
+    const title = section.current?.querySelector('h1, h2')
+
+    if (title) {
+      title.tabIndex = -1
+      title.focus?.({ preventScroll: true })
+    }
+  }, [screen])
+
+  return jsx('section', { className: 'cs-onb', 'data-screen': screen, ref: section, children: body })
 }

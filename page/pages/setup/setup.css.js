@@ -1,6 +1,8 @@
 import { MONO } from '#shared/styles/tokens.js'
 
 export const SETUP_CSS = `
+/* setup: the install's stage, for screen readers only */
+.cs-onb .cs-sr, .cs-setup .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 /* setup: rail, current step, flying Chromatic */
 .cs-setup { align-items: start; display: grid; gap: clamp(24px, 3.6cqi, 64px); grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 820px) minmax(130px, 1fr); }
 .cs-rail { display: flex; flex-direction: column; position: sticky; top: 76px; }

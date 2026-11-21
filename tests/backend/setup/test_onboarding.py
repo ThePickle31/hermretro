@@ -121,7 +121,7 @@ class FakeEngine:
     def __init__(self, answer, gate=None):
         self.answer, self.gate, self.closed, self.calls = answer, gate, False, []
 
-    def call_tool(self, tool, arguments, timeout):
+    def call_tool(self, tool, arguments, timeout, cancel=None):
         self.calls.append((tool, arguments))
         if self.gate:
             self.gate.wait(5)
@@ -150,6 +150,9 @@ class BrokerInstall(unittest.TestCase):
         patches = [
             mock.patch.object(broker_module.paths, "setup_root", return_value=self.root),
             mock.patch.object(broker_module.setup, "seed_toolchain_cache", return_value={"seeded": False}),
+            # The journal (recovery.py) goes beside the toolchain, in this test's folder; any disk has room.
+            mock.patch.object(broker_module.paths, "DEPS_ROOT", self.root.parent / ".cache"),
+            mock.patch.object(broker_module.setup, "free_space", return_value={"enough": True}),
         ]
         for item in patches:
             item.start()
@@ -200,8 +203,10 @@ class BrokerInstall(unittest.TestCase):
         broker.start_install()
         self.wait_finished(broker)
         self.assertEqual(broker.install["state"], "failed")
-        self.assertEqual(broker.install["code"], "INCOMPLETE")
+        # An unreachable download source is named as such, with what to do about it.
+        self.assertEqual(broker.install["code"], "NETWORK")
         self.assertEqual(broker.install["error"], "cli: yarn: ENOTFOUND registry.npmjs.org")
+        self.assertIn("internet connection", broker.install["hint"])
 
     def test_refused_while_a_chat_is_preparing(self):
         broker = bare_broker(FakeEngine({}))
