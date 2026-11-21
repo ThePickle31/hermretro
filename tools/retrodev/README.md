@@ -98,8 +98,8 @@ Each in full: `tools/retrodev/REFERENCE.md`, "Commands".
 
 ## Releases
 
-Only when the owner says "make a release": `release run` returns after publication. Run the printed `release next`
-separately, or add `--with-next` to wait inline. See `tools/retrodev/REFERENCE.md`, "Releases", for the gates.
+Only on the owner's release request: `release run` stops after publication. Run the printed `release next`
+separately (or pass `--with-next`). See [release gates](REFERENCE.md#releases).
 
 ## Exit codes
 
