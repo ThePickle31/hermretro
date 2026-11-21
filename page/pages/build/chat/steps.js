@@ -59,7 +59,7 @@ export function stepInfo(name, result) {
   }
 }
 
-/** The model, provider and effort a conversation runs on, from `session.info` (an event, or the `info`
+/** The model, provider, effort and fast mode a conversation runs on, from `session.info` (an event, or the `info`
  *  of a create / resume). A field the payload leaves out keeps its last value. */
 export function withInfo(chat, info) {
   if (!info || typeof info !== 'object') {
@@ -70,8 +70,11 @@ export function withInfo(chat, info) {
   const next = {
     model: typeof info.model === 'string' && info.model ? info.model : (current.model ?? null),
     provider: typeof info.provider === 'string' && info.provider ? info.provider : (current.provider ?? null),
-    effort: typeof info.reasoning_effort === 'string' ? info.reasoning_effort : (current.effort ?? '')
+    effort: typeof info.reasoning_effort === 'string' ? info.reasoning_effort : (current.effort ?? ''),
+    fast: typeof info.fast === 'boolean' ? info.fast : (current.fast ?? false)
   }
 
-  return next.model === current.model && next.provider === current.provider && next.effort === current.effort ? chat : { ...chat, info: next }
+  return next.model === current.model && next.provider === current.provider && next.effort === current.effort && next.fast === current.fast
+    ? chat
+    : { ...chat, info: next }
 }

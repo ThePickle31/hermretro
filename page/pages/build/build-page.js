@@ -531,7 +531,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
                 : fresh
                   ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick })
                   : shownStored
-                    ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored })
+                    ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored })
                     : null,
               placeholder: updating
                 ? 'hermretro is updating. You can send again in a moment.'

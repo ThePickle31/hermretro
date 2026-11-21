@@ -49,3 +49,15 @@ export function modelName(id) {
 }
 
 export const providerMark = name => (String(name ?? '?').replace(/[^A-Za-z0-9]/g, '')[0] ?? '?').toUpperCase()
+
+/** Each provider's mark for the panel: its first letter, or its first two when another provider starts with the same
+ *  one ("Cl" Claude Subscription, "Ch" ChatGPT or Codex Subscription). */
+export function providerMarks(providers) {
+  const letters = providers.map(item => String(item.name ?? item.slug ?? '?').replace(/[^A-Za-z0-9]/g, ''))
+  const first = letters.map(word => (word[0] ?? '?').toUpperCase())
+
+  return new Map(providers.map((item, index) => [
+    item.slug,
+    first.filter(letter => letter === first[index]).length > 1 ? first[index] + (letters[index][1] ?? '').toLowerCase() : first[index]
+  ]))
+}

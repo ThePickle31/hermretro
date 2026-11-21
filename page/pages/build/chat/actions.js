@@ -4,6 +4,7 @@ import { describeRequestError } from '#app/backend.js'
 import { studioTarget } from '#app/routing.js'
 import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { attachmentLine } from './attachments.js'
+import { FAST_PROVIDER, settleBuildPick } from './model-pick.js'
 import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
 import { APPROVAL_LABELS, schedulePromptCheck } from './requests.js'
@@ -86,14 +87,15 @@ export async function reopenBuildChat(stored) {
   }
 }
 
-/** A new hidden session in the studio profile, on the model and effort picked for it (else the profile's
- *  default). Returns its stored id. */
+/** A new hidden session in the studio profile, on the model, effort and fast mode picked for it (else the
+ *  profile's default). Fast mode is sent only for a ChatGPT or Codex Subscription model. Returns its stored id. */
 export async function createBuildChat(title, pick = null) {
   await retainChatRoute()
 
   const choice = {
     ...(pick?.model && pick?.provider ? { model: pick.model, provider: pick.provider } : {}),
-    ...(pick?.effort ? { reasoning_effort: pick.effort } : {})
+    ...(pick?.effort ? { reasoning_effort: pick.effort } : {}),
+    ...(typeof pick?.fast === 'boolean' && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {})
   }
   const result = await chatRequest('session.create', { hidden: true, title, source: 'gui', ...choice }, 60_000)
   const stored = result?.stored_session_id ?? result?.session_id
@@ -104,7 +106,7 @@ export async function createBuildChat(title, pick = null) {
   }
 
   buildRuntime.set(runtime, stored)
-  patchChat(stored, chat => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort }), runtime, title, items: [] }))
+  patchChat(stored, chat => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }))
 
   return stored
 }
@@ -130,6 +132,9 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     }
   }
 
+  const before = BUILD_CHATS.get()[stored]
+  // A model, effort or speed just picked is applied before the message goes, so the message runs on it.
+  const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true }
   const chat = BUILD_CHATS.get()[stored]
 
   const now = Date.now()
@@ -153,6 +158,14 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
 
   if (!chat?.runtime) {
     patchChat(stored, current => ({ ...current, items: [...current.items, { kind: 'error', text: 'This conversation could not be opened, so the message was not sent.' }] }))
+
+    return false
+  }
+
+  // The change it waited for failed ("Could not switch" says why): the message is kept to send again, not sent on
+  // settings the user just moved away from.
+  if (!settled.ok) {
+    patchChat(stored, current => endTurn({ ...current, items: [...current.items, { kind: 'error', text: 'The model change did not go through, so the message was not sent.', resend: { text, shown, attachments } }] }, 'error'))
 
     return false
   }

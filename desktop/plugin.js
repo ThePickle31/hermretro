@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 6d909ceec797d44b4487275593ec3ee9cee48669a609fe0fbe5d9bfa78bec85c
- * body: sha256 56fe8f400e07eb2211bd01c0678c44a60a519fa0637ac79ffc40b69baaa79375
+ * sources: sha256 49ecebab28b06f23afa1baffa24e0ca4b164189ba8909270900054eb0a98d5ee
+ * body: sha256 c69febf87e7f4bbe6b4561b1c6f401a127266b481464d4ffad3aaba19f0343dc
  */
 // page/sdk.js
 import {
@@ -566,9 +566,167 @@ function withInfo(chat, info) {
   const next = {
     model: typeof info.model === "string" && info.model ? info.model : current.model ?? null,
     provider: typeof info.provider === "string" && info.provider ? info.provider : current.provider ?? null,
-    effort: typeof info.reasoning_effort === "string" ? info.reasoning_effort : current.effort ?? ""
+    effort: typeof info.reasoning_effort === "string" ? info.reasoning_effort : current.effort ?? "",
+    fast: typeof info.fast === "boolean" ? info.fast : current.fast ?? false
   };
-  return next.model === current.model && next.provider === current.provider && next.effort === current.effort ? chat : { ...chat, info: next };
+  return next.model === current.model && next.provider === current.provider && next.effort === current.effort && next.fast === current.fast ? chat : { ...chat, info: next };
+}
+
+// page/pages/build/chat/store.js
+var BUILD_VIEWING = atom(null);
+var BUILD_PRESENTED = atom({});
+function notePresented({ gameId, seq, note, t }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
+}
+var buildShowing = () => BUILD_VIEWING.get();
+var BUILD_INJECT = atom({});
+function injectBuildDraft(stored, text2) {
+  const all = BUILD_INJECT.get();
+  BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
+}
+var BUILD_CHATS = atom({});
+var buildRuntime = /* @__PURE__ */ new Map();
+var isBuildSession = (runtime) => buildRuntime.has(runtime);
+var buildRetained = /* @__PURE__ */ new Map();
+var BUILD_EVENTS = [
+  "message.start",
+  "message.delta",
+  "message.interim",
+  "message.complete",
+  "reasoning.delta",
+  "thinking.delta",
+  "status.update",
+  "tool.generating",
+  "tool.start",
+  "tool.progress",
+  "tool.complete",
+  "approval.request",
+  "clarify.request",
+  "approval.settled",
+  "clarify.settled",
+  "error",
+  "session.replay_gap",
+  "session.info"
+];
+var newId = () => typeof randomUuid === "function" ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+async function retainChatRoute() {
+  const route = studioTarget()?.route;
+  if (!route || typeof host.retainProfile !== "function") {
+    return;
+  }
+  const key = routeProfile(route) ?? "default";
+  if (buildRetained.has(key)) {
+    return;
+  }
+  try {
+    buildRetained.set(key, await host.retainProfile(route, { spawnPriority: "foreground" }));
+  } catch (error) {
+    console.warn("[hermretro] could not keep the studio profile connection open:", describeRequestError(error).message);
+  }
+}
+async function chatRequest(method, params = {}, timeoutMs) {
+  const target = studioTarget();
+  if (!target) {
+    throw new StudioProfileMissing();
+  }
+  const { route } = target;
+  return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
+}
+function patchChat(stored, change) {
+  const all = BUILD_CHATS.get();
+  const current = all[stored] ?? { stored, items: [], busy: false, segments: {} };
+  const next = change(current);
+  if (next !== current) {
+    BUILD_CHATS.set({ ...all, [stored]: next });
+  }
+}
+
+// page/pages/build/chat/model-pick.js
+var FAST_PROVIDER = "openai-codex";
+var hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true;
+var failedAt = /* @__PURE__ */ new Map();
+async function pickBuildModel(stored, pick) {
+  const chat = BUILD_CHATS.get()[stored];
+  if (!chat?.runtime) {
+    return { ok: false };
+  }
+  patchChat(stored, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
+  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored);
+}
+async function applyBuildPick(stored, { confirmed = false } = {}) {
+  const chat = BUILD_CHATS.get()[stored];
+  const pick = chat?.heldPick;
+  if (!chat?.runtime || !pick || chat.applyingPick) {
+    return { ok: false };
+  }
+  patchChat(stored, (current) => ({ ...current, applyingPick: true }));
+  try {
+    if (pick.model && pick.provider) {
+      const answer = await chatRequest("config.set", {
+        session_id: chat.runtime,
+        key: "model",
+        value: `${pick.model} --provider ${pick.provider} --session`,
+        ...confirmed ? { confirm_expensive_model: true } : {}
+      });
+      if (answer?.confirm_required) {
+        patchChat(stored, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
+        return { ok: false, confirm: true };
+      }
+      patchChat(stored, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
+    }
+    if (pick.effort) {
+      await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
+      patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
+    }
+    const fast = pick.fast === true && pick.model && pick.fastOk === false ? false : pick.fast;
+    if (typeof fast === "boolean") {
+      await chatRequest("config.set", { session_id: chat.runtime, key: "fast", value: fast ? "fast" : "normal" });
+      patchChat(stored, (current) => withInfo(current, { fast }));
+    }
+    patchChat(stored, (current) => {
+      const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
+      const newer = heldPick && heldPick !== pick ? heldPick : null;
+      return newer ? { ...rest, heldPick: newer } : rest;
+    });
+    const next = BUILD_CHATS.get()[stored];
+    if (next?.heldPick && !next.busy) {
+      void applyBuildPick(stored);
+    }
+    return { ok: true };
+  } catch (error) {
+    const { message } = describeRequestError(error);
+    failedAt.set(stored, Date.now());
+    patchChat(stored, (current) => {
+      const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
+      return rest;
+    });
+    host.notify({ kind: "error", message: `Could not switch: ${message}` });
+    return { ok: false };
+  }
+}
+async function settleBuildPick(stored, limitMs = 3e4) {
+  const since = Date.now();
+  while (Date.now() - since < limitMs) {
+    const chat = BUILD_CHATS.get()[stored];
+    if ((failedAt.get(stored) ?? 0) >= since) {
+      return { ok: false };
+    }
+    if (!chat?.heldPick || chat.pickConfirm) {
+      return { ok: true };
+    }
+    if (!chat.applyingPick) {
+      await applyBuildPick(stored);
+    } else {
+      await new Promise((done) => setTimeout(done, 25));
+    }
+  }
+  return { ok: true };
+}
+function cancelBuildPick(stored) {
+  patchChat(stored, (current) => {
+    const { heldPick: _held, pickConfirm: _confirm, applyingPick: _applying, ...rest } = current;
+    return rest;
+  });
 }
 
 // page/pages/build/chat/history.js
@@ -874,136 +1032,6 @@ function reduceChat(chat, event) {
   }
 }
 
-// page/pages/build/chat/store.js
-var BUILD_VIEWING = atom(null);
-var BUILD_PRESENTED = atom({});
-function notePresented({ gameId, seq, note, t }) {
-  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
-}
-var buildShowing = () => BUILD_VIEWING.get();
-var BUILD_INJECT = atom({});
-function injectBuildDraft(stored, text2) {
-  const all = BUILD_INJECT.get();
-  BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
-}
-var BUILD_CHATS = atom({});
-var buildRuntime = /* @__PURE__ */ new Map();
-var isBuildSession = (runtime) => buildRuntime.has(runtime);
-var buildRetained = /* @__PURE__ */ new Map();
-var BUILD_EVENTS = [
-  "message.start",
-  "message.delta",
-  "message.interim",
-  "message.complete",
-  "reasoning.delta",
-  "thinking.delta",
-  "status.update",
-  "tool.generating",
-  "tool.start",
-  "tool.progress",
-  "tool.complete",
-  "approval.request",
-  "clarify.request",
-  "approval.settled",
-  "clarify.settled",
-  "error",
-  "session.replay_gap",
-  "session.info"
-];
-var newId = () => typeof randomUuid === "function" ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-async function retainChatRoute() {
-  const route = studioTarget()?.route;
-  if (!route || typeof host.retainProfile !== "function") {
-    return;
-  }
-  const key = routeProfile(route) ?? "default";
-  if (buildRetained.has(key)) {
-    return;
-  }
-  try {
-    buildRetained.set(key, await host.retainProfile(route, { spawnPriority: "foreground" }));
-  } catch (error) {
-    console.warn("[hermretro] could not keep the studio profile connection open:", describeRequestError(error).message);
-  }
-}
-async function chatRequest(method, params = {}, timeoutMs) {
-  const target = studioTarget();
-  if (!target) {
-    throw new StudioProfileMissing();
-  }
-  const { route } = target;
-  return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
-}
-function patchChat(stored, change) {
-  const all = BUILD_CHATS.get();
-  const current = all[stored] ?? { stored, items: [], busy: false, segments: {} };
-  const next = change(current);
-  if (next !== current) {
-    BUILD_CHATS.set({ ...all, [stored]: next });
-  }
-}
-
-// page/pages/build/chat/model-pick.js
-async function pickBuildModel(stored, pick) {
-  const chat = BUILD_CHATS.get()[stored];
-  if (!chat?.runtime) {
-    return { ok: false };
-  }
-  patchChat(stored, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
-  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored);
-}
-async function applyBuildPick(stored, { confirmed = false } = {}) {
-  const chat = BUILD_CHATS.get()[stored];
-  const pick = chat?.heldPick;
-  if (!chat?.runtime || !pick || chat.applyingPick) {
-    return { ok: false };
-  }
-  patchChat(stored, (current) => ({ ...current, applyingPick: true }));
-  try {
-    if (pick.model && pick.provider) {
-      const answer = await chatRequest("config.set", {
-        session_id: chat.runtime,
-        key: "model",
-        value: `${pick.model} --provider ${pick.provider} --session`,
-        ...confirmed ? { confirm_expensive_model: true } : {}
-      });
-      if (answer?.confirm_required) {
-        patchChat(stored, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
-        return { ok: false, confirm: true };
-      }
-      patchChat(stored, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
-    }
-    if (pick.effort) {
-      await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
-      patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
-    }
-    patchChat(stored, (current) => {
-      const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
-      const newer = heldPick && heldPick !== pick ? heldPick : null;
-      return newer ? { ...rest, heldPick: newer } : rest;
-    });
-    const next = BUILD_CHATS.get()[stored];
-    if (next?.heldPick && !next.busy) {
-      void applyBuildPick(stored);
-    }
-    return { ok: true };
-  } catch (error) {
-    const { message } = describeRequestError(error);
-    patchChat(stored, (current) => {
-      const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
-      return rest;
-    });
-    host.notify({ kind: "error", message: `Could not switch: ${message}` });
-    return { ok: false };
-  }
-}
-function cancelBuildPick(stored) {
-  patchChat(stored, (current) => {
-    const { heldPick: _held, pickConfirm: _confirm, applyingPick: _applying, ...rest } = current;
-    return rest;
-  });
-}
-
 // page/pages/build/chat/requests.js
 var promptChecks = /* @__PURE__ */ new Map();
 function toolRunning(chat) {
@@ -1111,7 +1139,8 @@ async function createBuildChat(title, pick = null) {
   await retainChatRoute();
   const choice = {
     ...pick?.model && pick?.provider ? { model: pick.model, provider: pick.provider } : {},
-    ...pick?.effort ? { reasoning_effort: pick.effort } : {}
+    ...pick?.effort ? { reasoning_effort: pick.effort } : {},
+    ...typeof pick?.fast === "boolean" && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {}
   };
   const result = await chatRequest("session.create", { hidden: true, title, source: "gui", ...choice }, 6e4);
   const stored = result?.stored_session_id ?? result?.session_id;
@@ -1120,7 +1149,7 @@ async function createBuildChat(title, pick = null) {
     throw new Error("Hermes did not return a session.");
   }
   buildRuntime.set(runtime, stored);
-  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort }), runtime, title, items: [] }));
+  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }));
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
@@ -1135,6 +1164,8 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
       return false;
     }
   }
+  const before = BUILD_CHATS.get()[stored];
+  const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true };
   const chat = BUILD_CHATS.get()[stored];
   const now = Date.now();
   const live = Boolean(chat?.runtime);
@@ -1153,6 +1184,10 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
+    return false;
+  }
+  if (!settled.ok) {
+    patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
     return false;
   }
   schedulePromptCheck(stored);
@@ -1866,8 +1901,260 @@ function modelName(id) {
   return { name: name || String(id ?? ""), tags };
 }
 var providerMark = (name) => (String(name ?? "?").replace(/[^A-Za-z0-9]/g, "")[0] ?? "?").toUpperCase();
+function providerMarks(providers) {
+  const letters = providers.map((item) => String(item.name ?? item.slug ?? "?").replace(/[^A-Za-z0-9]/g, ""));
+  const first = letters.map((word) => (word[0] ?? "?").toUpperCase());
+  return new Map(providers.map((item, index) => [
+    item.slug,
+    first.filter((letter) => letter === first[index]).length > 1 ? first[index] + (letters[index][1] ?? "").toLowerCase() : first[index]
+  ]));
+}
+
+// page/pages/build/composer/model-list.js
+var STARRED = "*starred";
+var starKey = (provider, model) => `${provider}:${model}`;
+function useModelRows(providers, tab, needle, stars) {
+  return useMemo(() => {
+    const row = (item2, model) => ({ model, provider: item2.slug, providerName: item2.name, caps: item2.capabilities?.[model] ?? null });
+    if (needle) {
+      return providers.map((item2) => ({
+        name: item2.name,
+        rows: item2.models.filter((model) => model.toLowerCase().includes(needle) || modelName(model).name.toLowerCase().includes(needle)).map((model) => row(item2, model))
+      })).filter((group) => group.rows.length);
+    }
+    if (tab === STARRED) {
+      return [{ name: null, rows: providers.flatMap((item2) => item2.models.filter((model) => stars.has(starKey(item2.slug, model))).map((model) => row(item2, model))) }];
+    }
+    const item = providers.find((provider) => provider.slug === tab);
+    return item ? [{ name: null, rows: item.models.map((model) => row(item, model)) }] : [];
+  }, [providers, tab, needle, stars]);
+}
+function ProviderRail({ providers, marks, tab, onTab, onConnect }) {
+  const tile = (key, label, mark, extra = {}) => jsxs(
+    "button",
+    {
+      "aria-label": label,
+      "aria-pressed": tab === key,
+      className: `cs-b-mp-tile${extra.className ? ` ${extra.className}` : ""}`,
+      onClick: () => onTab(key),
+      title: label,
+      type: "button",
+      children: [mark, jsx("span", { className: "cs-sr cs-b-mp-pname", children: label })]
+    },
+    key
+  );
+  return jsxs("div", {
+    "aria-label": "Providers",
+    className: "cs-b-mp-rail",
+    role: "group",
+    children: [
+      tile(STARRED, "Starred", jsx(Codicon, { name: "star-full", size: 14 }), { className: "cs-b-mp-starred" }),
+      jsx("span", { "aria-hidden": true, className: "cs-b-mp-sep" }),
+      ...providers.map((item) => tile(item.slug, item.name, jsx("span", { "aria-hidden": true, children: marks.get(item.slug) }), { className: "cs-b-mp-prov" })),
+      jsx("span", { className: "cs-grow" }),
+      jsx("button", {
+        "aria-label": "Connect another provider",
+        className: "cs-b-mp-tile",
+        onClick: onConnect,
+        title: "Connect another provider",
+        type: "button",
+        children: jsx(Codicon, { name: "add", size: 14 })
+      })
+    ]
+  });
+}
+function ModelRow({ row, mark, on, starred, withProvider, onChoose, onStar }) {
+  const label = modelName(row.model);
+  return jsxs("div", {
+    className: `cs-b-mp-item${on ? " on" : ""}${starred ? " starred" : ""}`,
+    children: [
+      jsxs("button", {
+        "aria-selected": on,
+        className: "cs-b-mp-row",
+        onClick: () => onChoose(row),
+        role: "option",
+        title: `${row.model} · ${row.providerName}`,
+        type: "button",
+        children: [
+          jsx("span", { "aria-hidden": true, className: "cs-b-mp-glyph", children: mark }),
+          // The starred list mixes providers: each row names its own under the model.
+          withProvider ? jsxs("span", { className: "cs-b-mp-label two", children: [jsx("span", { children: label.name }), jsx("small", { className: "cs-b-mp-from", children: row.providerName })] }) : jsx("span", { className: "cs-b-mp-label", children: label.name }),
+          ...label.tags.map((tag) => jsx("span", { className: "cs-b-mp-tag", children: tag }, tag)),
+          on ? jsx("span", { className: "cs-b-mp-check", children: jsx(Codicon, { name: "check", size: 12 }) }) : null
+        ]
+      }),
+      jsx("button", {
+        "aria-label": starred ? `Unstar ${label.name}` : `Star ${label.name}`,
+        "aria-pressed": starred,
+        className: "cs-b-mp-star",
+        onClick: () => onStar(row),
+        title: starred ? "Unstar" : "Star",
+        type: "button",
+        children: jsx(Codicon, { name: starred ? "star-full" : "star-empty", size: 12 })
+      })
+    ]
+  });
+}
+function ModelList({ groups, marks, head, search, query, setQuery, placeholder, shown, stars, onChoose, onStar, empty, withProvider }) {
+  const first = groups[0]?.rows[0];
+  return jsxs("div", {
+    className: "cs-b-mp-models",
+    children: [
+      jsxs("label", {
+        className: "cs-b-mp-search",
+        children: [
+          jsx(Codicon, { name: "search", size: 12 }),
+          jsx("input", {
+            "aria-label": "Search models",
+            onChange: (event) => setQuery(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter" && first) {
+                event.preventDefault();
+                onChoose(first);
+              }
+            },
+            placeholder,
+            ref: search,
+            value: query
+          })
+        ]
+      }),
+      head ? jsx("div", { className: "cs-b-mp-head", children: head }) : null,
+      jsx("div", {
+        className: "cs-b-mp-list",
+        role: "listbox",
+        children: groups.some((group) => group.rows.length) ? groups.flatMap((group) => [
+          group.name ? jsx("div", { className: "cs-b-mp-group", children: group.name }, `g:${group.name}`) : null,
+          ...group.rows.map(
+            (row) => jsx(
+              ModelRow,
+              {
+                mark: marks.get(row.provider),
+                on: row.model === shown.model && row.provider === shown.provider,
+                onChoose,
+                onStar,
+                row,
+                starred: stars.has(starKey(row.provider, row.model)),
+                withProvider
+              },
+              starKey(row.provider, row.model)
+            )
+          )
+        ]) : jsx("p", { className: "cs-faint", children: empty })
+      })
+    ]
+  });
+}
+var connectProvider = (close) => () => {
+  close();
+  host.navigate?.("/settings?tab=providers");
+};
+
+// page/pages/build/composer/model-settings.js
+var FAST_HINT = "Quicker replies. Uses more of your plan";
+var ARROWS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+function radioProps(keys, current, index, pick, disabled) {
+  return {
+    "data-key": keys[index],
+    tabIndex: (keys.includes(current) ? keys[index] === current : index === 0) ? 0 : -1,
+    onKeyDown: (event) => {
+      const step = ARROWS[event.key];
+      if (!step || disabled) {
+        return;
+      }
+      event.preventDefault();
+      const next = keys[(index + step + keys.length) % keys.length];
+      pick(next);
+      event.currentTarget.parentElement?.querySelector(`[data-key="${next}"]`)?.focus?.();
+    }
+  };
+}
+function EffortColumn({ caps, shown, disabled, narrow, onEffort }) {
+  const fixed = caps ? caps.reasoning === false : false;
+  const levels = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
+  const picked = EFFORTS.find(([key]) => key === shown.effort);
+  return jsxs("div", {
+    className: "cs-b-mp-effort",
+    children: [
+      jsxs("div", {
+        className: "cs-b-mp-ehead",
+        children: [
+          jsx("span", { children: "Effort" }),
+          shown.model ? jsx("span", { className: "cs-b-mp-emodel", title: shown.model, children: modelName(shown.model).name }) : null
+        ]
+      }),
+      jsx("div", {
+        "aria-label": "Effort",
+        className: "cs-b-mp-levels",
+        role: "radiogroup",
+        children: levels.map(
+          ([key, label, hint], index) => jsxs(
+            "button",
+            {
+              ...radioProps(levels.map(([level]) => level), shown.effort, index, (next) => next !== shown.effort && onEffort(next), disabled || fixed),
+              "aria-checked": shown.effort === key,
+              disabled: disabled || fixed,
+              onClick: () => key !== shown.effort && onEffort(key),
+              role: "radio",
+              title: hint,
+              type: "button",
+              children: [label, shown.effort === key ? jsx(Codicon, { name: "check", size: 12 }, "check") : null]
+            },
+            key
+          )
+        )
+      }),
+      narrow ? null : jsxs("div", {
+        className: "cs-b-mp-enote",
+        children: fixed ? [jsx("b", { children: "Fixed" }, "b"), "This model has a fixed effort"] : picked ? [jsx("b", { children: picked[1] }, "b"), picked[2]] : [jsx("b", { children: "Default" }, "b"), "The model’s own effort"]
+      })
+    ]
+  });
+}
+function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
+  return jsxs("div", {
+    className: "cs-b-mp-bar",
+    children: [
+      speed ? jsx("div", {
+        "aria-label": "Speed",
+        className: "cs-b-seg cs-b-mp-speed",
+        role: "radiogroup",
+        children: [
+          ["normal", false, "Standard", "Standard speed"],
+          ["fast", true, [jsx(Codicon, { name: "zap", size: 11 }, "zap"), "Fast"], FAST_HINT]
+        ].map(
+          ([key, on, label, title], index) => jsx(
+            "button",
+            {
+              ...radioProps(["normal", "fast"], fast ? "fast" : "normal", index, (next) => next === "fast" !== fast && onFast(next === "fast"), disabled),
+              "aria-checked": fast === on,
+              className: on ? "cs-b-mp-fast" : void 0,
+              disabled,
+              onClick: () => on !== fast && onFast(on),
+              role: "radio",
+              title,
+              type: "button",
+              children: label
+            },
+            key
+          )
+        )
+      }) : null,
+      jsx("span", { className: "cs-grow" }),
+      held ? jsx("span", { className: "cs-b-mp-held", children: narrow ? "Switches after this turn" : `Switches when ${AGENT} finishes this turn` }) : jsxs("button", {
+        className: "cs-b-mp-manage",
+        onClick: onManage,
+        type: "button",
+        children: [narrow ? "Providers" : "Manage providers", jsx(Codicon, { name: "chevron-right", size: 11 }, "go")]
+      })
+    ]
+  });
+}
 
 // page/pages/build/composer/model-picker.js
+var PANEL = 560;
+var NARROW = 500;
+var TINY = 440;
 function useModelOptions(runtime) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
@@ -1879,46 +2166,99 @@ function useModelOptions(runtime) {
     retry: 1
   });
 }
-function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function panelArea(node) {
+  let start = 0;
+  let end = window.innerWidth || 1200;
+  let clip = null;
+  for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    const rect = parent.getBoundingClientRect();
+    if (rect.width > 0 && getComputedStyle(parent).overflowX !== "visible") {
+      start = Math.max(start, rect.left);
+      end = Math.min(end, rect.right);
+      clip = parent;
+      break;
+    }
+  }
+  return { start, end, clip };
+}
+function useStars(ctx) {
+  const [stars, setStars] = useState(() => {
+    try {
+      const saved = ctx?.storage?.get?.("buildModelStars", []);
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch {
+      return /* @__PURE__ */ new Set();
+    }
+  });
+  const toggle = (key) => {
+    const next = new Set(stars);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setStars(next);
+    try {
+      ctx?.storage?.set?.("buildModelStars", [...next]);
+    } catch {
+    }
+  };
+  return [stars, toggle];
+}
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
+  const [stars, toggleStar] = useStars(ctx);
   const box = useRef(null);
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
-  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? "" };
+  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
+  const marks = useMemo(() => providerMarks(providers), [providers]);
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
   const caps = current?.capabilities?.[shown.model] ?? null;
-  const fixedEffort = caps ? caps.reasoning === false : false;
-  const efforts = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
-  const activeTab = providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
+  const speed = hasFastMode(shown.provider, caps);
+  const activeTab = tab === STARRED || providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
+  const activeProvider = providers.find((item) => item.slug === activeTab) ?? null;
   const needle = query.trim().toLowerCase();
-  const rows = useMemo(() => {
-    const list = needle ? providers : providers.filter((item) => item.slug === activeTab);
-    return list.flatMap(
-      (item) => item.models.filter((model) => !needle || model.toLowerCase().includes(needle) || modelName(model).name.toLowerCase().includes(needle)).map((model) => ({ model, provider: item.slug, providerName: item.name, caps: item.capabilities?.[model] ?? null }))
-    );
-  }, [providers, activeTab, needle]);
+  const groups = useModelRows(providers, activeTab, needle, stars);
   const name = shown.model ? modelName(shown.model).name : "Default model";
   const [place, setPlace] = useState(null);
+  const narrow = Boolean(place && place.width < NARROW);
+  const tiny = Boolean(place && place.width < TINY);
   useLayoutEffect(() => {
     if (!open || !box.current?.getBoundingClientRect) {
       setPlace(null);
-      return;
+      return void 0;
     }
-    const left = box.current.getBoundingClientRect().left;
-    const room = (window.innerWidth || 1200) - 24;
-    const width = Math.min(580, room);
-    const shift = Math.min(0, room + 12 - left - width);
-    setPlace({ left: shift, width });
+    const measure = () => {
+      if (!box.current) {
+        return null;
+      }
+      const left = box.current.getBoundingClientRect().left;
+      const { start, end, clip: clip2 } = panelArea(box.current);
+      const width = Math.min(PANEL, end - start - 24);
+      const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width));
+      setPlace((last) => last && last.left === shift && last.width === width ? last : { left: shift, width });
+      return clip2;
+    };
+    const clip = measure();
+    const watch = typeof ResizeObserver === "function" && clip ? new ResizeObserver(() => measure()) : null;
+    watch?.observe(clip);
+    window.addEventListener("resize", measure);
+    return () => {
+      watch?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [open]);
   useEffect(() => {
     if (!open) {
       return void 0;
     }
     setQuery("");
+    setTab(null);
     const focus = () => search.current?.focus?.();
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(focus);
@@ -1951,41 +2291,13 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
   const choose = (row) => {
     setOpen(false);
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider });
+      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} }, row);
     }
   };
-  const effortRow = jsxs("div", {
-    className: "cs-b-mp-effort",
-    children: [
-      jsxs("div", {
-        className: "cs-row",
-        children: [
-          jsx("span", { className: "cs-eyebrow", children: "Effort" }),
-          jsx("span", { className: "cs-grow" }),
-          jsx("span", { className: "cs-faint", children: fixedEffort ? "This model has a fixed effort" : EFFORTS.find(([key]) => key === shown.effort)?.[2] ?? "The model’s default" })
-        ]
-      }),
-      jsx("div", {
-        "aria-label": "Effort",
-        className: "cs-b-seg",
-        role: "radiogroup",
-        children: efforts.map(
-          ([key, label]) => jsx(
-            "button",
-            {
-              "aria-checked": shown.effort === key,
-              disabled: disabled || fixedEffort,
-              onClick: () => key !== shown.effort && onEffort(key),
-              role: "radio",
-              type: "button",
-              children: label
-            },
-            key
-          )
-        )
-      })
-    ]
-  });
+  const close = () => setOpen(false);
+  const count = activeProvider ? activeProvider.total_models ?? activeProvider.models.length : 0;
+  const head = needle ? null : activeTab === STARRED ? [jsx("b", { children: "Starred" }, "b"), narrow ? null : jsx("span", { children: "· from every provider" }, "n")] : activeProvider ? [jsx("b", { title: activeProvider.name, children: activeProvider.name }, "b"), jsx("span", { children: narrow ? `· ${count}` : `· ${count} ${count === 1 ? "model" : "models"}` }, "n")] : null;
+  const empty = needle ? "No model matches." : activeTab === STARRED ? "Star a model with its ☆ to keep it here." : !data && !options?.isError ? "Loading…" : options?.isError ? "Could not list the models." : "No provider is connected.";
   return jsxs("div", {
     className: "cs-b-mp",
     ref: box,
@@ -1999,17 +2311,18 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
         title: shown.model ? `${shown.model} · ${current?.name ?? shown.provider ?? ""}` : "Model and effort",
         type: "button",
         children: [
-          signedOut ? jsx(Codicon, { name: "warning", size: 12 }) : jsx("span", { "aria-hidden": true, className: "cs-b-mp-mark", children: providerMark(current?.name ?? shown.provider) }),
+          signedOut ? jsx(Codicon, { name: "warning", size: 12 }) : jsx("span", { "aria-hidden": true, className: "cs-b-mp-mark", children: marks.get(current?.slug) ?? providerMark(shown.provider) }),
           jsx("span", { className: "cs-b-mp-name", children: signedOut ? `${shown.provider} is signed out` : name }),
           !signedOut ? jsx("span", { className: "cs-b-mp-dot", children: "·" }) : null,
           !signedOut ? jsx("span", { className: "cs-b-mp-effortname", children: effortLabel(shown.effort) }) : null,
-          held ? jsx("span", { className: "cs-b-mp-next", title: `Switches when ${AGENT} finishes this turn`, children: "next message" }) : null,
+          !signedOut && shown.fast ? jsx("span", { "aria-label": "Fast mode", className: "cs-b-mp-bolt", role: "img", title: "Fast mode", children: jsx(Codicon, { name: "zap", size: 11 }) }) : null,
+          waiting ? jsx("span", { className: "cs-b-mp-next", title: `Switches when ${AGENT} finishes this turn`, children: "next message" }) : null,
           jsx(Codicon, { name: "chevron-down", size: 11 })
         ]
       }),
       open ? jsxs("div", {
         "aria-label": "Model and effort",
-        className: `cs-b-mp-pop${up ? " up" : ""}${place && place.width < 520 ? " narrow" : ""}`,
+        className: `cs-b-mp-pop${up ? " up" : ""}${narrow ? " narrow" : ""}${tiny ? " tiny" : ""}`,
         role: "dialog",
         style: place ? { left: place.left, width: place.width } : void 0,
         children: [
@@ -2024,118 +2337,55 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
           jsxs("div", {
             className: "cs-b-mp-body",
             children: [
-              jsxs("div", {
-                className: "cs-b-mp-providers",
-                children: [
-                  jsx("span", { className: "cs-eyebrow", children: "Providers" }),
-                  ...providers.map(
-                    (item) => jsxs(
-                      "button",
-                      {
-                        "aria-pressed": !needle && item.slug === activeTab,
-                        className: "cs-b-mp-prov",
-                        onClick: () => {
-                          setTab(item.slug);
-                          setQuery("");
-                        },
-                        title: item.name,
-                        type: "button",
-                        children: [
-                          jsx("span", { className: "cs-b-mp-pname", children: item.name }),
-                          jsx("small", { children: item.total_models ?? item.models.length })
-                        ]
-                      },
-                      item.slug
-                    )
-                  ),
-                  !data && !options?.isError ? jsx("span", { className: "cs-faint", children: "Loading…" }) : null,
-                  options?.isError ? jsx("span", { className: "cs-faint", children: "Could not list the models." }) : null,
-                  data && !providers.length ? jsx("span", { className: "cs-faint", children: "No provider is connected." }) : null,
-                  jsx("span", { className: "cs-grow" }),
-                  jsxs("button", {
-                    className: "cs-b-link",
-                    onClick: () => {
-                      setOpen(false);
-                      host.navigate?.("/settings?tab=providers");
-                    },
-                    type: "button",
-                    children: [jsx(Codicon, { name: "add", size: 11 }), " Connect another"]
-                  })
-                ]
+              jsx(ProviderRail, {
+                marks,
+                onConnect: connectProvider(close),
+                onTab: (key) => {
+                  setTab(key);
+                  setQuery("");
+                },
+                providers,
+                tab: needle ? null : activeTab
               }),
-              jsxs("div", {
-                className: "cs-b-mp-models",
-                children: [
-                  jsxs("label", {
-                    className: "cs-b-mp-search",
-                    children: [
-                      jsx(Codicon, { name: "search", size: 12 }),
-                      jsx("input", {
-                        "aria-label": "Search models",
-                        onChange: (event) => setQuery(event.target.value),
-                        onKeyDown: (event) => {
-                          if (event.key === "Enter" && rows[0]) {
-                            event.preventDefault();
-                            choose(rows[0]);
-                          }
-                        },
-                        placeholder: needle || !activeTab ? "Search every provider" : `Search ${providers.find((item) => item.slug === activeTab)?.name ?? ""}`,
-                        ref: search,
-                        value: query
-                      })
-                    ]
-                  }),
-                  jsx("div", {
-                    className: "cs-b-mp-list",
-                    role: "listbox",
-                    children: rows.length ? rows.map((row) => {
-                      const label = modelName(row.model);
-                      const on = row.model === shown.model && row.provider === shown.provider;
-                      return jsxs(
-                        "button",
-                        {
-                          "aria-selected": on,
-                          className: "cs-b-mp-row",
-                          onClick: () => choose(row),
-                          role: "option",
-                          title: row.model,
-                          type: "button",
-                          children: [
-                            jsx("span", { className: "cs-b-mp-check", children: on ? jsx(Codicon, { name: "check", size: 12 }) : null }),
-                            jsxs("span", {
-                              className: "cs-b-mp-label",
-                              children: [label.name, needle ? jsx("small", { children: row.providerName }) : null]
-                            }),
-                            jsx("span", { className: "cs-grow" }),
-                            ...label.tags.map((tag) => jsx("span", { className: "cs-b-mp-tag", children: tag }, tag)),
-                            row.caps?.fast ? jsx("span", { className: "cs-b-mp-tag", children: "fast mode" }) : null
-                          ]
-                        },
-                        `${row.provider}:${row.model}`
-                      );
-                    }) : jsx("p", { className: "cs-faint", children: needle ? "No model matches." : "Pick a provider." })
-                  }),
-                  effortRow
-                ]
-              })
+              jsx(ModelList, {
+                empty,
+                groups,
+                head,
+                marks,
+                onChoose: choose,
+                onStar: (row) => toggleStar(starKey(row.provider, row.model)),
+                placeholder: "Search models",
+                query,
+                search,
+                setQuery,
+                shown,
+                stars,
+                withProvider: !needle && activeTab === STARRED
+              }),
+              jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
             ]
           }),
-          held ? jsx("p", { className: "cs-b-mp-foot", children: `Switches when ${AGENT} finishes this turn.` }) : null
+          jsx(SpeedBar, { disabled: disabled || Boolean(confirm), fast: shown.fast, held: waiting, narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
         ]
       }) : null
     ]
   });
 }
-function ChatModelPicker({ stored, chat, disabled }) {
+function ChatModelPicker({ ctx, stored, chat, disabled }) {
   const options = useModelOptions(chat?.runtime ?? null);
   return jsx(ModelPicker, {
+    ctx,
     confirm: chat?.pickConfirm ?? null,
     disabled,
-    held: chat?.busy ? chat?.heldPick ?? null : null,
+    // A model that asks first is not on its way until Use it: until then the panel keeps the model in use.
+    pending: chat?.pickConfirm ? null : chat?.heldPick ?? null,
+    waiting: Boolean(chat?.busy && chat?.heldPick),
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: (effort) => void pickBuildModel(stored, { effort }),
-    onPick: (pick) => void pickBuildModel(stored, pick),
+    onFast: (fast) => void pickBuildModel(stored, { fast }),
+    // A model pick says whether that model has fast mode, so a Fast picked before it is applied is checked against it.
+    onPick: (pick, row) => void pickBuildModel(stored, { ...pick, fastOk: hasFastMode(row.provider, row.caps) }),
     options,
     value: chat?.info ?? null
   });
@@ -2143,8 +2393,11 @@ function ChatModelPicker({ stored, chat, disabled }) {
 function DraftModelPicker({ ctx, pick, onPick, up = true }) {
   const options = useModelOptions(null);
   return jsx(ModelPicker, {
+    ctx,
     up,
     onEffort: (effort) => onPick({ ...pick, effort }),
+    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
+    onFast: (fast, at) => onPick({ ...pick, ...at.model && at.provider ? at : {}, fast }),
     onPick: (choice) => onPick({ ...pick, ...choice }),
     options,
     value: pick
@@ -3430,7 +3683,7 @@ function usePlaytest(ctx, gameId, n, report) {
 var PANEL_WIDTH = 300;
 var FOLD_WIDTH = 34;
 var STAGE_PAD = 16;
-var NARROW = 760;
+var NARROW2 = 760;
 var HEIGHT_SHARE = 0.74;
 function useRoom(ref) {
   const [room, setRoom] = useState({ width: 0, height: typeof window === "undefined" ? 800 : window.innerHeight });
@@ -3495,7 +3748,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const [sending, setSending] = useState(false);
   const room = useRoom(rootRef);
   const full = useFullScreen(screenRef);
-  const narrow = room.width > 0 && room.width < NARROW;
+  const narrow = room.width > 0 && room.width < NARROW2;
   const showPanel = annotate.active || panelOpen;
   const complete = playtest.counts.complete;
   useEffect(() => {
@@ -10858,7 +11111,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
         disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
         onSend: (text2, attachments) => void send(text2, attachments),
         onStop: () => void stopBuildChat(shownStored),
-        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, disabled: !shownChat?.runtime, stored: shownStored }) : null,
+        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
         placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
@@ -12625,7 +12878,7 @@ var MENTIONS_CSS = `
 
 // page/pages/build/composer/model-picker.css.js
 var MODEL_PICKER_CSS = `
-/* model and effort */
+/* model and effort: the button under the message box */
 .cs-b-mp { position: relative; min-width: 0; }
 .cs-b-mp-chip { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-secondary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 6px; max-width: 100%; min-width: 0; padding: 4px 8px 4px 5px; transition: background .12s ease, color .12s ease; white-space: nowrap; }
 .cs-b-mp-chip:hover, .cs-b-mp-chip.open { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
@@ -12636,39 +12889,73 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-dot { color: var(--ui-text-quaternary); }
 .cs-b-mp-next { border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: 4px; color: var(--ui-accent); font-size: 10px; line-height: 15px; padding: 0 5px; }
 .cs-b-mp-mark { align-items: center; background: color-mix(in srgb, var(--ui-accent) 22%, var(--ui-bg-quaternary)); border-radius: 4px; color: var(--ui-text-primary); display: inline-flex; flex: none; font: 800 9px/1 var(--dt-font-sans, inherit); height: 16px; justify-content: center; width: 16px; }
-.cs-b-mp-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; left: 0; max-width: calc(100vw - 24px); overflow: hidden; position: absolute; top: calc(100% + 6px); width: 580px; z-index: 30; }
+.cs-b-mp-bolt { align-items: center; color: var(--ui-yellow); display: inline-flex; flex: none; }
+/* the panel: provider rail | models | effort, and the speed bar along the bottom */
+.cs-b-mp-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; left: 0; max-width: calc(100vw - 24px); overflow: hidden; position: absolute; top: calc(100% + 6px); width: 560px; z-index: 30; }
 .cs-b-mp-pop.up { bottom: calc(100% + 8px); top: auto; }
-.cs-b-mp-body { display: flex; min-height: 0; }
-.cs-b-mp-providers { border-right: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 2px; padding: 10px 6px; width: 190px; }
-.cs-b-mp-providers > .cs-eyebrow { padding: 0 8px 4px; }
-.cs-b-mp-providers > .cs-faint { padding: 4px 8px; }
-.cs-b-mp-providers > .cs-b-link { align-self: flex-start; padding: 6px 8px; }
-.cs-b-mp-prov, .cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 7px; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 8px; min-width: 0; padding: 6px 8px; text-align: left; width: 100%; }
-.cs-b-mp-prov:hover, .cs-b-mp-row:hover { background: var(--ui-bg-quaternary); }
-.cs-b-mp-prov[aria-pressed='true'] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); }
-.cs-b-mp-pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-mp-prov small { color: var(--ui-text-quaternary); font-size: 10.5px; }
+.cs-b-mp-body { display: flex; height: 304px; min-height: 0; }
+.cs-b-mp-rail { align-items: center; border-right: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 4px; overflow-y: auto; padding: 8px 0; scrollbar-width: none; width: 46px; }
+.cs-b-mp-tile { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 7px; color: var(--ui-text-tertiary); cursor: pointer; display: flex; flex: none; font: 800 12px/1 var(--dt-font-sans, inherit); height: 30px; justify-content: center; position: relative; width: 30px; }
+.cs-b-mp-tile:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-tile[aria-pressed='true'] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-tile[aria-pressed='true']::before { background: var(--ui-accent); border-radius: 0 2px 2px 0; content: ''; height: 18px; left: -8px; position: absolute; top: 6px; width: 2px; }
+.cs-b-mp-sep { background: var(--ui-stroke-tertiary); flex: none; height: 1px; margin: 2px 0; width: 22px; }
 .cs-b-mp-models { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.cs-b-mp-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-quaternary); display: flex; gap: 8px; padding: 8px 12px; }
-.cs-b-mp-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 12.5px; min-width: 0; outline: none; }
-.cs-b-mp-list { display: flex; flex-direction: column; max-height: 236px; overflow-y: auto; overscroll-behavior: contain; padding: 6px; }
-.cs-b-mp-list > .cs-faint { margin: 0; padding: 10px; }
-.cs-b-mp-row[aria-selected='true'] { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
-.cs-b-mp-check { color: var(--ui-accent); display: inline-flex; flex: none; width: 14px; }
-.cs-b-mp-label { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-b-mp-label small { color: var(--ui-text-quaternary); font-size: 10.5px; }
+.cs-b-mp-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin: 8px 10px 2px; padding: 5px 6px; }
+.cs-b-mp-search:focus-within { border-bottom-color: var(--ui-accent); }
+.cs-b-mp-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 13px; min-width: 0; outline: none; }
+.cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; flex-wrap: wrap; font-size: 11px; gap: 0 5px; min-width: 0; padding: 6px 16px 2px; }
+.cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.cs-b-mp-head span { white-space: nowrap; }
+.cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; -webkit-mask-image: linear-gradient(black calc(100% - 28px), transparent); mask-image: linear-gradient(black calc(100% - 28px), transparent); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 24px; }
+.cs-b-mp-list > .cs-faint { margin: 0; padding: 10px 8px; }
+.cs-b-mp-group { color: var(--ui-text-quaternary); flex: none; font: 700 9.5px/1.3 var(--dt-font-mono, ui-monospace, monospace); letter-spacing: .12em; padding: 8px 8px 3px; text-transform: uppercase; }
+.cs-b-mp-item { align-items: center; border-radius: 7px; display: flex; flex: none; min-width: 0; }
+.cs-b-mp-item:hover { background: var(--ui-bg-quaternary); }
+.cs-b-mp-item.on { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+.cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; flex: 1; font: inherit; font-size: 13px; gap: 8px; min-width: 0; padding: 6px 4px 6px 8px; text-align: left; }
+.cs-b-mp-glyph { color: var(--ui-text-quaternary); flex: none; font: 800 10px/1 var(--dt-font-sans, inherit); text-align: center; width: 16px; }
+.cs-b-mp-label { min-width: 0; overflow-wrap: anywhere; }
 .cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
-.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; }
+.cs-b-mp-check { color: var(--ui-text-secondary); display: inline-flex; flex: none; }
+.cs-b-mp-label.two { display: flex; flex-direction: column; white-space: normal; }
+.cs-b-mp-label.two > span { overflow-wrap: anywhere; }
+.cs-b-mp-from { color: var(--ui-text-quaternary); font-size: 11px; line-height: 1.3; }
+.cs-b-mp-star { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-quaternary); cursor: pointer; display: inline-flex; flex: none; height: 24px; justify-content: center; margin-right: 4px; opacity: 0; width: 24px; }
+.cs-b-mp-item:hover .cs-b-mp-star, .cs-b-mp-item.on .cs-b-mp-star, .cs-b-mp-star:focus-visible, .cs-b-mp-item.starred .cs-b-mp-star { opacity: 1; }
+.cs-b-mp-star:hover { color: var(--ui-text-primary); }
+.cs-b-mp-item.starred .cs-b-mp-star { color: var(--ui-yellow); }
+.cs-b-mp-effort { border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; min-height: 0; padding: 8px 0 0; width: 172px; }
+.cs-b-mp-ehead { align-items: baseline; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 0 8px; padding: 5px 14px 6px; }
+.cs-b-mp-emodel { color: var(--ui-text-quaternary); font-size: 11px; margin-left: auto; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.cs-b-mp-levels { display: flex; flex-direction: column; }
+.cs-b-mp-levels button { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; font-size: 13px; justify-content: space-between; padding: 5px 14px; text-align: left; white-space: nowrap; }
+.cs-b-mp-levels button:hover:not(:disabled) { background: var(--ui-bg-quaternary); }
+.cs-b-mp-levels button[aria-checked='true'] { background: color-mix(in srgb, var(--ui-accent) 10%, transparent); }
+.cs-b-mp-levels button:disabled { color: var(--ui-text-quaternary); cursor: default; }
+.cs-b-mp-enote { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-tertiary); font-size: 11px; line-height: 1.35; margin-top: auto; padding: 8px 14px 10px; }
+.cs-b-mp-enote b { color: var(--ui-text-primary); display: block; font-size: 12px; font-weight: 500; }
+.cs-b-mp-bar { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; gap: 10px; min-height: 44px; padding: 7px 10px; }
 .cs-b-seg { background: var(--ui-bg-quaternary); border-radius: 8px; display: flex; gap: 2px; padding: 2px; }
-.cs-b-seg button { appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; flex: 1; font: inherit; font-size: 11.5px; padding: 5px 0; transition: background .12s ease, color .12s ease; }
+.cs-b-seg button { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 4px; padding: 4px 10px; transition: background .12s ease, color .12s ease; white-space: nowrap; }
 .cs-b-seg button:hover:not(:disabled) { color: var(--ui-text-primary); }
 .cs-b-seg button[aria-checked='true'] { background: var(--ui-bg-secondary); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-primary); }
+.cs-b-seg button.cs-b-mp-fast[aria-checked='true'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-yellow); }
 .cs-b-seg button:disabled { cursor: default; opacity: .5; }
+.cs-b-mp-manage { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12px; gap: 4px; padding: 4px 6px; white-space: nowrap; }
+.cs-b-mp-manage:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-mp-held { color: var(--ui-text-tertiary); font-size: 11.5px; white-space: nowrap; }
 .cs-b-mp-confirm { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, var(--ui-bg-secondary)); border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 8px 12px; }
-.cs-b-mp-foot { border-top: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-tertiary); font-size: 11.5px; margin: 0; padding: 7px 12px; }
+.cs-b-mp-pop.narrow .cs-b-mp-effort { width: 120px; }
+.cs-b-mp-pop.narrow .cs-b-mp-emodel { display: none; }
+/* too narrow for three columns: Effort moves under the models as a wrapping row */
+.cs-b-mp-pop.tiny .cs-b-mp-body { flex-wrap: wrap; height: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-rail, .cs-b-mp-pop.tiny .cs-b-mp-models { height: 250px; }
+.cs-b-mp-pop.tiny .cs-b-mp-effort { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); flex-basis: 100%; padding: 4px 8px 8px; width: auto; }
+.cs-b-mp-pop.tiny .cs-b-mp-ehead { padding: 4px 6px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+.cs-b-mp-pop.tiny .cs-b-mp-levels button { border-radius: 6px; gap: 4px; justify-content: center; padding: 4px 8px; }
 .cs-b-comp-row { align-items: center; display: flex; gap: 8px; min-width: 0; }
-.cs-b-mp-pop.narrow .cs-b-mp-providers { width: 140px; }
-.cs-b-mp-pop.narrow .cs-b-seg button { font-size: 10.5px; }
 @container (max-width: 560px) { .cs-b-mp-name, .cs-b-mp-dot { display: none; } }
 .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .cs-b-link { appearance: none; background: none; border: 0; color: var(--ui-accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
