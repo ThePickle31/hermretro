@@ -16,8 +16,8 @@ request into `dev` and CI.
 
 ## Trying a change in Hermes Desktop
 
-1. Link your checkout as the plugin instead of installing it (the README, "Install": "For development, link a
-   checkout instead"), and enable it.
+1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development,
+   link a checkout instead of installing the plugin"), and enable it.
 2. Page changes (`page/`): rebuild with `node tools/bundle/bundle.mjs` (or keep `node tools/bundle/bundle.mjs
    --watch` running) and reload the app's window; the gateway keeps running.
 3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/` load only when the gateway starts: restart it
