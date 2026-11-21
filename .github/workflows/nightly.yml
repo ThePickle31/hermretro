@@ -75,23 +75,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The newest tag may already point at HEAD. Never treat a same-commit reinstall as upgrade coverage.
-          candidate=$(git rev-parse HEAD)
-          tags=$(git tag --merged "$candidate" --list 'v*' --sort=-v:refname)
-          published=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')
-          while IFS= read -r tag; do
-            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
-            grep -Fxq -- "$tag" <<< "$published" || continue
-            baseline=$(git rev-parse --verify "refs/tags/$tag^{commit}")
-            if [[ "$baseline" != "$candidate" ]]; then
-              echo "Checking $tag ($baseline) -> $candidate"
-              python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from "$baseline"
-              exit 0
-            fi
-          done <<< "$tags"
-          echo '::error::No earlier published stable release found. FIX: dispatch on a commit with a published ancestor.'
-          exit 1
+          baseline=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            | python3 -I tools/ci/published_baseline.py)
+          python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from "$baseline"
 
   integration:
     name: Integration
