@@ -145,6 +145,9 @@ jobs:
           fi
       - name: python tools/ci/hermes_api_check.py
         run: '"$HERMES_RUNTIME_PY" -I tools/ci/hermes_api_check.py'
+      # The Build page's untitled session.create on this Hermes: fresh, empty, on the picked model and provider.
+      - name: python tools/ci/build_session_check.py
+        run: '"$HERMES_RUNTIME_PY" -I tools/ci/build_session_check.py'
       - name: python tools/ci/clean_install_check.py
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
       # Installs the newest v* release on origin/main, uses it, then `hermes plugins update`s it to this commit.

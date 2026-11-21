@@ -257,7 +257,8 @@ function buildScenario(label, live, history = HISTORY) {
       'plugin.hermretro.build_restore': { ok: true, restored: SNAPSHOTS[1].id },
       'model.options': MODEL_OPTIONS,
       'config.set': params => ({ key: params?.key, value: params?.value }),
-      'prompt.submit': { ok: true }, 'session.interrupt': { ok: true }, 'session.create': { session_id: 'rt-new', stored_session_id: 'st-new' }
+      'prompt.submit': { ok: true }, 'session.interrupt': { ok: true },
+      'session.create': params => ({ session_id: 'rt-new', stored_session_id: 'st-new', info: { ...MODEL_OPTIONS, ...params } })
     },
     live
   }
