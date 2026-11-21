@@ -161,16 +161,16 @@ class Contribution(ScaffoldCase):
     def test_a_second_contribution_joins_the_list_in_pages_order(self):
         self.host()
         self.new("contribution", "rdprobe-host", "rdprobe-host.extra", "RdprobeLater")  # the last page
-        self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeFirst")  # the first page
+        self.new("contribution", "build", "rdprobe-host.extra", "RdprobeFirst")  # the first page
         registry = self.read("tests/page/registry.test.mjs")
         self.assertIn("'rdprobe-host.extra': [RdprobeFirst, RdprobeLater]", registry)
-        self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeSecond")
-        self.assertIn("'rdprobe-host.extra': [RdprobeFirst, RdprobeSecond]", self.read("page/pages/prompts/index.js"))
+        self.new("contribution", "build", "rdprobe-host.extra", "RdprobeSecond")
+        self.assertIn("'rdprobe-host.extra': [RdprobeFirst, RdprobeSecond]", self.read("page/pages/build/index.js"))
 
     def test_an_undeclared_slot_is_refused_naming_the_declared_ones(self):
         self.host()
         before = git(self.tree, "status", "--porcelain")
-        out = self.new("contribution", "prompts", "nowhere.slot", "RdprobeX", code=1)
+        out = self.new("contribution", "build", "nowhere.slot", "RdprobeX", code=1)
         self.assertIn("rdprobe-host.extra", out["error"]["fix"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 
@@ -178,7 +178,7 @@ class Contribution(ScaffoldCase):
         self.assertIn("contribution", [step[0] for step in tree_test.STEPS])
         real = [step for step in tree_test.REAL_STEPS if step[0] == "contribution"]
         self.assertEqual(len(real), 1, tree_test.REAL_STEPS)
-        self.assertEqual(real[0][1], "prompts")
+        self.assertEqual(real[0][1], "build")
         declared = re.findall(
             r"'([a-z-]+\.\w+)':", (ROOT / f"page/pages/{real[0][2].split('.')[0]}/index.js").read_text()
         )

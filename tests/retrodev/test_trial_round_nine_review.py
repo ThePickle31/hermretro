@@ -42,27 +42,27 @@ class ContributionNames(ScaffoldCase):
         self.host()
         self.assertIn("const Text = ", self.read(REGISTRY_TEST))
         self.assertIn("const { JSDOM } = ", self.read(REGISTRY_TEST))
-        out = self.new("contribution", "prompts", SLOT, "Text")
+        out = self.new("contribution", "build", SLOT, "Text")
         registry = self.read(REGISTRY_TEST)
-        self.assertIn("const { Text: TextFromPrompts } = await import('../../page/pages/prompts/text.js')", registry)
-        self.assertIn(f"'{SLOT}': [TextFromPrompts]", registry)
-        self.assertIn("as TextFromPrompts: the test names Text already", " ".join(out["done"]))
+        self.assertIn("const { Text: TextFromBuild } = await import('../../page/pages/build/text.js')", registry)
+        self.assertIn(f"'{SLOT}': [TextFromBuild]", registry)
+        self.assertIn("as TextFromBuild: the test names Text already", " ".join(out["done"]))
         self.parses()
         self.new("contribution", "rdprobe-host", SLOT, "JSDOM")  # a later page: joins the list, aliased too
         registry = self.read(REGISTRY_TEST)
         self.assertIn("const { JSDOM: JSDOMFromRdprobeHost } = await import(", registry)
-        self.assertIn(f"'{SLOT}': [TextFromPrompts, JSDOMFromRdprobeHost]", registry)
-        self.assertIn("import { Text } from './text.js'", self.read("page/pages/prompts/index.js"))
+        self.assertIn(f"'{SLOT}': [TextFromBuild, JSDOMFromRdprobeHost]", registry)
+        self.assertIn("import { Text } from './text.js'", self.read("page/pages/build/index.js"))
         self.parses()
 
     def test_an_alias_the_registry_test_names_too_is_refused_before_anything_is_written(self):
         self.host()
-        write(self.tree, REGISTRY_TEST, self.read(REGISTRY_TEST) + "// TextFromPrompts\n")
+        write(self.tree, REGISTRY_TEST, self.read(REGISTRY_TEST) + "// TextFromBuild\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "taken")
         before = git(self.tree, "status", "--porcelain")
-        out = self.new("contribution", "prompts", SLOT, "Text", code=1)
-        self.assertIn("TextFromPrompts", out["error"]["message"])
+        out = self.new("contribution", "build", SLOT, "Text", code=1)
+        self.assertIn("TextFromBuild", out["error"]["message"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 
     def test_a_trailing_comma_in_the_expected_object_stays_one_comma(self):
@@ -75,7 +75,7 @@ class ContributionNames(ScaffoldCase):
         )
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "trailing comma")
-        self.new("contribution", "prompts", SLOT, "RdprobeFirst")
+        self.new("contribution", "build", SLOT, "RdprobeFirst")
         registry = self.read(REGISTRY_TEST)
         self.assertNotIn(",,", registry.replace(" ", ""))
         self.assertIn(f"'{SLOT}': [RdprobeFirst]", registry)
@@ -83,10 +83,10 @@ class ContributionNames(ScaffoldCase):
 
     def test_a_double_quoted_existing_contribution_is_extended_not_listed_twice(self):
         self.host()
-        self.new("contribution", "prompts", SLOT, "RdprobeFirst")
-        door = "page/pages/prompts/index.js"
+        self.new("contribution", "build", SLOT, "RdprobeFirst")
+        door = "page/pages/build/index.js"
         write(self.tree, door, self.read(door).replace(f"'{SLOT}'", f'"{SLOT}"'))
-        self.new("contribution", "prompts", SLOT, "RdprobeSecond")
+        self.new("contribution", "build", SLOT, "RdprobeSecond")
         text = self.read(door)
         self.assertIn(f'"{SLOT}": [RdprobeFirst, RdprobeSecond]', text)
         self.assertEqual(text.count(SLOT), 1, text)
@@ -94,15 +94,15 @@ class ContributionNames(ScaffoldCase):
 
     def test_a_double_quoted_contribution_in_another_shape_is_refused_before_anything_is_written(self):
         self.host()
-        self.new("contribution", "prompts", SLOT, "RdprobeFirst")
-        door = "page/pages/prompts/index.js"
+        self.new("contribution", "build", SLOT, "RdprobeFirst")
+        door = "page/pages/build/index.js"
         write(
             self.tree, door, self.read(door).replace(f"'{SLOT}': [RdprobeFirst]", f'"{SLOT}": [\n    RdprobeFirst\n  ]')
         )
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "multi-line")
         before = git(self.tree, "status", "--porcelain")
-        out = self.new("contribution", "prompts", SLOT, "RdprobeSecond", code=1)
+        out = self.new("contribution", "build", SLOT, "RdprobeSecond", code=1)
         self.assertIn("a shape new cannot extend", out["error"]["message"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), before)
 

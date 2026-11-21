@@ -376,7 +376,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await click('Send', build14c.node.querySelector('.cs-b-comp'))
   await settle()
   check('the next message makes a new conversation and replaces the removed one', () => {
-    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: `st-new-${created}`, replace: true })
+    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: `st-new-${created}`, replace: 'st-gone' })
     assert.equal(submits.at(-1).text, 'start again')
   })
   await build14c.close()
@@ -384,8 +384,9 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   lib14[0] = { ...lib14[0], session: { storedId: 'st-lost' } }
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   let lostRows = [{ admission_id: 'adm-lost', status: 'unknown', text: 'make a bird', execution_generation: 1 }, { admission_id: 'adm-q', status: 'queued', text: 'continue' }]
+  let lostRunning = false
   const resolved = []
-  scenario.byMethod['session.resume'] = params => ({ ...plainResume(params), running: false, pending: lostRows })
+  scenario.byMethod['session.resume'] = params => ({ ...plainResume(params), running: lostRunning, pending: lostRows })
   scenario.byMethod['prompt.resolve_unknown'] = params => { resolved.push(params); lostRows = lostRows.filter(row => row.admission_id !== params.admission_id); return { status: 'terminal', outcome: 'interrupted' } }
   const build14l = await mount(page)
   await settle()
@@ -446,6 +447,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.equal(submits.length, submitsBefore + 1)
     assert.ok(!build14l.node.querySelector('.cs-b-card.warn'))
   })
+  lostRunning = true // polling can land between any two of these events on a loaded machine
   await act(async () => { emit({ type: 'message.start', session_id: 'rt-of-st-lost', payload: { turn_id: 'L1' } }) })
   await settle()
   check('then the waiting messages run in order', () => {
@@ -457,6 +459,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await act(async () => { emit({ type: 'message.start', session_id: 'rt-of-st-lost', payload: { turn_id: 'L2' } }) })
   await settle()
   check('while a turn runs the message box offers Stop', () => { assert.ok(build14l.node.querySelector('.cs-b-comp button[aria-label="Stop"]')) })
+  lostRunning = false
   lostRows = [{ admission_id: 'adm-lost-2', status: 'unknown', text: 'and add clouds', execution_generation: 3 }]
   await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-lost', payload: { pending: lostRows, running: false } }) })
   await settle()
@@ -599,7 +602,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   delete scenario.byMethod['config.set']
   const creates = []
   const plainCreate = scenario.byMethod['session.create']
-  scenario.byMethod['session.create'] = params => { creates.push(params); return plainCreate(params) }
+  scenario.byMethod['session.create'] = params => { creates.push(params); return { ...plainCreate(params), info: params } }
   const build14n = await mount(page)
   await settle()
   await act(async () => { build14n.node.querySelector('.cs-b-mp-chip').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
