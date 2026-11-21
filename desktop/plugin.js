@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f542767a9f4442026405f8841417f0c559510438a07487ad1dac8156f5ca929e
- * body: sha256 b3bf96bf9b14173b980a4db6696a76771c088c532ef359e1e182c331f1a0faae
+ * sources: sha256 3f064652291edc3489ca89512054b6aa960994455e9ab7188d380013b2e6a67e
+ * body: sha256 2a98a462905f3bb2aa148b82662d7c39f9ee199bf5b55df8d77668aed318bdf3
  */
 // page/sdk.js
 import {
@@ -588,6 +588,7 @@ function injectBuildDraft(stored, text2) {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
 }
 var BUILD_CHATS = atom({});
+var BUILD_STARTING = atom(/* @__PURE__ */ new Set());
 var buildRuntime = /* @__PURE__ */ new Map();
 var isBuildSession = (runtime) => buildRuntime.has(runtime);
 var buildRetained = /* @__PURE__ */ new Map();
@@ -1145,14 +1146,21 @@ async function createBuildChat(title, pick = null) {
     ...pick?.effort ? { reasoning_effort: pick.effort } : {},
     ...typeof pick?.fast === "boolean" && FAST_PROVIDERS.has(pick?.provider) ? { fast: pick.fast } : {}
   };
-  const result = await chatRequest("session.create", { hidden: true, title, source: "gui", ...choice }, 6e4);
+  const result = await chatRequest("session.create", { hidden: true, source: "gui", ...choice }, 6e4);
   const stored = result?.stored_session_id ?? result?.session_id;
   const runtime = result?.session_id;
+  const info = result?.info;
   if (!stored || !runtime) {
     throw new Error("Hermes did not return a session.");
   }
+  if (result.message_count > 0 || result.messages?.length) {
+    throw new Error("Hermes returned an existing conversation. Your message was not sent.");
+  }
+  if (choice.model && (info?.model !== choice.model || info?.provider !== choice.provider)) {
+    throw new Error(`Hermes did not confirm ${choice.model} (${choice.provider}) for the new conversation. Your message was not sent.`);
+  }
   buildRuntime.set(runtime, stored);
-  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }));
+  patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
@@ -1187,11 +1195,11 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
-    return false;
+    return true;
   }
   if (!settled.ok) {
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
-    return false;
+    return true;
   }
   schedulePromptCheck(stored);
   try {
@@ -1208,15 +1216,14 @@ ${text2}` : text2;
         return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...current.queued ?? [], item] };
       });
     }
-    return true;
   } catch (error) {
     const { message } = describeRequestError(error);
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: message, resend: { text: text2, shown, attachments } }] }, "error"));
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored);
     }
-    return false;
   }
+  return true;
 }
 async function stopBuildChat(stored) {
   const chat = BUILD_CHATS.get()[stored];
@@ -1316,7 +1323,7 @@ var isAbsolute = (value) => typeof value === "string" && (value.startsWith("/") 
 var joinPath = (root, relative) => root ? `${root.replace(/[\\/]+$/, "")}/${relative.replace(/^\.?[\\/]+/, "")}` : null;
 
 // page/pages/build/composer/attachment-chip.js
-function AttachmentChip({ item, onRemove = null }) {
+function AttachmentChip({ item, onRemove = null, disabled = false }) {
   const label = item.name || baseName(item.path);
   return jsxs("span", {
     className: item.image ? "cs-b-chip mention pic" : "cs-b-chip mention",
@@ -1324,7 +1331,7 @@ function AttachmentChip({ item, onRemove = null }) {
     children: [
       item.image ? jsx("img", { alt: "", src: item.image }) : "@",
       label,
-      onRemove ? jsx("button", { "aria-label": `Remove ${label}`, className: "cs-b-x", onClick: () => onRemove(item), type: "button", children: jsx(Codicon, { name: "close", size: 10 }) }) : null
+      onRemove ? jsx("button", { "aria-label": `Remove ${label}`, className: "cs-b-x", disabled, onClick: () => onRemove(item), type: "button", children: jsx(Codicon, { name: "close", size: 10 }) }) : null
     ]
   });
 }
@@ -1703,7 +1710,7 @@ function attachToBuild(stored, attachments, text2 = "") {
   const current = all[stored];
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text: text2, attach: attachments } });
 }
-function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null }) {
+function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
   const [text2, setText] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [mention, setMention] = useState(null);
@@ -1713,10 +1720,6 @@ function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = n
   const assets = useProjectAssets(mention && game ? game.id : null, mention ? "open" : "closed");
   const query = (mention?.query ?? "").toLowerCase();
   const matches = Array.isArray(assets) ? assets.filter((item) => !query || String(item.name).toLowerCase().includes(query) || String(item.file ?? "").toLowerCase().includes(query)).slice(0, 8) : assets === false ? [] : null;
-  useEffect(() => {
-    setAttachments([]);
-    setMention(null);
-  }, [stored]);
   useEffect(() => {
     if (inject && !inject.used) {
       BUILD_INJECT.set({ ...BUILD_INJECT.get(), [stored ?? ""]: { ...inject, used: true } });
@@ -1752,7 +1755,7 @@ ${inject.text}` : inject.text);
     }
   };
   const choose = (item) => {
-    if (!item || !mention) {
+    if (!item || !mention || disabled) {
       return;
     }
     const element = box.current;
@@ -1780,25 +1783,30 @@ ${inject.text}` : inject.text);
       element?.setSelectionRange?.(caret + insert.length, caret + insert.length);
     });
   };
-  const send = () => {
+  const send = async () => {
     const value = text2.trim();
     if (!value && !attachments.length || disabled) {
+      return;
+    }
+    if (fresh && !await onSend(value, attachments)) {
       return;
     }
     setText("");
     setAttachments([]);
     setMention(null);
-    onSend(value, attachments);
+    if (!fresh) {
+      void onSend(value, attachments);
+    }
   };
   return jsxs("div", {
     className: "cs-b-comp",
     children: [
       status,
-      mention && game ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
+      mention && game && !disabled ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
       attachments.length ? jsx("div", {
         className: "cs-b-chips",
         children: attachments.map(
-          (item) => jsx(AttachmentChip, { item, onRemove: (gone) => setAttachments((current) => current.filter((entry) => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
+          (item) => jsx(AttachmentChip, { item, disabled, onRemove: (gone) => setAttachments((current) => current.filter((entry) => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
         )
       }) : null,
       jsx("textarea", {
@@ -3202,12 +3210,12 @@ function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
 var PANEL = 560;
 var NARROW = 500;
 var TINY = 440;
-function useModelOptions(runtime) {
+function useModelOptions(runtime, needed = true) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
     queryKey: [ID, "models", runtime ?? "profile"],
     queryFn: () => chatRequest("model.options", runtime ? { session_id: runtime } : {}, 3e4),
-    enabled: gateway === "open",
+    enabled: needed && gateway === "open",
     staleTime: 5 * 6e4,
     refetchOnWindowFocus: false,
     retry: 1
@@ -3252,7 +3260,7 @@ function useStars(ctx) {
   };
   return [stars, toggle];
 }
-function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true, draft = false }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
@@ -3261,7 +3269,8 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
-  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
+  const fallback = draft ? null : data;
+  const shown = { model: pending?.model ?? value?.model ?? fallback?.model ?? null, provider: pending?.provider ?? value?.provider ?? fallback?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
   const marks = useMemo(() => providerMarks(providers), [providers]);
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
@@ -3337,7 +3346,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   }, [confirm?.message]);
   const choose = (row) => {
     setOpen(false);
-    if (row.model !== shown.model || row.provider !== shown.provider) {
+    if (!disabled && (draft || row.model !== shown.model || row.provider !== shown.provider)) {
       onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} }, row);
     }
   };
@@ -3437,20 +3446,21 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     value: chat?.info ?? null
   });
 }
-function DraftModelPicker({ ctx, pick, onPick, up = true }) {
-  const options = useModelOptions(null);
+function DraftModelPicker({ ctx, pick, onPick, options, up = true, disabled = false }) {
   return jsx(ModelPicker, {
     ctx,
+    draft: true,
+    disabled,
     up,
     onEffort: (effort) => onPick({ ...pick, effort }),
-    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
-    onFast: (fast, at) => onPick({ ...pick, ...at.model && at.provider ? at : {}, fast }),
+    onFast: (fast) => onPick({ ...pick, fast }),
     onPick: (choice) => onPick({ ...pick, ...choice }),
     options,
     value: pick
   });
 }
-function useDraftPick(ctx) {
+function useDraftPick(ctx, needed) {
+  const options = useModelOptions(null, needed);
   const [pick, setPick] = useState(() => {
     try {
       const saved = ctx.storage.get("buildModel", null);
@@ -3466,7 +3476,8 @@ function useDraftPick(ctx) {
     } catch {
     }
   };
-  return [pick, update];
+  const route = [pick, options.data].find((value) => value?.model && value?.provider && value.provider !== "auto");
+  return [{ ...pick, model: route?.model, provider: route?.provider }, update, options];
 }
 
 // page/shared/player/frame-values.js
@@ -10771,378 +10782,6 @@ function shortPath(path, keep = 4) {
   return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
 }
 
-// page/pages/prompts/prompts.css.js
-var PROMPTS_CSS = `
-/* prompts: Reader */
-.cs-reader { align-items: start; display: grid; gap: clamp(20px, 3.4cqi, 60px); grid-template-columns: clamp(220px, 20cqi, 320px) minmax(0, 1fr) clamp(130px, 18cqi, 300px); }
-.cs-rlist { display: flex; flex-direction: column; position: sticky; top: 76px; }
-.cs-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin-bottom: 16px; padding: 6px 0; }
-.cs-search input { all: unset; color: var(--ui-text-primary); flex: 1; font-size: 13px; min-width: 0; }
-.cs-rgrp { color: var(--ui-text-quaternary); display: flex; font: 700 10px/1 ${MONO}; justify-content: space-between; letter-spacing: .14em; padding: 18px 0 6px; text-transform: uppercase; }
-.cs-rgrp.first { padding-top: 0; }
-.cs-ritem { all: unset; align-items: center; color: var(--ui-text-secondary); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; margin: 0 -8px; padding: 7px 8px; }
-.cs-ritem:hover { color: var(--ui-text-primary); }
-.cs-ritem:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
-.cs-ritem[aria-current] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); font-weight: 600; }
-.cs-ritem.off { color: var(--ui-text-quaternary); }
-.cs-rdetail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.cs-rdetail textarea { background: var(--ui-bg-quaternary); border: 0; color: var(--ui-text-primary); font: 13px/1.65 ${MONO}; min-height: 150px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
-.cs-rdetail textarea:focus { box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.cs-params { align-items: center; display: grid; gap: 10px 16px; grid-template-columns: max-content minmax(0, 420px); }
-.cs-params label { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-params input { background: transparent; border: 0; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-primary); font: 12.5px ${MONO}; outline: none; padding: 6px 0; }
-.cs-params input:focus { border-bottom-color: var(--ui-accent); }
-.cs-uses { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
-`;
-
-// page/app/prompt-button.js
-function PromptButton({ ctx, label, prompt, variant = "outline", fresh = false, disabled }) {
-  return jsx(AsyncButton, { disabled, icon: "comment-discussion", run: () => sendPromptToChat(ctx, prompt, { fresh }), title: "Puts the prompt in a chat, not sent", variant, children: label });
-}
-
-// page/pages/prompts/library.js
-var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
-var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
-var PROMPT_SECTIONS = [
-  {
-    id: "plan",
-    n: "01",
-    title: "Plan",
-    prompts: [
-      {
-        id: "plan",
-        title: "Plan a game",
-        src: "hermes",
-        text: "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project."
-      }
-    ]
-  },
-  {
-    id: "create",
-    n: "02",
-    title: "Create",
-    prompts: [
-      {
-        id: "new-game",
-        title: "Create a new game",
-        src: "modretro",
-        text: "Use hermretro to create and select a new GB Studio project at {folder}/{name}. Make a small exploration game where a gardener collects three seeds and plants them to unlock a gate.",
-        defaults: { name: "MoonGarden" },
-        note: "The parent folder must already exist."
-      },
-      {
-        id: "remix",
-        title: "Remix an example",
-        src: "modretro",
-        text: "Use hermretro to create and select a Wrecklight remix at {folder}/{name}. Show me its rooms and controls, then help me turn the opening area into an abandoned research station.",
-        defaults: { name: "MyWrecklight" },
-        note: "The Wrecklight source is not bundled; the agent will ask for a local copy if needed."
-      }
-    ]
-  },
-  {
-    id: "play",
-    n: "03",
-    title: "Play",
-    prompts: [
-      {
-        id: "play-game",
-        title: "Play my game",
-        src: "modretro",
-        text: "Build my selected game and show it to me in the emulator beside the chat so I can play it. Show me the new build there whenever we make a change worth trying."
-      },
-      {
-        id: "playtest",
-        title: "Build and playtest",
-        src: "hermes",
-        text: "Build my selected game, then run an automated playtest: boot it, walk around the first room, and show me real frames from the emulator."
-      }
-    ]
-  },
-  {
-    id: "polish",
-    n: "04",
-    title: "Polish",
-    prompts: [
-      {
-        id: "scene",
-        title: "Add a scene",
-        src: "modretro",
-        text: "Add a village scene to my selected project with three houses, a central fountain, and a character I can talk to. Connect it to the starting area."
-      },
-      {
-        id: "artwork",
-        title: "Characters and artwork",
-        src: "modretro",
-        text: "Create a small robot player sprite with idle and walking animations that fit this project's style and Game Boy hardware limits. Add it to the game and show it in a scene."
-      },
-      {
-        id: "palette",
-        title: "Update the palette",
-        src: "modretro",
-        text: "Give this scene a moonlit palette with cool blue shadows and warm window lights. Check readability and show the result from the emulator."
-      },
-      {
-        id: "audit",
-        title: "Hardware limits audit",
-        src: "modretro",
-        text: "Audit my project's backgrounds and sprites for Game Boy hardware limits. Identify problems and fix any assets that would prevent a successful build."
-      }
-    ]
-  },
-  {
-    id: "device",
-    n: "05",
-    title: "On your Chromatic",
-    prompts: [
-      {
-        id: "stream",
-        title: "Stream to Chromatic",
-        src: "modretro",
-        hw: true,
-        text: "Stream a two-minute live demo of my built ROM to the connected Chromatic so I can try its controls, video, and audio."
-      },
-      {
-        id: "flash",
-        title: "Flash a cartridge",
-        src: "modretro",
-        hw: true,
-        text: "Flash my built homebrew ROM to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks."
-      }
-    ]
-  }
-];
-var ALL_PROMPTS = PROMPT_SECTIONS.flatMap((section) => section.prompts.map((prompt) => ({ ...prompt, section })));
-var promptById = (id) => ALL_PROMPTS.find((prompt) => prompt.id === id) ?? ALL_PROMPTS[0];
-var FLASH_PROMPT = promptById("flash").text;
-
-// page/pages/prompts/prompts-page.js
-function fillPrompt(prompt, values) {
-  return prompt.text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);
-}
-function promptFields(prompt) {
-  return [...new Set([...prompt.text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]))];
-}
-var WHAT_HAPPENS = {
-  device: "Hermes asks for your approval before it touches the device, unless Approvals are turned off.",
-  create: "Hermes creates the project in that folder, selects it for the chat and builds the first ROM. It then shows up on the Games page.",
-  other: "Works on the game selected in that chat. Start with Create if the chat has none yet."
-};
-function PromptsPage({ ctx, storage: storage2, selected, onSelect, gameReady, hardwareOn, profileLabel, defaultFolder, onSetUpDevice, onGo }) {
-  const [query, setQuery] = useState("");
-  const [edits, setEdits] = useState({});
-  const [names, setNames] = useState({});
-  const [folder, setFolder] = useState(() => {
-    try {
-      return storage2.get("promptFolder", null);
-    } catch {
-      return null;
-    }
-  });
-  const listRef = useRef(null);
-  const needle = query.trim().toLowerCase();
-  const matches = (prompt2) => !needle || `${prompt2.title} ${prompt2.text} ${prompt2.section.title}`.toLowerCase().includes(needle);
-  const visible = ALL_PROMPTS.filter(matches);
-  const prompt = visible.find((item) => item.id === selected) ?? visible[0] ?? promptById(selected);
-  const locked = Boolean(prompt.hw) && !hardwareOn;
-  const values = { folder: folder ?? defaultFolder ?? "~", name: names[prompt.id] ?? prompt.defaults?.name ?? "MyGame" };
-  const text2 = edits[prompt.id] ?? fillPrompt(prompt, values);
-  const fields = promptFields(prompt);
-  const canChat = gameReady && !locked;
-  const state = useRef({});
-  state.current = { visible, prompt, onSelect };
-  useEffect(() => {
-    const onKey = (event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" || event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      const target = event.target;
-      if (target && (target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName ?? "") || target.tagName === "INPUT" && target.type !== "search")) {
-        return;
-      }
-      const { visible: list, prompt: current, onSelect: select } = state.current;
-      const index = list.findIndex((item) => item.id === current.id);
-      const next = list[Math.max(0, Math.min(list.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
-      if (next) {
-        event.preventDefault();
-        select(next.id);
-        ctx.setTimeout(() => listRef.current?.querySelector?.(`[data-prompt="${next.id}"]`)?.focus?.(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  const setField = (key, value) => {
-    setEdits((previous) => ({ ...previous, [prompt.id]: void 0 }));
-    if (key === "folder") {
-      setFolder(value);
-      try {
-        storage2.set("promptFolder", value);
-      } catch {
-      }
-    } else {
-      setNames((previous) => ({ ...previous, [prompt.id]: value }));
-    }
-  };
-  const groups = PROMPT_SECTIONS.map((section) => ({ section, items: visible.filter((item) => item.section === section) })).filter((group) => group.items.length);
-  return [
-    jsx(PageHead, {
-      label: `Prompts · ${ALL_PROMPTS.length} ready to use`,
-      lede: jsxs("span", {
-        children: [
-          "Every prompt opens a chat in ",
-          jsx("span", { className: "cs-mono", children: profileLabel }),
-          " with the text in its composer, ready for you to edit and send. Or copy it and paste it anywhere."
-        ]
-      }),
-      number: "02",
-      title: "Start building"
-    }, "head"),
-    jsxs(
-      "div",
-      {
-        className: "cs-reader",
-        children: [
-          jsxs("nav", {
-            "aria-label": "Prompts",
-            className: "cs-rlist",
-            ref: listRef,
-            children: [
-              jsxs("label", {
-                className: "cs-search",
-                children: [
-                  jsx(Codicon, { name: "search", size: 14 }),
-                  jsx("input", { "aria-label": "Find a prompt", onChange: (event) => setQuery(event.target.value), placeholder: "Find a prompt", type: "search", value: query })
-                ]
-              }),
-              groups.length ? groups.flatMap(({ section, items }, index) => [
-                jsxs("span", { className: index ? "cs-rgrp" : "cs-rgrp first", children: [jsx("span", { children: section.title }), jsx("span", { children: items.length })] }, `g-${section.id}`),
-                ...items.map(
-                  (item) => jsxs(
-                    "button",
-                    {
-                      "aria-current": item.id === prompt.id ? "true" : void 0,
-                      className: item.hw && !hardwareOn ? "cs-ritem off" : "cs-ritem",
-                      "data-prompt": item.id,
-                      onClick: () => onSelect(item.id),
-                      type: "button",
-                      children: [jsx("span", { children: item.title }), item.hw && !hardwareOn ? jsx("span", { className: "cs-tag quiet", children: "device" }) : null]
-                    },
-                    item.id
-                  )
-                )
-              ]) : jsx(Small, { children: "No prompts match." }),
-              jsxs("p", {
-                className: "cs-faint",
-                style: { paddingTop: 18 },
-                children: [jsx("span", { className: "cs-key", children: "↑" }), " ", jsx("span", { className: "cs-key", children: "↓" }), " to move through the list"]
-              })
-            ]
-          }),
-          jsxs("section", {
-            "aria-label": prompt.title,
-            className: "cs-rdetail",
-            children: [
-              jsxs("div", {
-                className: "cs-col",
-                style: { gap: 10 },
-                children: [
-                  jsxs("p", {
-                    className: "cs-eyebrow",
-                    children: [
-                      jsx("span", { className: "cs-accent", children: prompt.section.n }),
-                      prompt.section.title,
-                      jsx("span", { className: "cs-tag quiet", children: prompt.src === "modretro" ? "ModRetro quickstart" : "Hermes" }),
-                      locked ? jsx("span", { className: "cs-tag warn", children: "Needs your Chromatic" }) : null
-                    ]
-                  }),
-                  jsx("h3", { className: "cs-word", style: { fontSize: "clamp(28px, 3cqi, 52px)" }, children: prompt.title })
-                ]
-              }),
-              fields.length ? jsx("div", {
-                className: "cs-params",
-                children: fields.flatMap((key) => [
-                  jsx("label", { htmlFor: `cs-f-${key}`, children: key === "folder" ? "Parent folder" : "Project name" }, `l-${key}`),
-                  jsx("input", { id: `cs-f-${key}`, onChange: (event) => setField(key, event.target.value), spellCheck: false, value: values[key] }, `i-${key}`)
-                ])
-              }) : null,
-              jsx("textarea", {
-                "aria-label": "Prompt text",
-                onChange: (event) => setEdits((previous) => ({ ...previous, [prompt.id]: event.target.value })),
-                spellCheck: false,
-                value: text2
-              }),
-              prompt.note ? jsx("p", { className: "cs-faint", children: prompt.note }) : null,
-              jsxs("div", {
-                className: "cs-actions",
-                children: [
-                  jsx(PromptButton, { ctx, disabled: !canChat, fresh: true, label: "Start a new chat", prompt: text2, variant: "default" }),
-                  jsx(AsyncButton, {
-                    disabled: !canChat,
-                    icon: "insert",
-                    run: () => sendPromptToChat(ctx, text2),
-                    title: "Adds the prompt to the hermretro chat you were last in, else a new one",
-                    variant: "secondary",
-                    children: "Add to current chat"
-                  }),
-                  jsx(CopyButton, { buttonSize: "sm", buttonVariant: "outline", label: "Copy", text: text2 }),
-                  jsx("span", { className: "cs-grow" }),
-                  edits[prompt.id] !== void 0 ? jsx(Button, { onClick: () => setEdits((previous) => ({ ...previous, [prompt.id]: void 0 })), size: "sm", variant: "ghost", children: "Reset text" }) : null
-                ]
-              }),
-              locked ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "Streaming and flashing need your Chromatic set up. You can still read and copy those prompts." }),
-                  jsx(Button, { onClick: onSetUpDevice, size: "sm", variant: "outline", children: "Set up my Chromatic" })
-                ]
-              }) : !gameReady ? jsxs("div", {
-                className: "cs-note",
-                children: [
-                  jsx(Small, { children: "After setup: these prompts need the game toolchain, so the chat buttons turn on once it is installed." }),
-                  jsx(Button, { onClick: () => onGo("setup"), size: "sm", variant: "outline", children: "Continue setup" })
-                ]
-              }) : null,
-              jsxs("div", {
-                className: "cs-uses",
-                children: [
-                  jsx("p", { className: "cs-eyebrow", children: "What happens" }),
-                  jsx(Small, { children: prompt.hw ? WHAT_HAPPENS.device : prompt.section.id === "create" ? WHAT_HAPPENS.create : WHAT_HAPPENS.other }),
-                  jsx("span", { className: "cs-faint", children: "Nothing is sent until you press send in the chat." })
-                ]
-              })
-            ]
-          }),
-          jsx(Art, {})
-        ]
-      },
-      "reader"
-    )
-  ];
-}
-function Prompts({ shell }) {
-  return jsx(PromptsPage, {
-    ctx: shell.ctx,
-    defaultFolder: shell.newGameFolder,
-    gameReady: shell.gameReady,
-    hardwareOn: shell.hardwareOn,
-    onGo: shell.go,
-    onSelect: shell.setPromptId,
-    onSetUpDevice: shell.setUpDevice,
-    profileLabel: shell.profileLabel,
-    selected: shell.promptId,
-    storage: shell.ctx.storage
-  });
-}
-
-// page/pages/prompts/index.js
-var PROMPTS_PAGE = {
-  id: "prompts",
-  label: "Prompts",
-  Page: Prompts,
-  css: [PROMPTS_CSS]
-};
-
 // page/pages/games/model.js
 var KIND_LABELS = { gbstudio: "GB Studio", gbdk: "GBDK" };
 var GAME_STATES = {
@@ -11163,7 +10802,7 @@ function latestGame(games) {
   return list.find((game) => game.webExport) ?? list[0] ?? null;
 }
 function installPrompt(game) {
-  return FLASH_PROMPT.replace("my built homebrew ROM", `the built ROM of ${gameLabel(game)}`);
+  return `Flash the built ROM of ${gameLabel(game)} to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks.`;
 }
 function fixPrompt(game) {
   return `The last build of ${gameLabel(game)} failed${game.error ? `:
@@ -11371,10 +11010,10 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
     children: jsxs("button", { className: "cs-hwchip", onClick: onSetUpDevice, type: "button", children: [jsx("i", {}), "Emulator only · Set up my Chromatic"] })
   });
 }
-function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice, onMakeCover }) {
+function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games;
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
-  const newGame = jsxs(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
+  const newGame = jsxs(Button, { onClick: onNewGame, size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
   if (games.isError || games.data && !Array.isArray(list)) {
     return [
       jsx(PageHead, { title: "Your games" }, "head"),
@@ -11402,17 +11041,13 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
             jsxs("div", {
               className: "cs-col",
               children: [
-                jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "03" }), "Games"] }),
                 jsx("h2", { className: "cs-word cs-title", children: "No games yet" }),
                 jsx(Lede, {
-                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic. Start with a new game or remix the example."
+                  children: "Games you make with Hermes land here, ready to play in the emulator or install on your Chromatic."
                 }),
-                jsxs("div", {
+                jsx("div", {
                   className: "cs-actions",
-                  children: [
-                    jsx(Button, { onClick: () => onOpenPrompt("new-game"), size: "sm", variant: "default", children: "Create a new game" }),
-                    jsx(Button, { onClick: () => onOpenPrompt("remix"), size: "sm", variant: "outline", children: "Remix Wrecklight" })
-                  ]
+                  children: jsx(Button, { onClick: onNewGame, size: "sm", variant: "default", children: "Create a new game" })
                 }),
                 jsx("p", { className: "cs-faint", children: "Already have a GB Studio project? Ask Hermes to select it and it shows up here." }),
                 folder
@@ -11441,7 +11076,7 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onOpenPrompt, onSetUpDevice
                 jsx("button", {
                   "aria-label": "New game",
                   className: "cs-cart ghost",
-                  onClick: () => onOpenPrompt("new-game"),
+                  onClick: onNewGame,
                   type: "button",
                   children: jsx("span", {
                     className: "slot",
@@ -11478,9 +11113,9 @@ function Games({ shell }) {
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: (game) => {
       emit("games.coverRequested", { game, prompt: COVER_PROMPT });
-      shell.go("build");
+      shell.go("build", game.id);
     },
-    onOpenPrompt: shell.openPrompt,
+    onNewGame: () => shell.go("build", "new"),
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice
   });
@@ -11901,58 +11536,67 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+function rememberSelection(ctx, selection) {
+  try {
+    ctx.storage.set("buildSelected", selection);
+  } catch {
+  }
+}
+function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
-  const [draftPick, setDraftPick] = useDraftPick(ctx);
-  const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
-  const [selected, setSelected] = useState(() => {
+  const startingGames = useValue(BUILD_STARTING);
+  const [local, setLocal] = useState({ bound: {}, released: {} });
+  const [rememberedSelection] = useState(() => {
+    if (selection !== null) {
+      return selection;
+    }
     try {
       return ctx.storage.get("buildSelected", "new") || "new";
     } catch {
       return "new";
     }
   });
-  const select = (key) => {
-    setSelected(key);
-    try {
-      ctx.storage.set("buildSelected", key);
-    } catch {
+  const selected = selection ?? rememberedSelection;
+  useEffect(() => {
+    if (selection === null) {
+      select(selected);
+    } else {
+      rememberSelection(ctx, selection);
     }
-  };
+  }, [ctx, select, selected, selection]);
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
-      return { ...game2, session, title: game2.displayTitle || game2.title, buildSession: session?.storedId ?? local.bound[game2.id] ?? null };
+      const bound = local.bound[game2.id];
+      const linked = session?.storedId;
+      const buildSession = (!linked || linked === bound?.replaces ? bound?.stored : null) ?? linked ?? null;
+      return { ...game2, session, title: game2.displayTitle || game2.title, buildSession };
     }),
     [games, local.bound, local.released]
   );
   const pending = useMemo(
     () => [
       ...Array.isArray(pendingGames) ? pendingGames : [],
-      ...local.pending.filter((item) => !(pendingGames ?? []).some((known) => known.storedId === item.storedId))
+      ...localPending.filter((item) => !(pendingGames ?? []).some((known) => known.storedId === item.storedId))
     ].filter((item) => !rail.some((game2) => game2.buildSession === item.storedId)),
-    [pendingGames, local.pending, rail]
+    [pendingGames, localPending, rail]
   );
+  const pendingId = selected.startsWith("pending:") ? selected.slice("pending:".length) : null;
+  const made = pendingId ? rail.find((game2) => game2.buildSession === pendingId) : null;
   useEffect(() => {
-    if (!selected.startsWith("pending:")) {
-      return;
-    }
-    const stored2 = selected.slice("pending:".length);
-    const made = rail.find((game2) => game2.buildSession === stored2);
     if (made) {
       select(made.id);
     }
-  }, [games, selected]);
+  }, [made?.id]);
   useEffect(() => {
     if (pending.some((item) => chats[item.storedId]?.busy === false)) {
       onLibraryChanged();
     }
   }, [pending.map((item) => chats[item.storedId]?.busy).join(",")]);
-  const game = rail.find((item) => item.id === selected) ?? null;
-  const pendingItem = selected.startsWith("pending:") ? pending.find((item) => `pending:${item.storedId}` === selected) ?? null : null;
+  const game = made ?? rail.find((item) => item.id === selected) ?? null;
+  const pendingItem = pending.find((item) => item.storedId === pendingId) ?? null;
   useEffect(() => {
-    const madeGame = selected.startsWith("pending:") && rail.some((item) => item.buildSession === selected.slice(8));
-    if (loaded && selected !== "new" && !game && !pendingItem && !madeGame && !(selected.startsWith("pending:") && chats[selected.slice(8)]?.busy)) {
+    if (loaded && selected !== "new" && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
       select("new");
     }
   }, [loaded, selected, Boolean(game), Boolean(pendingItem)]);
@@ -11963,6 +11607,17 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false);
   const stored = elsewhere ? null : game?.buildSession ?? pendingItem?.storedId ?? null;
   const chat = stored ? chats[stored] : null;
+  const [restartIds, setRestartIds] = useState({});
+  const replaces = game && stored && restartIds[game.id] === stored ? stored : null;
+  const fresh = Boolean(game && !elsewhere && (!stored || replaces));
+  useEffect(() => {
+    setRestartIds((current) => {
+      const kept = Object.entries(current).filter(([id, expected]) => rail.some((item) => item.id === id && item.buildSession === expected));
+      return kept.length === Object.keys(current).length ? current : Object.fromEntries(kept);
+    });
+  }, [rail]);
+  const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === "new" || fresh);
+  const startingGame = startingGames.has(game?.id);
   useEffect(() => {
     if (!stored || chat?.runtime || chat?.opening || chat?.failure) {
       return;
@@ -12018,7 +11673,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
         });
         return false;
       }
-      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 }] }));
+      const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
+      changePending((current) => [...current, created]);
       select(`pending:${id}`);
       onLibraryChanged();
       return true;
@@ -12038,15 +11694,15 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       host.notify({ kind: "error", message: `Could not discard it: ${describeRequestError(error).message}` });
       return;
     }
-    setLocal((current) => ({ ...current, pending: current.pending.filter((entry) => entry.storedId !== item.storedId) }));
+    changePending((current) => current.filter((entry) => entry.storedId !== item.storedId));
     select("new");
     onLibraryChanged();
   };
-  const [forgotten, setForgotten] = useState({});
-  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]));
   const shownStored = fresh ? null : stored;
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
+  const binding = local.bound[game?.id];
+  const composerKey = binding && binding.stored === stored ? binding.replaces ?? game.id : stored ?? game?.id ?? "";
   const [focusTurn, setFocusTurn] = useState(null);
   const [switcherRequest, setSwitcherRequest] = useState(null);
   const settledItems = useRef(null);
@@ -12056,36 +11712,40 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
   const send = async (text2, attachments = [], shown = text2) => {
     if (refuseWhileUpdating()) {
-      return;
+      return false;
     }
     if (!fresh) {
-      if (stored) {
-        await sendBuildChat(stored, text2, shown, attachments);
-      }
-      return;
+      return stored ? sendBuildChat(stored, text2, shown, attachments) : false;
     }
-    let target;
-    let recorded;
+    const { id, title: title2, projectRoot } = game;
+    if (BUILD_STARTING.get().has(id)) {
+      return false;
+    }
+    BUILD_STARTING.set(/* @__PURE__ */ new Set([...BUILD_STARTING.get(), id]));
     try {
-      target = await createBuildChat(game.title, draftPick);
-      recorded = await buildRpc({ action: "bind", game: game.id, stored: target, replace: Boolean(stored || game.session) });
-      setLocal((current) => ({ ...current, bound: { ...current.bound, [game.id]: target } }));
-      setForgotten((current) => ({ ...current, [game.id]: false }));
+      const target = await createBuildChat(title2, draftPick);
+      if (refuseWhileUpdating()) {
+        return false;
+      }
+      const recorded = await buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} });
+      setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
       onLibraryChanged();
+      return await sendBuildChat(
+        target,
+        recorded ? text2 : `Work on my existing hermretro game "${title2}" at ${projectRoot} (select that project first). ${text2}`,
+        shown,
+        attachments
+      );
     } catch (error) {
       host.notify({ kind: "error", message: `Could not start the conversation: ${describeRequestError(error).message}` });
-      return;
+      return false;
+    } finally {
+      BUILD_STARTING.set(new Set([...BUILD_STARTING.get()].filter((gameId) => gameId !== id)));
     }
-    await sendBuildChat(
-      target,
-      recorded ? text2 : `Work on my existing hermretro game "${game.title}" at ${game.projectRoot} (select that project first). ${text2}`,
-      shown,
-      attachments
-    );
   };
   const startOver = () => {
-    if (game) {
-      setForgotten((current) => ({ ...current, [game.id]: true }));
+    if (game && stored && chat?.missing && !BUILD_STARTING.get().has(game.id)) {
+      setRestartIds((current) => ({ ...current, [game.id]: stored }));
     }
   };
   const stopEditing = async (target) => {
@@ -12107,7 +11767,6 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       delete bound[target.id];
       return { ...current, bound, released: { ...current.released, [target.id]: storedId } };
     });
-    setForgotten((current) => ({ ...current, [target.id]: false }));
     if (selected === target.id) {
       select("new");
     }
@@ -12221,7 +11880,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
-        game ? jsx(Button, { onClick: startOver, size: "sm", children: "Start a new conversation" }) : null
+        game ? jsx(Button, { disabled: startingGame, onClick: startOver, size: "sm", children: "Start a new conversation" }) : null
       ]
     });
   } else if (shownChat?.failure) {
@@ -12265,7 +11924,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     children: [
       jsx(AttractLevel, {}, "level"),
       header,
-      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
   }) : jsxs("div", {
@@ -12276,14 +11935,15 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
-        disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
-        onSend: (text2, attachments) => void send(text2, attachments),
+        fresh,
+        disabled: Boolean(updating || startingGame || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
+        onSend: send,
         onStop: () => void stopBuildChat(shownStored),
-        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
-        placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, disabled: startingGame || updating, onPick: setDraftPick, options: draftOptions, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
+        placeholder: updating ? "hermretro is updating. You can send again in a moment." : startingGame ? "Starting the conversation…" : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
-      })
+      }, `composer:${composerKey}`)
     ]
   });
   return jsx("div", { className: "cs-b", children: main });
@@ -12598,6 +12258,7 @@ var STEP_SHORT = {
 };
 
 // page/pages/setup/hardware-steps.js
+var DEVICE_CLI_PROMPT = "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic.";
 function Confirm({ step, update }) {
   return step.state === "done" ? jsx(Button, { onClick: () => update({ [MANUAL_STEPS[step.id]]: false }), size: "sm", variant: "ghost", children: "Mark as not done" }) : jsxs(Button, {
     onClick: () => update({ [MANUAL_STEPS[step.id]]: true }),
@@ -12891,6 +12552,7 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
 }
 
 // page/pages/setup/install/installer.js
+var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
 async function fetchInstall() {
   return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
 }
@@ -13968,7 +13630,22 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  if (!studioTarget()) {
+    return jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  }
+  return jsx(BuildPage, {
+    ctx: shell.ctx,
+    games: shell.gameList,
+    loaded: Boolean(shell.games.data),
+    localPending: shell.buildPending,
+    changePending: shell.changeBuildPending,
+    onLibraryChanged: shell.gamesChanged,
+    onPlay: shell.play,
+    onSelect: shell.selectBuild,
+    pendingGames: shell.games.data?.pending ?? [],
+    selection: shell.buildSelection,
+    updating: shell.pluginUpdate?.phase === "updating"
+  }, "build");
 }
 
 // page/pages/build/chat/events.js
@@ -14652,11 +14329,7 @@ var VIEWER_CSS = `
 `;
 
 // page/pages/build/index.js
-function coverRequested({ game, prompt }, ctx) {
-  try {
-    ctx.storage.set("buildSelected", game.id);
-  } catch {
-  }
+function coverRequested({ game, prompt }) {
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false;
   injectBuildDraft(own ? game.session.storedId : "", prompt);
 }
@@ -14819,8 +14492,6 @@ var RESPONSIVE_CSS = `
 @container (max-width: 1000px) {
   .cs-setup { grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 1fr); }
   .cs-setup > .cs-flyer { display: none; }
-  .cs-reader { grid-template-columns: clamp(200px, 26cqi, 280px) minmax(0, 1fr); }
-  .cs-reader > .cs-art { display: none; }
   .cs-empty { grid-template-columns: 1fr; }
   .cs-empty > .cs-art { display: none; }
 }
@@ -14849,8 +14520,8 @@ var RESPONSIVE_CSS = `
   .cs-rp-focus { padding: 0 6px; }
 }
 @container (max-width: 760px) {
-  .cs-setup, .cs-reader, .cs-page-head { grid-template-columns: 1fr; }
-  .cs-rail, .cs-rlist { position: static; }
+  .cs-setup, .cs-page-head { grid-template-columns: 1fr; }
+  .cs-rail { position: static; }
   .cs-rail-item, .cs-rail-group { display: none; }
   .cs-meter { margin-top: 0; }
   .cs-choice { grid-template-columns: 1fr; }
@@ -15349,7 +15020,7 @@ var EMULATOR_PAGE = {
 };
 
 // page/pages/index.js
-var PAGES = [BUILD_PAGE, SETUP_PAGE, PROMPTS_PAGE, GAMES_PAGE, EMULATOR_PAGE];
+var PAGES = [BUILD_PAGE, SETUP_PAGE, GAMES_PAGE, EMULATOR_PAGE];
 
 // page/app/registry.js
 var PAGE_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "tabs", "Badge", "pad", "BelowPlayer", "css", "cssLast", "events", "listens", "slots", "contributes", "register"]);
@@ -16968,9 +16639,9 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null,
           // The profile the studio works in, when it is not the one the app is on: a quiet chip, the
           // explanation in its tooltip.
           viaProfile ? jsx(Tip, {
-            label: `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+            label: `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
             children: jsxs("span", {
-              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
               className: "cs-top-profile",
               children: [jsx(Codicon, { name: "account", size: 12 }), viaProfile]
             })
@@ -17326,16 +16997,24 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
-  const [page, setPage] = useState(() => {
+  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
+    let stored = "build";
     try {
-      const stored = ctx.storage.get("page", "build");
-      return pageById(stored) ? stored : "build";
+      stored = ctx.storage.get("page", "build");
     } catch {
-      return "build";
     }
+    return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
   });
+  const changeBuildVisit = useCallback((change) => {
+    setNavigation((current) => current.page === "build" && current.visit === visit ? change(current) : current);
+  }, [visit]);
+  const selectBuild = useCallback((selection) => {
+    changeBuildVisit((current) => current.buildSelection === selection ? current : { ...current, buildSelection: selection });
+  }, [changeBuildVisit]);
+  const changeBuildPending = (change) => {
+    changeBuildVisit((current) => ({ ...current, buildPending: change(current.buildPending) }));
+  };
   const [pinned, setPinned] = useState(null);
-  const [promptId, setPromptId] = useState("new-game");
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
   const { backend, doctor, gateway, status } = useBackend(polling);
   const refreshing = status.isFetching || doctor.isFetching;
@@ -17407,8 +17086,8 @@ function StudioPage({ ctx }) {
     };
     setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
   }, [autoId, toolchainStep?.state, installState, onboardScreen]);
-  const go = (id) => {
-    setPage(id);
+  const go = (id, selection = null) => {
+    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current.visit + 1 });
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -17424,10 +17103,6 @@ function StudioPage({ ctx }) {
     update({ hardwareSkipped: false, hardwareWanted: true, onboarded: true });
     setPinned(null);
     go("setup");
-  };
-  const openPrompt = (id) => {
-    setPromptId(id);
-    go("prompts");
   };
   const onEmulator = page === "emulator";
   const games = useQuery({
@@ -17530,28 +17205,18 @@ function StudioPage({ ctx }) {
     install,
     // Hermes's update of hermretro: the header chip, and the version row on the Setup page
     pluginUpdate,
-    gameReady,
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and prompts
+    // games and the Build visit: selection and locally started games not in the library yet
+    buildSelection,
+    buildPending,
+    changeBuildPending,
+    selectBuild,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, "games"] }),
     play,
-    openPrompt,
-    promptId,
-    setPromptId,
-    // New games go in the plugin's games folder (the backend reports it); an older backend without it falls
-    // back to the folder of the latest game.
-    newGameFolder: (() => {
-      if (typeof games.data?.gamesDir === "string" && games.data.gamesDir) {
-        return games.data.gamesDir;
-      }
-      const root = latestGame(gameList)?.projectRoot;
-      return root ? root.replace(/[\\/][^\\/]+[\\/]?$/, "") || null : null;
-    })(),
-    profileLabel: routing.profile ?? status.data?.profile?.name ?? "this profile",
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,

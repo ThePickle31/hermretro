@@ -257,7 +257,8 @@ function buildScenario(label, live, history = HISTORY) {
       'plugin.hermretro.build_restore': { ok: true, restored: SNAPSHOTS[1].id },
       'model.options': MODEL_OPTIONS,
       'config.set': params => ({ key: params?.key, value: params?.value }),
-      'prompt.submit': { ok: true }, 'session.interrupt': { ok: true }, 'session.create': { session_id: 'rt-new', stored_session_id: 'st-new' }
+      'prompt.submit': { ok: true }, 'session.interrupt': { ok: true },
+      'session.create': params => ({ session_id: 'rt-new', stored_session_id: 'st-new', info: { ...MODEL_OPTIONS, ...params } })
     },
     live
   }
@@ -371,6 +372,7 @@ preview.scenario.models = answered(MODEL_OPTIONS)
 if (chosen.rpc) preview.scenario.rpc = { 'plugin.hermretro.games': chosen.games?.data, ...chosen.rpc }
 
 const registrations = []
+const storage = { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
 const ctx = {
   registerMany: list => registrations.push(...list),
   setTimeout: (fn, ms) => {
@@ -380,8 +382,8 @@ const ctx = {
   },
   os: { writeClipboard: async () => true, openExternal: async url => console.log('open', url) },
   storage: {
-    get: (key, fallback) => (key === 'setup' ? { ...chosen.storage } : key === 'page' ? (params.get('p') ?? fallback) : (chosen.extra?.[key] ?? fallback)),
-    set: () => {}
+    get: (key, fallback) => storage[key] ?? fallback,
+    set: (key, value) => { storage[key] = value }
   }
 }
 

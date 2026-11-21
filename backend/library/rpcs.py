@@ -316,7 +316,7 @@ def rpc_build(ctx):
     """The Build page's game ↔ conversation binding. Params use ``stored`` (a stored session id), never
     ``session_id``: the gateway would authorize that as a live session and refuse the whole call.
       {action: "start", stored, name?, plan?}     a New Game conversation, before its project exists
-      {action: "bind", game, stored, replace?}    give a game its conversation (replace: the old one is gone)
+      {action: "bind", game, stored, replace?}    give a game its conversation (replace: the removed one's id)
       {action: "cancel", stored}                  forget a New Game conversation that made nothing
       {action: "unbind", game, stored}            stop editing: the game lets go of its conversation"""
 
@@ -331,9 +331,7 @@ def rpc_build(ctx):
                 record = registry.build_start(stored, here, params.get("name"), plan=params.get("plan") is True)
                 return {"ok": True, "pending": {"storedId": record["storedId"], "name": record["name"]}}
             if action == "bind":
-                entry = registry.bind(
-                    str(params.get("game") or ""), stored, here, replace=params.get("replace") is True
-                )
+                entry = registry.bind(str(params.get("game") or ""), stored, here, replace=params.get("replace"))
                 return {"ok": True, "game": entry["id"], "session": library.public_session(entry.get("session"))}
             if action == "cancel":
                 return {"ok": True, "cancelled": registry.build_cancel(stored, here)}

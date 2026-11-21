@@ -8,7 +8,7 @@ the pages, `registry.js` checks each page's descriptor, declares their events an
 
 **Hubs other pages use:** `events.js` (`on`, `emit`), `slots.js` (`Slot`), `style.js` (`PageStyle`).
 **Plumbing:** `backend.js` (RPC queries), `rpc.js` (RPC names, re-exported from the generated `rpc-names.js`; never edit that one), `routing.js`
-(the hermretro profile), `chat-insert.js` and `prompt-button.js` / `prompt-block.js` (prompts into chats),
+(the hermretro profile), `chat-insert.js` and `prompt-block.js` (prompts into chats),
 `ids.js`, `tools.js` (agent tool names), `game-prompts.js`, `format.js`, `paths.js`. `update/`: updating hermretro
 from the page (the header chip and popover, the update steps, the state pages read as `shell.pluginUpdate`).
 

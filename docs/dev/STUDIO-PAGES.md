@@ -8,13 +8,12 @@ page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). B
 
 The **HermRetro** entry in the Hermes Desktop sidebar opens `/hermretro`.
 
-`Build · Setup · Prompts · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them). The page opens on
-Build, or on the page the user last chose (a remembered page that no longer exists, such as the removed Home, opens Build).
+`Build · Setup · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them). The page opens on
+Build, or on the page the user last chose (a remembered page that no longer exists opens Build).
 
 | Page | Approved design (details below) | Mockup file (source template) |
 |---|---|---|
 | Setup | Atelier wizard with the flying Chromatic | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
-| Prompts | **Reader** | `src/prompts-page.template.html` variant 2 |
 | Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
 | Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
 
@@ -62,15 +61,6 @@ means both.
   The hardware switch opens the hermretro profile's plugin settings (`&profile=hermretro`, Settings' own scope
   hand-off) even while the app is on another profile.
 
-### Prompts
-
-- **Reader**: list with search + ↑/↓ on the left grouped Plan / Create / Play / Polish / On your Chromatic; chosen prompt in the middle as an editable textarea, folder + project-name inputs for prompts with `{folder}`/`{name}`; actions **Start a new chat**, **Add to current chat**, **Copy**, "Reset text"; a "What happens" note; Hermes art on the right.
-- **Search** filters by title, text and group (`prompts-page.js`): the chosen prompt stays shown while it still
-  matches, even when it is not first; otherwise the first visible match is shown, and with no match at all the
-  chosen prompt stays. Typing never changes the choice itself (only a click or ↑/↓ does), so clearing the query
-  shows the chosen prompt again. Checked by `tests/page/page-prompts.test.mjs`.
-- Hardware prompts locked without a Chromatic ("Needs your Chromatic" + Set up my Chromatic).
-
 ### Games
 
 - **Cartridge grid**: the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
@@ -81,8 +71,9 @@ means both.
 - The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library.
 - The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen.
 - A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent.
-- A faded "Blank cartridge" slot = New game.
-- Empty library page (with the Chromatic status strip).
+- **New game** (header and faded Blank cartridge, or the action in the empty or unreadable library) opens Build's
+  New Game form with **Build it** and **Plan first**. Navigation alone does not start a chat.
+- The empty library keeps the Chromatic status strip.
 
 ### Emulator
 
@@ -97,8 +88,8 @@ means both.
 ## Build: one game, one conversation
 
 The Build page drives an ordinary Hermes session itself instead of sending prompts to the chat:
-this game's conversation, where the game also plays, with the trimmed New Game screen (idea box,
-name, "Plan it first"). There is no games rail (user picked mockup B to give the chat room next to
+this game's conversation, where the game also plays, with the trimmed New Game screen (idea box and the
+**Build it** and **Plan first** choices). There is no games rail (user picked mockup B to give the chat room beside
 Hermes's own sidebar): the title in the header is the game switcher. Its menu (user picked mockups
 A1 + A2 + E) lists New game, Edit a game, then "Editing now": New Game conversations still being set
 up and the games that have a conversation (plus the game just picked, until its first message makes
@@ -113,9 +104,10 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 - **One game = one session.** Game sessions are created `hidden` (not in the Hermes sidebar); the
   Build page's game switcher is the way in, and "Open in full chat" (`host.openSession`) shows the same session.
-- **New Game** creates the session first (`session.create {hidden: true, title}`), then sends the
-  new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
-- **A game with no conversation** opens a blank one; the session is created on the first message.
+- **New Game** creates a fresh hidden session (without a title; see [gateway calls under Page](#page)), then sends
+  the new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
+- **A game with no conversation** opens a blank one; the session is created on the first message. The composer waits
+  for one creation and binding at a time and keeps the message and attachments if either is refused.
 - **Stop editing** unbinds the game (`build` `unbind`) and un-hides its session (`session.set_hidden
   {hidden: false}`), so the old conversation shows up in the Hermes sidebar instead of being lost. The
   game goes back under Edit a game; editing it again starts a new conversation.
@@ -150,12 +142,14 @@ the profile's session database (`null` when unknown).
 
 Params name the session `stored`, never `session_id` (the gateway would authorize it as live):
 `{action: "start", stored, name?, plan?}` → `{ok, pending}`; `{action: "bind", game, stored,
-replace?}` → `{ok, game, session}` (`replace` swaps a conversation that was removed);
+replace?}` → `{ok, game, session}` (`replace` is the stored id of the conversation the page saw was
+removed, and the swap happens only while the game is still bound to exactly that one; omit it otherwise);
 `{action: "cancel", stored}` → `{ok, cancelled}`; `{action: "unbind", game, stored}` → `{ok, unbound}`
 (only when `stored` is the game's current conversation, so a stale page cannot drop a newer one). Failures are `{ok: false, code, error}` with
-`code` one of `INVALID`, `NO_GAME`, `BOUND` (the session belongs to another game),
-`HAS_CONVERSATION` (the game has another session and `replace` was not set) and `OTHER_PROFILE`
-(`replace` never takes another profile's conversation).
+`code` one of `INVALID` (also for a `replace` that is not a nonempty string, such as `true`), `NO_GAME`,
+`BOUND` (the session belongs to another game), `HAS_CONVERSATION` (the game has another session and
+`replace` was not set), `STALE` (the game is no longer bound to the conversation `replace` names: another
+page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes another profile's conversation).
 
 ### `asset` RPC
 
@@ -211,7 +205,8 @@ own connection when the app is on that profile). When it is missing or not answe
 throws `STUDIO_PROFILE_MISSING`, the Build page shows `StudioNeeded` (Repair re-runs `studio_profile` from the
 profile the plugin was installed into) and "Use in chat" copies the prompt with a notice; nothing ever runs in
 another profile. Gateway calls (on that route, `host.retainProfile` held): `session.create
-{hidden: true, title}`, `session.resume` (history; `omit_messages` while polling), `prompt.submit`
+{hidden: true}` (no title: the canonical gateway treats it as a lookup for an existing session),
+`session.resume` (history; `omit_messages` while polling), `prompt.submit`
 (with `submission_id`), `session.interrupt`, `clarify.lock` (fallback `request.answer`),
 `approval.respond`. The stream is `host.onEvent` filtered by `session_id`, de-duplicated by `seq`
 and the delta `offset`. Questions and approvals are server requests the page never receives: while
@@ -370,8 +365,12 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   while HermRetro works is held ("next message", and the bar says so) and applied when the turn ends. A model that asks
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
-  use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}` (plus the draft's `fast` choice for a ChatGPT or Codex Subscription or OpenAI API model). A reply names its model when it differs from the message before.
+  use the same model/provider pair for the draft chip and `session.create`: a saved pick (`buildModel`) wins,
+  else use the studio default returned by `model.options` if both values are known. Clicking the displayed default
+  saves it as a pick. Creation passes the chosen `reasoning_effort` and the draft's `fast` choice for a ChatGPT or
+  Codex Subscription or OpenAI API model. The first message is not bound or sent if the returned session already
+  has history or does not confirm the model and provider sent with the request.
+  A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
   follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn
@@ -525,7 +524,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 
 - `index.js` is the entry: the default export and the one `register()`, which calls `startPages(ctx)` (every page's own start-up work and event listeners). `sdk.js` is the only module that imports packages.
 - `app/`: the shell and what every page uses. The shell: `studio-page.js` (the page shown, the data every page shares as `shell`), `nav.js`, `page-view.js` (a page's body or its tabs), `not-running.js`, `shell.css.js`, `registry.js` (checks the pages and wires them), `player/` (the one player, kept across pages). Hubs pages use: `events.js`, `slots.js`, `style.js`. Plumbing: routing, ids, RPC names, backend queries, the chat composer insert and prompt buttons, formatting (`format.js`: `formatBytes`, the one bytes formatter every page uses, and `shortPath`), paths, the prompts several pages send, agent tool names.
-- `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `build/`, `setup/` (with `onboarding/` and `install/`), `prompts/`, `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`BUILD_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
+- `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `build/`, `setup/` (with `onboarding/` and `install/`), `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`BUILD_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
 - `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (PNG and SVG art; `art/providers/` the provider logos and their index), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
 - `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
 - Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// retrodev: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
@@ -544,8 +543,11 @@ tests with the exact problem.
 
 **Page state.** A setting a page keeps across visits (a choice, the last folder) goes in
 `shell.ctx.storage.get(key, fallback)` / `shell.ctx.storage.set(key, value)`; every page shares one set of keys, so
-pick one no other page uses (`buildSelected`, `promptFolder`). Page tests seed and read them as `scenario.storage`
-(`tests/page/harness.mjs`).
+pick one no other page uses (`buildSelected`, `buildModel`). Page tests seed and read them as `scenario.storage`
+(`tests/page/harness.mjs`). To navigate from Games without depending on a storage write, `shell.go('build', selection)`
+passes the requested game ID (or `'new'`). `shell.buildSelection` survives a backend disconnect within the same Build
+visit; Build updates it through `shell.selectBuild` and saves the selection if possible. The visit also keeps records of
+locally started New Game conversations (`shell.buildPending`) so a cached library response cannot drop the active chat.
 
 ### A page
 
@@ -568,7 +570,7 @@ nav list (it goes last; move it in both).
 
 Reference content (how something works, rather than something to do) goes on the page it is about, not on a
 page of its own: the player's controls and keys belong to the Emulator page (a tab there, or under the player);
-setup explanations to Setup; prompts to Prompts. The keys a game answers to are the `customControls` of its web
+setup explanations and setup chat actions belong to Setup. The keys a game answers to are the `customControls` of its web
 export's `gbstudio.json` (read by `player/web/js/script.js` inside the frame; `player/web/gbstudio.json` is the demo
 cartridge's); `GAME_KEYS` in `page/shared/player/bridge.js` are the keys forwarded to the frame while focus is on
 the page outside it (arrows, Z, X, Enter, Shift, P: not all of the default map, and P is not in it).
@@ -668,9 +670,7 @@ Test what the item does in the host page's scenario test, where the slot is draw
 `ctx.os.writeClipboard`, `scenario.notices` each `host.notify({ kind, message })`, `scenario.revealed` the last
 `ctx.os.revealPath`, `scenario.inserted` what went into a chat's composer (`tests/page/sdk-stub.mjs`,
 `tests/page/harness.mjs`; "Show in folder on a remote Hermes" in `page-games.test.mjs` is one). For
-`emulator.barActions`, `tests/page/page-emulator.test.mjs`. For a slot on Prompts, two scenario tests draw it:
-`tests/page/page-studio.test.mjs` reaches a ready studio (onboarded, Chromatic set up, tools verified: its opening
-`scenario.storage`), and `tests/page/page-setup.test.mjs` shows Prompts in emulator-only mode and from another profile.
+`emulator.barActions`, `tests/page/page-emulator.test.mjs`.
 
 ### Calling the backend from a page
 
