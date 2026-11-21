@@ -98,33 +98,38 @@ checkout but its git folder
 When the tree passes and the branch has no pull request yet while its body (`notes/pr/<topic>.md`, or the recorded
 one) still fails ship's body gate, its last line is `next: fill in <the sections still empty> in <path>, then python
 tools/retrodev ship --title '<title>'` (while the body does not exist yet: `next: fill in the pull request body
-(missing: <path>; ...)`). Runs `tools/check.py` for the checks whose inputs changed since their last pass on the
+(missing: <path>; ...)`). Runs `tools/check.py` for the fast checks (`policy.toml` `[checks] fast`: unit, bundle,
+lint, page, scan; whatever the branch changed) whose inputs changed since their last pass on the
 branch (`ok (cached)` otherwise; a check's inputs, in `policy.toml` `[checks.inputs]`, include the tools it runs and
 their pins, `tools/check.py` and `policy.toml`, less the files `[checks.input_ignore]` shows it never reads: a
 `tests/retrodev/` edit keeps acceptance's pass); `--watch` runs again on every file change and on a commit or a
 clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run
-(a trigger added while watching runs its check at once); `--watch --again` ignores earlier passes on its first run,
-later runs rerun only what changed; adds `acceptance` and the clean install (and the update check when files moved or
-were deleted) when the branch changed what they cover (not for a file `[checks.trigger_ignore]` lists: a backend
-`README.md` adds no acceptance run); prints times against budgets (`policy.toml` `[checks.budgets]`,
+(a check added to the fast list while watching runs at once); `--watch --again` ignores earlier passes on its first
+run, later runs rerun only what changed. The slow checks (`scaffold`, `acceptance`, `clean_install`, `update`) run
+only when named (`check acceptance`) or with `--full` (scaffold, acceptance, the clean install); CI runs them on the
+pull request's exact head, and land merges only on that green run. One that fails is reported (`failed: acceptance;
+the fast checks passed on this tree, so it may ship as a draft (CI runs the slow checks on its exact head)`, exit
+1), and one skipped for a missing tool (`may_skip`: acceptance) ends `skipped, so not proven here: acceptance`;
+neither counts as a pass, and ship's gate line names them (`not proven here: acceptance FAILED`). Prints times
+against budgets (`policy.toml` `[checks.budgets]`,
 from measured cold runs on a loaded machine: unit 60 s, scaffold 58 s, the fast checks together 60 s). A check over
 its budget twice in a row on the branch (each check's last passing time is recorded in the branch record's
 `durations`: a failed run measures nothing) gets a warning that it was slower than usual (machines and load differ),
 never a failure; one slow run (a cold cache, a busy machine) warns nothing. The clean install and update check install
-the committed HEAD, so they run only on a committed, clean tree: when one is due and the tree has uncommitted changes,
+the committed HEAD, so they run only on a committed, clean tree: when one is asked for and the tree has uncommitted
+changes,
 `check` refuses before running anything (`FIX: commit first: the clean install installs the committed tree`);
 `--watch` instead runs the rest and lets them wait for the commit. When scaffold is due, lint runs first, by itself;
 on a tree that fails lint (in the same run, or lint's recorded failure on the same inputs) scaffold does not run (it
 would fail after a minute and more: new's code is linted) and is reported as `scaffold: skipped: the tree fails lint
 (fix lint first)`, not as scaffold's rerun FIX (likewise `scaffold: skipped: the tree fails page (fix page first)`
 when the tree fails page: check.py scaffold looks at page once, before any scaffold test, reusing page's row of the
-same run or its recorded pass); once lint passes, scaffold runs beside the other checks. A
-generated bundle (`player/frame-shim.js`, `desktop/plugin.js`) whose banner's `body: sha256` is unchanged (only its
-`sources:` line moved) adds no check. A pass of everything the branch needs records the tree's digest (contents and
-file modes) and which checks those were; ship accepts it only while they cover what the policy requires now; a failed
-rerun takes it back. `check <names>` counts toward that gate too: each named check's pass is kept against its inputs,
-and any run (named or not) after which every check the branch needs has a pass on the current inputs records the tree
-as passed, so `check unit` after the others passed on the same tree is enough; while one still lacks a pass, ship's
+same run or its recorded pass); once lint passes, scaffold runs beside the other checks. A pass of every fast check
+records the tree's digest (contents and file modes) and which checks those were; ship accepts it only while they
+cover what the policy requires now; a failed or skipped fast check takes it back.
+`check <names>` counts toward that gate too: each named check's pass is kept against its inputs, and any run (named
+or not) after which every fast check has a pass on the current inputs records the tree as passed, so `check unit`
+after the others passed on the same tree is enough; while one still lacks a pass, ship's
 `checks passed on this tree` gate refuses
 
 ### `ship [--title "..."] [--body <file>] [--new-body] [--dry-run]`
@@ -351,8 +356,7 @@ reported as `pre-existing on this tree (not from new)` and the scaffold stands, 
 passed (one skipped for a missing tool keeps the exit 1: it proves nothing); a
 unit or page failure is always new's, since new's code may break a test it did not write) and
 prints the next steps
-(for a change the clean install covers, such as `plugin.yaml` or `backend/features.py`: commit, then `check`, then
-`ship`, since that install takes only the committed tree). It refuses (`FIX:`) a name that exists or breaks the naming
+(`then: python tools/retrodev check, commit, python tools/retrodev ship`). It refuses (`FIX:`) a name that exists or breaks the naming
 rules (features, RPCs, tools and events: lowercase and underscores; pages and tabs: lowercase and dashes; slots:
 camelCase), never overwrites a file, and writes only on a work branch (never `dev` or `main`; `--dry-run` writes
 nothing, the branch record included, so it runs on `dev` too and a plan can list the files). It refuses a tool whose
@@ -372,22 +376,13 @@ function: its tools come from the engine). Step words may hold quotes; each is w
 JavaScript string. The generated code passes the real checks as written: `python tools/check.py scaffold`
 (`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; a few seconds, so not in the fast unit run) runs
 every kind on a copy of the repository, then lint, the bundle, the structure tests and the page tests there. It is
-part of `check.py full` and `check --full`, `check` adds it when the branch changed the scaffolds or the files whose
-structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds,
-nor a change to `page/pages/index.js` or `step-words.js` made only of the lines `new page` and `new tool` write there,
-`[checks.new_lines]`),
-and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
+part of `check.py full`, `check --full` and `check scaffold`, and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
 `scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
 on games, a slot on build, a contribution from build to a declared slot), then the full unit and page suites, so a test that
-pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. `check` runs it in
-that nested mode itself (its `adding scaffold:` line ends `run nested (RD_SCAFFOLD_FULL=nested), as CI's page job
-runs those tests in its grown copy`; about 110 s, budget `scaffold_nested`) when the branch changed a test the grown
-copy runs that may read the surrounding tree: `tests/repo/`, `tests/support.py` or the page test harness
-(`policy.toml` `[checks.nested_triggers]`; never the generated `tests/repo/registration.json` that `new tool` and
-`new rpc` rewrite, nor a change to one of them made only of comments, docstrings or blank lines: the two sides'
-syntax trees without docstrings for Python, the text without its comments for `.js`/`.mjs`; a file it cannot read
-for sure counts as changed); a fast-mode pass never stands for a nested one.
+pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. To run that nested
+mode here: `RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` (about 110 s, budget `scaffold_nested`);
+`check` never picks it from the branch's changes, and a fast-mode pass never stands for a nested one.
 
 ### `new feature <name> [--purpose "..."]`
 
@@ -733,8 +728,10 @@ is picked up by its branch.
 
 `--dry-run` fetches nothing and changes nothing (no prepare, approve, land or publish, no record): it prints the
 steps done and what it would run (with `release publish --dry-run`'s commands once the commit is known), and
-every command it prints keeps `--dry-run`. A version pull request changes only the `version:` line, so its CI and
-`check` skip the real-engine run (`tools/ci/changes.py`, `checks_triggers.py`); the clean install still runs. The
+every command it prints keeps `--dry-run`. A version pull request changes only the `version:` line, so its CI skips the
+real-engine run (`tools/ci/changes.py`) and its local check is the fast checks and the clean install
+(`release.version_pr_checks`); release run, the release guard and land's release-approval gate check that line with
+`version_diff.py`. The
 three steps below remain, to run or resume one at a time:
 
 1. `release prepare --owner-words "<the owner's exact words>"`: refuses (exit 3) without words that ask for a release.
@@ -803,7 +800,7 @@ settings). `RETRODEV_STATE_DIR` moves the folder (for a sandbox or a trial that 
 `status` and `doctor` print a warning naming it, so an override leaked into a shared shell is noticed. Set it per
 command (`RETRODEV_STATE_DIR=<folder> python tools/retrodev ...`), never exported in a shell others use.
 
-The rules everyone shares are in `policy.toml` beside this file: check inputs and triggers, budgets, generated files
+The rules everyone shares are in `policy.toml` beside this file: the fast checks, check inputs, budgets, generated files
 and how to rebuild them, the template's sections, labels by area, what needs a restart. Personal settings override its
 `[config]` defaults:
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import checks_triggers, github, release, repo, state
+from . import github, release, repo, state, version_diff
 
 FAILED_RUN = {"failure", "cancelled", "timed_out", "startup_failure"}
 
@@ -50,7 +50,7 @@ def news(ctx) -> str | None:
         return f"v{previous} is not here"
     if repo.ok(["diff", "--quiet", since, ctx.remote_base, "--"], ctx.top):
         return None  # the very same files
-    return checks_triggers.beyond_version(ctx.top, since, ctx.remote_base)
+    return version_diff.beyond_version(ctx.top, since, ctx.remote_base)
 
 
 def stale_next(ctx, version: str, dry_run: bool) -> None:

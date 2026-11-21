@@ -245,10 +245,14 @@ class AcceptanceInputs(RepoCase):
     """A branch that needs the real-engine run passed it, then changed only a retrodev test: acceptance reran (40 s)
     though nothing it runs reads tests/retrodev/. Every file it may read still takes its pass back."""
 
-    def checked(self, tree, *, cached: bool, code: int = 0) -> dict:
+    def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
+        """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
+        run's data (its tree_passed is still the fast checks')."""
         self.clear_log()
         got, data = self.run_cli("check", cwd=tree, as_json=True)
         self.assertEqual(got, code, data)
+        got, data = self.run_cli("check", *slow, cwd=tree, as_json=True)
+        self.assertEqual(got, 0, data)
         ran = [name for entry in self.check_log() for name in entry.get("names", [])]
         self.assertEqual("acceptance" not in ran, cached, ran)
         row = next(row for row in data["checks"] if row["name"] == "acceptance")

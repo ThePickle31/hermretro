@@ -127,11 +127,31 @@ def committed(ctx) -> Gate:
     return passed("committed and clean")
 
 
+def unproven_here(ctx, record: dict) -> str:
+    """The slow checks asked for on this very tree that failed or were skipped: said beside the pass (they do not
+    hold back a draft; CI runs them on the exact head before land), never hidden."""
+    slow = set(checks.known(ctx)) - checks.required(ctx).keys()
+    candidates = [
+        (name, last)
+        for name, last in sorted((record.get("checks") or {}).items())
+        if name in slow and last.get("state") in ("FAILED", "skipped")
+    ]
+    if not candidates:
+        return ""
+    ids = repo.file_ids(ctx.top)
+    found = [
+        f"{name} {last['state']}"
+        for name, last in candidates
+        if last.get("digest", "").split("+")[0] == checks.inputs_digest(ctx, ids, name)
+    ]
+    return f"; not proven here: {', '.join(found)} (CI runs the slow checks on the exact head)" if found else ""
+
+
 def checks_on_tree(ctx, record: dict, digest: str) -> Gate:
-    """The pass recorded for exactly this tree covered every check the policy requires of this change now."""
+    """The pass recorded for exactly this tree covered every fast check the policy requires now."""
     missing = sorted(set(checks.required(ctx)) - set(record.get("passed_checks") or []))
     if record.get("passed_tree") == digest and not missing:
-        return passed("checks passed on this tree", f"at {record.get('passed_at')}")
+        return passed("checks passed on this tree", f"at {record.get('passed_at')}" + unproven_here(ctx, record))
     if not record.get("passed_tree"):
         reason = "no passing check run is recorded"
     elif record["passed_tree"] != digest:

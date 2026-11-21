@@ -9,14 +9,13 @@ Run alone: python -m unittest tests.retrodev.test_trial_round_five
 import argparse
 import functools
 import importlib.util
-import io
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import retrodev
-from retrodev import cli, config, output, scaffold
+from retrodev import cli, scaffold
 
 from tests.retrodev import test_scaffold_tree as tree_test
 from tests.retrodev.fixture import RepoCase, git, parallel, retrodev_docs, write
@@ -140,24 +139,12 @@ class Guard(unittest.TestCase):
 
 
 class Check(RepoCase):
-    def test_a_branch_that_only_adds_architecture_and_contract_rows_adds_no_scaffold(self):
-        tree = self.worktree("chore/rows")
-        self.commit(tree, "docs/dev/ARCHITECTURE.md", "# rows\n")
-        self.commit(tree, "docs/dev/CONTRACT.md", "# rows\n")
-        code, out = self.run_cli("check", cwd=tree)
-        self.assertEqual(code, 0, out)
-        self.assertNotIn("scaffold", [name for entry in self.check_log() for name in entry["names"]])
-        ctx = config.Context.make(ROOT, output.Out(stream=io.StringIO()))
-        patterns = ctx.policy["checks"]["triggers"]["scaffold"]
-        for kept in ("backend/features.py", "page/pages/index.js", "tools/layout.toml", "tools/retrodev/templates/*"):
-            self.assertIn(kept, patterns)
-
     def test_a_scaffold_skipped_for_a_failing_unit_suite_says_so(self):
         tree = self.worktree("chore/templates")
         self.commit(tree, "tools/retrodev/templates/tool/tool.py.tmpl", "# changed\n")
         self.skip_checks("scaffold")
         (self.base / "skip-detail").write_text("skipped: the tree fails unit (fix unit first)")
-        code, out = self.run_cli("check", cwd=tree)
+        code, out = self.run_cli("check", "scaffold", cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertIn("scaffold: skipped: the tree fails unit (fix unit first)", out)
         self.assertNotIn("a tool is missing", out)

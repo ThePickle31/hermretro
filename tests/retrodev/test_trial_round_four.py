@@ -1,5 +1,5 @@
-"""Friction the fourth round of fresh-agent trials found in check (scaffold after a lint failure, a bundle whose
-banner alone changed), ship and status (a dry run's next step stays a dry run; nothing in progress), `new` (the
+"""Friction the fourth round of fresh-agent trials found in check (scaffold after a lint failure), ship and
+status (a dry run's next step stays a dry run; nothing in progress), `new` (the
 agent-half Declares cell, tab --from-page, the listener signature, the rpc and library tool next steps) and the
 test pool (discovery can be walked); each test failed before its fix.
 
@@ -13,7 +13,6 @@ import unittest
 from pathlib import Path
 
 import retrodev
-from retrodev import checks_triggers
 
 from tests.retrodev import test_trial_round_two as two
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
@@ -22,15 +21,6 @@ from tests.retrodev.test_trial_round_two import TITLE, line_with
 
 load_tests = parallel
 ROOT = Path(retrodev.__file__).resolve().parents[2]
-HASH = "a" * 64
-
-
-def bundle(sources: str, body: str, text: str = "export const a = 1\n") -> str:
-    """A generated file opening with tools/bundle/bundle.mjs's banner."""
-    return (
-        f"/**\n * hermretro: a generated file.\n * build: esbuild 0.28.2\n * sources: sha256 {sources}\n"
-        f" * body: sha256 {body}\n */\n{text}"
-    )
 
 
 class Check(RepoCase):
@@ -45,28 +35,6 @@ class Check(RepoCase):
         self.clear_log()
         self.run_cli("check", "lint", "scaffold", cwd=tree)
         self.assertEqual([entry["names"] for entry in self.check_log()], [["lint"], ["scaffold"]])
-
-    def frame_shim(self, sources: str, body: str, text: str = "export const a = 1\n") -> Path:
-        self.on_dev("player/frame-shim.js", bundle(HASH, HASH))
-        git(self.main, "fetch", "-q", "origin")
-        tree = self.worktree("chore/shim")
-        self.commit(tree, "player/frame-shim.js", bundle(sources, body, text))
-        return tree
-
-    def test_a_frame_shim_whose_body_hash_is_unchanged_adds_no_acceptance(self):
-        tree = self.frame_shim("b" * 64, HASH)  # only sources: moved (a page/shared edit outside the frame)
-        _code, out = self.run_cli("check", cwd=tree)
-        self.assertNotIn("adding acceptance", out)
-
-    def test_a_frame_shim_whose_body_changed_still_adds_acceptance(self):
-        tree = self.frame_shim("b" * 64, "c" * 64, "export const a = 2\n")
-        _code, out = self.run_cli("check", cwd=tree)
-        self.assertIn("adding acceptance: changed player/frame-shim.js", out)
-
-    def test_the_body_hash_is_read_from_the_banner_only(self):
-        self.assertEqual(checks_triggers.body_hash(bundle(HASH, "c" * 64)), "c" * 64)
-        self.assertIsNone(checks_triggers.body_hash("export const a = 1\n * body: sha256 " + HASH))
-        self.assertIsNone(checks_triggers.body_hash(None))
 
 
 class Ship(two.Flow):  # its helpers (two.Flow's own tests run in test_trial_round_two)
@@ -342,7 +310,9 @@ class Pool(unittest.TestCase):
             [sys.executable, "-c", WALK, str(ROOT)], cwd=ROOT, capture_output=True, text=True, check=True
         ).stdout.split()
         self.assertIn(f"{__name__}.Pool.test_walking_the_discovered_suite_reaches_every_test_id", ids)
-        self.assertIn("tests.retrodev.test_trial_round_four.Check.test_the_body_hash_is_read_from_the_banner_only", ids)
+        self.assertIn(
+            "tests.retrodev.test_trial_round_four.Check.test_scaffold_does_not_run_when_lint_fails_in_the_same_run", ids
+        )
 
 
 class Readme(unittest.TestCase):
