@@ -331,11 +331,17 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   generation it learned from the snapshot; the lost turn is not re-run). Waiting messages then run;
   with none, Continue sends "Continue where you left off" (shown as "Continue"). A message sent while
   paused waits ("Waiting · sent when you continue").
+- **Provider marks** (the owner: "it needs to be their official icons"): the button, the rail and each model row
+  show the provider's official logo from `page/shared/art/providers/` (taken only from the company's own site, brand
+  kit or GitHub organisation; the source of each is beside it in `index.js`), in the brand's version for the theme
+  on screen (the SDK's `useTheme`). A provider without one (custom endpoints, Mixture of Agents, ones Hermes adds
+  later) shows its first letter, two when another provider starts the same. A new Hermes provider gets its brand
+  added there; `tests/page/page-build-logos.test.mjs` lists the catalogue it checks.
 - **Model and effort** (user picked mockup C, "one button, one panel"; its panel redrawn after the user's
   reference, round 2 direction F1): one button under the message box, "<mark> Claude Opus 5.5 · High". Its
   560 px panel (narrower, with shorter words, where the window or the box that scrolls the composer is narrower)
   has a rail on the left (Starred, one mark per `authenticated` provider with models from `model.options`, name on
-  hover; two letters when two providers share a first letter; + opens Settings > Providers), the models in the
+  hover; + opens Settings > Providers), the models in the
   middle (search covers every provider and groups matches under each provider's name; ids shown as names:
   `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag; a star on each row, kept in the page's storage as
   `buildModelStars` because Hermes's own starred list is not open to plugins), Effort as a list on the right (Off

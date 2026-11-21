@@ -22,7 +22,7 @@ const CLIMBS = '..' + '/'
 
 // What counts as source (and goes into the banner's hash): modules and the art they import. Dotfiles and
 // editor leftovers (.orig, ~ backups) are not, so they cannot make a clean checkout look stale.
-const SOURCE_FILE = /\.(js|png)$/
+const SOURCE_FILE = /\.(js|png|svg)$/
 
 export const lineCount = text => text.split('\n').length - (text.endsWith('\n') ? 1 : 0)
 

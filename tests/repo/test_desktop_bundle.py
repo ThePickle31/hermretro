@@ -23,7 +23,7 @@ SOURCE = ROOT / "page"
 # page-only edit restamps desktop/plugin.js and leaves the frame shim alone.
 SOURCES = {"desktop/plugin.js": ["page"], "player/frame-shim.js": ["page/frame", "page/shared"]}
 # Modules and the art they import; dotfiles and editor leftovers are not hashed (tools/bundle/lint.mjs).
-SOURCE_SUFFIXES = {".js", ".png"}
+SOURCE_SUFFIXES = {".js", ".png", ".svg"}
 REBUILD = "run: node tools/bundle/bundle.mjs"
 BANNER = re.compile(
     r"\A/\*\*\n(?: \*[^\n]*\n)*? \* build: esbuild (\S+)\n \* sources: sha256 ([0-9a-f]{64})\n"

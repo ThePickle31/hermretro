@@ -129,6 +129,12 @@ export const Badge = ({ children }) => jsx('span', { children })
 export const ScrollArea = ({ children, style }) => jsx('div', { style: { ...style, overflow: 'auto' }, children })
 export const Separator = () => jsx('hr', { style: { border: 0, borderTop: '1px solid var(--ui-stroke-tertiary)', margin: 0 } })
 export const Tip = ({ children }) => children
+// The preview paints one mode per load (entry.mjs, ?mode=dark): read it off the root the way the app marks it.
+export const useTheme = () => {
+  const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+
+  return { renderedMode: mode, resolvedMode: mode }
+}
 export const SandboxedFrame = ({ src, title, sandbox, onLoad, ref }) =>
   jsx('iframe', { onLoad, ref, sandbox, src, style: { border: 0, display: 'block', height: '100%', width: '100%' }, title })
 export const MessageTextContent = ({ text }) => jsx('div', { style: { whiteSpace: 'pre-wrap' }, children: text })

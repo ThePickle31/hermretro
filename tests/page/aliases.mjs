@@ -53,12 +53,14 @@ export function resolve(specifier, context, next) {
   return next(specifier, context)
 }
 
-// `import art from './art.png'` (page/shared/art/index.js): the bundle inlines it as a data URL; so does this.
+// `import art from './art.png'` (page/shared/art/index.js) or `.svg` (the provider logos): the bundle inlines it as a
+// data URL; so does this.
 export function load(url, context, next) {
-  if (url.startsWith('file:') && url.endsWith('.png')) {
+  if (url.startsWith('file:') && (url.endsWith('.png') || url.endsWith('.svg'))) {
     const data = readFileSync(fileURLToPath(url)).toString('base64')
+    const type = url.endsWith('.svg') ? 'image/svg+xml' : 'image/png'
 
-    return { format: 'module', source: `export default 'data:image/png;base64,${data}'`, shortCircuit: true }
+    return { format: 'module', source: `export default 'data:${type};base64,${data}'`, shortCircuit: true }
   }
 
   return next(url, context)
