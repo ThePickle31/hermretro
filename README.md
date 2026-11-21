@@ -61,7 +61,7 @@ Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated 
 | Real emulator frames reaching the model | Proven with a vision model |
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |
-| hermretro page: Home, Build, Setup, Prompts, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
+| hermretro page: Build, Setup, Prompts, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
 | Playing inside Hermes | The Emulator page runs ModRetro's own player (with a demo cartridge when you have no games yet). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
@@ -81,8 +81,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
   runs no build). On first use the page shows only a guided setup: welcome, the full
   list of what gets downloaded (version, source, size, purpose), the install itself with live progress and
   checksums (run by the page, not a chat), whether you have a Chromatic, and your first game idea. After that,
-  one segmented control for its pages:
-  - **Home**: what to do next (continue setup or your last game), quick starts and studio status.
+  one segmented control for its pages (it opens on Build):
   - **Setup**: one step per page, advancing by itself as the backend verifies each step; a physical
     Chromatic is optional. A step that breaks later shows a Repair banner on the other pages.
   - **Prompts**: every prompt, editable, put into a new or the current chat (never sent for you).

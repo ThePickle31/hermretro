@@ -15,9 +15,9 @@ export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile 
         className: 'cs-top-start',
         children: [
           jsxs('button', {
-            'aria-label': 'hermretro home',
+            'aria-label': 'hermretro: Build',
             className: 'cs-brand',
-            onClick: () => onGo('home'),
+            onClick: () => onGo('build'),
             type: 'button',
             children: ['herm', jsx('span', { children: 'retro' })]
           }),

@@ -63,7 +63,7 @@ class Previews(ScaffoldCase):
             ["feature", "rdprobe_tw"],
             ["page", "rdprobe-tw"],
             ["event", "history", "rdprobe_moved"],
-            ["tab", "home", "rdprobe-extra"],  # home has no tabs: the --from-page step
+            ["tab", "prompts", "rdprobe-extra"],  # prompts has no tabs: the --from-page step
         )
         said = []
         for argv in runs:
@@ -74,7 +74,7 @@ class Previews(ScaffoldCase):
                     self.assertTrue(rest.rstrip().endswith("--dry-run"), (argv, step))
             said.append(" ".join(steps))
         self.assertIn("`python tools/retrodev new listener <feature> history.rdprobe_moved --dry-run` writes", said[2])
-        self.assertIn("`python tools/retrodev new tab home main --from-page --dry-run` makes its current", said[3])
+        self.assertIn("`python tools/retrodev new tab prompts main --from-page --dry-run` makes its current", said[3])
         self.assertIn("python tools/retrodev new tab rdprobe-tw <tab> --dry-run | new slot", said[1])
         self.assertEqual(git(self.tree, "status", "--porcelain"), "")
 

@@ -194,7 +194,7 @@ class New(ScaffoldCase):
         self.assertIn("  tabs: [\n    RDPROBE_NOTES_FIRST_TAB\n  ]", door)
         out = self.new("tab", "rdprobe-notes", "again", "--from-page", code=1)  # it has tabs now
         self.assertIn("has tabs already", out["error"]["message"])
-        # Home's Page lives in home-page.js (round six)
+        # Prompts' Page lives in prompts-page.js (round six)
 
     def alias(self, clause: str, page_field: str) -> None:
         """The rdprobe-notes page's index.js importing its Page through ``clause``, committed."""
@@ -275,15 +275,15 @@ class New(ScaffoldCase):
             git(self.tree, "commit", "-q", "-m", "Back")
 
     def test_a_tab_template_says_how_a_tab_imports_its_page_s_files(self):
-        self.new("tab", "home", "rdprobe-extra")
-        tab = self.read("page/pages/home/rdprobe-extra/index.js")
+        self.new("tab", "prompts", "rdprobe-extra")
+        tab = self.read("page/pages/prompts/rdprobe-extra/index.js")
         self.assertIn(
-            "// A tab imports its page's files as #pages/home/<file>.js (an import that climbs a folder is refused).",
+            "// A tab imports its page's files as #pages/prompts/<file>.js (an import that climbs a folder is refused).",
             tab,
         )
 
     def test_a_first_tab_beside_the_page_s_own_page_skips_the_page_check_with_a_note(self):
-        self.new("page", "rdprobe-notes")  # a probe page: whether home has tabs is the real tree's business
+        self.new("page", "rdprobe-notes")  # a probe page: whether prompts has tabs is the real tree's business
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "Probe page")
         code, out = self.run_cli("new", "tab", "rdprobe-notes", "extra", cwd=self.tree)

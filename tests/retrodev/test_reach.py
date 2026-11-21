@@ -4,6 +4,7 @@ Run alone: python -m unittest tests.retrodev.test_reach
 """
 
 import io
+import re
 import subprocess
 import threading
 import unittest
@@ -197,6 +198,11 @@ class Mac(RepoCase):
 
 
 class Preview(RepoCase):
+    def test_the_page_choices_it_prints_are_the_nav_s_pages_in_order(self):  # review 2, 0: Home was removed
+        index = (Path(__file__).resolve().parents[2] / "page" / "pages" / "index.js").read_text()
+        pages = re.findall(r"^import \{ \w+_PAGE \} from '\./([a-z-]+)/index\.js'", index, re.M)
+        self.assertEqual(list(preview.PAGES), pages[: len(preview.PAGES)])  # a page added later (new page) may follow
+
     def desktop(self):
         folder = self.base / "desktop"
         write(folder, "package.json", "{}")

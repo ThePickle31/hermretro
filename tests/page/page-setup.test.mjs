@@ -5,15 +5,15 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, shows, hides, heading, HOME, headings, click, nav, tab, currentTab, settle, button, key, check, answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete }) => {
+await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, shows, hides, heading, WELCOME, headings, click, nav, tab, currentTab, settle, button, key, check, answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete }) => {
   // 1. Not switched on anywhere: an explanation, not a setup step.
   scenario.status = notLoaded
   await render()
   // The registry test (registry.test.mjs) pins every page in nav order; here the shell draws them, the built-in ones
   // first, so a page added at the end (python tools/retrodev new page) changes only the registry and its test.
-  check('one segmented control in the header: Home · Build · Setup · Prompts · Games · Emulator, Home first', () => {
-    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent).slice(0, 6), ['Home', 'Build', 'Setup', 'Prompts', 'Games', 'Emulator'])
-    assert.equal(currentTab(), 'Home')
+  check('one segmented control in the header: Build · Setup · Prompts · Games · Emulator, opening on Build', () => {
+    assert.deepEqual([...nav().querySelectorAll('button')].map(node => node.firstChild.textContent).slice(0, 5), ['Build', 'Setup', 'Prompts', 'Games', 'Emulator'])
+    assert.equal(currentTab(), 'Build')
   })
   check('with the backend off there are no setup steps, only how to switch it on', () => {
     assert.deepEqual(headings(), ['hermretro is not switched on in any profile'])
@@ -30,11 +30,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.storage = {}
   scenario.status = answered(firstRun); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await render()
-  check('first run: only the welcome, no segmented nav, Home or prompts', () => {
+  check('first run: only the welcome, no segmented nav or prompts', () => {
     assert.ok(!nav())
-    assert.equal(dom.window.document.querySelector('h1')?.textContent, HOME)
+    assert.equal(dom.window.document.querySelector('h1')?.textContent, WELCOME)
     assert.ok(button('Get started')); shows(/≈ 708 MB download · ≈ 2\.3 GB on disk/)
-    assert.ok(!dom.window.document.querySelector('.cs-home, .cs-quick, .cs-stat'), 'no Home, quick starts or Studio panel')
     assert.ok(!button('Use in chat') && !button('Continue setup'))
     assert.match(dom.window.document.querySelector('.cs-onb-steps').textContent, /First-time setup/)
   })
@@ -112,11 +111,11 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('an idea fills the box', () => { assert.match(dom.window.document.querySelector('.cs-idea textarea').value, /frog hops/) })
   scenario.calls.length = 0; scenario.inserted.length = 0
   await click('Start in chat'); await settle()
-  check('Start in chat opens a new chat with the idea, ends onboarding and shows the studio', () => {
+  check('Start in chat opens a new chat with the idea, ends onboarding and shows Build', () => {
     assert.ok(scenario.calls.some(call => call[0] === 'newChat'))
     assert.match(scenario.inserted.at(-1)[1], /make a new Game Boy Color game: a tiny platformer where a frog/)
     assert.equal(scenario.storage.setup.onboarded, true)
-    assert.equal(currentTab(), 'Home'); shows(/Ready to make games in the emulator/)
+    assert.equal(currentTab(), 'Build'); assert.equal(scenario.storage.page, 'build')
   })
   const keptRun = { ...scenario.storage }
   scenario.storage = { setup: { onboardStarted: true } }
@@ -163,22 +162,17 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   await act(async () => { root.render(null) })
 
-  // 2. After onboarding the toolchain breaks: Home says so and Setup repairs it (Node.js is not a step).
+  // 2. After onboarding the toolchain breaks: the page says so and Setup repairs it (Node.js is not a step).
   scenario.storage = { setup: { onboarded: true } }
   scenario.status = answered(status()); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await render()
-  await tab('Home')
-  check('while setup is incomplete Home leads with Continue setup and greys out the quick starts', () => {
-    assert.equal(heading(), HOME); shows(/Next: Game toolchain/)
-    // The hero and the Studio list count the same thing (done steps, like the Setup rail).
-    shows(/Setup: 1 of 2 done/); assert.match(dom.window.document.querySelector(".cs-stat").textContent, /Setup1 of 2 done/)
+  check('while setup is incomplete the page opens on Build with the Repair banner, and Setup has its dot', () => {
+    assert.equal(currentTab(), 'Build')
     assert.match(dom.window.document.querySelector('.cs-repair').textContent, /Game toolchain needs attention/)
-    hides(/Setup: step \d/, 'no step-position counter that could disagree with the done count')
-    shows(/after setup/); assert.ok(button('Plan a game').disabled, 'quick starts wait for setup')
     assert.ok(nav().querySelector('.pip'), 'the Setup tab shows a dot while setup is incomplete')
   })
-  await click('Continue setup')
-  check('Continue setup opens the Setup tab', () => { assert.equal(currentTab(), 'Setup') })
+  await click('Repair')
+  check('Repair opens the Setup tab', () => { assert.equal(currentTab(), 'Setup') })
   check('one step per page, starting at the first incomplete one', () => {
     assert.deepEqual(headings(), ['Install the game toolchain'])
     shows(/Step 2 of 6/); assert.ok(button('Download and install')); hides(/Set up in chat/)
@@ -234,13 +228,6 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.equal(heading(), 'Setup is complete'); shows(/emulator only/)
     assert.equal(scenario.storage.setup.hardwareSkipped, true)
     assert.ok(!nav().querySelector('.pip'), 'no dot once setup is complete')
-  })
-  await tab('Home')
-  check('Home in emulator-only mode', () => {
-    assert.equal(heading(), HOME); shows(/Ready to make games in the emulator/)
-    shows(/Your Chromatic is not set up, so streaming and flashing are off/)
-    assert.ok(!button('Plan a game').disabled, 'quick starts are live once setup is complete')
-    assert.ok(button('Play my game'), 'the play quick start is named for what it does now'); hides(/Play in browser/)
   })
   await tab('Prompts')
   await click('Flash a cartridge', dom.window.document.querySelector('nav[aria-label="Prompts"]'))
@@ -317,16 +304,16 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   scenario.status = answered(found)
   await render()
-  await tab('Home')
+  await tab('Prompts')
   check('the page says which profile it is showing', () => {
-    assert.equal(heading(), HOME)
+    assert.equal(heading(), 'Start building')
     const chip = dom.window.document.querySelector('.cs-top .cs-top-profile')
     assert.equal(chip?.textContent, 'chromatic-dev'); assert.match(chip.getAttribute('aria-label'), /Showing the "chromatic-dev" profile/)
   })
   scenario.calls.length = 0
-  await click('Use in chat')
+  await click('Start a new chat')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('"Use in chat" never opens a chat outside the hermretro profile, nor uses the current composer', () => {
+  check('"Start a new chat" never opens a chat outside the hermretro profile, nor uses the current composer', () => {
     assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
     assert.match(scenario.notices.at(-1).message, /hermretro profile is not set up yet/)
   })
@@ -349,8 +336,8 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
 
   scenario.status = answered(complete)
   await render()
-  check('ready page explains the studio and drops the Setup card', () => {
-    shows(/Build your game by chatting/); hides('Check what is already installed')
+  check('once status answers again the page is back and the Setup card is gone', () => {
+    assert.equal(heading(), 'Start building'); hides('Check what is already installed')
   })
 
   // 8a. The Build page runs only in the hermretro profile: no fallback to the profile the app is on.
@@ -379,6 +366,6 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   delete scenario.byMethod['plugin.hermretro.studio_profile']
   scenario.status = answered(complete)
-  await render(); await tab('Home')
+  await render(); await tab('Prompts')
   await act(async () => { root.unmount() })
 })

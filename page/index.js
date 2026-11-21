@@ -4,8 +4,7 @@
  * One full page (`/hermretro`) with a sidebar nav row and a ⌘K command.
  * One segmented control in its header switches between the pages
  * (docs/dev/STUDIO-PAGES.md is the contract with the backend):
- *   Home      hero, then Continue (last game or setup) / Start something / Studio.
- *   Build     one game, one conversation with the agent; the game plays inside the reply.
+ *   Build     one game, one conversation with the agent; the game plays inside the reply. The page opens here.
  *   Setup     the wizard driven by the `status` / `doctor` RPCs (game steps, then a
  *             choice between the emulator and a physical Chromatic, whose steps are
  *             optional), beside the flying Chromatic.

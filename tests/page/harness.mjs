@@ -113,7 +113,8 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
   const render = async () => { await act(async () => { root.render(page.render()) }) }
   const text = () => dom.window.document.body.textContent.replace(/\s+/g, ' ')
   const heading = () => dom.window.document.querySelector('h2')?.textContent ?? null
-  const HOME = 'Make a game.Play it tonight.'
+  // The first-run welcome's headline.
+  const WELCOME = 'Make a game.Play it tonight.'
   const headings = () => [...dom.window.document.querySelectorAll('h2')].map(node => node.textContent)
   const click = async (label, scope = dom.window.document) => {
     const button = [...scope.querySelectorAll('button')].find(node => node.textContent.includes(label))
@@ -196,7 +197,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
 
   return {
     act, createRoot, dom, emit, host, plugin, scenario, buildScenario,
-    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, HOME, headings, click, nav, tab, pageTab, currentTab,
+    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, WELCOME, headings, click, nav, tab, pageTab, currentTab,
     currentPageTab, settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }

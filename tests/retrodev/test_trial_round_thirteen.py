@@ -49,7 +49,7 @@ class PagesSteps(ScaffoldCase):
         page = joined(self.new("page", "rdprobe-notes", "--label", "Notes"))
         self.assertIn("a row in its Pages table (cells of at most 160 characters) plus a new `### Notes`", page)
         self.assertIn("with 'not designed yet' in the design columns", page)
-        tab = joined(self.new("tab", "home", "rdprobe-extra"))
+        tab = joined(self.new("tab", "prompts", "rdprobe-extra"))
         self.assertIn(SUBSECTION + " (the table row stays short)", tab)
         rpc = joined(self.new("rpc", "history", "rdprobe_shown"))
         self.assertIn(SUBSECTION + " (the table row stays short)", rpc)
@@ -57,7 +57,7 @@ class PagesSteps(ScaffoldCase):
             self.assertNotIn("row of docs/dev/STUDIO-PAGES.md", steps)
             self.assertNotIn("its row in docs/dev/STUDIO-PAGES.md", steps)
         doc = (ROOT / "docs/dev/STUDIO-PAGES.md").read_text(encoding="utf-8")
-        grown = add_bullet(add_row_and_subsection(doc, "Notes"), "Home", "the rdprobe-extra tab shows a probe")
+        grown = add_bullet(add_row_and_subsection(doc, "Notes"), "Prompts", "the rdprobe-extra tab shows a probe")
         self.assertIn("\n### Notes\n", grown)
         self.assertEqual(test_pages_table.table_problems(grown), [])
 

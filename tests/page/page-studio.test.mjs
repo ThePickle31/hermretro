@@ -5,10 +5,10 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, scenario, registrations, page, text, heading, HOME, click, tab, currentTab, mount, check, answered, status, doctor, installAnswer, complete }) => {
+await runScenario(async ({ act, dom, scenario, registrations, page, text, heading, click, tab, currentTab, mount, check, answered, status, doctor, installAnswer, complete }) => {
   // Where the setup scenarios leave the app: onboarded with the Chromatic set up, on a profile that has the
   // plugin, tools verified.
-  scenario.storage = { setup: { onboarded: true, hardwareSkipped: false, hardwareWanted: true, firmwareDone: true, devmodeDone: true }, page: 'home' }
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: false, hardwareWanted: true, firmwareDone: true, devmodeDone: true }, page: 'build' }
   scenario.ambient = complete
   scenario.install = installAnswer({ state: 'idle' })
 
@@ -21,7 +21,7 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   scenario.storage = {}
   scenario.status = answered(status()); scenario.doctor = answered(doctor([]))
   const fresh = await mount(page)
-  check('a fresh user starts on Home', () => { assert.equal(currentTab(), 'Home'); assert.equal(heading(), HOME) })
+  check('a fresh user starts on Build', () => { assert.equal(currentTab(), 'Build') })
   await tab('Setup')
   check('a fresh user lands on the choice once the game steps are done', () => { assert.equal(heading(), 'Ready to make games') })
   await click('Start making games')
@@ -47,7 +47,7 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     assert.ok(dom.window.document.querySelector('.cs-flyer') === flyerNode, 'the flyer element is retained')
   })
   await click('Continue')
-  await tab('Home')
+  await tab('Prompts')
   check('the page carries its stylesheet and artwork', () => {
     const css = dom.window.document.querySelector('style')?.textContent ?? ''
     assert.match(css, /\.cs-page/); assert.match(css, /prefers-reduced-motion/)
@@ -57,6 +57,11 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     for (const name of ['--cs-hermes', '--cs-cart', '--cs-fly-body', '--cs-fly-wing']) assert.match(vars, new RegExp(`${name}: url\\("data:image/png;base64,`))
   })
   await fresh.close()
+  // Home was removed: a page remembered from before then opens on Build.
+  scenario.storage = { ...kept, page: 'home' }
+  const remembered = await mount(page)
+  check('a remembered Home page opens on Build', () => { assert.equal(currentTab(), 'Build') })
+  await remembered.close()
   scenario.storage = kept
 
   // 11. The dedicated profile: the first step creates it, then the page moves over to it.
@@ -104,12 +109,12 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   })
   scenario.status = answered(moved)
   await studioPage.rerender()
-  await tab('Home')
+  await tab('Prompts')
   scenario.calls.length = 0
-  await click('Use in chat')
+  await click('Start a new chat')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
   check('setup is complete and prompts open chats in the studio profile', () => {
-    assert.equal(heading(), HOME); assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
+    assert.equal(heading(), 'Start building'); assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
   })
   scenario.byProfile = {}
   scenario.ambient = installer({ exists: true })

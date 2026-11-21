@@ -14,12 +14,12 @@ from retrodev.scaffold_imports import binding
 from retrodev.scaffold_page import own_page
 
 # The guard (nested mode only, after STEPS on the same copy): each kind once more on a REAL feature or page, as a
-# contributor's branch does, so a test that pins the real tree's current content (Home's slots, history without a
+# contributor's branch does, so a test that pins the real tree's current content (Prompts' slots, history without a
 # listener, a page without tabs) fails here, in CI, instead of in that contributor's branch. feature, page and a
 # library tool are in STEPS already. The steps follow what the copy holds (real_steps), so a branch that gives
-# setup or prompts tabs, or history a listener, still passes: the tabless-page conversions have their own probe
+# setup or games tabs, or history a listener, still passes: the tabless-page conversions have their own probe
 # fixtures (tab_from_page below, tests/retrodev/test_trial_round_five.py).
-REAL_PAGES = ("setup", "prompts")
+REAL_PAGES = ("setup", "games")  # prompts stays tabless: the tab tests use it as their host
 REAL_LISTENERS = ("history", "assets", "library", "setup", "hermes")  # the first that can take one more
 
 
@@ -69,7 +69,7 @@ def real_steps(tree: Path) -> list[list[str]]:
     ]
     for page in REAL_PAGES:
         steps += page_steps(tree, page, f"rdreal-{page}")
-    steps.append(["slot", "home", "rdrealSlot", "--doc", "After the hero. Props: { ctx }"])
+    steps.append(["slot", "prompts", "rdrealSlot", "--doc", "After the Reader. Props: { ctx }"])
     return steps + contribution_steps(tree)
 
 
@@ -82,12 +82,12 @@ def declared_slots(tree: Path) -> dict[str, str]:
 
 
 def contribution_steps(tree: Path) -> list[list[str]]:
-    """Home fills a real slot another page declares (the first, by name): filled or not, the registry test's
+    """Prompts fills a real slot another page declares (the first, by name): filled or not, the registry test's
     `filled` assertion must take it."""
     sources = "\n".join(path.read_text() for path in sorted(tree.glob("page/**/*.js")))
     name = next(f"RdrealFill{n}" for n in range(1, 100) if not re.search(rf"\bRdrealFill{n}\b", sources))
-    slots = sorted(slot for slot, page in declared_slots(tree).items() if page != "home")
-    return [["contribution", "home", slots[0], name]] if slots else []
+    slots = sorted(slot for slot, page in declared_slots(tree).items() if page != "prompts")
+    return [["contribution", "prompts", slots[0], name]] if slots else []
 
 
 def grown_steps(tree: Path) -> list[list[str]]:

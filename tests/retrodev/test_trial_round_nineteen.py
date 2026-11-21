@@ -211,8 +211,8 @@ class ListenerPreview(RealFiles):
 class TabExample(ScaffoldCase):
     def test_new_tab_points_at_the_runnable_example_when_the_doc_has_it(self):
         self.commit(self.tree, PAGES, PAGES_TEXT, "A pages doc")
-        said = " ".join(self.new("tab", "home", "extra", "--dry-run")["next"])
+        said = " ".join(self.new("tab", "prompts", "extra", "--dry-run")["next"])
         self.assertIn("a runnable example to start from: docs/dev/STUDIO-PAGES.md 'A tab' (Testing a tab)", said)
         self.commit(self.tree, PAGES, PAGES_TEXT.replace("```js", "```text"), "No example")
-        said = " ".join(self.new("tab", "home", "extra", "--dry-run")["next"])
+        said = " ".join(self.new("tab", "prompts", "extra", "--dry-run")["next"])
         self.assertNotIn("a runnable example", said)

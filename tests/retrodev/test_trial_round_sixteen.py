@@ -251,7 +251,7 @@ class NewSteps(RealFiles):
 
     def test_new_contribution_says_where_to_test_a_page_atom(self):
         self.real("page/pages/games/**/*.js", "page/pages/games/*.md")
-        said = " ".join(self.new("contribution", "home", "games.cardMenu", "RdprobeItem")["next"])
+        said = " ".join(self.new("contribution", "prompts", "games.cardMenu", "RdprobeItem")["next"])
         self.assertIn("test it in a direct-import test like tests/page/slots.test.mjs", said)
         self.assertIn("registerAliases() from tests/page/aliases.mjs", said)
         self.assertIn("export function registerAliases()", (ROOT / "tests/page/aliases.mjs").read_text())
