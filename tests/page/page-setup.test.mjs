@@ -80,7 +80,11 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   check('the install status is polled quickly while it runs; the doctor is not', () => {
     const last = key => scenario.queries.filter(query => query.key === key).at(-1)
-    assert.equal(last('install').enabled, true); assert.notEqual(last('doctor').refetchInterval, 8000)
+    const install = last('install')
+    assert.equal(install.enabled, true)
+    assert.equal(install.refetchInterval({ state: { data: scenario.install.data } }), 1_500, 'fast while it runs')
+    assert.equal(install.refetchInterval({ state: { data: installAnswer({ state: 'done' }).data } }), 5_000, 'slower once it is done')
+    assert.equal(last('doctor').refetchInterval, false, 'the doctor is not polled')
   })
   scenario.install = installAnswer({ state: 'failed', started_at: 1, error: 'cli: yarn: ENOTFOUND registry.npmjs.org', run: { components: {
     gbdk: { state: 'done', checks: [] }, cli: { state: 'failed', error: 'yarn: ENOTFOUND registry.npmjs.org', checks: [] } } } })

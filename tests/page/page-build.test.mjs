@@ -347,7 +347,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.ok(!build14b.node.querySelector('.cs-ip')); assert.ok(!build14b.node.querySelector('.cs-b-pc'), 'no separate play card under a build card')
   })
   check('the header shows the build pill and a Builds menu; the Assets panel and Full chat button are gone', () => {
-    assert.match(build14b.node.querySelector('.cs-b-pill').textContent, /Build #1 · up to date|Edited since build #1|Build #1/)
+    assert.equal(build14b.node.querySelector('.cs-b-pill').textContent, 'Build #1 · up to date')
     assert.ok(button('Builds')); assert.ok(!build14b.node.querySelector('button[aria-label^="Assets"]')); assert.ok(!build14b.node.querySelector('button[aria-label="Open in full chat"]'))
   })
   await act(async () => { build14b.node.querySelector('.cs-b-wk-assets').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
