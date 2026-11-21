@@ -7,7 +7,8 @@ import { EFFORTS, modelName } from './model-names.js'
 const FAST_HINT = 'Quicker replies. Uses more of your plan'
 const ARROWS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }
 
-/** A radio group's keys: one Tab stop (the picked choice, else the first), arrows pick and focus the next one. */
+/** A radio group's keys: one Tab stop (the picked choice, else the first), arrows pick and focus the next one.
+ *  `current` is the shown choice, which already includes a change still on its way. */
 function radioProps(keys, current, index, pick, disabled) {
   return {
     'data-key': keys[index],
@@ -21,8 +22,8 @@ function radioProps(keys, current, index, pick, disabled) {
 
       event.preventDefault()
 
-      const from = keys.includes(current) ? keys.indexOf(current) : index
-      const next = keys[(from + step + keys.length) % keys.length]
+      // From the radio that has focus (the one the key was pressed on), not from the last confirmed choice.
+      const next = keys[(index + step + keys.length) % keys.length]
 
       pick(next)
       event.currentTarget.parentElement?.querySelector(`[data-key="${next}"]`)?.focus?.()

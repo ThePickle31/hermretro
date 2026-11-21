@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 ac6f708b9eb0c2dc651cf5538a4efc1e3401f05c93269133e288780a33adfc1b
- * body: sha256 b3714e0ac32cb99a4f22b783daebb73876ef9860e81b806164be74cba03f3f81
+ * sources: sha256 03aa8e590e75495ab499e1810664894b3b1182dd7d36c089fa75f8a0626eef38
+ * body: sha256 b8a58732fe608a33498dc828c74c2a300f7b808f06351eacf9cf4f6315c72cc3
  */
 // page/sdk.js
 import {
@@ -2036,8 +2036,7 @@ function radioProps(keys, current, index, pick, disabled) {
         return;
       }
       event.preventDefault();
-      const from = keys.includes(current) ? keys.indexOf(current) : index;
-      const next = keys[(from + step + keys.length) % keys.length];
+      const next = keys[(index + step + keys.length) % keys.length];
       pick(next);
       event.currentTarget.parentElement?.querySelector(`[data-key="${next}"]`)?.focus?.();
     }
@@ -2179,7 +2178,7 @@ function useStars(ctx) {
   };
   return [stars, toggle];
 }
-function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
@@ -2188,7 +2187,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
-  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? "", fast: held?.fast ?? value?.fast ?? false };
+  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
   const marks = useMemo(() => providerMarks(providers), [providers]);
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
@@ -2265,7 +2264,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
   const choose = (row) => {
     setOpen(false);
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider, ...(shown.fast || pendingFast) && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
+      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
     }
   };
   const close = () => setOpen(false);
@@ -2290,7 +2289,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
           !signedOut ? jsx("span", { className: "cs-b-mp-dot", children: "·" }) : null,
           !signedOut ? jsx("span", { className: "cs-b-mp-effortname", children: effortLabel(shown.effort) }) : null,
           !signedOut && shown.fast ? jsx("span", { "aria-label": "Fast mode", className: "cs-b-mp-bolt", role: "img", title: "Fast mode", children: jsx(Codicon, { name: "zap", size: 11 }) }) : null,
-          held ? jsx("span", { className: "cs-b-mp-next", title: `Switches when ${AGENT} finishes this turn`, children: "next message" }) : null,
+          waiting ? jsx("span", { className: "cs-b-mp-next", title: `Switches when ${AGENT} finishes this turn`, children: "next message" }) : null,
           jsx(Codicon, { name: "chevron-down", size: 11 })
         ]
       }),
@@ -2339,7 +2338,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
               jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
             ]
           }),
-          jsx(SpeedBar, { disabled, fast: shown.fast, held: Boolean(held), narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
+          jsx(SpeedBar, { disabled, fast: shown.fast, held: waiting, narrow, onFast: (on) => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
         ]
       }) : null
     ]
@@ -2351,8 +2350,9 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     ctx,
     confirm: chat?.pickConfirm ?? null,
     disabled,
-    held: chat?.busy ? chat?.heldPick ?? null : null,
-    pendingFast: chat?.heldPick?.fast === true,
+    // A model that asks first is not on its way until Use it: until then the panel keeps the model in use.
+    pending: chat?.pickConfirm ? null : chat?.heldPick ?? null,
+    waiting: Boolean(chat?.busy && chat?.heldPick),
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: (effort) => void pickBuildModel(stored, { effort }),
@@ -12876,22 +12876,22 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-search { align-items: center; border-bottom: 1px solid var(--ui-stroke-secondary); color: var(--ui-text-quaternary); display: flex; gap: 8px; margin: 8px 10px 2px; padding: 5px 6px; }
 .cs-b-mp-search:focus-within { border-bottom-color: var(--ui-accent); }
 .cs-b-mp-search input { background: transparent; border: 0; color: var(--ui-text-primary); flex: 1; font: inherit; font-size: 13px; min-width: 0; outline: none; }
-.cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; font-size: 11px; gap: 5px; min-width: 0; padding: 6px 16px 2px; white-space: nowrap; }
-.cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.cs-b-mp-head span { flex: none; }
+.cs-b-mp-head { color: var(--ui-text-quaternary); display: flex; flex-wrap: wrap; font-size: 11px; gap: 0 5px; min-width: 0; padding: 6px 16px 2px; }
+.cs-b-mp-head b { color: var(--ui-text-secondary); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.cs-b-mp-head span { white-space: nowrap; }
 .cs-b-mp-list { display: flex; flex: 1; flex-direction: column; gap: 1px; min-height: 0; -webkit-mask-image: linear-gradient(black calc(100% - 28px), transparent); mask-image: linear-gradient(black calc(100% - 28px), transparent); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 24px; }
 .cs-b-mp-list > .cs-faint { margin: 0; padding: 10px 8px; }
 .cs-b-mp-group { color: var(--ui-text-quaternary); flex: none; font: 700 9.5px/1.3 var(--dt-font-mono, ui-monospace, monospace); letter-spacing: .12em; padding: 8px 8px 3px; text-transform: uppercase; }
 .cs-b-mp-item { align-items: center; border-radius: 7px; display: flex; flex: none; min-width: 0; }
 .cs-b-mp-item:hover { background: var(--ui-bg-quaternary); }
 .cs-b-mp-item.on { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
-.cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; flex: 1; font: inherit; font-size: 13px; gap: 8px; min-width: 0; padding: 6px 4px 6px 8px; text-align: left; white-space: nowrap; }
+.cs-b-mp-row { align-items: center; appearance: none; background: transparent; border: 0; color: var(--ui-text-primary); cursor: pointer; display: flex; flex: 1; font: inherit; font-size: 13px; gap: 8px; min-width: 0; padding: 6px 4px 6px 8px; text-align: left; }
 .cs-b-mp-glyph { color: var(--ui-text-quaternary); flex: none; font: 800 10px/1 var(--dt-font-sans, inherit); text-align: center; width: 16px; }
-.cs-b-mp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-label { min-width: 0; overflow-wrap: anywhere; }
 .cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
 .cs-b-mp-check { color: var(--ui-text-secondary); display: inline-flex; flex: none; }
 .cs-b-mp-label.two { display: flex; flex-direction: column; white-space: normal; }
-.cs-b-mp-label.two > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-b-mp-label.two > span { overflow-wrap: anywhere; }
 .cs-b-mp-from { color: var(--ui-text-quaternary); font-size: 11px; line-height: 1.3; }
 .cs-b-mp-star { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 5px; color: var(--ui-text-quaternary); cursor: pointer; display: inline-flex; flex: none; height: 24px; justify-content: center; margin-right: 4px; opacity: 0; width: 24px; }
 .cs-b-mp-item:hover .cs-b-mp-star, .cs-b-mp-item.on .cs-b-mp-star, .cs-b-mp-star:focus-visible, .cs-b-mp-item.starred .cs-b-mp-star { opacity: 1; }
@@ -12920,8 +12920,6 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-confirm { align-items: center; background: color-mix(in srgb, var(--ui-yellow) 10%, var(--ui-bg-secondary)); border-bottom: 1px solid var(--ui-stroke-tertiary); display: flex; font-size: 12px; gap: 8px; padding: 8px 12px; }
 .cs-b-mp-pop.narrow .cs-b-mp-effort { width: 120px; }
 .cs-b-mp-pop.narrow .cs-b-mp-emodel { display: none; }
-.cs-b-mp-pop.narrow .cs-b-mp-row { white-space: normal; }
-.cs-b-mp-pop.narrow .cs-b-mp-label { overflow-wrap: anywhere; white-space: normal; }
 /* too narrow for three columns: Effort moves under the models as a wrapping row */
 .cs-b-mp-pop.tiny .cs-b-mp-body { flex-wrap: wrap; height: auto; }
 .cs-b-mp-pop.tiny .cs-b-mp-rail, .cs-b-mp-pop.tiny .cs-b-mp-models { height: 250px; }

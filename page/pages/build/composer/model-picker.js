@@ -96,7 +96,10 @@ function useStars(ctx) {
   return [stars, toggle]
 }
 
-function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+/** `pending` is a change not yet confirmed by Hermes (held for the turn's end, or on its way): the panel shows it, so
+ *  every next choice (Fast, an arrow key) is judged against the model and effort it will run on. `waiting` says it is
+ *  held until the turn ends. */
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState(null)
   const [query, setQuery] = useState('')
@@ -105,7 +108,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
   const search = useRef(null)
   const data = options?.data
   const providers = useMemo(() => (Array.isArray(data?.providers) ? data.providers.filter(item => item?.authenticated && Array.isArray(item.models) && item.models.length) : []), [data])
-  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? '', fast: held?.fast ?? value?.fast ?? false }
+  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? '', fast: pending?.fast ?? value?.fast ?? false }
   const marks = useMemo(() => providerMarks(providers), [providers])
   const current = providers.find(item => item.slug === shown.provider) ?? null
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers))
@@ -206,8 +209,8 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
     if (row.model !== shown.model || row.provider !== shown.provider) {
       // Leaving fast mode on would carry Hermes's priority tier to a model without the switch (Anthropic and
       // xAI read it as their own fast mode), so a model without it goes back to standard. That covers a Fast
-      // still on its way (`pendingFast`), which the model pick would otherwise inherit.
-      onPick({ model: row.model, provider: row.provider, ...((shown.fast || pendingFast) && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
+      // still on its way (`shown` includes `pending`), which the model pick would otherwise inherit.
+      onPick({ model: row.model, provider: row.provider, ...(shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
     }
   }
   const close = () => setOpen(false)
@@ -247,7 +250,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
           !signedOut ? jsx('span', { className: 'cs-b-mp-dot', children: '\u00b7' }) : null,
           !signedOut ? jsx('span', { className: 'cs-b-mp-effortname', children: effortLabel(shown.effort) }) : null,
           !signedOut && shown.fast ? jsx('span', { 'aria-label': 'Fast mode', className: 'cs-b-mp-bolt', role: 'img', title: 'Fast mode', children: jsx(Codicon, { name: 'zap', size: 11 }) }) : null,
-          held ? jsx('span', { className: 'cs-b-mp-next', title: `Switches when ${AGENT} finishes this turn`, children: 'next message' }) : null,
+          waiting ? jsx('span', { className: 'cs-b-mp-next', title: `Switches when ${AGENT} finishes this turn`, children: 'next message' }) : null,
           jsx(Codicon, { name: 'chevron-down', size: 11 })
         ]
       }),
@@ -299,7 +302,7 @@ function ModelPicker({ ctx, value, held = null, pendingFast = false, confirm = n
                   jsx(EffortColumn, { caps, disabled, narrow, onEffort, shown })
                 ]
               }),
-              jsx(SpeedBar, { disabled, fast: shown.fast, held: Boolean(held), narrow, onFast: on => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
+              jsx(SpeedBar, { disabled, fast: shown.fast, held: waiting, narrow, onFast: on => onFast(on, { model: shown.model, provider: shown.provider }), onManage: connectProvider(close), speed })
             ]
           })
         : null
@@ -315,8 +318,9 @@ export function ChatModelPicker({ ctx, stored, chat, disabled }) {
     ctx,
     confirm: chat?.pickConfirm ?? null,
     disabled,
-    held: chat?.busy ? (chat?.heldPick ?? null) : null,
-    pendingFast: chat?.heldPick?.fast === true,
+    // A model that asks first is not on its way until Use it: until then the panel keeps the model in use.
+    pending: chat?.pickConfirm ? null : (chat?.heldPick ?? null),
+    waiting: Boolean(chat?.busy && chat?.heldPick),
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: effort => void pickBuildModel(stored, { effort }),

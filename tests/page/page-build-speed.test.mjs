@@ -169,6 +169,54 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   check('and the next effort level', () => { assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'reasoning', value: 'high' }) })
   await key('keydown', 'Escape')
 
+  // Review round 2: the panel shows a change still on its way, so the next choice is judged against it.
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: false } }) })
+  await settle()
+  const waits = []
+  scenario.byMethod['config.set'] = params => {
+    scenario.sets.push(params)
+    return new Promise(done => { waits.push(() => done({ key: params.key, value: params.value })) })
+  }
+  const releaseAll = async () => { while (waits.length) { await act(async () => { waits.shift()() }); await settle() } }
+  await open()
+  await press(tile('Anthropic'))
+  await press(row('claude-opus-5-5'))
+  await settle()
+  await open()
+  check('reopened before Hermes answers a model switch, the panel shows the new model and offers no Fast', () => {
+    assert.match(chip().textContent, /Claude Opus 5\.5/)
+    assert.ok(!speed())
+  })
+  await key('keydown', 'Escape')
+  await releaseAll()
+  check('so the switch ends on the new model without fast mode', () => {
+    assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'model', value: 'claude-opus-5-5 --provider anthropic --session' })
+    assert.ok(!scenario.sets.some(set => set.key === 'fast' && set.value === 'fast' && scenario.sets.indexOf(set) > scenario.sets.length - 3))
+  })
+  await open()
+  await act(async () => { pop().querySelector('[aria-label="Effort"] [data-key="medium"]').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })) })
+  await settle()
+  await act(async () => { pop().querySelector('[aria-label="Effort"] [data-key="high"]').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })) })
+  await settle()
+  check('two arrow presses before Hermes answers move from the focused level and come back to Medium', () => {
+    assert.equal(pop().querySelector('[aria-label="Effort"] [aria-checked="true"]').getAttribute('data-key'), 'medium')
+    assert.equal(dom.window.document.activeElement?.getAttribute('data-key'), 'medium')
+  })
+  await key('keydown', 'Escape')
+  await releaseAll()
+  check('and Medium is what is sent last', () => { assert.deepEqual(scenario.sets.at(-1), { session_id: 'rt-of-st-frog', key: 'reasoning', value: 'medium' }) })
+  scenario.byMethod['config.set'] = plainSet
+  await act(async () => { emit({ type: 'session.info', session_id: 'rt-of-st-frog', payload: { model: 'gpt-6.2-sol', provider: 'openai-codex', reasoning_effort: 'medium', fast: true } }) })
+  await settle()
+  check('long provider and model names wrap instead of being cut', () => {
+    const css = dom.window.document.querySelector('style')?.textContent ?? ''
+    for (const rule of ['.cs-b-mp-head {', '.cs-b-mp-head b {', '.cs-b-mp-label {', '.cs-b-mp-label.two > span {', '.cs-b-mp-row {']) {
+      const text = css.split('\n').find(line => line.startsWith(rule)) ?? ''
+      assert.ok(text, `${rule} exists`)
+      assert.ok(!/text-overflow: ellipsis|white-space: nowrap/.test(text), `${rule} does not cut its words`)
+    }
+  })
+
   // A narrow window: the Effort column narrows, drops its note, and the words shorten. The open panel follows a resize.
   const width = dom.window.innerWidth
   await open()
