@@ -64,14 +64,16 @@ def _protected(info: os.stat_result, uid: int) -> bool:
     return info.st_uid in (0, uid) and (not info.st_mode & 0o022 or bool(info.st_mode & stat.S_ISVTX))
 
 
-def _short_temp_parent(raw: str, chain: bool = False) -> Path | None:
-    """The real path of a short, writable, protected directory. ``chain`` asks the same of every ancestor,
-    so no other user can swap a directory on the way to it after a worker has been given its name."""
+def _short_temp_parent(raw: str) -> Path | None:
+    """A short writable directory with protected ancestors. Except for the system temp root, don't keep an
+    alias: the worker inherits the raw pathname and an alias elsewhere could change after this check."""
     try:
         candidate = Path(raw)
         if not candidate.is_absolute():
             return None
         path = candidate.resolve(strict=True)
+        if path != candidate and raw != SYSTEM_TEMP:
+            return None
         info = path.stat()
         if (
             not stat.S_ISDIR(info.st_mode)
@@ -80,7 +82,7 @@ def _short_temp_parent(raw: str, chain: bool = False) -> Path | None:
         ):
             return None
         uid = os.getuid()
-        if _protected(info, uid) and (not chain or all(_protected(p.stat(), uid) for p in path.parents)):
+        if _protected(info, uid) and all(_protected(p.stat(), uid) for p in path.parents):
             return path
     except (OSError, RuntimeError, ValueError):
         pass
@@ -93,7 +95,7 @@ def _inherited_temp(env: Mapping[str, str]) -> Path | None:
 
 def engine_temp_ready(env: Mapping[str, str]) -> bool:
     """Whether a worker started with ``env`` gets a usable temp directory (without making one)."""
-    return _inherited_temp(env) is not None or _short_temp_parent(SYSTEM_TEMP, chain=True) is not None
+    return _inherited_temp(env) is not None or _short_temp_parent(SYSTEM_TEMP) is not None
 
 
 def engine_tempdir(env: Mapping[str, str]) -> tempfile.TemporaryDirectory | None:
@@ -105,7 +107,7 @@ def engine_tempdir(env: Mapping[str, str]) -> tempfile.TemporaryDirectory | None
     """
     if _inherited_temp(env) is not None:
         return None
-    parent = _short_temp_parent(SYSTEM_TEMP, chain=True)
+    parent = _short_temp_parent(SYSTEM_TEMP)
     if parent is not None:
         try:
             directory = tempfile.TemporaryDirectory(
