@@ -17,6 +17,9 @@ from retrodev import checks, scaffold_checks
 
 from tests.retrodev.fixture import alone
 from tests.retrodev.pool import ParallelSuite
+import subprocess
+from pathlib import Path
+import retrodev
 
 load_tests = alone
 
@@ -106,6 +109,38 @@ class PoolCheck(unittest.TestCase):
         self.assertEqual((result.errors, result.failures, result.testsRun), ([], [], 1))
         result = self.run_pooled("test_clean", as_class=True)
         self.assertEqual((result.errors, result.failures, result.testsRun), ([], [], 2))
+
+
+ROOT = Path(retrodev.__file__).resolve().parents[2]
+
+WALK = """
+import sys, unittest
+
+
+def flat(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from flat(item)
+        else:
+            yield item
+
+
+found = unittest.TestLoader().discover(sys.argv[1] + "/tests", top_level_dir=sys.argv[1])  # as check.py unit
+print("\\n".join(test.id() for test in flat(found)))
+"""
+
+
+class Pool(unittest.TestCase):
+    def test_walking_the_discovered_suite_reaches_every_test_id(self):
+        # In a process of its own: discovery imports every test module, whose first import changes sys.path.
+        ids = subprocess.run(
+            [sys.executable, "-c", WALK, str(ROOT)], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.split()
+        self.assertIn(f"{__name__}.{type(self).__name__}.test_walking_the_discovered_suite_reaches_every_test_id", ids)
+        self.assertIn(
+            "tests.retrodev.test_check_gates.CheckRoundFour.test_scaffold_does_not_run_when_lint_fails_in_the_same_run",
+            ids,
+        )
 
 
 if __name__ == "__main__":
