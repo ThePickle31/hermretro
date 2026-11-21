@@ -100,9 +100,11 @@ def check_unit(args) -> str:
             [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
             env=env,
         )
-        leaked = (
-            "" if result.returncode else unit_home.leaks(home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env))
-        )
+        leaked = ""
+        if not result.returncode:
+            leaked = unit_home.leaks(
+                home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env), product_only=product_only
+            )
     if result.returncode:
         raise AssertionError(
             tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "

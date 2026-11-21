@@ -54,13 +54,15 @@ def test_modules(root: Path) -> list[str]:
     )
 
 
-def leaking_modules(root: Path, temp_base: str, run: Callable) -> list[str]:
+def leaking_modules(root: Path, temp_base: str, run: Callable, *, product_only: bool = False) -> list[str]:
     """The test modules that write into an empty home, or leave something in an empty temp folder, when each runs
     alone (within LOCATE_BUDGET_S). ``run(cmd, env)`` runs one command from the repository root (check.py's run; tests
     pass a fake)."""
     found = []
     started = time.monotonic()
     for module in test_modules(root):
+        if product_only and module.startswith("tests.retrodev."):
+            continue  # tests.retrodev's discovery hook leaves this package out of the product scope
         if time.monotonic() - started > LOCATE_BUDGET_S:
             found.append("(stopped looking after the time budget)")
             break
@@ -75,13 +77,13 @@ def leaking_modules(root: Path, temp_base: str, run: Callable) -> list[str]:
     return found
 
 
-def leaks(home: str, tmp: str, root: Path, temp_base: str, run: Callable) -> str:
+def leaks(home: str, tmp: str, root: Path, temp_base: str, run: Callable, *, product_only: bool = False) -> str:
     """After the suite ran with ``unit_env(home, bytecode, tmp)``: "" when it left nothing, else the failure message
     naming what was left and, after a rerun module by module, which test modules left it."""
     in_home, in_tmp = written(home), left(tmp)
     if not in_home and not in_tmp:
         return ""
-    modules = leaking_modules(root, temp_base, run)
+    modules = leaking_modules(root, temp_base, run, product_only=product_only)
     if in_home:
         return leak_message(in_home, modules)
     return tmp_message(in_tmp, modules)
