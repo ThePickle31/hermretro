@@ -22,26 +22,51 @@ from .output import OWNER, Failure
 FIELDS = "tagName,isDraft,isPrerelease,body,url,name"
 
 
-def published_view(ctx, version: str) -> dict:
-    """Read the live release, not the draft URL captured before the write."""
+def release_view(ctx, version: str) -> dict:
     tag = f"v{version}"
     code, out, err = github.gh(ctx, ["release", "view", tag, "--json", FIELDS], check=False)
     try:
         info = json.loads(out) if code == 0 else None
     except ValueError:
         info = None
+    if not isinstance(info, dict) or info.get("tagName") != tag or type(info.get("isDraft")) is not bool:
+        raise Failure(
+            f"could not read {tag} from GitHub ({(err or out).strip()[:200]})",
+            f"python tools/retrodev release verify {version}",
+        )
+    return info
+
+
+def require_published(version: str, info: dict) -> None:
     if (
-        not isinstance(info, dict)
-        or info.get("tagName") != tag
-        or info.get("isDraft") is not False
+        info.get("isDraft") is not False
         or info.get("isPrerelease") is not (release.parse(version)[3] is not None)
         or not isinstance(info.get("url"), str)
         or not info["url"].strip()
     ):
-        detail = f": {(err or out).strip()[:200]}" if code else ""
         raise Failure(
-            f"could not confirm {tag} is published{detail}", f"python tools/retrodev release verify {version} --publish"
+            f"could not confirm v{version} is published", f"python tools/retrodev release verify {version} --publish"
         )
+
+
+def reconcile(ctx, version: str, rec: dict, info: dict | None = None) -> dict | None:
+    """Recover the result of publication, not permission to publish a draft."""
+    approved = (rec.get("approved") or {}).get("sha")
+    tag = f"v{version}"
+    if not approved or not rec.get("words"):
+        if rec.get("published"):
+            raise Failure(f"{tag} has no recorded publication approval", "inspect the release record", OWNER)
+        return None
+    if info is None:
+        info = release_view(ctx, version)
+    if info["isDraft"] and not rec.get("published"):
+        return None
+    require_published(version, info)
+    if remote_tag(ctx, tag) != approved:
+        raise Failure(f"{tag} does not point at the approved commit", "inspect the remote tag before continuing", OWNER)
+    if not rec.get("published"):
+        rec["published"] = {"at": state.now(), "sha": approved, "url": info["url"], "reconciled": True}
+        state.save_release(ctx.top, rec)
     return info
 
 
@@ -89,14 +114,13 @@ def run(ctx, version: str, publish: bool = False) -> int:
     rc = release.parse(version)[3] is not None
     tag = f"v{version}"
     found: list[Gate] = []
-    code, out, err = github.gh(ctx, ["release", "view", tag, "--json", FIELDS], check=False)
-    info = json.loads(out) if code == 0 and out.strip() else None
-    if not isinstance(info, dict) or info.get("tagName") != tag or type(info.get("isDraft")) is not bool:
-        raise Failure(
-            f"there is no release {tag} on GitHub ({(err or out).strip()[:200]})",
-            f"python tools/retrodev release publish {version} (it makes the draft)",
-        )
+    info = release_view(ctx, version)
     ctx.out.set(release=info)
+    rec = state.load_release(ctx.top, version) or {"version": version}
+    if reconcile(ctx, version, rec, info):
+        ctx.out.say(f"{tag} is published already (immutable): {info['url']}")
+        ctx.out.set(published=True, url=info["url"])
+        return 0
     notes = (info.get("body") or "").strip()
     found.append(
         gates.passed("notes", f"{len(notes.splitlines())} line(s)")
@@ -142,7 +166,6 @@ def run(ctx, version: str, publish: bool = False) -> int:
             else Gate("plugin.yaml says the version", False, f"plugin.yaml at the tag says {has}", "ask the owner")
         )
         start = release_publish.update_from(ctx, version)
-        rec = state.load_release(ctx.top, version) or {"version": version}
         kept = release_publish.kept_install(rec, sha, start)
         # release publish ran this very check on this commit minutes ago: its pass counts, so it runs once
         result = (
@@ -163,12 +186,6 @@ def run(ctx, version: str, publish: bool = False) -> int:
     if not info.get("isDraft"):
         ctx.out.say("it is published already (published releases are immutable)")
         ctx.out.set(published=True, url=info.get("url"))
-        rec = state.load_release(ctx.top, version) or {}
-        approved = (rec.get("approved") or {}).get("sha")
-        if not rec.get("published") and approved and approved == sha:  # published, but the record was not saved
-            rec["published"] = {"at": state.now(), "sha": sha, "url": info.get("url"), "reconciled": True}
-            state.save_release(ctx.top, rec)
-            ctx.out.say("recorded it as published (the earlier run stopped before saving that)")
         return 0
     if not publish:
         ctx.out.say(f"next: read the draft ({info.get('url')}), then release verify {version} --publish")
@@ -177,7 +194,8 @@ def run(ctx, version: str, publish: bool = False) -> int:
     ctx.out.say("publishing: a published release is immutable (its tag and files can never change)")
     code, out, err = github.gh(ctx, ["release", "edit", tag, "--draft=false"], check=False)
     try:
-        info = published_view(ctx, version)
+        info = release_view(ctx, version)
+        require_published(version, info)
     except Failure:
         if code:
             raise github.failed(["release", "edit", tag, "--draft=false"], err or out) from None

@@ -123,6 +123,29 @@ class Publishes(RunCase):
         self.assertFalse((state.load_release(self.main, NEXT) or {}).get("published"))
         self.assertEqual(len(self.gh.called("pr", "create")), 1)
 
+    def test_resume_recovers_a_live_release_without_rerunning_checks(self):
+        tag = f"v{NEXT}"
+        view: tuple[str, ...] = ("release", "view", tag, "--json", release_verify.FIELDS)
+        write = ("release", "edit", tag, "--draft=false")
+
+        def lost_readback(_args):
+            self.gh.answers[view] = (1, "", "HTTP 502")
+
+        self.gh.effects[write] = lost_readback
+        self.assertEqual(super().release_run()[0], 1)
+        record = state.load_release(self.main, NEXT) or {}
+        self.assertNotIn("published", record)
+        self.published(tag)  # GitHub applied it, but the process could not confirm the result at the time
+        self.ci(record["approved"]["sha"], runs("failure"))  # past progress must not depend on today's CI status
+
+        code, data = super().release_run("--version", NEXT)
+        assert isinstance(data, dict)
+        self.assertEqual((code, data.get("published"), data.get("url")), (0, True, LIVE_URL), data)
+        self.assertEqual(data["next_version"]["status"], "pending")
+        self.assertTrue((state.load_release(self.main, NEXT) or {})["published"]["reconciled"])
+        self.assertEqual(len(self.gh.called(*write)), 1)
+        self.assertEqual(len(self.gh.called("pr", "create")), 1)
+
     def test_one_command_publishes_then_dev_moves_to_the_next_version(self):
         code, data = self.release_run()
         assert isinstance(data, dict)

@@ -355,17 +355,18 @@ def run(
     rec = flow.record()
     ctx.out.set(version=version, dry_run=dry_run, resume=flow.again)
     ctx.out.say(f"release {version}" + (" (dry run)" if dry_run else "") + f": {flow.again}")
-    if rec.get("published"):
-        if dry_run:
-            ctx.out.say(f"{version} is recorded as published")
-            return 0
+    if rec.get("published") and dry_run:
+        ctx.out.say(f"{version} is recorded as published")
+        return 0
+    if not dry_run and (rec.get("published") or rec.get("published_draft")):
         try:
-            info = release_verify.published_view(ctx, version)
+            info = release_verify.reconcile(ctx, version, rec)
         except Failure as failure:
             raise resumable(failure, flow.again)
-        ctx.out.set(url=info["url"], published=True)
-        ctx.out.say(f"{version} is published already ({info['url']})")
-        return 0 if draft else flow.next_version()
+        if info:
+            ctx.out.set(url=info["url"], published=True)
+            ctx.out.say(f"{version} is published already ({info['url']})")
+            return 0 if draft else flow.next_version()
     if not rec.get("run"):  # a new release: something to release, and no next-version pull request in its way
         if not release_guard.news(ctx):
             previous = release.previous_stable(ctx)

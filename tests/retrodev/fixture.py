@@ -246,7 +246,10 @@ class FakeGH:
     """Answers gh calls from a table of (argument prefix -> (code, stdout, stderr)); records every call."""
 
     def __init__(self, answers: dict | None = None):
-        self.answers = {("api", "user"): (0, "you\n", ""), ("pr", "list"): (0, "[]", "")}
+        self.answers: dict[tuple[str, ...], tuple[int, str, str]] = {
+            ("api", "user"): (0, "you\n", ""),
+            ("pr", "list"): (0, "[]", ""),
+        }
         self.answers.update(answers or {})
         self.calls: list[list[str]] = []
         self.effects: dict = {}  # argument prefix -> callable(args), run before answering (a merge that merges)

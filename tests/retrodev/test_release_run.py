@@ -9,7 +9,7 @@ Run alone: python -m unittest tests.retrodev.test_release_run
 import json
 import re
 
-from retrodev import state
+from retrodev import release_verify, state
 
 from tests.retrodev.fixture import git, parallel
 from tests.retrodev.test_release import NEXT, PR, URL, WORDS, ReleaseCase, runs
@@ -146,6 +146,8 @@ class Flow(RunCase):
         code, data = self.release_run("--draft")
         self.assertEqual((code, data.get("url")), (0, URL), data)
         self.gh.answers[("release", "view")] = (0, URL + "\n", "")  # gh's --jq .url
+        view = {"tagName": f"v{NEXT}", "isDraft": True, "isPrerelease": False, "url": URL}
+        self.gh.answers[("release", "view", f"v{NEXT}", "--json", release_verify.FIELDS)] = (0, json.dumps(view), "")
         code, data = self.release_run("--draft")  # 5: everything is done: the same draft again, nothing new
         self.assertEqual((code, data.get("url")), (0, URL), data)
         self.assertEqual(len(self.gh.called("pr", "create")), 2, "one failed, one opened; never a second release")

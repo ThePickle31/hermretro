@@ -742,6 +742,8 @@ there (every command it prints names the version it chose, `--version X.Y.Z`, wh
 - reads the published release back from GitHub and returns its live URL. For a stable release, the output includes
   a separate `release next` command with the same words, pinned to that release. Run it as a separate job, or use
   `--with-next` to do it inline. A stop in the follow-up leaves the release published; the printed command resumes it.
+  If the first publication readback was lost, a rerun recognizes the live release at the approved tag without
+  rerunning checks or publishing again. A draft still goes through the checks.
 
 A new release (no record of this command yet) is refused when `dev` has nothing since the newest stable tag besides
 the `version:` line, and a next-version pull request `release next` opened for another version than this one (the
