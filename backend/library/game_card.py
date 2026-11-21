@@ -18,22 +18,11 @@ import tempfile
 import time
 from pathlib import Path
 
-from .game_cover import _copy_problem, _cover
-
-# Keep the public cover names available to existing card callers.
-from .game_cover import COVER_FILE as COVER_FILE
-from .game_cover import COVER_HEIGHT as COVER_HEIGHT
-from .game_cover import COVER_WIDTH as COVER_WIDTH
-from .game_cover import MAX_COVER_BYTES as MAX_COVER_BYTES
-from .game_cover import MAX_COVER_COLOURS as MAX_COVER_COLOURS
-from .game_cover import MIN_COVER_COLOURS as MIN_COVER_COLOURS
-from .game_cover import PngError as PngError
-from .game_cover import check_cover as check_cover
-from .game_cover import copied_asset as copied_asset
-from .game_cover import cover_data_url as cover_data_url
-from .game_cover import cover_path as cover_path
-from .game_cover import cover_problem as cover_problem
-from .game_cover import decode_png as decode_png
+from .game_cover import COVER_FILE, COVER_HEIGHT, COVER_WIDTH, _copy_problem, _cover, check_cover
+from .game_cover import copied_asset, cover_path
+from .game_cover import MAX_COVER_COLOURS as MAX_COVER_COLOURS  # public to tools.py's schema text
+from .game_cover import cover_data_url as cover_data_url  # public to games.py's thumbnails
+from .game_cover import cover_problem as cover_problem  # public: backend/library/README.md
 
 CARD_FILE = "game.json"
 CARD_FILES = frozenset({CARD_FILE, COVER_FILE})

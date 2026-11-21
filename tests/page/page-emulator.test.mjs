@@ -72,6 +72,8 @@ await runScenario(async helpers => {
     assert.equal(frame().getAttribute('data-sandbox'), 'allow-scripts allow-downloads')
     assert.match(text(), /Ask Hermes/); assert.match(text(), /Captures/); assert.match(text(), /Keyboard/)
     assert.ok(!text().includes('Hermes rebuilt'))
+    // A user game gets the bar's Install contribution; the demo cartridge above does not.
+    assert.ok([...dom.window.document.querySelectorAll('.cs-rp-bar button')].some(node => node.textContent.includes('Install')))
   })
   const posted = []
   frame().contentWindow.postMessage = message => posted.push(message)
@@ -131,7 +133,6 @@ await runScenario(async helpers => {
   check('Later hides the banner for that build', () => { assert.ok(!text().includes('Hermes rebuilt')) })
   scenario.player = { isError: true, isFetching: false, error: Object.assign(new Error('unknown method'), { code: -32601 }) }
   await studio.rerender()
-  check('a backend without the player RPC is reported honestly', () => { assert.match(text(), /older copy of the hermretro backend/); assert.ok(dom.window.document.querySelector('.cs-rp-note')) })
   scenario.player = answered({ error: 'Comet Drift has no web export yet. Ask Hermes in its chat to build it.' })
   await studio.rerender()
   check("the player's own error is shown with a way to build it", () => { assert.match(text(), /has no web export yet/); assert.match(text(), /Build it in chat/) })

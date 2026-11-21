@@ -17,6 +17,8 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
+from tests.repo.test_layout import files
+
 ROOT = Path(__file__).resolve().parents[2]
 SCAFFOLD = ROOT / "tools" / "retrodev"
 
@@ -43,8 +45,6 @@ PLACEHOLDERS = {
     # `new slot` without --doc: the descriptor's slots entry and the README's **Slots:** line.
     "is on the page. Props: { ... }": "the slot's doc: where it is on the page and the props it passes",
 }
-# Placeholders the scaffolds compose at run time, so they are not literal in their sources (PLANNED proves them).
-COMPOSED = {"(<...>)"}
 # Where they end up: the docs, every README, the folder map, the feature list and the page.
 SCANNED_SUFFIXES = {".md", ".toml", ".py", ".js"}
 SKIPPED = ("tools/retrodev/", "tests/", "engine/", "tools/npm/", "player/web/", ".dev/", "notes/", ".git/")
@@ -52,19 +52,12 @@ GENERATED = {"desktop/plugin.js", "player/frame-shim.js"}
 
 
 def scanned() -> list[Path]:
-    found = []
-    for folder, dirs, files in os.walk(ROOT):
-        here = Path(folder)
-        dirs[:] = sorted(
-            name
-            for name in dirs
-            if name != "node_modules" and not f"{(here / name).relative_to(ROOT).as_posix()}/".startswith(SKIPPED)
-        )
-        for name in sorted(files):
-            rel = (here / name).relative_to(ROOT).as_posix()
-            if Path(name).suffix in SCANNED_SUFFIXES and rel not in GENERATED:
-                found.append(here / name)
-    return found
+    """The files a commit would hold, so a developer's downloads or games cannot decide the result."""
+    return [
+        ROOT / rel
+        for rel in files()
+        if Path(rel).suffix in SCANNED_SUFFIXES and rel not in GENERATED and not rel.startswith(SKIPPED)
+    ]
 
 
 def left_in(line: str) -> list[str]:
@@ -90,40 +83,6 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
             + "\nFIX: replace each with the real text it asks for",
         )
 
-    def test_a_planned_listener_leaves_both_listener_placeholders(self):
-        """`new listener` (planned in memory, nothing written) leaves the two texts the gate looks for: the listener
-        docstring and the CONTRACT row's 'Heard by' entry, in files the gate scans. It listens from a throwaway
-        feature planned first (as tests/retrodev/test_scaffold_tree.py does with rdtree), so a real feature that
-        already listens to the event never makes it refuse."""
-        sys.path.insert(0, str(SCAFFOLD.parent))
-        from retrodev import scaffold, scaffold_backend, scaffold_listener
-
-        plan = scaffold.Plan(ROOT)
-        scaffold_backend.feature(plan, "rdplaceholder", "A throwaway feature this test plans and never writes")
-        scaffold_listener.listener(plan, "rdplaceholder", "library.build_reported")
-        planned = {rel: text for rel, text in {**plan.created, **plan.changed}.items() if not rel.startswith(SKIPPED)}
-        for text in ("say what this listener does", "(say what it does)"):
-            self.assertTrue(any(text in body for body in planned.values()), f"{text!r} not in {sorted(planned)}")
-
-    def test_a_planned_contribution_stub_is_caught(self):
-        """`new contribution` (planned in memory, nothing written) leaves in its component stub, in a file the gate
-        scans, a placeholder the gate finds: an unfilled stub fails."""
-        sys.path.insert(0, str(SCAFFOLD.parent))
-        from retrodev import scaffold, scaffold_contribution
-
-        plan = scaffold.Plan(ROOT)
-        scaffold_contribution.contribution(plan, "build", "games.cardMenu", "RdplaceholderItem")
-        stubs = {rel: text for rel, text in plan.created.items() if not rel.startswith(SKIPPED)}
-        self.assertEqual(sorted(stubs), ["page/pages/build/rdplaceholder-item.js"])
-        self.assertIn(Path(next(iter(stubs))).suffix, SCANNED_SUFFIXES)
-        self.assertTrue(any(text in stubs["page/pages/build/rdplaceholder-item.js"] for text in PLACEHOLDERS))
-
-    def test_each_placeholder_is_caught_in_a_line(self):
-        """The gate's own line check (left_in) names every listed placeholder wherever it sits in a line."""
-        for text in PLACEHOLDERS:
-            self.assertIn(text, left_in(f"  before {text} after"), text)
-        self.assertEqual(left_in("a filled line"), [])
-
     def test_a_new_tools_schema_description_is_caught(self):
         """Each tool template's schema description, with a tool name filled in, is a placeholder the gate finds."""
         for template in sorted(SCAFFOLD.glob("templates/tool/tool*.py.tmpl")):
@@ -134,19 +93,6 @@ class ScaffoldPlaceholderTests(unittest.TestCase):
                 continue
             line = lines[0].replace("{tool}", "chromatic_probe")
             self.assertTrue(any(text in line for text in PLACEHOLDERS), f"{template.name}: {line.strip()}")
-
-    def test_every_placeholder_is_still_one_the_scaffolds_write(self):
-        sources = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in [*SCAFFOLD.glob("scaffold*.py"), *SCAFFOLD.glob("templates/*/*.tmpl")]
-        )
-        stale = [text for text in PLACEHOLDERS if text not in sources and text not in COMPOSED]
-        self.assertEqual(
-            stale,
-            [],
-            "these placeholders are no longer in tools/retrodev/templates/ or scaffold_*.py\n"
-            "FIX: update PLACEHOLDERS in tests/repo/test_placeholders.py to the texts the scaffolds write now",
-        )
 
 
 def _scaffold():

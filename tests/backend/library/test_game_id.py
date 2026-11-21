@@ -1,4 +1,4 @@
-"""game_id and valid_id: a game's id is exactly 12 lower-case hex digits, and nothing else passes."""
+"""valid_id: a game's id is exactly 12 lower-case hex digits, and nothing else passes."""
 
 import sys
 import unittest
@@ -6,17 +6,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.library import game_id, valid_id  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import valid_id  # noqa: E402 - the repository root goes on sys.path first
 
 
 class GameId(unittest.TestCase):
     def test_twelve_lower_case_hex_digits_are_valid(self):
         self.assertTrue(valid_id("0123456789ab"))
         self.assertTrue(valid_id("abcdef012345"))
-
-    def test_a_made_id_is_valid(self):
-        self.assertTrue(valid_id(game_id("/some/project")))
-        self.assertEqual(len(game_id("/some/project")), 12)
 
     def test_the_wrong_length_is_refused(self):
         for value in ("", "0123456789a", "0123456789abc", "0" * 40):

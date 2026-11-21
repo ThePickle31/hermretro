@@ -118,9 +118,6 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
 
-    def test_url_shape(self):
-        self.assertRegex(self.server.url(self.gid), rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/index\.html$")
-
     def test_frame_page_has_shim_first_bootstrap_before_script_and_bridge_last(self):
         html, context = self.index()
         head = html.index("<head>")

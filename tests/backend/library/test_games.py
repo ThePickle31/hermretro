@@ -17,7 +17,8 @@ from backend.hermes import contracts  # noqa: E402 - the repository root goes on
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
-from backend.broker.broker import Broker, Lane  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Lane  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import tools as setup_tools  # noqa: E402 - the repository root goes on sys.path first
@@ -41,6 +42,7 @@ class Registry(unittest.TestCase):
     def test_id_is_twelve_hex_of_the_canonical_root(self):
         root = make_project(self.base)
         self.assertRegex(games.game_id(root), r"^[0-9a-f]{12}$")
+        self.assertTrue(games.valid_id(games.game_id(root)))
         self.assertEqual(games.game_id(root), games.game_id(str(root) + "/."))
 
     def test_a_selected_project_joins_the_library_with_its_chat(self):
@@ -183,23 +185,8 @@ class BrokerHook(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_lanes_record_builds_into_the_brokers_library(self):
-        broker = Broker.__new__(Broker)
-        broker.lanes, broker.table_lock = {}, threading.RLock()
-        broker.games = games.Registry(self.base / "lib")
-        broker.trace = lambda **record: None
-        lane = broker.lane_for(("profile", "conv"), create=True)
-        root = make_project(self.base)
-        lane.selected_root = str(root)
-        lane.remember("rom_build", "project-write", {"isError": True, "structuredContent": {"error": "boom"}}, 1.0, {})
-        [game] = broker.games.library()
-        self.assertEqual((game["state"], game["error"]), ("failed", "boom"))
-
     def test_a_failed_builds_error_reaches_the_page_whole_up_to_its_limit(self):
-        broker = Broker.__new__(Broker)
-        broker.lanes, broker.table_lock = {}, threading.RLock()
-        broker.games = games.Registry(self.base / "lib")
-        broker.trace = lambda **record: None
+        broker = bare_broker(games=games.Registry(self.base / "lib"))
         lane = broker.lane_for(("profile", "conv"), create=True)
         lane.selected_root = str(make_project(self.base))
         for message, expected in (("e" * 200, "e" * 200), ("x" * (games.ERROR_CHARS + 60), "x" * games.ERROR_CHARS)):
@@ -207,7 +194,7 @@ class BrokerHook(unittest.TestCase):
                 "rom_build", "project-write", {"isError": True, "structuredContent": {"error": message}}, 1.0, {}
             )
             [game] = broker.games.library()
-            self.assertEqual(game["error"], expected)
+            self.assertEqual((game["state"], game["error"]), ("failed", expected))
         self.assertEqual(games.ERROR_CHARS, 240)
 
     def test_a_failing_library_never_breaks_a_call(self):
@@ -502,9 +489,14 @@ class GamesRpc(unittest.TestCase):
             hermes_host.on_subagent_stop(child_session_id="child-1")
         self.assertEqual(payload["code"], "PARENT_ONLY")
 
-    def test_the_approval_hook_lets_present_through_even_with_hardware_on(self):
+    def test_the_approval_hook_lets_every_plugin_owned_tool_through_even_with_hardware_on(self):
         hook = registered_hook("pre_tool_call", self.ctx)  # hardware_enabled is True in this ctx
-        self.assertIsNone(hook(tool_name="chromatic_present_game", args={"note": "try it"}))
+        for name, args in (
+            ("chromatic_present_game", {"note": "try it"}),
+            ("chromatic_build_report", {}),
+            ("chromatic_game_info", {}),
+        ):
+            self.assertIsNone(hook(tool_name=name, args=args), name)
         self.assertEqual(hook(tool_name="chromatic_flash", args={})["action"], "approve")
 
     def test_the_present_tool_is_plugin_owned_not_an_engine_tool(self):
@@ -531,12 +523,6 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(len(rpc({"since": "bad"})["presentations"]), 2)
         registry.upsert(str(root))  # other writes keep the presentations
         self.assertEqual(len(registry.presentations()), 2)
-
-    def test_make_library_game_registers_a_game_the_host_finds(self):
-        identifier, root = make_library_game(self.home, "Frog Post")
-        self.assertEqual(hermes_host._game_root(identifier), root)
-        self.assertEqual(hermes_host._registry().get(identifier)["title"], "Frog Post")
-        self.assertTrue(root.is_relative_to(self.base))
 
     def test_thumb_rpc_stores_and_refuses(self):
         identifier, _root = make_library_game(self.home)

@@ -13,7 +13,7 @@
  * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
  * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources: only the folders that output bundles, and body), so a stale or
- * hand-edited output is detected without esbuild (here, and in tests/repo/test_desktop_bundle.py).
+ * hand-edited output is detected without esbuild.
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
  * tools/npm/node_modules, or a Hermes Desktop checkout).
  *
@@ -21,7 +21,7 @@
  * tools/bundle/rpc_names.py (Python from PATH); --check fails when that file is stale.
  */
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -49,8 +49,7 @@ const ART_ROW = 96
 // The characters the install scanner treats as hidden text.
 const INVISIBLE = /[\u200b-\u200d\u2060\u2062-\u2064\ufeff\u202a-\u202e\u2066-\u2069]/
 const CLIMBS_TWICE = '..' + '/..'
-// What Hermes's admission lint refuses in a desktop plugin (hermes_cli/plugin_validate_desktop.py);
-// tests/repo/test_desktop_bundle.py holds the same list.
+// What Hermes's admission lint refuses in a desktop plugin (hermes_cli/plugin_validate_desktop.py).
 const REFUSED = {
   'code evaluated from a string': new RegExp('(?<![\\w$.])' + 'ev' + 'al\\(|\\bnew\\s+Function\\('),
   'a dynamic import': /\bimport\(/,
@@ -65,7 +64,7 @@ const importsOf = text => [...text.matchAll(/^import\s(?:[^;]*?\sfrom\s+)?"([^"]
 
 /** The outputs: where each comes from, what its banner says, and what must hold for it whatever built it.
  *  `sources` are the folders its banner hashes: everything it bundles must lie in them (checked on each build),
- *  so a page edit restamps only desktop/plugin.js. tests/repo/test_desktop_bundle.py holds the same lists. */
+ *  so a page edit restamps only desktop/plugin.js. */
 const TARGETS = [
   {
     output: 'desktop/plugin.js',
@@ -89,6 +88,7 @@ const TARGETS = [
       return [
         imported.join() === [...EXTERNAL].sort().join() ? null : `the bundle must import exactly ${EXTERNAL.join(', ')} (one statement each); it imports ${imported.join(', ') || 'nothing'}`,
         strays.length ? `desktop/ is published as it stands and must hold only plugin.js; it also holds ${strays.join(', ')}` : null,
+        existsSync(abs('desktop/plugin.js')) && lstatSync(abs('desktop/plugin.js')).isSymbolicLink() ? 'desktop/plugin.js must be the generated file itself, not a symlink: the app copies desktop/ as it stands' : null,
         existsSync(abs('plugin.js')) ? 'a plugin.js at the repository root would replace desktop/plugin.js as the desktop half' : null,
         ...Object.entries(REFUSED).map(([what, pattern]) => (pattern.test(text) ? `the bundle holds ${what}, which the app refuses to load` : null))
       ]
@@ -195,7 +195,7 @@ const readOutput = target => (existsSync(abs(target.output)) ? readFileSync(abs(
 const unhashed = (target, result) =>
   Object.keys(result.metafile.inputs)
     .filter(file => !target.sources.some(folder => file.startsWith(`${folder}/`)))
-    .map(file => `${target.output} bundles ${file}, outside the folders its banner hashes (${target.sources.join(', ')})\nFIX: add the folder to that target's sources in tools/bundle/bundle.mjs and to SOURCES in tests/repo/test_desktop_bundle.py`)
+    .map(file => `${target.output} bundles ${file}, outside the folders its banner hashes (${target.sources.join(', ')})\nFIX: add the folder to that target's sources in tools/bundle/bundle.mjs`)
 
 /** What must hold for an output, whatever built it. */
 function outputProblems(target, text) {
