@@ -324,8 +324,12 @@ class NewKindsRoundTwo(ScaffoldCase):
         spec = importlib.util.spec_from_file_location("check_py_round_two", ROOT / "tools" / "check.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        fix = module.scaffold_fix(["/usr/bin/python3", "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"])
-        self.assertTrue(fix.startswith("python -B -m unittest -v tests.retrodev.test_scaffold_tree"), fix)
+        test = ["/usr/bin/python3", "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
+        for mode in ("1", "nested"):
+            self.assertEqual(
+                module.scaffold_fix(test, mode),
+                f"RD_SCAFFOLD_FULL={mode} RD_SCAFFOLD_KEEP=1 python -B -m unittest -v tests.retrodev.test_scaffold_tree",
+            )
 
     def test_rpc_next_steps_show_the_page_query_and_the_test_answer(self):
         out = self.new("rpc", "history", "rdprobe_recent")

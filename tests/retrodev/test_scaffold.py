@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 import retrodev
-from retrodev import count_words, repo, scaffold, scaffold_listener
+from retrodev import count_words, repo, scaffold, scaffold_listener, state
 
 from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
@@ -88,6 +88,22 @@ class ScaffoldCase(RepoCase):
 
 
 class New(ScaffoldCase):
+    def test_a_successful_listener_checks_unit_without_retaining_the_pass(self):
+        self.new("feature", "rdcheck", "--purpose", "Tests checked scaffolds.")
+        self.new("event", "history", "rdcheck_ready", "--when", "the wiring test is ready")
+        branch = "feat/grow"
+        prior = state.load_branch(self.tree, branch)
+        self.clear_log()
+        code, said = self.run_cli("new", "listener", "rdcheck", "history.rdcheck_ready", cwd=self.tree)
+        self.assertEqual(code, 0, said)
+        unit_invocations = [entry for entry in self.check_log() if "unit" in entry["names"]]
+        self.assertEqual([entry.get("scaffold_gate") for entry in unit_invocations], ["1"])
+        after = state.load_branch(self.tree, branch)
+        # The restore saves the record again, so its write timestamp is not part of the restored data.
+        self.assertEqual(
+            {k: v for k, v in after.items() if k != "updated"}, {k: v for k, v in prior.items() if k != "updated"}
+        )
+
     def test_a_feature_gets_its_folder_tests_and_every_registry_line(self):
         out = self.new("feature", "rdprobe", "--purpose", "Demonstrates new.")
         self.assertEqual(

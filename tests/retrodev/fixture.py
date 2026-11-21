@@ -51,8 +51,9 @@ FAKE_CHECK = (
 with open(base / "checks.log", "a") as handle:
     base_ok = {"base": os.environ["RD_SCAFFOLD_BASE"]} if "RD_SCAFFOLD_BASE" in os.environ else {}
     mode = {"mode": os.environ["RD_SCAFFOLD_FULL"]} if os.environ.get("RD_SCAFFOLD_FULL") else {}
+    override = {"scaffold_gate": os.environ["RETRODEV_SCAFFOLD_CHECK"]} if "RETRODEV_SCAFFOLD_CHECK" in os.environ else {}
     handle.write(json.dumps({"names": names, "tmpdir": os.environ.get("TMPDIR"),
-                             "deps": os.environ.get("HERMRETRO_DEPS_ROOT"), **base_ok, **mode}) + "\\n")
+                             "deps": os.environ.get("HERMRETRO_DEPS_ROOT"), **base_ok, **mode, **override}) + "\\n")
 failing = (base / "fail-checks").read_text().split() if (base / "fail-checks").is_file() else []
 skipping = (base / "skip-checks").read_text().split() if (base / "skip-checks").is_file() else []
 detail = (base / "skip-detail").read_text() if (base / "skip-detail").is_file() else "the toolchain is not installed"
