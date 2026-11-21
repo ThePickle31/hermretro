@@ -376,7 +376,8 @@ part of `check.py full` and `check --full`, `check` adds it when the branch chan
 structure they parse (`policy.toml` `[checks.triggers]`; not ARCHITECTURE.md or CONTRACT.md, whose rows `new` adds,
 nor a change to `page/pages/index.js` or `step-words.js` made only of the lines `new page` and `new tool` write there,
 `[checks.new_lines]`),
-and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
+and CI's page job runs it with `RD_SCAFFOLD_FULL=nested` on every push to `dev` and on pull requests that change a file
+`tools/ci/changes.py` `SCAFFOLD` lists (other pull requests: `RD_SCAFFOLD_FULL=smoke`, the guard test alone): after the base tree's unit suite (a failure there is
 `scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
 rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
 on games, a slot on build, a contribution from build to a declared slot), then the full unit and page suites, so a test that

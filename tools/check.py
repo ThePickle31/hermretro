@@ -387,7 +387,20 @@ def base_failure(args, name: str) -> str:
 
 
 def scaffold_mode() -> str:
-    return os.environ.get("RD_SCAFFOLD_FULL") or "1"
+    """RD_SCAFFOLD_FULL: nested (every kind on the real features and pages too, then the full suites), smoke (CI's
+    page job on most pull requests: only the guard test, SMOKE, in the fast mode), else the fast mode."""
+    mode = os.environ.get("RD_SCAFFOLD_FULL")
+    return mode if mode in ("nested", "smoke") else "1"
+
+
+SMOKE = "test_new_writes_code_that_passes"  # unittest -k: the guard test (tests/retrodev/test_scaffold_smoke.py)
+
+
+def scaffold_test(mode: str) -> tuple[list[str], str]:
+    """(the scaffold test's command, the RD_SCAFFOLD_FULL it runs with)."""
+    select = ["-k", SMOKE] if mode == "smoke" else []
+    test = [sys.executable, "-m", "unittest", "-v", *select, "tests.retrodev.test_scaffold_tree"]
+    return test, "1" if mode == "smoke" else mode
 
 
 def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
@@ -440,11 +453,13 @@ def check_scaffold(args) -> str:
     for name, message in (("unit", UNIT_FIRST), ("page", PAGE_FIRST)):
         if failing.get(name):
             raise base_skip(name, message, failing[name])
-    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first + covered)})
+    test, inner = scaffold_test(mode)
+    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": inner, BASE: ",".join(first + covered)})
+    if mode == "smoke" and not re.search(r"^Ran [1-9]\d* tests? in ", result.stderr, re.M):
+        raise AssertionError(f"the smoke ran no test (-k {SMOKE})\nFIX: set SMOKE in tools/check.py to the guard test")
     if result.returncode or " skipped " in result.stderr:
         raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test))
-    return "retrodev new of every kind passes the real checks"
+    return "retrodev new of every kind passes the " + ("focused checks (smoke)" if mode == "smoke" else "real checks")
 
 
 def check_acceptance(args) -> str:

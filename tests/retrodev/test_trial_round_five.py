@@ -105,11 +105,14 @@ class Guard(unittest.TestCase):
         self.assertEqual(len(set(names)), len(names), "unique probe names")
         self.assertTrue(all(name.startswith("rdreal") for name in names), names)
 
-    def test_ci_runs_the_scaffold_check_nested(self):
+    def test_ci_runs_the_scaffold_check_nested_when_job_changes_says_so_else_the_smoke(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         step = workflow[workflow.index("- name: python tools/check.py bundle lint page scaffold") :].split("\n\n")[0]
-        self.assertIn("RD_SCAFFOLD_FULL: nested", step)
-        self.assertIn("run: python tools/check.py bundle lint page scaffold --strict", step)
+        self.assertIn("SCAFFOLD: ${{ needs.changes.outputs.scaffold }}", step)
+        self.assertIn("true) export RD_SCAFFOLD_FULL=nested ;;", step)
+        self.assertIn("false) export RD_SCAFFOLD_FULL=smoke ;;", step)
+        self.assertIn("*) echo", step)  # no decision: the step fails
+        self.assertIn("python tools/check.py bundle lint page scaffold --strict", step)
 
     def test_check_py_reports_a_base_tree_that_fails_unit_as_skipped(self):
         spec = importlib.util.spec_from_file_location("check_py_probe", ROOT / "tools/check.py")
