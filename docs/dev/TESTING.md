@@ -84,11 +84,13 @@ and `.dev/` are not linted.
   `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).
 - **Scaffold and update scope** (`tools/ci/changes.py`, the same `changes` job): the page job's scaffold check runs
   nested on every push to `dev` and on pull requests that change retrodev, the files `new` parses, the checks that
-  judge it or the tests its grown copy runs (`SCAFFOLD`); other pull requests run the smoke
-  (`RD_SCAFFOLD_FULL=smoke python tools/check.py bundle lint page scaffold --strict`). The validate job's extra
-  update from the PR checkout's `dev` parent (`HEAD^1`) runs on pull requests that delete or move files or change
-  the install, registration, broker or update paths (`UPGRADE`). The update from the newest release runs on every
-  run. A missing decision fails the job.
+  judge it, the tests its grown copy runs, or what its steps on the real pages and features read (page and tab
+  `index.js` descriptors, the page registry and page tests, front doors; `SCAFFOLD`); other pull requests, such as
+  a change to a page's view files, run the smoke (`RD_SCAFFOLD_FULL=smoke python tools/check.py bundle lint page
+  scaffold --strict`: the guard test alone, by its full unittest ID). The validate job's extra update from the PR
+  checkout's `dev` parent (`HEAD^1`) runs on pull requests that delete or move files or change the install,
+  registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release runs on
+  every run. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
   integration on Linux, Apple Silicon and Intel macOS, and the nested scaffold guard on Linux. The scheduled
   scaffold job starts once the workflow reaches `main`; workflow-changing pull requests exercise it on their head.

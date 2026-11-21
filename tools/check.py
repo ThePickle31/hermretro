@@ -398,14 +398,18 @@ def scaffold_mode() -> str:
     return mode if mode in ("nested", "smoke") else "1"
 
 
-SMOKE = "test_new_writes_code_that_passes"  # unittest -k: the guard test (tests/retrodev/test_scaffold_smoke.py)
+# The guard test's full unittest ID: the smoke runs it alone (tests/retrodev/test_scaffold_smoke.py checks the loader
+# resolves it to exactly that one test).
+SMOKE = (
+    "tests.retrodev.test_scaffold_tree.GeneratedCodePassesTheRealChecks"
+    ".test_new_writes_code_that_passes_the_repository_checks"
+)
 
 
 def scaffold_test(mode: str) -> tuple[list[str], str]:
     """(the scaffold test's command, the RD_SCAFFOLD_FULL it runs with)."""
-    select = ["-k", SMOKE] if mode == "smoke" else []
-    test = [sys.executable, "-m", "unittest", "-v", *select, "tests.retrodev.test_scaffold_tree"]
-    return test, "1" if mode == "smoke" else mode
+    target = SMOKE if mode == "smoke" else "tests.retrodev.test_scaffold_tree"
+    return [sys.executable, "-m", "unittest", "-v", target], "1" if mode == "smoke" else mode
 
 
 def scaffold_baseline(args, mode: str, environ: Mapping[str, str] | None = None) -> tuple[list[str], list[str]]:
@@ -460,10 +464,13 @@ def check_scaffold(args) -> str:
             raise base_skip(name, message, failing[name])
     test, inner = scaffold_test(mode)
     result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": inner, BASE: ",".join(first + covered)})
-    if mode == "smoke" and not re.search(r"^Ran [1-9]\d* tests? in ", result.stderr, re.M):
-        raise AssertionError(f"the smoke ran no test (-k {SMOKE})\nFIX: set SMOKE in tools/check.py to the guard test")
-    if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test, mode))
+    # The selector is wrong only when unittest's own final count says 0; a run that stopped before it says why itself.
+    if mode == "smoke" and re.search(r"^Ran 0 tests in ", result.stderr, re.M):
+        raise AssertionError(f"the smoke ran no test ({SMOKE})\nFIX: set SMOKE in tools/check.py to the guard test")
+    ran = mode != "smoke" or re.search(r"^Ran 1 test in ", result.stderr, re.M)
+    if result.returncode or not ran or " skipped " in result.stderr:
+        code = f"(exit {result.returncode}{'' if ran else ', no test count'})\n"
+        raise AssertionError(code + scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test, mode))
     return "retrodev new of every kind passes the " + ("focused checks (smoke)" if mode == "smoke" else "real checks")
 
 

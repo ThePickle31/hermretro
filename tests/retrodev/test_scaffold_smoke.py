@@ -38,19 +38,19 @@ def ids(suite) -> list[str]:
     return [i for t in suite for i in (ids(t) if isinstance(t, unittest.BaseTestSuite) else [t.id()])]
 
 
+# The guard: one `new` of every kind with the focused checks. Its sibling in the same class,
+# test_new_runs_checks_without_caching_or_failing_on_unfilled_stubs, exercises only listener and RPC scaffolds.
+GUARD = test_scaffold_tree.GeneratedCodePassesTheRealChecks.test_new_writes_code_that_passes_the_repository_checks
+
+
 class TheSmokeSelection(unittest.TestCase):
-    def test_smoke_selects_only_the_guard_test(self):
-        loader = unittest.TestLoader()
-        loader.testNamePatterns = [f"*{check_py().SMOKE}*"]  # what unittest -k does
-        cases = [
-            case
-            for case in vars(test_scaffold_tree).values()
-            if isinstance(case, type) and issubclass(case, unittest.TestCase) and case.__module__ == MODULE
-        ]
-        chosen = [i for case in cases for i in ids(loader.loadTestsFromTestCase(case))]
-        self.assertEqual(len(chosen), 1, f"SMOKE must pick the one guard test, picked {chosen}")
+    def test_smoke_selects_exactly_the_guard_test(self):  # review 1, 2 (#112)
+        """What unittest actually loads for the smoke's command (`python -m unittest <name>` loads by name) is the
+        guard and nothing else: not a sibling a looser pattern would also match."""
+        test, _inner = check_py().scaffold_test("smoke")
+        chosen = ids(unittest.TestLoader().loadTestsFromNames(test[test.index("-v") + 1 :]))
         guard = test_scaffold_tree.GeneratedCodePassesTheRealChecks
-        self.assertTrue(chosen[0].startswith(f"{guard.__module__}.{guard.__qualname__}.test_new_"), chosen)
+        self.assertEqual(chosen, [f"{MODULE}.{guard.__qualname__}.{GUARD.__name__}"])
 
     def test_the_modes(self):
         module = check_py()
@@ -59,11 +59,10 @@ class TheSmokeSelection(unittest.TestCase):
                 with mock.patch.object(module, "os", SimpleNamespace(environ={"RD_SCAFFOLD_FULL": value})):
                     self.assertEqual(module.scaffold_mode(), mode)
         test, inner = module.scaffold_test("smoke")
-        self.assertEqual((test[-3:], inner), (["-k", module.SMOKE, "tests.retrodev.test_scaffold_tree"], "1"))
+        self.assertEqual((test[1:], inner), (["-m", "unittest", "-v", module.SMOKE], "1"), "the fast mode")
         for mode in ("1", "nested"):
             test, inner = module.scaffold_test(mode)
-            self.assertNotIn("-k", test)
-            self.assertEqual(inner, mode)
+            self.assertEqual((test[1:], inner), (["-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"], mode))
 
 
 class TheSmokeFailsClosed(unittest.TestCase):
@@ -87,10 +86,10 @@ class TheSmokeFailsClosed(unittest.TestCase):
                 return module.check_scaffold(argparse.Namespace(strict=True)), calls
 
     def test_a_smoke_that_ran_its_test_passes_in_the_fast_mode(self):
-        said, calls = self.check("test_new_writes_code_that_passes_x ... ok\n\nRan 1 test in 26.1s\n\nOK\n")
+        said, calls = self.check(f"{GUARD.__name__} ... ok\n\nRan 1 test in 26.1s\n\nOK\n")
         self.assertIn("smoke", said)
         [(command, inner)] = calls
-        self.assertIn("-k", command)
+        self.assertEqual(command[-1], check_py().SMOKE)
         self.assertEqual(inner, "1")
 
     def test_a_smoke_that_ran_no_test_fails(self):
@@ -99,6 +98,33 @@ class TheSmokeFailsClosed(unittest.TestCase):
                 self.check(stderr, code)
             self.assertIn("the smoke ran no test", str(failed.exception))
             self.assertIn("FIX: set SMOKE in tools/check.py", str(failed.exception))
+
+    def test_a_smoke_that_stopped_before_its_count_says_why_not_the_selector(self):  # review 1, 3 (#112)
+        """A run that aborts (killed, a crash at import) prints no final count: the failure keeps the exit status
+        and stderr, and its FIX is the rerun of that command, never the selector."""
+        crash = f"{GUARD.__name__} ... Fatal Python error: Segmentation fault\nin tools/retrodev/scaffold.py line 9\n"
+        for stderr, code in ((crash, -11), (crash, 0), ("", 1)):
+            with self.subTest(code=code, stderr=bool(stderr)), self.assertRaises(AssertionError) as failed:
+                self.check(stderr, code)
+            said = str(failed.exception)
+            self.assertNotIn("set SMOKE", said)
+            self.assertNotIn("ran no test", said)
+            self.assertIn(f"exit {code}", said)
+            self.assertIn(crash.strip().splitlines()[-1] if stderr else "no test count", said)
+            self.assertIn(
+                f"FIX: RD_SCAFFOLD_FULL=smoke RD_SCAFFOLD_KEEP=1 python -B -m unittest -v {check_py().SMOKE}", said
+            )
+
+    def test_a_smoke_whose_guard_failed_keeps_the_rerun(self):
+        stderr = (
+            f"{GUARD.__name__} ... FAIL\n\nAssertionError: lint failed\n\nRan 1 test in 20.0s\n\nFAILED (failures=1)\n"
+        )
+        with self.assertRaises(AssertionError) as failed:
+            self.check(stderr, 1)
+        said = str(failed.exception)
+        self.assertIn("lint failed", said)
+        self.assertIn("exit 1", said)
+        self.assertNotIn("set SMOKE", said)
 
 
 if __name__ == "__main__":

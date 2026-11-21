@@ -131,6 +131,60 @@ class Changes(unittest.TestCase):
                 self.setUp()
                 self.assertEqual(self.decide({name: "changed\n"})["scaffold"], "true")
 
+    def test_what_only_the_nested_steps_on_the_real_tree_read_gets_the_nested_run(self):  # review 1, 0 (#112)
+        """The nested guard's steps on REAL pages and features (tests/retrodev/scaffold_steps.py) read and edit these
+        (a page or tab descriptor's tabs, slots and contributes; the registry test's pins; a front door's EVENTS; the
+        grown features' listeners and RPCs): a change there can break only the nested run."""
+        for name in (
+            "page/pages/games/index.js",
+            "page/pages/setup/index.js",
+            "page/pages/build/attract/index.js",
+            "page/pages/games/README.md",
+            "tests/page/registry.test.mjs",
+            "tests/page/slots.test.mjs",
+            "tests/page/page-games.test.mjs",
+            "tests/page/page-setup.test.mjs",
+            "backend/history/__init__.py",
+            "backend/assets/listeners.py",
+            "backend/library/rpcs.py",
+            "backend/history/README.md",
+        ):
+            with self.subTest(name):
+                self.assertTrue((ROOT / name).is_file(), f"{name}: name a real file the nested steps read")
+                self.setUp()
+                self.assertEqual(self.decide({name: "changed\n"})["scaffold"], "true")
+
+    def test_wrapping_the_real_games_contribution_gets_the_nested_run(self):  # review 1, 0 (#112)
+        """The review's case, as the real diff: Games' one-line contribution to emulator.barActions wrapped onto
+        several lines (the nested step adding a second contribution to that slot reads the one-line form), and the
+        registry test it is pinned by, each starting from the checkout's own file."""
+        door = "page/pages/games/index.js"
+        text = (ROOT / door).read_text()
+        one_line = "    'emulator.barActions': [InstallButton]\n"
+        self.assertIn(one_line, text, "the real contribution this case wraps")
+        wrapped = text.replace(one_line, "    'emulator.barActions': [\n      InstallButton\n    ]\n")
+        registry = "tests/page/registry.test.mjs"
+        for name, before, after in ((door, text, wrapped), (registry, (ROOT / registry).read_text(), None)):
+            with self.subTest(name):
+                self.setUp()
+                self.commit({name: before})
+                self.base = self.git("rev-parse", "HEAD").strip()
+                said = self.decide({name: after if after is not None else before + "// one more pin\n"})
+                self.assertEqual(said["scaffold"], "true", said)
+
+    def test_a_page_s_view_and_the_tests_new_never_reads_keep_the_smoke(self):
+        for name in (
+            "page/pages/games/view.js",
+            "page/pages/games/game-card.js",
+            "page/pages/build/attract/world.js",
+            "tests/page/format.test.mjs",
+            "tests/page/games-fixture.mjs",
+            "backend/library/games.py",
+        ):
+            with self.subTest(name):
+                self.setUp()
+                self.assertEqual(self.decide({name: "changed\n"})["scaffold"], "false")
+
     def test_every_push_gets_the_nested_scaffold_run(self):
         for files in ({"docs/guide.md": "# Guide, longer\n"}, self.bumped()):
             with self.subTest(files=list(files)):
@@ -156,6 +210,15 @@ class Changes(unittest.TestCase):
         self.assertEqual(self.decide({})["upgrade"], "true", "a deletion anywhere")
         self.setUp()
         self.assertEqual(self.decide({}, moves={"docs/guide.md": "docs/moved/guide.md"})["upgrade"], "true")
+
+    def test_an_ignore_only_change_gets_the_update_from_dev(self):  # review 1, 1 (#112)
+        """The update check judges each ignored leftover file by the ignore rules: a pull request that changes only
+        them (the root's or a folder's) still updates from dev."""
+        for name in (".gitignore", "player/.gitignore"):
+            with self.subTest(name):
+                self.setUp()
+                said = self.decide({name: "deps/\n"})
+                self.assertEqual(said["upgrade"], "true", said)
 
     def test_a_move_counts_its_old_path_too(self):
         said = self.decide({}, moves={"tools/retrodev/notes.txt": "docs/notes.txt"})
