@@ -407,3 +407,70 @@ def contract_counts(contract: str) -> tuple[int, int]:
 
 def scaffold_words():
     return "page/pages/build/transcript/step-words.js"
+
+
+README = """# {Label}
+
+**Shows:** the page.
+
+**Tabs:** none.
+
+**Slots:** declares none, contributes none.
+
+**Tests:** `tests/page/page-{page}.test.mjs`.
+
+## Adding a tab here
+
+Make a folder `page/pages/{page}/<tab>/`{taken} with an `index.js` exporting `{{ id, label, Page }}`.
+"""
+
+
+class Scaffolds(ScaffoldCase):
+    def real(self, *names: str) -> None:
+        for name in names:
+            (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, self.tree / name)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "More real files")
+
+    def files(self, files: dict) -> None:
+        for name, text in files.items():
+            write(self.tree, name, text)
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "Known files")
+
+    def readmes(self) -> None:
+        taken = " (`install` and `onboarding` are taken: pick another id)"
+        self.real("page/pages/setup/index.js")
+        self.files(
+            {
+                "page/pages/build/README.md": README.format(Label="Build", page="build", taken=""),
+                "page/pages/setup/README.md": README.format(Label="Setup", page="setup", taken=taken),
+            }
+        )
+
+    def test_the_undo_step_names_only_new_s_own_edits_never_a_whole_file_or_folder(self):
+        """Review round 1 of #75: the undo restored page/pages/<page> and desktop/plugin.js, discarding unrelated
+        uncommitted work on the branch. Each step now names only what new wrote, and each of those is really there."""
+        self.readmes()
+        out = self.new("tab", "build", "extra")
+        said = " ".join(out["next"] + out.get("notes", []) + out.get("done", []))
+        for whole in (
+            "git restore",
+            "git checkout",
+            "git reset",
+            "git stash",
+            "git clean",
+            "rm -r page/pages/build ",
+        ):
+            self.assertNotIn(whole, said)
+        self.assertNotIn("rm -r page/pages/build;", said)
+        undo = out["next"][0]
+        self.assertIn("rm -r page/pages/build/extra;", undo)
+        self.assertIn("then node tools/bundle/bundle.mjs", undo)
+        index = self.read("page/pages/build/index.js")
+        line = "import { BUILD_EXTRA_TAB } from './extra/index.js'"
+        self.assertIn(f"delete the line {line} and the", undo)
+        self.assertIn(line, index)
+        self.assertIn("  tabs: [\n    BUILD_EXTRA_TAB\n  ]", index)
+        self.assertIn("three lines tabs: [ BUILD_EXTRA_TAB ]", undo)

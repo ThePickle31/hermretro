@@ -90,3 +90,124 @@ class FastGate(RepoCase):
         self.assertEqual(code, 1, out)
         self.assertIn("skipped (a tool is missing): page", out)
         self.assertNotIn("passed_tree", state.load_branch(self.main, "docs/tidy"))
+
+
+class AcceptanceInputs(RepoCase):
+    def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
+        """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
+        run's data (its tree_passed is still the fast checks')."""
+        self.clear_log()
+        got, data = self.run_cli("check", cwd=tree, as_json=True)
+        self.assertEqual(got, code, data)
+        got, data = self.run_cli("check", *slow, cwd=tree, as_json=True)
+        self.assertEqual(got, 0, data)
+        ran = [name for entry in self.check_log() for name in entry.get("names", [])]
+        self.assertEqual("acceptance" not in ran, cached, ran)
+        row = next(row for row in data["checks"] if row["name"] == "acceptance")
+        self.assertEqual(row["cached"], cached, row)
+        return data
+
+    def shipped(self, tree) -> list[str]:
+        body = write(self.base, "body.md", GOOD_BODY)
+        _code, data = self.run_cli(
+            "ship", "--title", "Move the glue", "--body", str(body), "--dry-run", cwd=tree, as_json=True
+        )
+        return [gate["name"] for gate in data["gates"] if not gate["ok"]]
+
+    def test_a_retrodev_test_edit_keeps_the_acceptance_pass_and_the_tree_may_ship(self):
+        tree = self.worktree("chore/move")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.assertTrue(self.checked(tree, cached=False)["tree_passed"])
+        self.commit(tree, "tests/retrodev/test_probe.py", "PROBE = 1\n", "Add a retrodev test")
+        data = self.checked(tree, cached=True)
+        self.assertTrue(data["tree_passed"], data)
+        self.assertEqual(
+            self.check_log()[0]["names"], ["unit", "lint", "scan"], "the fast checks that read it still run"
+        )
+        self.assertEqual(self.shipped(tree), [], "the ship gate takes the tree whose pass reused acceptance")
+        write(tree, "tests/retrodev/test_probe.py", "PROBE = 2\n")  # uncommitted: the other gates still hold
+        self.assertIn("committed and clean", self.shipped(tree))
+        git(tree, "commit", "-q", "-am", "Change the probe")
+        self.fail_checks("unit")
+        data = self.checked(tree, cached=True, code=1)
+        self.assertFalse(data["tree_passed"], "a cached acceptance pass never outweighs a failure")
+        self.assertIn("checks passed on this tree", self.shipped(tree))
+
+    def test_every_file_the_real_engine_run_may_read_takes_its_pass_back(self):
+        tree = self.worktree("chore/move")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.checked(tree, cached=False)
+        for name in (
+            "backend/library/core.py",  # the backend, broker and player it runs
+            "tests/acceptance/broker_acceptance.py",  # the suite itself
+            "tests/support.py",  # shared test helpers
+            "tests/retrodev.py",  # beside the folder, not in it
+            "tools/ci/prepare_toolchain.py",  # the toolchain
+            "tools/check.py",  # the runner
+            "tools/retrodev/checks.py",  # what decides and runs it
+            "tools/retrodev/policy.toml",  # its inputs and their exceptions
+        ):
+            with self.subTest(name):
+                path = tree / name
+                write(tree, name, (path.read_text() if path.is_file() else "") + "\n# changed\n")
+                git(tree, "add", "-A")
+                git(tree, "commit", "-q", "-m", f"Change {name}")
+                self.checked(tree, cached=False)
+
+
+class AcceptanceContract(RepoCase):
+    def checked(self, tree, *, cached: bool, code: int = 0, slow: tuple = ("acceptance",)) -> dict:
+        """The fast checks (``code``: their exit), then the slow ones by name, as an agent runs them: the second
+        run's data (its tree_passed is still the fast checks')."""
+        self.clear_log()
+        got, data = self.run_cli("check", cwd=tree, as_json=True)
+        self.assertEqual(got, code, data)
+        got, data = self.run_cli("check", *slow, cwd=tree, as_json=True)
+        self.assertEqual(got, 0, data)
+        ran = [name for entry in self.check_log() for name in entry.get("names", [])]
+        self.assertEqual("acceptance" not in ran, cached, ran)
+        row = next(row for row in data["checks"] if row["name"] == "acceptance")
+        self.assertEqual(row["cached"], cached, row)
+        return data
+
+    def shipped(self, tree) -> list[str]:
+        body = write(self.base, "body.md", GOOD_BODY)
+        _code, data = self.run_cli(
+            "ship", "--title", "Say what the tool does", "--body", str(body), "--dry-run", cwd=tree, as_json=True
+        )
+        return [gate["name"] for gate in data["gates"] if not gate["ok"]]
+
+    def test_a_contract_edit_keeps_the_acceptance_pass_and_the_tree_may_ship(self):
+        tree = self.worktree("chore/tool")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.assertTrue(self.checked(tree, cached=False)["tree_passed"])
+        self.commit(tree, "docs/dev/CONTRACT.md", "# Contract\n\n`chromatic_x`: says what it does.\n", "Describe it")
+        data = self.checked(tree, cached=True)
+        self.assertTrue(data["tree_passed"], data)
+        self.assertEqual(self.check_log()[0]["names"], ["unit", "scan"], "the fast checks that read it still run")
+        self.assertEqual(self.shipped(tree), [], "the ship gate takes the tree whose pass reused acceptance")
+        write(tree, "docs/dev/CONTRACT.md", "# Contract\n\nChanged.\n")  # uncommitted: the other gates still hold
+        self.assertIn("committed and clean", self.shipped(tree))
+        git(tree, "commit", "-q", "-am", "Change it again")
+        self.fail_checks("scan")
+        data = self.checked(tree, cached=True, code=1)
+        self.assertFalse(data["tree_passed"], "a cached acceptance pass never outweighs a failure")
+        self.assertIn("checks passed on this tree", self.shipped(tree))
+
+    def test_only_that_exact_file_is_left_out(self):
+        tree = self.worktree("chore/tool")
+        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the core")
+        self.checked(tree, cached=False)
+        for name in ("docs/dev/CONTRACT.md.orig", "docs/dev/ARCHITECTURE.md", "docs/guide.md", "docs/CONTRACT.md"):
+            with self.subTest(name):
+                self.commit(tree, name, f"# {name}\n", f"Change {name}")
+                self.checked(tree, cached=False)
+
+    def test_the_clean_install_still_reruns_after_a_contract_edit(self):
+        tree = self.worktree("chore/glue")
+        self.commit(tree, "backend/hermes/glue.py", "GLUE = 2\n", "Change the glue")
+        self.checked(tree, cached=False, slow=("acceptance", "clean_install"))
+        self.assertTrue([entry for entry in self.check_log() if "script" in entry], self.check_log())
+        self.commit(tree, "docs/dev/CONTRACT.md", "# Contract\n", "Describe it")
+        self.checked(tree, cached=True, slow=("acceptance", "clean_install"))
+        self.assertTrue([entry for entry in self.check_log() if "script" in entry], "the install key keeps docs")

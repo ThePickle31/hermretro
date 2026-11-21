@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import check  # noqa: E402 - tools/check.py is imported from its own folder
+import importlib.util
+import re
 
 PROBE = ["-c", "import probe; print(probe.WORD)"]
 OK = "Ran 1 test in 0.001s\n\nOK\n"
@@ -215,6 +217,17 @@ class UnitCheckHomeTests(unittest.TestCase):
         self.assertRegex(message, r"left files in the temp folder: \S*hermretro-tmp-\w+/leaked-", "names the path")
         self.assertIn("left by: tests.backend.setup.test_onboarding (leaked-", message)
         self.assertIn("FIX: clean up with addCleanup / TemporaryDirectory", message)
+
+
+class LayoutSummary(unittest.TestCase):
+    def test_the_branch_s_own_big_files_are_named_first(self):
+        spec = importlib.util.spec_from_file_location("unit_home_round_eighteen", ROOT / "tools/py/unit_home.py")
+        unit_home = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(unit_home)
+        lines = [f"layout warning: backend/f{n}.py has 450 lines (over 400)" for n in range(9)]
+        note = unit_home.layout_note(lines, ["backend/f8.py", "docs/x.md"])
+        self.assertTrue(re.search(r"over the size warning: backend/f8\.py, backend/f0\.py", note), note)
+        self.assertIn("and 3 more", note)
 
 
 if __name__ == "__main__":

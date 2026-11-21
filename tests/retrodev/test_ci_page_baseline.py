@@ -26,6 +26,9 @@ from unittest import mock
 
 from tests.retrodev.fixture import RepoCase, git, parallel, remove_tree
 from tests.retrodev.tree_copy import NO_MAINTENANCE
+import types
+from retrodev import checks, config, output, repo, state
+from tests.retrodev.fixture import GOOD_BODY, write
 
 load_tests = parallel
 
@@ -67,6 +70,34 @@ class TheBaseline(unittest.TestCase):
         self.assertEqual(module.scaffold_baseline(with_unit, "nested", ci), (["unit", "page"], []))
         self.assertEqual(module.scaffold_baseline(argparse.Namespace(), "nested", {}), (["unit", "page"], []))
         self.assertEqual(module.scaffold_baseline(argparse.Namespace(), "1", ci), (["page"], []))
+
+    def test_a_nested_run_without_a_unit_result_runs_unit_once_and_stops_before_the_suites(self):  # review 1, 4
+        module = check_py()
+        if not (ROOT / "tools/npm/node_modules").is_dir():
+            self.skipTest("the npm tools are not set up here")
+        failure = "FAIL: test_probe (tests.backend.x.test_y.Case.test_probe)\nRan 9 tests"
+        args = self.invocation(page=("ok", ""))  # unit has not run: this standalone nested check must run it
+        calls = []
+
+        def failing_unit(_args):
+            calls.append(1)
+            raise AssertionError(failure)
+
+        with (
+            mock.patch.object(module, "ruff_missing", lambda: None),
+            mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.object(module, "scaffold_mode", lambda: "nested"),
+            mock.patch.object(module, "scaffold_baseline", lambda _args, _mode: (["unit", "page"], [])),
+            mock.patch.dict(module.CHECKS, {"unit": failing_unit}),
+            mock.patch.object(module, "run", lambda *a, **k: self.fail("the scaffold module ran")),
+        ):
+            with self.assertRaises(module.Skip) as said:
+                module.check_scaffold(args)
+        self.assertEqual(calls, [1], "the unit check ran once")
+        text = str(said.exception)
+        self.assertTrue(text.startswith(module.UNIT_FIRST), text)
+        self.assertIn("FAIL: test_probe (tests.backend.x.test_y.Case.test_probe)", text)
+        self.assertIn("FIX: python tools/check.py unit", text)
 
     def test_a_tree_failing_unit_shows_the_failing_tests_and_the_command_to_see_them(self):
         module = check_py()
@@ -140,6 +171,152 @@ class TestRepositoriesStartNoDetachedMaintenance(RepoCase):
         remove_tree(folder)
         self.assertFalse(folder.exists())
         remove_tree(folder)
+
+
+ACT = (
+    "An update to BuildNewGame inside a test was not wrapped in act(...).\n\nWhen testing, code that causes React state "
+    "updates should be wrapped into act(...):\n\nact(() => {\n  /* fire events that update state */\n});\n"
+    "/* assert on the output */\n\nThis ensures that you're testing the behavior the user would see in the browser.\n"
+)
+
+SPEC = (
+    "page-build-shelf.test.mjs: 7 passed, 0 failed\n✔ tests/page/page-build-shelf.test.mjs (1319.8ms)\n"
+    + ACT
+    + "check failed: an approval seen both as an event and by the poll is one card\n"
+    "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1\n\n"
+    "    at file:///x/tests/page/page-build.test.mjs:193:12\n"
+    + ACT
+    + "page-build.test.mjs: 13 passed, 1 failed\n✖ tests/page/page-build.test.mjs (2105.5ms)\n"
+    "✔ clock() is minutes:seconds (0.7ms)\n✖ waits (201.2ms)\n  'test timed out after 200ms'\n"
+    "ℹ tests 4\nℹ pass 2\nℹ fail 1\nℹ cancelled 1\n\n✖ failing tests:\n\n"
+    "test at tests/page/page-build.test.mjs:1:1\n✖ tests/page/page-build.test.mjs (2105.5ms)\n  'test failed'\n\n"
+    "test at tests/page/slow.test.mjs:1:31\n✖ waits (201.2ms)\n  'test timed out after 200ms'\n"
+)
+
+
+class FlowFixes(RepoCase):
+    def passed(self, tree, name):
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        record = state.load_branch(self.main, name)
+        record.update(passed_tree=repo.tree_digest(tree), passed_checks=sorted(checks.required(ctx)))
+        state.save_branch(self.main, record)
+
+    def ready(self, name="docs/tidy"):
+        tree = self.worktree(name)
+        self.commit(tree, "docs/guide.md", "# Guide, better\n", "Improve the guide")
+        self.passed(tree, name)
+        return tree, str(write(self.base, "body.md", GOOD_BODY))
+
+    def test_the_lint_summary_names_each_page_warning(self):
+        spec = importlib.util.spec_from_file_location("check_py_copy", ROOT / "tools" / "check.py")
+        module = importlib.util.module_from_spec(spec)  # a private copy: rebinding its names touches no other test
+        spec.loader.exec_module(module)
+        lint = "warning: page/a.js:208:9  'x' is unused. [no-unused-vars]\n    why: ...\n3 files: 0 errors, 1 warnings"
+
+        class Done:
+            def __init__(self, text):
+                self.text, self.returncode = text, 0
+
+            def communicate(self):
+                return self.text, None
+
+        module.shutil = types.SimpleNamespace(which=lambda name: "/usr/bin/" + name)
+        module.ruff_missing = lambda: None
+        module.start = lambda command: Done(lint if "lint-page.mjs" in " ".join(command) else "")
+        summary = module.check_lint(types.SimpleNamespace(strict=False))
+        self.assertIn("page: 3 files: 0 errors, 1 warnings (warnings: page/a.js:208)", summary)
+
+
+class WholeScaffoldCheckFirst(unittest.TestCase):
+    def check_py(self):
+        spec = importlib.util.spec_from_file_location("check_py_probe_nine_first", ROOT / "tools/check.py")
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        if not (ROOT / "tools/npm/node_modules").is_dir():
+            self.skipTest("the npm tools are not set up here")
+        return module
+
+    def scaffold(self, module, args, page=None):
+        ran = []
+
+        def run(command, **kwargs):
+            ran.append(kwargs.get("env", {}))
+            return subprocess.CompletedProcess(command, 0, "", "Ran 12 tests\n\nOK\n")
+
+        with (
+            mock.patch.object(module, "run", run),
+            mock.patch.object(module, "ruff_missing", lambda: None),
+            mock.patch.object(module, "need", lambda tool: tool),
+            mock.patch.dict(module.CHECKS, {"page": page or (lambda _args: "fine")}),
+        ):
+            try:
+                return module.check_scaffold(args), ran
+            except module.Skip as skip:
+                return str(skip), ran
+
+    def invocation(self, page_state: str):
+        done = threading.Event()
+        done.set()
+        return argparse.Namespace(strict=False, finished={"page": done}, states={"page": page_state})
+
+    @staticmethod
+    def fail(_args):
+        raise AssertionError("page ran a second time")
+
+    def test_a_page_row_of_the_same_run_that_failed_skips_the_whole_check(self):
+        module = self.check_py()
+        said, ran = self.scaffold(module, self.invocation("FAILED"), page=self.fail)
+        self.assertEqual(said.splitlines()[0], "skipped: the tree fails page (fix page first)")
+        self.assertIn("FIX: python tools/check.py page", said)
+        self.assertEqual(ran, [], "the scaffold module does not run at all")
+
+    def test_a_page_row_of_the_same_run_that_passed_is_reused(self):
+        module = self.check_py()
+        said, ran = self.scaffold(module, self.invocation("ok"), page=self.fail)  # page itself would fail: unused
+        self.assertEqual(said, "retrodev new of every kind passes the real checks")
+        self.assertEqual([env.get("RD_SCAFFOLD_BASE") for env in ran], ["page"])
+
+    def test_without_a_page_row_check_py_runs_page_once_itself(self):
+        module = self.check_py()
+        calls = []
+
+        def page(_args):
+            calls.append(1)
+            raise AssertionError("not ok 1 - rdprobe")
+
+        said, ran = self.scaffold(module, argparse.Namespace(strict=False), page=page)
+        first, shown = said.splitlines()[:2]
+        self.assertEqual((first, calls, ran), ("skipped: the tree fails page (fix page first)", [1], []))
+        self.assertEqual(shown, "not ok 1 - rdprobe", "the failure shows, not only that there was one")
+
+
+class PageFailure(RepoCase):
+    def test_a_failing_page_file_shows_its_own_assertion_not_only_test_failed(self):
+        said = check_py().page_failure(SPEC)
+        self.assertIn("tests/page/page-build.test.mjs failed:", said)
+        self.assertIn("check failed: an approval seen both as an event and by the poll is one card", said)
+        self.assertIn("0 !== 1", said)
+        self.assertIn("page-build.test.mjs: 13 passed, 1 failed", said)
+        self.assertNotIn("not wrapped in act", said, "React's act() warnings are noise here")
+        self.assertNotIn("page-build-shelf", said, "only the failing file's own output")
+        fix = said.splitlines()[-1]
+        self.assertTrue(fix.startswith("FIX: waits timed out (stopped for taking too long, not an assertion)"), fix)
+        self.assertIn("node tests/page/page-build.test.mjs; node tests/page/slow.test.mjs", fix)
+
+    def test_without_a_timeout_the_fix_says_nothing_of_one(self):
+        spec = SPEC.replace("'test timed out after 200ms'", "'boom'")
+        fix = check_py().page_failure(spec).splitlines()[-1]
+        self.assertNotIn("timed out", fix)
+        self.assertTrue(fix.startswith("FIX: run it alone: node tests/page/page-build.test.mjs"), fix)
+
+    def test_the_scaffold_check_keeps_the_page_file_s_output_above_its_last_lines(self):
+        module = check_py()
+        block = module.page_failure(SPEC).replace("\n", "\n         ")
+        stderr = "new tab rdtabs first:\n FAILED  page            3.8 s  " + block + "\n" + "more\n" * 60
+        said = module.scaffold_said(stderr)
+        self.assertIn("check failed: an approval seen both as an event and by the poll is one card", said)
+        self.assertTrue(said.endswith("more"), "and the last lines still follow")
 
 
 if __name__ == "__main__":

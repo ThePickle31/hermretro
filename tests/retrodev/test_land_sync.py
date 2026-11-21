@@ -12,6 +12,8 @@ from retrodev.review import records
 
 from tests.retrodev.fixture import git, parallel
 from tests.retrodev.landing import BRANCH, GREEN, PR, TITLE, LandCase, reply
+from retrodev import repo
+from tests.retrodev.fixture import RepoCase
 
 load_tests = parallel
 PENDING = [{"name": "All checks pass", "state": "PENDING", "bucket": "pending", "link": ""}]
@@ -289,6 +291,32 @@ class DevMergedAfterReview(LandCase):
         code, data = self.land()
         self.assertEqual(code, 0, data)
         self.assertEqual(len(self.hermes.calls), 2, "a probe, then round 2")
+
+
+PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + bytes(range(256))
+
+ART = "player/art.png"
+
+
+class Blobs(RepoCase):
+    def test_git_output_that_is_not_utf_8_never_raises(self):
+        tree = self.worktree("fix/blob")
+        (tree / ART).parent.mkdir(parents=True, exist_ok=True)
+        (tree / ART).write_bytes(PNG)
+        (tree / "notes.txt").write_bytes(b"caf\xe9\n")
+        git(tree, "add", "-A")
+        git(tree, "commit", "-q", "-m", "Art")
+        code, out, _err = repo.run(["git", "cat-file", "blob", f"HEAD:{ART}"], tree)
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith("\ufffdPNG"))
+        self.assertEqual(repo.blob(tree, f"HEAD:{ART}"), PNG)
+        self.assertIsNone(repo.text(PNG))
+        self.assertIsNone(repo.text(b"caf\xe9\n"), "not UTF-8: not counted as lines")
+        self.assertEqual(repo.text(b"VALUE = 1\n"), "VALUE = 1\n")
+        self.assertIsNone(repo.blob(tree, "HEAD:missing.txt"))
+        self.assertIsNone(land_carry.blob(tree, "HEAD", ART), "land's resolution counter cannot count it")
+        self.assertIsNone(land_carry.blob(tree, "HEAD", "notes.txt"))
+        self.assertEqual(land_carry.blob(tree, "HEAD", "missing.txt"), "")
 
 
 class CodeLines(unittest.TestCase):
