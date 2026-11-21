@@ -29,13 +29,13 @@ const NARROW = 500
 const TINY = 440
 
 /** The connected providers and their models (`model.options`), for a conversation or the profile. */
-function useModelOptions(runtime) {
+function useModelOptions(runtime, needed = true) {
   const gateway = useValue(host.state.gateway)
 
   return useQuery({
     queryKey: [ID, 'models', runtime ?? 'profile'],
     queryFn: () => chatRequest('model.options', runtime ? { session_id: runtime } : {}, 30_000),
-    enabled: gateway === 'open',
+    enabled: needed && gateway === 'open',
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1
@@ -100,7 +100,7 @@ function useStars(ctx) {
 /** `pending` is a change not yet confirmed by Hermes (held for the turn's end, or on its way): the panel shows it, so
  *  every next choice (Fast, an arrow key) is judged against the model and effort it will run on. `waiting` says it is
  *  held until the turn ends. */
-function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true, draft = false }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState(null)
   const [query, setQuery] = useState('')
@@ -109,7 +109,8 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const search = useRef(null)
   const data = options?.data
   const providers = useMemo(() => (Array.isArray(data?.providers) ? data.providers.filter(item => item?.authenticated && Array.isArray(item.models) && item.models.length) : []), [data])
-  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? '', fast: pending?.fast ?? value?.fast ?? false }
+  const fallback = draft ? null : data // The draft value is also used to create the session.
+  const shown = { model: pending?.model ?? value?.model ?? fallback?.model ?? null, provider: pending?.provider ?? value?.provider ?? fallback?.provider ?? null, effort: pending?.effort ?? value?.effort ?? '', fast: pending?.fast ?? value?.fast ?? false }
   const marks = useMemo(() => providerMarks(providers), [providers])
   const current = providers.find(item => item.slug === shown.provider) ?? null
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers))
@@ -209,7 +210,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const choose = row => {
     setOpen(false)
 
-    if (row.model !== shown.model || row.provider !== shown.provider) {
+    if (!disabled && (draft || row.model !== shown.model || row.provider !== shown.provider)) {
       // Leaving fast mode on would carry Hermes's priority tier to a model without the switch (Anthropic and
       // xAI read it as their own fast mode), so a model without it goes back to standard. That covers a Fast
       // still on its way (`shown` includes `pending`), which the model pick would otherwise inherit.
@@ -337,22 +338,22 @@ export function ChatModelPicker({ ctx, stored, chat, disabled }) {
 
 /** The picker before a conversation exists (New Game, a game with no conversation): the pick is used
  *  when the conversation is made, and remembered for the next one. */
-export function DraftModelPicker({ ctx, pick, onPick, up = true }) {
-  const options = useModelOptions(null)
-
+export function DraftModelPicker({ ctx, pick, onPick, options, up = true, disabled = false }) {
   return jsx(ModelPicker, {
     ctx,
+    draft: true,
+    disabled,
     up,
     onEffort: effort => onPick({ ...pick, effort }),
-    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
-    onFast: (fast, at) => onPick({ ...pick, ...(at.model && at.provider ? at : {}), fast }),
+    onFast: fast => onPick({ ...pick, fast }),
     onPick: choice => onPick({ ...pick, ...choice }),
     options,
     value: pick
   })
 }
 
-export function useDraftPick(ctx) {
+export function useDraftPick(ctx, needed) {
+  const options = useModelOptions(null, needed)
   const [pick, setPick] = useState(() => {
     try {
       const saved = ctx.storage.get('buildModel', null)
@@ -373,5 +374,6 @@ export function useDraftPick(ctx) {
     }
   }
 
-  return [pick, update]
+  const route = [pick, options.data].find(value => value?.model && value?.provider && value.provider !== 'auto')
+  return [{ ...pick, model: route?.model, provider: route?.provider }, update, options]
 }

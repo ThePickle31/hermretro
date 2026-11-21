@@ -100,7 +100,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(build14.node.querySelector('.cs-b-user').textContent, 'a lighthouse keeper in a storm')
   })
   check('sending makes a hidden New game session, records it as a New Game with no name, then sends the idea as written', () => {
-    assert.equal(scenario.lastCreate.hidden, true); assert.equal(scenario.lastCreate.title, 'New game')
+    assert.deepEqual(scenario.lastCreate, { hidden: true, source: 'gui' })
     assert.deepEqual(buildCalls.at(-1), { action: 'start', stored: 'st-new-1', name: null, plan: false })
     assert.equal(submits.at(-1).session_id, 'rt-new-1'); assert.match(submits.at(-1).submission_id, /^uuid-/)
     assert.equal(submits.at(-1).text, 'a lighthouse keeper in a storm', 'the backend tells the agent how to start')
@@ -207,6 +207,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   check('until its project exists the New Game conversation is listed from the backend, once', () => {
     assert.equal((menu14.textContent.match(/Lamplight/g) ?? []).length, 1)
   })
+  const replyDraft = 'Give the keeper a raincoat.'
+  await typeInto(build14.node.querySelector('textarea[aria-label="Message Hermes"]'), replyDraft)
   lib14.push({ id: 'aaa000aaa000', title: 'Lamplight', projectRoot: '/home/u/games/Lamplight', kind: 'gbstudio', state: 'unbuilt',
     rom: null, webExport: false, thumb: null, chat: null, session: { storedId: 'st-new-1' }, error: null })
   scenario.games = answered({ games: [...lib14], pending: [], device: { hardwareEnabled: false, skipped: true } })
@@ -217,6 +219,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.ok(!/Setting up/.test(menu14.textContent))
     assert.equal(build14.node.querySelector('.cs-b-head h2').textContent, 'Lamplight')
     assert.equal(build14.node.querySelector('.cs-b-agent').textContent, 'Making the project')
+    assert.equal(build14.node.querySelector('textarea[aria-label="Message Hermes"]').value, replyDraft)
   })
   const shelfLamp = await libraryMenu(build14)
   check('a game with its own conversation is not in the Edit a game list, and the list says it is open above', () => {
@@ -246,7 +249,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await settle()
   check('the first message creates the conversation, binds it to the game in the backend, and sends what the user typed', () => {
     assert.equal(created, 2)
-    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: 'st-new-2', replace: false })
+    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: 'st-new-2' })
     assert.equal(submits.at(-1).text, 'add rain')
     assert.equal([...build14.node.querySelectorAll('.cs-b-user')].at(-1).textContent, 'add rain')
   })
