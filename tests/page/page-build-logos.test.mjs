@@ -12,19 +12,63 @@ import { runScenario } from './harness.mjs'
 registerAliases()
 
 const ART = new URL('../../page/shared/art/providers/', import.meta.url)
-// Every provider Hermes's catalogue lists (hermes_cli/provider_catalog.py, Hermes 0.23): a provider it adds later
-// shows letters until its logo is added here and in page/shared/art/providers/index.js.
-const CATALOGUE = [
-  'nous', 'fireworks', 'openrouter', 'moa', 'novita', 'lmstudio', 'anthropic', 'openai-codex', 'openai-api',
-  'alibaba', 'xai-oauth', 'xiaomi', 'tencent-tokenhub', 'tencent-tokenplan', 'nvidia', 'huggingface', 'gemini',
-  'vertex', 'deepseek', 'xai', 'zai', 'kimi-coding', 'kimi-coding-cn', 'stepfun', 'minimax', 'minimax-oauth',
-  'minimax-cn', 'ollama-cloud', 'arcee', 'gmi', 'kilocode', 'opencode-zen', 'opencode-go', 'bedrock',
-  'azure-foundry', 'ai-gateway', 'qwen-oauth', 'actual', 'alibaba-cn', 'alibaba-token-plan', 'alibaba-token-plan-cn',
-  'alibaba-coding-plan', 'alibaba-coding-plan-cn', 'commandcode', 'commandcode-anthropic', 'custom', 'deepinfra',
-  'meta-ai', 'nebius-token-factory', 'router', 'upstage', 'claude-subscription-directsdk-experimental'
-]
-// Hermes's own choices, not a company's: they keep letters.
-const NO_BRAND = new Set(['custom', 'moa'])
+// Every provider Hermes's catalogue lists (hermes_cli/provider_catalog.py, Hermes 0.23) and the brand whose logo it
+// shows; null keeps letters (Hermes's own custom endpoint and Mixture of Agents). A provider Hermes adds later shows
+// letters until its logo is added here and in page/shared/art/providers/index.js.
+const CATALOGUE = {
+  'nous': 'Nous Research',
+  'fireworks': 'Fireworks AI',
+  'openrouter': 'OpenRouter',
+  'moa': null,
+  'novita': 'Novita AI',
+  'lmstudio': 'LM Studio',
+  'anthropic': 'Anthropic',
+  'openai-codex': 'OpenAI',
+  'openai-api': 'OpenAI',
+  'alibaba': 'Qwen',
+  'xai-oauth': 'xAI (Grok)',
+  'xiaomi': 'Xiaomi MiMo',
+  'tencent-tokenhub': 'Tencent Cloud',
+  'tencent-tokenplan': 'Tencent Cloud',
+  'nvidia': 'NVIDIA',
+  'huggingface': 'Hugging Face',
+  'gemini': 'Google AI Studio',
+  'vertex': 'Google Cloud Vertex AI',
+  'deepseek': 'DeepSeek',
+  'xai': 'xAI (Grok)',
+  'zai': 'Z.AI',
+  'kimi-coding': 'Kimi (Moonshot AI)',
+  'kimi-coding-cn': 'Kimi (Moonshot AI)',
+  'stepfun': 'StepFun',
+  'minimax': 'MiniMax',
+  'minimax-oauth': 'MiniMax',
+  'minimax-cn': 'MiniMax',
+  'ollama-cloud': 'Ollama',
+  'arcee': 'Arcee AI',
+  'gmi': 'GMI Cloud',
+  'kilocode': 'Kilo Code',
+  'opencode-zen': 'OpenCode',
+  'opencode-go': 'OpenCode',
+  'bedrock': 'Amazon Bedrock',
+  'azure-foundry': 'Microsoft Foundry',
+  'ai-gateway': 'Vercel',
+  'qwen-oauth': 'Qwen',
+  'actual': 'Actual',
+  'alibaba-cn': 'Alibaba Cloud',
+  'alibaba-token-plan': 'Alibaba Cloud',
+  'alibaba-token-plan-cn': 'Alibaba Cloud',
+  'alibaba-coding-plan': 'Alibaba Cloud',
+  'alibaba-coding-plan-cn': 'Alibaba Cloud',
+  'commandcode': 'Command Code',
+  'commandcode-anthropic': 'Command Code',
+  'custom': null,
+  'deepinfra': 'DeepInfra',
+  'meta-ai': 'Meta',
+  'nebius-token-factory': 'Nebius',
+  'router': 'Ramp',
+  'upstage': 'Upstage',
+  'claude-subscription-directsdk-experimental': 'Claude'
+}
 
 await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle, mount, check, answered }) => {
   const { LOGOS, providerLogo } = await import('../../page/shared/art/providers/index.js')
@@ -46,7 +90,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
     assert.equal(providerLogo('NOUS').name, 'Nous Research', 'slugs match whatever their case')
     assert.equal(providerLogo('custom'), null)
     assert.equal(providerLogo(undefined), null)
-    assert.deepEqual(CATALOGUE.filter(slug => !NO_BRAND.has(slug) && !providerLogo(slug)), [], 'add the brand to page/shared/art/providers/index.js')
+    for (const [slug, brand] of Object.entries(CATALOGUE)) assert.equal(providerLogo(slug)?.name ?? null, brand, slug)
   })
 
   buildScenario({ selected: 'fff666fff666' })

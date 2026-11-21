@@ -8,6 +8,8 @@
 // `plate: 'light'` puts one with none for light backgrounds on a dark plate in the light theme (StepFun's white disc).
 // A provider missing from PROVIDER_BRANDS (custom endpoints, Mixture of Agents, ones Hermes adds later) keeps its
 // letter mark.
+// Each mark belongs to its company and is used only to name its provider; hermretro's MIT licence does not cover
+// this artwork (see each source for its owner's terms).
 import nous from './nous.png'
 import nousDark from './nous-dark.png'
 import fireworks from './fireworks.svg'
