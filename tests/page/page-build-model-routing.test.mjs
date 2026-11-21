@@ -242,7 +242,7 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
   const beforeNavigation = calls.length
   await press(sendEdit)
   await settle()
-  await tab('Prompts')
+  await tab('Games')
   assert.equal(edit(), null, 'Build unmounted')
   await tab('Build')
   await settle()

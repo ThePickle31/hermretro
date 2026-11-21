@@ -1,5 +1,4 @@
-// The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs; Prompts,
-// the Emulator and the emulator beside the chat are page-prompts, page-emulator and page-emulator-side .test.mjs).
+// The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs).
 // Run alone: node tests/page/page-games.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
@@ -7,7 +6,7 @@ import { gamesStudio } from './games-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async helpers => {
-  const { act, ctx, dom, scenario, text, heading, click, tab, settle, button, key, check, answered, complete } = helpers
+  const { act, ctx, dom, scenario, text, heading, click, tab, currentTab, settle, button, key, typeInto, check, answered, complete, notLoaded } = helpers
   const { games, studio } = await gamesStudio(helpers)
   await tab('Games')
   // A game's card by its title (games-fixture.mjs: the fixture's orders differ, so never by position).
@@ -29,6 +28,120 @@ await runScenario(async helpers => {
     assert.match(cards().at(-1).textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
   })
+  const opensNewGame = async (label, scope, name) => {
+    scenario.storage.buildSelected = games[0].id
+    scenario.calls.length = 0; scenario.inserted.length = 0
+    await click(label, scope)
+    check(`${name} opens Build's New Game form without starting a chat`, () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(scenario.storage.buildSelected, 'new')
+      const form = dom.window.document.querySelector('.cs-b-new')
+      assert.ok(form?.querySelector('textarea[aria-label="Your game idea"]'), 'the new idea box is shown')
+      assert.deepEqual([...form.querySelectorAll('[role="radio"] b')].map(mode => mode.textContent), ['Build it', 'Plan first'])
+      assert.ok(!scenario.calls.flat().some(value => ['newChat', 'session.create', 'session.load', 'prompt.submit'].includes(value)))
+      assert.equal(scenario.inserted.length, 0)
+    })
+    await tab('Games')
+  }
+  await opensNewGame('New game', dom.window.document.querySelector('.cs-page-head'), 'The shelf header')
+  await opensNewGame('New game', dom.window.document.querySelector('.cs-shelf'), 'The blank cartridge')
+  {
+    const initialStatus = scenario.status
+    const initialGames = scenario.games
+    const pending = { storedId: 'stored-from-shelf', name: 'Shelf game', exists: true }
+    const idea = 'A frog runs a post office'
+    scenario.byMethod['session.create'] = { session_id: 'runtime-from-shelf', stored_session_id: pending.storedId }
+    scenario.byMethod['plugin.hermretro.build'] = () => {
+      scenario.games = answered({ ...initialGames.data, pending: [pending] })
+      return { ok: true }
+    }
+    scenario.byMethod['prompt.submit'] = { ok: true }
+    scenario.byMethod['session.resume'] = { running: true, open_requests: [] }
+    await click('New game', dom.window.document.querySelector('.cs-shelf'))
+    await typeInto(dom.window.document.querySelector('.cs-b-new textarea'), idea)
+    await act(async () => { dom.window.document.querySelector('.cs-b-new .cs-b-send').click() })
+    await settle()
+    check('a game started from the shelf is selected as its pending conversation', () => {
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+    })
+    scenario.status = notLoaded
+    await studio.rerender()
+    check('losing the backend unmounts the current Build conversation, without leaving Build', () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(dom.window.document.querySelector('.cs-b-user'), null)
+    })
+    scenario.status = initialStatus
+    await studio.rerender()
+    check('the pending conversation returns after reconnect rather than replaying New Game', () => {
+      assert.equal(currentTab(), 'Build')
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
+    const store = ctx.storage.set
+    scenario.storage.buildSelected = games[0].id
+    ctx.storage.set = (key, value) => {
+      if (key === 'buildSelected') throw new Error('storage is read-only')
+      store(key, value)
+    }
+    try {
+      await tab('Build') // Re-selecting the active tab is not a new visit.
+      scenario.status = notLoaded
+      await studio.rerender()
+      scenario.status = initialStatus
+      await studio.rerender()
+      check('reconnect keeps the current conversation even when storage still names a different game', () => {
+        assert.equal(scenario.storage.buildSelected, games[0].id)
+        assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      })
+    } finally {
+      ctx.storage.set = store
+    }
+    await act(async () => { helpers.emit({ type: 'message.complete', session_id: 'runtime-from-shelf', payload: { text: 'Done.' } }) })
+    scenario.byMethod['session.resume'] = { running: false, open_requests: [] }
+    scenario.status = notLoaded
+    await studio.rerender()
+    scenario.games = initialGames // reconnect shows the cached library from before this game started
+    scenario.status = initialStatus
+    await studio.rerender()
+    check('an idle pending conversation stays open when reconnect first shows a stale library', () => {
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
+    scenario.games = answered({ ...initialGames.data, pending: [pending] })
+    await studio.rerender()
+    check('the fresh library keeps the same pending conversation open', () => {
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
+    scenario.games = initialGames
+    for (const method of ['session.create', 'plugin.hermretro.build', 'prompt.submit', 'session.resume']) delete scenario.byMethod[method]
+    await tab('Games')
+  }
+  {
+    const store = ctx.storage.set
+    let attempted = false
+    ctx.storage.set = (key, value) => {
+      if (key === 'buildSelected') {
+        attempted = true
+        throw new Error('storage is read-only')
+      }
+      store(key, value)
+    }
+    try {
+      scenario.storage.buildSelected = games[0].id
+      await click('New game', dom.window.document.querySelector('.cs-shelf'))
+      check('the blank cartridge still opens New Game when the previous selection cannot be overwritten', () => {
+        assert.ok(attempted, 'the attempt to persist was made')
+        assert.equal(scenario.storage.buildSelected, games[0].id)
+        assert.equal(currentTab(), 'Build')
+        assert.ok(dom.window.document.querySelector('.cs-b-new textarea'))
+      })
+    } finally {
+      ctx.storage.set = store
+    }
+    await tab('Games')
+  }
   scenario.revealed = null
   await click('Open games folder')
   check('the shelf shows the games folder and opens it', () => {
@@ -86,8 +199,10 @@ await runScenario(async helpers => {
   scenario.games = { isError: true, isFetching: false, error: Object.assign(new Error('unknown method'), { code: -32601 }) }
   await studio.rerender()
   check('a backend without the games RPC is reported honestly', () => { assert.match(text(), /cannot list your games yet/) })
+  await opensNewGame('New game', dom.window.document, 'The library error action')
   scenario.games = answered({ games: [], device: { hardwareEnabled: true, skipped: false } })
   await studio.rerender()
-  check('an empty library offers a new game and the remix', () => { assert.equal(heading(), 'No games yet'); assert.match(text(), /Remix Wrecklight/) })
+  check('the empty library drops the example prompt shortcut', () => { assert.equal(heading(), 'No games yet'); assert.doesNotMatch(text(), /Remix Wrecklight/) })
+  await opensNewGame('Create a new game', dom.window.document, 'The empty library action')
   await studio.close()
 })

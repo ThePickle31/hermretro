@@ -424,8 +424,8 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         _, tree, env = self.make_tree()
         (tree / "backend/history/rdlint_other.py").write_text("import os\n")  # not named: not linted
         (tree / "backend/history/rdlint_mine.py").write_text('"""Mine."""\n')
-        (tree / "page/pages/prompts/rdlint.js").write_text("export const a = 1\n")
-        mine = ["backend/history/rdlint_mine.py", "page/pages/prompts/rdlint.js", "docs/dev/CONTRACT.md"]
+        (tree / "page/pages/build/rdlint.js").write_text("export const a = 1\n")
+        mine = ["backend/history/rdlint_mine.py", "page/pages/build/rdlint.js", "docs/dev/CONTRACT.md"]
         lint = [sys.executable, "tools/check.py", "lint-files"]
         done = run([*lint, *mine], tree, env)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -433,8 +433,8 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
         done = run([*lint, "backend/history/rdlint_other.py"], tree, env)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         self.assertIn("rdlint_other.py", done.stdout)
-        (tree / "page/pages/prompts/rdlint.js").write_text("export const a = rdlintUndefined\n")
-        done = run([*lint, "page/pages/prompts/rdlint.js"], tree, env)
+        (tree / "page/pages/build/rdlint.js").write_text("export const a = rdlintUndefined\n")
+        done = run([*lint, "page/pages/build/rdlint.js"], tree, env)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         self.assertIn("the page lint fails on new's own files", done.stdout)
         (tree / ".dev/py").unlink()  # the borrowed ruff gone

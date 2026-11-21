@@ -38,7 +38,7 @@ await runScenario(async helpers => {
     assert.ok(dom.window.document.querySelector('.cs-top button[aria-label="Refresh"] .cs-lbl'), 'Refresh label can hide too')
   })
   scenario.player = notLoaded
-  await tab('Prompts')
+  await tab('Games')
   await tab('Emulator')
   check('an old backend without the player RPC: a compact notice with the reason and Refresh, above an empty device area', () => {
     const note = dom.window.document.querySelector('.cs-rp-note')
@@ -81,7 +81,7 @@ await runScenario(async helpers => {
     assert.deepEqual(posted.filter(message => message.type === 'key').map(message => [message.key, message.down]), [['ArrowLeft', true], ['ArrowLeft', false]])
   })
   const kept2 = frame()
-  await tab('Prompts')
+  await tab('Games')
   check('leaving the Emulator keeps the frame loaded but hidden, and holds the game', () => {
     assert.ok(frame() === kept2, 'the player frame is retained'); assert.ok(dom.window.document.querySelector('.cs-rp-stage.off'))
     assert.deepEqual(posted.at(-1), { cs: 'cmd', type: 'hold' })

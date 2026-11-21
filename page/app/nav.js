@@ -25,9 +25,9 @@ export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile 
           // explanation in its tooltip.
           viaProfile
             ? jsx(Tip, {
-                label: `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+                label: `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
                 children: jsxs('span', {
-                  'aria-label': `Showing the "${viaProfile}" profile, where hermretro is switched on. Prompts open a chat in that profile.`,
+                  'aria-label': `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
                   className: 'cs-top-profile',
                   children: [jsx(Codicon, { name: 'account', size: 12 }), viaProfile]
                 })

@@ -67,7 +67,7 @@ class Contribution(ScaffoldCase):
 
     def test_the_next_steps_name_the_host_page_s_scenario_test_its_helper_and_the_doubles(self):
         self.probe_host()
-        steps = joined(self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeItem"))
+        steps = joined(self.new("contribution", "build", "rdprobe-host.extra", "RdprobeItem"))
         self.assertIn("test what RdprobeItem does in the host page's scenario test tests/page/page-rdprobe-host", steps)
         self.assertIn("then openExtra shows `rdprobe-host.extra`", steps)
         self.assertIn("ctx.os (writeClipboard, openExternal: tests/page/harness.mjs)", steps)
@@ -77,7 +77,7 @@ class Contribution(ScaffoldCase):
     def test_a_host_no_test_opens_says_so(self):
         self.new("page", "rdprobe-lone")
         self.new("slot", "rdprobe-lone", "extra", "--doc", "Buttons. Props: { ctx }")
-        steps = joined(self.new("contribution", "prompts", "rdprobe-lone.extra", "RdprobeLoner"))
+        steps = joined(self.new("contribution", "build", "rdprobe-lone.extra", "RdprobeLoner"))
         self.assertIn("no tests/page/*.test.mjs opens it yet", steps)
 
     def test_games_card_menu_points_at_page_games_and_open_game_menu(self):
@@ -88,7 +88,7 @@ class Contribution(ScaffoldCase):
             write(self.tree, f"tests/page/{name}", (ROOT / "tests/page" / name).read_text())
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-qm", "games")
-        steps = joined(self.new("contribution", "prompts", "games.cardMenu", "RdprobeCopy"))
+        steps = joined(self.new("contribution", "build", "games.cardMenu", "RdprobeCopy"))
         self.assertIn("tests/page/page-games.test.mjs: it opens Games with tab('Games'), then openGameMenu", steps)
         self.assertIn("writeClipboard", steps)
         self.assertIn("scenario.notices", steps)
