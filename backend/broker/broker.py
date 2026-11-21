@@ -175,6 +175,12 @@ class Broker(LaneMixin, ControlMixin):
             raise Denied("INVALID_ARGUMENTS", "Tool arguments must be an object.")
         kind = self.classify(tool)
         delegated = bool(origin.get("delegated"))
+        if kind == "prepare" and self.install_worker_left():
+            raise Denied(
+                "WORKER_STILL_RUNNING",
+                "The page's last toolchain installer did not confirm it stopped. Quit and reopen Hermes, then "
+                "check the tools again; do not start another setup until then.",
+            )
         if kind == "hardware" and not policy.get("hardware_enabled"):
             raise Denied(
                 "HARDWARE_DISABLED",

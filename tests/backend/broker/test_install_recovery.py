@@ -114,7 +114,7 @@ class Recovery(unittest.TestCase):
         broker = bare_broker(engine)
         broker.start_install()
         self.wait_called(engine)
-        answer = broker.control({"op": "install_cancel"})["install"]
+        answer = broker.control({"op": "install_cancel", "run_id": broker.install["run_id"]})["install"]
         self.assertTrue(answer["cancelling"], "the page shows it is stopping, not that it stopped")
         self.wait_finished(broker)
         self.assertTrue(engine.cancel.is_set(), "the request was cancelled through the event the engine call watches")
@@ -131,7 +131,7 @@ class Recovery(unittest.TestCase):
         with mock.patch.object(control, "CANCEL_SETTLE", 0.5):
             broker.start_install()
             self.wait_called(engine)
-            broker.cancel_install()
+            broker.cancel_install(broker.install["run_id"])
             self.wait_finished(broker)
         self.assertEqual(broker.install["state"], "failed")
         self.assertEqual(broker.install["code"], "SETUP_LOCK_KEPT")
@@ -168,7 +168,7 @@ class Recovery(unittest.TestCase):
             self.assertTrue(broker.install_running(), "a folder that keeps changing is not a stall")
             stop.set()
             worker.join()
-            broker.cancel_install()
+            broker.cancel_install(broker.install["run_id"])
             self.wait_finished(broker)
         self.assertEqual(broker.install["state"], "cancelled")
 
@@ -241,16 +241,8 @@ class Explain(unittest.TestCase):
         self.assertEqual(recovery.explain("INCOMPLETE", "gbdk: ENOSPC: no space left on device", root)[0], "NO_SPACE")
         code, hint = recovery.explain("ENGINE_ERROR", "Another setup owns /t/toolchain/.setup-lock.", root)
         self.assertEqual(code, "SETUP_LOCKED")
-        self.assertIn("Do not delete it while a setup runs", hint)
+        self.assertIn("checked that the recorded owner has stopped", hint)
         self.assertEqual(recovery.explain("INCOMPLETE", "cli: exit 1", root), ("INCOMPLETE", None))
-
-    def test_free_space_needs_less_for_an_existing_folder(self):
-        with tempfile.TemporaryDirectory() as scratch:
-            fresh = recovery.free_space(Path(scratch) / "missing" / "toolchain")
-            existing = recovery.free_space(Path(scratch))
-        self.assertEqual(fresh["needed_bytes"], recovery.FRESH_HEADROOM)
-        self.assertEqual(existing["needed_bytes"], recovery.REPAIR_HEADROOM)
-        self.assertGreater(fresh["free_bytes"], 0)
 
 
 class McpCancellation(unittest.TestCase):

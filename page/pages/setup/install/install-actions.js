@@ -251,6 +251,8 @@ export function InstallError({ installer }) {
     before && installer.noSpace
       ? note('space', `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`)
       : null,
+    before && !installer.noSpace && installer.spaceWarning ? note('space-warning', installer.spaceWarning, 'cs-small') : null,
+    phase === 'running' && installer.cancelError ? note('cancel', installer.cancelError) : null,
     phase === 'review' && installer.elsewhereEnded
       ? note('elsewhere', 'The install that was running in a chat stopped before the tools were ready. Install them here instead.', 'cs-small')
       : null,

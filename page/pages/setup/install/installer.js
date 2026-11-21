@@ -75,6 +75,8 @@ function checkedSince(doctor, finishedAt) {
 export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   const [starting, setStarting] = useState(false)
   const [failure, setFailure] = useState(null)
+  // A cancel that did not go through, shown while the install it was meant to stop keeps running.
+  const [cancelError, setCancelError] = useState(null)
   const [profileWork, setProfileWork] = useState({ state: 'idle', error: null })
   // A chat is already preparing the tools: wait for it instead of reporting a failure. The backend says so too
   // (`install.elsewhere`); an older one does not, and then only this answer to the start is known.
@@ -170,16 +172,19 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     }
   }
 
-  /** Ask the running install to stop: the engine's own cancellation, then the page waits for it to let go. */
+  /** Ask the install on screen (its run_id) to stop: the engine's own cancellation, then the page waits for it to
+   *  let go. A cancel that arrives after that run ended never stops a retry started since. */
   const cancel = async () => {
+    setCancelError(null)
+
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel' }, 30_000)
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel', run_id: data?.install?.run_id ?? null }, 30_000)
 
       if (!answer?.ok) {
-        setFailure(answer?.error || 'The install could not be cancelled.')
+        setCancelError(answer?.error || 'The install could not be cancelled.')
       }
     } catch (error) {
-      setFailure(describeRequestError(error).message || String(error?.message ?? error))
+      setCancelError(describeRequestError(error).message || String(error?.message ?? error))
     }
 
     await install.refetch?.()
@@ -213,6 +218,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   return {
     ask,
     cancel,
+    cancelError: state === 'running' ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
     data,
@@ -228,6 +234,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     node,
     noSpace,
     phase,
+    spaceWarning: data?.space?.warning ?? null,
     profile,
     profileWork,
     recheck,

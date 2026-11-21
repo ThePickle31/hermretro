@@ -239,11 +239,25 @@ def rpc_studio_profile(ctx):
     return finish
 
 
+# How a broker from before the install's cancel answers install_cancel: it has no such op, so the request falls
+# through to the lane ops, which need a conversation owner the page never sends.
+_NO_CANCEL = frozenset({"IDENTITY_REQUIRED", "UNKNOWN_OP"})
+_NO_CANCEL_MESSAGE = (
+    "This install is run by an older hermretro background process that cannot cancel it, so it is still running. "
+    "Wait for it to finish: this page moves on when the tools are verified."
+)
+_REMOVE_WORKER = (
+    "The last toolchain installer did not confirm it stopped, so the tools folder may still be in use. Quit and "
+    "reopen Hermes, then try again."
+)
+
+
 @rpc("install")
 def rpc_install(ctx):
     """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker),
-    ``{"action": "start"}`` or ``{"action": "cancel"}`` (the engine's own MCP cancellation; the install then reports
-    ``cancelled`` once the engine let go of its lock). Always returns the download list, so the page can show it first."""
+    ``{"action": "start"}`` or ``{"action": "cancel", "run_id": ...}`` (the engine's own MCP cancellation of that run
+    only; the install then reports ``cancelled`` once the engine let go of its lock). Always returns the download
+    list, so the page can show it first."""
 
     def install(params, **_kwargs):
         try:
@@ -269,11 +283,18 @@ def rpc_install(ctx):
                         answer["install"] = onboarding.progress(last, root)
                     return answer
                 with client:
-                    reply = client.request({"op": "install_status" if action == "status" else "install_cancel"})
+                    if action == "status":
+                        reply = client.request({"op": "install_status"})
+                    else:
+                        reply = client.request({"op": "install_cancel", "run_id": (params or {}).get("run_id")})
             else:
                 return {"ok": False, "error": f"Unknown action {action!r}."}
             if not reply.get("ok"):
                 denied = reply.get("denied") or {}
+                if action == "cancel" and denied.get("code") in _NO_CANCEL:
+                    # A broker from before cancel: it answers install_cancel as an ownerless lane op
+                    # (IDENTITY_REQUIRED), and the install it runs goes on.
+                    return {**answer, "ok": False, "code": "CANCEL_UNSUPPORTED", "error": _NO_CANCEL_MESSAGE}
                 if denied.get("code") == "UNKNOWN_OP":
                     # An older broker kept alive by a running game; it retires once that game is closed.
                     return {
@@ -319,6 +340,9 @@ def rpc_remove_tools(ctx):
             with _broker_lock(run) as held:
                 if not held:
                     return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
+                if recovery.worker_left(recovery.read_journal()):
+                    # The broker exited, but the installer worker it could not close may still use the folder.
+                    return {"ok": False, "code": "WORKER_STILL_RUNNING", "error": _REMOVE_WORKER}
                 removed = provision.remove_downloads()
             if removed.get("ok"):
                 emit("setup.tools_removed", root=removed.get("root"))

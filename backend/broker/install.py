@@ -7,6 +7,7 @@ Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`
 
 from __future__ import annotations
 
+import secrets
 import threading
 import time
 from pathlib import Path
@@ -19,7 +20,7 @@ from .lane import Denied
 
 def _prepare_failure(result: dict, structured: dict) -> str:
     """One readable reason a toolchain_prepare call did not finish: the first failed component's
-    error, else the engine's message, else its text."""
+    error, else the preflight's root issue, else the engine's message or thrown error, else its text."""
     run = structured.get("result")
     for component in (run.get("components") or []) if isinstance(run, dict) else []:
         if isinstance(component, dict) and component.get("status") in ("failed", "blocked"):
@@ -27,8 +28,12 @@ def _prepare_failure(result: dict, structured: dict) -> str:
             message = error.get("message") if isinstance(error, dict) else error or component.get("reason")
             if message:
                 return f"{component.get('id')}: {message}"
-    if isinstance(structured.get("message"), str) and structured["message"]:
-        return structured["message"]
+    plan = structured.get("plan")
+    if isinstance(plan, dict) and isinstance(plan.get("rootIssue"), str) and plan["rootIssue"]:
+        return plan["rootIssue"]
+    for name in ("message", "error"):
+        if isinstance(structured.get(name), str) and structured[name]:
+            return structured[name]
     text = " ".join(
         str(block.get("text", ""))
         for block in result.get("content") or []
@@ -52,6 +57,17 @@ def _alive(engine) -> bool:
     return bool(alive()) if callable(alive) else False
 
 
+def _still_running(engine) -> bool:
+    """The worker, or anything it started in its own session, has not exited."""
+    if _alive(engine):
+        return True
+    group = getattr(engine, "_group_exists", None)
+    try:
+        return bool(group()) if callable(group) and getattr(engine, "_proc", None) is not None else False
+    except OSError:
+        return True
+
+
 class _Cancel(threading.Event):
     """An install's cancel request, with the reason the engine is told."""
 
@@ -65,13 +81,42 @@ class InstallMixin:
         with self.install_lock:
             return self.install.get("state") == "running"
 
+    def install_worker_left(self) -> bool:
+        """An installer worker whose exit is not confirmed: the one this broker kept after closing it failed, or
+        one an earlier broker recorded in the journal. Shutdown, idle retirement, a new install and a chat's
+        toolchain_prepare all wait for it. Takes no lock (callers may hold install_lock)."""
+        engine = getattr(self, "install_engine", None)
+        if engine is not None:
+            if _still_running(engine):
+                return True
+            self.install_engine = None  # its exit is confirmed now: the journal stops naming it
+            setup.write_journal({key: value for key, value in self.install.items() if key != "worker_pgid"})
+            return False
+        return setup.worker_left(setup.read_journal())
+
+    def install_busy(self) -> bool:
+        return self.install_running() or self.install_worker_left()
+
+    def close_install_worker(self) -> None:
+        """The stopping broker's last try at the installer worker; an exit it cannot confirm is recorded."""
+        engine = self.install_engine
+        if engine is None:
+            return
+        try:
+            engine.close()
+        except Exception as error:
+            self.trace(event="install_worker_close_failed", error=f"{type(error).__name__}: {error}"[:200])
+        if _still_running(engine):
+            with self.install_lock:
+                self._record_left_worker(engine)
+
     def start_install(self) -> dict:
         """Prepare the game toolchain for the desktop page, without a chat. Runs the engine's own
         toolchain_prepare in a throwaway worker on a background thread; install_status reports it."""
         with self.install_lock:
             if self.install.get("state") == "running":
                 return dict(self.install)
-            if self.install_engine is not None and _alive(self.install_engine):
+            if self.install_worker_left():
                 raise Denied(
                     "WORKER_STILL_RUNNING",
                     "The previous installer did not stop. Quit and reopen Hermes before trying again.",
@@ -91,9 +136,11 @@ class InstallMixin:
                     "Wait for it to finish; this page moves on when the tools are verified.",
                 )
             try:
-                self.install_cancel = _Cancel()
+                cancel = self.install_cancel = _Cancel()
                 self.install = {
                     "state": "running",
+                    # Names this run: a cancel meant for an earlier run never stops a retry started since.
+                    "run_id": secrets.token_hex(8),
                     "started_at": time.time(),
                     "finished_at": None,
                     "error": None,
@@ -105,7 +152,9 @@ class InstallMixin:
                 }
                 snapshot = dict(self.install)
                 setup.write_journal(snapshot)
-                threading.Thread(target=self._run_install, name="hermretro-install", daemon=True).start()
+                threading.Thread(
+                    target=self._run_install, args=(cancel,), name="hermretro-install", daemon=True
+                ).start()
             except BaseException as error:
                 # Never leave the setup lock held, or a "running" install nobody runs.
                 self.prepare_lock.release()
@@ -121,19 +170,19 @@ class InstallMixin:
         self.trace(event="install_started")
         return snapshot
 
-    def cancel_install(self) -> dict:
-        """Ask the running install to stop through the engine's own MCP cancellation. The install thread then
-        waits for the engine to release its setup lock before it closes the worker and reports ``cancelled``."""
+    def cancel_install(self, run_id: str | None) -> dict:
+        """Ask the running install named ``run_id`` to stop through the engine's own MCP cancellation. The install
+        thread then waits (bounded) for the engine to release its setup lock before it closes the worker. A cancel
+        for another run (one that finished, while a retry runs now) changes nothing and returns the status."""
         with self.install_lock:
-            if self.install.get("state") != "running":
-                return dict(self.install)
-            if not self.install.get("cancel_requested_at"):
+            current = self.install.get("state") == "running" and bool(run_id) and run_id == self.install.get("run_id")
+            cancel = getattr(self, "install_cancel", None) if current else None
+            if current and not self.install.get("cancel_requested_at"):
                 self.install["cancel_requested_at"] = time.time()
                 setup.write_journal(self.install)
-            cancel = getattr(self, "install_cancel", None)
-        if cancel is not None:
-            cancel.set()
-        self.trace(event="install_cancel_requested")
+            if cancel is not None:
+                cancel.set()
+        self.trace(event="install_cancel_requested" if current else "install_cancel_stale")
         return self.install_status()
 
     def _call_prepare(self, engine, root: Path, cancel: threading.Event) -> dict:
@@ -182,10 +231,18 @@ class InstallMixin:
             time.sleep(0.25)
         return setup.settled(root, started)
 
-    def _run_install(self) -> None:
+    def _record_left_worker(self, engine) -> None:
+        """Journal the worker whose exit is unconfirmed, so a new broker and Remove downloaded tools wait for it.
+        Called with install_lock held."""
+        pgid = getattr(engine, "pid", None)
+        setup.write_journal({**self.install, **({"worker_pgid": pgid} if isinstance(pgid, int) else {})})
+
+    def _run_install(self, cancel: threading.Event | None = None) -> None:
         engine = None
         root = paths.setup_root()
-        cancel = getattr(self, "install_cancel", None) or _Cancel()
+        cancel = cancel or _Cancel()
+        # A lock already there was never this run's: another installer's, or one an earlier run left.
+        lock_before = setup.lock_path(root).exists()
         started = None
         outcome: dict = {"state": "failed", "error": None, "code": None, "hint": None}
         try:
@@ -208,9 +265,14 @@ class InstallMixin:
             structured = result.get("structuredContent")
             structured = structured if isinstance(structured, dict) else {}
             if result.get("isError") or structured.get("success") is not True:
+                # Classified from the engine's structured fields before the message is shortened for display.
+                found = setup.classify(result, root)
                 outcome.update(
-                    code=str(structured.get("stage") or "PREPARE_FAILED").upper(),
+                    code=found["code"]
+                    or str(structured.get("stage") or structured.get("code") or "PREPARE_FAILED").upper(),
                     error=_prepare_failure(result, structured)[:800],
+                    hint=found["hint"],
+                    foreign_lock=found["foreign_lock"],
                 )
             else:
                 outcome = {"state": "done", "error": None, "code": None, "hint": None}
@@ -238,26 +300,42 @@ class InstallMixin:
                     outcome.update(
                         state="failed", code="WORKER_CLOSE_ERROR", error=f"Could not close the installer: {error}"[:800]
                     )
-            still_running = engine is not None and _alive(engine)
+            still_running = engine is not None and _still_running(engine)
+            foreign = bool(outcome.pop("foreign_lock", False))
             if outcome["state"] != "done":
                 if not outcome.get("hint"):
                     outcome["code"], outcome["hint"] = setup.explain(outcome.get("code"), outcome.get("error"), root)
                 if still_running:
                     outcome.update(code="WORKER_STILL_RUNNING", state="failed")
                     outcome["hint"] = "The engine worker did not exit. Quit and reopen Hermes before trying again."
-                elif outcome["code"] != "SETUP_LOCKED" and setup.lock_path(root).exists():
-                    # The engine keeps its lock when it cannot prove its own processes ended: never removed here.
-                    outcome.update(code="SETUP_LOCK_KEPT", state="failed")
-                    outcome["hint"] = (
-                        f"The engine kept its setup lock at {setup.lock_path(root)} because it could not confirm "
-                        "its processes ended. Quit and reopen Hermes; if the folder is still there and nothing is "
-                        "installing, move it aside, then try again."
+                elif setup.lock_path(root).exists():
+                    taken = setup.lock_started(root)
+                    # Never this run's: the engine's plan or apply said another setup owns it, it was there before
+                    # this run started, or its recorded owner took it before this run did.
+                    foreign = (
+                        foreign
+                        or outcome["code"] == "SETUP_LOCKED"
+                        or lock_before
+                        or (taken is not None and started is not None and taken < started - 2)
                     )
+                    if foreign:
+                        outcome.update(code="SETUP_LOCKED", state="failed", hint=setup.foreign_lock_hint(root))
+                    else:
+                        # This run's engine kept its lock (it cannot prove its own processes ended): never removed.
+                        outcome.update(code="SETUP_LOCK_KEPT", state="failed")
+                        outcome["hint"] = (
+                            f"The engine kept its setup lock at {setup.lock_path(root)} because it could not "
+                            "confirm its processes ended. Quit and reopen Hermes; if the folder is still there and "
+                            "nothing is installing, move it aside, then try again."
+                        )
             outcome.pop("release_unconfirmed", None)
             with self.install_lock:
                 self.install_engine = engine if still_running else None
                 self.install.update(outcome, finished_at=time.time())
-                setup.write_journal(self.install)
+                if still_running:
+                    self._record_left_worker(engine)
+                else:
+                    setup.write_journal(self.install)
                 self.prepare_lock.release()
             self.last_activity = time.monotonic()
             self.trace(event="install_finished", state=outcome["state"], code=outcome.get("code"))

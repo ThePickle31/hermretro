@@ -10,27 +10,35 @@ from .progress import download_bytes, progress as install_progress
 from .provision import folder_bytes, seed_toolchain_cache
 from .recovery import (
     activity_mark,
+    classify,
     explain,
+    foreign_lock_hint,
     free_space,
     lock_path,
+    lock_started,
     read_journal,
     recovered as recovered_install,
     settled,
+    worker_left,
     write_journal,
 )
 
 __all__ = [
     "activity_mark",
+    "classify",
     "download_bytes",
     "explain",
+    "foreign_lock_hint",
     "folder_bytes",
     "free_space",
     "install_progress",
     "lock_path",
+    "lock_started",
     "read_journal",
     "recovered_install",
     "seed_toolchain_cache",
     "settled",
+    "worker_left",
     "write_journal",
 ]
 

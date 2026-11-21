@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 dd574d39d586ccc6a190661c9120d4d4817317c1e07be672bda1cb04f72f7884
- * body: sha256 663e556f87e8fdc27d5d4f98817eab1826db87ad04c67eda365873372d45b1a9
+ * sources: sha256 fd53386b7bb103b170698e0709f594600323c878a645951b75090fa9339b0b95
+ * body: sha256 726ed494eb22154986e9ee1b98bc0853b65880be3ed5c8664ab042ce97a6a4be
  */
 // page/sdk.js
 import {
@@ -12477,6 +12477,7 @@ function checkedSince(doctor, finishedAt) {
 function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   const [starting, setStarting] = useState(false);
   const [failure, setFailure] = useState(null);
+  const [cancelError, setCancelError] = useState(null);
   const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
   const [elsewhere, setElsewhere] = useState(false);
   const data = install.data;
@@ -12550,13 +12551,14 @@ function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     }
   };
   const cancel = async () => {
+    setCancelError(null);
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel" }, 3e4);
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: data?.install?.run_id ?? null }, 3e4);
       if (!answer?.ok) {
-        setFailure(answer?.error || "The install could not be cancelled.");
+        setCancelError(answer?.error || "The install could not be cancelled.");
       }
     } catch (error) {
-      setFailure(describeRequestError(error).message || String(error?.message ?? error));
+      setCancelError(describeRequestError(error).message || String(error?.message ?? error));
     }
     await install.refetch?.();
   };
@@ -12579,6 +12581,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   return {
     ask,
     cancel,
+    cancelError: state === "running" ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
     data,
@@ -12594,6 +12597,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
     node,
     noSpace,
     phase,
+    spaceWarning: data?.space?.warning ?? null,
     profile,
     profileWork,
     recheck,
@@ -12865,6 +12869,8 @@ function InstallError({ installer }) {
     installer.conflict && phase !== "running" ? note("conflict", `A Hermes profile named "${profileName}" already exists and was not made by hermretro, so nothing was downloaded. Rename or remove that profile in Hermes, then check again.`) : null,
     before && !installer.manifestReady && !installer.unsupported ? note("manifest", "The download list could not be read, so nothing can be reviewed or installed yet. Check again; if it stays empty, update or reinstall hermretro.") : null,
     before && installer.noSpace ? note("space", `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`) : null,
+    before && !installer.noSpace && installer.spaceWarning ? note("space-warning", installer.spaceWarning, "cs-small") : null,
+    phase === "running" && installer.cancelError ? note("cancel", installer.cancelError) : null,
     phase === "review" && installer.elsewhereEnded ? note("elsewhere", "The install that was running in a chat stopped before the tools were ready. Install them here instead.", "cs-small") : null,
     phase === "failed" && installer.unverified ? note(
       "unverified",
@@ -17089,17 +17095,40 @@ function StudioPage({ ctx }) {
   const installState = install.data?.install?.state ?? null;
   const installElsewhere = Boolean(install.data?.install?.elsewhere);
   const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
-  const lastInstall = useRef(installState);
   const lastElsewhere = useRef(installElsewhere);
+  const finishedAt = install.data?.install?.finished_at ?? null;
+  const doneRun = installState === "done" ? `${install.data?.install?.run_id ?? ""}@${finishedAt ?? ""}` : null;
+  const verifiedRun = useRef(null);
+  const doctorAsked = useRef({ fetching: false, at: 0, answerAt: 0 });
   useEffect(() => {
-    const before = lastInstall.current;
+    const asked = doctorAsked.current;
+    if (doctor.isFetching && !asked.fetching) {
+      asked.at = Date.now();
+    } else if (!doctor.isFetching && asked.fetching) {
+      asked.answerAt = asked.at;
+    }
+    asked.fetching = Boolean(doctor.isFetching);
+  }, [doctor.isFetching]);
+  useEffect(() => {
     const wasElsewhere = lastElsewhere.current;
-    lastInstall.current = installState;
     lastElsewhere.current = installElsewhere;
-    if (before === "running" && installState === "done" || wasElsewhere && !installElsewhere) {
+    if (wasElsewhere && !installElsewhere) {
       void doctor.refetch?.();
     }
-  }, [installState, installElsewhere]);
+  }, [installElsewhere]);
+  useEffect(() => {
+    if (!doneRun || verifiedRun.current === doneRun) {
+      return;
+    }
+    const finishedMs = Number(finishedAt) * 1e3 || 0;
+    const asked = doctorAsked.current;
+    const answeredAt = asked.answerAt || Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0);
+    const current = doctor.isFetching ? asked.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
+    verifiedRun.current = doneRun;
+    if (!finishedMs || !current) {
+      void doctor.refetch?.();
+    }
+  }, [doneRun, doctor.isFetching]);
   const finishOnboarding = () => {
     update({ onboarded: true });
     go("build");

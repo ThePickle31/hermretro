@@ -120,16 +120,25 @@ answer (`shared: true`) or its error. `status` reports `profile: { name, is_stud
 installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download.
 
-### `install` — params `{ action: "status" | "start" | "cancel" }`
+### `install` — params `{ action: "status" | "start" | "cancel", run_id? }`
 
 The page's own toolchain install (first-run onboarding and the Setup page's toolchain step), with no chat.
 `start` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
 a background thread and returns at once; a second `start` joins the running install, and `start` is refused with
-`NO_SPACE` when the disk cannot hold it. `cancel` asks the engine to stop through MCP's own `notifications/cancelled`
-(never a kill); the install keeps `state: "running"` with `cancelling: true` until the engine has released its setup
-lock, then reports `cancelled` (or `failed` with `SETUP_LOCK_KEPT` when the engine kept its lock, which is never
-removed). `status` and `cancel` are passive and never start the broker; with no broker running, `status` reports the
-last install from its journal (`<deps root>/page-install.json`), a `running` one as `interrupted`. All return:
+`NO_SPACE` when the disk cannot hold even the estimate, or `WORKER_STILL_RUNNING` while an earlier installer worker's
+exit is unconfirmed. Each run has a `run_id`; `cancel` acts only on the running install with that `run_id` (any
+other, such as a stale Cancel for a run that finished while a retry runs, returns the status and stops nothing).
+Cancelling takes three steps: the broker sends the engine MCP's own `notifications/cancelled` for the
+`toolchain_prepare` request; it waits up to 120 s for the engine to release its setup lock (the install keeps
+`state: "running"` with `cancelling: true` meanwhile); then it closes the worker, and that close falls back to
+SIGTERM and then SIGKILL for the worker's process group when the worker does not exit on its own. The result is
+`cancelled`, or `failed` with `SETUP_LOCK_KEPT` when this run's engine kept its lock (never removed by hermretro), or
+`WORKER_STILL_RUNNING` when even the close could not confirm the worker exited: then the user quits and reopens
+Hermes before trying again, and until that worker is gone the broker does not stop or retire, and a new install,
+a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker from before cancel answers
+`cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
+start the broker; with no broker running, `status` reports the last install from its journal
+(`<deps root>/page-install.json`), a `running` one as `interrupted`. All return:
 
 ```json
 {
@@ -138,8 +147,9 @@ last install from its journal (`<deps root>/page-install.json`), a `running` one
                  "source": "github.com/gbdk-2020/gbdk-2020", "bytes": 6870728, "purpose": "...", "approx": false }],
                 "bytes": 708271425, "disk_bytes": 2300000000, "measured_on": "linux-x64", "exact": true },
   "root": "/abs/.hermes/hermretro/.cache/toolchain",
-  "space": { "free_bytes": 50000000000, "needed_bytes": 2300000000, "enough": true },
-  "install": { "state": "idle | running | done | failed | cancelled | interrupted", "started_at": 0, "finished_at": 0,
+  "space": { "free_bytes": 50000000000, "needed_bytes": 2300000000, "enough": true, "estimate": "fresh | reuse | unknown",
+             "warning": null },
+  "install": { "state": "idle | running | done | failed | cancelled | interrupted", "run_id": "9f2c…", "started_at": 0, "finished_at": 0,
                "code": null, "error": null, "hint": null, "seeded": false, "fraction": 0.4,
                "downloaded_bytes": 281000000, "current": "cli", "elapsed_seconds": 151, "quiet_seconds": 12,
                "cancelling": false, "elsewhere": false,
@@ -154,7 +164,13 @@ last install from its journal (`<deps root>/page-install.json`), a `running` one
 in the toolchain's `downloads/` and `cache/` folders. While it runs, a chat's `chromatic_toolchain_prepare` is
 refused with `OPERATION_IN_PROGRESS` (and the other way round; `elsewhere` is true while a chat holds that lock), and
 the broker neither retires nor idles out. `code` names a known cause (`NETWORK`, `NO_SPACE`, `SETUP_LOCKED`,
-`SETUP_LOCK_KEPT`, `STALLED`, `CANCELLED`, `INTERRUPTED`, or the engine's stage) and `hint` its next step. The install
+`SETUP_LOCK_KEPT`, `WORKER_STILL_RUNNING`, `STALLED`, `CANCELLED`, `INTERRUPTED`, or the engine's stage) and `hint` its
+next step, read from the engine's structured result (its error codes such as `DOWNLOAD_FAILED`, `ENOSPC`, and the
+tails of captured command output) before the message is shortened. `SETUP_LOCKED` is a lock this run never took (the
+engine's plan reported it, or another setup took it first): its hint says to check that the owner recorded in the
+lock's `owner.json` has stopped before moving it aside. `space.needed_bytes` is the full install unless the folder
+holds a ready component receipt or cached downloads; then it is a lower estimate, and `warning` says the fit is
+uncertain while less than the full size is free. The install
 is stopped (`STALLED`, through the same cancellation) only after 30 minutes with no change in the toolchain folder or
 the worker's output, not because bytes stopped growing; `quiet_seconds` is how long that has been.
 

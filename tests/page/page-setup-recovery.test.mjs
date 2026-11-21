@@ -11,10 +11,10 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   const createParams = { name: 'hermretro', description: 'hermretro', no_skills: true, share_auth: true, no_alias: true }
   const firstRun = (studio = {}) =>
     status({ profile: { name: 'default', is_studio: false, create: createParams, studio: { name: 'hermretro', exists: false, installed: false, ours: false, ...studio } } })
-  const onInstallScreen = async ({ statusData = firstRun(), install, doctorData = doctor(['cli']) }) => {
+  const onInstallScreen = async ({ statusData = firstRun(), install, doctorData = doctor(['cli']), doctorQuery }) => {
     await act(async () => { root.render(null) })
     scenario.storage = { setup: { onboardStarted: true } }
-    scenario.status = answered(statusData); scenario.doctor = answered(doctorData); scenario.install = install
+    scenario.status = answered(statusData); scenario.doctor = doctorQuery ?? answered(doctorData); scenario.install = install
     await render()
   }
   const requests = () => scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
@@ -52,7 +52,7 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   })
 
   // 4. Running: stage, elapsed time, an accessible progress bar and Cancel.
-  const running = { state: 'running', started_at: 1, fraction: 0.04, downloaded_bytes: 5_000_000, current: 'cli', elapsed_seconds: 151, quiet_seconds: 200,
+  const running = { state: 'running', run_id: 'run-1', started_at: 1, fraction: 0.04, downloaded_bytes: 5_000_000, current: 'cli', elapsed_seconds: 151, quiet_seconds: 200,
     run: { components: { gbdk: { state: 'done', checks: [] }, cli: { state: 'running', checks: [] } } } }
   await onInstallScreen({ install: installAnswer(running) })
   check('progress says the stage and time in words, and a long quiet spell is explained', () => {
@@ -71,7 +71,7 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   scenario.calls.length = 0
   await click('Cancel'); await settle()
   check('Cancel asks the backend to cancel (it never kills anything itself)', () => {
-    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.install'], { action: 'cancel' })
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.install'], { action: 'cancel', run_id: 'run-1' })
   })
   delete scenario.byMethod['plugin.hermretro.install']
   scenario.install = installAnswer({ ...running, cancelling: true }); await render()
@@ -117,5 +117,46 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
     assert.ok(requests().includes('plugin.hermretro.studio_profile')); assert.ok(!requests().includes('profiles.create'))
   })
   delete scenario.byMethod['plugin.hermretro.studio_profile']
+
+  // 8. A reload near the end: the first install status already says done, and the tools check on screen was
+  //    answered just before the finish (react-query's dataUpdatedAt, in ms; finished_at in s).
+  const finishedAt = Date.now() / 1000
+  let doctorChecks = 0
+  const doctorAt = (at, missing = ['cli']) => ({ ...answered(doctor(missing)), dataUpdatedAt: at, errorUpdatedAt: 0, refetch: async () => { doctorChecks += 1 } })
+  await onInstallScreen({ install: installAnswer({ state: 'done', run_id: 'run-a', started_at: finishedAt - 300, finished_at: finishedAt, fraction: 1 }), doctorQuery: doctorAt(finishedAt * 1000 - 4_000) })
+  await settle()
+  check('a done install first seen after a check from before its finish checks the tools once more', () => {
+    assert.equal(doctorChecks, 1)
+    shows(/Checking the installed tools/)
+  })
+  await render(); await render(); await settle()
+  check('and only once for that run, never a repeated poll', () => { assert.equal(doctorChecks, 1) })
+  scenario.doctor = doctorAt(finishedAt * 1000 + 2_000); await render(); await settle()
+  check('the check after the finish decides it: missing tools are said, not an endless check', () => {
+    hides('Checking the installed tools'); shows(/The install finished, but the tools check still reports missing: cli/)
+    assert.equal(doctorChecks, 1)
+  })
+  await onInstallScreen({ install: installAnswer({ state: 'done', run_id: 'run-b', started_at: finishedAt - 300, finished_at: finishedAt, fraction: 1 }), doctorQuery: doctorAt(finishedAt * 1000 + 1_000) })
+  await settle()
+  check('a check already answered after the finish is not repeated', () => { assert.equal(doctorChecks, 1) })
+
+  // 9. Cancel names the run on screen, and a cancel that fails is said while the install keeps running.
+  await onInstallScreen({ install: installAnswer({ ...running, run_id: 'run-c' }) })
+  scenario.byMethod['plugin.hermretro.install'] = () => ({ ok: false, code: 'CANCEL_UNSUPPORTED', manifest, error: 'This install is run by an older hermretro background process that cannot cancel it, so it is still running.' })
+  await click('Cancel'); await settle()
+  check('Cancel sends the run it means', () => {
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.install'], { action: 'cancel', run_id: 'run-c' })
+  })
+  delete scenario.byMethod['plugin.hermretro.install']
+  await render()
+  check('a cancel the backend could not do is shown while the install runs', () => {
+    shows(/older hermretro background process that cannot cancel it/); shows(/Installing GB Studio/)
+  })
+
+  // 10. Finished parts make a smaller install likely but not certain: a warning, not a promise.
+  await onInstallScreen({ install: answered({ ok: true, manifest, root: '/h/t', space: { enough: true, free_bytes: 900_000_000, needed_bytes: 500_000_000, estimate: 'reuse', warning: 'Finished parts are reused, so this may fit, but a full install needs about 2.3 GB and less is free.' }, install: { state: 'idle' } }) })
+  check('an uncertain fit is a warning and the install can still start', () => {
+    shows(/this may fit, but a full install needs about 2\.3 GB/); assert.ok(!button('Download and install').disabled)
+  })
   await act(async () => { root.unmount() })
 })
