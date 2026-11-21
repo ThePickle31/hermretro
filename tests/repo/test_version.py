@@ -1,8 +1,10 @@
 """The plugin's version lives in plugin.yaml and nowhere else, so a release changes one line."""
 
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -36,11 +38,30 @@ class OneVersion(unittest.TestCase):
             self.assertEqual(match.group(1) if match else None, expected, line)
 
     def test_a_new_version_on_disk_changes_the_broker_fingerprint(self):
-        # A gateway that imported an older version must still agree with a broker started from the new files.
-        with mock.patch.object(paths, "_fingerprint_for", return_value="x") as fingerprint:
-            paths.code_fingerprint()
-        stamp = fingerprint.call_args.args[0]
-        self.assertIn("../plugin.yaml", [name for name, _mtime, _size in stamp])
+        # The fingerprint hashes plugin.yaml's bytes: two trees that differ only in the version must not agree,
+        # or a gateway would keep talking to a broker started from the old files.
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "backend").mkdir()
+            (base / "backend" / "one.py").write_bytes(b"x = 1\n")
+            manifest = base / "plugin.yaml"
+            manifest.write_text("name: hermretro\nversion: 0.0.5\n", encoding="utf-8")
+            # Explicit, distinct stamps: the fingerprint is cached per file stamp, so a rewrite with the same
+            # mtime and size could be served from the cache and say nothing about the manifest's bytes.
+            os.utime(base / "backend" / "one.py", ns=(1_600_000_000_000_000_000, 1_600_000_000_000_000_000))
+            os.utime(manifest, ns=(1_600_000_100_000_000_000, 1_600_000_100_000_000_000))
+            with mock.patch.object(paths, "BACKEND_ROOT", base / "backend"):
+                paths._fingerprint_for.cache_clear()
+                try:
+                    # The gateway's own call, not the cache's key: if code_fingerprint stops including the
+                    # manifest, this pair agrees although the version changed.
+                    old = paths.code_fingerprint()
+                    manifest.write_text("name: hermretro\nversion: 0.0.6\n", encoding="utf-8")
+                    os.utime(manifest, ns=(1_600_000_200_000_000_000, 1_600_000_200_000_000_000))
+                    new = paths.code_fingerprint()  # no cache clear: a new stamp is the miss
+                finally:
+                    paths._fingerprint_for.cache_clear()
+        self.assertNotEqual(old, new)
 
     def test_no_other_file_repeats_the_version(self):
         try:

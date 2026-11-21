@@ -298,7 +298,11 @@ class LockStep(unittest.TestCase):
         )
         self.assertEqual(json.loads(read(f"engine/pins/{version}/manifest.json"))["package_version"], version)
         self.assertEqual(json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]["version"], version)
-        for skill in ("authoring", "deployment", "pixel-art", "rom-debugging", "setup"):  # adapted from the engine's
+        for skill in sorted(
+            re.sub(r"^(modretro-)?chromatic-", "", path.name)
+            for path in (ROOT / "engine" / "modretro-chromatic" / "skills").iterdir()
+            if path.is_dir()
+        ):  # every skill adapted from the engine's, read from the engine's own folders
             self.assertRegex(read(f"skills/{skill}/SKILL.md"), rf"(?m)^version: {re.escape(version)}$", skill)
         notices = read("THIRD_PARTY_NOTICES.md")
         self.assertIn(f"## ModRetro Chromatic Plugin engine {version}", notices)

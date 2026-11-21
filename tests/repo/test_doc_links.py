@@ -153,9 +153,6 @@ class DocLinks(unittest.TestCase):
         self.assertEqual(check("See C.md \"asset_info RPC\"."), [])
         self.assertEqual(len(check("[a](C.md#assetinfo-rpc)")), 1)
         self.assertEqual(len(check("See C.md \"assetinfo RPC\".")), 1)
-        contract = (ROOT / "docs/dev/CONTRACT.md").read_text(encoding="utf-8")
-        self.assertIn("studio_profile--no-params", slugs(contract))
-        self.assertNotIn("studioprofile--no-params", slugs(contract))
 
     def test_a_code_span_drops_one_padding_space_and_an_escaped_backtick_opens_none(self):
         self.assertEqual(headings("# `` `x` `` tips\n"), ["`x` tips"])

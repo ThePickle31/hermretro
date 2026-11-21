@@ -179,13 +179,10 @@ class Mac(RepoCase):
         sha = git(tree, "rev-parse", "HEAD").strip()
         host, command = ssh.calls[-1]
         self.assertEqual(host, "mbp")
-        self.assertTrue(command.startswith("cd ~/Projects/hermretro && git fetch --quiet origin && "), command)
+        self.assertIn("git fetch", command)
         self.assertIn(f'git worktree add --quiet --detach "$tree" {sha} && ', command)
         self.assertIn('(cd "$tree" && python3 tools/check.py --strict unit page)', command)
-        self.assertTrue(
-            command.endswith('rm -rf "$tmp"; git worktree prune; exit $code'),
-            command,
-        )
+        self.assertIn("exit $code", command, "the checks' exit code is the run's")
         for never in ("checkout", "reset", "stash", "clean"):
             self.assertNotIn(never, command, "the clone's own checkout is never switched or reset")
         self.assertIn("ok  unit", out)

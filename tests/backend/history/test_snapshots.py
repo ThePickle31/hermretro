@@ -216,8 +216,9 @@ class BuildHistoryHost(unittest.TestCase):
         self.assertEqual(len(self.listed()["builds"]), 1)
 
     def test_the_hook_never_raises(self):
-        with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")):
+        with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")) as take:
             self.hook()
+        take.assert_called_once()  # the failed snapshot was reached, and swallowed
         registered_hook("post_tool_call")(tool_name=None)
         registered_hook("post_tool_call")()
 

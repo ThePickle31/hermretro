@@ -130,20 +130,35 @@ class Check(RepoCase):
         from retrodev import config, output
 
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        budgets = ctx.policy["checks"]["budgets"]
+        unit_budget, total_budget = float(budgets["unit"]), float(budgets["fast_total"])
         rows = [
             {"name": "lint", "state": "ok", "seconds": 3.0, "cached": False},
-            {"name": "unit", "state": "ok", "seconds": 40.0, "cached": False},
+            {"name": "unit", "state": "ok", "seconds": unit_budget - 5.0, "cached": False},
         ]
-        self.assertEqual(checks.budget_warnings(ctx, rows, 55.0, True, {}), [], "a cold unit run of 40 s is in budget")
-        rows[1]["seconds"] = 65.0
-        self.assertEqual(checks.budget_warnings(ctx, rows, 70.0, True, {}), [], "one slow run says nothing")
-        last = checks.durations(rows, 70.0, {})
-        self.assertEqual((last["unit"], last["fast_total"]), (65.0, 70.0))
-        warnings = checks.budget_warnings(ctx, rows, 70.0, True, last)
+        self.assertEqual(
+            checks.budget_warnings(ctx, rows, total_budget - 5.0, True, {}), [], "a cold unit run is in budget"
+        )
+        rows[1]["seconds"] = unit_budget + 5.0
+        self.assertEqual(
+            checks.budget_warnings(ctx, rows, total_budget + 10.0, True, {}), [], "one slow run says nothing"
+        )
+        last = checks.durations(rows, total_budget + 10.0, {})
+        self.assertEqual((last["unit"], last["fast_total"]), (unit_budget + 5.0, total_budget + 10.0))
+        warnings = checks.budget_warnings(ctx, rows, total_budget + 10.0, True, last)
         self.assertEqual(len(warnings), 2, warnings)
-        self.assertIn("unit took 65.0 s, over its 60 s budget twice in a row: slower than usual", warnings[0])
+        self.assertIn(
+            f"unit took {unit_budget + 5.0:.1f} s, over its {unit_budget:g} s budget twice in a row: slower than usual",
+            warnings[0],
+        )
         self.assertIn("machines and load differ", warnings[0])
-        self.assertIn("fast checks took 70.0 s together, over their 60 s budget twice in a row", warnings[1])
+        self.assertIn(
+            f"fast checks took {total_budget + 10.0:.1f} s together, over their {total_budget:g} s budget twice in a row",
+            warnings[1],
+        )
+        # Back in budget after a slow run: quiet (a gate looking only at the previous run would warn).
+        recovered = [{**rows[0]}, {**rows[1], "seconds": unit_budget - 5.0}]
+        self.assertEqual(checks.budget_warnings(ctx, recovered, total_budget - 5.0, True, last), [])
         cached = [{"name": "unit", "state": "ok", "seconds": 0.0, "cached": True}]
         self.assertEqual(checks.durations(cached, None, last), last, "a cached row keeps the last run's time")
 
