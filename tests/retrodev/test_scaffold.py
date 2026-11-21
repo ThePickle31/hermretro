@@ -133,21 +133,23 @@ class New(ScaffoldCase):
         self.assertFalse((self.tree / "backend/rdprobe").exists())
 
     def test_names_that_exist_or_break_the_rules_are_refused(self):
-        for argv in (
-            ["feature", "history"],
-            ["feature", "Demo"],
-            ["feature", "class"],
-            ["feature", "a-b"],
-            ["rpc", "history", "builds"],
-            ["rpc", "nowhere", "x"],
-            ["tool", "history", "present_game"],
-            ["page", "build"],
-            ["page", "Bad_Id"],
-            ["tab", "nowhere", "x"],
-            ["event", "history", "build_kept"],
+        # Each row names why it must be refused, so a refusal for another reason cannot pass.
+        for argv, why in (
+            (["feature", "history"], "backend/history exists or is taken"),
+            (["feature", "Demo"], "'Demo' is not a usable feature name"),
+            (["feature", "class"], "'class' is not a usable feature name"),
+            (["feature", "a-b"], "'a-b' is not a usable feature name"),
+            (["rpc", "history", "builds"], "an RPC named builds exists"),
+            (["rpc", "nowhere", "x"], "backend/nowhere is not a feature listed in"),
+            (["tool", "history", "present_game"], "a tool named chromatic_present_game exists"),
+            (["page", "build"], "page/pages/build exists or the registry lists it"),
+            (["page", "Bad_Id"], "'Bad_Id' is not a usable page name"),
+            (["tab", "nowhere", "x"], "page/pages/nowhere/index.js does not exist"),
+            (["event", "history", "build_kept"], "the event history.build_kept is declared already"),
         ):
-            out = self.new(*argv, code=1)
-            self.assertIn("fix", out["error"], argv)
+            with self.subTest(argv=argv):
+                out = self.new(*argv, code=1)
+                self.assertIn(why, out["error"]["message"])
         self.assertEqual(git(self.tree, "status", "--porcelain"), "")
 
     def test_only_on_a_work_branch(self):
