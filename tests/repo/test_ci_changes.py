@@ -236,7 +236,7 @@ class Changes(unittest.TestCase):
         self.assertIn("FIX:", done.stderr)
 
 
-class GuardRoundFive(unittest.TestCase):
+class ScaffoldModeInWorkflow(unittest.TestCase):
     def test_ci_runs_the_scaffold_check_nested_when_job_changes_says_so_else_the_smoke(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         step = workflow[workflow.index("- name: python tools/check.py bundle lint page scaffold") :].split("\n\n")[0]
