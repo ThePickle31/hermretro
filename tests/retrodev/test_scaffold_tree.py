@@ -13,8 +13,8 @@ shape. The placeholder gate is off for the full unit run on unfilled stubs, not 
 
 The separate check-wiring test adds a listener without checks, then runs `new rpc` with its own checks in the same
 copy. It proves unrelated lint errors are diagnosed correctly, no unit pass is cached, and the normal placeholder
-gate rejects both stubs afterwards. Other focused tests cover page conversions, shadowing names, linting just the
-named files, and the scaffold trigger rules. A baseline page failure is reported as inherited, whereas a failure
+gate rejects both stubs afterwards. Other focused tests cover page conversions, shadowing names, and linting just the
+named files. A baseline page failure is reported as inherited, whereas a failure
 introduced by scaffolding fails the check (`scaffold_inherited.py`).
 
 Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tree
@@ -22,6 +22,7 @@ Run alone: RD_SCAFFOLD_FULL=1 python -m unittest tests.retrodev.test_scaffold_tr
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
