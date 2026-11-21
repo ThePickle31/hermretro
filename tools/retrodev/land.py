@@ -10,11 +10,13 @@ records (nothing is reviewed twice). It runs for many minutes: start it in the b
                                    clean; check passed on it (land_gates.py)                        else 1, or 3
   the last round was void or invalid twice                                               3 needs the owner
   findings not answered yet                                                              1, naming them
-  a round is due (none at this head, under 3 rounds, earlier findings answered)
+  a round is due (none at this head, under 3 rounds, earlier findings answered, no accepted head)
       probe the reviewer once: unavailable or no review_profile -> reviews skipped (recorded), on to CI
       run the round (minutes; CI runs meanwhile): findings -> 1 'fix' with the next steps;
       void or invalid -> 3; clean -> on to CI
-  round 3 had findings, all answered      on to CI with this head, accepted once (never a 4th round)
+  the pull request's last due round had findings, all answered (land_depth.py: one round; a second for
+      policy.toml [land] second_round files; the round after a high-severity finding; 3 at most)
+                                          on to CI with this head, accepted once (no further round)
   3 rounds ran and the head moved past the clean or accepted head        3 the owner decides (--no-review or not)
   CI on the exact head: failing -> 1 with the jobs; still running after --ci-timeout -> 2; every poll and the
   moment before the merge recheck the pull request: closed, merged elsewhere, retargeted or pushed -> 1, no merge
@@ -26,7 +28,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import ci, gates, github, land_carry, land_gates, land_merge, reviews, ship
+from . import ci, gates, github, land_carry, land_depth, land_gates, land_merge, reviews, ship
 from .gates import Gate
 from .land_merge import progress
 from .output import FAILED, OWNER, Failure, cmd
@@ -62,11 +64,11 @@ def owner_failure(rec: dict, number: int) -> Failure:
 
 def exhausted_failure(rec: dict, number: int, sha: str) -> Failure:
     last = records.valid_rounds(rec)[-1]
-    accepted = (rec.get("accepted") or {}).get("head")
+    accepted = records.accepted_head(rec)
     seen = (
-        f"the head accepted with round 3's fixes ({accepted[:9]})"
+        f"the head accepted with round {last['round']}'s fixes ({accepted[:9]})"
         if accepted
-        else f"round 3's head ({last['sha'][:9]})"
+        else f"round {last['round']}'s head ({last['sha'][:9]})"
     )
     return Failure(
         f"reviews exhausted on #{number}: {records.MAX_ROUNDS} rounds ran and the head moved past {seen} to "
@@ -91,14 +93,15 @@ def unanswered_failure(ctx, rec: dict, number: int) -> Failure:
     )
 
 
-def findings_failure(ctx, number: int, round_no: int, result: dict, record: dict) -> Failure:
+def findings_failure(ctx, number: int, round_no: int, result: dict, record: dict, rec: dict) -> Failure:
     items = result.get("findings") or []
     ctx.out.say(f"review round {round_no}: {len(items)} finding(s)")
     for n, finding in enumerate(items):
         ctx.out.say("  " + reviews.finding_line(n, finding))
-    last = round_no >= records.MAX_ROUNDS
+    last = round_no >= records.depth(rec)
     steps = [
-        "fix each finding (or, when one is wrong, prove it: a test or command output)",
+        "fix each finding (or, when one is wrong, prove it: a test or command output; a low one may instead be"
+        " answered 'Deferred: <where it is recorded>')",
         "python tools/retrodev check",
         cmd("git", "add", "-A") + " && " + cmd("git", "commit", "-m", "<what the fixes change>"),
         ship.again(record) + " (the first ship's title and body file)",
@@ -106,7 +109,7 @@ def findings_failure(ctx, number: int, round_no: int, result: dict, record: dict
         + f" for each of 0..{len(items) - 1}",
         f"python tools/retrodev land {number}"
         + (
-            " (round 3 was the last: it merges on green CI, no 4th round)"
+            f" (round {round_no} was the last: it merges on green CI, no further round)"
             if last
             else f" (round {round_no + 1} reviews the fixes)"
         ),
@@ -137,10 +140,9 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         records.add_probe(root, number, probe, notes)
         ctx.out.say(f"reviewer available ({probe.get('seconds')} s)")
     round_no = records.next_round(rec)
+    total = max(round_no, records.depth(rec))
     if probe.get("available"):
-        ctx.out.say(
-            f"review round {round_no} of {records.MAX_ROUNDS} on {sha[:9]}: running (minutes; CI runs meanwhile)"
-        )
+        ctx.out.say(f"review round {round_no} of {total} on {sha[:9]}: running (minutes; CI runs meanwhile)")
         progress(ctx, record, "reviewing", round=round_no, head=sha)
     result = review_round.run_round(
         tree,
@@ -158,8 +160,9 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         notes=notes,
         db=ctx.fakes.get("review_db"),
         branch=branch,
+        total=total,
     )
-    rec = records.load(root, number)
+    rec = land_depth.apply(ctx, tree, records.load(root, number), sha)  # a high finding adds a round
     status = result["status"]
     if status == "skipped":
         ctx.out.say(f"reviews skipped: {rec['skipped']['reason']}; merging on green CI (recorded)")
@@ -168,7 +171,7 @@ def run_round(ctx, info: dict, tree: Path, record: dict, rec: dict, sha: str) ->
         raise owner_failure(rec, number)
     if result["result"]["verdict"] == "findings":
         progress(ctx, record, "fix", round=round_no, head=sha)
-        raise findings_failure(ctx, number, round_no, result["result"], record)
+        raise findings_failure(ctx, number, round_no, result["result"], record, rec)
     ctx.out.say(f"review round {round_no}: clean")
     return rec
 
@@ -185,9 +188,9 @@ def review_step(
     if no_review and not rec.get("skipped"):
         # Who decided is not known here (an agent can pass --no-review too), so only the reason given is recorded.
         rec = records.mark_skipped(root, number, (reason or "").strip() or NO_REVIEW, notes)
-    rec = land_carry.carry(ctx, tree, rec, sha)
+    rec = land_depth.apply(ctx, tree, land_carry.carry(ctx, tree, rec, sha), sha)
     action = decide(rec, sha)
-    ctx.out.set(review_action=action)
+    ctx.out.set(review_action=action, review_depth=rec["depth"])
     if action == "needs-owner":
         raise owner_failure(rec, number)
     if action == "reviews-exhausted":
@@ -200,9 +203,10 @@ def review_step(
         ctx.out.say(f"reviews skipped ({rec['skipped']['reason']}): merging on green CI")
     elif action == "fix-then-merge":
         rec = records.accept_head(root, number, sha, notes)
+        last = records.valid_rounds(rec)[-1]["round"]
         ctx.out.say(
-            f"review round 3's findings are answered: merging {sha[:9]} on green CI (no 4th round; a later push "
-            "needs the owner)"
+            f"review round {last}'s findings are answered: merging {sha[:9]} on green CI (no further round: "
+            f"{rec['depth']['why']}; a later push is reviewed again, or after 3 rounds needs the owner)"
         )
     else:
         seen = records.reviewed_as(rec, sha)
@@ -278,8 +282,11 @@ def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = No
     except Failure as failure:
         code = failure.code
         ctx.out.say(f"gates: {failure.message}")
-    rec = land_carry.carry(ctx, tree, reviews.load(ctx, number), info.get("headRefOid") or "", save=False)
-    action = decide(rec, info.get("headRefOid") or "")
+    head = info.get("headRefOid") or ""
+    rec = land_depth.apply(
+        ctx, tree, land_carry.carry(ctx, tree, reviews.load(ctx, number), head, save=False), head, save=False
+    )
+    action = decide(rec, head)
     if reviews.unanswered(rec):
         action = "answer"
     words = {
@@ -288,10 +295,12 @@ def dry(ctx, info: dict, found: list[Gate], record: dict, tree: Path | None = No
         "needs-owner": "stop: the last round needs the owner",
         "reviews-exhausted": "stop: 3 rounds ran and the head moved past the reviewed one; the owner decides",
         "merge-on-green": "wait for CI, then merge (reviews skipped)",
-        "fix-then-merge": "wait for CI, then merge (round 3 answered; this head is the one accepted)",
+        "fix": "stop: the last round's findings are answered but nothing was pushed; the next round judges them",
+        "fix-then-merge": "wait for CI, then merge (the last round is answered; this head is the one accepted)",
         "merge": "wait for CI, then merge (the last round is clean on this head)",
     }
     ctx.out.say(f"review: {reviews.describe(rec)}")
+    ctx.out.say(f"review depth: {rec['depth']['why']}")
     ctx.out.say(f"would: {words.get(action, action)}" + ("" if not code else " (once the gates pass)"))
     ctx.out.say("dry run: nothing was reviewed, readied or merged")
     ctx.out.set(action=action, review=reviews.rounds(rec), landing=record.get("land"))

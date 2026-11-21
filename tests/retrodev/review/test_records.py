@@ -20,8 +20,19 @@ def rnd(n, sha, verdict="findings", void=False, stopped=None):
     return entry
 
 
-def record(*rounds, skipped=None, head=None, accepted=None):
+LOW = dict(FINDING, severity="low")
+
+
+def low(n, sha):
+    entry = rnd(n, sha)
+    entry["result"]["findings"] = [LOW, LOW]
+    return entry
+
+
+def record(*rounds, skipped=None, head=None, accepted=None, depth=None):
     rec = {"pr": 5, "rounds": list(rounds), "skipped": skipped, "probes": []}
+    if depth is not None:
+        rec["depth"] = {"rounds": depth, "why": "a test"}
     if head:
         rec["head"] = head
     if accepted:
@@ -77,6 +88,43 @@ class NextAction(unittest.TestCase):
         for name, rec, green, head, want in table:
             with self.subTest(name):
                 self.assertEqual(records.next_action(rec, green, head=head), want)
+
+    def test_depth_table(self):
+        one = {"head": "b", "round": 1}
+        table = [
+            ("one round: findings, nothing pushed", record(rnd(1, "a"), depth=1), "a", "fix"),
+            ("one round: fixes pushed", record(rnd(1, "a"), depth=1), "b", "fix-then-merge"),
+            ("one round: only low findings, nothing pushed", record(low(1, "a"), depth=1), "a", "fix-then-merge"),
+            ("one round: accepted, this head", record(rnd(1, "a"), depth=1, accepted=one), "b", "fix-then-merge"),
+            ("one round: accepted, then a push", record(rnd(1, "a"), depth=1, accepted=one), "c", "review"),
+            (
+                "the push's round has findings: its fixes are accepted anew",
+                record(rnd(1, "a"), rnd(2, "c"), depth=1, accepted=one),
+                "d",
+                "fix-then-merge",
+            ),
+            ("one round: clean, then a push", record(rnd(1, "a", "clean"), depth=1), "b", "review"),
+            ("two rounds: round 1 fixes pushed", record(rnd(1, "a"), depth=2), "b", "review"),
+            ("two rounds: round 2 fixes pushed", record(rnd(1, "a"), rnd(2, "b"), depth=2), "c", "fix-then-merge"),
+            (
+                "three rounds ran, the head moved past the accepted one",
+                record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c"), depth=1, accepted={"head": "d", "round": 3}),
+                "e",
+                "reviews-exhausted",
+            ),
+            ("a depth nobody can read is the hard limit", record(rnd(1, "a"), depth="x"), "b", "review"),
+            ("a depth over the hard limit is the hard limit", record(rnd(1, "a"), rnd(2, "b"), depth=9), "c", "review"),
+        ]
+        for name, rec, head, want in table:
+            with self.subTest(name):
+                self.assertEqual(records.next_action(rec, True, head=head), want)
+
+    def test_an_acceptance_belongs_to_its_round_and_older_records_mean_round_three(self):
+        old = record(rnd(1, "a"), rnd(2, "b"), rnd(3, "c"), accepted={"head": "d"})
+        self.assertEqual(records.accepted_head(old), "d")
+        self.assertIsNone(records.accepted_head(record(rnd(1, "a"), rnd(2, "b"), accepted={"head": "d"})))
+        self.assertIsNone(records.accepted_head(record(rnd(1, "a"), rnd(2, "c"), accepted={"head": "b", "round": 1})))
+        self.assertEqual(records.depth(record(rnd(1, "a"))), records.MAX_ROUNDS)
 
 
 class Store(unittest.TestCase):
