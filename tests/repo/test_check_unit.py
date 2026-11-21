@@ -178,7 +178,7 @@ class UnitCheckHomeTests(unittest.TestCase):
 
         def fake_run(cmd, **kwargs):  # the whole suite leaks; rerun alone, only one module does
             calls.append(cmd)
-            if "discover" in cmd or cmd[-1] == "tests.backend.library.test_build_report":
+            if "tests.backend.library.test_build_report" in cmd:  # its process, then the module rerun alone
                 (Path(kwargs["env"]["HOME"]) / ".hermes" / "hermretro").mkdir(parents=True, exist_ok=True)
             return subprocess.CompletedProcess(cmd, 0, "", OK)
 
@@ -205,7 +205,7 @@ class UnitCheckHomeTests(unittest.TestCase):
 
     def test_a_temp_folder_left_behind_fails_the_run_and_names_its_module(self):
         def fake_run(cmd, **kwargs):  # a tempfile.mkdtemp() without a cleanup, in the TMPDIR the run gets
-            if "discover" in cmd or cmd[-1] == "tests.backend.setup.test_onboarding":
+            if "tests.backend.setup.test_onboarding" in cmd:  # its process, then the module rerun alone
                 tempfile.mkdtemp(prefix="leaked-", dir=kwargs["env"]["TMPDIR"])
             return subprocess.CompletedProcess(cmd, 0, "", OK)
 

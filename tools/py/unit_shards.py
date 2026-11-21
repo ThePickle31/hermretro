@@ -66,6 +66,21 @@ def groups(root: Path, modules: list[str], *, product_only: bool, times: dict[st
     return found
 
 
+def members(group: list[str], modules: list[str]) -> list[str]:
+    """The test modules one process runs: its named modules, or the dev CLI's for its discovery."""
+    if group and group[0] == "discover":
+        return [name for name in modules if name.startswith(RETRODEV + ".")]
+    return list(group)
+
+
+def without_durations(stderr: str) -> str:
+    """The output without unittest's "Slowest test durations" rows, which come after the tracebacks."""
+    hidden = ("Slowest test durations", "(durations < ")
+    return "\n".join(
+        line for line in stderr.splitlines() if not DURATION.match(line.strip()) and not line.startswith(hidden)
+    )
+
+
 def module_times(stderr: str) -> dict[str, float]:
     """Seconds per test module from `--durations 0` output (tests under a millisecond are not listed)."""
     found: dict[str, float] = {}
@@ -133,17 +148,27 @@ def run_suite(root: Path, run: Callable, temp_base: str, product_only: bool) -> 
             results = list(pool.map(one, range(len(shards))))
         wall = time.monotonic() - started
         if failed := [result for result in results if result.returncode]:
-            said = "\n".join("\n".join(result.stderr.strip().splitlines()[-40:]) for result in failed)
+            said = "\n".join(
+                "\n".join(without_durations(result.stderr).strip().splitlines()[-40:]) for result in failed
+            )
             named = [line for r in failed for line in r.stderr.splitlines() if line.startswith(("ERROR: ", "FAIL: "))]
             return "", "\n".join([*named, said]) + (
                 "\nFIX: read the failures above; run one file with "
                 "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
             )
-        if dirty := [(h, t) for h, t, _ in folders if unit_home.written(h) or unit_home.left(t)]:
+        modules = unit_home.test_modules(root)
+        dirty = [(i, h, t) for i, (h, t, _) in enumerate(folders) if unit_home.written(h) or unit_home.left(t)]
+        if dirty:  # each process's leftovers, and the modules among its own that leave them
             rerun = lambda cmd, env: run(cmd, env=env)  # noqa: E731 - unit_home's runner takes env positionally
-            return "", unit_home.leaks(*dirty[0], root, temp_base, rerun, product_only=product_only)
+            return "", "\n".join(
+                unit_home.leaks(
+                    h, t, root, temp_base, rerun, product_only=product_only, modules=members(shards[i], modules)
+                )
+                for i, h, t in dirty
+            )
     stderr = "\n".join(result.stderr for result in results)
-    save(times, {**load(times), **module_times(stderr)})
+    if not (root / ".dev").is_symlink():  # retrodev mac links the clone's .dev: its times are that checkout's
+        save(times, {**load(times), **module_times(stderr)})
     counts = [int(found) for found in re.findall(r"^Ran (\d+) tests? in ", stderr, re.M)]
     ran = f"Ran {sum(counts)} tests in {wall:.3f}s ({len(shards)} processes)" if counts else "ok"
     timed = slowest(stderr)

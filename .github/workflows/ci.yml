@@ -2,7 +2,7 @@
 # others, so jobs can be added, split or skipped without touching the repository rules. The integration tier
 # (real engine) runs for pull requests that touch the backend, engine, player or toolchain, and on every push to
 # dev, except a change of only plugin.yaml's version line (job `changes`). The same job picks the page job's
-# scaffold mode (nested or the smoke) and whether validate also updates from dev; when it fails, so does this.
+# scaffold mode (nested or the smoke) and whether job update-dev runs; when it fails, so does this.
 # main is not built: it only ever fast-forwards to a dev commit whose push run is green already (release publish
 # checks it), and the main rule reads that same commit's checks. Every check here is also
 # `python tools/check.py <name>` locally: fix a failure there, using the FIX: line it prints.
@@ -171,7 +171,6 @@ jobs:
 
   update:
     name: Update from the newest release
-    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
