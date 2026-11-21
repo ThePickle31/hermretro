@@ -2,7 +2,7 @@
 import { Codicon, jsx, jsxs } from '#sdk'
 import { baseName } from '#app/paths.js'
 
-export function AttachmentChip({ item, onRemove = null }) {
+export function AttachmentChip({ item, onRemove = null, disabled = false }) {
   const label = item.name || baseName(item.path)
 
   return jsxs('span', {
@@ -12,7 +12,7 @@ export function AttachmentChip({ item, onRemove = null }) {
       item.image ? jsx('img', { alt: '', src: item.image }) : '@',
       label,
       onRemove
-        ? jsx('button', { 'aria-label': `Remove ${label}`, className: 'cs-b-x', onClick: () => onRemove(item), type: 'button', children: jsx(Codicon, { name: 'close', size: 10 }) })
+        ? jsx('button', { 'aria-label': `Remove ${label}`, className: 'cs-b-x', disabled, onClick: () => onRemove(item), type: 'button', children: jsx(Codicon, { name: 'close', size: 10 }) })
         : null
     ]
   })

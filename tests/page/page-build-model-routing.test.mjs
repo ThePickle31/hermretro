@@ -152,6 +152,7 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
   await press('.cs-b-mention-row')
   const edit = () => view.node.querySelector('textarea[aria-label="Message Hermes"]')
   const sendEdit = 'button[aria-label="Send"]'
+  const removeFrog = 'button[aria-label="Remove Frog sprite"]'
   await typeInto(edit(), 'make the frog jump')
   const beforeEdit = calls.length
   route = { ...claude, provider: 'nous' }
@@ -162,6 +163,7 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     assert.equal(edit().value, 'make the frog jump')
     assert.match(view.node.querySelector('.cs-b-comp .cs-b-chips').textContent, /Frog sprite/)
     assert.equal(view.node.querySelector(sendEdit).disabled, false)
+    assert.equal(view.node.querySelector(removeFrog).disabled, false)
   })
 
   route = null
@@ -183,10 +185,12 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     button.click()
   })
   await settle()
-  check('a duplicate first send cannot open a second replacement thread', () => {
+  await press(removeFrog)
+  check('while creating the first thread another send or attachment removal cannot change it', () => {
     assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create'])
     assert.equal(view.node.querySelector(sendEdit).disabled, true)
     assert.equal(edit().disabled, true)
+    assert.equal(view.node.querySelector(removeFrog).disabled, true)
   })
   await act(async () => finishCreate())
   await settle()
@@ -194,6 +198,7 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create', 'bind'])
     assert.equal(view.node.querySelector(sendEdit).disabled, true)
     assert.equal(edit().value, 'make the frog jump')
+    assert.equal(view.node.querySelector(removeFrog).disabled, true)
   })
   const submit = scenario.byMethod['prompt.submit']
   scenario.byMethod['prompt.submit'] = params => {
@@ -257,5 +262,31 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     assert.match(view.node.querySelector('.cs-b-user').textContent, /make the frog swim/)
   })
   await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-9', payload: { text: 'The frog swims.' } }))
+  await view.close()
+
+  // Another window replaces the missing conversation after this one chooses Start a new conversation.
+  const winner = scenario.games
+  scenario.games = answered({ games: [game], pending: [], device: { hardwareEnabled: false, skipped: true } })
+  scenario.byMethod['session.create'] = create
+  view = await mount(page)
+  await settle()
+  await click('Start a new conversation', view.node)
+  await typeInto(edit(), 'do not send this unfinished draft')
+  scenario.games = winner
+  await view.rerender()
+  await settle()
+  check('a library refresh cancels the restart intent when someone else has already replaced the binding', () => {
+    assert.equal(edit().value, '')
+    assert.match(view.node.querySelector('.cs-b-user').textContent, /make the frog swim/)
+  })
+  const beforeWinner = calls.length
+  await typeInto(edit(), 'make the frog dive')
+  await press(sendEdit)
+  await settle()
+  check('after the binding changes the next send uses the winning conversation without another create or bind', () => {
+    assert.deepEqual(calls.slice(beforeWinner).map(([step]) => step), ['submit'])
+    assert.equal(calls.at(-1)[1].session_id, 'rt-new-9')
+    assert.equal(calls.at(-1)[1].text, 'make the frog dive')
+  })
   await view.close()
 })

@@ -112,9 +112,17 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false)
   const stored = elsewhere ? null : (game?.buildSession ?? pendingItem?.storedId ?? null)
   const chat = stored ? chats[stored] : null
-  // Set when the user starts over after the game's conversation was removed from Hermes.
-  const [forgotten, setForgotten] = useState({})
-  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]))
+  // A restart is permission to replace one missing conversation, not whatever is bound later.
+  const [restartIds, setRestartIds] = useState({})
+  const replaces = game && stored && restartIds[game.id] === stored ? stored : null
+  const fresh = Boolean(game && !elsewhere && (!stored || replaces))
+  useEffect(() => {
+    setRestartIds(current => {
+      const kept = Object.entries(current).filter(([id, expected]) => rail.some(item => item.id === id && item.buildSession === expected))
+
+      return kept.length === Object.keys(current).length ? current : Object.fromEntries(kept)
+    })
+  }, [rail])
   const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === 'new' || fresh)
   const startingGame = startingGames.has(game?.id)
 
@@ -261,11 +269,9 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       if (refuseWhileUpdating()) {
         return false
       }
-      const replaces = game.session?.storedId
       const recorded = await buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) })
 
       setLocal(current => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }))
-      setForgotten(current => ({ ...current, [id]: false }))
       onLibraryChanged()
       // An older backend cannot tell the agent which game this is: say it in the first message.
       return await sendBuildChat(
@@ -283,8 +289,8 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   }
 
   const startOver = () => {
-    if (game) {
-      setForgotten(current => ({ ...current, [game.id]: true }))
+    if (game && stored && chat?.missing && !BUILD_STARTING.get().has(game.id)) {
+      setRestartIds(current => ({ ...current, [game.id]: stored }))
     }
   }
 
@@ -315,7 +321,6 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
 
       return { ...current, bound, released: { ...current.released, [target.id]: storedId } }
     })
-    setForgotten(current => ({ ...current, [target.id]: false }))
 
     if (selected === target.id) {
       select('new')

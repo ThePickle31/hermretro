@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 9f91dd8264187b2581e347bfbe1915ff6df52fc0d61a79c30b1376d51f772fad
- * body: sha256 72236f84521250d087cb1b65ae95dca406875cb5b528712093adf3dc5ba717d3
+ * sources: sha256 5837d78f6968cf5fbed736f7331b00cb680ff67ff1f02ce0d87c67be960d6d54
+ * body: sha256 fdcdee799890d94067407cdb57e94f192243b3b190389a8fcacea10d9f78d4ff
  */
 // page/sdk.js
 import {
@@ -1323,7 +1323,7 @@ var isAbsolute = (value) => typeof value === "string" && (value.startsWith("/") 
 var joinPath = (root, relative) => root ? `${root.replace(/[\\/]+$/, "")}/${relative.replace(/^\.?[\\/]+/, "")}` : null;
 
 // page/pages/build/composer/attachment-chip.js
-function AttachmentChip({ item, onRemove = null }) {
+function AttachmentChip({ item, onRemove = null, disabled = false }) {
   const label = item.name || baseName(item.path);
   return jsxs("span", {
     className: item.image ? "cs-b-chip mention pic" : "cs-b-chip mention",
@@ -1331,7 +1331,7 @@ function AttachmentChip({ item, onRemove = null }) {
     children: [
       item.image ? jsx("img", { alt: "", src: item.image }) : "@",
       label,
-      onRemove ? jsx("button", { "aria-label": `Remove ${label}`, className: "cs-b-x", onClick: () => onRemove(item), type: "button", children: jsx(Codicon, { name: "close", size: 10 }) }) : null
+      onRemove ? jsx("button", { "aria-label": `Remove ${label}`, className: "cs-b-x", disabled, onClick: () => onRemove(item), type: "button", children: jsx(Codicon, { name: "close", size: 10 }) }) : null
     ]
   });
 }
@@ -1755,7 +1755,7 @@ ${inject.text}` : inject.text);
     }
   };
   const choose = (item) => {
-    if (!item || !mention) {
+    if (!item || !mention || disabled) {
       return;
     }
     const element = box.current;
@@ -1802,11 +1802,11 @@ ${inject.text}` : inject.text);
     className: "cs-b-comp",
     children: [
       status,
-      mention && game ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
+      mention && game && !disabled ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
       attachments.length ? jsx("div", {
         className: "cs-b-chips",
         children: attachments.map(
-          (item) => jsx(AttachmentChip, { item, onRemove: (gone) => setAttachments((current) => current.filter((entry) => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
+          (item) => jsx(AttachmentChip, { item, disabled, onRemove: (gone) => setAttachments((current) => current.filter((entry) => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
         )
       }) : null,
       jsx("textarea", {
@@ -11858,8 +11858,15 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false);
   const stored = elsewhere ? null : game?.buildSession ?? pendingItem?.storedId ?? null;
   const chat = stored ? chats[stored] : null;
-  const [forgotten, setForgotten] = useState({});
-  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]));
+  const [restartIds, setRestartIds] = useState({});
+  const replaces = game && stored && restartIds[game.id] === stored ? stored : null;
+  const fresh = Boolean(game && !elsewhere && (!stored || replaces));
+  useEffect(() => {
+    setRestartIds((current) => {
+      const kept = Object.entries(current).filter(([id, expected]) => rail.some((item) => item.id === id && item.buildSession === expected));
+      return kept.length === Object.keys(current).length ? current : Object.fromEntries(kept);
+    });
+  }, [rail]);
   const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === "new" || fresh);
   const startingGame = startingGames.has(game?.id);
   useEffect(() => {
@@ -11964,10 +11971,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       if (refuseWhileUpdating()) {
         return false;
       }
-      const replaces = game.session?.storedId;
       const recorded = await buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} });
       setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
-      setForgotten((current) => ({ ...current, [id]: false }));
       onLibraryChanged();
       return await sendBuildChat(
         target,
@@ -11983,8 +11988,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     }
   };
   const startOver = () => {
-    if (game) {
-      setForgotten((current) => ({ ...current, [game.id]: true }));
+    if (game && stored && chat?.missing && !BUILD_STARTING.get().has(game.id)) {
+      setRestartIds((current) => ({ ...current, [game.id]: stored }));
     }
   };
   const stopEditing = async (target) => {
@@ -12006,7 +12011,6 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       delete bound[target.id];
       return { ...current, bound, released: { ...current.released, [target.id]: storedId } };
     });
-    setForgotten((current) => ({ ...current, [target.id]: false }));
     if (selected === target.id) {
       select("new");
     }

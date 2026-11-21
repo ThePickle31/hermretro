@@ -77,7 +77,7 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
   }
 
   const choose = item => {
-    if (!item || !mention) {
+    if (!item || !mention || disabled) {
       return
     }
 
@@ -133,12 +133,12 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
     className: 'cs-b-comp',
     children: [
       status,
-      mention && game ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
+      mention && game && !disabled ? jsx(MentionPicker, { index: pick, items: matches, onHover: setPick, onPick: choose, query: mention.query }) : null,
       attachments.length
         ? jsx('div', {
             className: 'cs-b-chips',
             children: attachments.map(item =>
-              jsx(AttachmentChip, { item, onRemove: gone => setAttachments(current => current.filter(entry => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
+              jsx(AttachmentChip, { item, disabled, onRemove: gone => setAttachments(current => current.filter(entry => attachmentKey(entry) !== attachmentKey(gone))) }, attachmentKey(item))
             )
           })
         : null,
