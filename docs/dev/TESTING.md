@@ -103,7 +103,11 @@ and `.dev/` are not linted.
   every run. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
   integration on Linux, Apple Silicon and Intel macOS, and the nested scaffold guard on Linux. The scheduled
-  scaffold job starts once the workflow reaches `main`; workflow-changing pull requests exercise it on their head.
+  scaffold job starts once the workflow reaches `main`; workflow-changing pull requests exercise it on their tested
+  merge commit. The schedule tests `dev`; the Sunday run checks all three toolchains without the cache, while
+  other nights can reuse it. To test a published release separately, dispatch `nightly.yml` on its version tag
+  once that tag contains this workflow. It tests the dispatched SHA and upgrades it from the preceding published
+  stable release, not from itself or from a moving `dev`. Read back the run ID and verify `headSha` against the tag.
 
 The single required check is **All checks pass**.
 
