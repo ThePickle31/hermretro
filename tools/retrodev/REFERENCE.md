@@ -639,16 +639,26 @@ with exit 1 (`action: sync`) and the fix `cd <worktree> && python tools/retrodev
 the branch's recorded title and body), then `cd <main checkout> && python tools/retrodev land <n>`; `gh pr merge`
 refused for merge conflicts says the same. Then, from the records (`records.next_action`):
 
+- **how many rounds** (`land_depth.py`, recomputed on every `land`, kept as `depth` in the review record and printed
+  by `--dry-run`): one. Two when the pull request changes a file matching `policy.toml` `[land] second_round` (the
+  second reviews the fixes), or when its changed files cannot be read. A high-severity finding adds the round after
+  it. Never more than 3. A head that changes a `second_round` file the last reviewed head did not (a later push, or
+  a merge of `dev` that moved an edited file there) is reviewed itself: no clean, accepted or carried review stands
+  for it, until 3 rounds ran
 - **a round is due: none at this head yet, fewer than 3, earlier findings all answered**: probes the reviewer once;
   unavailable, or no `review_profile`: reviews skipped with the reason recorded, on to CI. Else runs the round (minutes;
   CI runs meanwhile)
 - **the round has findings**: prints each (severity file:line problem, fix) and the steps: fix, `check`, commit,
   `ship`, `answer` each, `land` again. Exit 1 (`action: fix`)
 - **findings not answered yet**: names them. Exit 1
-- **every finding answered, nothing new pushed**: the next round judges the answers
-- **round 3 had findings, all answered**: no 4th round: on to CI with this head, recorded as the one accepted
-  (`accepted` in the review record)
-- **3 rounds ran and the head moved past round 3's clean head or the accepted head (a CI fix, say)**: exit 3 (`action:
+- **every finding answered, nothing new pushed**: the next round judges the answers, unless every finding of the
+  last due round was rated low (a low finding may be answered `Deferred: <where it is recorded>`)
+- **the last due round had findings, all answered**: no further round: on to CI with this head, recorded as the one
+  accepted for that round (`accepted` in the review record). A fix is a commit of the pull request's own
+  that changes a file the reviewer is shown; an empty commit, a merge of `dev` or a rebuilt generated file is none:
+  findings above low then still get the judging round
+- **a push after the accepted head (a CI fix, say), fewer than 3 rounds ran**: a round reviews the new head
+- **3 rounds ran and the head moved past round 3's clean head or the accepted head**: exit 3 (`action:
   reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not
 - **the head only merged `dev` after the clean or accepted head (`sync`)**: the review carries over: no new round when
   every commit since it (beyond `dev`'s) is a merge or touches only generated files, and the head differs from git's own
