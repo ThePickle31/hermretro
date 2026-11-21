@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f188fcd23c1bf4a817a9a7f1c053d3a48a19bca4bc3a431276a7f84824e8a3f5
- * body: sha256 0b9b5797d36c9275ce3a14af848be7d78265253e66ed293721480869017f6ca3
+ * sources: sha256 d9c638b0e9fd4400095047333bc7bdf068d8dc165f471e066fb4419a2bf436dd
+ * body: sha256 5cd3bdcba4941415c8c55b3b91f03272fff0aaf66f97089e4b9376044f9027e2
  */
 // page/sdk.js
 import {
@@ -11426,10 +11426,10 @@ function rememberSelection(ctx, selection) {
   } catch {
   }
 }
-function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
-  const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
+  const [local, setLocal] = useState({ bound: {}, released: {} });
   const [rememberedSelection] = useState(() => {
     if (selection !== null) {
       return selection;
@@ -11461,9 +11461,9 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, load
   const pending = useMemo(
     () => [
       ...Array.isArray(pendingGames) ? pendingGames : [],
-      ...local.pending.filter((item) => !(pendingGames ?? []).some((known) => known.storedId === item.storedId))
+      ...localPending.filter((item) => !(pendingGames ?? []).some((known) => known.storedId === item.storedId))
     ].filter((item) => !rail.some((game2) => game2.buildSession === item.storedId)),
-    [pendingGames, local.pending, rail]
+    [pendingGames, localPending, rail]
   );
   const pendingId = selected.startsWith("pending:") ? selected.slice("pending:".length) : null;
   const made = pendingId ? rail.find((game2) => game2.buildSession === pendingId) : null;
@@ -11552,7 +11552,8 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, load
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
-      setLocal((current) => ({ ...current, pending: [...current.pending, { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 }] }));
+      const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
+      changePending((current) => [...current, created]);
       select(`pending:${id}`);
       await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim());
       onLibraryChanged();
@@ -11571,7 +11572,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, load
       host.notify({ kind: "error", message: `Could not discard it: ${describeRequestError(error).message}` });
       return;
     }
-    setLocal((current) => ({ ...current, pending: current.pending.filter((entry) => entry.storedId !== item.storedId) }));
+    changePending((current) => current.filter((entry) => entry.storedId !== item.storedId));
     select("new");
     onLibraryChanged();
   };
@@ -13479,6 +13480,8 @@ function Build({ shell }) {
     ctx: shell.ctx,
     games: shell.gameList,
     loaded: Boolean(shell.games.data),
+    localPending: shell.buildPending,
+    changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,
     onPlay: shell.play,
     onSelect: shell.selectBuild,
@@ -16823,17 +16826,23 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
-  const [{ page, buildSelection, visit }, setNavigation] = useState(() => {
+  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
     let stored = "build";
     try {
       stored = ctx.storage.get("page", "build");
     } catch {
     }
-    return { page: pageById(stored) ? stored : "build", buildSelection: null, visit: 0 };
+    return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
   });
-  const selectBuild = useCallback((selection) => {
-    setNavigation((current) => current.page === "build" && current.visit === visit && current.buildSelection !== selection ? { ...current, buildSelection: selection } : current);
+  const changeBuildVisit = useCallback((change) => {
+    setNavigation((current) => current.page === "build" && current.visit === visit ? change(current) : current);
   }, [visit]);
+  const selectBuild = useCallback((selection) => {
+    changeBuildVisit((current) => current.buildSelection === selection ? current : { ...current, buildSelection: selection });
+  }, [changeBuildVisit]);
+  const changeBuildPending = (change) => {
+    changeBuildVisit((current) => ({ ...current, buildPending: change(current.buildPending) }));
+  };
   const [pinned, setPinned] = useState(null);
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
   const { backend, doctor, gateway, status } = useBackend(polling);
@@ -16907,7 +16916,7 @@ function StudioPage({ ctx }) {
     setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
   }, [autoId, toolchainStep?.state, installState, onboardScreen]);
   const go = (id, selection = null) => {
-    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, visit: current.visit + 1 });
+    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current.visit + 1 });
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -17028,8 +17037,10 @@ function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and the current Build selection
+    // games and the Build visit: selection and locally started games not in the library yet
     buildSelection,
+    buildPending,
+    changeBuildPending,
     selectBuild,
     games,
     gameList,

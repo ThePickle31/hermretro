@@ -49,7 +49,7 @@ export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
   // Keep Build's selection for this visit even if the backend drops and unmounts the page.
-  const [{ page, buildSelection, visit }, setNavigation] = useState(() => {
+  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
     let stored = 'build'
 
     try {
@@ -57,14 +57,18 @@ export function StudioPage({ ctx }) {
     } catch {
       // use the default
     }
-    return { page: pageById(stored) ? stored : 'build', buildSelection: null, visit: 0 }
+    return { page: pageById(stored) ? stored : 'build', buildSelection: null, buildPending: [], visit: 0 }
   })
   // Late asynchronous actions from a previous visit must not change the new selection.
-  const selectBuild = useCallback(selection => {
-    setNavigation(current => (current.page === 'build' && current.visit === visit && current.buildSelection !== selection
-      ? { ...current, buildSelection: selection }
-      : current))
+  const changeBuildVisit = useCallback(change => {
+    setNavigation(current => (current.page === 'build' && current.visit === visit ? change(current) : current))
   }, [visit])
+  const selectBuild = useCallback(selection => {
+    changeBuildVisit(current => (current.buildSelection === selection ? current : { ...current, buildSelection: selection }))
+  }, [changeBuildVisit])
+  const changeBuildPending = change => {
+    changeBuildVisit(current => ({ ...current, buildPending: change(current.buildPending) }))
+  }
   // Step the user chose to look at; null follows the first incomplete step.
   const [pinned, setPinned] = useState(null)
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false })
@@ -181,7 +185,7 @@ export function StudioPage({ ctx }) {
   const go = (id, selection = null) => {
     setNavigation(current => (id === current.page && selection === null
       ? current
-      : { page: id, buildSelection: id === 'build' ? selection : null, visit: current.visit + 1 }))
+      : { page: id, buildSelection: id === 'build' ? selection : null, buildPending: [], visit: current.visit + 1 }))
 
     try {
       ctx.storage.set('page', id)
@@ -335,8 +339,10 @@ export function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games and the current Build selection
+    // games and the Build visit: selection and locally started games not in the library yet
     buildSelection,
+    buildPending,
+    changeBuildPending,
     selectBuild,
     games,
     gameList,

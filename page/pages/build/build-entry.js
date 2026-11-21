@@ -14,6 +14,8 @@ export function Build({ shell }) {
     ctx: shell.ctx,
     games: shell.gameList,
     loaded: Boolean(shell.games.data),
+    localPending: shell.buildPending,
+    changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,
     onPlay: shell.play,
     onSelect: shell.selectBuild,

@@ -98,6 +98,22 @@ await runScenario(async helpers => {
       ctx.storage.set = store
     }
     await act(async () => { helpers.emit({ type: 'message.complete', session_id: 'runtime-from-shelf', payload: { text: 'Done.' } }) })
+    scenario.byMethod['session.resume'] = { running: false, open_requests: [] }
+    scenario.status = notLoaded
+    await studio.rerender()
+    scenario.games = initialGames // reconnect shows the cached library from before this game started
+    scenario.status = initialStatus
+    await studio.rerender()
+    check('an idle pending conversation stays open when reconnect first shows a stale library', () => {
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
+    scenario.games = answered({ ...initialGames.data, pending: [pending] })
+    await studio.rerender()
+    check('the fresh library keeps the same pending conversation open', () => {
+      assert.equal(dom.window.document.querySelector('.cs-b-user')?.textContent, idea)
+      assert.equal(scenario.storage.buildSelected, `pending:${pending.storedId}`)
+    })
     scenario.games = initialGames
     for (const method of ['session.create', 'plugin.hermretro.build', 'prompt.submit', 'session.resume']) delete scenario.byMethod[method]
     await tab('Games')
