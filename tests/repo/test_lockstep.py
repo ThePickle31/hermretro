@@ -162,9 +162,9 @@ class LockStep(unittest.TestCase):
 
     def test_the_manifest_declares_exactly_the_tools_and_hooks_registered(self):
         manifest = read("plugin.yaml")
-        declared = set(re.findall(r"^  - (chromatic_\w+)$", manifest, re.M))
-        self.assertEqual(declared, self.tools, "plugin.yaml provides_tools")
-        listed = re.findall(r"^  - (chromatic_\w+)$", manifest, re.M)
+        # Every entry, whatever its name: an unregistered one in the list must fail as much as a missing one.
+        listed = re.findall(r"^  - (\w+)$", manifest.split("provides_tools:")[1], re.M)
+        self.assertEqual(set(listed), self.tools, "plugin.yaml provides_tools")
         engine = [schema["name"] for schema in contracts.hermes_schemas()]
         # plugin-owned tools first, then the engine's in pinned order: the registration order Hermes sees.
         self.assertEqual(listed[-len(engine) :], engine, "plugin.yaml's tail is not the engine's pinned order")

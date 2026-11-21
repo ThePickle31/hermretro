@@ -74,6 +74,8 @@ await runScenario(async helpers => {
     assert.ok(!pageFrame(), 'the page dropped its frame'); assert.match(studio.node.textContent, /Playing beside the chat/)
     assert.ok([...studio.node.querySelectorAll('button')].some(node => node.textContent.includes('Bring it here')))
     assert.match(side.node.textContent, /Ask Hermes/); assert.match(side.node.textContent, /Captures/); assert.match(side.node.textContent, /Keyboard/)
+    const install = [...side.node.querySelectorAll('.cs-rp-bar button')].find(node => node.textContent.includes('Install'))
+    assert.ok(install, 'the real Install contribution renders in the tab\u2019s bar'); assert.ok(!install.disabled, 'with hardware on and the game built')
   })
   check('the note appears as a slim line above the player in the tab', () => {
     const note = side.node.querySelector('.cs-side-note')
