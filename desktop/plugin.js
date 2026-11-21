@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 bbf8d3d64beba0f0ff195f298d6f531d72d447cae7cd571d4b9ea94d31798ad7
- * body: sha256 cb7e2a4807c3f4cdfbc0d1ff0db6a127a83bdd3972390aa49ecad885642ae3fe
+ * sources: sha256 bf907025cdc62ea83f652ab5e0884fb09ab88a5a71452c5bd23c8458043821d6
+ * body: sha256 bb0445b70198f117f257e2105bbb116e886314b09547711861cd8ab0344a0944
  */
 // page/sdk.js
 import {
@@ -1939,28 +1939,28 @@ var nous_default = [
 // page/shared/art/providers/nous-dark.png
 var nous_dark_default = [
   "data:image/png;base64,",
-  "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"
+  "iVBORw0KGgoAAAANSUhEUgAAABoAAAAkCAYAAACXOioTAAAF2klEQVR42mWXa4hVdRTFf+vOmbnjOONoL8s0LaMs7f3AnhBB",
+  "VFREYFofiqD6EvSlsiAiKghJIqT6UNHDoHdEY2VPeheaYRaaZanUpPbQ8jHjODN37upD69hpunA4996z//+999prr/0/sr0P",
+  "8CBwNNAPdAAjwDAgYCwwCOwGuoCW2JHvjn0dKGJXz/OxwBJJ82V7cQyfzMPvgG7gYGAA+BKYBpwEvJf/TgZqwM44GwesB/6I",
+  "3bo43A94GPgI22ttd9nusd2wfa3t6bZHbN9s+zDba2wvtv2p7cL2Q7G9xPattnfanm37Pdtf2V4R28tsz7D9aQ1oSNoFrE10",
+  "Z0haDzSAVcDtwC5JVwNnAHOAD2P7RdZtDvTnAhcAC2M7DtgDjNQA2RbQFuiOsz0hqR8AzAZWx2YjcDYwJrWpA62BfnzuEyW9",
+  "GJi7YqcagCRXCnsIMAUYykYHJyMDO4BJ+V+xb8bZD9ljTgJ+JHuIFLT81FNEA6cmo1agPQsIE9tHrXMyXA5sA66zPS4ZLQ+L",
+  "m9UFrcAvQG8cNRLtcCIt6TyczauO6pJ+Bx4P3DdK2i5pVYL4j6MWYFeiOK1SyD+ATtu1YP57MnQlANtuAR4K5W+yPTVr/gdd",
+  "LcVcBhwF7ANsBb4Bpklqpn7fBFYBf6avDBSSeuNsPHBb1vzPUTNprqg4HkrDHW/7ztTgmeDfC9wIXA48DQwlgweA34BrbE+O",
+  "itRGF7UthNgTR5MlvQtcFXm5LJlODLsK4FVJ84GZwNmStgKLQq4rs1dL1VGZVTewJNcU2+cBJ4bmN+S+NTC/BKy3XYRdF2Wf",
+  "Z/N8dvSuUXU0Epy3Adelu99Phk9HeLcDrwHzJH0J/JjMzwpr59rukvRT1nWX/VZUHLUDdduTgBOAryX9Unm+GfjK9gfAK7aH",
+  "JD0KrLH9Q2AS8ILt24HpCaofKIoU8cDgvgk4ElgaJfi3gHZXanU8sBhYZPujFP6ikOIOYFaevw4siMqMyPaqiOFu4O6k+0I0",
+  "rTdi+S0wN/KzIAG9lTq+DxyamfUx8AlgSXsS4EnAwiJNtwOYHKYcleL3RgXejPPPgC8kLc0GPcBBoXsjjJ0CnCnpXdut+d+E",
+  "nmXPHArcN6ou2O6WtAN4Ob/bEsC9wIRs1Jke+x6YZrsdGJRk+58KFFnUHb5vyWbFP6KuYWC67S2StkTph2KzIRGXMlOX1G+7",
+  "H+gooSs/RYxKqW/arklq2D7H9raow7wU3sAGSTuS5V6hizb2A78C+0ae/qNvRWo0AhwhqWn7fOCJnBeuSMGvjw4+mc1rto+x",
+  "PSVolIPzN+DAUUJArTIpVwJH274hjdmTLK/MwsFkP76yfjAQN5JYEZGtZSJTimpRyn3w7UlPTAjlm2HS0ooAbym9SFpXcboL",
+  "6Ja0LU66EzBV9bZtRda/jzLMyvOW3Bux/bGcX7ZVibwv6lJO4rGjoUtwe5Wgniw/T2M6V2n7bRYMS3IoXDJvMDYbgalVH6VB",
+  "I2kpUb0NrAbWVEa6QpjVtltszxgVcBswYLueKVuvTIS9w+0g23PTeGMkrYzBeSFESxxtjyrPKEdCsiH77AY6JfWlVdoSqGqh",
+  "5gmVyMpzwD05IG6O/PSlT0ayeEPOCQ70Q4F/0HZn2NdRzagjcP0Ujfva9n6SNgOnA0dKOhOYB/wVwhyT382yXhUYh4PCprRF",
+  "E1CRAnbkvNALnB9n/ZIGgL4w8o2cu2dKetn2myFCET0bqTjbnfvEIEYt1/K8MZwTevdnLpW6h+1LgfuBt22fnL6TpEYuB7ph",
+  "SYOVo/Lehm3P5gPAYdGpU4BnU8xmopue6+do32Rgne3TE2R/arksxJiacuxfjvI60Cppne2dwIXABuBi4PnIC8D9yW5i3hT6",
+  "gPk5bJaftTkSrwYOkLTC9uHkTeLxMOe2ZNWew8ZgpmV3TqjHArfk5eqdDMoLU/wqY5/K5F0Z+B4DepSzwKJENhRcO1PQWuVQ",
+  "3x4NLNVi38o8oqIgyhAciAw9J+muvwE2TuttbePpQQAAAABJRU5ErkJggg=="
 ].join("");
 
 // page/shared/art/providers/fireworks.svg
@@ -2854,7 +2854,7 @@ var upstage_default = [
 
 // page/shared/art/providers/index.js
 var LOGOS = {
-  nous: { name: "Nous Research", light: nous_default, dark: nous_dark_default, source: "https://nousresearch.com/ (the header badge, drawn in the text colour: black, white on dark)" },
+  nous: { name: "Nous Research", light: nous_default, dark: nous_dark_default, source: "https://nousresearch.com/ (its header badge: filled on the light theme, outline on the dark, as the site does)" },
   fireworks: { name: "Fireworks AI", light: fireworks_default, dark: fireworks_default, source: "https://fireworks.ai/icon.svg" },
   openrouter: { name: "OpenRouter", light: openrouter_default, dark: openrouter_dark_default, source: "https://openrouter.ai/brand" },
   novita: { name: "Novita AI", light: novita_default, dark: novita_default, plate: "dark", source: "https://novita.ai/logo/logo_small.svg" },
