@@ -334,7 +334,12 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   `authenticated` ones with models), that provider's models (right; search covers every provider and
   names each match's provider; ids shown as names: `claude-opus-5-5[1m]` → "Claude Opus 5.5" + 1M tag,
   "fast mode" from `capabilities`), and an Effort row (Off only when the model can disable reasoning;
-  Minimal, Low, Medium, High, X-high, Max). Changes are per conversation, never the profile default:
+  Minimal, Low, Medium, High, X-high, Max). A ChatGPT or Codex Subscription (`openai-codex`) model whose
+  `capabilities` list `fast` also gets Speed (Normal / Fast) beside Effort; the panel widens to 720 px for it, and
+  where the window or the box that scrolls the composer is too narrow, Speed moves under Effort instead. Fast shows
+  as a bolt on the button and is sent as `config.set {key: 'fast', value: 'fast'|'normal'}` (from
+  `session.info.fast`); picking a model without fast mode sets it back to normal, because Hermes's priority tier
+  would also turn on another provider's own fast mode. Changes are per conversation, never the profile default:
   `config.set {session_id, key: 'model', value: '<model> --provider <slug> --session'}` and
   `{key: 'reasoning', value}`; the app's client turns both into `session.mutate` on the canonical
   gateway (a raw `config.set` model is refused there with `use_session_mutation_model`). The current
@@ -343,7 +348,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
   use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}`. A reply names its model when it differs from the message before.
+  reasoning_effort}` (plus `fast` for a ChatGPT or Codex Subscription model). A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
   follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn

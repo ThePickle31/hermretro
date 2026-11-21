@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 49859f270bd6f1fd926604b675484195aa0cf7e8752f85f973385103600167c2
- * body: sha256 3fe03fb40f96f4e1f8da3813565567bbab6b91b466cd9a3b9b44f233fa5c786e
+ * sources: sha256 7ee804f33693b7da6293218fedbc721f6dab8e54fd35648e429c154dfec1310b
+ * body: sha256 a520de702020447adfef810841924ba6c64d00b66ac951535f9e38815afd1876
  */
 // page/sdk.js
 import {
@@ -566,9 +566,146 @@ function withInfo(chat, info) {
   const next = {
     model: typeof info.model === "string" && info.model ? info.model : current.model ?? null,
     provider: typeof info.provider === "string" && info.provider ? info.provider : current.provider ?? null,
-    effort: typeof info.reasoning_effort === "string" ? info.reasoning_effort : current.effort ?? ""
+    effort: typeof info.reasoning_effort === "string" ? info.reasoning_effort : current.effort ?? "",
+    fast: typeof info.fast === "boolean" ? info.fast : current.fast ?? false
   };
-  return next.model === current.model && next.provider === current.provider && next.effort === current.effort ? chat : { ...chat, info: next };
+  return next.model === current.model && next.provider === current.provider && next.effort === current.effort && next.fast === current.fast ? chat : { ...chat, info: next };
+}
+
+// page/pages/build/chat/store.js
+var BUILD_VIEWING = atom(null);
+var BUILD_PRESENTED = atom({});
+function notePresented({ gameId, seq, note, t }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
+}
+var buildShowing = () => BUILD_VIEWING.get();
+var BUILD_INJECT = atom({});
+function injectBuildDraft(stored, text2) {
+  const all = BUILD_INJECT.get();
+  BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
+}
+var BUILD_CHATS = atom({});
+var buildRuntime = /* @__PURE__ */ new Map();
+var isBuildSession = (runtime) => buildRuntime.has(runtime);
+var buildRetained = /* @__PURE__ */ new Map();
+var BUILD_EVENTS = [
+  "message.start",
+  "message.delta",
+  "message.interim",
+  "message.complete",
+  "reasoning.delta",
+  "thinking.delta",
+  "status.update",
+  "tool.generating",
+  "tool.start",
+  "tool.progress",
+  "tool.complete",
+  "approval.request",
+  "clarify.request",
+  "approval.settled",
+  "clarify.settled",
+  "error",
+  "session.replay_gap",
+  "session.info"
+];
+var newId = () => typeof randomUuid === "function" ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+async function retainChatRoute() {
+  const route = studioTarget()?.route;
+  if (!route || typeof host.retainProfile !== "function") {
+    return;
+  }
+  const key = routeProfile(route) ?? "default";
+  if (buildRetained.has(key)) {
+    return;
+  }
+  try {
+    buildRetained.set(key, await host.retainProfile(route, { spawnPriority: "foreground" }));
+  } catch (error) {
+    console.warn("[hermretro] could not keep the studio profile connection open:", describeRequestError(error).message);
+  }
+}
+async function chatRequest(method, params = {}, timeoutMs) {
+  const target = studioTarget();
+  if (!target) {
+    throw new StudioProfileMissing();
+  }
+  const { route } = target;
+  return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
+}
+function patchChat(stored, change) {
+  const all = BUILD_CHATS.get();
+  const current = all[stored] ?? { stored, items: [], busy: false, segments: {} };
+  const next = change(current);
+  if (next !== current) {
+    BUILD_CHATS.set({ ...all, [stored]: next });
+  }
+}
+
+// page/pages/build/chat/model-pick.js
+var FAST_PROVIDER = "openai-codex";
+var hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true;
+async function pickBuildModel(stored, pick) {
+  const chat = BUILD_CHATS.get()[stored];
+  if (!chat?.runtime) {
+    return { ok: false };
+  }
+  patchChat(stored, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
+  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored);
+}
+async function applyBuildPick(stored, { confirmed = false } = {}) {
+  const chat = BUILD_CHATS.get()[stored];
+  const pick = chat?.heldPick;
+  if (!chat?.runtime || !pick || chat.applyingPick) {
+    return { ok: false };
+  }
+  patchChat(stored, (current) => ({ ...current, applyingPick: true }));
+  try {
+    if (pick.model && pick.provider) {
+      const answer = await chatRequest("config.set", {
+        session_id: chat.runtime,
+        key: "model",
+        value: `${pick.model} --provider ${pick.provider} --session`,
+        ...confirmed ? { confirm_expensive_model: true } : {}
+      });
+      if (answer?.confirm_required) {
+        patchChat(stored, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
+        return { ok: false, confirm: true };
+      }
+      patchChat(stored, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
+    }
+    if (pick.effort) {
+      await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
+      patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
+    }
+    if (typeof pick.fast === "boolean") {
+      await chatRequest("config.set", { session_id: chat.runtime, key: "fast", value: pick.fast ? "fast" : "normal" });
+      patchChat(stored, (current) => withInfo(current, { fast: pick.fast }));
+    }
+    patchChat(stored, (current) => {
+      const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
+      const newer = heldPick && heldPick !== pick ? heldPick : null;
+      return newer ? { ...rest, heldPick: newer } : rest;
+    });
+    const next = BUILD_CHATS.get()[stored];
+    if (next?.heldPick && !next.busy) {
+      void applyBuildPick(stored);
+    }
+    return { ok: true };
+  } catch (error) {
+    const { message } = describeRequestError(error);
+    patchChat(stored, (current) => {
+      const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
+      return rest;
+    });
+    host.notify({ kind: "error", message: `Could not switch: ${message}` });
+    return { ok: false };
+  }
+}
+function cancelBuildPick(stored) {
+  patchChat(stored, (current) => {
+    const { heldPick: _held, pickConfirm: _confirm, applyingPick: _applying, ...rest } = current;
+    return rest;
+  });
 }
 
 // page/pages/build/chat/history.js
@@ -874,136 +1011,6 @@ function reduceChat(chat, event) {
   }
 }
 
-// page/pages/build/chat/store.js
-var BUILD_VIEWING = atom(null);
-var BUILD_PRESENTED = atom({});
-function notePresented({ gameId, seq, note, t }) {
-  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
-}
-var buildShowing = () => BUILD_VIEWING.get();
-var BUILD_INJECT = atom({});
-function injectBuildDraft(stored, text2) {
-  const all = BUILD_INJECT.get();
-  BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
-}
-var BUILD_CHATS = atom({});
-var buildRuntime = /* @__PURE__ */ new Map();
-var isBuildSession = (runtime) => buildRuntime.has(runtime);
-var buildRetained = /* @__PURE__ */ new Map();
-var BUILD_EVENTS = [
-  "message.start",
-  "message.delta",
-  "message.interim",
-  "message.complete",
-  "reasoning.delta",
-  "thinking.delta",
-  "status.update",
-  "tool.generating",
-  "tool.start",
-  "tool.progress",
-  "tool.complete",
-  "approval.request",
-  "clarify.request",
-  "approval.settled",
-  "clarify.settled",
-  "error",
-  "session.replay_gap",
-  "session.info"
-];
-var newId = () => typeof randomUuid === "function" ? randomUuid() : globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-async function retainChatRoute() {
-  const route = studioTarget()?.route;
-  if (!route || typeof host.retainProfile !== "function") {
-    return;
-  }
-  const key = routeProfile(route) ?? "default";
-  if (buildRetained.has(key)) {
-    return;
-  }
-  try {
-    buildRetained.set(key, await host.retainProfile(route, { spawnPriority: "foreground" }));
-  } catch (error) {
-    console.warn("[hermretro] could not keep the studio profile connection open:", describeRequestError(error).message);
-  }
-}
-async function chatRequest(method, params = {}, timeoutMs) {
-  const target = studioTarget();
-  if (!target) {
-    throw new StudioProfileMissing();
-  }
-  const { route } = target;
-  return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
-}
-function patchChat(stored, change) {
-  const all = BUILD_CHATS.get();
-  const current = all[stored] ?? { stored, items: [], busy: false, segments: {} };
-  const next = change(current);
-  if (next !== current) {
-    BUILD_CHATS.set({ ...all, [stored]: next });
-  }
-}
-
-// page/pages/build/chat/model-pick.js
-async function pickBuildModel(stored, pick) {
-  const chat = BUILD_CHATS.get()[stored];
-  if (!chat?.runtime) {
-    return { ok: false };
-  }
-  patchChat(stored, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
-  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored);
-}
-async function applyBuildPick(stored, { confirmed = false } = {}) {
-  const chat = BUILD_CHATS.get()[stored];
-  const pick = chat?.heldPick;
-  if (!chat?.runtime || !pick || chat.applyingPick) {
-    return { ok: false };
-  }
-  patchChat(stored, (current) => ({ ...current, applyingPick: true }));
-  try {
-    if (pick.model && pick.provider) {
-      const answer = await chatRequest("config.set", {
-        session_id: chat.runtime,
-        key: "model",
-        value: `${pick.model} --provider ${pick.provider} --session`,
-        ...confirmed ? { confirm_expensive_model: true } : {}
-      });
-      if (answer?.confirm_required) {
-        patchChat(stored, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
-        return { ok: false, confirm: true };
-      }
-      patchChat(stored, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
-    }
-    if (pick.effort) {
-      await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
-      patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
-    }
-    patchChat(stored, (current) => {
-      const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
-      const newer = heldPick && heldPick !== pick ? heldPick : null;
-      return newer ? { ...rest, heldPick: newer } : rest;
-    });
-    const next = BUILD_CHATS.get()[stored];
-    if (next?.heldPick && !next.busy) {
-      void applyBuildPick(stored);
-    }
-    return { ok: true };
-  } catch (error) {
-    const { message } = describeRequestError(error);
-    patchChat(stored, (current) => {
-      const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
-      return rest;
-    });
-    host.notify({ kind: "error", message: `Could not switch: ${message}` });
-    return { ok: false };
-  }
-}
-function cancelBuildPick(stored) {
-  patchChat(stored, (current) => {
-    const { heldPick: _held, pickConfirm: _confirm, applyingPick: _applying, ...rest } = current;
-    return rest;
-  });
-}
-
 // page/pages/build/chat/requests.js
 var promptChecks = /* @__PURE__ */ new Map();
 function toolRunning(chat) {
@@ -1111,7 +1118,8 @@ async function createBuildChat(title, pick = null) {
   await retainChatRoute();
   const choice = {
     ...pick?.model && pick?.provider ? { model: pick.model, provider: pick.provider } : {},
-    ...pick?.effort ? { reasoning_effort: pick.effort } : {}
+    ...pick?.effort ? { reasoning_effort: pick.effort } : {},
+    ...typeof pick?.fast === "boolean" && pick?.provider === FAST_PROVIDER ? { fast: pick.fast } : {}
   };
   const result = await chatRequest("session.create", { hidden: true, title, source: "gui", ...choice }, 6e4);
   const stored = result?.stored_session_id ?? result?.session_id;
@@ -1120,7 +1128,7 @@ async function createBuildChat(title, pick = null) {
     throw new Error("Hermes did not return a session.");
   }
   buildRuntime.set(runtime, stored);
-  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort }), runtime, title, items: [] }));
+  patchChat(stored, (chat) => ({ ...withInfo(chat, result?.info ?? { model: choice.model, provider: choice.provider, reasoning_effort: choice.reasoning_effort, fast: choice.fast }), runtime, title, items: [] }));
   return stored;
 }
 async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
@@ -1867,7 +1875,89 @@ function modelName(id) {
 }
 var providerMark = (name) => (String(name ?? "?").replace(/[^A-Za-z0-9]/g, "")[0] ?? "?").toUpperCase();
 
+// page/pages/build/composer/model-settings.js
+var FAST_HINT = "Quicker, uses more of your plan";
+function ModelSettings({ caps, shown, speed, beside, disabled, onEffort, onFast }) {
+  const fixedEffort = caps ? caps.reasoning === false : false;
+  const efforts = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
+  const effortGroup = jsxs("div", {
+    className: "cs-b-mp-group cs-b-mp-effortgroup",
+    children: [
+      jsxs("div", {
+        className: "cs-row",
+        children: [
+          jsx("span", { className: "cs-eyebrow", children: "Effort" }),
+          jsx("span", { className: "cs-grow" }),
+          jsx("span", { className: "cs-faint", children: fixedEffort ? "This model has a fixed effort" : EFFORTS.find(([key]) => key === shown.effort)?.[2] ?? "The model’s default" })
+        ]
+      }),
+      jsx("div", {
+        "aria-label": "Effort",
+        className: "cs-b-seg",
+        role: "radiogroup",
+        children: efforts.map(
+          ([key, label]) => jsx(
+            "button",
+            {
+              "aria-checked": shown.effort === key,
+              disabled: disabled || fixedEffort,
+              onClick: () => key !== shown.effort && onEffort(key),
+              role: "radio",
+              type: "button",
+              children: label
+            },
+            key
+          )
+        )
+      })
+    ]
+  });
+  const speedGroup = speed ? jsxs("div", {
+    className: "cs-b-mp-group cs-b-mp-speed",
+    children: [
+      jsxs("div", {
+        className: "cs-row",
+        children: [
+          jsx("span", { className: "cs-eyebrow", children: "Speed" }),
+          beside ? null : jsx("span", { className: "cs-grow" }),
+          beside ? null : jsx("span", { className: "cs-faint", children: shown.fast ? FAST_HINT : "Standard speed" })
+        ]
+      }),
+      jsx("div", {
+        "aria-label": "Speed",
+        className: "cs-b-seg",
+        role: "radiogroup",
+        children: [
+          ["normal", false, "Normal", "Standard speed"],
+          ["fast", true, jsxs("span", { className: "cs-b-mp-fastlabel", children: [jsx(Codicon, { name: "zap", size: 11 }), "Fast"] }), FAST_HINT]
+        ].map(
+          ([key, on, label, title]) => jsx(
+            "button",
+            {
+              "aria-checked": shown.fast === on,
+              className: on ? "cs-b-mp-fast" : void 0,
+              disabled,
+              onClick: () => on !== shown.fast && onFast(on, { model: shown.model, provider: shown.provider }),
+              role: "radio",
+              title,
+              type: "button",
+              children: label
+            },
+            key
+          )
+        )
+      })
+    ]
+  }) : null;
+  return jsxs("div", {
+    className: `cs-b-mp-effort${speed && beside ? " beside" : ""}`,
+    children: [effortGroup, speedGroup]
+  });
+}
+
 // page/pages/build/composer/model-picker.js
+var PANEL = 580;
+var PANEL_WITH_SPEED = 720;
 function useModelOptions(runtime) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
@@ -1879,7 +1969,20 @@ function useModelOptions(runtime) {
     retry: 1
   });
 }
-function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function panelArea(node) {
+  let start = 0;
+  let end = window.innerWidth || 1200;
+  for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    const rect = parent.getBoundingClientRect();
+    if (rect.width > 0 && getComputedStyle(parent).overflowX !== "visible") {
+      start = Math.max(start, rect.left);
+      end = Math.min(end, rect.right);
+      break;
+    }
+  }
+  return [start, end];
+}
+function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
@@ -1887,12 +1990,11 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
-  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? "" };
+  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? "", fast: held?.fast ?? value?.fast ?? false };
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
   const caps = current?.capabilities?.[shown.model] ?? null;
-  const fixedEffort = caps ? caps.reasoning === false : false;
-  const efforts = EFFORTS.filter(([key]) => key !== "none" || caps?.can_disable_reasoning !== false);
+  const speed = hasFastMode(shown.provider, caps);
   const activeTab = providers.find((item) => item.slug === tab) ? tab : current?.slug ?? providers[0]?.slug ?? null;
   const needle = query.trim().toLowerCase();
   const rows = useMemo(() => {
@@ -1909,11 +2011,13 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
       return;
     }
     const left = box.current.getBoundingClientRect().left;
-    const room = (window.innerWidth || 1200) - 24;
-    const width = Math.min(580, room);
-    const shift = Math.min(0, room + 12 - left - width);
-    setPlace({ left: shift, width });
-  }, [open]);
+    const [start, end] = panelArea(box.current);
+    const room = end - start - 24;
+    const beside = speed && room >= PANEL_WITH_SPEED;
+    const width = Math.min(beside ? PANEL_WITH_SPEED : PANEL, room);
+    const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width));
+    setPlace({ left: shift, width, beside });
+  }, [open, speed]);
   useEffect(() => {
     if (!open) {
       return void 0;
@@ -1951,41 +2055,9 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
   const choose = (row) => {
     setOpen(false);
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider });
+      onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} });
     }
   };
-  const effortRow = jsxs("div", {
-    className: "cs-b-mp-effort",
-    children: [
-      jsxs("div", {
-        className: "cs-row",
-        children: [
-          jsx("span", { className: "cs-eyebrow", children: "Effort" }),
-          jsx("span", { className: "cs-grow" }),
-          jsx("span", { className: "cs-faint", children: fixedEffort ? "This model has a fixed effort" : EFFORTS.find(([key]) => key === shown.effort)?.[2] ?? "The model’s default" })
-        ]
-      }),
-      jsx("div", {
-        "aria-label": "Effort",
-        className: "cs-b-seg",
-        role: "radiogroup",
-        children: efforts.map(
-          ([key, label]) => jsx(
-            "button",
-            {
-              "aria-checked": shown.effort === key,
-              disabled: disabled || fixedEffort,
-              onClick: () => key !== shown.effort && onEffort(key),
-              role: "radio",
-              type: "button",
-              children: label
-            },
-            key
-          )
-        )
-      })
-    ]
-  });
   return jsxs("div", {
     className: "cs-b-mp",
     ref: box,
@@ -2003,6 +2075,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
           jsx("span", { className: "cs-b-mp-name", children: signedOut ? `${shown.provider} is signed out` : name }),
           !signedOut ? jsx("span", { className: "cs-b-mp-dot", children: "·" }) : null,
           !signedOut ? jsx("span", { className: "cs-b-mp-effortname", children: effortLabel(shown.effort) }) : null,
+          !signedOut && shown.fast ? jsx("span", { "aria-label": "Fast mode", className: "cs-b-mp-bolt", role: "img", title: "Fast mode", children: jsx(Codicon, { name: "zap", size: 11 }) }) : null,
           held ? jsx("span", { className: "cs-b-mp-next", title: `Switches when ${AGENT} finishes this turn`, children: "next message" }) : null,
           jsx(Codicon, { name: "chevron-down", size: 11 })
         ]
@@ -2115,7 +2188,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
                       );
                     }) : jsx("p", { className: "cs-faint", children: needle ? "No model matches." : "Pick a provider." })
                   }),
-                  effortRow
+                  jsx(ModelSettings, { beside: Boolean(place?.beside), caps, disabled, onEffort, onFast, shown, speed })
                 ]
               })
             ]
@@ -2135,6 +2208,7 @@ function ChatModelPicker({ stored, chat, disabled }) {
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: (effort) => void pickBuildModel(stored, { effort }),
+    onFast: (fast) => void pickBuildModel(stored, { fast }),
     onPick: (pick) => void pickBuildModel(stored, pick),
     options,
     value: chat?.info ?? null
@@ -2145,6 +2219,8 @@ function DraftModelPicker({ ctx, pick, onPick, up = true }) {
   return jsx(ModelPicker, {
     up,
     onEffort: (effort) => onPick({ ...pick, effort }),
+    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
+    onFast: (fast, at) => onPick({ ...pick, ...at.model && at.provider ? at : {}, fast }),
     onPick: (choice) => onPick({ ...pick, ...choice }),
     options,
     value: pick
@@ -12658,7 +12734,17 @@ var MODEL_PICKER_CSS = `
 .cs-b-mp-label { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-b-mp-label small { color: var(--ui-text-quaternary); font-size: 10.5px; }
 .cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
-.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; }
+.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; }
+.cs-b-mp-effort.beside { flex-direction: row; gap: 14px; }
+.cs-b-mp-group { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.cs-b-mp-effortgroup { flex: 1; }
+.cs-b-mp-group > .cs-row { gap: 8px; min-height: 17px; min-width: 0; white-space: nowrap; }
+.cs-b-mp-group > .cs-row > .cs-faint { overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-effort.beside .cs-b-mp-speed { flex: none; }
+.cs-b-mp-speed .cs-b-seg button { padding: 5px 12px; white-space: nowrap; }
+.cs-b-mp-fastlabel { align-items: center; display: inline-flex; gap: 4px; justify-content: center; vertical-align: top; }
+.cs-b-seg button.cs-b-mp-fast[aria-checked='true'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-yellow); }
+.cs-b-mp-bolt { align-items: center; color: var(--ui-yellow); display: inline-flex; flex: none; }
 .cs-b-seg { background: var(--ui-bg-quaternary); border-radius: 8px; display: flex; gap: 2px; padding: 2px; }
 .cs-b-seg button { appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; flex: 1; font: inherit; font-size: 11.5px; padding: 5px 0; transition: background .12s ease, color .12s ease; }
 .cs-b-seg button:hover:not(:disabled) { color: var(--ui-text-primary); }
@@ -12731,10 +12817,13 @@ var HEADER_CSS = `
 // page/pages/build/new-game.css.js
 var NEW_GAME_CSS = `
 /* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
-   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
-.cs-b-new .cs-title { margin: 0; text-align: center; }
-.cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title). The box that
+   scrolls is wider than what it shows, so the model panel (up to 720 px, from the model button) fits inside it. */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 840px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+.cs-b-new { --cs-b-new-w: calc(680px - 2 * clamp(14px, 3cqi, 28px)); }
+.cs-b-new > :not(.cs-title) { box-sizing: border-box; margin-inline: auto; max-width: var(--cs-b-new-w); width: 100%; }
+.cs-b-new .cs-title { margin: 0; max-width: var(--cs-b-new-w); text-align: center; }
+.cs-b-new .cs-b-comp { margin: 0 auto; max-width: var(--cs-b-new-w); width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }
 .cs-b-opts { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
 @container (max-width: 560px) { .cs-b-opts { grid-template-columns: 1fr; } }

@@ -2,10 +2,13 @@ import { MONO } from '#shared/styles/tokens.js'
 
 export const NEW_GAME_CSS = `
 /* New Game: the Build page's composer, centred, with the two ways to start under it (centred only while it fits:
-   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title) */
-.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 680px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
-.cs-b-new .cs-title { margin: 0; text-align: center; }
-.cs-b-new .cs-b-comp { margin: 0; max-width: none; width: 100%; }
+   "safe" starts it at the top when it is taller than the area, so scrolling reaches the title). The box that
+   scrolls is wider than what it shows, so the model panel (up to 720 px, from the model button) fits inside it. */
+.cs-b-new { box-sizing: border-box; display: flex; flex: 1; flex-direction: column; gap: 18px; justify-content: safe center; margin: 0 auto; max-width: 840px; min-height: 0; overflow: auto; padding: 24px clamp(14px, 3cqi, 28px); width: 100%; }
+.cs-b-new { --cs-b-new-w: calc(680px - 2 * clamp(14px, 3cqi, 28px)); }
+.cs-b-new > :not(.cs-title) { box-sizing: border-box; margin-inline: auto; max-width: var(--cs-b-new-w); width: 100%; }
+.cs-b-new .cs-title { margin: 0; max-width: var(--cs-b-new-w); text-align: center; }
+.cs-b-new .cs-b-comp { margin: 0 auto; max-width: var(--cs-b-new-w); width: 100%; }
 .cs-b-new .cs-b-comp textarea { max-height: 220px; min-height: 66px; }
 .cs-b-opts { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
 @container (max-width: 560px) { .cs-b-opts { grid-template-columns: 1fr; } }

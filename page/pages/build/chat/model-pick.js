@@ -4,7 +4,12 @@ import { describeRequestError } from '#app/backend.js'
 import { withInfo } from './steps.js'
 import { BUILD_CHATS, chatRequest, patchChat } from './store.js'
 
-/** Change the model (`{model, provider}`) and/or effort (`{effort}`) of a conversation. Picked while
+/** Fast mode (OpenAI's priority tier) is offered only for ChatGPT or Codex Subscription models that list it
+ *  (`model.options` `capabilities[model].fast`). */
+export const FAST_PROVIDER = 'openai-codex'
+export const hasFastMode = (provider, caps) => provider === FAST_PROVIDER && caps?.fast === true
+
+/** Change the model (`{model, provider}`), effort (`{effort}`) and/or fast mode (`{fast}`) of a conversation. Picked while
  *  HermRetro works, it is held and applied when the turn ends, so it never cuts into the work. */
 export async function pickBuildModel(stored, pick) {
   const chat = BUILD_CHATS.get()[stored]
@@ -50,6 +55,12 @@ export async function applyBuildPick(stored, { confirmed = false } = {}) {
     if (pick.effort) {
       await chatRequest('config.set', { session_id: chat.runtime, key: 'reasoning', value: pick.effort })
       patchChat(stored, current => withInfo(current, { reasoning_effort: pick.effort }))
+    }
+
+    // After the model, so fast mode is checked against the model it will run on.
+    if (typeof pick.fast === 'boolean') {
+      await chatRequest('config.set', { session_id: chat.runtime, key: 'fast', value: pick.fast ? 'fast' : 'normal' })
+      patchChat(stored, current => withInfo(current, { fast: pick.fast }))
     }
 
     patchChat(stored, current => {

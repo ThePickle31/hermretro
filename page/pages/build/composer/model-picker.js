@@ -1,4 +1,4 @@
-// Model and effort: one button, one panel.
+// Model, effort and (ChatGPT or Codex Subscription models) speed: one button, one panel.
 import {
   Button,
   Codicon,
@@ -13,10 +13,15 @@ import {
   useState,
   useValue
 } from '#sdk'
-import { applyBuildPick, cancelBuildPick, pickBuildModel } from '#pages/build/chat/model-pick.js'
+import { applyBuildPick, cancelBuildPick, hasFastMode, pickBuildModel } from '#pages/build/chat/model-pick.js'
 import { chatRequest } from '#pages/build/chat/store.js'
 import { AGENT, ID } from '#app/ids.js'
-import { effortLabel, EFFORTS, modelName, providerMark } from './model-names.js'
+import { effortLabel, modelName, providerMark } from './model-names.js'
+import { ModelSettings } from './model-settings.js'
+
+// The panel's width: wide enough beside Speed for the Effort buttons to keep their usual width.
+const PANEL = 580
+const PANEL_WITH_SPEED = 720
 
 /** The connected providers and their models (`model.options`), for a conversation or the profile. */
 function useModelOptions(runtime) {
@@ -32,7 +37,27 @@ function useModelOptions(runtime) {
   })
 }
 
-function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+/** The left and right edges the panel must stay within: the window, narrowed by the nearest box that clips or
+ *  scrolls sideways. */
+function panelArea(node) {
+  let start = 0
+  let end = window.innerWidth || 1200
+
+  for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    const rect = parent.getBoundingClientRect()
+
+    if (rect.width > 0 && getComputedStyle(parent).overflowX !== 'visible') {
+      start = Math.max(start, rect.left)
+      end = Math.min(end, rect.right)
+
+      break
+    }
+  }
+
+  return [start, end]
+}
+
+function ModelPicker({ value, held = null, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState(null)
   const [query, setQuery] = useState('')
@@ -40,12 +65,11 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
   const search = useRef(null)
   const data = options?.data
   const providers = useMemo(() => (Array.isArray(data?.providers) ? data.providers.filter(item => item?.authenticated && Array.isArray(item.models) && item.models.length) : []), [data])
-  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? '' }
+  const shown = { model: held?.model ?? value?.model ?? data?.model ?? null, provider: held?.provider ?? value?.provider ?? data?.provider ?? null, effort: held?.effort ?? value?.effort ?? '', fast: held?.fast ?? value?.fast ?? false }
   const current = providers.find(item => item.slug === shown.provider) ?? null
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers))
   const caps = current?.capabilities?.[shown.model] ?? null
-  const fixedEffort = caps ? caps.reasoning === false : false
-  const efforts = EFFORTS.filter(([key]) => key !== 'none' || caps?.can_disable_reasoning !== false)
+  const speed = hasFastMode(shown.provider, caps)
   const activeTab = providers.find(item => item.slug === tab) ? tab : (current?.slug ?? providers[0]?.slug ?? null)
   const needle = query.trim().toLowerCase()
   const rows = useMemo(() => {
@@ -58,7 +82,8 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
     )
   }, [providers, activeTab, needle])
   const name = shown.model ? modelName(shown.model).name : 'Default model'
-  // The panel opens from the button and stays inside the window: on a narrow one it moves left and narrows.
+  // The panel opens from the button and stays inside the window and the box that scrolls it (New Game's form
+  // scrolls sideways when a panel sticks out of it): where there is too little room it moves left and narrows.
   const [place, setPlace] = useState(null)
 
   useLayoutEffect(() => {
@@ -69,12 +94,15 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
     }
 
     const left = box.current.getBoundingClientRect().left
-    const room = (window.innerWidth || 1200) - 24
-    const width = Math.min(580, room)
-    const shift = Math.min(0, room + 12 - left - width)
+    const [start, end] = panelArea(box.current)
+    const room = end - start - 24
+    // Speed sits beside Effort when there is room for the wider panel, else on its own line under it.
+    const beside = speed && room >= PANEL_WITH_SPEED
+    const width = Math.min(beside ? PANEL_WITH_SPEED : PANEL, room)
+    const shift = Math.max(start + 12 - left, Math.min(0, end - 12 - left - width))
 
-    setPlace({ left: shift, width })
-  }, [open])
+    setPlace({ left: shift, width, beside })
+  }, [open, speed])
 
   useEffect(() => {
     if (!open) {
@@ -123,42 +151,11 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
     setOpen(false)
 
     if (row.model !== shown.model || row.provider !== shown.provider) {
-      onPick({ model: row.model, provider: row.provider })
+      // Leaving fast mode on would carry Hermes's priority tier to a model without the switch (Anthropic and
+      // xAI read it as their own fast mode), so a model without it goes back to normal.
+      onPick({ model: row.model, provider: row.provider, ...(shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {}) })
     }
   }
-
-  const effortRow = jsxs('div', {
-    className: 'cs-b-mp-effort',
-    children: [
-      jsxs('div', {
-        className: 'cs-row',
-        children: [
-          jsx('span', { className: 'cs-eyebrow', children: 'Effort' }),
-          jsx('span', { className: 'cs-grow' }),
-          jsx('span', { className: 'cs-faint', children: fixedEffort ? 'This model has a fixed effort' : (EFFORTS.find(([key]) => key === shown.effort)?.[2] ?? 'The model\u2019s default') })
-        ]
-      }),
-      jsx('div', {
-        'aria-label': 'Effort',
-        className: 'cs-b-seg',
-        role: 'radiogroup',
-        children: efforts.map(([key, label]) =>
-          jsx(
-            'button',
-            {
-              'aria-checked': shown.effort === key,
-              disabled: disabled || fixedEffort,
-              onClick: () => key !== shown.effort && onEffort(key),
-              role: 'radio',
-              type: 'button',
-              children: label
-            },
-            key
-          )
-        )
-      })
-    ]
-  })
 
   return jsxs('div', {
     className: 'cs-b-mp',
@@ -177,6 +174,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
           jsx('span', { className: 'cs-b-mp-name', children: signedOut ? `${shown.provider} is signed out` : name }),
           !signedOut ? jsx('span', { className: 'cs-b-mp-dot', children: '·' }) : null,
           !signedOut ? jsx('span', { className: 'cs-b-mp-effortname', children: effortLabel(shown.effort) }) : null,
+          !signedOut && shown.fast ? jsx('span', { 'aria-label': 'Fast mode', className: 'cs-b-mp-bolt', role: 'img', title: 'Fast mode', children: jsx(Codicon, { name: 'zap', size: 11 }) }) : null,
           held ? jsx('span', { className: 'cs-b-mp-next', title: `Switches when ${AGENT} finishes this turn`, children: 'next message' }) : null,
           jsx(Codicon, { name: 'chevron-down', size: 11 })
         ]
@@ -295,7 +293,7 @@ function ModelPicker({ value, held = null, confirm = null, options, onPick, onEf
                             })
                           : jsx('p', { className: 'cs-faint', children: needle ? 'No model matches.' : 'Pick a provider.' })
                       }),
-                      effortRow
+                      jsx(ModelSettings, { beside: Boolean(place?.beside), caps, disabled, onEffort, onFast, shown, speed })
                     ]
                   })
                 ]
@@ -319,6 +317,7 @@ export function ChatModelPicker({ stored, chat, disabled }) {
     onCancelConfirm: () => cancelBuildPick(stored),
     onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
     onEffort: effort => void pickBuildModel(stored, { effort }),
+    onFast: fast => void pickBuildModel(stored, { fast }),
     onPick: pick => void pickBuildModel(stored, pick),
     options,
     value: chat?.info ?? null
@@ -333,6 +332,8 @@ export function DraftModelPicker({ ctx, pick, onPick, up = true }) {
   return jsx(ModelPicker, {
     up,
     onEffort: effort => onPick({ ...pick, effort }),
+    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
+    onFast: (fast, at) => onPick({ ...pick, ...(at.model && at.provider ? at : {}), fast }),
     onPick: choice => onPick({ ...pick, ...choice }),
     options,
     value: pick

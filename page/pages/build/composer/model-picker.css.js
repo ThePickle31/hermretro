@@ -32,7 +32,17 @@ export const MODEL_PICKER_CSS = `
 .cs-b-mp-label { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-b-mp-label small { color: var(--ui-text-quaternary); font-size: 10.5px; }
 .cs-b-mp-tag { border: 1px solid var(--ui-stroke-secondary); border-radius: 4px; color: var(--ui-text-tertiary); flex: none; font-size: 10px; line-height: 15px; padding: 0 5px; }
-.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; }
+.cs-b-mp-effort { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; }
+.cs-b-mp-effort.beside { flex-direction: row; gap: 14px; }
+.cs-b-mp-group { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.cs-b-mp-effortgroup { flex: 1; }
+.cs-b-mp-group > .cs-row { gap: 8px; min-height: 17px; min-width: 0; white-space: nowrap; }
+.cs-b-mp-group > .cs-row > .cs-faint { overflow: hidden; text-overflow: ellipsis; }
+.cs-b-mp-effort.beside .cs-b-mp-speed { flex: none; }
+.cs-b-mp-speed .cs-b-seg button { padding: 5px 12px; white-space: nowrap; }
+.cs-b-mp-fastlabel { align-items: center; display: inline-flex; gap: 4px; justify-content: center; vertical-align: top; }
+.cs-b-seg button.cs-b-mp-fast[aria-checked='true'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-yellow); }
+.cs-b-mp-bolt { align-items: center; color: var(--ui-yellow); display: inline-flex; flex: none; }
 .cs-b-seg { background: var(--ui-bg-quaternary); border-radius: 8px; display: flex; gap: 2px; padding: 2px; }
 .cs-b-seg button { appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-tertiary); cursor: pointer; flex: 1; font: inherit; font-size: 11.5px; padding: 5px 0; transition: background .12s ease, color .12s ease; }
 .cs-b-seg button:hover:not(:disabled) { color: var(--ui-text-primary); }
