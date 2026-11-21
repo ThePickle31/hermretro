@@ -1,16 +1,15 @@
 """`new` on a copy of the real repository: the generated code passes the repository's own checks.
 
 The slow tests run only with RD_SCAFFOLD_FULL set (`python tools/check.py scaffold`). Each uses a short-lived Git
-copy and borrows the installed tools (.dev/py and tools/npm/node_modules). The primary guard runs STEPS, which
-exercises every `new` kind, then judges the result with lint, bundle, selected structure and generated tests,
-and the page tests those scaffolds affect.
+copy and borrows the installed tools (.dev/py and tools/npm/node_modules). The primary guard prepares a copy
+where Setup already has tabs, History already listens to library.game_presented and its README lists another RPC
+module. It makes only the missing pieces, fills their placeholders and commits that starting point. It then runs
+STEPS for every `new` kind, followed by lint, bundle, selected structure and generated tests, and the page tests
+those scaffolds affect.
 
-CI sets RD_SCAFFOLD_FULL=nested. The same guard first prepares a copy where Setup already has tabs, History
-already listens to library.game_presented and its README already lists an RPC module besides rpcs.py. It makes
-only the missing pieces, fills their placeholders and commits that starting point. The guard then scaffolds against
-real features and pages as well as the probes, and runs the full lint, bundle, unit and page suites in that one
-copy. This catches tests tied to the current tree's shape. The placeholder gate is off only for the full unit run
-on unfilled stubs, not on the branch the guard is testing.
+CI sets RD_SCAFFOLD_FULL=nested. The same guard scaffolds against real features and pages as well as the probes,
+and runs the full lint, bundle, unit and page suites in that one copy. This catches tests tied to the current tree's
+shape. The placeholder gate is off for the full unit run on unfilled stubs, not on the branch the guard is testing.
 
 The separate check-wiring test adds a listener without checks, then runs `new rpc` with its own checks in the same
 copy. It proves unrelated lint errors are diagnosed correctly, no unit pass is cached, and the normal placeholder
@@ -265,8 +264,8 @@ class GeneratedCodePassesTheRealChecks(unittest.TestCase):
     def test_new_writes_code_that_passes_the_repository_checks(self):
         _, tree, env = self.make_tree()
         mode = os.environ.get("RD_SCAFFOLD_FULL", "")
+        self.grow(tree, env)
         if mode == "nested":
-            self.grow(tree, env)
             # Hand edits a branch makes: pins of those lines fail here.
             self.assertTrue(note_feature_readmes(tree))
         steps = STEPS + (real_steps(tree) if mode == "nested" else [])

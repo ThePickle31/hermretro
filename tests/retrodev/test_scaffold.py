@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 import retrodev
-from retrodev import count_words, repo, scaffold, scaffold_listener
+from retrodev import count_words, repo, scaffold, scaffold_listener, state
 
 from tests.repo import test_lockstep
 from tests.retrodev.fixture import RepoCase, git, parallel, write
@@ -88,6 +88,17 @@ class ScaffoldCase(RepoCase):
 
 
 class New(ScaffoldCase):
+    def test_a_successful_listener_checks_unit_without_retaining_the_pass(self):
+        self.new("feature", "rdcheck", "--purpose", "Tests checked scaffolds.")
+        self.new("event", "history", "rdcheck_ready", "--when", "the wiring test is ready")
+        branch = "feat/grow"
+        before = state.load_branch(self.tree, branch)
+        self.clear_log()
+        code, said = self.run_cli("new", "listener", "rdcheck", "history.rdcheck_ready", cwd=self.tree)
+        self.assertEqual(code, 0, said)
+        self.assertIn("unit", [name for entry in self.check_log() for name in entry["names"]])
+        self.assertEqual(state.load_branch(self.tree, branch), before)
+
     def test_a_feature_gets_its_folder_tests_and_every_registry_line(self):
         out = self.new("feature", "rdprobe", "--purpose", "Demonstrates new.")
         self.assertEqual(
