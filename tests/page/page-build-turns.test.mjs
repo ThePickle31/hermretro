@@ -376,7 +376,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await click('Send', build14c.node.querySelector('.cs-b-comp'))
   await settle()
   check('the next message makes a new conversation and replaces the removed one', () => {
-    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: `st-new-${created}`, replace: true })
+    assert.deepEqual(buildCalls.at(-1), { action: 'bind', game: 'fff666fff666', stored: `st-new-${created}`, replace: 'st-gone' })
     assert.equal(submits.at(-1).text, 'start again')
   })
   await build14c.close()

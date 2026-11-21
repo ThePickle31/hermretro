@@ -140,12 +140,14 @@ the profile's session database (`null` when unknown).
 
 Params name the session `stored`, never `session_id` (the gateway would authorize it as live):
 `{action: "start", stored, name?, plan?}` → `{ok, pending}`; `{action: "bind", game, stored,
-replace?}` → `{ok, game, session}` (`replace` swaps a conversation that was removed);
+replace?}` → `{ok, game, session}` (`replace` is the stored id of the conversation the page saw was
+removed, and the swap happens only while the game is still bound to exactly that one; omit it otherwise);
 `{action: "cancel", stored}` → `{ok, cancelled}`; `{action: "unbind", game, stored}` → `{ok, unbound}`
 (only when `stored` is the game's current conversation, so a stale page cannot drop a newer one). Failures are `{ok: false, code, error}` with
-`code` one of `INVALID`, `NO_GAME`, `BOUND` (the session belongs to another game),
-`HAS_CONVERSATION` (the game has another session and `replace` was not set) and `OTHER_PROFILE`
-(`replace` never takes another profile's conversation).
+`code` one of `INVALID` (also for a `replace` that is not a nonempty string, such as `true`), `NO_GAME`,
+`BOUND` (the session belongs to another game), `HAS_CONVERSATION` (the game has another session and
+`replace` was not set), `STALE` (the game is no longer bound to the conversation `replace` names: another
+page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes another profile's conversation).
 
 ### `asset` RPC
 

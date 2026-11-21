@@ -104,7 +104,9 @@ rename `FIX:`.
 
 CI and nightly also run `tools/ci/build_session_check.py` with that Python. The check starts
 Hermes in a throwaway home, creates untitled Build sessions on both supported gateway paths, and checks that the
-sessions are distinct, empty, and on the requested model/provider. It needs no API key and submits no prompts.
+sessions are distinct, empty, and on the requested model/provider. One pick is created twice with identical
+parameters, so a gateway that reuses an untitled session for the same route fails on its runtime or stored ID. It
+needs no API key and submits no prompts.
 
 ## The clean install and update checks
 

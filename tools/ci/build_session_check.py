@@ -15,6 +15,10 @@ turn, over both gateways Desktop can reach:
   each new conversation is then resumed to read its stored history;
 - the standalone `hermes serve` socket (`/api/ws` without a session authority), with the page's parameters as is.
 
+The first pick is sent twice with identical parameters (a fresh `request_id` each time on the canonical gateway), so a
+gateway that hands an earlier untitled session back for the same model and provider fails: every create's runtime and
+stored IDs must differ from every other create's.
+
 CI runs it on every pull request against the oldest supported Hermes (ci.yml's HERMES_REF) and nightly against
 Hermes main. Every failure ends with a "FIX:" line.
 """
@@ -60,11 +64,13 @@ IMPORT_FIX = (
 
 
 def requests() -> list[tuple[str, dict, dict | None]]:
-    """``(label, page params, pick)`` for every create the page makes: a pick, a pick with effort and fast mode, and
-    the profile default (no pick)."""
+    """``(label, page params, pick)`` for every create the page makes: a pick, the same pick again (a second Build
+    chat on one route must get its own session), a pick with effort and fast mode, and the profile default (no
+    pick)."""
     base = {"hidden": True, "source": "gui"}
     return [
         ("picked", {**base, **PICKS[0]}, PICKS[0]),
+        ("same pick again", {**base, **PICKS[0]}, PICKS[0]),
         ("picked with effort and fast", {**base, **PICKS[1], **PAGE_EXTRA}, PICKS[1]),
         ("default", dict(base), None),
     ]
@@ -94,8 +100,10 @@ def problems(gateway: str, answers: list[dict]) -> list[str]:
         if not runtime or not stored:
             found.append(f"{where}: no session_id / stored_session_id in {sorted(result)}")
             continue
-        if ("runtime", runtime) in seen or ("stored", stored) in seen:
-            found.append(f"{where}: returned a session an earlier create already returned ({runtime}, {stored})")
+        if ("runtime", runtime) in seen:
+            found.append(f"{where}: returned the runtime session {runtime} an earlier create already returned")
+        if ("stored", stored) in seen:
+            found.append(f"{where}: returned the stored session {stored} an earlier create already returned")
         seen.update((("runtime", runtime), ("stored", stored)))
         if result.get("message_count") or result.get("messages"):
             found.append(f"{where}: a new conversation came back with history ({result.get('message_count')})")

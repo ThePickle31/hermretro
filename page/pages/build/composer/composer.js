@@ -30,11 +30,6 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
       ? []
       : null
 
-  useEffect(() => {
-    setAttachments([])
-    setMention(null)
-  }, [stored])
-
   // Ask about an asset or a frame (or Make cover art on the Games page) adds it here for the user to finish
   // and send. Each draft is used once, also when it was left before this box was on screen.
   useEffect(() => {
@@ -122,7 +117,7 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
       return
     }
 
-    // A first edit may be refused before it gets a transcript or a resend button. Keep its draft until accepted.
+    // A first edit may be refused before the transcript takes over, including retries. Keep its draft until then.
     if (fresh && !(await onSend(value, attachments))) {
       return
     }

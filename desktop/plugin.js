@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 16d81610e23ce4f48530a52e177b45d98927d66f7ee8af3bb932b95f2ad6b5e6
- * body: sha256 d13cc927223da6e48cb828c9213ef2b0dde716d2fa1db6028b34ed321724f483
+ * sources: sha256 a5dbe38404d588e171a89b4ea251c7d955b46f04548a5b84543f54ea57b64da0
+ * body: sha256 7c712d66581fabc7c444f26dd8e67df21b4b5fe438c0e08e5b72bf9e1fe8e148
  */
 // page/sdk.js
 import {
@@ -588,6 +588,7 @@ function injectBuildDraft(stored, text2) {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
 }
 var BUILD_CHATS = atom({});
+var BUILD_STARTING = atom(/* @__PURE__ */ new Set());
 var buildRuntime = /* @__PURE__ */ new Map();
 var isBuildSession = (runtime) => buildRuntime.has(runtime);
 var buildRetained = /* @__PURE__ */ new Map();
@@ -1194,11 +1195,11 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
-    return false;
+    return true;
   }
   if (!settled.ok) {
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
-    return false;
+    return true;
   }
   schedulePromptCheck(stored);
   try {
@@ -1215,15 +1216,14 @@ ${text2}` : text2;
         return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...current.queued ?? [], item] };
       });
     }
-    return true;
   } catch (error) {
     const { message } = describeRequestError(error);
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: message, resend: { text: text2, shown, attachments } }] }, "error"));
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored);
     }
-    return false;
   }
+  return true;
 }
 async function stopBuildChat(stored) {
   const chat = BUILD_CHATS.get()[stored];
@@ -1720,10 +1720,6 @@ function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = n
   const assets = useProjectAssets(mention && game ? game.id : null, mention ? "open" : "closed");
   const query = (mention?.query ?? "").toLowerCase();
   const matches = Array.isArray(assets) ? assets.filter((item) => !query || String(item.name).toLowerCase().includes(query) || String(item.file ?? "").toLowerCase().includes(query)).slice(0, 8) : assets === false ? [] : null;
-  useEffect(() => {
-    setAttachments([]);
-    setMention(null);
-  }, [stored]);
   useEffect(() => {
     if (inject && !inject.used) {
       BUILD_INJECT.set({ ...BUILD_INJECT.get(), [stored ?? ""]: { ...inject, used: true } });
@@ -11803,8 +11799,7 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 // page/pages/build/build-page.js
 function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
-  const startingThreads = useRef(/* @__PURE__ */ new Set());
-  const [startingGames, setStartingGames] = useState(/* @__PURE__ */ new Set());
+  const startingGames = useValue(BUILD_STARTING);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
   const [selected, setSelected] = useState(() => {
     try {
@@ -11837,26 +11832,22 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     ].filter((item) => !rail.some((game2) => game2.buildSession === item.storedId)),
     [pendingGames, local.pending, rail]
   );
+  const pendingId = selected.startsWith("pending:") ? selected.slice("pending:".length) : null;
+  const made = pendingId ? rail.find((game2) => game2.buildSession === pendingId) : null;
   useEffect(() => {
-    if (!selected.startsWith("pending:")) {
-      return;
-    }
-    const stored2 = selected.slice("pending:".length);
-    const made = rail.find((game2) => game2.buildSession === stored2);
     if (made) {
       select(made.id);
     }
-  }, [games, selected]);
+  }, [made?.id]);
   useEffect(() => {
     if (pending.some((item) => chats[item.storedId]?.busy === false)) {
       onLibraryChanged();
     }
   }, [pending.map((item) => chats[item.storedId]?.busy).join(",")]);
-  const game = rail.find((item) => item.id === selected) ?? null;
-  const pendingItem = selected.startsWith("pending:") ? pending.find((item) => `pending:${item.storedId}` === selected) ?? null : null;
+  const game = made ?? rail.find((item) => item.id === selected) ?? null;
+  const pendingItem = pending.find((item) => item.storedId === pendingId) ?? null;
   useEffect(() => {
-    const madeGame = selected.startsWith("pending:") && rail.some((item) => item.buildSession === selected.slice(8));
-    if (loaded && selected !== "new" && !game && !pendingItem && !madeGame && !(selected.startsWith("pending:") && chats[selected.slice(8)]?.busy)) {
+    if (loaded && selected !== "new" && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
       select("new");
     }
   }, [loaded, selected, Boolean(game), Boolean(pendingItem)]);
@@ -11947,6 +11938,8 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const shownStored = fresh ? null : stored;
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
+  const binding = local.bound[game?.id];
+  const composerKey = binding && binding.stored === stored ? binding.replaces ?? game.id : stored ?? game?.id ?? "";
   const [focusTurn, setFocusTurn] = useState(null);
   const [switcherRequest, setSwitcherRequest] = useState(null);
   const settledItems = useRef(null);
@@ -11962,17 +11955,17 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       return stored ? sendBuildChat(stored, text2, shown, attachments) : false;
     }
     const { id, title: title2, projectRoot } = game;
-    if (startingThreads.current.has(id)) {
+    if (BUILD_STARTING.get().has(id)) {
       return false;
     }
-    startingThreads.current.add(id);
-    setStartingGames(new Set(startingThreads.current));
+    BUILD_STARTING.set(/* @__PURE__ */ new Set([...BUILD_STARTING.get(), id]));
     try {
       const target = await createBuildChat(title2, draftPick);
       if (refuseWhileUpdating()) {
         return false;
       }
-      const recorded = await buildRpc({ action: "bind", game: id, stored: target, replace: Boolean(stored || game.session) });
+      const replaces = game.session?.storedId;
+      const recorded = await buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} });
       setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
       setForgotten((current) => ({ ...current, [id]: false }));
       onLibraryChanged();
@@ -11986,8 +11979,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       host.notify({ kind: "error", message: `Could not start the conversation: ${describeRequestError(error).message}` });
       return false;
     } finally {
-      startingThreads.current.delete(id);
-      setStartingGames(new Set(startingThreads.current));
+      BUILD_STARTING.set(new Set([...BUILD_STARTING.get()].filter((gameId) => gameId !== id)));
     }
   };
   const startOver = () => {
@@ -12128,7 +12120,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
-        game ? jsx(Button, { onClick: startOver, size: "sm", children: "Start a new conversation" }) : null
+        game ? jsx(Button, { disabled: startingGame, onClick: startOver, size: "sm", children: "Start a new conversation" }) : null
       ]
     });
   } else if (shownChat?.failure) {
@@ -12191,7 +12183,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
         placeholder: updating ? "hermretro is updating. You can send again in a moment." : startingGame ? "Starting the conversation…" : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
-      }, `composer:${game?.id ?? shownStored ?? ""}`)
+      }, `composer:${composerKey}`)
     ]
   });
   return jsx("div", { className: "cs-b", children: main });

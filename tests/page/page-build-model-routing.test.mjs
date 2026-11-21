@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, click, check, answered, holdTimers }) => {
+await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, click, tab, check, answered, holdTimers }) => {
   holdTimers() // Test turns end explicitly through completion events, not the open-request poll.
   buildScenario({ selected: 'new' })
   scenario.games = answered({ games: [], pending: [] })
@@ -195,16 +195,67 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     assert.equal(view.node.querySelector(sendEdit).disabled, true)
     assert.equal(edit().value, 'make the frog jump')
   })
+  const submit = scenario.byMethod['prompt.submit']
+  scenario.byMethod['prompt.submit'] = params => {
+    submit(params)
+    throw new Error('The first submit was rejected')
+  }
   await act(async () => finishBind())
   await settle()
-  check('the retried edit binds once and sends the retained attachment and text to the new thread', () => {
+  check('once bound, a rejected first submit leaves the full edit for transcript retry only', () => {
     assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create', 'bind', 'submit'])
-    assert.deepEqual(calls[beforeEdit + 2][1], { action: 'bind', game: game.id, stored: 'st-new-8', replace: true })
+    assert.deepEqual(calls[beforeEdit + 2][1], { action: 'bind', game: game.id, stored: 'st-new-8', replace: 'st-missing' })
     assert.equal(calls[beforeEdit + 3][1].session_id, 'rt-new-8')
     assert.equal(calls[beforeEdit + 3][1].text, `About ${path}:\nmake the frog jump`)
     assert.equal(edit().value, '')
+    assert.equal(view.node.querySelector(sendEdit).disabled, true)
+    assert.equal(view.node.querySelector('.cs-b-comp .cs-b-chips'), null)
     assert.equal(view.node.querySelector('.cs-b-user').textContent.includes('make the frog jump'), true)
   })
+  scenario.byMethod['prompt.submit'] = submit
+  await click('Try again', view.node.querySelector('.cs-b-card.bad'))
+  await settle()
+  check('the transcript retries on the bound thread with the original attachment and text', () => {
+    assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create', 'bind', 'submit', 'submit'])
+    assert.equal(calls.at(-1)[1].session_id, 'rt-new-8')
+    assert.equal(calls.at(-1)[1].text, `About ${path}:\nmake the frog jump`)
+    assert.equal(edit().value, '')
+  })
   await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-8', payload: { text: 'The frog jumps.' } }))
+  await view.close()
+
+  scenario.byMethod['plugin.hermretro.build'] = params => {
+    const result = bind(params)
+    const changed = { ...game, session: { ...game.session, storedId: params.stored, exists: true } }
+    scenario.games = answered({ games: [changed], pending: [], device: { hardwareEnabled: false, skipped: true } })
+    return result
+  }
+  view = await mount(page)
+  await settle()
+  await click('Start a new conversation', view.node)
+  await typeInto(edit(), 'make the frog swim')
+  const beforeNavigation = calls.length
+  await press(sendEdit)
+  await settle()
+  await tab('Prompts')
+  assert.equal(edit(), null, 'Build unmounted')
+  await tab('Build')
+  await settle()
+  check('reopening Build cannot start another replacement while the first create is pending', () => {
+    const restart = [...view.node.querySelectorAll('button')].find(node => node.textContent === 'Start a new conversation')
+    assert.equal(restart?.disabled, true)
+    assert.equal(edit().disabled, true)
+    assert.deepEqual(calls.slice(beforeNavigation).map(([step]) => step), ['create'])
+  })
+  await act(async () => finishCreate())
+  await settle()
+  await view.rerender() // Deliver the updated library response to the reopened Build page.
+  check('the first replacement completes on its own thread after reopening Build', () => {
+    assert.deepEqual(calls.slice(beforeNavigation).map(([step]) => step), ['create', 'bind', 'submit'])
+    assert.equal(calls.at(-1)[1].session_id, 'rt-new-9')
+    assert.equal(calls.at(-1)[1].text, 'make the frog swim')
+    assert.match(view.node.querySelector('.cs-b-user').textContent, /make the frog swim/)
+  })
+  await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-9', payload: { text: 'The frog swims.' } }))
   await view.close()
 })

@@ -8,7 +8,7 @@ import {
   sendBuildChat,
   stopBuildChat
 } from './chat/actions.js'
-import { BUILD_CHATS, BUILD_PRESENTED, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
+import { BUILD_CHATS, BUILD_PRESENTED, BUILD_STARTING, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
 import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
@@ -31,8 +31,7 @@ import { CartShelf } from './cart-shelf.js'
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
 export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
-  const startingThreads = useRef(new Set())
-  const [startingGames, setStartingGames] = useState(new Set())
+  const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} })
@@ -76,19 +75,14 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     [pendingGames, local.pending, rail]
   )
 
-  // A New Game conversation becomes its game's once the library shows the game it made.
+  // Render the same conversation even on the first render where its game replaces the pending entry.
+  const pendingId = selected.startsWith('pending:') ? selected.slice('pending:'.length) : null
+  const made = pendingId ? rail.find(game => game.buildSession === pendingId) : null
   useEffect(() => {
-    if (!selected.startsWith('pending:')) {
-      return
-    }
-
-    const stored = selected.slice('pending:'.length)
-    const made = rail.find(game => game.buildSession === stored)
-
     if (made) {
       select(made.id)
     }
-  }, [games, selected])
+  }, [made?.id])
 
   // While a New Game conversation has not made its game yet, look at the library after each turn.
   useEffect(() => {
@@ -97,14 +91,12 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     }
   }, [pending.map(item => chats[item.storedId]?.busy).join(',')])
 
-  const game = rail.find(item => item.id === selected) ?? null
-  const pendingItem = selected.startsWith('pending:') ? (pending.find(item => `pending:${item.storedId}` === selected) ?? null) : null
+  const game = made ?? rail.find(item => item.id === selected) ?? null
+  const pendingItem = pending.find(item => item.storedId === pendingId) ?? null
 
   // A remembered selection that is gone (game removed, New Game discarded elsewhere) falls back to New game.
   useEffect(() => {
-    const madeGame = selected.startsWith('pending:') && rail.some(item => item.buildSession === selected.slice(8))
-
-    if (loaded && selected !== 'new' && !game && !pendingItem && !madeGame && !(selected.startsWith('pending:') && chats[selected.slice(8)]?.busy)) {
+    if (loaded && selected !== 'new' && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
       select('new')
     }
   }, [loaded, selected, Boolean(game), Boolean(pendingItem)])
@@ -229,6 +221,9 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const shownStored = fresh ? null : stored
   const shownChat = shownStored ? chat : null
   const shownItems = shownChat?.items ?? null
+  const binding = local.bound[game?.id]
+  // Keep a first edit's composer until handoff; a pending New Game uses its stored ID throughout.
+  const composerKey = binding && binding.stored === stored ? (binding.replaces ?? game.id) : (stored ?? game?.id ?? '')
   // A turn to scroll to (the Builds menu's Show).
   const [focusTurn, setFocusTurn] = useState(null)
   // The New Game shelf's All games tile opens the switcher: { view, seq }, a new seq each time.
@@ -255,19 +250,19 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     }
 
     const { id, title, projectRoot } = game
-    // The ref closes the gap before React disables the composer, including two sends in the same event batch.
-    if (startingThreads.current.has(id)) {
+    // Check the shared atom directly, including two sends before React renders the disabled composer.
+    if (BUILD_STARTING.get().has(id)) {
       return false
     }
-    startingThreads.current.add(id)
-    setStartingGames(new Set(startingThreads.current))
+    BUILD_STARTING.set(new Set([...BUILD_STARTING.get(), id]))
     try {
       const target = await createBuildChat(title, draftPick)
 
       if (refuseWhileUpdating()) {
         return false
       }
-      const recorded = await buildRpc({ action: 'bind', game: id, stored: target, replace: Boolean(stored || game.session) })
+      const replaces = game.session?.storedId
+      const recorded = await buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) })
 
       setLocal(current => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }))
       setForgotten(current => ({ ...current, [id]: false }))
@@ -283,8 +278,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       host.notify({ kind: 'error', message: `Could not start the conversation: ${describeRequestError(error).message}` })
       return false
     } finally {
-      startingThreads.current.delete(id)
-      setStartingGames(new Set(startingThreads.current))
+      BUILD_STARTING.set(new Set([...BUILD_STARTING.get()].filter(gameId => gameId !== id)))
     }
   }
 
@@ -471,7 +465,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
       className: 'cs-b-empty',
       children: [
         jsx('p', { className: 'cs-small', children: 'This game\u2019s conversation was removed from Hermes. The game itself is fine.' }),
-        game ? jsx(Button, { onClick: startOver, size: 'sm', children: 'Start a new conversation' }) : null
+        game ? jsx(Button, { disabled: startingGame, onClick: startOver, size: 'sm', children: 'Start a new conversation' }) : null
       ]
     })
   } else if (shownChat?.failure) {
@@ -555,7 +549,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
                     : `Tell ${AGENT} what to change in ${title}…`,
               status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
               stored: shownStored
-            }, `composer:${game?.id ?? shownStored ?? ''}`)
+            }, `composer:${composerKey}`)
           ]
         })
 
