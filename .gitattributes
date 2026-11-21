@@ -9,6 +9,7 @@ profile/SOUL.md -text
 # the conflict. Merge the sources, then rebuild.
 page/**/*.js text eol=lf
 page/**/*.png binary
+page/**/*.svg text eol=lf
 tools/bundle/bundle.mjs text eol=lf
 desktop/plugin.js text eol=lf -merge linguist-generated=true
 player/frame-shim.js text eol=lf -merge linguist-generated=true

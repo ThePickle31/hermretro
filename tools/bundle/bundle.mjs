@@ -74,7 +74,9 @@ const TARGETS = [
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
-      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.'
+      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
+      'Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its',
+      'provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.'
     ],
     esbuild: { format: 'esm', external: EXTERNAL },
     // Hermes's install scanner notes any single file over 1024 KB.
@@ -125,15 +127,22 @@ function toolchain() {
   return { esbuild: require('esbuild'), ts: require('typescript'), missing: null }
 }
 
-/** `import art from './art.png'` becomes a data URL: the prefix on its own line, the payload in short rows. */
-const pngDataUrl = {
-  name: 'png-data-url',
+/** `import art from './art.png'` (or `.svg`) becomes a data URL: the prefix on its own line, the payload in short
+ *  rows. A PNG is base64; an SVG is its own text, byte for byte, percent-encoded where a URL or a quoted JS string
+ *  needs it (smaller than base64, so the provider logos fit the bundle's size budget). */
+const svgText = text => text.replace(/[%#\n\r\t]|[^\x20-\x7e]/gu, encodeURIComponent)
+const artRows = text => text.match(new RegExp(`[^]{1,${ART_ROW}}`, 'g')) ?? []
+const artDataUrl = {
+  name: 'art-data-url',
   setup(build) {
-    build.onLoad({ filter: /\.png$/ }, async ({ path: file }) => {
-      const rows = (await readFile(file)).toString('base64').match(new RegExp(`.{1,${ART_ROW}}`, 'g'))
+    build.onLoad({ filter: /\.(png|svg)$/ }, async ({ path: file }) => {
+      const svg = file.endsWith('.svg')
+      const bytes = await readFile(file)
+      const prefix = svg ? 'data:image/svg+xml,' : 'data:image/png;base64,'
+      const rows = artRows(svg ? svgText(bytes.toString('utf8')) : bytes.toString('base64'))
 
       return {
-        contents: `export default [\n  'data:image/png;base64,',\n${rows.map(row => `  '${row}'`).join(',\n')}\n].join('')\n`,
+        contents: `export default [\n  ${JSON.stringify(prefix)},\n${rows.map(row => `  ${JSON.stringify(row)}`).join(',\n')}\n].join('')\n`,
         loader: 'js'
       }
     })
@@ -154,7 +163,7 @@ const options = target => ({
   metafile: true,
   logLevel: 'warning',
   alias: Object.fromEntries(Object.entries(ALIASES).map(([alias, target]) => [alias, `./${target}`])),
-  plugins: [pngDataUrl]
+  plugins: [artDataUrl]
 })
 
 const buildAll = tools => Promise.all(TARGETS.map(target => tools.esbuild.build(options(target))))
@@ -336,7 +345,7 @@ async function watch(tools) {
         emit(latest, tools)
       }
     }
-    const context = await tools.esbuild.context({ ...options(target), plugins: [pngDataUrl, { name: 'emit', setup: build => build.onEnd(onEnd) }] })
+    const context = await tools.esbuild.context({ ...options(target), plugins: [artDataUrl, { name: 'emit', setup: build => build.onEnd(onEnd) }] })
 
     await context.watch()
   }

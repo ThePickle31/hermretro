@@ -122,6 +122,8 @@ export const Codicon = props => jsx('i', { 'data-icon': props.name })
 export const ScrollArea = el('div')
 export const Separator = () => jsx('hr', {})
 export const Tip = props => props.children
+// The theme on screen: scenario.theme ('light' or 'dark', default dark).
+export const useTheme = () => ({ renderedMode: scenario.theme ?? 'dark', resolvedMode: scenario.theme ?? 'dark' })
 // The real one renders a sandboxed iframe; here a plain one is enough to see what it was given.
 export const SandboxedFrame = props => jsx('iframe', { ref: props.ref, src: props.src, title: props.title, 'data-sandbox': props.sandbox })
 export const MessageTextContent = props => jsx('div', { 'data-markdown': '', children: props.text })
