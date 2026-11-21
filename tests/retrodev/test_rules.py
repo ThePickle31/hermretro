@@ -143,6 +143,16 @@ class NextStep(unittest.TestCase):
         self.assertIn("gh pr checks 7 --watch", self.step(ci="pending"))
         self.assertIn("--log-failed", self.step(ci="failing"))
         self.assertIn("retrodev report", self.step())
+        self.assertIn("approve 7 --words", self.step())
+        self.assertIn("land 7", self.step(approved={"words": "go"}))
+        self.assertTrue(
+            self.step(approved={"words": "go"}, main="/the/main").startswith(
+                "next: cd /the/main && python tools/retrodev land 7"
+            )
+        )
+        unanswered = self.step(approved={"words": "go"}, unanswered=[[1, 0], [1, 1]])
+        self.assertIn("answer 7 1 <index>", unanswered)
+        self.assertIn("2 open", unanswered)
         self.assertIn("retrodev start", self.step(protected=True))
 
     def test_a_small_change_needs_no_plan(self):

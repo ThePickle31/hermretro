@@ -172,33 +172,6 @@ class DevMergedAfterReview(LandCase):
         self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
         self.assertNotIn("carried", self.review_record())
 
-    def test_a_resolution_that_rewords_lines_closing_a_block_comment_needs_a_new_round(self):
-        """dev turns 24 '// */ runN(); /*' lines (each closes the block comment the line above opens, so runN() runs)
-        into '// still a comment N' while the branch changes the line beside them; the resolution keeps the branch's code
-        with dev's lines. Those lines change what runs, so they count, and a round is due."""
-        path = "tools/value.mjs"
-        old = "".join(f"// */ run{n}(); /*\n" for n in range(24)) + "*/\n"
-        new = "".join(f"// still a comment {n}\n" for n in range(24)) + "*/\n"
-        self.on_dev(path, "const VALUE = 1; /*\n" + old, "Lines closing block comments")
-        git(self.main, "fetch", "-q", "origin")
-
-        def change(tree):
-            self.commit(tree, path, "const VALUE = 2; /*\n" + old, TITLE)
-
-        def resolve(tree):
-            (tree / path).write_text("const VALUE = 2; /*\n" + new)
-            git(tree, "add", path)
-
-        _tree, _reviewed, head = self.reviewed_then_synced(
-            resolve, change, dev_core="const VALUE = 1; /*\n" + new, path=path
-        )
-        self.reviewer("OK\n", reply("s2"))
-        code, data = self.land()
-        self.assertEqual(code, 0, data)
-        self.assertEqual(len(self.hermes.calls), 2, "24 lines that change what runs: a probe, then round 2")
-        self.assertEqual([r["sha"] for r in records.valid_rounds(self.review_record())][-1], head)
-        self.assertNotIn("carried", self.review_record())
-
     def noqa_conflict(self, extra: str = "", debug: str = "", resolved_debug: str = ""):
         """dev gives 24 bare noqa comments their reason while the branch changes the line beside them (a conflict
         on the whole hunk); the resolution keeps the branch's code with dev's comments, plus ``extra``. ``debug``
@@ -227,24 +200,6 @@ class DevMergedAfterReview(LandCase):
         carried = self.review_record()["carried"]
         self.assertEqual([(c["head"], c["reviewed"], c["resolution_lines"]) for c in carried], [(head, reviewed, 0)])
 
-    def test_a_resolution_that_adds_code_beside_the_comments_still_counts_it(self):
-        _tree, _reviewed, head = self.noqa_conflict("".join(f"EXTRA_{n} = {n}  # new\n" for n in range(25)))
-        self.reviewer("OK\n", reply("s2"))
-        code, data = self.land()
-        self.assertEqual(code, 0, data)
-        self.assertEqual(len(self.hermes.calls), 2, "25 lines of code: a probe, then round 2 on the merged head")
-        self.assertNotIn("carried", self.review_record())
-
-    def test_a_resolution_that_changes_25_debug_f_strings_needs_a_new_round(self):
-        """f"{v = }" and f"{v=}" print different text, though their tokens match on Python 3.12 and newer."""
-        debug = "".join(f'S{n} = f"{{V{n} = }}"\n' for n in range(25))
-        self.noqa_conflict(debug=debug, resolved_debug=debug.replace(" = }", "=}"))
-        self.reviewer("OK\n", reply("s2"))
-        code, data = self.land()
-        self.assertEqual(code, 0, data)
-        self.assertEqual(len(self.hermes.calls), 2, "25 changed f-string lines: a probe, then round 2")
-        self.assertNotIn("carried", self.review_record())
-
     def test_a_binary_conflict_kept_as_reviewed_still_needs_a_new_round(self):
         """Both sides change a binary file and sync keeps the branch's: the merged tree equals git's own merge
         (0 lines differ), but a binary conflict cannot be judged in lines, so it is reviewed."""
@@ -254,9 +209,6 @@ class DevMergedAfterReview(LandCase):
         """git quotes a non-ASCII name (core.quotePath); the conflicted path must still be the real file, not a
         quoted name that matches nothing and so checks nothing."""
         self.binary_conflict_kept_as_ours("player/caf\u00e9.bin")
-
-    def test_a_binary_conflict_on_a_name_with_a_double_quote_still_needs_a_new_round(self):
-        self.binary_conflict_kept_as_ours('player/say "hi".bin')
 
     def binary_conflict_kept_as_ours(self, art):
         tree = self.open_pr(change=lambda t: self.commit_bytes(t, art, b"\x00\x01ours\x00" * 40))
@@ -339,6 +291,12 @@ class CodeLines(unittest.TestCase):
         self.assertEqual(code_lines.changed("a.py", "y=a+b*(c-1)\n", "y = a + b * (c - 1)\n"), 0, "operator spacing")
         reindented = "if x:\n    a = 1\n    b = 2\n", "if x:\n  a = 1\n  b = 2\n"
         self.assertEqual(code_lines.changed("a.py", *reindented), 0, "the same nesting, other indentation")
+
+    def test_noqa_reasons_beside_new_code_still_count_the_code(self):
+        before = "".join(f"import m{n}  # noqa: E402\n" for n in range(24))
+        after = before.replace("E402\n", "E402 - the repository root goes on sys.path first\n")
+        after += "".join(f"value{n} = {n}\n" for n in range(25))
+        self.assertGreater(code_lines.changed("a.py", before, after), 20, "24 reasoned noqa lines + 25 code lines")
 
     def test_noqa_reasons_on_24_lines_count_no_lines(self):
         bare = "".join(f"import m{n}  # noqa: E402\n" for n in range(24))

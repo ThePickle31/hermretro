@@ -16,7 +16,8 @@ sys.path.insert(0, str(ROOT))
 
 from backend.broker import broker as broker_module  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import progress as onboarding  # noqa: E402 - the repository root goes on sys.path first
-from backend.broker.broker import Broker, Denied  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.broker import Denied  # noqa: E402 - the repository root goes on sys.path first
 
 CATALOG = (ROOT / "engine/modretro-chromatic/scripts/dependency-catalog.mjs").read_text()
 
@@ -131,16 +132,15 @@ class FakeEngine:
         self.closed = True
 
 
-def bare_broker(engine):
-    broker = Broker.__new__(Broker)
-    broker.install, broker.install_lock = {"state": "idle"}, threading.Lock()
-    broker.prepare_lock = threading.Lock()
-    broker.events = []
-    broker.trace = lambda **record: broker.events.append(record)
-    broker.new_engine = lambda name: engine
-    broker.install_engine = None
-    broker.last_activity = 0
-    return broker
+def install_broker(engine):
+    return bare_broker(
+        install={"state": "idle"},
+        install_lock=threading.Lock(),
+        prepare_lock=threading.Lock(),
+        new_engine=lambda name: engine,
+        install_engine=None,
+        last_activity=0,
+    )
 
 
 class BrokerInstall(unittest.TestCase):
@@ -165,7 +165,7 @@ class BrokerInstall(unittest.TestCase):
     def test_runs_toolchain_prepare_for_build_and_emulator_without_a_chat(self):
         gate = threading.Event()
         engine = FakeEngine({"structuredContent": {"success": True, "stage": "ready"}}, gate)
-        broker = bare_broker(engine)
+        broker = install_broker(engine)
         self.assertEqual(broker.start_install()["state"], "running")
         self.assertTrue(broker.install_running())
         self.assertEqual(broker.start_install()["state"], "running", "a second start joins the running install")
@@ -196,7 +196,7 @@ class BrokerInstall(unittest.TestCase):
                 },
             }
         )
-        broker = bare_broker(engine)
+        broker = install_broker(engine)
         broker.start_install()
         self.wait_finished(broker)
         self.assertEqual(broker.install["state"], "failed")
@@ -204,7 +204,7 @@ class BrokerInstall(unittest.TestCase):
         self.assertEqual(broker.install["error"], "cli: yarn: ENOTFOUND registry.npmjs.org")
 
     def test_refused_while_a_chat_is_preparing(self):
-        broker = bare_broker(FakeEngine({}))
+        broker = install_broker(FakeEngine({}))
         broker.prepare_lock.acquire()
         with self.assertRaises(Denied) as refused:
             broker.start_install()
@@ -212,7 +212,7 @@ class BrokerInstall(unittest.TestCase):
         self.assertEqual(broker.install["state"], "idle")
 
     def test_a_thread_that_cannot_start_releases_the_lock(self):
-        broker = bare_broker(FakeEngine({}))
+        broker = install_broker(FakeEngine({}))
         with mock.patch.object(broker_module.threading, "Thread", side_effect=RuntimeError("can't start new thread")):
             with self.assertRaises(RuntimeError):
                 broker.start_install()
@@ -223,7 +223,7 @@ class BrokerInstall(unittest.TestCase):
     def test_a_stopping_broker_closes_the_install_worker(self):
         gate = threading.Event()
         engine = FakeEngine({"structuredContent": {"success": True}}, gate)
-        broker = bare_broker(engine)
+        broker = install_broker(engine)
         broker.lanes, broker.table_lock, broker.install_engine = {}, threading.RLock(), None
         broker.start_install()
         for _ in range(200):
@@ -238,7 +238,7 @@ class BrokerInstall(unittest.TestCase):
 
     def test_a_running_install_keeps_the_broker_alive(self):
         gate = threading.Event()
-        broker = bare_broker(FakeEngine({"structuredContent": {"success": True}}, gate))
+        broker = install_broker(FakeEngine({"structuredContent": {"success": True}}, gate))
         broker.lanes, broker.table_lock = {}, threading.RLock()
         broker.stopping = threading.Event()
         broker.start_install()

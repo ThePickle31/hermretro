@@ -22,7 +22,3 @@ from __future__ import annotations
 from ..hermes.tool_args import tool_error, tool_project
 
 __all__ = ["tool_error", "tool_project"]
-
-# The names tools.py has always used.
-_present_error = tool_error
-_tool_project = tool_project

@@ -5,7 +5,7 @@ Run alone: python -m unittest tests.retrodev.test_land_ci
 
 import unittest
 
-from retrodev import ci, status
+from retrodev import ci
 from retrodev.review import records
 
 from tests.retrodev.fixture import parallel
@@ -137,19 +137,6 @@ class Classify(unittest.TestCase):
             {"context": "d", "state": "FAILURE"},
         ]
         self.assertEqual([j["bucket"] for j in ci.from_rollup(rollup)], ["pass", "pending", "skipping", "fail"])
-
-
-class NextStep(unittest.TestCase):
-    BASE = {"plan_approved": True, "checks_passed": True, "pr": 12, "head": "a", "pushed": "a", "ci": "passing"}
-
-    def test_approve_land_and_answer(self):
-        self.assertIn("approve 12 --words", status.next_step(dict(self.BASE)))
-        self.assertIn("land 12", status.next_step(dict(self.BASE, approved={"words": "go"})))
-        line = status.next_step(dict(self.BASE, approved={"words": "go"}, main="/the/main"))
-        self.assertTrue(line.startswith("next: cd /the/main && python tools/retrodev land 12"), line)
-        line = status.next_step(dict(self.BASE, approved={"words": "go"}, unanswered=[[1, 0], [1, 1]]))
-        self.assertIn("answer 12 1 <index>", line)
-        self.assertIn("2 open", line)
 
 
 if __name__ == "__main__":

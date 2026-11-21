@@ -105,12 +105,12 @@ class OldBroker(unittest.TestCase):
         # Idle deadline reached after the liveness check, before the new client connects (Hermes starting, the
         # plugin loading): with the hold released first, the old broker is gone and a fresh one looks replaced.
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:  # short: a Unix socket path is at most 104 bytes
-            broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.3)
+            broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.1)
             held = update_check.hold_open(broker.path)
             broker.wait_for_connections(1)
 
             def drive():
-                time.sleep(1.0)  # well past the idle deadline
+                time.sleep(0.4)  # well past the idle deadline
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as new_client:
                     new_client.connect(broker.path)  # refused when the old broker idled out
                 return "driven"
@@ -120,7 +120,9 @@ class OldBroker(unittest.TestCase):
                 self.assertFalse(broker.gone, "the old broker idled out during the new drive")
                 self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
                 broker.wait_for_connections(0)
-                time.sleep(0.6)
+                deadline = time.monotonic() + 2.0
+                while not broker.gone and time.monotonic() < deadline:
+                    time.sleep(0.02)
                 self.assertTrue(broker.gone, "released, the old broker idles out as before")
             finally:
                 held.close()

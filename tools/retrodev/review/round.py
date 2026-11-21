@@ -38,8 +38,6 @@ def run_round(
     ls_remote: Callable[[Path, str | None], str] | None = None,
     root: Path | str | None = None,
     notes: Path | str | None = None,
-    brief_override: str | None = None,
-    env=None,
     db: Path | None = None,
     branch: str | None = None,
     total: int | None = None,
@@ -92,7 +90,6 @@ def run_round(
             earlier=earlier,
             last_reviewed=last_reviewed,
             root=root,
-            brief_override=brief_override,
             total=max(round_no, total or records.depth(record)),
         )
         started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -107,7 +104,6 @@ def run_round(
             before=before,
             after=after,
             db=db,
-            env=env,
             unaudited=sum(1 for a in reply["attempts"] if not a.get("session_id")),
         )
         entry = {

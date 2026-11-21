@@ -70,14 +70,6 @@ class Prepare(unittest.TestCase):
         self.assertIn('"verdict": "clean" | "findings"', brief)
         self.assertEqual(len((self.r1.review / "commits.txt").read_text().splitlines()), 3)
 
-    def test_override_keeps_rules_and_output(self):
-        r = inputs.prepare(self.repo, 8, "HEAD", root=self.root, brief_override="Review only backend/c.py.")
-        brief = r.brief.read_text()
-        self.assertIn("Review only backend/c.py.", brief)
-        self.assertIn("Never call write_file or patch", brief)
-        self.assertIn("OUTPUT: only this JSON", brief)
-        self.assertNotIn("HOW TO REVIEW", brief)
-
     def test_round_two_has_earlier_findings_and_the_fixes(self):
         first = self.r1.sha
         git(self.repo, "checkout", "-q", "-b", "feat/fix", first)

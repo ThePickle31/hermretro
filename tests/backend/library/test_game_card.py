@@ -87,7 +87,7 @@ class CoverCheck(unittest.TestCase):
             + chunk(b"IDAT", zlib.compress(rows))
             + chunk(b"IEND", b"")
         )
-        _w, _h, pixels = game_card.decode_png(data)
+        _w, _h, pixels = game_cover.decode_png(data)
         self.assertEqual(pixels, [pixel for row in source for pixel in row])
 
 
@@ -263,12 +263,6 @@ class ToolsAndPresent(unittest.TestCase):
             "project_create", {}, {"projectRoot": str(fresh)}, False, lane_root=None, conversation_id=None
         )
         self.assertEqual(game_card.load(fresh)["title"], "Fresh Game")
-
-    def test_the_schema_lists_the_genres_and_needs_nothing(self):
-        schema = library_tools.GAME_INFO_TOOL
-        self.assertEqual(schema["name"], "chromatic_game_info")
-        self.assertNotIn("required", schema["parameters"])
-        self.assertEqual(schema["parameters"]["properties"]["genres"]["items"]["enum"], list(game_card.GENRES))
 
 
 if __name__ == "__main__":

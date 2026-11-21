@@ -16,7 +16,7 @@ from backend.library import tools as host_tools  # noqa: E402 - the repository r
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games, tool_args  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
     "title": "  Robin in the sky ",
@@ -95,9 +95,7 @@ class BuildReport(unittest.TestCase):
             [str((self.root / "assets" / "sprites" / "robin.png").resolve())]
         )
 
-    def test_the_shared_tool_helpers_live_in_tool_args(self):
-        self.assertIs(library_tools._tool_project, tool_args.tool_project)
-        self.assertIs(library_tools._present_error, tool_args.tool_error)
+    def test_the_shared_tool_helpers_answer_the_codes_the_tools_use(self):
         self.assertEqual(json.loads(tool_args.tool_error("no", "X")), {"ok": False, "error": "no", "code": "X"})
         self.assertEqual(tool_args.tool_project("t", {}, {}), (str(self.root), None))
         self.assertEqual(tool_args.tool_project("t", {"project": str(self.base)}, {}), (str(self.base), None))
@@ -219,11 +217,6 @@ class BuildReport(unittest.TestCase):
             "one or two short sentences",
         ):
             self.assertIn(needed, schema["description"])
-
-    def test_the_approval_hook_lets_the_report_through(self):
-        ctx = mock.Mock()
-        ctx.get_config.return_value = True
-        self.assertIsNone(registered_hook("pre_tool_call", ctx)(tool_name="chromatic_build_report", args=GOOD))
 
     def test_agent_guidance_names_the_report(self):
         self.assertIn("chromatic_build_report", hermes_host.SYSTEM_PROMPT_SECTION)

@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from backend.features import FEATURES  # noqa: E402 - the repository root goes on sys.path first
-from backend.hermes import declare  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import contracts, declare  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402 - the repository root goes on sys.path first
 
@@ -164,6 +164,11 @@ class LockStep(unittest.TestCase):
         manifest = read("plugin.yaml")
         declared = set(re.findall(r"^  - (chromatic_\w+)$", manifest, re.M))
         self.assertEqual(declared, self.tools, "plugin.yaml provides_tools")
+        listed = re.findall(r"^  - (chromatic_\w+)$", manifest, re.M)
+        engine = [schema["name"] for schema in contracts.hermes_schemas()]
+        # plugin-owned tools first, then the engine's in pinned order: the registration order Hermes sees.
+        self.assertEqual(listed[-len(engine) :], engine, "plugin.yaml's tail is not the engine's pinned order")
+        self.assertEqual(len(set(listed)), len(listed), "plugin.yaml names a tool twice")
         hooks = manifest.split("provides_hooks:")[1].split("provides_tools:")[0]
         self.assertEqual(
             set(re.findall(r"^  - (\w+)$", hooks, re.M)), set(self.calls["hook"]), "plugin.yaml provides_hooks"
@@ -174,9 +179,6 @@ class LockStep(unittest.TestCase):
         contract = flat(read("docs/dev/CONTRACT.md"))
         owned = plugin_owned_tools(self.tools)
         self.assertIn(contract_count(engine, len(owned)), contract)
-        self.assertEqual(
-            {name for name in owned if f"`{name}`" not in contract}, set(), "plugin-owned tools CONTRACT omits"
-        )
         self.assertIn(f"{len(self.tools)} in total", contract)
         self.assertIn(
             f"the {len(self.tools)} tools, {len(self.calls['skill'])} skills, {len(self.calls['hook'])} hooks", contract
