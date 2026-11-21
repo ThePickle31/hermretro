@@ -6,7 +6,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 
 | Check | Command | What it proves |
 |---|---|---|
-| unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
+| unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR`. Several processes at once (`tools/py/unit_shards.py`): the dev CLI suite in one, the other modules dealt into up to four by their times from the last run (`.dev/unit-times.json`), each with its own home and `TMPDIR` |
 | bundle | `python tools/check.py bundle` | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
@@ -97,10 +97,10 @@ and `.dev/` are not linted.
   judge it, the tests its grown copy runs, or what its steps on the real pages and features read (page and tab
   `index.js` descriptors, the page registry and page tests, front doors; `SCAFFOLD`); other pull requests, such as
   a change to a page's view files, run the smoke (`RD_SCAFFOLD_FULL=smoke python tools/check.py bundle lint page
-  scaffold --strict`: the guard test alone, by its full unittest ID). The validate job's extra update from the PR
+  scaffold --strict`: the guard test alone, by its full unittest ID). The `update-dev` job's update from the PR
   checkout's `dev` parent (`HEAD^1`) runs on pull requests that delete or move files or change the install,
-  registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release runs on
-  every run. A missing decision fails the job.
+  registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release (job `update`) runs
+  on every run, beside the validate job. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
   integration on Linux, Apple Silicon and Intel macOS, and the nested scaffold guard on Linux. The scheduled
   scaffold job starts once the workflow reaches `main`; workflow-changing pull requests exercise it on their tested
