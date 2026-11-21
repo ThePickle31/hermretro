@@ -1,15 +1,15 @@
 # Every night: hermretro against the newest Hermes (main), so a Hermes change that breaks installs, the scanner
 # verdict or registration is noticed before users update; and the real-engine tier on Linux, Apple Silicon
 # and Intel macOS. A failed scheduled night opens (or comments on) the issue "Nightly failed", labelled ci.
-# GitHub runs scheduled workflows only from the default branch (main); the jobs check out and test dev, where new
-# work lands. A pull request that changes this file, integration.yml or the Hermes action runs it on its own
-# commit (not a required check: read it with gh pr checks).
+# Schedules test dev; a manual run tests the dispatched commit. Pull requests that change the workflow test their
+# merge commit. Only the Sunday schedule bypasses the toolchain cache, on every system.
 
 name: Nightly
 
 on:
   schedule:
-    - cron: "17 10 * * *"
+    - cron: "17 10 * * 1-6"
+    - cron: "17 10 * * 0"
   workflow_dispatch:
   pull_request:
     branches: [dev]
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: nightly-${{ github.event.pull_request.number || 'scheduled' }}
+  group: nightly-${{ github.event_name == 'schedule' && 'scheduled' || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -38,8 +38,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
-          fetch-depth: 0  # every tag and origin/main: the update check installs the newest release first
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.event_name == 'workflow_dispatch' && github.sha || '' }}
+          fetch-depth: 0  # both the release history and origin/main
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -67,16 +67,40 @@ jobs:
       - name: python tools/ci/clean_install_check.py
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY"
       - name: python tools/ci/clean_install_check.py --update-from
+        if: github.event_name != 'workflow_dispatch'
         run: python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from
+      - name: Upgrade from the release before this commit
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The newest tag may already point at HEAD. Never treat a same-commit reinstall as upgrade coverage.
+          candidate=$(git rev-parse HEAD)
+          tags=$(git tag --merged "$candidate" --list 'v*' --sort=-v:refname)
+          published=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')
+          while IFS= read -r tag; do
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            grep -Fxq -- "$tag" <<< "$published" || continue
+            baseline=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+            if [[ "$baseline" != "$candidate" ]]; then
+              echo "Checking $tag ($baseline) -> $candidate"
+              python3 tools/ci/clean_install_check.py --hermes-python "$HERMES_RUNTIME_PY" --update-from "$baseline"
+              exit 0
+            fi
+          done <<< "$tags"
+          echo '::error::No earlier published stable release found. FIX: dispatch on a commit with a published ancestor.'
+          exit 1
 
   integration:
     name: Integration
     uses: ./.github/workflows/integration.yml
     with:
-      ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
+      ref: ${{ github.event_name == 'schedule' && 'dev' || github.event_name == 'workflow_dispatch' && github.sha || '' }}
       systems: '["ubuntu-latest", "macos-latest", "macos-15-intel"]'
-      # A deliberate cold install: proves the pinned downloads still exist. Its result seeds main's cache.
-      restore: false
+      # Sunday proves the pinned downloads still exist; routine runs use the same acceptance with a warm cache.
+      restore: ${{ github.event_name != 'schedule' || github.event.schedule != '17 10 * * 0' }}
 
   scaffold:
     name: Full scaffold guard
@@ -86,7 +110,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event_name != 'pull_request' && 'dev' || '' }}
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.event_name == 'workflow_dispatch' && github.sha || '' }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
