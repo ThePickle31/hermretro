@@ -102,9 +102,10 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 - **One game = one session.** Game sessions are created `hidden` (not in the Hermes sidebar); the
   Build page's game switcher is the way in, and "Open in full chat" (`host.openSession`) shows the same session.
-- **New Game** creates the session first (`session.create {hidden: true, title}`), then sends the
-  new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
-- **A game with no conversation** opens a blank one; the session is created on the first message.
+- **New Game** creates a fresh hidden session (without a title; see [gateway calls under Page](#page)), then sends
+  the new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
+- **A game with no conversation** opens a blank one; the session is created on the first message. The composer waits
+  for one creation and binding at a time and keeps the message and attachments if either is refused.
 - **Stop editing** unbinds the game (`build` `unbind`) and un-hides its session (`session.set_hidden
   {hidden: false}`), so the old conversation shows up in the Hermes sidebar instead of being lost. The
   game goes back under Edit a game; editing it again starts a new conversation.
@@ -359,9 +360,11 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   while HermRetro works is held ("next message", and the bar says so) and applied when the turn ends. A model that asks
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
-  use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}` (plus `fast` for a ChatGPT or Codex Subscription model). The first message is not bound or sent
-  if the returned session already has history or does not confirm the explicitly picked model and provider.
+  use the same model/provider pair for the draft chip and `session.create`: a saved pick (`buildModel`) wins,
+  else use the studio default returned by `model.options` if both values are known. Clicking the displayed default
+  saves it as a pick. Creation also passes the chosen `reasoning_effort` (plus `fast` for a ChatGPT or Codex
+  Subscription model). The first message is not bound or sent if the returned session already has history or
+  does not confirm the model and provider sent with the request.
   A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view

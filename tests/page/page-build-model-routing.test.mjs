@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, check, answered, holdTimers }) => {
+await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, click, check, answered, holdTimers }) => {
   holdTimers() // Test turns end explicitly through completion events, not the open-request poll.
   buildScenario({ selected: 'new' })
   scenario.games = answered({ games: [], pending: [] })
@@ -25,13 +25,13 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     calls.push(['create', params])
     if (params.title === 'New game' || returnOld) return old
     const n = ++created
-    const info = route ?? { model: params.model, provider: params.provider }
+    const info = route ?? (params.model ? { model: params.model, provider: params.provider } : codex)
     return { session_id: `rt-new-${n}`, stored_session_id: `st-new-${n}`, info, messages: [] }
   }
   scenario.byMethod['plugin.hermretro.build'] = params => { calls.push(['bind', params]); return { ok: true } }
   scenario.byMethod['prompt.submit'] = params => { calls.push(['submit', params]); return { status: 'queued' } }
 
-  const view = await mount(page)
+  let view = await mount(page)
   await settle()
   const press = selector => act(async () => view.node.querySelector(selector).click())
   const idea = () => view.node.querySelector('textarea[aria-label="Your game idea"]')
@@ -46,6 +46,10 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     await press('.cs-b-sw-pop .cs-b-sw-new')
   }
 
+  await choose('Claude Subscription', claude.model)
+  check('clicking the visible default model pins that exact route for future drafts', () => {
+    assert.deepEqual(scenario.storage.buildModel, claude)
+  })
   await choose('ChatGPT or Codex Subscription', codex.model)
   await typeInto(idea(), 'a racing game')
   await send()
@@ -113,5 +117,94 @@ await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, sett
     assert.equal(calls[11][1].text, 'a jumping game')
   })
   await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-5', payload: { text: 'Third reply.' } }))
+  await view.close()
+
+  scenario.storage.buildSelected = 'new'
+  delete scenario.storage.buildModel
+  view = await mount(page)
+  await settle()
+  const defaultStart = calls.length
+  await typeInto(idea(), 'a platform game')
+  check('the draft shows the cached studio default before the send', () => {
+    assert.match(view.node.querySelector('.cs-b-mp-chip').textContent, /Claude Opus 5\.5/)
+    assert.equal(scenario.storage.buildModel, undefined, 'the default is not a saved user pick')
+  })
+  await send()
+  await settle()
+  check('the unpinned route shown in the draft is still explicit at creation', () => {
+    assert.deepEqual(calls[defaultStart], ['create', { hidden: true, source: 'gui', ...claude }])
+    assert.equal(calls[defaultStart + 2][1].session_id, 'rt-new-6')
+  })
+  await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-6', payload: { text: 'Fourth reply.' } }))
+  await view.close()
+
+  const game = { id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
+    state: 'ready', session: { storedId: 'st-missing', exists: false, thisProfile: true } }
+  const path = `${game.projectRoot}/assets/sprites/frog.png`
+  scenario.games = answered({ games: [game], pending: [], device: { hardwareEnabled: false, skipped: true } })
+  scenario.byMethod['plugin.hermretro.assets'] = () => ({ ok: true, assets: [{ name: 'Frog sprite', path, kind: 'sprite' }] })
+  scenario.storage.buildSelected = game.id
+  view = await mount(page)
+  await settle()
+  await click('Start a new conversation', view.node)
+  await press('button[aria-label="Mention an asset"]')
+  await settle()
+  await press('.cs-b-mention-row')
+  const edit = () => view.node.querySelector('textarea[aria-label="Message Hermes"]')
+  const sendEdit = 'button[aria-label="Send"]'
+  await typeInto(edit(), 'make the frog jump')
+  const beforeEdit = calls.length
+  route = { ...claude, provider: 'nous' }
+  await press(sendEdit)
+  await settle()
+  check('a failed first edit keeps the text and attachment and does not touch the binding', () => {
+    assert.deepEqual(calls.slice(beforeEdit).map(([step]) => step), ['create'])
+    assert.equal(edit().value, 'make the frog jump')
+    assert.match(view.node.querySelector('.cs-b-comp .cs-b-chips').textContent, /Frog sprite/)
+    assert.equal(view.node.querySelector(sendEdit).disabled, false)
+  })
+
+  route = null
+  let finishCreate, finishBind
+  const create = scenario.byMethod['session.create']
+  const bind = scenario.byMethod['plugin.hermretro.build']
+  scenario.byMethod['session.create'] = params => {
+    const reply = create(params)
+    return new Promise(resolve => { finishCreate = () => resolve(reply) })
+  }
+  scenario.byMethod['plugin.hermretro.build'] = params => {
+    const reply = bind(params)
+    return new Promise(resolve => { finishBind = () => resolve(reply) })
+  }
+  // Both clicks run before React can render the button disabled. The guard must also be synchronous.
+  await act(async () => {
+    const button = view.node.querySelector(sendEdit)
+    button.click()
+    button.click()
+  })
+  await settle()
+  check('a duplicate first send cannot open a second replacement thread', () => {
+    assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create'])
+    assert.equal(view.node.querySelector(sendEdit).disabled, true)
+    assert.equal(edit().disabled, true)
+  })
+  await act(async () => finishCreate())
+  await settle()
+  check('the first edit stays disabled until the replacement is bound', () => {
+    assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create', 'bind'])
+    assert.equal(view.node.querySelector(sendEdit).disabled, true)
+    assert.equal(edit().value, 'make the frog jump')
+  })
+  await act(async () => finishBind())
+  await settle()
+  check('the retried edit binds once and sends the retained attachment and text to the new thread', () => {
+    assert.deepEqual(calls.slice(beforeEdit + 1).map(([step]) => step), ['create', 'bind', 'submit'])
+    assert.deepEqual(calls[beforeEdit + 2][1], { action: 'bind', game: game.id, stored: 'st-new-8', replace: true })
+    assert.equal(calls[beforeEdit + 3][1].session_id, 'rt-new-8')
+    assert.equal(calls[beforeEdit + 3][1].text, `About ${path}:\nmake the frog jump`)
+    assert.equal(edit().value, '')
+    assert.equal(view.node.querySelector('.cs-b-user').textContent.includes('make the frog jump'), true)
+  })
+  await act(async () => emit({ type: 'message.complete', session_id: 'rt-new-8', payload: { text: 'The frog jumps.' } }))
   await view.close()
 })

@@ -31,8 +31,8 @@ import { CartShelf } from './cart-shelf.js'
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
 export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
-  // The model and effort a new conversation starts on (New Game, a game with no conversation yet).
-  const [draftPick, setDraftPick] = useDraftPick(ctx)
+  const startingThreads = useRef(new Set())
+  const [startingGames, setStartingGames] = useState(new Set())
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} })
@@ -58,8 +58,12 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     () =>
       games.map(game => {
         const session = game.session && local.released[game.id] !== game.session.storedId ? game.session : null
+        const bound = local.bound[game.id]
+        // Keep an accepted replacement visible while the game list still reports the old binding.
+        const linked = session?.storedId
+        const buildSession = (!linked || linked === bound?.replaces ? bound?.stored : null) ?? linked ?? null
 
-        return { ...game, session, title: game.displayTitle || game.title, buildSession: session?.storedId ?? local.bound[game.id] ?? null }
+        return { ...game, session, title: game.displayTitle || game.title, buildSession }
       }),
     [games, local.bound, local.released]
   )
@@ -116,6 +120,11 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false)
   const stored = elsewhere ? null : (game?.buildSession ?? pendingItem?.storedId ?? null)
   const chat = stored ? chats[stored] : null
+  // Set when the user starts over after the game's conversation was removed from Hermes.
+  const [forgotten, setForgotten] = useState({})
+  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]))
+  const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === 'new' || fresh)
+  const startingGame = startingGames.has(game?.id)
 
   useEffect(() => {
     if (!stored || chat?.runtime || chat?.opening || chat?.failure) {
@@ -217,9 +226,6 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     onLibraryChanged()
   }
 
-  // Set when the user starts over after the game's conversation was removed from Hermes.
-  const [forgotten, setForgotten] = useState({})
-  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]))
   const shownStored = fresh ? null : stored
   const shownChat = shownStored ? chat : null
   const shownItems = shownChat?.items ?? null
@@ -241,39 +247,45 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   // the game (replacing a removed one), so the agent is told which game it works on and finds it selected.
   const send = async (text, attachments = [], shown = text) => {
     if (refuseWhileUpdating()) {
-      return
+      return false
     }
 
     if (!fresh) {
-      if (stored) {
-        await sendBuildChat(stored, text, shown, attachments)
-      }
-
-      return
+      return stored ? sendBuildChat(stored, text, shown, attachments) : false
     }
 
-    let target
-    let recorded
-
+    const { id, title, projectRoot } = game
+    // The ref closes the gap before React disables the composer, including two sends in the same event batch.
+    if (startingThreads.current.has(id)) {
+      return false
+    }
+    startingThreads.current.add(id)
+    setStartingGames(new Set(startingThreads.current))
     try {
-      target = await createBuildChat(game.title, draftPick)
-      recorded = await buildRpc({ action: 'bind', game: game.id, stored: target, replace: Boolean(stored || game.session) })
-      setLocal(current => ({ ...current, bound: { ...current.bound, [game.id]: target } }))
-      setForgotten(current => ({ ...current, [game.id]: false }))
+      const target = await createBuildChat(title, draftPick)
+
+      if (refuseWhileUpdating()) {
+        return false
+      }
+      const recorded = await buildRpc({ action: 'bind', game: id, stored: target, replace: Boolean(stored || game.session) })
+
+      setLocal(current => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }))
+      setForgotten(current => ({ ...current, [id]: false }))
       onLibraryChanged()
+      // An older backend cannot tell the agent which game this is: say it in the first message.
+      return await sendBuildChat(
+        target,
+        recorded ? text : `Work on my existing hermretro game "${title}" at ${projectRoot} (select that project first). ${text}`,
+        shown,
+        attachments
+      )
     } catch (error) {
       host.notify({ kind: 'error', message: `Could not start the conversation: ${describeRequestError(error).message}` })
-
-      return
+      return false
+    } finally {
+      startingThreads.current.delete(id)
+      setStartingGames(new Set(startingThreads.current))
     }
-
-    // An older backend cannot tell the agent which game this is: say it in the first message.
-    await sendBuildChat(
-      target,
-      recorded ? text : `Work on my existing hermretro game "${game.title}" at ${game.projectRoot} (select that project first). ${text}`,
-      shown,
-      attachments
-    )
   }
 
   const startOver = () => {
@@ -511,7 +523,7 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
           children: [
             jsx(AttractLevel, {}, 'level'),
             header,
-            jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, 'new'),
+            jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, 'new'),
             jsx(CartShelf, { entries, onAll: view => setSwitcherRequest(current => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, 'shelf')
           ]
         })
@@ -523,24 +535,27 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
             jsx(BuildComposer, {
               busy: Boolean(shownChat?.busy),
               game,
-              disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || (!fresh && !shownChat?.runtime)),
-              onSend: (text, attachments) => void send(text, attachments),
+              fresh,
+              disabled: Boolean(updating || startingGame || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || (!fresh && !shownChat?.runtime)),
+              onSend: send,
               onStop: () => void stopBuildChat(shownStored),
               picker: elsewhere || shownChat?.missing
                 ? null
                 : fresh
-                  ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick })
+                  ? jsx(DraftModelPicker, { ctx, disabled: startingGame || updating, onPick: setDraftPick, options: draftOptions, pick: draftPick })
                   : shownStored
                     ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored })
                     : null,
               placeholder: updating
                 ? 'hermretro is updating. You can send again in a moment.'
-                : shownChat?.busy
-                  ? `Reply to ${AGENT}…`
-                  : `Tell ${AGENT} what to change in ${title}…`,
+                : startingGame
+                  ? 'Starting the conversation…'
+                  : shownChat?.busy
+                    ? `Reply to ${AGENT}…`
+                    : `Tell ${AGENT} what to change in ${title}…`,
               status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
               stored: shownStored
-            })
+            }, `composer:${game?.id ?? shownStored ?? ''}`)
           ]
         })
 

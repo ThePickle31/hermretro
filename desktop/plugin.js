@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 126304d6497345259ef9c590930748f3583d3bf7f5fcd76bec4b23bb19adfd70
- * body: sha256 9eb99be11d8e79e5b272681870b12e9b11dd15a8e14c1cc953223617b36cf979
+ * sources: sha256 16d81610e23ce4f48530a52e177b45d98927d66f7ee8af3bb932b95f2ad6b5e6
+ * body: sha256 d13cc927223da6e48cb828c9213ef2b0dde716d2fa1db6028b34ed321724f483
  */
 // page/sdk.js
 import {
@@ -1710,7 +1710,7 @@ function attachToBuild(stored, attachments, text2 = "") {
   const current = all[stored];
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text: text2, attach: attachments } });
 }
-function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null }) {
+function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
   const [text2, setText] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [mention, setMention] = useState(null);
@@ -1787,15 +1787,20 @@ ${inject.text}` : inject.text);
       element?.setSelectionRange?.(caret + insert.length, caret + insert.length);
     });
   };
-  const send = () => {
+  const send = async () => {
     const value = text2.trim();
     if (!value && !attachments.length || disabled) {
+      return;
+    }
+    if (fresh && !await onSend(value, attachments)) {
       return;
     }
     setText("");
     setAttachments([]);
     setMention(null);
-    onSend(value, attachments);
+    if (!fresh) {
+      void onSend(value, attachments);
+    }
   };
   return jsxs("div", {
     className: "cs-b-comp",
@@ -3209,12 +3214,12 @@ function SpeedBar({ speed, fast, held, narrow, disabled, onFast, onManage }) {
 var PANEL = 560;
 var NARROW = 500;
 var TINY = 440;
-function useModelOptions(runtime) {
+function useModelOptions(runtime, needed = true) {
   const gateway = useValue(host.state.gateway);
   return useQuery({
     queryKey: [ID, "models", runtime ?? "profile"],
     queryFn: () => chatRequest("model.options", runtime ? { session_id: runtime } : {}, 3e4),
-    enabled: gateway === "open",
+    enabled: needed && gateway === "open",
     staleTime: 5 * 6e4,
     refetchOnWindowFocus: false,
     retry: 1
@@ -3259,7 +3264,7 @@ function useStars(ctx) {
   };
   return [stars, toggle];
 }
-function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true }) {
+function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = null, options, onPick, onEffort, onFast, onConfirm, onCancelConfirm, disabled = false, up = true, draft = false }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
@@ -3268,7 +3273,8 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   const search = useRef(null);
   const data = options?.data;
   const providers = useMemo(() => Array.isArray(data?.providers) ? data.providers.filter((item) => item?.authenticated && Array.isArray(item.models) && item.models.length) : [], [data]);
-  const shown = { model: pending?.model ?? value?.model ?? data?.model ?? null, provider: pending?.provider ?? value?.provider ?? data?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
+  const fallback = draft ? null : data;
+  const shown = { model: pending?.model ?? value?.model ?? fallback?.model ?? null, provider: pending?.provider ?? value?.provider ?? fallback?.provider ?? null, effort: pending?.effort ?? value?.effort ?? "", fast: pending?.fast ?? value?.fast ?? false };
   const marks = useMemo(() => providerMarks(providers), [providers]);
   const current = providers.find((item) => item.slug === shown.provider) ?? null;
   const signedOut = Boolean(data && shown.provider && !current && Array.isArray(data.providers));
@@ -3344,7 +3350,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
   }, [confirm?.message]);
   const choose = (row) => {
     setOpen(false);
-    if (row.model !== shown.model || row.provider !== shown.provider) {
+    if (!disabled && (draft || row.model !== shown.model || row.provider !== shown.provider)) {
       onPick({ model: row.model, provider: row.provider, ...shown.fast && !hasFastMode(row.provider, row.caps) ? { fast: false } : {} }, row);
     }
   };
@@ -3444,20 +3450,21 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     value: chat?.info ?? null
   });
 }
-function DraftModelPicker({ ctx, pick, onPick, up = true }) {
-  const options = useModelOptions(null);
+function DraftModelPicker({ ctx, pick, onPick, options, up = true, disabled = false }) {
   return jsx(ModelPicker, {
     ctx,
+    draft: true,
+    disabled,
     up,
     onEffort: (effort) => onPick({ ...pick, effort }),
-    // The draft keeps the model the speed was picked for (the profile's default when none was picked).
-    onFast: (fast, at) => onPick({ ...pick, ...at.model && at.provider ? at : {}, fast }),
+    onFast: (fast) => onPick({ ...pick, fast }),
     onPick: (choice) => onPick({ ...pick, ...choice }),
     options,
     value: pick
   });
 }
-function useDraftPick(ctx) {
+function useDraftPick(ctx, needed) {
+  const options = useModelOptions(null, needed);
   const [pick, setPick] = useState(() => {
     try {
       const saved = ctx.storage.get("buildModel", null);
@@ -3473,7 +3480,8 @@ function useDraftPick(ctx) {
     } catch {
     }
   };
-  return [pick, update];
+  const route = [pick, options.data].find((value) => value?.model && value?.provider && value.provider !== "auto");
+  return [{ ...pick, model: route?.model, provider: route?.provider }, update, options];
 }
 
 // page/shared/player/frame-values.js
@@ -11795,7 +11803,8 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 // page/pages/build/build-page.js
 function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
-  const [draftPick, setDraftPick] = useDraftPick(ctx);
+  const startingThreads = useRef(/* @__PURE__ */ new Set());
+  const [startingGames, setStartingGames] = useState(/* @__PURE__ */ new Set());
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
   const [selected, setSelected] = useState(() => {
     try {
@@ -11814,7 +11823,10 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
-      return { ...game2, session, title: game2.displayTitle || game2.title, buildSession: session?.storedId ?? local.bound[game2.id] ?? null };
+      const bound = local.bound[game2.id];
+      const linked = session?.storedId;
+      const buildSession = (!linked || linked === bound?.replaces ? bound?.stored : null) ?? linked ?? null;
+      return { ...game2, session, title: game2.displayTitle || game2.title, buildSession };
     }),
     [games, local.bound, local.released]
   );
@@ -11855,6 +11867,10 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false);
   const stored = elsewhere ? null : game?.buildSession ?? pendingItem?.storedId ?? null;
   const chat = stored ? chats[stored] : null;
+  const [forgotten, setForgotten] = useState({});
+  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]));
+  const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === "new" || fresh);
+  const startingGame = startingGames.has(game?.id);
   useEffect(() => {
     if (!stored || chat?.runtime || chat?.opening || chat?.failure) {
       return;
@@ -11928,8 +11944,6 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     select("new");
     onLibraryChanged();
   };
-  const [forgotten, setForgotten] = useState({});
-  const fresh = Boolean(game && !elsewhere && (!stored || forgotten[game.id]));
   const shownStored = fresh ? null : stored;
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
@@ -11942,32 +11956,39 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
   const send = async (text2, attachments = [], shown = text2) => {
     if (refuseWhileUpdating()) {
-      return;
+      return false;
     }
     if (!fresh) {
-      if (stored) {
-        await sendBuildChat(stored, text2, shown, attachments);
-      }
-      return;
+      return stored ? sendBuildChat(stored, text2, shown, attachments) : false;
     }
-    let target;
-    let recorded;
+    const { id, title: title2, projectRoot } = game;
+    if (startingThreads.current.has(id)) {
+      return false;
+    }
+    startingThreads.current.add(id);
+    setStartingGames(new Set(startingThreads.current));
     try {
-      target = await createBuildChat(game.title, draftPick);
-      recorded = await buildRpc({ action: "bind", game: game.id, stored: target, replace: Boolean(stored || game.session) });
-      setLocal((current) => ({ ...current, bound: { ...current.bound, [game.id]: target } }));
-      setForgotten((current) => ({ ...current, [game.id]: false }));
+      const target = await createBuildChat(title2, draftPick);
+      if (refuseWhileUpdating()) {
+        return false;
+      }
+      const recorded = await buildRpc({ action: "bind", game: id, stored: target, replace: Boolean(stored || game.session) });
+      setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
+      setForgotten((current) => ({ ...current, [id]: false }));
       onLibraryChanged();
+      return await sendBuildChat(
+        target,
+        recorded ? text2 : `Work on my existing hermretro game "${title2}" at ${projectRoot} (select that project first). ${text2}`,
+        shown,
+        attachments
+      );
     } catch (error) {
       host.notify({ kind: "error", message: `Could not start the conversation: ${describeRequestError(error).message}` });
-      return;
+      return false;
+    } finally {
+      startingThreads.current.delete(id);
+      setStartingGames(new Set(startingThreads.current));
     }
-    await sendBuildChat(
-      target,
-      recorded ? text2 : `Work on my existing hermretro game "${game.title}" at ${game.projectRoot} (select that project first). ${text2}`,
-      shown,
-      attachments
-    );
   };
   const startOver = () => {
     if (game) {
@@ -12151,7 +12172,7 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
     children: [
       jsx(AttractLevel, {}, "level"),
       header,
-      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick, up: false }) }, "new"),
+      jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
   }) : jsxs("div", {
@@ -12162,14 +12183,15 @@ function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryC
       jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
-        disabled: Boolean(updating || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
-        onSend: (text2, attachments) => void send(text2, attachments),
+        fresh,
+        disabled: Boolean(updating || startingGame || elsewhere || shownChat?.opening || shownChat?.missing || shownChat?.failure || !fresh && !shownChat?.runtime),
+        onSend: send,
         onStop: () => void stopBuildChat(shownStored),
-        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, onPick: setDraftPick, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
-        placeholder: updating ? "hermretro is updating. You can send again in a moment." : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
+        picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, disabled: startingGame || updating, onPick: setDraftPick, options: draftOptions, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
+        placeholder: updating ? "hermretro is updating. You can send again in a moment." : startingGame ? "Starting the conversation…" : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
         status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
         stored: shownStored
-      })
+      }, `composer:${game?.id ?? shownStored ?? ""}`)
     ]
   });
   return jsx("div", { className: "cs-b", children: main });

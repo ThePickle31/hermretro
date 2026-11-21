@@ -15,7 +15,7 @@ export function attachToBuild(stored, attachments, text = '') {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text, attach: attachments } })
 }
 
-export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null }) {
+export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState([])
   const [mention, setMention] = useState(null)
@@ -115,17 +115,23 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
     })
   }
 
-  const send = () => {
+  const send = async () => {
     const value = text.trim()
 
     if ((!value && !attachments.length) || disabled) {
       return
     }
 
+    // A first edit may be refused before it gets a transcript or a resend button. Keep its draft until accepted.
+    if (fresh && !(await onSend(value, attachments))) {
+      return
+    }
     setText('')
     setAttachments([])
     setMention(null)
-    onSend(value, attachments)
+    if (!fresh) {
+      void onSend(value, attachments)
+    }
   }
 
   return jsxs('div', {
