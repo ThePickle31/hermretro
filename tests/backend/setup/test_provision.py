@@ -84,12 +84,11 @@ class ProvisionTests(unittest.TestCase):
             node.write_text("#!/bin/sh\necho v99.1.2\n")
             node.chmod(0o755)
             environment = {"HOME": scratch, "PATH": "", "GB_STUDIO_SETUP_ROOT": str(Path(scratch) / "setup")}
-            paths.find_node.cache_clear()
-            try:
-                with mock.patch.dict(os.environ, environment), mock.patch.dict(os.environ, {"HERMRETRO_NODE": ""}):
-                    found = paths.find_node()
-            finally:
-                paths.find_node.cache_clear()
+            with (
+                mock.patch.dict(os.environ, {**environment, "HERMRETRO_NODE": ""}),
+                mock.patch.object(paths, "_hermes_root", return_value=Path(scratch) / ".hermes"),
+            ):
+                found = paths.find_node()
             self.assertEqual((found["path"], found["version"], found["ok"]), (str(node), "99.1.2", True))
 
 

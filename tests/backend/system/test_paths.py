@@ -121,6 +121,80 @@ class HermretroHome(unittest.TestCase):
         self.assertEqual(popen.call_args.kwargs["env"]["HERMRETRO_HOME"], expected)
 
 
+class NodeDiscovery(unittest.TestCase):
+    def test_custom_hermes_home_detects_node_installed_or_replaced_while_the_app_is_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "custom-hermes"
+            node = root / "tools" / "node-24.1.0-platform" / "bin" / "node"
+            env = {
+                "HOME": tmp,
+                "HERMES_HOME": str(root / "profiles" / "hermretro"),
+                "PATH": "",
+                "GB_STUDIO_SETUP_ROOT": str(base / "setup"),
+            }
+            real_stamp = paths._node_stamp
+            with (
+                mock.patch.dict(os.environ, env, clear=True),
+                mock.patch.object(paths.hermes_home, "asked", return_value=None),
+                mock.patch.object(
+                    paths, "_node_stamp", side_effect=lambda p: real_stamp(p) if p == str(node) else None
+                ),
+                mock.patch.object(paths, "_node_version", wraps=paths._node_version) as probe,
+            ):
+                self.assertFalse(paths.find_node()["ok"])
+                node.parent.mkdir(parents=True)
+                node.write_text("#!/bin/sh\necho v24.1.0\n")
+                node.chmod(0o755)
+                first = paths.find_node()
+                self.assertEqual((first["path"], first["version"], first["ok"]), (str(node), "24.1.0", True))
+                self.assertEqual(paths.find_node(), first)
+                self.assertEqual(probe.call_count, 1, "polling does not run another version probe")
+                replacement = node.with_name("new-node")
+                replacement.write_text("#!/bin/sh\necho v25.9.1\n")
+                replacement.chmod(0o755)
+                replacement.replace(node)
+                self.assertEqual(paths.find_node()["version"], "25.9.1")
+                self.assertEqual(probe.call_count, 2)
+
+    def test_a_failed_candidate_before_a_working_one_is_not_probed_on_every_lookup(self):
+        self.addCleanup(paths._failed_probes.clear)
+        with tempfile.TemporaryDirectory() as tmp:
+            stalled, working = Path(tmp) / "shim" / "node", Path(tmp) / "bin" / "node"
+            for node, version in ((stalled, "stalls"), (working, "v24.1.0")):
+                node.parent.mkdir()
+                node.write_text(f"#!/bin/sh\necho {version}\n")
+                node.chmod(0o755)
+            probed: list[str] = []
+
+            def probe(path):  # the stalled shim times out after 10 s in real life
+                probed.append(path)
+                return (24, 1, 0) if path == str(working) else None
+
+            real_stamp = paths._node_stamp
+            with (
+                mock.patch.dict(os.environ, {"HERMRETRO_NODE": str(stalled), "PATH": str(working.parent), "HOME": tmp}),
+                mock.patch.object(
+                    paths,
+                    "_node_stamp",
+                    side_effect=lambda p: real_stamp(p) if p in (str(stalled), str(working)) else None,
+                ),
+                mock.patch.object(paths, "_node_version", side_effect=probe),
+            ):
+                for _ in range(3):
+                    self.assertEqual(paths.find_node()["path"], str(working))
+                self.assertEqual(probed.count(str(stalled)), 1, "the failed candidate was probed again at once")
+                stalled.write_text("#!/bin/sh\necho v24.2.0 \n")  # changed: probe it now
+                paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 2)
+                paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 2)
+                with mock.patch.object(paths, "PROBE_RETRY_SECONDS", 0):  # and again once the cooldown is over
+                    paths.find_node()
+                self.assertEqual(probed.count(str(stalled)), 3)
+                self.assertEqual(probed.count(str(working)), 1, "the working one stays cached")
+
+
 class HermesHomeHandOver(unittest.TestCase):
     """backend.system never imports Hermes: the Hermes layer hands over how to ask (system/hermes_home.py).
     Where hermretro's home resolves must not change: Hermes's answer when the plugin runs inside Hermes,
