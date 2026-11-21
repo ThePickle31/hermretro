@@ -98,8 +98,8 @@ Each in full: `tools/retrodev/REFERENCE.md`, "Commands".
 
 ## Releases
 
-Only when the owner says "make a release": `release run`, or step by step `release prepare`, `publish`, `verify`, `next`;
-the steps and their gates: `tools/retrodev/REFERENCE.md`, "Releases".
+Only when the owner says "make a release": `release run` returns after publication. Run the printed `release next`
+separately, or add `--with-next` to wait inline. See `tools/retrodev/REFERENCE.md`, "Releases", for the gates.
 
 ## Exit codes
 

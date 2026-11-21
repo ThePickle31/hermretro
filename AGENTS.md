@@ -59,7 +59,7 @@ with `--update-from` it installs the newest release first and updates it to the 
 and, when a change touches `backend/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. A
 nightly run repeats them against the newest Hermes and on Intel macOS. Every failure ends with a `FIX:` line
 naming the exact command or change. Read CI results with `gh pr checks <n>` and `gh run view <run> --log-failed`.
-At the start of a session, look at the last nightly run (`gh run list --workflow nightly.yml -L 1`) and any open
+At the start of a session, look at the last scheduled run (`gh run list --workflow nightly.yml --event schedule -L 1`) and any open
 "Nightly failed" issue.
 
 ## Rules that protect users
@@ -138,9 +138,9 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
 
 ## Releases (only when the owner asks)
 
-`python tools/retrodev release run` takes steps 2 to 4 and publishes (`--draft` stops at the draft), then `release next`
-puts `dev` on the next version, so the next release skips step 2 (`tools/retrodev/README.md`, "Releases"); it refuses
-without the owner's words asking for a release. By hand:
+`python tools/retrodev release run` takes steps 2 to 4 and publishes (`--draft` stops at the draft); run the printed
+`release next` separately to prepare `dev`, or pass `--with-next` to wait inline (`tools/retrodev/README.md`,
+"Releases"). It refuses without the owner's words asking for a release. By hand:
 
 The version lives only in `plugin.yaml` (`tests/repo/test_version.py` refuses copies elsewhere); versions are
 patch-only (`0.0.N`) unless the owner names another.
