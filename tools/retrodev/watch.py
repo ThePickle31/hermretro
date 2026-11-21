@@ -1,6 +1,6 @@
 """check --watch: run the checks, then again on every file change, commit or clean/dirty change (Ctrl+C stops).
 
-Before each run the checkout's policy.toml is read again, so a trigger added while watching adds its check at
+Before each run the checkout's policy.toml is read again, so a change to the fast list or a check's inputs applies at
 once (a pass is recorded only for what the current policy requires). --again forces the first run; later runs
 rerun only the checks whose inputs changed.
 """

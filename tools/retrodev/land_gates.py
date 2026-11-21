@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import checks_triggers, gates, github, release, repo, reviews, ship, sync
+from . import gates, github, release, repo, reviews, ship, sync, version_diff
 from .gates import Gate
 from .output import OWNER, Failure, cmd
 
@@ -59,7 +59,7 @@ def release_scope_gate(ctx, info: dict) -> Gate | None:
         return None
     number, sha, name = info["number"], info.get("headRefOid") or "", "release approval covers this head"
     point = repo.git(["merge-base", f"{ctx.remote}/{ctx.base}", sha], ctx.top, check=False).strip()
-    extra = checks_triggers.beyond_version(ctx.top, point, sha) if point else "a head not here (git fetch)"
+    extra = version_diff.beyond_version(ctx.top, point, sha) if point else "a head not here (git fetch)"
     found = release.version_at(ctx, sha)
     if not extra and found == approval.get("version"):
         return gates.passed(name, f"version {found} only")

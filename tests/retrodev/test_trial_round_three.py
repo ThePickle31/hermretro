@@ -117,7 +117,7 @@ class Check(RepoCase):
         tree = self.worktree("chore/glue")
         self.commit(tree, "backend/hermes/glue.py", "GLUE = 2\n")
         write(tree, "docs/guide.md", "# not committed\n")
-        code, out = self.run_cli("check", cwd=tree)
+        code, out = self.run_cli("check", "clean_install", cwd=tree)
         self.assertEqual(code, 1, out)
         self.assertEqual(self.check_log(), [], "nothing ran")
         self.assertIn("FIX: commit first: the clean install installs the committed tree", out)
@@ -167,27 +167,13 @@ class New(ScaffoldCase):
         self.assertIn("+++ b/tools/layout.toml", text)
         self.assertFalse((self.tree / "backend/rdprobe").exists())
 
-    def test_a_change_the_clean_install_covers_says_commit_then_check_then_ship(self):
-        out = self.new("feature", "rdprobe", as_json=False)
-        then = line_with(out, "then:")
-        self.assertLess(then.index("commit"), then.index("retrodev check"))
-        self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
-        out = self.new("tab", "build", "rdprobe-extra", as_json=False)  # not itself, but the branch's feature is
-        then = line_with(out, "then:")
-        self.assertLess(then.index("commit"), then.index("retrodev check"), "the branch, not just this scaffold")
-        self.assertLess(then.index("retrodev check"), then.index("retrodev ship"))
-        git(self.tree, "add", "-A")
-        git(self.tree, "commit", "-qm", "Feature and tab")  # committed, the branch still changes what it covers
-        out = self.new("rpc", "rdprobe", "rdprobe_recent", as_json=False)
-        then = line_with(out, "then:")
-        self.assertLess(then.index("commit"), then.index("retrodev check"))
-
-    def test_a_branch_the_clean_install_does_not_cover_says_check_then_commit(self):
-        git(self.tree, "update-ref", "refs/remotes/origin/dev", "HEAD")  # the real files are dev's own here
-        out = self.new("tab", "build", "rdprobe-extra", as_json=False)
-        self.assertEqual(
-            line_with(out, "then:"), "then: python tools/retrodev check, commit, python tools/retrodev ship"
-        )
+    def test_every_branch_says_check_then_commit_then_ship(self):
+        """check runs only the fast checks, which pass on uncommitted files: no kind needs a commit first."""
+        for step in (["feature", "rdprobe"], ["tab", "build", "rdprobe-extra"]):
+            out = self.new(*step, as_json=False)
+            self.assertEqual(
+                line_with(out, "then:"), "then: python tools/retrodev check, commit, python tools/retrodev ship"
+            )
 
     def test_listener_next_steps_name_the_placeholders_and_the_emitter_s_tests(self):
         shutil.copyfile(ROOT / "backend/library/__init__.py", self.tree / "backend/library/__init__.py")

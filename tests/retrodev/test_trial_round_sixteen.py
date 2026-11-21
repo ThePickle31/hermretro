@@ -1,8 +1,7 @@
 """Friction the sixteenth round of fresh-agent trials found: sync's per-hunk hint named the generated page bundle as
 where a moved CSS rule went; sync's closing line said 'check, then ship again' on a branch with no plan and no pull
 request; the body warning flagged a file the branch's own commits changed when a merge with dev dropped that edit;
-a data-only edit of tests/page/games-fixture.mjs and a comment-only edit of a tests/repo test ran the nested
-scaffold guard; `new slot` on a page that declares a slot already only said to mention it; `new tool`, `new rpc`
+`new slot` on a page that declares a slot already only said to mention it; `new tool`, `new rpc`
 and `new contribution` lacked steps (tool_project against host.library_game_for, the game card, a real useQuery
 caller and scenario.queries, a direct-import test for a contribution reading its page's atom). Each test failed
 before its fix.
@@ -14,7 +13,7 @@ import io
 import unittest
 from pathlib import Path
 
-from retrodev import body_names, comment_only, config, output, scaffold_readme, state
+from retrodev import body_names, config, output, scaffold_readme, state
 
 from tests.retrodev.fixture import GOOD_BODY, RepoCase, git, parallel, retrodev_docs, write
 from tests.retrodev.test_scaffold import ScaffoldCase
@@ -102,77 +101,6 @@ class BodyDroppedInMerge(RepoCase):
         ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
         body = GOOD_BODY.replace("Things.", "- Renamed `tools/old_name.py` to `tools/new_name.py`.")
         self.assertIsNone(body_names.warning(ctx, body))
-
-
-class CommentOnly(RepoCase):
-    def checked(self, name: str, before: str, after: str, branch: str) -> str:
-        self.on_dev(name, before, "The file")
-        git(self.main, "fetch", "-q", "origin")
-        tree = self.worktree(branch)
-        self.commit(tree, name, after)
-        code, out = self.run_cli("check", cwd=tree)
-        self.assertEqual(code, 0, out)
-        return out
-
-    def test_a_comment_or_docstring_edit_of_a_repo_test_runs_no_nested_guard(self):
-        before = '"""A test."""\n\nVALUE = 1  # one\n\n\ndef test():\n    """Checks."""\n    assert VALUE\n'
-        after = '"""A test, reworded."""\n\n# A new comment.\nVALUE = 1  # still one\n\n\ndef test():\n    """Checks it."""\n\n    assert VALUE\n'
-        out = self.checked("tests/repo/test_probe.py", before, after, "fix/comments")
-        self.assertNotIn("run nested", out)
-
-    def test_a_real_code_edit_still_runs_it_nested(self):
-        out = self.checked("tests/repo/test_probe.py", "VALUE = 1  # one\n", "VALUE = 2  # one\n", "fix/code")
-        self.assertIn("adding scaffold: changed tests/repo/test_probe.py; run nested", out)
-
-    def test_a_harness_comment_edit_is_quiet_and_its_code_edit_is_not(self):
-        before = "// The harness.\nexport const url = 'http://x/y' // where\n"
-        out = self.checked("tests/page/harness.mjs", before, before.replace("where", "the page"), "fix/jsc")
-        self.assertNotIn("run nested", out)
-        out = self.checked("tests/page/shells.mjs", before, before.replace("x/y", "x/z"), "fix/jsx")
-        self.assertIn("adding scaffold: changed tests/page/shells.mjs; run nested", out)
-
-    def test_blank_lines_or_trailing_spaces_inside_a_template_are_code(self):
-        before = "// The harness.\nexport const page = `a\n\nb`\n"
-        out = self.checked("tests/page/harness.mjs", before, before.replace("a\n\nb", "a\nb"), "fix/tblank")
-        self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
-        out = self.checked("tests/page/shells.mjs", before, before.replace("a\n", "a  \n"), "fix/tspace")
-        self.assertIn("adding scaffold: changed tests/page/shells.mjs; run nested", out)
-
-    def test_the_games_fixture_is_data_and_never_adds_it(self):
-        out = self.checked("tests/page/games-fixture.mjs", "export const A = 1\n", "export const A = 2\n", "fix/data")
-        self.assertNotIn("run nested", out)
-
-    def test_the_comparison(self):
-        same = comment_only.comments_only
-        self.assertTrue(same("a.py", "x = 1\n", "# c\nx = 1  # d\n\n"))
-        self.assertTrue(same("a.py", 'def f():\n    """A."""\n    return 1\n', "def f():\n    return 1\n"))
-        self.assertFalse(same("a.py", "x = 1\n", "x = 2\n"))
-        self.assertFalse(same("a.py", "x = '# a'\n", "x = '# b'\n"))
-        self.assertFalse(same("a.py", "x = 1\n", "x = (\n"))  # cannot parse: a real change
-        self.assertTrue(same("a.mjs", "const a = 1\n", "// c\nconst a = 1 /* d */\n"))
-        self.assertFalse(same("a.mjs", "const u = 'http://a'\n", "const u = 'http://b'\n"))
-        self.assertFalse(same("a.mjs", "const t = `x ${a} // y`\n", "const t = `x ${a} // z`\n"))
-        self.assertFalse(same("a.mjs", "const r = /a\\/\\/b/\n", "const r = /a\\/\\/c/\n"))
-        self.assertTrue(same("a.mjs", "const t = `${f({ a: 1 })}`\n", "const t = `${f({ a: 1 })}` // c\n"))
-        self.assertFalse(same("a.mjs", "const t = `${f({ a: 1 })}`\n", "const t = `${f({ a: 2 })}`\n"))
-        self.assertFalse(same("a.json", "{}\n", "{ }\n"))  # another kind of file: a real change
-        self.assertFalse(same("a.mjs", "const a = 1\n", "const a = 1 /* open\n"))
-        template = "const t = `a\n\nb ${f(\n\n  x)}  \nc`\n"
-        self.assertFalse(same("a.mjs", template, template.replace("a\n\nb", "a\nb")))
-        self.assertFalse(same("a.mjs", template, template.replace("}  \nc", "}\nc")))
-        regex = "const t = `a ${/x\\/y/.test(s)} b`\n"
-        self.assertFalse(same("a.mjs", regex, regex.replace("x\\/y", "x\\/z")))
-        self.assertTrue(same("a.mjs", template, "// c\n\n" + template.replace("(\n\n  x)", "(\n  // d\n  x)")))
-
-    def test_a_slash_whose_meaning_needs_context_is_code(self):
-        same = comment_only.comments_only
-        guard = "if (enabled) /[//]/.test(oldValue)\n"
-        self.assertFalse(same("a.mjs", guard, guard.replace("oldValue", "newValue")))
-        self.assertFalse(same("a.mjs", "a = (b) / 2\n", "a = (b) / 3\n"))
-        self.assertFalse(same("a.mjs", "a = (b) / 2 // c\n", "a = (b) / 2 // d\n"))  # unsure: counts as changed
-        self.assertTrue(same("a.mjs", "a = (b) * 2 // c\n", "a = (b) * 2 // d\n"))
-        out = self.checked("tests/page/harness.mjs", guard, guard.replace("oldValue", "newValue"), "fix/slash")
-        self.assertIn("adding scaffold: changed tests/page/harness.mjs; run nested", out)
 
 
 class RealFiles(ScaffoldCase):
