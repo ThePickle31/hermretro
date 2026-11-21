@@ -102,9 +102,10 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 - **One game = one session.** Game sessions are created `hidden` (not in the Hermes sidebar); the
   Build page's game switcher is the way in, and "Open in full chat" (`host.openSession`) shows the same session.
-- **New Game** creates the session first (`session.create {hidden: true, title}`), then sends the
-  new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
-- **A game with no conversation** opens a blank one; the session is created on the first message.
+- **New Game** creates a fresh hidden session (without a title; see [gateway calls under Page](#page)), then sends
+  the new-game (or planning) prompt. It is pending in the game switcher until the library shows the game it made.
+- **A game with no conversation** opens a blank one; the session is created on the first message. The composer waits
+  for one creation and binding at a time and keeps the message and attachments if either is refused.
 - **Stop editing** unbinds the game (`build` `unbind`) and un-hides its session (`session.set_hidden
   {hidden: false}`), so the old conversation shows up in the Hermes sidebar instead of being lost. The
   game goes back under Edit a game; editing it again starts a new conversation.
@@ -139,12 +140,14 @@ the profile's session database (`null` when unknown).
 
 Params name the session `stored`, never `session_id` (the gateway would authorize it as live):
 `{action: "start", stored, name?, plan?}` → `{ok, pending}`; `{action: "bind", game, stored,
-replace?}` → `{ok, game, session}` (`replace` swaps a conversation that was removed);
+replace?}` → `{ok, game, session}` (`replace` is the stored id of the conversation the page saw was
+removed, and the swap happens only while the game is still bound to exactly that one; omit it otherwise);
 `{action: "cancel", stored}` → `{ok, cancelled}`; `{action: "unbind", game, stored}` → `{ok, unbound}`
 (only when `stored` is the game's current conversation, so a stale page cannot drop a newer one). Failures are `{ok: false, code, error}` with
-`code` one of `INVALID`, `NO_GAME`, `BOUND` (the session belongs to another game),
-`HAS_CONVERSATION` (the game has another session and `replace` was not set) and `OTHER_PROFILE`
-(`replace` never takes another profile's conversation).
+`code` one of `INVALID` (also for a `replace` that is not a nonempty string, such as `true`), `NO_GAME`,
+`BOUND` (the session belongs to another game), `HAS_CONVERSATION` (the game has another session and
+`replace` was not set), `STALE` (the game is no longer bound to the conversation `replace` names: another
+page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes another profile's conversation).
 
 ### `asset` RPC
 
@@ -200,7 +203,8 @@ own connection when the app is on that profile). When it is missing or not answe
 throws `STUDIO_PROFILE_MISSING`, the Build page shows `StudioNeeded` (Repair re-runs `studio_profile` from the
 profile the plugin was installed into) and "Use in chat" copies the prompt with a notice; nothing ever runs in
 another profile. Gateway calls (on that route, `host.retainProfile` held): `session.create
-{hidden: true, title}`, `session.resume` (history; `omit_messages` while polling), `prompt.submit`
+{hidden: true}` (no title: the canonical gateway treats it as a lookup for an existing session),
+`session.resume` (history; `omit_messages` while polling), `prompt.submit`
 (with `submission_id`), `session.interrupt`, `clarify.lock` (fallback `request.answer`),
 `approval.respond`. The stream is `host.onEvent` filtered by `session_id`, de-duplicated by `seq`
 and the delta `offset`. Questions and approvals are server requests the page never receives: while
@@ -359,8 +363,12 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   while HermRetro works is held ("next message", and the bar says so) and applied when the turn ends. A model that asks
   first (`confirm_required`) shows its message in the panel with Use it (`confirm_expensive_model`).
   A provider that is no longer connected shows on the button. New Game and a game with no conversation
-  use a draft pick (stored as `buildModel`), passed to `session.create {model, provider,
-  reasoning_effort}` (plus the draft's `fast` choice for a ChatGPT or Codex Subscription or OpenAI API model). A reply names its model when it differs from the message before.
+  use the same model/provider pair for the draft chip and `session.create`: a saved pick (`buildModel`) wins,
+  else use the studio default returned by `model.options` if both values are known. Clicking the displayed default
+  saves it as a pick. Creation passes the chosen `reasoning_effort` and the draft's `fast` choice for a ChatGPT or
+  Codex Subscription or OpenAI API model. The first message is not bound or sent if the returned session already
+  has history or does not confirm the model and provider sent with the request.
+  A reply names its model when it differs from the message before.
 - **Smoothness:** text events are applied once per frame; turns are memoised (only the live one
   re-renders); 40 turns at a time with "Show earlier messages" keeping the reading position; the view
   follows the end unless the user scrolled up (then a "Latest" button). Measured with a 200-turn

@@ -102,6 +102,12 @@ hermes --run-module site | grep site-packages   # the .../venv/lib/python3.X/sit
 Another Python fails first with each module's import error and a `FIX:` saying to use this Python, never with a
 rename `FIX:`.
 
+CI and nightly also run `tools/ci/build_session_check.py` with that Python. The check starts
+Hermes in a throwaway home, creates untitled Build sessions on both supported gateway paths, and checks that the
+sessions are distinct, empty, and on the requested model/provider. One pick is created twice with identical
+parameters, so a gateway that reuses an untitled session for the same route fails on its runtime or stored ID. It
+needs no API key and submits no prompts.
+
 ## The clean install and update checks
 
 `tools/ci/clean_install_check.py` installs the committed checkout into a throwaway Hermes home (the `hermretro`
