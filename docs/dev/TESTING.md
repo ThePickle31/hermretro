@@ -113,16 +113,21 @@ needs no API key and submits no prompts.
 ## The clean install and update checks
 
 `tools/ci/clean_install_check.py` installs the committed checkout once into a throwaway Hermes home's default profile,
-as a user does (the install scanner must not ask). Then `tools/ci/onboarding_check.py` makes the page's onboarding
-calls with Hermes's own Python through that home's real gateway (`connect_gateway`, which starts one that ends itself
-when idle; the check stops it afterwards by the pid it recorded for that home only): `plugin.hermretro.status`,
-Hermes's `profiles.create` with the parameters the status names, `plugin.hermretro.studio_profile` (the real
-handler, running the `hermes` config commands in the new profile) and the status again, then Hermes's
-`profiles.describe` of `hermretro`. It fails unless the profile is the one created, links the one install (no second
-copy), reports itself installed and has the chromatic toolset enabled with exactly `plugin.yaml`'s tool count. Last,
-`hermes tools list` must show chromatic enabled in `hermretro` and absent from the default profile. No model,
-credentials, hardware or toolchain download. With `--hermes-python`, a `hermes` running that Python goes first on
-`PATH`, so the studio handler configures the profile with the Hermes under test.
+as a user does (the install scanner must not ask). Then `tools/ci/onboarding_check.py` runs that home's gateway as its
+own child (`hermes gateway run`, the host gateway that serves every profile; stopped and reaped afterwards, never
+signalled by a recorded pid) and makes the page's onboarding calls with Hermes's own Python, dialling it through
+`discover_gateway_endpoint` and `connect_gateway(endpoint)` (never starting one): `plugin.hermretro.status`, which
+must offer setup (ok, not the studio, no studio profile yet) before anything is created, Hermes's `profiles.create`
+with the parameters it names, `plugin.hermretro.studio_profile` (the real handler, running the `hermes` config
+commands in the new profile) within Desktop's 240 s, the status again, `profiles.list` and `profiles.describe` of
+`hermretro` (skipped only on a method-not-found answer), then the status on the route discovered for the `hermretro`
+home, which must answer as the studio. It fails unless the profile is the one created and listed, links the one
+install (no second copy), reports itself installed, answers as the studio on its own route and has the chromatic
+toolset enabled with exactly `plugin.yaml`'s tool count. Its internal `--inside` entry refuses any HOME or
+HERMES_HOME but the throwaway folder's. Last, `hermes tools list` must show chromatic enabled in `hermretro` and
+absent from the default profile. No model, credentials, hardware or toolchain download; the throwaway Hermes gets
+only `PATH`, the locale variables and `TZ` from the caller's environment. With `--hermes-python`, a `hermes` running
+that Python goes first on `PATH`, so the studio handler configures the profile with the Hermes under test.
 With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`): it installs REF (default: the newest
 stable `v*` tag on `origin/main`, else local `main`) from a local bare copy of the repository, uses it as the page
 does (studio profile, a library game, a New Game chat, a running broker), moves the copy's `main` to HEAD and runs

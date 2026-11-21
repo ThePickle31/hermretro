@@ -140,15 +140,16 @@ def _onboarding_check():
     return onboarding_check
 
 
+# The only variables the throwaway Hermes (its CLI, gateways and the onboarding) gets from the caller: process basics,
+# never credentials (model API keys, tokens), a surrounding Hermes or hermretro session (profile pins, session ids,
+# real home) or a systemd unit id (a broker would ask systemd for a scope of its own).
+KEPT_VARIABLES = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ")
+
+
 def environment(tmp: Path, home: Path, extra: dict | None = None) -> dict:
-    # Nothing from a surrounding Hermes or hermretro session (profile pins, session ids, real home), and no
-    # systemd unit id (a broker would ask systemd for a scope of its own).
-    kept = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("HERMRETRO_", "HERMES_")) and key not in ("INVOCATION_ID", "PYTHONPATH")
-    }
-    return {**kept, "HOME": str(tmp / "home"), "HERMES_HOME": str(home), **(extra or {})}
+    kept = {key: os.environ[key] for key in KEPT_VARIABLES if key in os.environ}
+    throwaway = {"HOME": str(tmp / "home"), "HERMES_HOME": str(home), "TMPDIR": str(tmp)}
+    return {**kept, **throwaway, **(extra or {})}
 
 
 def runner(hermes: list[str], tmp: Path, extra: dict | None = None, fix: str = ""):
