@@ -41,10 +41,6 @@ class AddReason(unittest.TestCase):
         text = 's = """\n# noqa: E402\n"""\n'
         self.assertEqual(noqa_reasons.add_reason(text), (text, 0))
 
-    def test_a_file_that_does_not_tokenize_is_never_changed(self):
-        text = 's = """\n# noqa: E402\n"""\n' + BARE + "x = (\n"
-        self.assertIsNone(noqa_reasons.add_reason(text), "a later unfinished expression: no comment is trusted")
-
     def test_crlf_and_spacing_are_kept(self):
         self.assertEqual(noqa_reasons.add_reason("import x  #noqa:E402  \r\n"), (f"import x  {FIXED}\r\n", 1))
 

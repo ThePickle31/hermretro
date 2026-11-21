@@ -282,15 +282,9 @@ class Rules(unittest.TestCase):
                 self.assertTrue(found[0].startswith(f"tests/x.py:{LINE}: "), found)
                 self.assertIn(words, found[0])
 
-    def test_a_decorator_on_a_test_counts(self):
-        source = HEADER + "class T:\n    @mock.patch.object(cli, 'run')\n    def test(self, run):\n        pass\n"
-        found = problems(source, "tests/x.py")
-        self.assertEqual(
-            found, [f"tests/x.py:{LINE - 1}: mock.patch.object(cli, ...) patches state every thread shares"]
-        )
-
     def test_a_keyword_target_in_a_decorator_counts_on_a_test_and_on_a_class(self):  # review 2, 0
         for decorator, words in (
+            ("@mock.patch.object(cli, 'run')", "mock.patch.object(cli, ...)"),
             ("@mock.patch(target='platform.system', return_value='Darwin')", "mock.patch('platform.system') patches"),
             ("@um.patch.object(target=cli, attribute='run')", "um.patch.object(cli, ...)"),
             ("@p.dict(in_dict=os.environ, values={'A': '1'})", "p.dict(os.environ, ...)"),

@@ -10,6 +10,11 @@ import unittest
 from retrodev import repo, state, sync
 
 from tests.retrodev.fixture import PYTHON, RepoCase, git, parallel, write
+import io
+from retrodev import checks, config, output
+from tests.retrodev.fixture import GOOD_BODY
+from tests.retrodev.fixture import FILLED_PLAN
+from retrodev import ship
 
 load_tests = parallel
 
@@ -315,6 +320,103 @@ class StatusReportDoctor(RepoCase):
         self.assertIn("logged in as you", account["detail"])
         self.assertIn("gh auth switch --user someone", account["fix"])
         self.assertTrue(data["error"]["fix"])
+
+
+class FlowFixes(RepoCase):
+    def passed(self, tree, name):
+        ctx = config.Context.make(tree, output.Out(stream=io.StringIO()))
+        record = state.load_branch(self.main, name)
+        record.update(passed_tree=repo.tree_digest(tree), passed_checks=sorted(checks.required(ctx)))
+        state.save_branch(self.main, record)
+
+    def ready(self, name="docs/tidy"):
+        tree = self.worktree(name)
+        self.commit(tree, "docs/guide.md", "# Guide, better\n", "Improve the guide")
+        self.passed(tree, name)
+        return tree, str(write(self.base, "body.md", GOOD_BODY))
+
+    def test_doctor_warns_when_the_main_checkout_is_off_dev(self):
+        git(self.main, "switch", "-q", "-c", "elsewhere")
+        _code, data = self.run_cli("doctor", as_json=True)
+        row = next(row for row in data["items"] if row["name"] == "main checkout on the base branch")
+        self.assertEqual((row["ok"], row["warning"]), (True, True))
+        self.assertIn("only start and land need it", row["detail"])
+
+
+class DoctorRun(unittest.TestCase):
+    def test_the_short_temp_folder_warns_below_one_gibibyte_and_not_at_it(self):  # review 1, 6
+        from retrodev.doctor import GIB, space_item
+
+        under = space_item("/short", GIB - 1)
+        enough = space_item("/short", GIB)
+        self.assertTrue(under["warning"], "under 1 GB free is a warning")
+        self.assertIn("free space in /short", under["fix"])
+        self.assertFalse(enough["warning"], "exactly 1 GB free is enough")
+        self.assertEqual(enough["fix"], "")
+        self.assertIn("0.5 GB free", space_item("/short", GIB // 2)["detail"])
+
+
+class SharedAfterLanding(RepoCase):
+    def ctx(self):
+        return config.Context.make(self.main, output.Out(stream=io.StringIO()))
+
+    def approved(self) -> None:
+        titled = FILLED_PLAN.format(topic="duo").replace("\n\n## Goal", "\n\nTitle: Make the whole duo work\n\n## Goal")
+        write(self.main, "notes/plans/duo.md", titled)
+        code, out = self.run_cli("plan", "approve", "duo", "--words", "start")
+        self.assertEqual(code, 0, out)
+
+    def started(self, name: str) -> str:
+        code, out = self.run_cli("start", name, "--plan", "duo", "--no-setup")
+        self.assertEqual(code, 0, out)
+        return (self.main / "notes" / "pr" / f"{name.partition('/')[2]}.md").read_text()
+
+    def landed(self, name: str) -> None:
+        """What land and gc leave of a merged branch: no worktree, no branch, no record."""
+        record = state.load_branch(self.main, name)
+        git(self.main, "worktree", "remove", "--force", record["worktree"])
+        git(self.main, "branch", "-D", name)
+        state.drop_branch(self.main, name, self.ctx().policy["branches"]["no_plan"])
+        self.assertFalse(any(r.get("branch") == name for r in state.branches(self.main)))
+
+    def before_the_update(self) -> None:
+        """What a record from before plans kept their branches leaves: the plan record has no branches map."""
+        record = state.load_plan(self.main, "duo") or {}
+        record.pop("branches", None)
+        state.save_plan(self.main, record)
+
+    def assert_second_shares(self) -> None:
+        second = self.started("feat/duo-two")
+        self.assertNotIn("Make duo work.", second)
+        self.assertNotIn("Nothing else.", second, "the whole plan's Not in scope is not this branch's Not done")
+        record = state.load_branch(self.main, "feat/duo-two")
+        self.assertIsNone(ship.plan_title(self.ctx(), "feat/duo-two", record))
+
+    def test_gc_forgetting_a_record_from_before_the_update_keeps_the_plan_shared(self):
+        self.approved()
+        self.started("feat/duo-one")
+        self.before_the_update()
+        tree = state.load_branch(self.main, "feat/duo-one")["worktree"]
+        git(self.main, "worktree", "remove", "--force", tree)
+        git(self.main, "branch", "-D", "feat/duo-one")
+        code, out = self.run_cli("gc")  # the first command after the update: it forgets the record (no shared())
+        self.assertEqual(code, 0, out)
+        self.assertIn("forget  record of feat/duo-one", out)
+        self.assertIn("feat/duo-one", (state.load_plan(self.main, "duo") or {}).get("branches", {}))
+        self.assert_second_shares()
+
+    def test_land_s_gc_forgetting_a_record_from_before_the_update_keeps_the_plan_shared(self):
+        from retrodev import gc
+
+        self.approved()
+        self.started("feat/duo-one")
+        self.before_the_update()
+        tree = state.load_branch(self.main, "feat/duo-one")["worktree"]
+        git(self.main, "worktree", "remove", "--force", tree)
+        git(self.main, "branch", "-D", "feat/duo-one")
+        self.assertEqual(gc.run(self.ctx(), only="feat/duo-one"), 0)  # what land runs after the merge
+        self.assertFalse(any(r.get("branch") == "feat/duo-one" for r in state.branches(self.main)))
+        self.assert_second_shares()
 
 
 if __name__ == "__main__":

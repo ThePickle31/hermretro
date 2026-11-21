@@ -60,7 +60,7 @@ class Gates(LandCase):
 
 
 class Rounds(LandCase):
-    def test_findings_stop_unanswered_block_then_answers_and_a_new_head_bring_round_two_and_the_merge(self):
+    def test_findings_stop_unanswered_block_then_answers_and_a_new_head_bring_the_merge(self):
         tree = self.open_pr()
         first = self.info["headRefOid"]
         self.reviewer("OK\n", reply("s1", findings=2))
@@ -82,15 +82,8 @@ class Rounds(LandCase):
         code, out = self.run_cli("answer", PR, "1", "1", "")
         self.assertEqual(code, 1, out)
         self.assertEqual(self.run_cli("answer", PR, "1", "--all", "Fixed: docs/value.md")[0], 0)
-        self.reviewer("OK\n", reply("s2"))
-        code, data = self.land()
+        code, data = self.land()  # an ordinary change: round 1's fixes merge (test_land_depth has the other cases)
         self.assertEqual(code, 0, data)
-        brief = self.hermes.calls[1]["cmd"][self.hermes.calls[1]["cmd"].index("--query-file") + 1]
-        folder = self.hermes.calls[1]["cwd"]
-        self.assertTrue(str(brief).startswith(str(folder)))
-        answers = (folder / "review" / "round1-findings-and-answers.txt").read_text()
-        self.assertIn("Fixed: docs/value.md", answers)
-        self.assertIn("ROUND 2 of 3", (folder / "review" / "brief.md").read_text())
         merge = self.merges()
         self.assertEqual(len(merge), 1)
         self.assertEqual(merge[0][merge[0].index("--match-head-commit") + 1], second)
@@ -99,7 +92,7 @@ class Rounds(LandCase):
         self.assertIn("--delete-branch", merge[0])
         self.assertEqual(merge[0][merge[0].index("--subject") + 1], "Change the value (#12)")
         rec = records.load(self.main / ".git" / "retrodev" / "reviews", 12)
-        self.assertEqual([r["round"] for r in records.valid_rounds(rec)], [1, 2])
+        self.assertEqual([r["round"] for r in records.valid_rounds(rec)], [1])
         self.assertEqual(rec["merged"]["head"], second)
         self.assertEqual(rec["approval"]["words"], "looks good, merge it")
 
@@ -115,9 +108,7 @@ class Rounds(LandCase):
         self.assertEqual(data["added"], {"docs/": ["docs/value.md"]})
         self.assertEqual(data["changed"], {"backend/library/": ["backend/library/core.py"]})
         self.assertEqual(data["removed"], {})
-        self.assertEqual(
-            [(r["round"], r["findings"], r["answered"]) for r in data["reviews"]["rounds"]], [(1, 2, 2), (2, 0, 0)]
-        )
+        self.assertEqual([(r["round"], r["findings"], r["answered"]) for r in data["reviews"]["rounds"]], [(1, 2, 2)])
         self.assertEqual(len(data["fixed"]), 2)
         self.assertEqual(data["ci"]["summary"], "passing")
         self.assertEqual(list(data["owner"]), ["gateway"])
@@ -157,7 +148,6 @@ class Rounds(LandCase):
         self.assertEqual(code, 0, data)
         self.assertEqual(self.hermes.calls, [], "no 4th round, not even a probe")
         self.assertEqual(data["review_action"], "fix-then-merge")
-        self.assertEqual(len(self.hermes.calls), 0)
         self.assertEqual(self.merges()[0][self.merges()[0].index("--match-head-commit") + 1], head)
 
     def test_a_void_round_twice_needs_the_owner(self):

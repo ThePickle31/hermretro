@@ -135,9 +135,9 @@ def fails(ctx, results: dict, record: dict, ids: dict, name: str = "lint") -> bo
     return recorded(ctx, record, ids, name) == "FAILED"
 
 
-def run_script(ctx, name: str, env: dict) -> dict:
-    command = [sys.executable, *SCRIPTS[name]]
-    ctx.out.say(f"running {shlex.join(SCRIPTS[name])} ...")
+def run_script(ctx, name: str, env: dict, args: list[str]) -> dict:
+    command = [sys.executable, *SCRIPTS[name], *args]
+    ctx.out.say(f"running {shlex.join(command[1:])} ...")
     started = time.monotonic()
     code, lines = _stream(ctx, command, env)
     seconds = time.monotonic() - started

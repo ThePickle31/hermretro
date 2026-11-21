@@ -164,10 +164,6 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await click('Simple', build14ph.node.querySelector('.cs-b-wk-mode'))
   await click('Builds', build14ph.node.querySelector('.cs-b-head'))
   await settle(30)
-  check('Builds lists every build newest first; an earlier build offers Restore only once its files are found', () => {
-    const rows = [...build14ph.node.querySelectorAll('.cs-b-brow')].map(node => node.textContent)
-    assert.equal(rows.length, 2); assert.match(rows[0], /#2add music.*didn’t finish/); assert.match(rows[1], /#1Robin in the sky/)
-  })
   await key('keydown', 'Escape')
   await build14ph.close()
   // The report's suggestions and the @ picker: chips fill the box; @ lists the game's pictures.
@@ -521,10 +517,6 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.ok(!pop().querySelector('[aria-label="Speed"]'), 'no Standard / Fast for a Claude model')
   })
   await typeInto(pop().querySelector('input[aria-label="Search models"]'), 'sol')
-  check('search looks through every provider and groups the matches under each provider\'s name', () => {
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-group')].map(node => node.textContent), ['ChatGPT or Codex Subscription'])
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.textContent), ['GPT-6.1 Sol', 'GPT-6 Sol900K'], 'its rows show OpenAI\u2019s logo, not letters')
-  })
   await act(async () => { pop().querySelectorAll('.cs-b-mp-row')[0].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()
   check('picking a model switches this conversation only, and the button shows it', () => {

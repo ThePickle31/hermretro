@@ -127,11 +127,33 @@ def committed(ctx) -> Gate:
     return passed("committed and clean")
 
 
+def unproven_here(ctx, record: dict) -> str:
+    """The slow checks asked for on this very tree that failed or were skipped, scaffold's in either mode: said beside
+    the pass (they do not hold back a draft; PR CI runs only the slow checks its changes select), never hidden."""
+    slow = set(checks.known(ctx)) - checks.required(ctx).keys()
+    candidates = [  # (check name, run nested, last result): scaffold's nested result has its own key
+        ("scaffold" if key == checks.NESTED_KEY else key, key == checks.NESTED_KEY, last)
+        for key, last in sorted((checks.split_modes(record).get("checks") or {}).items())
+        if (key in slow or key == checks.NESTED_KEY) and last.get("state") in ("FAILED", "skipped")
+    ]
+    if not candidates:
+        return ""
+    ids = repo.file_ids(ctx.top)
+    found = [
+        f"{'scaffold (nested)' if deep else name} {last['state']}"
+        for name, deep, last in candidates
+        if last.get("digest") == checks.input_digest(ctx, ids, name, deep)
+    ]
+    return (
+        f"; not proven here: {', '.join(found)} (PR CI runs only the slow checks its changes select)" if found else ""
+    )
+
+
 def checks_on_tree(ctx, record: dict, digest: str) -> Gate:
-    """The pass recorded for exactly this tree covered every check the policy requires of this change now."""
+    """The pass recorded for exactly this tree covered every fast check the policy requires now."""
     missing = sorted(set(checks.required(ctx)) - set(record.get("passed_checks") or []))
     if record.get("passed_tree") == digest and not missing:
-        return passed("checks passed on this tree", f"at {record.get('passed_at')}")
+        return passed("checks passed on this tree", f"at {record.get('passed_at')}" + unproven_here(ctx, record))
     if not record.get("passed_tree"):
         reason = "no passing check run is recorded"
     elif record["passed_tree"] != digest:

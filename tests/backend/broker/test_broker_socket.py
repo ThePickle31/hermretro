@@ -89,6 +89,9 @@ class BrokerSocket(unittest.TestCase):
         self.assertEqual(self.broker.hello["protocol"], paths.PROTOCOL)
         self.assertEqual(self.broker.hello["code_fingerprint"], paths.code_fingerprint())
         self.assertEqual(self.broker.hello["loaded_fingerprint"], paths.code_fingerprint())
+        self.assertEqual(os.path.realpath(self.broker.hello["plugin_root"]), os.path.realpath(paths.PLUGIN_ROOT))
+        self.assertEqual(self.state.stat().st_mode & 0o777, 0o700)
+        self.assertEqual((self.state / "broker.sock").stat().st_mode & 0o777, 0o600)
 
     def test_2_read_only_ops_answer_without_starting_a_worker(self):
         stats = self.ask({"op": "stats"})

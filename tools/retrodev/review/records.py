@@ -5,6 +5,12 @@
 
 A round entry: {round, sha, started, inputs, output, session_ids, result, errors, audit, void, seconds,
 answers: {"<finding index>": text}}. ``next_action`` reads a record and says what landing does next.
+
+How many rounds a pull request gets: record['depth'] = {rounds, why}, written by land (land_depth.py) from the
+policy and the findings. After that many rounds the head that answers the last round's findings is accepted
+(record['accepted'] = {head, at, round}) and merges without another round. MAX_ROUNDS is the hard limit: a push
+after a clean round or after the accepted head is still reviewed, until that many rounds ran. A record without
+'depth' (written before it existed) keeps MAX_ROUNDS.
 """
 
 from __future__ import annotations
@@ -140,20 +146,50 @@ def next_round(record: dict) -> int:
     return len(valid_rounds(record)) + 1
 
 
+def depth(record: dict) -> int:
+    """Rounds after which the answered findings are accepted without another round (1..MAX_ROUNDS)."""
+    try:
+        wanted = int((record.get("depth") or {}).get("rounds") or MAX_ROUNDS)
+    except (TypeError, ValueError):
+        wanted = MAX_ROUNDS
+    return min(MAX_ROUNDS, max(1, wanted))
+
+
+def accepted_head(record: dict) -> str | None:
+    """The head accepted with the last valid round's fixes. An acceptance belongs to one round: a later round with
+    findings of its own needs a new one (older records name no round: theirs was round MAX_ROUNDS)."""
+    accepted = record.get("accepted") or {}
+    rounds = valid_rounds(record)
+    if not accepted.get("head") or not rounds or accepted.get("round", MAX_ROUNDS) != rounds[-1]["round"]:
+        return None
+    return accepted["head"]
+
+
 def accept_head(root: Path, pr: int, sha: str, notes: Path | None = None) -> dict:
-    """Remember the one head accepted after round 3's findings (the fixes of round 3, merged without a 4th round)."""
+    """Remember the one head accepted with the last round's fixes (merged without another round)."""
     record = load(root, pr)
-    if not record.get("accepted"):
-        record["accepted"] = {"head": sha, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    if accepted_head(record) is None:
+        last = valid_rounds(record)[-1]["round"]
+        record["accepted"] = {"head": sha, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "round": last}
         save(root, record, notes)
     return record
+
+
+def only_low(entry: dict) -> bool:
+    """Every finding of the round is rated low (and there is one)."""
+    found = (entry.get("result") or {}).get("findings") or []
+    return bool(found) and all(f.get("severity") == "low" for f in found)
 
 
 def reviewed_as(record: dict, head: str) -> str:
     """The reviewed head that ``head`` stands for: a head that only merged the base branch after it keeps its review
     (record['carried'], written by land_carry), else ``head`` itself."""
-    for entry in record.get("carried") or []:
-        if entry.get("head") == head:
+    rounds = valid_rounds(record)
+    if rounds and head == rounds[-1]["sha"]:
+        return head  # reviewed itself, later than any carry made for it
+    current = {rounds[-1]["sha"] if rounds else None, accepted_head(record)}
+    for entry in reversed(record.get("carried") or []):
+        if entry.get("head") == head and entry.get("reviewed") in current:
             return entry["reviewed"]
     return head
 
@@ -162,11 +198,17 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     """What landing does next.
 
     'merge-on-green' reviews were skipped (reason in record['skipped']); 'needs-owner' the last round was void
-    twice; 'review' no valid round yet, or a push after the last round and fewer than 3 rounds ran; 'fix' the
-    last round has findings and nothing new is pushed; 'fix-then-merge' round 3 had findings and this head is the
-    one accepted with their fixes (or none is accepted yet: landing records this one); 'merge' the last round is
-    clean on the current head and CI is green; 'wait-ci' clean, CI not green; 'reviews-exhausted' 3 rounds ran and
-    the head moved past the reviewed (or accepted) head: the owner decides.
+    twice; 'review' no valid round yet, or a push after the last round that no acceptance covers and fewer than
+    MAX_ROUNDS ran; 'fix' the last round has findings and nothing new is pushed; 'fix-then-merge' the pull
+    request's last due round (``depth``) had findings and this head is the one accepted with their fixes (or none
+    is accepted yet: landing records this one); 'merge' the last round is clean on the current head and CI is
+    green; 'wait-ci' clean, CI not green; 'reviews-exhausted' MAX_ROUNDS ran and the head moved past the reviewed
+    (or accepted) head: the owner decides.
+
+    Before MAX_ROUNDS, a head is accepted only when its patch differs from the reviewed one (fixes were pushed; an
+    empty commit or a clean merge of the base branch is not one: depth['same_patch']) or every finding was rated
+    low: findings above low that are only disputed get a round to judge the answers ('fix', which land turns into
+    'review' once all are answered).
 
     A clean verdict counts only for the head it reviewed, whatever the round count (or a head carried over from it:
     one that only merged the base branch after it, ``reviewed_as``)."""
@@ -178,15 +220,25 @@ def next_action(record: dict, ci_green: bool, head: str | None = None) -> str:
     if not rounds:
         return "review"
     last = rounds[-1]
-    head = reviewed_as(record, head or record.get("head") or last["sha"])
+    head = head or record.get("head") or last["sha"]
     exhausted = len(rounds) >= MAX_ROUNDS
+    if head != last["sha"] and (record.get("depth") or {}).get("unseen") and not exhausted:
+        return "review"  # it changes a second_round file no round saw: no earlier review stands for this head
+    head = reviewed_as(record, head)
     if last["result"]["verdict"] == "clean":
         if head == last["sha"]:
             return "merge" if ci_green else "wait-ci"
         return "reviews-exhausted" if exhausted else "review"
-    if exhausted:
-        accepted = (record.get("accepted") or {}).get("head")
-        return "fix-then-merge" if accepted in (None, head) else "reviews-exhausted"
+    if len(rounds) >= depth(record):
+        accepted = accepted_head(record)
+        if accepted == head:
+            return "fix-then-merge"
+        if accepted is not None:
+            return "reviews-exhausted" if exhausted else "review"
+        pushed = head != last["sha"] and not (record.get("depth") or {}).get("same_patch")
+        if exhausted or pushed or only_low(last):
+            return "fix-then-merge"
+        return "fix"
     return "review" if head != last["sha"] else "fix"
 
 
@@ -194,6 +246,8 @@ def markdown(record: dict) -> str:
     out = [f"# Reviews of PR #{record['pr']}", ""]
     if record.get("skipped"):
         out += [f"Reviews skipped: {record['skipped']['reason']} ({record['skipped'].get('at', '')})", ""]
+    if record.get("depth"):
+        out += [f"Review depth: {record['depth'].get('why')}", ""]
     for p in record.get("probes", []):
         out.append(
             f"- probe {p.get('at', '')}: {'available' if p.get('available') else 'unavailable'}"

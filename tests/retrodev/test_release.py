@@ -92,7 +92,7 @@ class Prepare(ReleaseCase):
         self.assertEqual((record["words"], record["pr"]), (WORDS, int(PR)))
         ran = [entry.get("names", entry.get("script")) for entry in self.check_log()]
         self.assertIn([], ran)  # plugin.yaml changed: the clean install (its stand-in, no arguments)
-        self.assertNotIn(["acceptance"], ran)  # only its version line: no real-engine run (checks_triggers)
+        self.assertNotIn(["acceptance"], ran)  # only its version line: no real-engine run (version_pr_checks)
 
     def test_a_reused_release_worktree_that_is_dirty_off_branch_or_carries_more_is_refused(self):
         self.gh.answers[("pr", "create")] = (0, f"https://github.com/o/r/pull/{PR}\n", "")
@@ -277,7 +277,6 @@ class Publish(ReleaseCase):
         drafted = (state.root(self.main) / "releases" / f"{NEXT}-notes.md").read_text() + "\nA hand-written note.\n"
         self.gh.answers[("release", "view", tag, "--json", "url")] = (0, json.dumps({"url": URL}), "")
         self.gh.answers[("release", "view", tag, "--json", "body")] = (0, drafted, "")
-        self.gh.answers[("release", "edit")] = (0, "", "")
         self.gh.answers[("release", "edit")] = (1, "", "HTTP 422: Validation Failed")  # the notes edit fails once
         code, data = self.publish(NEXT, "--checklist", "passed on a MacBook Pro (M3)")
         self.assertEqual(code, 1, data)

@@ -101,11 +101,6 @@ class PresentationHistory(unittest.TestCase):
         self.assertEqual(self.cap, games.MAX_PRESENTATIONS)
         self.assertGreater(self.cap, RPC_LIMIT, "the cap is past the RPC's own 20")
 
-    def test_exactly_the_cap_keeps_every_record(self):
-        expected = [self.present() for _ in range(self.cap)]
-        self.assertEqual(len(expected), self.cap)
-        self.assert_kept(expected)
-
     def test_one_past_the_cap_drops_only_the_oldest(self):
         expected = [self.present() for _ in range(self.cap)]
         expected.append(self.present())

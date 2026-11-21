@@ -91,11 +91,11 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("branch", help="the pushed branch, e.g. feat/<topic>")
     p.add_argument("--no-setup", action="store_true", help="skip npm ci and the ruff setup")
 
-    p = add("check", "the checks whose inputs changed (cached passes print 'ok (cached)')")
+    p = add("check", "the fast checks whose inputs changed (cached passes print 'ok (cached)')")
     names = ", ".join(config.load_policy(Path(__file__).resolve().parents[2])["checks"]["inputs"])
     p.add_argument("names", nargs="*", help="only these checks: " + names)
     p.add_argument("--again", action="store_true", help="ignore earlier passes (with --watch: on its first run)")
-    p.add_argument("--full", action="store_true", help="also the real-engine run and the clean install")
+    p.add_argument("--full", action="store_true", help="also scaffold, the real-engine run and the clean install")
     p.add_argument("--watch", action="store_true", help="run again on every file change")
 
     p = add("ship", "push the branch and open (or update) its draft pull request")
