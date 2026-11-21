@@ -104,22 +104,22 @@ class Contribution(ScaffoldCase):
 
     def test_a_dry_run_previews_a_slot_not_declared_yet_and_the_real_run_refuses(self):
         self.host(declared=False)
-        out = self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeItem", "--dry-run", as_json=False)
+        out = self.new("contribution", "build", "rdprobe-host.extra", "RdprobeItem", "--dry-run", as_json=False)
         self.assertIn(
             "note: slot not declared yet: preview it with python tools/retrodev new slot rdprobe-host extra --dry-run",
             out,
         )
         self.assertIn("dry run: nothing was written", out)
-        out = self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeItem", code=1)
+        out = self.new("contribution", "build", "rdprobe-host.extra", "RdprobeItem", code=1)
         self.assertIn("no page declares the slot 'rdprobe-host.extra'", out["error"]["message"])
         self.assertIn("with `--dry-run` only, a slot of an existing host page", retrodev_docs("REFERENCE.md"))
 
     def test_the_registry_edit_it_made_is_done_not_next(self):
         self.host(declared=True)
-        out = self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeItem")
+        out = self.new("contribution", "build", "rdprobe-host.extra", "RdprobeItem")
         self.assertTrue(any("added RdprobeItem to the `filled` assertion" in line for line in out["done"]), out)
         self.assertFalse([step for step in out["next"] if "added RdprobeItem" in step], out["next"])
-        text = self.new("contribution", "prompts", "rdprobe-host.extra", "RdprobeOther", as_json=False)
+        text = self.new("contribution", "build", "rdprobe-host.extra", "RdprobeOther", as_json=False)
         self.assertIn("done: tests/page/registry.test.mjs: added RdprobeOther", text)
 
 

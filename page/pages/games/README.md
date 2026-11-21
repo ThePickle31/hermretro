@@ -11,8 +11,8 @@ Game shelf, so a change to it shows on both pages.
 
 **Tabs:** none.
 
-**Events:** emits `games.coverRequested` `{ game, prompt }` when Make cover art (or Finish card) is picked; the
-page then goes to Build, which listens. Listens to none.
+**Events:** emits `games.coverRequested` `{ game, prompt }` when Make cover art (or Finish card) is picked, so
+Build can draft the message. The Games page navigates to the selected game or to the New Game form. Listens to none.
 
 **Slots:** declares `games.cardMenu`: extra items at the end of a game's arrow menu, props
 `{ ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }` (return `item(...)`; starts empty).
@@ -20,12 +20,12 @@ Contributes `InstallButton` to `emulator.barActions` (Install on Chromatic in th
 
 **Exposes** (`index.js`): `GAME_STATES`, `gameMeta`, `latestGame`, `StateTag`.
 
-**Uses from other pages:** `#pages/prompts/index.js` (the flash prompt).
+**Uses from other pages:** none.
 
 **Tests:** the Games card is covered in two files: `tests/page/page-games.test.mjs` (the cards' states, the split
-Play/Fix button and the arrow menu with its contributed items) and `tests/page/page-build-turns.test.mjs` (the card's
+Play/Fix button, the arrow menu with its contributed items, and New Game navigation) and `tests/page/page-build-turns.test.mjs` (the card's
 cover art, display title, tagline and genres, and Make cover art for a game without a card);
-`tests/page/registry.test.mjs` (its event and slots).
+`tests/page/registry.test.mjs` (its events and slots).
 
 ## Adding a tab here
 

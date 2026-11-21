@@ -133,7 +133,7 @@ REACH_LINES = 3  # a click within this many lines after tab('<Label>') uses the 
 
 def reaches(code: str, opens: re.Pattern) -> bool:
     """The test uses the page after opening it: a click() within REACH_LINES lines of a tab('<Label>'), before
-    another tab() or render(). A page shown while the studio is not ready (Prompts during setup) is only looked at."""
+    another tab() or render(). A page shown while the studio is not ready (one looked at during setup) is only looked at."""
     for match in opens.finditer(code):
         after = "\n".join(code[match.end() :].split("\n")[: REACH_LINES + 1])
         after = re.split(r"\b(?:tab|render)\(", after, maxsplit=1)[0]
@@ -145,8 +145,8 @@ def reaches(code: str, opens: re.Pattern) -> bool:
 def scenario_tests(plan: Plan, page_id: str) -> list[str]:
     """The tests/page/*.test.mjs that open the page: those that press its nav tab (tab('<Label>')), and one named
     page-<page>*.test.mjs. Named ones first (the page's own test), then those that use the page once open (reaches:
-    the page shown in a ready studio, e.g. page-studio.test.mjs's tab('Prompts') then a click, over
-    page-setup.test.mjs's Prompts during setup), then by how often they open it."""
+    the page shown in a ready studio, e.g. a tab('Games') then a click, over a test that only looks at
+    Games during setup), then by how often they open it."""
     label = page_label(plan, page_id)
     opens = re.compile(rf"""\btab\(\s*(['"]){re.escape(label)}\1\s*\)""") if label else None
     ranked = []

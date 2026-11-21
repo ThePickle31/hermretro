@@ -2,7 +2,7 @@
 // stylesheet, fonts and icons, in light and dark mode:
 //   node tests/page/preview/build.mjs <out dir> [apps/desktop of a Hermes checkout]
 // Open <out dir>/index.html (a classic script, so it also runs from file://)?s=choice&mode=dark&p=setup
-// (the bar at the top switches scenarios; p = build | setup | prompts | games | emulator).
+// (the bar at the top switches scenarios; p = build | setup | games | emulator).
 import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'

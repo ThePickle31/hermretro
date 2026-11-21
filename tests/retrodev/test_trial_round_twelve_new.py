@@ -149,7 +149,7 @@ class Listener(ScaffoldCase):
 
 
 # A stand-in check.py. Its lint, like ruff's, names each Python file not in its format (here: holding '  =  '; tools/
-# is left out, this file among it), or says ruff is missing (.no-ruff) beside a page error in prompts/index.js. Its
+# is left out, this file among it), or says ruff is missing (.no-ruff) beside a page error in build/index.js. Its
 # lint-files, like tools/py/lint_tools.py's, lints only the files named: a missing ruff, or a named Python file
 # holding '  =  ' or 'rdprobe_bad', fails it.
 FORMAT_CHECK = """import sys
@@ -167,7 +167,7 @@ for name in sys.argv[1:]:
     bad = sorted(str(p) for p in Path(".").rglob("*.py") if p.parts[0] != "tools" and "  =  " in p.read_text())
     if name == "lint" and gone:
         print(f" FAILED  lint         0.2 s  ruff is not installed in .dev/py")
-        print("         page/pages/prompts/index.js:1:1  x is not defined [no-undef]")
+        print("         page/pages/build/index.js:1:1  x is not defined [no-undef]")
         code = 1
     elif name == "lint" and bad:
         print(f" FAILED  lint         0.2 s  {len(bad)} Python files are not in ruff's format:")
@@ -209,7 +209,7 @@ class PreExisting(ScaffoldCase):
 
     def test_a_missing_ruff_beside_an_unrelated_page_error_keeps_new_failing(self):  # review 2, 0
         self.standin(".no-ruff", "")
-        write(self.tree, "page/pages/prompts/index.js", "x\n" + (self.tree / "page/pages/prompts/index.js").read_text())
+        write(self.tree, "page/pages/build/index.js", "x\n" + (self.tree / "page/pages/build/index.js").read_text())
         code, out = self.run_cli("new", "rpc", "history", "rdprobe_noruff", cwd=self.tree)
         self.assertEqual(code, 1, out)
         self.assertIn("new's own lint: ruff is missing", out)
