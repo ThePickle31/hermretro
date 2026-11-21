@@ -89,7 +89,8 @@ and `.dev/` are not linted.
   the install, registration, broker or update paths (`UPGRADE`). The update from the newest release runs on every
   run. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
-  and integration on Linux, Apple Silicon and Intel macOS.
+  integration on Linux, Apple Silicon and Intel macOS, and the nested scaffold guard on Linux. The scheduled
+  scaffold job starts once the workflow reaches `main`; workflow-changing pull requests exercise it on their head.
 
 The single required check is **All checks pass**.
 
