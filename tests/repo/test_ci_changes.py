@@ -4,6 +4,7 @@ pull request or a single-commit push; anything more does as before. Run against 
 workflow runs it (the script and its two revisions).
 """
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -234,6 +235,36 @@ class Changes(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertEqual(done.stdout, "", "nothing for $GITHUB_OUTPUT")
         self.assertIn("FIX:", done.stderr)
+
+
+class ScaffoldModeInWorkflow(unittest.TestCase):
+    def test_ci_runs_the_scaffold_check_nested_when_job_changes_says_so_else_the_smoke(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow[workflow.index("- name: python tools/check.py bundle lint page scaffold") :].split("\n\n")[0]
+        self.assertIn("SCAFFOLD: ${{ needs.changes.outputs.scaffold }}", step)
+        self.assertIn("true) export RD_SCAFFOLD_FULL=nested ;;", step)
+        self.assertIn("false) export RD_SCAFFOLD_FULL=smoke ;;", step)
+        self.assertIn("*) echo", step)  # no decision: the step fails
+        self.assertIn("python tools/check.py bundle lint page scaffold --strict", step)
+
+    def test_the_fallback_arm_stops_the_step_before_check_py_runs(self):  # review 1, 9
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow[workflow.index("- name: python tools/check.py bundle lint page scaffold") :].split("\n\n")[0]
+        script = "\n".join(line[10:] for line in step.split("run: |\n", 1)[1].splitlines())
+        with tempfile.TemporaryDirectory() as temp:
+            stub, ran = Path(temp) / "bin", Path(temp) / "python-ran"
+            stub.mkdir()
+            python = stub / "python"
+            python.write_text(f"#!/bin/sh\ntouch {ran}\n")
+            python.chmod(0o755)
+            shell = Path(temp) / "step.sh"
+            shell.write_text(script + "\n")
+            env = {key: value for key, value in os.environ.items() if key != "SCAFFOLD"}
+            env["PATH"] = f"{stub}:{env.get('PATH', '')}"
+            done = subprocess.run(["bash", "-e", str(shell)], cwd=ROOT, env=env, capture_output=True, text=True)
+            self.assertNotEqual(done.returncode, 0, done.stdout)
+            self.assertIn("job changes decided no scaffold mode", done.stdout)
+            self.assertFalse(ran.exists(), "check.py ran although the mode is unset")
 
 
 if __name__ == "__main__":
