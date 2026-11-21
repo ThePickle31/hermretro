@@ -133,6 +133,8 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         print("\n".join(problems), file=sys.stderr)
         return 1
     broker_fate = "kept (same code)" if before.get("broker_code") == after.get("code") else "replaced (new code)"
+    if args.update_from == "latest-release" and old != new:
+        print(f"upgrade evidence: {ref} {old} -> {new}")
     print(
         f"ok: {ref} updates cleanly to HEAD with `hermes plugins update` ({time.monotonic() - started:.0f} s): "
         f"games and library kept, the broker {broker_fate}, the agent side only in hermretro"

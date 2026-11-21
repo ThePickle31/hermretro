@@ -776,9 +776,13 @@ three steps below remain, to run or resume one at a time:
    `dev` moves releases the same commit, its gates checked again); that commit is on `origin/dev` and its
    `plugin.yaml` says the version; "All checks pass" is green on that exact commit (`gh api
    repos/{owner}/{repo}/commits/<sha>/check-runs`; still running: exit 2); `origin/main` is an ancestor of it (main
-   only fast-forwards; otherwise exit 3); the tag is free or already at that commit. Then
-   `tools/ci/clean_install_check.py --update-from` runs on that commit in a throwaway checkout (its pass is kept for
-   the commit). Then, each step skipped when done already, so a stopped publish resumes: `git push origin <sha>` onto
+   only fast-forwards; otherwise exit 3); the tag is free or already at that commit. Next, the upgrade must be
+   proven from the preceding stable release to the exact candidate. Only the repository's successful `dev` push
+   workflow attempt can supply evidence: the upgrade step must have succeeded and logged both full commit SHAs;
+   the job also identifies the pinned Hermes runtime. The baseline must be a published, immutable release.
+   If evidence is absent, unavailable or mismatched, `tools/ci/clean_install_check.py --update-from` runs locally
+   in a throwaway checkout. A saved local pass must match both commits; verification rechecks the current CI attempt.
+   Then, each step skipped when done already, so a stopped publish resumes: `git push origin <sha>` onto
    `main` (a plain fast-forward push, with `HERMES_RELEASE=1` in that one push's environment for the local guard
    hooks), `git tag -a v<version> <sha>`, `git push origin refs/tags/v<version>`, `gh release create v<version>
    --verify-tag --notes-file <state>/releases/<version>-notes.md --draft`. Retrodev writes those notes

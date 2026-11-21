@@ -5,8 +5,9 @@ request is merged (the merge commit is the release commit; only when prepare rec
 base branch's head; an interrupted prepare's pull request is found by its branch, else refused); that commit is
 on the base branch, its plugin.yaml says the version, and the required CI job ("All checks pass") is green on that
 exact commit (gh api .../commits/<sha>/check-runs); for a stable release main can fast-forward to it. Then
-`tools/ci/clean_install_check.py --update-from v<previous stable>` runs on that commit in a throwaway checkout (its
-pass is kept for that commit and starting release, so release verify does not run it again). Then, each step skipped when it is done already (so a stopped publish resumes):
+The published-release upgrade must pass on that exact pair of commits. Use trusted dev-push evidence if present;
+otherwise run `tools/ci/clean_install_check.py --update-from v<previous stable>` in a throwaway checkout. Then,
+each step skipped when it is done already (so a stopped publish resumes):
 
     git push <remote> <sha>:<main>         a fast-forward only (never forced); HERMES_RELEASE=1 for this push only,
                                            which the local guard hooks require
@@ -28,7 +29,7 @@ import json
 import os
 import shlex
 
-from . import gates, github, release, release_notes, repo, state, trial
+from . import gates, github, release, release_ci, release_notes, repo, state, trial
 from .gates import Gate
 from .output import OWNER, WAITING, Failure, cmd
 
@@ -177,17 +178,34 @@ def update_from(ctx, version: str) -> str | None:
     return f"v{previous}" if previous else None
 
 
-def kept_install(rec: dict, sha: str, start: str | None) -> dict | None:
-    """An update check that passed on this commit from this starting release (publish's, for verify)."""
-    found = (rec.get("install") or {}).get(sha)
-    return found if found and found.get("ok") and found.get("from", "") == (start or "") else None
-
-
-def install_check(ctx, rec: dict, sha: str, start: str | None) -> dict:
-    """tools/ci/clean_install_check.py --update-from <start> on ``sha``; the result kept in the record, keyed by
-    commit and starting release (a later failure replaces an earlier pass)."""
-    result = trial.install_check(ctx, sha, start)
-    entry = {"ok": result["ok"], "at": state.now(), "detail": result["detail"], "from": start or ""}
+def install_check(ctx, rec: dict, sha: str, start: str | None, *, dry_run: bool = False) -> dict:
+    """Reuse a local pass for the exact pair; otherwise prove the current CI attempt or run the local check."""
+    baseline = repo.head(ctx.top, f"refs/tags/{start}") if start else None
+    kept = (rec.get("install") or {}).get(sha, {})
+    if (
+        kept.get("ok")
+        and kept.get("source") == "local"
+        and kept.get("from") == (start or "")
+        and kept.get("baseline") == baseline
+        and (not start or baseline)
+    ):
+        return {"ok": True, "detail": f"{kept['detail']} (saved local run at {kept['at']})"}
+    if dry_run:
+        return {"ok": True, "detail": "would use exact CI upgrade evidence, or run the local upgrade check"}
+    proof = release_ci.evidence(ctx, sha, start, baseline)
+    if proof:
+        result = {"ok": True, "detail": f"CI run {proof['run']} attempt {proof['attempt']}, Hermes {proof['hermes']}"}
+    else:
+        result = trial.install_check(ctx, sha, baseline or start)
+    entry = {
+        "ok": result["ok"],
+        "at": state.now(),
+        "detail": result["detail"],
+        "from": start or "",
+        "baseline": baseline,
+        "source": "ci" if proof else "local",
+        "evidence": proof,
+    }
     rec.setdefault("install", {})[sha] = entry
     state.save_release(ctx.top, rec)
     return result
@@ -196,12 +214,7 @@ def install_check(ctx, rec: dict, sha: str, start: str | None) -> dict:
 def install_gate(ctx, rec: dict, sha: str, dry_run: bool, version: str) -> Gate:
     name = "clean install and update check"
     start = update_from(ctx, version)
-    cached = kept_install(rec, sha, start)
-    if cached:
-        return gates.passed(name, f"passed at {cached.get('at')} (on this commit, from {start or 'nothing'})")
-    if dry_run:
-        return gates.passed(name, "would run tools/ci/clean_install_check.py --update-from on this commit")
-    result = install_check(ctx, rec, sha, start)
+    result = install_check(ctx, rec, sha, start, dry_run=dry_run)
     if not result["ok"]:
         return Gate(name, False, result["detail"], "read the update check's FIX above; fix it on dev, then again")
     return gates.passed(name, result["detail"])

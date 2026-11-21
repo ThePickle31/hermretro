@@ -253,7 +253,7 @@ class Publish(ReleaseCase):
         self.assertIn("Real-machine checklist (docs/dev/RELEASE-CHECKLIST.md): not needed", notes)
         self.assertNotIn(f"Release {NEXT}", notes, "the version pull request is left out")
         self.assertEqual(data["url"], URL)
-        self.assertEqual(self.check_log()[0]["script"], ["--update-from", "v0.0.1"])  # from the last release
+        self.assertEqual(self.check_log()[0]["script"], ["--update-from", self.remote("refs/tags/v0.0.1^{commit}")])
         self.assertEqual(self.check_log()[0]["head"], sha)
         self.assertEqual([p.name for p in self.base.glob("rd-*")], [], "the throwaway checkout is gone")
         self.gh.answers[("release", "view")] = (0, json.dumps({"url": URL}), "")
@@ -350,12 +350,12 @@ class Verify(ReleaseCase):
         self.assertEqual((code, data["published"]), (0, False), data)
         self.assertEqual(self.check_log(), [], "publish's update check on this commit counts: it runs once")
         update = [gate for gate in data["gates"] if gate["name"] == "update from the last release"][0]
-        self.assertIn("release publish's run", update["message"])
+        self.assertIn("saved local run", update["message"])
         record = state.load_release(self.main, NEXT)
         record["install"] = {}  # nothing kept (an older record): verify runs it
         state.save_release(self.main, record)
         self.assertEqual(self.run_cli("release", "verify", NEXT, as_json=True)[0], 0)
-        self.assertEqual(self.check_log()[0]["script"], ["--update-from", "v0.0.1"])
+        self.assertEqual(self.check_log()[0]["script"], ["--update-from", self.remote("refs/tags/v0.0.1^{commit}")])
         self.assertEqual(self.gh.called("release", "edit"), [])
         code, out = self.run_cli("release", "verify", NEXT, "--publish")
         self.assertEqual(code, 0, out)

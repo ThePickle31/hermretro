@@ -120,13 +120,7 @@ def run(ctx, version: str, publish: bool = False) -> int:
         )
         start = release_publish.update_from(ctx, version)
         rec = state.load_release(ctx.top, version) or {"version": version}
-        kept = release_publish.kept_install(rec, sha, start)
-        # release publish ran this very check on this commit minutes ago: its pass counts, so it runs once
-        result = (
-            {"ok": True, "detail": f"{kept['detail']} (release publish's run at {kept.get('at')})"}
-            if kept
-            else release_publish.install_check(ctx, rec, sha, start)
-        )
+        result = release_publish.install_check(ctx, rec, sha, start)
         detail = f"from {start}: {result['detail']}" if start else result["detail"]
         found.append(
             gates.passed("update from the last release", detail)
