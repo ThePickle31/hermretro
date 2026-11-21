@@ -117,7 +117,16 @@ def refuse_uncommitted_installs(ctx, todo: list[str], wanted: dict[str, str], re
         )
 
 
-def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for_commit: bool = False, env=None) -> int:
+def run(
+    ctx,
+    names: list[str],
+    again: bool = False,
+    full: bool = False,
+    wait_for_commit: bool = False,
+    env=None,
+    *,
+    update_from: str | None = None,
+) -> int:
     """``wait_for_commit`` (check --watch): run the other checks on uncommitted changes and skip the install
     checks until a commit, instead of refusing up front. ``env``: variables added to the checks' processes only."""
     branch = repo.branch(ctx.top) or "detached"
@@ -178,7 +187,8 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
             results[name] = {"state": "skipped", "seconds": 0.0, "detail": detail, "more": []}
             ctx.out.say(_row_text("skipped", name, 0.0, detail))
         elif name in SCRIPTS:
-            results[name] = run_script(ctx, name, env_for(name, env))
+            args = [update_from] if name == "update" and update_from else []
+            results[name] = run_script(ctx, name, env_for(name, env), args)
             digests[name] = inputs_digest(ctx, committed, name)
     for name in todo:
         result = results[name]

@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from retrodev import checks, config, mac, output, preview
+from retrodev import config, mac, output, preview, trial
 
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
@@ -23,10 +23,13 @@ class Try(RepoCase):
     def setUp(self):
         super().setUp()
         self.fakes["tmp_root"] = self.base
-        tree = self.worktree("feat/thing")
-        self.commit(tree, "backend/library/core.py", "VALUE = 2\n", "Change the value")
-        git(tree, "push", "-q", "origin", "HEAD:refs/pull/7/head")  # what GitHub keeps for pull request 7
-        self.head = git(tree, "rev-parse", "HEAD").strip()
+        self.baseline = git(self.main, "rev-parse", "HEAD").strip()
+        git(self.main, "tag", "v0.0.1", self.baseline)
+        git(self.main, "push", "-q", "origin", "HEAD:refs/heads/main", "refs/tags/v0.0.1")
+        self.tree = self.worktree("feat/thing")
+        self.commit(self.tree, "backend/library/core.py", "VALUE = 2\n", "Change the value")
+        git(self.tree, "push", "-q", "origin", "HEAD:refs/pull/7/head")  # what GitHub keeps for pull request 7
+        self.head = git(self.tree, "rev-parse", "HEAD").strip()
 
     def worktrees(self) -> list[str]:
         return [
@@ -39,6 +42,7 @@ class Try(RepoCase):
         before = self.worktrees()
         code, data = self.run_cli("try", "7", as_json=True)
         self.assertEqual(code, 0, data)
+        assert isinstance(data, dict)
         self.assertEqual(data["head"], self.head)
         self.assertTrue(data["path"].startswith(str(self.base / "rd-try7-")), "outside the repository, short")
         names = [entry.get("names") or entry.get("script") for entry in self.check_log()]
@@ -48,13 +52,44 @@ class Try(RepoCase):
         scaffold = [entry.get("mode") for entry in self.check_log() if "scaffold" in entry.get("names", [])]
         self.assertEqual(scaffold, ["nested"], "try runs scaffold nested, whatever the pull request changed")
         installs = [(e["script"], e["head"]) for e in self.check_log() if "script" in e]
-        self.assertEqual(installs, [([], self.head), (["--update-from"], self.head)], "the clean install and update")
-        self.assertEqual([row["name"] for row in data["checks"]], checks.known(self.context()))
+        self.assertEqual(installs, [([], self.head), (["--update-from", self.baseline], self.head)])
+        self.assertEqual([row["name"] for row in data["checks"]], list(trial.REQUIRED))
         self.assertEqual(list(self.base.glob("rd-try7-*")), [])
         self.assertEqual(self.worktrees(), before)
 
-    def context(self):
-        return config.Context.make(self.main, output.Out(stream=io.StringIO()))
+    def test_a_pr_cannot_drop_a_required_check_from_its_policy(self):
+        policy = "tools/retrodev/policy.toml"
+        before = (self.tree / policy).read_text()
+        body = re.sub(r"(?m)^clean_install = \[.*\]\n", "", before, count=1)
+        self.assertNotEqual(before, body)
+        self.commit(self.tree, policy, body, "Drop the clean install inputs")
+        git(self.tree, "push", "-q", "origin", "HEAD:refs/pull/8/head")
+        code, data = self.run_cli("try", "8", "--no-setup", as_json=True)
+        self.assertEqual(code, 1, data)
+        assert isinstance(data, dict)
+        self.assertIn("unverified: required check configuration is missing: clean_install", data["error"]["message"])
+        self.assertEqual(self.check_log(), [])
+
+    def test_a_stale_clone_cannot_test_against_an_old_release(self):
+        other = self.base / "publisher"
+        git(self.base, "clone", "-q", "-b", "main", str(self.origin), str(other))
+        self.commit(other, "docs/guide.md", "# New release\n")
+        newer = git(other, "rev-parse", "HEAD").strip()
+        git(other, "tag", "v0.0.2", newer)
+        git(other, "push", "-q", "origin", "main", "refs/tags/v0.0.2", "HEAD:refs/pull/8/head")
+        self.assertEqual(git(self.main, "rev-parse", "origin/main").strip(), self.baseline)
+        self.assertEqual(git(self.main, "tag", "--list", "v0.0.2").strip(), "")
+        code, data = self.run_cli("try", "7", "--no-setup", as_json=True)
+        self.assertEqual(code, 1, data)
+        assert isinstance(data, dict)
+        self.assertIn("unverified: latest release v0.0.2 is not an ancestor of PR head", data["error"]["message"])
+        self.assertIn("sync and push", data["error"]["fix"])
+        self.assertEqual(self.check_log(), [])
+        code, data = self.run_cli("try", "8", "--no-setup", as_json=True)
+        self.assertEqual(code, 0, data)
+        assert isinstance(data, dict)
+        self.assertEqual((data["update_tag"], data["update_from"]), ("v0.0.2", newer))
+        self.assertIn(["--update-from", newer], [e["script"] for e in self.check_log() if "script" in e])
 
     def test_a_pull_request_that_moves_an_installed_file_and_changes_a_repository_test_gets_both(self):
         """The two checks a branch heuristic once added: the update from the newest release (a move under
@@ -67,7 +102,7 @@ class Try(RepoCase):
         self.clear_log()
         code, data = self.run_cli("try", "8", "--no-setup", as_json=True)
         self.assertEqual(code, 0, data)
-        self.assertIn(["--update-from"], [entry["script"] for entry in self.check_log() if "script" in entry])
+        self.assertIn(["--update-from", self.baseline], [e["script"] for e in self.check_log() if "script" in e])
         self.assertEqual({e["head"] for e in self.check_log() if "script" in e}, {head})
         scaffold = [entry.get("mode") for entry in self.check_log() if "scaffold" in entry.get("names", [])]
         self.assertEqual(scaffold, ["nested"])

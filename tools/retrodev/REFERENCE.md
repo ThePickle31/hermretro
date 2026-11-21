@@ -282,12 +282,14 @@ Personal settings; `set <key> ""` goes back to the default. `list` shows where a
 ### `try <pr> [--keep] [--no-setup]`
 
 Fetches the pull request's head (`<remote> refs/pull/<n>/head`, forks too) into a detached throwaway worktree in a
-short temp folder outside the repository, sets it up and runs every check retrodev knows there, whatever the pull
+short temp folder outside the repository, sets it up and runs a fixed suite there, whatever the pull
 request changed: the fast ones, scaffold nested (`RD_SCAFFOLD_FULL=nested`), acceptance, the clean install and the
 update from the newest published release (`update`), so more than `check --full` (a `skipped` row, such as
 acceptance without the toolchain, makes it unverified: exit 1, never a pass); removes it afterwards (the folder, then
 `git worktree prune`), also on a failure, unless `--keep` (its path and the commands that remove it are printed).
-Nothing in any agent's worktree changes
+Before setup, it refreshes the published branch and tags, pins the latest stable release for the upgrade, and
+refuses to report a pass if the PR head does not contain that release or lacks a required check's configuration.
+Nothing in any agent's worktree changes.
 
 ### `mac [--host H] [-- <check.py args>]`
 
