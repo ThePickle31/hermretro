@@ -130,7 +130,13 @@ def describe(record: dict) -> str:
         + (f" ({row['findings']} finding(s), {row['answered']} answered)" if row["findings"] else "")
         for row in rows
     ]
-    carried = [entry for entry in record.get("carried") or [] if entry.get("head") == record.get("head")]
+    carried = [
+        entry
+        for entry in record.get("carried") or []
+        # only a carry in effect: not one a later review of that very head replaced
+        if entry.get("head") == record.get("head")
+        and records.reviewed_as(record, entry["head"]) == entry.get("reviewed")
+    ]
     for entry in carried[-1:]:
         lines = entry.get("resolution_lines") or 0
         parts.append(

@@ -131,7 +131,7 @@ At the start of a session, look at the last nightly run (`gh run list --workflow
   agent made the change.
 - The owner approves each pull request once. An agent then merges only through `python tools/retrodev land <n>`:
   CI green on the exact head and the review loop done on that head (a clean round of it, or the one head that
-  fixes round 3's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
+  fixes its last round's findings, or reviews skipped because the reviewer was unavailable, recorded); a replacement pull
   request needs its own approval. GitHub auto-merge stays off.
 - When `dev` moved on, `python tools/retrodev sync` merges it in. On a conflict in a source file, edit the
   conflicting hunks (never take one side of a whole file with `git checkout --ours/--theirs`: its other hunks were

@@ -374,15 +374,16 @@ extends a declaration only in a shape it knows (`TOOLS` a plain tuple or list; `
 several, its entries kept) and otherwise refuses with a `FIX:` and changes no file (the hermes feature's `TOOLS` is a
 function: its tools come from the engine). Step words may hold quotes; each is written as a proper Python and
 JavaScript string. The generated code passes the real checks as written: `python tools/check.py scaffold`
-(`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; a few seconds, so not in the fast unit run) runs
-every kind on a copy of the repository, then lint, the bundle, the structure tests and the page tests there. It is
-part of `check.py full`, `check --full` and `check scaffold`, and CI's page job runs it with `RD_SCAFFOLD_FULL=nested`: after the base tree's unit suite (a failure there is
-`scaffold: skipped: the tree fails unit (fix unit first)` with that run's last lines and `FIX: python tools/check.py unit`, checked once for the whole check, as page is; in GitHub Actions only when the same invocation runs unit, since CI's unit job covers it), it runs each kind once more on a real feature or page (an
-rpc and a tool in library, an event and a listener in history, `tab --from-page` and a tab on setup, `tab --from-page`
-on games, a slot on build, a contribution from build to a declared slot), then the full unit and page suites, so a test that
-pins the real tree's current content fails in CI, not in a contributor's branch that used `new`. To run that nested
-mode here: `RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` (about 110 s, budget `scaffold_nested`);
-`check` never picks it from the branch's changes, and a fast-mode pass never stands for a nested one.
+(`tests/retrodev/test_scaffold_tree.py` with `RD_SCAFFOLD_FULL=1`; not in the fast unit run) prepares a copy
+where Setup already has tabs, History already listens to `library.game_presented`, and its README already lists an
+extra RPC module. It then runs every kind and judges the result with lint, the bundle, selected structure and
+page tests. It is part of `check.py full`, `check --full` and `check scaffold`. CI's page job can run it with
+`RD_SCAFFOLD_FULL=nested`: after checking the baseline, it adds probes on real
+features and pages, including more tabs on the now-tabbed Setup page. It then runs the full unit and page suites
+in that same copy, so tests that pin the real tree's current content fail in CI. The baseline page suite runs once;
+the baseline unit suite is reused from CI's unit job when unit is not part of the same invocation. For the same
+nested run locally: `RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` (budget `scaffold_nested`).
+The local check never picks this mode from the branch's changes, and a fast-mode pass never stands for it.
 
 ### `new feature <name> [--purpose "..."]`
 
@@ -633,16 +634,26 @@ with exit 1 (`action: sync`) and the fix `cd <worktree> && python tools/retrodev
 the branch's recorded title and body), then `cd <main checkout> && python tools/retrodev land <n>`; `gh pr merge`
 refused for merge conflicts says the same. Then, from the records (`records.next_action`):
 
+- **how many rounds** (`land_depth.py`, recomputed on every `land`, kept as `depth` in the review record and printed
+  by `--dry-run`): one. Two when the pull request changes a file matching `policy.toml` `[land] second_round` (the
+  second reviews the fixes), or when its changed files cannot be read. A high-severity finding adds the round after
+  it. Never more than 3. A head that changes a `second_round` file the last reviewed head did not (a later push, or
+  a merge of `dev` that moved an edited file there) is reviewed itself: no clean, accepted or carried review stands
+  for it, until 3 rounds ran
 - **a round is due: none at this head yet, fewer than 3, earlier findings all answered**: probes the reviewer once;
   unavailable, or no `review_profile`: reviews skipped with the reason recorded, on to CI. Else runs the round (minutes;
   CI runs meanwhile)
 - **the round has findings**: prints each (severity file:line problem, fix) and the steps: fix, `check`, commit,
   `ship`, `answer` each, `land` again. Exit 1 (`action: fix`)
 - **findings not answered yet**: names them. Exit 1
-- **every finding answered, nothing new pushed**: the next round judges the answers
-- **round 3 had findings, all answered**: no 4th round: on to CI with this head, recorded as the one accepted
-  (`accepted` in the review record)
-- **3 rounds ran and the head moved past round 3's clean head or the accepted head (a CI fix, say)**: exit 3 (`action:
+- **every finding answered, nothing new pushed**: the next round judges the answers, unless every finding of the
+  last due round was rated low (a low finding may be answered `Deferred: <where it is recorded>`)
+- **the last due round had findings, all answered**: no further round: on to CI with this head, recorded as the one
+  accepted for that round (`accepted` in the review record). A fix is a commit of the pull request's own
+  that changes a file the reviewer is shown; an empty commit, a merge of `dev` or a rebuilt generated file is none:
+  findings above low then still get the judging round
+- **a push after the accepted head (a CI fix, say), fewer than 3 rounds ran**: a round reviews the new head
+- **3 rounds ran and the head moved past round 3's clean head or the accepted head**: exit 3 (`action:
   reviews-exhausted`): nothing after it was reviewed; the owner decides: `land <n> --no-review`, or not
 - **the head only merged `dev` after the clean or accepted head (`sync`)**: the review carries over: no new round when
   every commit since it (beyond `dev`'s) is a merge or touches only generated files, and the head differs from git's own

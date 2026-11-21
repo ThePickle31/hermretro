@@ -77,7 +77,7 @@ Then steps 5 to 8 of the Quick path.
 | 4 build | agent | `start <kind>/<topic>` (feat, fix, docs, or chore for refactors that change no behaviour), `new ...`, edit, `check` (or `check --watch`), commit, `ship --title ...` (the body `notes/pr/<topic>.md` is written early: `start`, or `plan approve` inside the linked branch, writes it from the plan for the agent to fill in; `ship` writes it only when it is missing, then stops; later ones need only `ship`) |
 | 5 report | agent | `report` gives the facts (PR, commits, files, checks, CI, restarts); the agent adds the prose |
 | 6 approve | owner says approve, merge or go ahead | `approve <pr> --words "<the owner's exact words>"`, once per pull request |
-| 7 land | agent | `cd <main checkout> && python tools/retrodev land <pr>` in the background: up to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding |
+| 7 land | agent | `cd <main checkout> && python tools/retrodev land <pr>` in the background: 1 to 3 read-only review rounds, CI on the exact head, the squash merge; between rounds the agent fixes, checks, ships and `answer`s each finding |
 | 8 summary | agent | `summary <pr>` gives Added / Changed / Fixed / Removed, the rounds, CI and what the owner restarts |
 
 At any time `status` names the one next step. `takeover <branch>` takes over a teammate's pushed branch, `sync`
