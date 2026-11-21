@@ -2,6 +2,7 @@
 // and the search box with the models of the picked provider, of the search, or the starred ones.
 import { Codicon, host, jsx, jsxs, useMemo } from '#sdk'
 import { modelName } from './model-names.js'
+import { ProviderMark } from './provider-logo.js'
 
 export const STARRED = '*starred'
 export const starKey = (provider, model) => `${provider}:${model}`
@@ -55,7 +56,7 @@ export function ProviderRail({ providers, marks, tab, onTab, onConnect }) {
     children: [
       tile(STARRED, 'Starred', jsx(Codicon, { name: 'star-full', size: 14 }), { className: 'cs-b-mp-starred' }),
       jsx('span', { 'aria-hidden': true, className: 'cs-b-mp-sep' }),
-      ...providers.map(item => tile(item.slug, item.name, jsx('span', { 'aria-hidden': true, children: marks.get(item.slug) }), { className: 'cs-b-mp-prov' })),
+      ...providers.map(item => tile(item.slug, item.name, jsx(ProviderMark, { className: 'cs-b-mp-pmark', letters: marks.get(item.slug), slug: item.slug }), { className: 'cs-b-mp-prov' })),
       jsx('span', { className: 'cs-grow' }),
       jsx('button', {
         'aria-label': 'Connect another provider',
@@ -83,7 +84,7 @@ function ModelRow({ row, mark, on, starred, withProvider, onChoose, onStar }) {
         title: `${row.model} · ${row.providerName}`,
         type: 'button',
         children: [
-          jsx('span', { 'aria-hidden': true, className: 'cs-b-mp-glyph', children: mark }),
+          jsx(ProviderMark, { className: 'cs-b-mp-glyph', letters: mark, slug: row.provider }),
           // The starred list mixes providers: each row names its own under the model.
           withProvider
             ? jsxs('span', { className: 'cs-b-mp-label two', children: [jsx('span', { children: label.name }), jsx('small', { className: 'cs-b-mp-from', children: row.providerName })] })

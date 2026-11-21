@@ -10,6 +10,12 @@ export const MODEL_PICKER_CSS = `
 .cs-b-mp-dot { color: var(--ui-text-quaternary); }
 .cs-b-mp-next { border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: 4px; color: var(--ui-accent); font-size: 10px; line-height: 15px; padding: 0 5px; }
 .cs-b-mp-mark { align-items: center; background: color-mix(in srgb, var(--ui-accent) 22%, var(--ui-bg-quaternary)); border-radius: 4px; color: var(--ui-text-primary); display: inline-flex; flex: none; font: 800 9px/1 var(--dt-font-sans, inherit); height: 16px; justify-content: center; width: 16px; }
+.cs-b-logo { align-items: center; background: none; display: inline-flex; justify-content: center; }
+.cs-b-logo img { display: block; max-height: 100%; max-width: 100%; object-fit: contain; }
+.cs-b-logo.plate { background: var(--ui-text-primary); border-radius: 4px; padding: 2px; }
+.cs-b-mp-pmark { display: inline-flex; }
+.cs-b-mp-pmark.cs-b-logo { height: 18px; width: 18px; }
+.cs-b-mp-glyph.cs-b-logo { height: 14px; }
 .cs-b-mp-bolt { align-items: center; color: var(--ui-yellow); display: inline-flex; flex: none; }
 /* the panel: provider rail | models | effort, and the speed bar along the bottom */
 .cs-b-mp-pop { animation: cs-b-in .14s ease-out; background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 12px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px color-mix(in srgb, black 45%, transparent); display: flex; flex-direction: column; left: 0; max-width: calc(100vw - 24px); overflow: hidden; position: absolute; top: calc(100% + 6px); width: 560px; z-index: 30; }

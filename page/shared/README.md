@@ -2,7 +2,7 @@
 
 **Holds:** `ui/` (small components: page head, buttons, text, links, glyphs, time and elapsed timers),
 `styles/` (the design tokens, the base and narrow-pane rules; `app/style.js` composes the stylesheet), `art/`
-(the PNGs, embedded as data URLs) and `player/` (the frame layer every player surface uses: the bridge, the
+(the PNGs, embedded as data URLs; `art/providers/` the official provider logos the model picker shows, PNG and SVG) and `player/` (the frame layer every player surface uses: the bridge, the
 protocol with the frame, values from the frame checked before use, the live-player lock).
 
 **Tabs, events, slots:** none. shared/ is the bottom layer: it imports only `#sdk` and `#shared/`, never

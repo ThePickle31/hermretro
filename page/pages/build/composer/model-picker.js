@@ -18,6 +18,7 @@ import { applyBuildPick, cancelBuildPick, hasFastMode, pickBuildModel } from '#p
 import { chatRequest } from '#pages/build/chat/store.js'
 import { AGENT, ID } from '#app/ids.js'
 import { effortLabel, modelName, providerMark, providerMarks } from './model-names.js'
+import { ProviderMark } from './provider-logo.js'
 import { connectProvider, ModelList, ProviderRail, STARRED, starKey, useModelRows } from './model-list.js'
 import { EffortColumn, SpeedBar } from './model-settings.js'
 
@@ -245,7 +246,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
         title: shown.model ? `${shown.model} · ${current?.name ?? shown.provider ?? ''}` : 'Model and effort',
         type: 'button',
         children: [
-          signedOut ? jsx(Codicon, { name: 'warning', size: 12 }) : jsx('span', { 'aria-hidden': true, className: 'cs-b-mp-mark', children: marks.get(current?.slug) ?? providerMark(shown.provider) }),
+          signedOut ? jsx(Codicon, { name: 'warning', size: 12 }) : jsx(ProviderMark, { className: 'cs-b-mp-mark', letters: marks.get(current?.slug) ?? providerMark(shown.provider), slug: shown.provider }),
           jsx('span', { className: 'cs-b-mp-name', children: signedOut ? `${shown.provider} is signed out` : name }),
           !signedOut ? jsx('span', { className: 'cs-b-mp-dot', children: '\u00b7' }) : null,
           !signedOut ? jsx('span', { className: 'cs-b-mp-effortname', children: effortLabel(shown.effort) }) : null,

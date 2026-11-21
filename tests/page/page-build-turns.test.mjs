@@ -507,7 +507,9 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   check('the panel has a rail of connected providers only, the current one\'s models, and the effort levels', () => {
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-prov .cs-b-mp-pname')].map(node => node.textContent), ['Claude Subscription', 'ChatGPT or Codex Subscription'])
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row .cs-b-mp-label')].map(node => node.textContent), ['Claude Opus 5.5', 'Claude Sonnet 5.5', 'Claude Haiku 4.5'])
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-prov')].map(node => node.firstChild.textContent), ['Cl', 'Ch'], 'two providers starting with C get two letters')
+    // A provider without an official logo keeps its letters (two when another starts the same); ChatGPT or Codex
+    // Subscription shows OpenAI's logo (page-build-logos.test.mjs).
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-prov')].map(node => node.firstChild.textContent || node.firstChild.dataset.brand), ['Cl', 'OpenAI'], 'two providers starting with C get two letters')
     assert.equal(pop().querySelector('.cs-b-mp-prov[aria-pressed="true"]').getAttribute('aria-label'), 'Claude Subscription')
     assert.equal(pop().querySelector('.cs-b-mp-row[aria-selected="true"]').textContent, 'ClClaude Opus 5.51M')
     assert.match(pop().querySelector('.cs-b-mp-head').textContent, /^Claude Subscription· 3 models$/)
@@ -518,7 +520,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await typeInto(pop().querySelector('input[aria-label="Search models"]'), 'sol')
   check('search looks through every provider and groups the matches under each provider\'s name', () => {
     assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-group')].map(node => node.textContent), ['ChatGPT or Codex Subscription'])
-    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.textContent), ['ChGPT-6.1 Sol', 'ChGPT-6 Sol900K'])
+    assert.deepEqual([...pop().querySelectorAll('.cs-b-mp-row')].map(node => node.textContent), ['GPT-6.1 Sol', 'GPT-6 Sol900K'], 'its rows show OpenAI\u2019s logo, not letters')
   })
   await act(async () => { pop().querySelectorAll('.cs-b-mp-row')[0].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()
