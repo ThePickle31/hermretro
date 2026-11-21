@@ -9,7 +9,7 @@ base) needs it when it touches the backend, the engine, the player, the toolchai
 difference is the `version:` line of plugin.yaml does not. The backend does read that line
 (backend/system/paths.py: PLUGIN_VERSION, and plugin.yaml's bytes in code_fingerprint), but the engine run only
 records the value: parsing it is tested by the unit job (tests/repo/test_version.py), and a changed fingerprint
-(the broker replaced after an update) by the validate job's update check, which both still run.
+(the broker replaced after an update) by the update job's check, which both still run.
 
 scaffold: the page job's nested scaffold run (RD_SCAFFOLD_FULL=nested: every `retrodev new` kind, on the real
 features and pages too, then the full suites in that grown copy) instead of its smoke (one `new` of every kind,
@@ -17,7 +17,7 @@ focused checks). A pull request needs it when it touches what `new` is or reads,
 tests the grown copy runs that read the surrounding tree, or what the nested steps on the real pages and features
 read (page and tab descriptors, front doors; SCAFFOLD); every push to dev runs it.
 
-upgrade: the validate job's extra update from dev as it is now to this commit (the update from the newest
+upgrade: the update-dev job's update from dev as it is now to this commit (the update from the newest
 published release always runs). A pull request needs it when it deletes or moves a file (a running process may
 load it by path) or touches what is installed, run or registered, or the ignore rules the update check judges
 leftover files by (UPGRADE), unless only the version line changed.

@@ -41,7 +41,7 @@ if HELPERS not in sys.path:  # once: the retrodev tests load this file on the po
     sys.path.insert(0, HELPERS)
 import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
-import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
+import unit_shards  # noqa: E402 - tools/py/ goes on sys.path first
 from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
     LINT_SETUP,
     RUFF_CHECK,
@@ -85,43 +85,13 @@ def need(tool: str) -> str:
 
 
 def check_unit(args) -> str:
-    # In an empty home and an empty TMPDIR (tools/py/unit_home.py): a write meant for the real home, or a temp
-    # folder a test never removed, shows up and names its test module.
+    # In empty homes and empty TMPDIRs (tools/py/unit_home.py): a write meant for the real home, or a temp folder a
+    # test never removed, shows up and names its test module. Several processes at once (tools/py/unit_shards.py).
     product_only = getattr(args, "unit_product_only", False)
-    with (
-        tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
-        tempfile.TemporaryDirectory(prefix="hermretro-tmp-", dir=short_tmp()) as tmp,
-        tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
-    ):
-        slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        env = unit_home.unit_env(home, bytecode, tmp)
-        if product_only:
-            env["HERMRETRO_UNIT_PRODUCT_ONLY"] = "1"
-        result = run(
-            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env=env,
-        )
-        leaked = ""
-        if not result.returncode:
-            leaked = unit_home.leaks(
-                home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env), product_only=product_only
-            )
-    if result.returncode:
-        raise AssertionError(
-            tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-            "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
-        )
-    if leaked:
-        raise AssertionError(leaked)
-    lines = result.stderr.splitlines()
-    ran = [line for line in lines if line.startswith("Ran ")]
-    # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
-    timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
-    slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
-    # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
-    noted = unit_home.layout_note(lines, unit_home.branch_files(run) if "layout warning: " in result.stderr else [])
-    scope = "plugin and repository only; " if product_only else ""
-    return f"{scope}{ran[-1] if ran else 'ok'}{noted}{slow}"
+    row, failure = unit_shards.run_suite(ROOT, lambda cmd, **kw: run(cmd, **kw), short_tmp(), product_only)
+    if failure:
+        raise AssertionError(failure)
+    return row
 
 
 def check_bundle(args) -> str:
