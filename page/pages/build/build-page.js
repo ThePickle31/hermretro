@@ -28,8 +28,16 @@ import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
 
+function rememberSelection(ctx, selection) {
+  try {
+    ctx.storage.set('buildSelected', selection)
+  } catch {
+    // this visit only
+  }
+}
+
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, initialSelection = null, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   // The model and effort a new conversation starts on (New Game, a game with no conversation yet).
   const [draftPick, setDraftPick] = useDraftPick(ctx)
@@ -37,6 +45,9 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} })
   const [selected, setSelected] = useState(() => {
+    if (initialSelection) {
+      return initialSelection
+    }
     try {
       return ctx.storage.get('buildSelected', 'new') || 'new'
     } catch {
@@ -44,14 +55,16 @@ export function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onL
     }
   })
 
+  // An explicit selection is already rendered; a failed save must not change where the navigation landed.
+  useEffect(() => {
+    if (initialSelection) {
+      rememberSelection(ctx, initialSelection)
+    }
+  }, [ctx, initialSelection])
+
   const select = key => {
     setSelected(key)
-
-    try {
-      ctx.storage.set('buildSelected', key)
-    } catch {
-      // this visit only
-    }
+    rememberSelection(ctx, key)
   }
 
   const rail = useMemo(

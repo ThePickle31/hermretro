@@ -524,8 +524,9 @@ tests with the exact problem.
 
 **Page state.** A setting a page keeps across visits (a choice, the last folder) goes in
 `shell.ctx.storage.get(key, fallback)` / `shell.ctx.storage.set(key, value)`; every page shares one set of keys, so
-pick one no other page uses (`buildSelected`, `promptFolder`). Page tests seed and read them as `scenario.storage`
-(`tests/page/harness.mjs`).
+pick one no other page uses (`buildSelected`, `buildModel`). Page tests seed and read them as `scenario.storage`
+(`tests/page/harness.mjs`). To navigate from Games without depending on a storage write, `shell.go('build', selection)`
+passes the requested game ID (or `'new'`) in `shell.buildSelection`. Build opens that selection and saves it if possible.
 
 ### A page
 
@@ -663,6 +664,5 @@ in `page/app/rpc.js`.
 
 ### Events and slots today
 
-Events today: `games.coverRequested`, `games.newGameRequested` (Games → Build), `emulator.presented`
-(Emulator → Build). Slots today:
+Events today: `games.coverRequested` (Games → Build), `emulator.presented` (Emulator → Build). Slots today:
 `games.cardMenu` (empty), `emulator.barActions` (Games' Install button).

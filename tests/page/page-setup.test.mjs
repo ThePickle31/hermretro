@@ -225,7 +225,8 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   check('device setup puts its request in the studio composer without sending', () => {
     assert.deepEqual(scenario.calls[0], ['insert', null])
     assert.deepEqual(scenario.inserted.at(-1), [null, "Install ModRetro's Chromatic device software for hermretro so I can use my physical Chromatic."])
-    assert.ok(!scenario.calls.some(call => /send|submit/i.test(call[0])))
+    assert.ok(!scenario.calls.some(([kind, argument, method]) =>
+      (kind === 'request' && argument === 'prompt.submit') || (kind === 'requestProfile' && method === 'prompt.submit')))
   })
   scenario.status = answered(status({ deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('installed') } }))
   await render()

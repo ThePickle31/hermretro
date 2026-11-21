@@ -104,7 +104,7 @@ test("each page's own Page is imported into index.js from its own file, not defi
 test('events are declared once, by the page their name starts with', () => {
   const declared = PAGE_EVENTS.declared()
 
-  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested', 'games.newGameRequested'])
+  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested'])
 
   for (const [name, { owner }] of declared) {
     assert.ok(name.startsWith(`${owner}.`), name)
@@ -155,14 +155,10 @@ test('a listener that throws is logged and never stops the others', () => {
 })
 
 test('pages listen for their whole life: a cover request and a presentation reach Build', () => {
-  const storage = {}
-  const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } } }
-
-  startPages(ctx)
-  startPages(ctx) // registering again replaces the listeners: nothing is handled twice
+  startPages({})
+  startPages({}) // registering again replaces the listeners: nothing is handled twice
 
   emit('games.coverRequested', { game: { id: 'frog', session: { storedId: 'st-9', thisProfile: true, exists: true } }, prompt: 'Draw it' })
-  assert.equal(storage.buildSelected, 'frog')
   assert.deepEqual(BUILD_INJECT.get()['st-9'], { seq: 1, text: 'Draw it' })
 
   emit('emulator.presented', { gameId: 'frog', seq: 3, note: 'try it', t: 5 })

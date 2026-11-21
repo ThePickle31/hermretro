@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a2d0d52f83566a7f65b6058f74f12ffafd2dcb1906c90bd2e79d665ed5c2c75a
- * body: sha256 88fa507f232f93086914d24aa3751329875aeef7267bdac0c68a2be716591ac3
+ * sources: sha256 fcd1753cacb1c2fa71534c8dbc111075e108bd36a9ba14398a8f9be09e8e5e9c
+ * body: sha256 012133fcd76285ef56c21b83c7632b168204bcd65b87b9d3603aed5f7cdc7d8b
  */
 // page/sdk.js
 import {
@@ -10986,12 +10986,9 @@ function Games({ shell }) {
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: (game) => {
       emit("games.coverRequested", { game, prompt: COVER_PROMPT });
-      shell.go("build");
+      shell.go("build", game.id);
     },
-    onNewGame: () => {
-      emit("games.newGameRequested");
-      shell.go("build");
-    },
+    onNewGame: () => shell.go("build", "new"),
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice
   });
@@ -11004,8 +11001,7 @@ var GAMES_PAGE = {
   Page: Games,
   css: [GAMES_CSS],
   events: {
-    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent.",
-    "games.newGameRequested": "New game was picked on the shelf. Build opens its New Game form without starting a chat."
+    "games.coverRequested": "Make cover art (or Finish card) was picked for a game: { game, prompt }. The game opens on Build with the prompt in its message box, not sent."
   },
   slots: {
     "games.cardMenu": "Extra items at the end of a game's arrow menu on the shelf. Props: { ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }; return item(...) for a menu button. icon is a Codicon name, e.g. 'folder-opened', 'copy'."
@@ -11413,23 +11409,34 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+function rememberSelection(ctx, selection) {
+  try {
+    ctx.storage.set("buildSelected", selection);
+  } catch {
+  }
+}
+function BuildPage({ ctx, games, initialSelection = null, pendingGames, loaded = true, onPlay, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const [draftPick, setDraftPick] = useDraftPick(ctx);
   const [local, setLocal] = useState({ bound: {}, pending: [], released: {} });
   const [selected, setSelected] = useState(() => {
+    if (initialSelection) {
+      return initialSelection;
+    }
     try {
       return ctx.storage.get("buildSelected", "new") || "new";
     } catch {
       return "new";
     }
   });
+  useEffect(() => {
+    if (initialSelection) {
+      rememberSelection(ctx, initialSelection);
+    }
+  }, [ctx, initialSelection]);
   const select = (key) => {
     setSelected(key);
-    try {
-      ctx.storage.set("buildSelected", key);
-    } catch {
-    }
+    rememberSelection(ctx, key);
   };
   const rail = useMemo(
     () => games.map((game2) => {
@@ -13441,7 +13448,7 @@ function StudioNeeded({ status }) {
 
 // page/pages/build/build-entry.js
 function Build({ shell }) {
-  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
+  return studioTarget() ? jsx(BuildPage, { ctx: shell.ctx, games: shell.gameList, initialSelection: shell.buildSelection, loaded: Boolean(shell.games.data), onLibraryChanged: shell.gamesChanged, onPlay: shell.play, updating: shell.pluginUpdate?.phase === "updating", pendingGames: shell.games.data?.pending ?? [] }, "build") : jsx(StudioNeeded, { status: shell.status }, "studio-needed");
 }
 
 // page/pages/build/chat/events.js
@@ -14119,14 +14126,7 @@ var VIEWER_CSS = `
 `;
 
 // page/pages/build/index.js
-function rememberSelection(ctx, id) {
-  try {
-    ctx.storage.set("buildSelected", id);
-  } catch {
-  }
-}
-function coverRequested({ game, prompt }, ctx) {
-  rememberSelection(ctx, game.id);
+function coverRequested({ game, prompt }) {
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false;
   injectBuildDraft(own ? game.session.storedId : "", prompt);
 }
@@ -14159,7 +14159,6 @@ var BUILD_PAGE = {
   register: watchBuildChats,
   listens: {
     "games.coverRequested": coverRequested,
-    "games.newGameRequested": (_payload, ctx) => rememberSelection(ctx, "new"),
     "emulator.presented": (presentation) => notePresented(presentation)
   }
 };
@@ -16795,6 +16794,7 @@ function StudioPage({ ctx }) {
       return "build";
     }
   });
+  const [buildSelection, setBuildSelection] = useState(null);
   const [pinned, setPinned] = useState(null);
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
   const { backend, doctor, gateway, status } = useBackend(polling);
@@ -16867,8 +16867,9 @@ function StudioPage({ ctx }) {
     };
     setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
   }, [autoId, toolchainStep?.state, installState, onboardScreen]);
-  const go = (id) => {
+  const go = (id, selection = null) => {
     setPage(id);
+    setBuildSelection(id === "build" ? selection : null);
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -16989,7 +16990,8 @@ function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games
+    // games and where to enter Build
+    buildSelection,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, "games"] }),

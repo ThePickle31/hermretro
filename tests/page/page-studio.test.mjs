@@ -127,7 +127,8 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   check('onboarding planning opens a draft in the studio profile without sending it', () => {
     assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
     assert.match(scenario.inserted.at(-1)?.[1], /plan a small Game Boy Color game before we build anything/)
-    assert.ok(!scenario.calls.some(call => /send|submit/i.test(call[0])))
+    assert.ok(!scenario.calls.some(([kind, argument, method]) =>
+      (kind === 'request' && argument === 'prompt.submit') || (kind === 'requestProfile' && method === 'prompt.submit')))
   })
   await onboarding.close()
   scenario.storage = setupMemory

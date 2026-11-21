@@ -11,9 +11,8 @@ Game shelf, so a change to it shows on both pages.
 
 **Tabs:** none.
 
-**Events:** emits `games.coverRequested` `{ game, prompt }` when Make cover art (or Finish card) is picked, and
-`games.newGameRequested` for New game. Both go to Build, which opens the relevant game or the New Game form.
-Listens to none.
+**Events:** emits `games.coverRequested` `{ game, prompt }` when Make cover art (or Finish card) is picked, so
+Build can draft the message. The Games page navigates to the selected game or to the New Game form. Listens to none.
 
 **Slots:** declares `games.cardMenu`: extra items at the end of a game's arrow menu, props
 `{ ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }` (return `item(...)`; starts empty).

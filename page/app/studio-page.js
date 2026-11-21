@@ -56,6 +56,8 @@ export function StudioPage({ ctx }) {
       return 'build'
     }
   })
+  // A Games action can choose what Build opens without relying on storage being writable.
+  const [buildSelection, setBuildSelection] = useState(null)
   // Step the user chose to look at; null follows the first incomplete step.
   const [pinned, setPinned] = useState(null)
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false })
@@ -169,8 +171,9 @@ export function StudioPage({ ctx }) {
     setPolling(current => (current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next))
   }, [autoId, toolchainStep?.state, installState, onboardScreen])
 
-  const go = id => {
+  const go = (id, selection = null) => {
     setPage(id)
+    setBuildSelection(id === 'build' ? selection : null)
 
     try {
       ctx.storage.set('page', id)
@@ -324,7 +327,8 @@ export function StudioPage({ ctx }) {
     hardwareOn,
     emulatorOnly,
     setUpDevice,
-    // games
+    // games and where to enter Build
+    buildSelection,
     games,
     gameList,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),

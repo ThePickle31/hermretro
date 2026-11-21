@@ -166,12 +166,9 @@ export function Games({ shell }) {
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: game => {
       emit('games.coverRequested', { game, prompt: COVER_PROMPT })
-      shell.go('build')
+      shell.go('build', game.id)
     },
-    onNewGame: () => {
-      emit('games.newGameRequested')
-      shell.go('build')
-    },
+    onNewGame: () => shell.go('build', 'new'),
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice
   })

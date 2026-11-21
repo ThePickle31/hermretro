@@ -302,7 +302,7 @@ test("pageShell() matches the shell a page really gets", async () => {
     const shell = seen.at(-1)
     const fixture = pageShell()
     // null or a value, by setup state and routing
-    const scalar = new Set(['auto', 'autoId', 'choosing', 'shown', 'viaProfile'])
+    const scalar = new Set(['auto', 'autoId', 'buildSelection', 'choosing', 'shown', 'viaProfile'])
     const missing = Object.keys(fixture).filter(key => !(key in shell))
     const absent = Object.keys(shell).filter(key => !(key in fixture))
     const differ = Object.keys(fixture).filter(key => key in shell && !scalar.has(key) && shapeOf(shell[key]) !== shapeOf(fixture[key]))

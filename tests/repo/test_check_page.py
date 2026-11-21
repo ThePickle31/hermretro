@@ -128,6 +128,9 @@ class PageSummary(unittest.TestCase):
         # Exercise both actual Node reporters without depending on the size of a product scenario.
         node = shutil.which("node")
         assert node is not None  # the skip above checks availability
+        probe = subprocess.run([node, "--help"], text=True, capture_output=True, timeout=10)
+        if probe.returncode or "--test-reporter" not in probe.stdout:
+            self.skipTest("this Node does not support the test runner reporters")
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scenario = root / "page-probe.test.mjs"

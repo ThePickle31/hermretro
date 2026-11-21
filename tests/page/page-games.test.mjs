@@ -45,6 +45,30 @@ await runScenario(async helpers => {
   }
   await opensNewGame('New game', dom.window.document.querySelector('.cs-page-head'), 'The shelf header')
   await opensNewGame('New game', dom.window.document.querySelector('.cs-shelf'), 'The blank cartridge')
+  {
+    const store = ctx.storage.set
+    let attempted = false
+    ctx.storage.set = (key, value) => {
+      if (key === 'buildSelected') {
+        attempted = true
+        throw new Error('storage is read-only')
+      }
+      store(key, value)
+    }
+    try {
+      scenario.storage.buildSelected = games[0].id
+      await click('New game', dom.window.document.querySelector('.cs-shelf'))
+      check('the blank cartridge still opens New Game when the previous selection cannot be overwritten', () => {
+        assert.ok(attempted, 'the attempt to persist was made')
+        assert.equal(scenario.storage.buildSelected, games[0].id)
+        assert.equal(currentTab(), 'Build')
+        assert.ok(dom.window.document.querySelector('.cs-b-new textarea'))
+      })
+    } finally {
+      ctx.storage.set = store
+    }
+    await tab('Games')
+  }
   scenario.revealed = null
   await click('Open games folder')
   check('the shelf shows the games folder and opens it', () => {
