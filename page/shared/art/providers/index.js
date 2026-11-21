@@ -4,7 +4,8 @@
 // draws it, where that is smaller than the SVG (the bundle has a size budget). OpenAI's files carry a wide empty
 // margin, trimmed so its mark is the size of the others (the tile gives it room). bundle.mjs turns each
 // import into a data URL. `dark` is the brand's own version for dark backgrounds (else the same file);
-// `plate: 'dark'` puts a single-colour mark that has no dark version on a light plate in the dark theme.
+// `plate: 'dark'` puts a mark that has no version for dark backgrounds on a light plate in the dark theme (Novita);
+// `plate: 'light'` puts one with none for light backgrounds on a dark plate in the light theme (StepFun's white disc).
 // A provider missing from PROVIDER_BRANDS (custom endpoints, Mixture of Agents, ones Hermes adds later) keeps its
 // letter mark.
 import nous from './nous.png'
@@ -75,7 +76,7 @@ export const LOGOS = {
   deepseek: { name: 'DeepSeek', light: deepseek, dark: deepseek, source: 'https://github.com/deepseek-ai/awesome-deepseek-integration/tree/main/docs/_logo%20svg' },
   zai: { name: 'Z.AI', light: zai, dark: zai, source: 'https://z.ai/' },
   kimi: { name: 'Kimi (Moonshot AI)', light: kimi, dark: kimiDark, source: 'https://moonshotai.github.io/Branding-Guide/scenarios/04-k-only/' },
-  stepfun: { name: 'StepFun', light: stepfun, dark: stepfun, source: 'https://www.stepfun.com/' },
+  stepfun: { name: 'StepFun', light: stepfun, dark: stepfun, plate: 'light', source: 'https://www.stepfun.com/' },
   minimax: { name: 'MiniMax', light: minimax, dark: minimax, source: 'https://agent.minimax.io/' },
   ollama: { name: 'Ollama', light: ollama, dark: ollama, source: 'https://ollama.com/' },
   arcee: { name: 'Arcee AI', light: arcee, dark: arcee, source: 'https://www.arcee.ai/' },

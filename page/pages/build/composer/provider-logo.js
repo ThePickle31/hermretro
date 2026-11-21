@@ -13,7 +13,8 @@ export function ProviderMark({ slug, letters, className }) {
 
   return jsx('span', {
     'aria-hidden': true,
-    className: `${className} cs-b-logo${logo.plate === 'dark' && dark ? ' plate' : ''}`,
+    // A mark with no version for this theme sits on a plate in the text colour (light on dark, dark on light).
+    className: `${className} cs-b-logo${logo.plate === (dark ? 'dark' : 'light') ? ' plate' : ''}`,
     'data-brand': logo.name,
     children: jsx('img', { alt: '', draggable: false, src: dark ? logo.dark : logo.light })
   })

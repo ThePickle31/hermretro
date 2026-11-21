@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 54938f7d16d87bd9fb051cfaf28edee01e223ca1275c4118d5f0396bf0825984
- * body: sha256 0fc80198b2c3e5fb27ff7324f355a138203a172736af5e1fd47697b8f7262bf8
+ * sources: sha256 4339f6cde7f8d1ee37c21ef728f730fb54d2fdb84db8514c0f5fbc179f82d0eb
+ * body: sha256 42584cde41c18701cdee69a91fdfa8489036c167124af20f9a116c981d762921
  */
 // page/sdk.js
 import {
@@ -2879,7 +2879,7 @@ var LOGOS = {
   deepseek: { name: "DeepSeek", light: deepseek_default, dark: deepseek_default, source: "https://github.com/deepseek-ai/awesome-deepseek-integration/tree/main/docs/_logo%20svg" },
   zai: { name: "Z.AI", light: zai_default, dark: zai_default, source: "https://z.ai/" },
   kimi: { name: "Kimi (Moonshot AI)", light: kimi_default, dark: kimi_dark_default, source: "https://moonshotai.github.io/Branding-Guide/scenarios/04-k-only/" },
-  stepfun: { name: "StepFun", light: stepfun_default, dark: stepfun_default, source: "https://www.stepfun.com/" },
+  stepfun: { name: "StepFun", light: stepfun_default, dark: stepfun_default, plate: "light", source: "https://www.stepfun.com/" },
   minimax: { name: "MiniMax", light: minimax_default, dark: minimax_default, source: "https://agent.minimax.io/" },
   ollama: { name: "Ollama", light: ollama_default, dark: ollama_default, source: "https://ollama.com/" },
   arcee: { name: "Arcee AI", light: arcee_default, dark: arcee_default, source: "https://www.arcee.ai/" },
@@ -2948,7 +2948,8 @@ function ProviderMark({ slug, letters, className }) {
   }
   return jsx("span", {
     "aria-hidden": true,
-    className: `${className} cs-b-logo${logo.plate === "dark" && dark ? " plate" : ""}`,
+    // A mark with no version for this theme sits on a plate in the text colour (light on dark, dark on light).
+    className: `${className} cs-b-logo${logo.plate === (dark ? "dark" : "light") ? " plate" : ""}`,
     "data-brand": logo.name,
     children: jsx("img", { alt: "", draggable: false, src: dark ? logo.dark : logo.light })
   });

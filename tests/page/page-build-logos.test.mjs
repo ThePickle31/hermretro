@@ -57,6 +57,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
   scenario.models = answered({ model: 'gpt-6.2-sol', provider: 'openai-codex', providers: [
     { slug: 'openai-codex', name: 'ChatGPT or Codex Subscription', authenticated: true, models: ['gpt-6.2-sol'] },
     { slug: 'novita', name: 'Novita AI', authenticated: true, models: ['deepseek-v4'] },
+    { slug: 'stepfun', name: 'StepFun', authenticated: true, models: ['step-4'] },
     { slug: 'custom', name: 'Custom endpoint', authenticated: true, models: ['local-1'] }] })
   scenario.theme = 'dark'
 
@@ -74,19 +75,31 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
     assert.equal(mark.dataset.brand, 'OpenAI')
     assert.equal(mark.getAttribute('aria-hidden'), 'true')
     assert.equal(mark.querySelector('img').getAttribute('alt'), '')
-    assert.deepEqual(tiles().map(node => node.dataset.brand ?? node.textContent), ['OpenAI', 'Novita AI', 'Cu'], 'no logo: letters, two when another provider starts the same')
+    assert.deepEqual(tiles().map(node => node.dataset.brand ?? node.textContent), ['OpenAI', 'Novita AI', 'StepFun', 'Cu'], 'no logo: letters, two when another provider starts the same')
     assert.equal(pop().querySelector('.cs-b-mp-row .cs-b-mp-glyph').dataset.brand, 'OpenAI')
     assert.equal(pop().querySelector('.cs-b-mp-prov[aria-label="ChatGPT or Codex Subscription"]').title, 'ChatGPT or Codex Subscription', 'the name stays on the tile')
+  })
+  check('the bundle embeds an SVG logo byte for byte (StepFun: non-ASCII text and a # colour)', () => {
+    const src = tiles()[2].querySelector('img').getAttribute('src')
+    const prefix = 'data:image/svg+xml,'
+
+    assert.ok(src.startsWith(prefix), src.slice(0, 40))
+    // A bare # would end the image at a URL fragment in a browser; anything outside printable ASCII is escaped.
+    assert.equal(new URL(src).hash, '', 'no # left unescaped')
+    assert.match(src, /^[\x20-\x7e]*$/, 'only printable ASCII')
+    assert.deepEqual(Buffer.from(decodeURIComponent(src.slice(prefix.length)), 'utf8'), readFileSync(new URL('stepfun.svg', ART)))
   })
   check('dark theme: the brand\u2019s version for dark backgrounds, and a plate under a mark that has none', () => {
     assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), LOGOS.openai.dark)
     assert.notEqual(LOGOS.openai.dark, LOGOS.openai.light)
-    assert.ok(tiles()[1].classList.contains('plate'))
+    assert.ok(tiles()[1].classList.contains('plate'), 'Novita has no version for dark backgrounds')
+    assert.ok(!tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc shows on dark')
   })
   scenario.theme = 'light'
   await view.rerender()
   check('light theme: the light version, and no plate', () => {
     assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), LOGOS.openai.light)
     assert.ok(!tiles()[1].classList.contains('plate'))
+    assert.ok(tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc gets a dark plate on light')
   })
 })
