@@ -3,8 +3,8 @@
  * Source: page/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs
  * Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.
  * build: esbuild 0.28.2
- * sources: sha256 49859f270bd6f1fd926604b675484195aa0cf7e8752f85f973385103600167c2
- * body: sha256 3fe03fb40f96f4e1f8da3813565567bbab6b91b466cd9a3b9b44f233fa5c786e
+ * sources: sha256 6d909ceec797d44b4487275593ec3ee9cee48669a609fe0fbe5d9bfa78bec85c
+ * body: sha256 56fe8f400e07eb2211bd01c0678c44a60a519fa0637ac79ffc40b69baaa79375
  */
 // page/sdk.js
 import {
@@ -16171,7 +16171,7 @@ var index_default = {
         id: "nav",
         area: SIDEBAR_NAV_AREA,
         order: 60,
-        data: { codicon: "game", label: "hermretro", path: ROUTE }
+        data: { codicon: "game", label: "HermRetro", path: ROUTE }
       },
       {
         id: "open",

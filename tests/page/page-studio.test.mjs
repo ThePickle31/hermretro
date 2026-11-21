@@ -12,6 +12,12 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   scenario.ambient = complete
   scenario.install = installAnswer({ state: 'idle' })
 
+  check('the Desktop sidebar shows HermRetro and opens the existing route', () => {
+    const nav = registrations.find(entry => entry.area === 'sidebar.nav' && entry.id === 'nav')
+    assert.equal(nav?.data.label, 'HermRetro')
+    assert.equal(nav?.data.path, '/hermretro')
+  })
+
   // 9. No panes beside the chat: the agent's work and the game live on the Build page.
   check('the plugin contributes no panes (closing a plugin\'s only pane would switch it off)', () => {
     assert.equal(registrations.filter(entry => entry.area === 'panes').length, 0)

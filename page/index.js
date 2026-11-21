@@ -54,7 +54,7 @@ export default {
         id: 'nav',
         area: SIDEBAR_NAV_AREA,
         order: 60,
-        data: { codicon: 'game', label: 'hermretro', path: ROUTE }
+        data: { codicon: 'game', label: 'HermRetro', path: ROUTE }
       },
       {
         id: 'open',
