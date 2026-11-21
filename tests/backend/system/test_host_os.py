@@ -5,6 +5,7 @@ import importlib.util
 import os
 import socket
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
