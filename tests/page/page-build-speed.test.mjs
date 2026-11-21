@@ -6,7 +6,9 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, settle, typeInto, key, mount, check, answered }) => {
+await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, settle, typeInto, key, mount, check, answered, holdTimers }) => {
+  // The test ends turns via events. A real open-request poll can otherwise report idle early on a loaded runner.
+  holdTimers()
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],

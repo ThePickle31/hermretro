@@ -4,7 +4,8 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, check, answered }) => {
+await runScenario(async ({ buildScenario, scenario, page, act, emit, mount, settle, typeInto, check, answered, holdTimers }) => {
+  holdTimers() // Test turns end explicitly through completion events, not the open-request poll.
   buildScenario({ selected: 'new' })
   scenario.games = answered({ games: [], pending: [] })
   const codex = { model: 'gpt-6.2-sol', provider: 'openai-codex' }
