@@ -30,10 +30,10 @@ commands = [
 
 [checks]
 # What `check` runs and ship requires on the exact tree it pushes. The slow checks (scaffold, acceptance, the clean
-# install, update) run only when named or with --full; CI runs them on the pull request's exact head before land.
+# install, update) run only when named or with --full (try runs them all); PR CI runs those its changes select.
 fast = ["unit", "bundle", "lint", "page", "scan"]
 # May be skipped (the tool it needs is not on this machine) when asked for, without failing the run: said as not
-# proven here, never as a pass. CI runs it on Linux and macOS.
+# proven here, never as a pass. PR CI runs it on Linux and macOS when the change selects it.
 may_skip = ["acceptance"]
 
 [checks.triggers]

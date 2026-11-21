@@ -24,8 +24,10 @@ passing runs count; a check over its budget twice in a row on the branch gets a 
 you measure yourself is only comparable with the same context: say the machine, whether it was idle, and what else
 ran beside it. `python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the
 cache. A pass of the fast checks on the current tree is what `python tools/retrodev ship` requires to push the
-draft; the slow checks (scaffold, acceptance, the clean install, the update) run in CI on the pull request's exact
-head, and `land` merges only once that run is green.
+draft. PR CI runs only the slow checks (scaffold, acceptance, the clean install, the update) its changes select
+(`tools/ci/changes.py`) on the exact head, and `land` merges only once that run is green: a slow check that failed
+locally may not run there. `python tools/retrodev try <pr>` runs every check, scaffold nested, in a throwaway
+checkout.
 
 **Rerunning one check.** `python tools/retrodev check unit --again` runs only unit, ignoring its cached pass (any
 name from `python tools/retrodev check --help` works, several too). What it does to ship's `checks passed on this
@@ -44,9 +46,10 @@ FAILED`); it never counts as a pass. `python tools/retrodev ship --dry-run` show
   `ship` needs a committed tree anyway).
 - `python tools/retrodev check acceptance` runs the real-engine run (its budget is in `policy.toml`); a release's
   version pull request is checked with the fast checks and the clean install, not acceptance. Without the toolchain
-  (`python tools/ci/prepare_toolchain.py`) it is skipped, said as not proven here, and CI runs it on Linux and macOS.
+  (`python tools/ci/prepare_toolchain.py`) it is skipped and said as not proven here; PR CI runs it on Linux and macOS
+only when the change touches what it covers.
   To run the scaffold check nested, as CI's page job does: `RD_SCAFFOLD_FULL=nested python tools/retrodev check
-  scaffold` (its pass is kept apart from the fast mode's). `retrodev check` always uses the toolchain that setup put
+  scaffold` (its result is kept apart from the fast mode's: neither stands for nor replaces the other). `retrodev check` always uses the toolchain that setup put
   in place: it clears `HERMRETRO_DEPS_ROOT` for the run. To use a toolchain somewhere else, run the check directly:
   `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
 

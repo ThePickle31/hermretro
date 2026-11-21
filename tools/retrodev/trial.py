@@ -1,6 +1,10 @@
 """Throwaway checkouts: `try <pr>` runs a pull request's full checks in one, and the release commands run the
 clean install (with its update check) in one at the release commit.
 
+try's full checks are every check retrodev knows (the fast ones, scaffold nested, acceptance, the clean
+install and the update from the newest published release), whatever the pull request changed: its own suite, kept
+apart from what a draft push needs (`check`) and from `check --full`.
+
     try <pr> [--keep] [--no-setup]
 
 A throwaway checkout is a detached git worktree in a short temp folder outside the repository (short: the checks
@@ -90,7 +94,9 @@ def run(ctx, number: int, keep: bool = False, setup: bool = True) -> int:
         if setup:
             start.run_setup(ctx, path)
         try:
-            checks.run(ctx.at(path), [], full=True)
+            inside = ctx.at(path)
+            # Name every check independently of the draft gate. Nested scaffold includes the normal guard.
+            checks.run(inside, checks.known(inside), env={"RD_SCAFFOLD_FULL": "nested"})
         except Failure as failure:
             raise Failure(
                 f"#{number} at {sha[:9]} failed its full checks: {failure.message}",

@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from retrodev import config, mac, output, preview
+from retrodev import checks, config, mac, output, preview
 
 from tests.retrodev.fixture import RepoCase, git, parallel, write
 
@@ -43,11 +43,34 @@ class Try(RepoCase):
         self.assertTrue(data["path"].startswith(str(self.base / "rd-try7-")), "outside the repository, short")
         names = [entry.get("names") or entry.get("script") for entry in self.check_log()]
         self.assertIn(["lint"], names)  # --full: lint first, then scaffold beside the others
-        self.assertIn(["unit", "bundle", "page", "scan", "scaffold"], names)
-        self.assertIn(["acceptance"], names)  # --full
-        self.assertEqual([e["head"] for e in self.check_log() if "script" in e], [self.head])
+        self.assertIn(["bundle", "page", "scaffold", "scan", "unit"], [sorted(entry) for entry in names])
+        self.assertIn(["acceptance"], names)
+        scaffold = [entry.get("mode") for entry in self.check_log() if "scaffold" in entry.get("names", [])]
+        self.assertEqual(scaffold, ["nested"], "try runs scaffold nested, whatever the pull request changed")
+        installs = [(e["script"], e["head"]) for e in self.check_log() if "script" in e]
+        self.assertEqual(installs, [([], self.head), (["--update-from"], self.head)], "the clean install and update")
+        self.assertEqual([row["name"] for row in data["checks"]], checks.known(self.context()))
         self.assertEqual(list(self.base.glob("rd-try7-*")), [])
         self.assertEqual(self.worktrees(), before)
+
+    def context(self):
+        return config.Context.make(self.main, output.Out(stream=io.StringIO()))
+
+    def test_a_pull_request_that_moves_an_installed_file_and_changes_a_repository_test_gets_both(self):
+        """The two checks a branch heuristic once added: the update from the newest release (a move under
+        backend/hermes/) and scaffold nested (a tests/repo/ change). try names every check, so it runs both."""
+        tree = self.base / "hermretro-wt" / "thing"
+        git(tree, "mv", "backend/hermes/glue.py", "backend/hermes/seam.py")
+        self.commit(tree, "tests/repo/test_probe.py", "PROBE = 1\n", "Move the glue, probe the tree")
+        git(tree, "push", "-q", "origin", "HEAD:refs/pull/8/head")
+        head = git(tree, "rev-parse", "HEAD").strip()
+        self.clear_log()
+        code, data = self.run_cli("try", "8", "--no-setup", as_json=True)
+        self.assertEqual(code, 0, data)
+        self.assertIn(["--update-from"], [entry["script"] for entry in self.check_log() if "script" in entry])
+        self.assertEqual({e["head"] for e in self.check_log() if "script" in e}, {head})
+        scaffold = [entry.get("mode") for entry in self.check_log() if "scaffold" in entry.get("names", [])]
+        self.assertEqual(scaffold, ["nested"])
 
     def test_keep_leaves_it_and_a_failure_still_removes_it(self):
         code, data = self.run_cli("try", "7", "--keep", "--no-setup", as_json=True)

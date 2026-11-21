@@ -106,11 +106,17 @@ their pins, `tools/check.py` and `policy.toml`, less the files `[checks.input_ig
 clean/dirty change, so committing lets the waiting install checks run, and reads `policy.toml` again before each run
 (a check added to the fast list while watching runs at once); `--watch --again` ignores earlier passes on its first
 run, later runs rerun only what changed. The slow checks (`scaffold`, `acceptance`, `clean_install`, `update`) run
-only when named (`check acceptance`) or with `--full` (scaffold, acceptance, the clean install); CI runs them on the
-pull request's exact head, and land merges only on that green run. One that fails is reported (`failed: acceptance;
-the fast checks passed on this tree, so it may ship as a draft (CI runs the slow checks on its exact head)`, exit
+only when named (`check acceptance`) or with `--full` (scaffold, acceptance, the clean install); PR CI runs only
+those the change selects (`tools/ci/changes.py`: acceptance and nested scaffold for some paths; the clean install
+and the update from the newest release always) on the exact head, and land merges only on that green run, so a slow
+check that failed here may not run again before land. One that fails is reported (`failed: acceptance; the fast
+checks passed on this tree, so it may ship as a draft (PR CI runs only the slow checks its changes select)`, exit
 1), and one skipped for a missing tool (`may_skip`: acceptance) ends `skipped, so not proven here: acceptance`;
-neither counts as a pass, and ship's gate line names them (`not proven here: acceptance FAILED`). Prints times
+neither counts as a pass, and ship's gate line names them (`not proven here: acceptance FAILED`, or `scaffold
+(nested) FAILED`). Scaffold's two modes keep separate results in the branch record (`scaffold` and
+`scaffold_nested`; a record from before that, whose `scaffold` entry was a nested run, is moved over when read), so
+alternating `check scaffold` and `RD_SCAFFOLD_FULL=nested python tools/retrodev check scaffold` on an unchanged tree
+reuses both passes, and a pass in one mode never hides the other's failure. Prints times
 against budgets (`policy.toml` `[checks.budgets]`,
 from measured cold runs on a loaded machine: unit 60 s, scaffold 58 s, the fast checks together 60 s). A check over
 its budget twice in a row on the branch (each check's last passing time is recorded in the branch record's
@@ -276,7 +282,9 @@ Personal settings; `set <key> ""` goes back to the default. `list` shows where a
 ### `try <pr> [--keep] [--no-setup]`
 
 Fetches the pull request's head (`<remote> refs/pull/<n>/head`, forks too) into a detached throwaway worktree in a
-short temp folder outside the repository, sets it up and runs `check --full` there (a `skipped` row, such as
+short temp folder outside the repository, sets it up and runs every check retrodev knows there, whatever the pull
+request changed: the fast ones, scaffold nested (`RD_SCAFFOLD_FULL=nested`), acceptance, the clean install and the
+update from the newest published release (`update`), so more than `check --full` (a `skipped` row, such as
 acceptance without the toolchain, makes it unverified: exit 1, never a pass); removes it afterwards (the folder, then
 `git worktree prune`), also on a failure, unless `--keep` (its path and the commands that remove it are printed).
 Nothing in any agent's worktree changes

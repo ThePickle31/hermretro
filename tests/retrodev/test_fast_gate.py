@@ -16,8 +16,8 @@ FAST = ["unit", "bundle", "lint", "page", "scan"]
 
 class FastGate(RepoCase):
     def test_a_branch_s_changes_add_no_slow_check(self):
-        """Only the fast checks gate a draft push, whatever the branch changed: CI runs the slow ones on the exact
-        head. A template (scaffold's old trigger) and a moved backend file (acceptance and the installs') add none."""
+        """Only the fast checks gate a draft push, whatever the branch changed: PR CI runs the slow ones its
+        changes select. A template (scaffold's old trigger) and a moved backend file (acceptance and the installs') add none."""
         tree = self.worktree("chore/move")
         write(tree, "tools/retrodev/templates/tool/tool.py.tmpl", "# changed\n")
         git(tree, "mv", "backend/hermes/glue.py", "backend/hermes/seam.py")

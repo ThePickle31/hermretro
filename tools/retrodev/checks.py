@@ -9,10 +9,11 @@
 
 Each check's inputs (policy.toml [checks.inputs]) are digested; a pass is kept per branch against that digest
 and prints "ok (cached)" while nothing it reads changed. When every fast check has passed on the current tree,
-that tree's digest is recorded with their names: ship pushes only a tree that passed them. The slow checks never
-run on their own: CI runs them on the pull request's exact head, and land merges only on that green run. One asked
-for here that fails or is skipped is said so, and never stands for a pass. Times are printed against the budgets
-in policy.toml (measured cold runs); a check over its budget twice in a row on the branch (each passing run's time
+that tree's digest is recorded with their names: ship pushes only a tree that passed them. The slow checks run only
+when named or with --full (try names them all); PR CI runs only those its changes select (tools/ci/changes.py) on
+the exact head, so one that fails here may not run again before land. One asked for here that fails or is skipped is
+said so, and never stands for a pass. Scaffold keeps separate results for its two modes. Times are printed against
+the budgets in policy.toml (measured cold runs); a check over its budget twice in a row on the branch (each passing run's time
 is recorded: a failure stops early or late, so its time says nothing of speed) gets a warning that it is slower
 than usual, never a failure: one slow run is load or a cold cache, not news.
 """
@@ -49,7 +50,7 @@ def known(ctx) -> list[str]:
 
 
 def required(ctx) -> dict[str, str]:
-    """What must pass on a tree before it may be shipped: the fast checks (CI runs the slow ones on the exact head)."""
+    """What must pass on a tree before it may be shipped: the fast checks (PR CI runs the slow ones its changes select)."""
     return {name: "fast" for name in ctx.policy["checks"]["fast"]}
 
 
@@ -82,6 +83,18 @@ def budget_key(name: str, deep: bool) -> str:
     return NESTED_KEY if name == "scaffold" and deep else name
 
 
+def split_modes(record: dict) -> dict:
+    """A record from before each scaffold mode had its own entry kept the nested run's result under ``scaffold``
+    (its digest ends ``+nested``): moved to ``scaffold_nested`` (unless that already has one), so neither mode's
+    result stands for or overwrites the other's. Returns ``record``, changed in place."""
+    found = record.get("checks") or {}
+    old = found.get("scaffold") or {}
+    if str(old.get("digest", "")).endswith("+nested"):
+        found.pop("scaffold")
+        found.setdefault(NESTED_KEY, old)
+    return record
+
+
 def input_digest(ctx, ids: dict, name: str, deep: bool = False) -> str:
     """The digest a check's pass is kept against: its inputs, and for scaffold run nested the mode too, so a pass
     in the fast mode never stands for the nested one."""
@@ -110,6 +123,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
     branch = repo.branch(ctx.top) or "detached"
     record = state.load_branch(ctx.top, branch) if branch != "detached" else {"branch": branch, "checks": {}}
     record.setdefault("checks", {})
+    split_modes(record)
     ids = repo.file_ids(ctx.top)
     tree = repo.digest(ids)
     need = required(ctx)
@@ -123,9 +137,10 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
     if deep and "scaffold" in wanted:
         retry = "RD_SCAFFOLD_FULL=nested " + retry
     digests = {name: input_digest(ctx, ids, name, deep) for name in wanted}
+    keys = {name: budget_key(name, deep) for name in wanted}  # where each result is kept: scaffold per mode
     rows, todo = [], []
     for name in wanted:
-        last = record["checks"].get(name, {})
+        last = record["checks"].get(keys[name], {})
         if not again and last.get("state") == "ok" and last.get("digest") == digests[name]:
             rows.append(
                 {
@@ -134,6 +149,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
                     "seconds": last.get("seconds", 0.0),
                     "cached": True,
                     "detail": "ok (cached)",
+                    "key": keys[name],
                 }
             )
             ctx.out.say(_row_text("ok", name, 0.0, "ok (cached)"))
@@ -169,7 +185,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         if name in uncommitted:
             rows.append({"name": name, "cached": False, **result})
             continue
-        record["checks"][name] = {
+        record["checks"][keys[name]] = {
             "state": result["state"],
             "digest": digests[name],
             "seconds": result["seconds"],
@@ -184,7 +200,8 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
                 "cached": False,
                 "detail": result["detail"],
                 "more": result["more"],
-                "budget": budget_key(name, deep),
+                "budget": keys[name],
+                "key": keys[name],
             }
         )
     passing = all(results[name]["state"] == "ok" for name in fast)  # the wall of a run with a failure is no measure
@@ -197,7 +214,7 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
     record["last_run"] = {
         "at": state.now(),
         "tree": tree,
-        "rows": [{k: row[k] for k in ("name", "state", "seconds", "cached")} for row in rows],
+        "rows": [{k: row[k] for k in ("name", "state", "seconds", "cached", "key") if k in row} for row in rows],
         "fast_wall": round(wall, 1) if fast else None,
     }
     may_skip = set(ctx.policy["checks"]["may_skip"])
@@ -234,7 +251,8 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
     blocked = list(first)
     skipped = [name for name in skipped if name not in blocked]
     shippable = (
-        "; the fast checks passed on this tree, so it may ship as a draft (CI runs the slow checks on its exact head)"
+        "; the fast checks passed on this tree, so it may ship as a draft (PR CI runs only the slow checks its "
+        "changes select)"
         if good
         else ""
     )
@@ -263,7 +281,11 @@ def run(ctx, names: list[str], again: bool = False, full: bool = False, wait_for
         (f"{len(rows) - len(let_skip)} of {len(rows)} passed" if let_skip else f"all {len(rows)} passed")
         + f" ({ran} ran, {sum(row['cached'] for row in rows)} cached)"
         + (f", fast checks {wall:.1f} s wall" if fast else "")
-        + (f"; skipped, so not proven here: {', '.join(let_skip)} (CI runs it on the exact head)" if let_skip else "")
+        + (
+            f"; skipped, so not proven here: {', '.join(let_skip)} (PR CI runs it only when its changes select it)"
+            if let_skip
+            else ""
+        )
         + ("; this tree may ship" if good else f"; not passed on this tree yet: {', '.join(unpassed)}")
     )
     if good:
