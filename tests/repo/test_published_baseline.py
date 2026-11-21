@@ -10,6 +10,10 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[2] / "tools" / "ci" / "published_baseline.py"
 
 
+def tag(patch: int) -> str:
+    return f"v87.43.{patch}"
+
+
 def release(tag: str, *, draft: bool = False, prerelease: bool = False) -> dict:
     return {"tag_name": tag, "draft": draft, "prerelease": prerelease, "published_at": None if draft else "then"}
 
@@ -20,13 +24,12 @@ class PublishedBaseline(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.git("init", "-q", "-b", "dev")
-        self.earlier = self.tag_commit("v0.0.8")
-        self.tag_commit("v0.0.9")
-        self.tag_commit("v0.0.10")
-        self.tag_commit("v0.0.11-rc.1")
-        self.candidate = self.tag_commit("v0.0.11")
-        self.git("tag", "v0.0.11-alias")
-        self.tag_commit("v0.0.12")
+        self.earlier = self.tag_commit(tag(8))
+        self.tag_commit(tag(9))
+        self.tag_commit(tag(10))
+        self.tag_commit(tag(11) + "-rc.1")
+        self.candidate = self.tag_commit(tag(11))
+        self.tag_commit(tag(12))
         self.git("switch", "--detach", self.candidate)
 
     def git(self, *args: str) -> str:
@@ -57,15 +60,15 @@ class PublishedBaseline(unittest.TestCase):
     def test_skips_the_candidate_newer_draft_prerelease_and_nonancestor(self):
         result = self.select(
             [
-                [release("v0.0.12"), release("v0.0.11"), release("v0.0.11-rc.1", prerelease=True)],
-                [release("v0.0.10", draft=True), release("v0.0.9", prerelease=True), release("v0.0.8")],
+                [release(tag(12)), release(tag(11)), release(tag(11) + "-rc.1", prerelease=True)],
+                [release(tag(10), draft=True), release(tag(9), prerelease=True), release(tag(8))],
             ]
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), self.earlier)
 
     def test_without_a_valid_predecessor_it_prints_no_baseline_and_fails(self):
-        result = self.select([[release("v0.0.12"), release("v0.0.11"), release("v0.0.10", draft=True)]])
+        result = self.select([[release(tag(12)), release(tag(11)), release(tag(10), draft=True)]])
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn("no earlier published stable release", result.stderr)
