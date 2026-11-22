@@ -3,7 +3,8 @@
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
 the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
 hermretro page in Hermes Desktop. Underneath both is the **engine**: ModRetro's own Chromatic MCP server,
-vendored unchanged under `engine/modretro-chromatic/` (one recorded patch, see `.agents/skills/hermretro-dev-engine-update/references/engine-update.md`).
+a pinned release under `engine/modretro-chromatic/` (what was left out and its one recorded patch:
+`THIRD_PARTY_NOTICES.md`; the files: `engine/pins/<version>/manifest.json`).
 
 ```
 Hermes gateway (one process, every profile)                 per user, ~/.hermes/hermretro/

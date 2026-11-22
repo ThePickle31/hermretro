@@ -238,9 +238,7 @@ it.
 
 ## Looking at the page
 
-`node tests/page/preview/build.mjs <out>` builds a browser preview with a stand-in SDK (needs a Hermes
-Desktop checkout for its theme); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
-listed on the page. Screenshot with Playwright and a short `TMPDIR`. `python tools/dev watch` serves it, rebuilt on every save, with a live mode
-that answers from the real gateway (`.agents/skills/hermretro-dev-contribute/references/dev-loop.md`, "The development loop"). To see the page exactly as
-users do, inside Hermes with real games and turns, use the sandbox (`python tools/dev studio up`, then
-`python tools/dev ui shot`; `.agents/skills/hermretro-dev-sandbox/references/sandbox.md`, "The sandbox").
+`node tests/page/preview/build.mjs <out> [<Hermes checkout>/apps/desktop]` builds a browser preview with a stand-in
+SDK, drawn with Hermes Desktop's own stylesheet. It needs that Desktop folder with its npm dependencies installed and
+its `dist/assets` built (default: `~/.hermes/hermes-agent/apps/desktop`); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
+listed on the page. Screenshot with Playwright and a short `TMPDIR`.

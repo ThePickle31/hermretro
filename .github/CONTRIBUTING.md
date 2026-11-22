@@ -16,11 +16,14 @@ request into `dev` and CI.
 ## Trying a change in Hermes Desktop
 
 1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development, link a
-   checkout instead of installing the plugin"), and enable it. `python tools/dev live` points a linked profile at another checkout or worktree.
-2. Page changes (`page/`): keep `python tools/dev watch` running; it rebuilds on every save and the app reloads the
-   page.
-3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: `python tools/dev reload` reloads the plugin in
-   the running gateway (tools and the prompt apply from the next chat). More: `.agents/skills/hermretro-dev-contribute/references/dev-loop.md`.
+   checkout instead of installing the plugin"), and enable it. The studio profile loads the plugin through its own
+   link, `${HERMES_HOME:-$HOME/.hermes}/profiles/hermretro/plugins/hermretro`: check with `ls -l` that it points at
+   your checkout. Setup leaves an installed copy there alone, so with one, remove that install or try your checkout
+   in a throwaway Hermes home (`HERMES_HOME=<temp folder>`).
+2. Page changes (`page/`): `node tools/bundle/bundle.mjs`, then reload the app.
+3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: restart the studio profile's gateway
+   (`hermes -p hermretro gateway restart`);
+   tools and the prompt apply from the next chat.
    `profile/` is different: it holds templates that the page's setup copies into the `hermretro` profile when it
    makes it. A restart does not change a profile that already exists, and finishing setup again keeps its
    `SOUL.md` unless that file is an unedited older template (its hash is in `OLDER_SOULS` in
@@ -36,7 +39,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- Nothing under `engine/` changes outside an engine update (`.agents/skills/hermretro-dev-engine-update/references/engine-update.md`).
+- Nothing under `engine/` changes: it is a pinned ModRetro release (what was left out and its one recorded patch:
+  `THIRD_PARTY_NOTICES.md`).
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.
@@ -54,5 +58,5 @@ The agent guide (`AGENTS.md`) lists them; in short:
 ## More
 
 The development skills in `.agents/skills/` (AGENTS.md lists them) hold how each kind of work is done, with their
-reference pages: architecture, the page, testing, the sandbox, debugging. Security problems: see `.github/SECURITY.md`,
+reference pages: architecture, the page, testing, debugging. Security problems: see `.github/SECURITY.md`,
 never a public issue. Everyone here follows `.github/CODE_OF_CONDUCT.md`.

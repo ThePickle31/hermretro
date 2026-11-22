@@ -4,7 +4,7 @@
 # open against main: close them and redo the bump on a branch from dev.
 #
 # The vendored engine (engine/modretro-chromatic) is hash-pinned and changes only in an engine update
-# (.agents/skills/hermretro-dev-engine-update/references/engine-update.md): Dependabot opens no pull requests for it, security ones included (ignore "*"
+# (engine/pins/<version>/manifest.json): Dependabot opens no pull requests for it, security ones included (ignore "*"
 # applies to both). Its alerts stay visible; accepted ones are explained in .github/SECURITY.md.
 version: 2
 updates:

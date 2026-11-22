@@ -10,4 +10,4 @@ RPC by hand, a hung build or stuck broker step by step, logging rules, common sy
 `HERMRETRO_*` variable, stopping the broker by hand.
 
 Quick looks: `python tools/debug/broker_stats.py` (what the broker holds, read-only) and
-`python tools/dev rpc status` (one page RPC).
+`node tools/debug/gateway_rpc.mjs hermretro plugin.hermretro.status` (one page RPC).
