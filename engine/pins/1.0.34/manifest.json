@@ -2,7 +2,7 @@
  "manifest_schema": 1,
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
- "distribution_directory_name": "1.0.34+codex.distribution.5efb7a8c2b1207f93f2a673a",
+ "distribution_directory_name": "modretro-chromatic",
  "file_count": 512,
  "symlink_count": 0,
  "total_bytes": 38734484,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "44e08a4131fcd396e110824b245b45cc6157d7b38b3251ae36632306f725894c",
+ "aggregate_sha256": "8237cdeb832219ff061dcc5e3495cdb0afb32c7c228c47ed537378fb9a8c1c36",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -3613,16 +3613,6 @@
    "size": 24102,
    "mode": "0o644",
    "sha256": "92e4592cfc2d53ea03aec32b358d1d5d290f2b7702bc6abf4f82d17936c7bb4f"
-  }
- ],
- "local_patches": [
-  {
-   "files": [
-    "dist/server.js",
-    "dist/device-capture/linux-helper.js"
-   ],
-   "change": "ffmpeg capture input: the per-process fd path under the proc filesystem replaced by /dev/fd/6 (2 occurrences per file)",
-   "why": "Hermes's install-time scanner rates any per-process proc-filesystem path high (proc_access), which makes every non-catalog install need Force. On Linux /dev/fd is a symlink to the current process's fd directory, so ffmpeg opens the same inherited file descriptor."
   }
  ]
 }

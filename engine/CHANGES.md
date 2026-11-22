@@ -1,0 +1,11 @@
+# hermretro's changes to the engine
+
+`engine/modretro-chromatic/` is ModRetro's release with the changes below, made by the maintainer (the engine's MIT
+licence allows them). The release itself is the tag `engine-upstream-<version>`:
+`git diff engine-upstream-<version> HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
+files, what changed and why.
+
+- `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during
+  Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path under the proc filesystem (two
+  places in each file). On Linux `/dev/fd` links to that same directory, so ffmpeg opens the same file; the
+  original path made Hermes's install-time scanner ask for confirmation on every install.

@@ -1,0 +1,48 @@
+"""tools/engine/manifest.py: a checkout without the left-out files records the same release."""
+
+import importlib.util
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools" / "engine"))
+_spec = importlib.util.spec_from_file_location("engine_manifest", ROOT / "tools" / "engine" / "manifest.py")
+manifest = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(manifest)
+
+ARCHIVE = "third-party/chromatic-cli/notices.br"
+
+
+class EngineManifestTests(unittest.TestCase):
+    def engine(self, folder: Path, files: dict[str, str]) -> Path:
+        (folder / "package.json").write_text('{"name": "modretro-chromatic", "version": "9.9.9"}')
+        for rel, text in files.items():
+            (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+            (folder / rel).write_text(text)
+        return folder
+
+    def test_a_left_out_file_keeps_its_recorded_entry(self):
+        with tempfile.TemporaryDirectory() as full, tempfile.TemporaryDirectory() as checkout:
+            recorded = manifest.build(
+                self.engine(Path(full), {ARCHIVE: "packed", "dist/a-b.js": "1", "dist/a/b.js": "2"})
+            )
+            rebuilt = manifest.build(self.engine(Path(checkout), {"dist/a-b.js": "1", "dist/a/b.js": "2"}), recorded)
+        self.assertEqual(rebuilt, {**recorded, "distribution_directory_name": rebuilt["distribution_directory_name"]})
+
+    def test_only_left_out_files_are_kept(self):
+        with tempfile.TemporaryDirectory() as full, tempfile.TemporaryDirectory() as checkout:
+            recorded = manifest.build(self.engine(Path(full), {ARCHIVE: "packed", "dist/gone.js": "1"}))
+            rebuilt = manifest.build(self.engine(Path(checkout), {}), recorded)
+        self.assertEqual([e["path"] for e in rebuilt["entries"]], ["package.json", ARCHIVE])
+
+    def test_an_edited_file_gets_its_new_hash(self):
+        with tempfile.TemporaryDirectory() as before, tempfile.TemporaryDirectory() as after:
+            recorded = manifest.build(self.engine(Path(before), {"dist/server.js": "old"}))
+            rebuilt = manifest.build(self.engine(Path(after), {"dist/server.js": "new"}), recorded)
+        self.assertNotEqual(rebuilt["aggregate_sha256"], recorded["aggregate_sha256"])
+
+
+if __name__ == "__main__":
+    unittest.main()

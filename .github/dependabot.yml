@@ -3,8 +3,8 @@
 # bundle, so it moves only together with Hermes Desktop's. Security-update pull requests for tools/npm may
 # open against main: close them and redo the bump on a branch from dev.
 #
-# The vendored engine (engine/modretro-chromatic) is hash-pinned and changes only in an engine update
-# (engine/pins/<version>/manifest.json): Dependabot opens no pull requests for it, security ones included (ignore "*"
+# The vendored engine (engine/modretro-chromatic) is hash-pinned (engine/pins/<version>/manifest.json) and changes
+# only by the maintainer's hand: Dependabot opens no pull requests for it, security ones included (ignore "*"
 # applies to both). Its alerts stay visible; accepted ones are explained in .github/SECURITY.md.
 version: 2
 updates:

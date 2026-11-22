@@ -61,7 +61,10 @@ class ContractTests(unittest.TestCase):
 
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()
-        self.assertTrue(check["verified"], check)
+        self.assertTrue(
+            check["verified"],
+            f"{check}. FIX: after editing engine/, run python tools/engine/manifest.py write and commit the manifest",
+        )
         self.assertEqual(check["version"], paths.ENGINE_VERSION)
 
     def test_the_broker_fingerprint_covers_sub_packages_but_not_caches(self):
