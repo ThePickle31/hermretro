@@ -34,7 +34,7 @@ function chromiumPath() {
   if (existsSync(own)) return own
   const cache = process.env.PLAYWRIGHT_BROWSERS_PATH || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright') : path.join(os.homedir(), '.cache', 'ms-playwright'))
   const inside = process.platform === 'darwin'
-    ? ['chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing', 'chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing', 'chrome-mac/Chromium.app/Contents/MacOS/Chromium']
+    ? ['chrome-mac-arm64', 'chrome-mac-x64', 'chrome-mac'].flatMap(folder => [`${folder}/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`, `${folder}/Chromium.app/Contents/MacOS/Chromium`])
     : ['chrome-linux64/chrome', 'chrome-linux/chrome']
   const folders = existsSync(cache) ? readdirSync(cache).filter(name => /^chromium-\d+$/.test(name)).sort((a, b) => Number(b.slice(9)) - Number(a.slice(9))) : []
   for (const folder of folders) for (const file of inside) if (existsSync(path.join(cache, folder, file))) return path.join(cache, folder, file)
@@ -123,7 +123,7 @@ const VERBS = {
   },
   click: async ({ target }) => (await (await find(target)).click(), {}),
   type: async ({ text, target, submit }) => {
-    const box = await find(target || 'textarea')
+    const box = target ? await find(target) : page.locator('textarea:visible').last()
     await box.fill(text)
     if (submit) await box.press('Enter')
     return {}

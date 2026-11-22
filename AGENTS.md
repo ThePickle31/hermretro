@@ -31,7 +31,7 @@ python tools/dev live            # Hermes loads this checkout (every linked prof
 python tools/dev reload          # after a backend change: re-import the plugin in the running gateway
 python tools/dev watch           # rebuild the page on save; serves the live browser preview (prints its address)
 python tools/dev rpc status      # one gateway RPC (plugin.hermretro.status)
-python tools/dev studio up       # the sandbox: a private Hermes on this checkout, scripted model, headless browser
+python tools/dev studio up       # the sandbox: a private Hermes on this checkout (kept on current dev), headless
 python tools/dev studio scenario builds   # a saved state (new-game, first-build, builds, working, question)
 python tools/dev ui shot NAME    # a screenshot of the sandbox's page; `ui go|click|say|text` drive it
 python tools/check.py            # fast checks: unit, bundle, lint, page, scan

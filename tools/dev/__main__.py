@@ -312,7 +312,7 @@ def parser() -> argparse.ArgumentParser:
     ui.add_argument("args", nargs="*", help="what the verb takes: a name, a target, text, a size")
     ui.add_argument("--full", action="store_true", help="shot: the whole scrolling page")
     ui.add_argument("--of", help="shot: only this element (a selector, a button's name or text)")
-    ui.add_argument("--into", help="type: the field to type into (default the first text box)")
+    ui.add_argument("--into", help="type: the field to type into (default the message box)")
     ui.add_argument("--submit", action="store_true", help="type: press Enter after")
     ui.add_argument("--no-wait", action="store_true", help="say: return once sent, not when the turn ends")
     ui.add_argument("--ms", type=int, help="wait: this many milliseconds")

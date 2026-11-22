@@ -12,7 +12,7 @@
         "description": "A little robot runs a toy repair shop. Walk the workshop, pick up broken toys and bring them to the bench before the morning bell.",
         "genres": ["Adventure", "Simulation"],
         "controls": {"D-pad": "walk", "A": "pick up or fix"},
-        "cover": "{ENGINE}/examples/starter/assets/backgrounds/workshop.png"}}]
+        "cover": "{ART}/cover.png"}}]
     },
     {"call": [{"tool": "chromatic_rom_build", "args": {}}]},
     {

@@ -24,6 +24,7 @@ import urllib.request
 from pathlib import Path
 
 import local_hermes as hermes
+import studio_sync
 
 TOP = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -47,14 +48,18 @@ class StudioError(Exception):
     """Something the sandbox cannot do; the message ends with what to run."""
 
 
+def runtime_dir() -> Path:
+    """The sandbox broker's folder: its own under the sandbox's home, or a short private one when that path is too
+    long for a socket (the plugin's limit)."""
+    run = HOME / hermes.PLUGIN / "run"
+    if len(os.fsencode(run / "broker.sock")) <= 100:
+        return run
+    return Path(f"/tmp/hermretro-sandbox-{os.getuid()}-{hashlib.sha256(str(SANDBOX).encode()).hexdigest()[:10]}")
+
+
 def environment(**extra: str) -> dict[str, str]:
     env = {key: os.environ[key] for key in KEEP_ENV if key in os.environ}
-    env["HERMES_HOME"] = str(HOME)
-    run = HOME / hermes.PLUGIN / "run"
-    if len(os.fsencode(run / "broker.sock")) > 100:  # the plugin's socket limit: use a short private folder instead
-        digest = hashlib.sha256(str(SANDBOX).encode()).hexdigest()[:10]
-        env["HERMRETRO_RUNTIME_DIR"] = f"/tmp/hermretro-sandbox-{os.getuid()}-{digest}"
-    return {**env, **extra}
+    return {**env, "HERMES_HOME": str(HOME), "HERMRETRO_RUNTIME_DIR": str(runtime_dir()), **extra}
 
 
 def run_hermes(*args: str, home: Path = HOME, timeout: float = 600, check: bool = True) -> str:
@@ -82,10 +87,15 @@ def settings() -> dict:
     return json.loads(CONFIG.read_text(encoding="utf-8")) if CONFIG.is_file() else {}
 
 
-def create() -> None:
+def create(desktop: Path) -> None:
     """A new sandbox: the two profiles set up the way a user's are, with the scripted model and the Webapp."""
     if shutil.which("hermes") is None:
         raise StudioError("Hermes is not installed here.\nFIX: install Hermes Agent, then run this again")
+    # Hermes also loads its source checkout's .env whatever HERMES_HOME says: keys there would reach the sandbox.
+    if (desktop.parents[1] / ".env").is_file():
+        raise StudioError(
+            f"{desktop.parents[1] / '.env'} would give the sandbox its keys\nFIX: move them to ~/.hermes/.env"
+        )
     print("creating the sandbox (once)…", flush=True)
     HOME.mkdir(parents=True, exist_ok=True)
     ports = {"model": free_port(), "webapp": free_port()}
@@ -97,7 +107,7 @@ def create() -> None:
     sys.path.insert(0, str(TOP))
     from backend.setup import studio_profile
 
-    studio_profile.finish(HOME, target=PROFILE, enabled=[])
+    studio_profile.finish(HOME, target=PROFILE, enabled=[], run=lambda home, *args: run_hermes(*args, home=home))
     # Installed in the default profile too, as a user's is: the page asks the profile the app is on first.
     (HOME / "plugins").mkdir(exist_ok=True)
     (HOME / "plugins" / hermes.PLUGIN).symlink_to(TOP, target_is_directory=True)
@@ -115,11 +125,12 @@ def create() -> None:
             env_file.write("OPENAI_API_KEY=sandbox\n")  # the custom endpoint wants a key; the model ignores it
     for key, value in (("webapp.enabled", "true"), ("webapp.port", str(ports["webapp"])), ("onboarding.run", "false")):
         run_hermes("config", "set", key, value)
-    # The toolchain (2.4 GB) is the real one's, through a link; without one the Setup page offers to install it here.
-    cache = hermes.hermes_root() / hermes.PLUGIN / ".cache"
-    (HOME / hermes.PLUGIN).mkdir(exist_ok=True)
-    if cache.is_dir():
-        (HOME / hermes.PLUGIN / ".cache").symlink_to(cache, target_is_directory=True)
+    # The toolchain (2.4 GB) is the real one's, read through a link; the sandbox's own install records stay in its
+    # own .cache. Without a real toolchain the Setup page offers to install one, which then lands in the sandbox.
+    toolchain = hermes.hermes_root() / hermes.PLUGIN / ".cache" / "toolchain"
+    (HOME / hermes.PLUGIN / ".cache").mkdir(parents=True, exist_ok=True)
+    if toolchain.is_dir():
+        (HOME / hermes.PLUGIN / ".cache" / "toolchain").symlink_to(toolchain, target_is_directory=True)
     (SANDBOX / "model.port").write_text(str(ports["model"]), encoding="utf-8")
     CONFIG.write_text(json.dumps({"ports": ports, "token": secrets.token_urlsafe(24)}, indent=2), encoding="utf-8")
     os.chmod(CONFIG, 0o600)
@@ -149,7 +160,7 @@ def alive(name: str) -> bool:
     return started == entry["started"] and MARKERS[name] in command
 
 
-def start(name: str, argv: list[str], **extra: str) -> None:
+def start(name: str, argv: list[str], record: dict | None = None, **extra: str) -> None:
     (SANDBOX / "logs").mkdir(exist_ok=True)
     with open(SANDBOX / "logs" / f"{name}.log", "ab") as log:
         child = subprocess.Popen(
@@ -162,7 +173,7 @@ def start(name: str, argv: list[str], **extra: str) -> None:
             start_new_session=True,
         )
     entries = tracked()
-    entries[name] = {"pid": child.pid, "started": process(child.pid)[0]}
+    entries[name] = {"pid": child.pid, "started": process(child.pid)[0], **(record or {})}
     PROCESSES.write_text(json.dumps(entries, indent=2), encoding="utf-8")
 
 
@@ -183,14 +194,13 @@ def stop(name: str) -> None:
         PROCESSES.write_text(json.dumps(entries, indent=2), encoding="utf-8")
 
 
-def stop_strays() -> None:
-    """The plugin's broker and engine workers start in their own sessions: stop the ones whose command line names
-    this sandbox's folder."""
+def stop_broker() -> None:
+    """The plugin's broker starts in its own session: stop the sandbox's, the one whose command line names the
+    sandbox's broker folder (its engine workers exit with it)."""
     rows = subprocess.run(["ps", "-A", "-ww", "-o", "pid=,command="], capture_output=True, text=True).stdout
-    ours = {entry["pid"] for entry in tracked().values()} | {os.getpid()}
     for row in rows.splitlines():
         pid, _, command = row.strip().partition(" ")
-        if str(SANDBOX) in command and int(pid) not in ours:
+        if "-m backend.broker " in command and f" --state-dir {runtime_dir()} " in f"{command} ":
             try:
                 os.kill(int(pid), signal.SIGTERM)
             except ProcessLookupError:
@@ -216,12 +226,20 @@ def answers(url: str) -> bool:
 
 
 def up(desktop: Path) -> None:
+    """Start what is not running, on current code: this checkout brought up to dev when it is the dev branch, Hermes's
+    Webapp rebuilt when Hermes changed, and the gateway restarted when the backend or Hermes changed since it started."""
+    moved = studio_sync.sync_checkout()
     if not CONFIG.is_file():
-        create()
+        create(desktop)
     ports = settings()["ports"]
-    if "not built" in run_hermes("webapp", "--status", check=False).lower():
-        print("building Hermes's Webapp (once, a few minutes)…", flush=True)
-        run_hermes("webapp", "--build-only", timeout=1800)
+    # A no-op (about a second) when the Webapp matches the Hermes on disk; the first build takes a few minutes.
+    run_hermes("webapp", "--build-only", timeout=1800)
+    backend = studio_sync.stamp(studio_sync.BACKEND, desktop)
+    restarted = alive("gateway") and tracked()["gateway"].get("code") != backend
+    if restarted:
+        print("the backend or Hermes changed since the sandbox's gateway started: restarting it")
+        stop("gateway")
+        stop_broker()
     if not alive("model"):
         names = [
             f"GAMES={HOME / hermes.PLUGIN / 'games'}",
@@ -232,8 +250,10 @@ def up(desktop: Path) -> None:
             "model", [sys.executable, str(HERE / "script_model.py"), str(SANDBOX / "model.port"), str(SCRIPTS), *names]
         )
     if not alive("gateway"):
-        start("gateway", ["hermes", "gateway", "run", "--external-supervisor"])
+        start("gateway", ["hermes", "gateway", "run", "--external-supervisor"], record={"code": backend})
     wait_for(lambda: answers(f"http://127.0.0.1:{ports['webapp']}/"), "the sandbox's gateway")
+    if alive("browser") and (moved or restarted):
+        call("reload")
     if not alive("browser"):
         (SANDBOX / "browser.port").unlink(missing_ok=True)
         start(
@@ -251,7 +271,7 @@ def up(desktop: Path) -> None:
 def down() -> None:
     for name in ("browser", "gateway", "model"):
         stop(name)
-    stop_strays()
+    stop_broker()
 
 
 def reset() -> None:
