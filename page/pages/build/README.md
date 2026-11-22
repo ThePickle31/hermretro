@@ -29,6 +29,7 @@ profile).
 **Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `buildSelected`, `buildModel`, `buildModelStars`, `buildNewGame` (the New Game draft), `inlinePlayer` and `playtest`.
 
 **Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
+`tests/page/page-build-restore.test.mjs` (the viewer's Restore redraws the file's pictures),
 `tests/page/page-build-speed.test.mjs` (the model panel's rail, stars and Standard / Fast),
 `tests/page/page-build-model-routing.test.mjs` (fresh sessions and the picked route),
 `tests/page/build-player.test.mjs`, `tests/page/registry.test.mjs` (its listeners), `tests/page/platformer-run.test.mjs`
