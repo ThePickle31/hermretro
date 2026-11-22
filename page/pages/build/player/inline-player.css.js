@@ -3,19 +3,17 @@ import { MONO } from '#shared/styles/tokens.js'
 // The game inside a build card: the resting play card, and the inline player (`cs-ip-*`): one bar,
 // the game at a whole-number scale, the play-test or annotate panel beside it (under it when narrow).
 export const INLINE_PLAYER_CSS = `
-/* the game */
-.cs-b-pc { align-items: center; animation: cs-b-in .2s ease-out; background: var(--ui-bg-secondary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; gap: 12px; max-width: 520px; padding: 8px 12px 8px 8px; transition: opacity .2s ease; }
-.cs-b-pc.ready { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
-.cs-b-pc.busy, .cs-b-pc.unplayable { opacity: .62; }
-.cs-b-pc-screen { appearance: none; background: color-mix(in srgb, var(--ui-bg-editor) 70%, black); border: 0; border-radius: 6px; cursor: pointer; flex: none; overflow: hidden; padding: 4px; position: relative; width: 104px; }
+/* the game, resting under the newest build: its screen at twice its size in a dark frame, Play at the corner */
+.cs-b-pc { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 6px; max-width: 560px; transition: opacity .2s ease; }
+.cs-b-pc-stage { align-items: center; background: color-mix(in srgb, var(--ui-bg-editor) 55%, black); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); display: flex; justify-content: center; padding: 16px; position: relative; }
+.cs-b-pc.busy .cs-b-pc-stage, .cs-b-pc.unplayable .cs-b-pc-stage { opacity: .62; }
+.cs-b-pc-screen { appearance: none; background: none; border: 0; cursor: pointer; display: block; padding: 0; width: min(320px, 100%); }
 .cs-b-pc-screen:disabled { cursor: default; }
 .cs-b-pc-img { aspect-ratio: 160 / 144; border-radius: 3px; display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
-.cs-b-pc-go { align-items: center; background: var(--ui-accent); border-radius: 50%; box-shadow: 0 0 0 5px color-mix(in srgb, var(--ui-accent) 28%, transparent); color: white; display: flex; height: 34px; justify-content: center; left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); transition: transform .15s ease; width: 34px; }
-.cs-b-pc-screen:hover .cs-b-pc-go { transform: translate(-50%, -50%) scale(1.08); }
-.cs-b-pc-info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
-.cs-b-pc-info b { font-size: 13px; }
-.cs-b-pc-info small { color: var(--ui-text-quaternary); font-size: 11px; }
-.cs-b-pc-note { border-left: 2px solid var(--ui-accent); color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin-top: 4px; padding-left: 8px; }
+.cs-b-pc-go { align-items: center; appearance: none; backdrop-filter: blur(6px); background: color-mix(in srgb, white 14%, transparent); border: 0; border-radius: 999px; bottom: 12px; color: white; cursor: pointer; display: inline-flex; font: inherit; font-size: 12.5px; gap: 6px; padding: 6px 13px; position: absolute; right: 12px; transition: background .12s ease; }
+.cs-b-pc-go:hover { background: color-mix(in srgb, white 24%, transparent); }
+.cs-b-pc-wait { bottom: 12px; color: var(--ui-text-tertiary); font-size: 12px; position: absolute; right: 14px; }
+.cs-b-pc-note { border-left: 2px solid var(--ui-stroke-secondary); color: var(--ui-text-secondary); font-size: 12.5px; line-height: 1.45; margin: 0; padding-left: 10px; }
 .cs-b-old { color: var(--ui-text-quaternary); font-size: 11.5px; margin: 0; }
 .cs-b-live { background: var(--ui-text-quaternary); border-radius: 50%; flex: none; height: 7px; transition: background .2s ease; width: 7px; }
 .cs-b-live.on { animation: cs-b-pulse 1.6s infinite; background: var(--ui-green); }

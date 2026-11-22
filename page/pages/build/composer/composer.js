@@ -15,7 +15,8 @@ export function attachToBuild(stored, attachments, text = '') {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text, attach: attachments } })
 }
 
-export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
+/** `ask`: an open question or approval; while there is one the box is it (its choices where the text goes). */
+export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false, ask = null }) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState([])
   const [mention, setMention] = useState(null)
@@ -127,6 +128,28 @@ export function BuildComposer({ busy, disabled, placeholder, onSend, onStop, sto
     if (!fresh) {
       void onSend(value, attachments)
     }
+  }
+
+  if (ask) {
+    return jsxs('div', {
+      className: 'cs-b-comp asking',
+      children: [
+        status,
+        ask,
+        busy
+          ? jsx('div', {
+              className: 'cs-b-comp-row',
+              children: [
+                jsx('span', { className: 'cs-grow' }, 'grow'),
+                jsx(Tip, {
+                  label: `Stop ${AGENT}`,
+                  children: jsxs('button', { 'aria-label': 'Stop', className: 'cs-b-stop', onClick: onStop, type: 'button', children: [jsx('i', {}), jsx('span', { className: 'cs-sr', children: 'Stop' })] })
+                }, 'stop')
+              ]
+            })
+          : null
+      ]
+    })
   }
 
   return jsxs('div', {

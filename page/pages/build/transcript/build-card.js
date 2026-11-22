@@ -1,4 +1,4 @@
-// The build card: what changed, what was tested, next steps.
+// A build in the conversation: one quiet line (its number, title, time), what changed under it, what was tested.
 import { Button, Codicon, host, jsx, jsxs, useState } from '#sdk'
 import { assetCache, useAsset } from '#pages/build/assets/cache.js'
 import { AssetThumb, SheetFrame } from '#pages/build/assets/images.js'
@@ -111,7 +111,7 @@ function ChangeList({ changes, root, onOpen }) {
   })
 }
 
-export function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, play, playLabel }) {
+export function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false)
   const failed = build?.state === 'failed'
   const made = madeAssets(parts, root).filter(asset => asset.kind !== 'Image' || /cover\.png$/i.test(asset.path))
@@ -143,7 +143,6 @@ export function BuildCard({ build, parts, report, root, took, at, live, isLast, 
       summary ? jsx('p', { className: 'cs-b-bc-sum', children: summary }) : null,
       ...edited.map(path => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
       changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
-      play,
       hasFoot
         ? jsxs('div', {
             className: 'cs-b-bc-foot',
@@ -151,7 +150,7 @@ export function BuildCard({ build, parts, report, root, took, at, live, isLast, 
               tested.length ? jsxs('span', { children: [jsx('span', { className: 'cs-b-ok', children: '\u2713' }), ` ${tested.length} play-tested`] }) : null,
               untested.length ? jsx('span', { className: 'cs-faint', children: `\u25CB ${untested.length} not tested` }) : null,
               notes.length ? jsx('span', { className: 'cs-faint', children: `\u26A0 ${notes.length} ${notes.length === 1 ? 'note' : 'notes'}` }) : null,
-              failed && isLast && !chatBusy ? jsx(Button, { onClick: () => onSend?.('The build failed. Please fix it and build again.'), size: 'sm', children: `Ask ${AGENT} to fix it` }) : null,
+              failed && isLast && !chatBusy ? jsx(Button, { onClick: () => onSend?.('The build failed. Please fix it and build again.'), size: 'sm', variant: 'outline', children: `Ask ${AGENT} to fix it` }) : null,
               jsx('span', { className: 'cs-grow' }),
               jsxs('button', {
                 'aria-expanded': details,

@@ -260,13 +260,14 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
               )
             ),
             chat?.lost?.length && !busy ? jsx(LostTurnCard, { chat, stored }, 'lost') : null,
-            // A playable game whose conversation has not built it (it was built elsewhere): play it here.
-            latestBuild === -1 && playableGame && turns.length
+            // A playable game whose conversation has not built it (it was built elsewhere): play it here, once the
+            // agent is not working.
+            latestBuild === -1 && playableGame && turns.length && !busy
               ? jsx('div', {
                   className: 'cs-b-her',
-                  children: playerOpen && !busy
+                  children: playerOpen
                     ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored }, `player:${game.id}`)
-                    : jsx(PlayCard, { game, onPlay, state: busy ? 'busy' : 'ready' })
+                    : jsx(PlayCard, { game, onPlay, state: 'ready' })
                 })
               : null
           ]

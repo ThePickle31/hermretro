@@ -228,7 +228,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   lib14[0] = { ...lib14[0], session: lib14Session }
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   // The game plays inside the conversation, only while the agent is not working.
-  lib14[0] = { ...lib14[0], web: { sha256: 'w1' } }
+  lib14[0] = { ...lib14[0], web: { sha256: 'w1', builtAt: 2100 } } // made by build #1 (it ran from 2000 s)
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   const playerBefore = scenario.player
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post' })
@@ -236,15 +236,16 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   const build14p = await mount(page)
   await settle(100)
   const inlineFrame = () => build14p.node.querySelector('.cs-ip iframe')
-  const cardPlay = () => [...build14p.node.querySelectorAll('.cs-b-bc-head button')].find(node => node.textContent.includes('Play'))
-  check('the build card of the turn that built the game offers Play; nothing plays until asked', () => {
-    assert.ok(cardPlay()); assert.ok(!inlineFrame()); assert.ok(!build14p.node.querySelector('.cs-b-pc'))
+  const framePlay = () => build14p.node.querySelector('.cs-b-pc-go')
+  check('the newest build rests in a game frame under its line, with Play build #1; nothing plays until asked', () => {
+    assert.match(framePlay()?.textContent ?? '', /Play build #1/); assert.ok(!inlineFrame())
+    assert.ok(!build14p.node.querySelector('.cs-b-bc .cs-b-pc'), 'under the build line, not in it')
   })
-  await act(async () => { cardPlay().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await act(async () => { framePlay().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()
   check('Play opens the real player right in the conversation', () => {
     assert.match(inlineFrame()?.getAttribute('src') ?? '', /tok\/fff666fff666\/index\.html/)
-    assert.ok(build14p.node.querySelector('.cs-b-bc .cs-ip'), 'it plays inside the build card'); assert.ok(!cardPlay())
+    assert.ok(build14p.node.querySelector('.cs-b-turn .cs-ip') && !build14p.node.querySelector('.cs-b-bc .cs-ip'), 'it plays under the build line'); assert.ok(!framePlay())
   })
   await typeInto(build14p.node.querySelector('textarea[aria-label="Message Hermes"]'), 'make it rain')
   await click('Send', build14p.node.querySelector('.cs-b-comp'))
@@ -271,7 +272,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await settle()
   check('presenting from a Build conversation opens no tab beside the chat, and the game waits for the turn to end', () => {
     assert.equal(scenario.workspaces.length, tabsBefore); assert.ok(!inlineFrame())
-    assert.ok(build14p.node.querySelector('.cs-b-turn[data-live] .cs-b-pc.busy'), 'the turn building it now holds the resting game')
+    assert.ok(!build14p.node.querySelector('.cs-b-pc'), 'no game frame while the agent works')
     assert.match(build14p.node.querySelector('.cs-b-bc').textContent, /Earlier build/)
   })
   await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Done.' } }) })
@@ -293,7 +294,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await settle()
   check('a game the user had open comes back when the agent is done', () => { assert.ok(inlineFrame()) })
   await act(async () => { build14p.node.querySelector('.cs-ip button[aria-label="Close the game"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
-  check('closing the game puts Play back on the card', () => { assert.ok(!inlineFrame()); assert.ok(cardPlay()) })
+  check('closing the game puts the frame and its Play back', () => { assert.ok(!inlineFrame()); assert.ok(framePlay()) })
   await build14p.close()
   // The inline player itself: one bar, whole-number sizes, and the play-test panel from the build report.
   scenario.byMethod['session.resume'] = params => (params.omit_messages ? plainResume(params) : { session_id: `rt-of-${params.session_id}`, running: false, messages: [
@@ -306,8 +307,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   const build14ip = await mount(page)
   await settle(100)
-  const ipPlay = [...build14ip.node.querySelectorAll('.cs-b-bc-head button')].find(node => node.textContent.includes('Play'))
-  check('the reported build offers Play', () => assert.ok(ipPlay))
+  const ipPlay = build14ip.node.querySelector('.cs-b-pc-go')
+  check('the reported build offers Play in its game frame', () => assert.ok(ipPlay))
   await act(async () => { ipPlay.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()
   const ip = () => build14ip.node.querySelector('.cs-ip')
@@ -561,8 +562,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await settle()
   check('a reply names its model when it changed since the message before', () => {
     const labels = [...build14m.node.querySelectorAll('.cs-b-who')].map(node => node.textContent)
-    assert.match(labels.at(-1), /· GPT-6\.1 Sol · Max$/)
-    assert.ok(!/GPT/.test(labels.at(-2)), 'the first message on a model has nothing to compare with')
+    assert.deepEqual(labels, ['GPT-6.1 Sol · Max'], 'only where the model changed: the first message on a model has nothing to compare with')
   })
   // A model that asks before it is used (cost).
   let asked = 0

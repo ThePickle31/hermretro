@@ -1,7 +1,7 @@
 export const TRANSCRIPT_CSS = `
 /* the conversation */
 .cs-b-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
-.cs-b-head { align-items: center; align-self: center; box-sizing: border-box; display: flex; gap: 10px; max-width: var(--cs-b-width); min-height: 46px; padding: 8px clamp(14px, 3cqi, 28px) 2px; width: 100%; }
+.cs-b-head { align-items: center; border-bottom: 1px solid var(--ui-stroke-tertiary); box-sizing: border-box; display: flex; gap: 10px; min-height: 50px; padding: 8px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-head .cs-word { font-size: 22px; }
 .cs-top-profile { align-items: center; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); cursor: default; display: inline-flex; font-size: 11px; gap: 5px; margin-left: 10px; padding: 1px 9px 1px 7px; white-space: nowrap; }
 .cs-b-txwrap { display: flex; flex: 1; flex-direction: column; min-height: 0; position: relative; }
@@ -15,8 +15,7 @@ export const TRANSCRIPT_CSS = `
 .cs-b-user.queued { background: transparent; border: 1px dashed var(--ui-stroke-secondary); color: var(--ui-text-secondary); }
 .cs-b-qlabel { color: var(--ui-text-quaternary); font-size: 11px; }
 .cs-b-her { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cs-b-who { color: var(--ui-text-secondary); font-size: 12px; font-weight: 600; }
-.cs-b-who span { color: var(--ui-text-quaternary); font-size: 11px; font-weight: 400; margin-left: 7px; }
+.cs-b-who { color: var(--ui-text-quaternary); font-size: 11.5px; }
 .cs-b-agent { color: var(--ui-text-primary); line-height: 1.65; min-width: 0; overflow-wrap: anywhere; }
 /* The app un-does Typography's margins only inside its own chat ([data-slot='aui_assistant-message-content']).
    Here its \`.prose :where(img) { margin: 2em 0 }\` would slide a MEDIA: image down out of its reserved frame,

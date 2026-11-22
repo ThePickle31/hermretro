@@ -57,3 +57,13 @@ test('a turn whose last compile stopped did not build the game, even after an ea
   assert.equal(turnBuilt(turnOf(['chromatic_rom_build', 'failed'], ['chromatic_rom_build', 'done'])), true)
   assert.equal(turnBuilt(turnOf(['chromatic_present_game', 'done'])), true, 'a presentation alone still plays the build there is')
 })
+
+const { playsBuild } = await import('#pages/build/player/play-card.js')
+
+test('the frame names a build only when the copy the player loads was made by it', () => {
+  const build = { n: 2, startAt: 5_000_000 }
+  assert.equal(playsBuild({ web: { builtAt: 5_010 } }, build), true)
+  assert.equal(playsBuild({ web: { builtAt: 4_900 } }, build), false, 'a ROM-only compile left the player on an earlier copy')
+  assert.equal(playsBuild({ rom: { builtAt: 5_001 } }, build), true, 'no web copy: the ROM plays')
+  assert.equal(playsBuild({ web: { builtAt: 5_010 } }, { n: 2, startAt: null }), false)
+})

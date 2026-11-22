@@ -23,6 +23,7 @@ import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
+import { BuildPromptCard } from './transcript/questions.js'
 import { BuildNewGame } from './new-game.js'
 import { AttractLevel } from './attract/index.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
@@ -473,7 +474,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           ]
         })
 
-  const jumpToQuestion = () => document.querySelector?.('.cs-b-card[data-prompt="open"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  // An open question or approval is asked in the message box (one at a time, the oldest first); only while a turn
+  // runs: one its turn ended without settling has expired and must not hold the box.
+  const openPrompt = shownChat?.busy ? (shownChat.items?.find(item => (item.kind === 'clarify' || item.kind === 'approval') && !item.answered) ?? null) : null
   const playable = Boolean(game && game.webExport && playableSha(game))
   const emptyState = jsx('div', {
     className: 'cs-b-hello',
@@ -583,7 +586,8 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
                   : shownChat?.busy
                     ? `Reply to ${AGENT}…`
                     : `Tell ${AGENT} what to change in ${title}…`,
-              status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
+              status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onStop: () => void stopBuildChat(shownStored) }) : null,
+              ask: openPrompt && shownStored ? jsx(BuildPromptCard, { item: openPrompt, stored: shownStored }, openPrompt.requestId ?? 'prompt') : null,
               stored: shownStored
             }, `composer:${composerKey}`)
           ]

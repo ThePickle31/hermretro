@@ -4,12 +4,11 @@ import { attachmentKey } from '#pages/build/chat/attachments.js'
 import { AttachmentChip } from '#pages/build/composer/attachment-chip.js'
 import { effortLabel, modelName } from '#pages/build/composer/model-names.js'
 import { InlinePlayer } from '#pages/build/player/inline-player.js'
-import { PlayCard } from '#pages/build/player/play-card.js'
+import { PlayCard, playsBuild } from '#pages/build/player/play-card.js'
 import { AGENT } from '#app/ids.js'
 import { spanWords, timeOfDay } from '#shared/ui/time.js'
 import { playableSha } from '#app/player/stage.js'
 import { BuildCard, NextSteps } from './build-card.js'
-import { BuildPromptCard } from './questions.js'
 import { AgentText, replyAssets } from './reply.js'
 import { turnParts } from './turns.js'
 import { Worked } from './worked.js'
@@ -50,22 +49,19 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   // A finished turn that built the game, or reported what it did, ends in its build card.
   const carded = !live && (build || report)
 
+  // The newest build plays in a frame under its line; while the agent works, only its line says so.
   let play = null
   let playLabel = null
 
   if (latestBuild && game) {
     if (chatBusy) {
-      play = carded ? null : jsx(PlayCard, { frame, game, onOpenAsset: openAsset, state: 'busy' })
-      playLabel = jsx('span', { className: 'cs-faint cs-small', children: `Playable again when ${AGENT} finishes` })
+      playLabel = carded ? jsx('span', { className: 'cs-faint cs-small', children: `Playable again when ${AGENT} finishes` }) : null
     } else if (!playable) {
-      play = carded ? null : jsx(PlayCard, { frame, game, onOpenAsset: openAsset, state: 'unplayable' })
-      playLabel = jsx('span', { className: 'cs-faint cs-small', children: 'The playable copy is not ready yet' })
+      play = jsx(PlayCard, { frame, game, state: 'unplayable' })
     } else if (playerOpen) {
       play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`)
-    } else if (carded) {
-      playLabel = jsxs(Button, { onClick: onPlay, size: 'sm', children: [jsx(Codicon, { name: 'play', size: 13 }), 'Play'] })
     } else {
-      play = jsx(PlayCard, { frame, game, note: parts.note, onOpenAsset: openAsset, onPlay, state: 'ready' })
+      play = jsx(PlayCard, { build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: 'ready' })
     }
   } else if (build?.state === 'built' && !live) {
     playLabel = jsx('span', { className: 'cs-faint cs-small', children: 'Earlier build' })
@@ -81,7 +77,6 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
         onOpenAsset: openAsset,
         onSend,
         parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
-        play,
         playLabel,
         report,
         root,
@@ -110,27 +105,18 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
         ? jsxs('div', {
             className: 'cs-b-her',
             children: [
-              jsxs('div', {
-                className: 'cs-b-who',
-                children: [
-                  AGENT,
-                  jsx('span', {
-                    children: `${live ? 'working now' : timeOfDay(agentAt ?? startedAt)}${
-                      user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? '') !== (previousModel.effort ?? ''))
-                        ? ` · ${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ''}`
-                        : ''
-                    }`
-                  })
-                ]
-              }),
+              // No name over the reply (it is the agent's thread); a line only where the model changed.
+              user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? '') !== (previousModel.effort ?? ''))
+                ? jsx('div', { className: 'cs-b-who', children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ''}` })
+                : null,
               ...parts.intro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `i${index}`)),
               showWorked
                 ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? (turnStartedAt ?? startedAt ?? Date.now()) : startedAt, status: end?.status ?? null }, 'worked')
                 : null,
               // With a report the card says it all and the reply is a line after it; without one the reply
               // is the words, and the card (a build) follows them.
-              ...(report ? [card, ...outro] : [...outro, card]),
-              ...parts.prompts.map(item => jsx(BuildPromptCard, { item, stored }, item.requestId ?? item.id ?? 'prompt')),
+              // Questions and approvals are asked in the message box, not here.
+              ...(report ? [card, carded ? play : null, ...outro] : [...outro, card, carded ? play : null]),
               ...parts.errors.map((item, index) =>
                 jsxs(
                   'div',
@@ -140,7 +126,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
                       jsxs('div', { className: 'cs-row', children: [jsx(Codicon, { name: 'error', size: 14 }), jsx('b', { children: 'Something went wrong' })] }),
                       jsx('p', { className: 'cs-small', children: item.text }),
                       isLast && !chatBusy && item.resend
-                        ? jsx('div', { className: 'cs-row', children: jsx(Button, { onClick: () => onSend(item.resend.text, item.resend.shown, item.resend.attachments ?? []), size: 'sm', children: 'Try again' }) })
+                        ? jsx('div', { className: 'cs-row', children: jsx(Button, { onClick: () => onSend(item.resend.text, item.resend.shown, item.resend.attachments ?? []), size: 'sm', variant: 'outline', children: 'Try again' }) })
                         : null
                     ]
                   },
@@ -154,7 +140,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
                       jsxs('div', { className: 'cs-row', children: [jsx(Codicon, { name: 'error', size: 14 }), jsx('b', { children: 'The build failed' })] }),
                       jsx('p', { className: 'cs-small', children: parts.buildFailed }),
                       isLast && !chatBusy
-                        ? jsx('div', { className: 'cs-row', children: jsx(Button, { onClick: () => onSend('The build failed. Please fix it and build again.'), size: 'sm', children: `Ask ${AGENT} to fix it` }) })
+                        ? jsx('div', { className: 'cs-row', children: jsx(Button, { onClick: () => onSend('The build failed. Please fix it and build again.'), size: 'sm', variant: 'outline', children: `Ask ${AGENT} to fix it` }) })
                         : null
                     ]
                   })

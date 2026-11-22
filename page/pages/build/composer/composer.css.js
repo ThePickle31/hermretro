@@ -1,6 +1,7 @@
 export const COMPOSER_CSS = `
 /* status and the message box */
 .cs-b-comp { align-self: center; background: var(--ui-bg-secondary); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; margin: 0 clamp(14px, 3cqi, 28px) 16px; max-width: var(--cs-b-width); padding: 9px 9px 9px 14px; width: calc(100% - 2 * clamp(14px, 3cqi, 28px)); }
+.cs-b-comp.asking { gap: 4px; padding: 10px 10px 8px 12px; }
 .cs-b-comp:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 60%, var(--ui-stroke-secondary)); }
 .cs-b-comp textarea { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; font-size: 13.5px; line-height: 1.5; max-height: 200px; min-height: 22px; outline: none; padding: 4px 0; resize: none; }
 .cs-b-send, .cs-b-stop { align-items: center; appearance: none; border: 0; border-radius: 50%; cursor: pointer; display: inline-flex; flex: none; height: 30px; justify-content: center; transition: opacity .15s ease, transform .1s ease; width: 30px; }

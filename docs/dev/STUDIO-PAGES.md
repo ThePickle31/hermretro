@@ -212,11 +212,12 @@ and the delta `offset`. Questions and approvals are server requests the page nev
 a tool runs it reads the session's `open_requests` and renders them as cards. A backend without the
 `build` RPC (-32601) keeps bindings for the visit only and names the project in the first message.
 
-- **The conversation** (approved design "Build chat final"; user: "this still needs to feel like a
-  chat experience"). The user's messages are bubbles on the right; the agent's replies are plain prose
-  on the left under a plain "HermRetro" label and time ("working now" while it works). No avatar, no
-  coloured bar or tint ("seems like too much", "it doesn't need to be stylized"). Every UI string
-  calls the agent HermRetro. Text is `MessageTextContent` (markdown), memoised per block.
+- **The conversation** (approved design "Build redesign round 3, T": a T3 Code style thread in Hermes's
+  style, everything in the chat, nothing beside it, no filled boxes). The user's messages are bubbles
+  on the right; the agent's replies are plain prose on the left with no name over them (a small line
+  names the model only where it changed). No avatar, no coloured bar or tint. Every UI string calls
+  the agent HermRetro. Text is `MessageTextContent` (markdown), memoised per block. The header (title,
+  pill, Builds) has a rule under it.
 - **Worked for…** Each reply folds its steps into one line: "Working for 0:42 · 3 steps" (open, live)
   and "✓ Worked for 1m 12s · drew the art, built it" once done (closed, opens on a click), followed by
   a small stack of what the turn made and an "N assets" link that opens the viewer on its first
@@ -234,17 +235,18 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
   lead the reply, words between steps are notes inside, words after the last step close it. Steps
   keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).
-- **Build cards** (user-approved "final set": A Quiet thread + D Build cards + E Focus mode). Each
+- **Builds** (first approved as cards, "final set" A + D + E; now quiet lines, round 3 T). Each
   turn that compiled the game (`rom_build`/`web_build` done or failed) is a numbered build, #1 up, in
   conversation order (`buildHistory`). A finished build turn, or one that called
-  `chromatic_build_report`, ends in a card: badge (#n, red when its last compile failed), the report's
-  title (else the message that asked), how long it took, and Play on the build that plays (else
-  "Earlier build" / "Playable again when HermRetro finishes"); the report's summary; for a picture
+  `chromatic_build_report`, ends in a build, drawn as a quiet line with no box: #n (outlined, red when
+  its last compile failed), the report's title (else the message that asked), how long it took, and
+  "Earlier build" on older builds ("Playable again when HermRetro finishes" on the newest while it
+  works); under it in grey: the report's summary; for a picture
   it edited, Before → After (the `asset` RPC at the turn's start and end; nothing when the file is
   new), with Keep / Undo on the newest turn (Undo = `asset_restore` of the earlier version, then
   "Rebuild" asks the agent to build again); what changed (+ added, ~ changed, − removed, with a
-  thumbnail when the change names an asset; without a report, the pictures the turn made); the
-  player when open; a footer with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
+  thumbnail when the change names an asset; without a report, the pictures the turn made); a line
+  with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
   lists, and the compiler's words for a failed build, with Ask HermRetro to fix it). With a report
   the reply's words follow the card; without one they come first. The newest reply's suggestions
   are chips under it that put their words in the message box (never sent).
@@ -288,13 +290,14 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   in a strip along the bottom (the one in the game marked). ←/→ other pictures of the turn, Esc
   closes, Show in folder (`ctx.os.revealPath`, else the path is copied), Copy image.
 - **The game, in the conversation** (user: "for now it should only ever show up when the agent has
-  finished and the user can play test the game"). The turn that last built the game ends with its
-  build card; Play there opens the real player inside that card (no third column; a game built
-  outside the conversation still gets a plain play card). It opens by itself when the
-  agent presented the game that turn (`chromatic_present_game` from a Build conversation opens no tab
-  beside the chat; its note shows on the player). While the agent works the player rests as a card,
-  "Playable again when HermRetro finishes", and comes back when it is done. Older build cards say
-  "Earlier build". It takes the live player from the Emulator page (a tab beside the chat keeps it
+  finished and the user can play test the game"). Under the newest build's line the game rests in a
+  dark frame, its screen at twice its size with "Play build #n" at the corner (`player/play-card.js`;
+  "The playable copy is not ready yet" when it is not); Play opens the real player in its place (no
+  third column; a game built outside the conversation gets the same frame). It opens by itself when
+  the agent presented the game that turn (`chromatic_present_game` from a Build conversation opens no
+  tab beside the chat; its note shows on the player). While the agent works there is no frame, the
+  build's line says "Playable again when HermRetro finishes", and the game comes back when it is done.
+  Older builds say "Earlier build". It takes the live player from the Emulator page (a tab beside the chat keeps it
   and offers "Bring it here"); keys reach the game only after a click in it. The player
   (`page/pages/build/player/`, user-approved mockup `chromatic-studio-mockups/inline-player/inline-player-final.html`):
   - **One bar**: Fit/2×/3×/4× (always a whole multiple of 160×144; Fit is the largest that fits, a size
@@ -316,12 +319,13 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 - **Honest status** above the message box while a turn runs: "HermRetro is <step>" (or thinking,
   writing, tidying up the conversation) with "last update Ns ago"; after 45 s of quiet it says
   nothing new has come in (normal for builds); after 3 min (10 for builds and installs) "has been
-  quiet for N minutes, may be stuck" with Open full chat and Stop; "waiting for your answer" with
-  Jump to the question; "Reconnecting…" after three failed polls. The game switcher shows a spinner, "Needs
+  quiet for N minutes, may be stuck" with Open full chat and Stop; "waiting for your answer";
+  "Reconnecting…" after three failed polls. The game switcher shows a spinner, "Needs
   your answer" or a new-reply dot per game.
-- **Questions** are one card outside the steps: numbered choices (number keys pick), "(Recommended)"
-  shown as a Suggested tag, an own-answer field, Send answer once every question has one. Answered,
-  they become a step with the answers as chips. Approvals are a card with their choices.
+- **Questions** are asked in the message box: while one is open the box is the question (the oldest
+  first), its choices a numbered list (number keys pick), "(Recommended)" shown as a grey Suggested, an
+  own-answer field, Send answer once every question has one, and Stop while the agent works. Answered,
+  they become a step with the answers as chips. Approvals take the box the same way, with their choices.
 - **Sending while it works** follows Hermes's `display.busy_input_mode`: a redirected message joins
   the turn; a `queued` one waits under the conversation ("Queued · HermRetro reads this when it
   finishes") until its `message.start`. Only a message sent behind a running (or lost) turn moves

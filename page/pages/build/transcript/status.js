@@ -7,7 +7,7 @@ import { stepWords } from './step-words.js'
 
 /** What the agent is doing, in words, above the message box. It says so honestly when nothing has come
  *  in for a while, and when the connection is the problem. */
-export function BuildStatus({ chat, onStop, onJump }) {
+export function BuildStatus({ chat, onStop }) {
   const now = useNow(Boolean(chat?.busy))
 
   if (!chat?.busy) {
@@ -25,8 +25,7 @@ export function BuildStatus({ chat, onStop, onJump }) {
 
   if (waiting) {
     tone = 'wait'
-    headline = `${AGENT} is waiting for your answer`
-    detail = jsx('button', { className: 'cs-b-link', onClick: onJump, type: 'button', children: 'Jump to the question' })
+    headline = `${AGENT} is waiting for your answer` // the question is in the message box below
   } else if ((chat.unreachable ?? 0) >= 3) {
     tone = 'warn'
     headline = 'Reconnecting to Hermes…'
