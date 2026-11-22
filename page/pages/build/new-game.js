@@ -1,8 +1,8 @@
 // The New Game screen.
-import { Codicon, jsx, jsxs, useEffect, useLayoutEffect, useRef, useState, useValue } from '#sdk'
+import { Codicon, jsx, jsxs, useEffect, useLayoutEffect, useRef, useValue } from '#sdk'
 import { AGENT } from '#app/ids.js'
 import { ProviderNotice } from './composer/provider-notice.js'
-import { clearNewGameDraft, editNewGameDraft, NEW_GAME_DRAFT } from './new-game-draft.js'
+import { clearNewGameDraft, editNewGameDraft, NEW_GAME_DRAFT, NEW_GAME_STARTING } from './new-game-draft.js'
 
 // The two ways to start, as the backend tells the agent (backend/library/rpcs.py build context): keep the words in step.
 const NEW_GAME_MODES = [
@@ -24,10 +24,8 @@ export function BuildNewGame({ onStart, picker = null, updating = false }) {
   const mode = draft.plan ? 'plan' : 'build'
   const setIdea = value => editNewGameDraft({ idea: value })
   const setMode = value => editNewGameDraft({ plan: value === 'plan' })
-  const [busy, setBusy] = useState(false)
+  const busy = useValue(NEW_GAME_STARTING)
   const box = useRef(null)
-  // A second Enter before the re-render would start a second game: a ref sees the first at once.
-  const starting = useRef(false)
 
   // A handed-over idea (onboarding): the box gets focus with the cursor after it, ready to send or edit.
   useEffect(() => {
@@ -50,20 +48,22 @@ export function BuildNewGame({ onStart, picker = null, updating = false }) {
   }, [idea])
 
   const start = async () => {
-    if (starting.current || !idea.trim() || updating) {
+    // The atom, not this screen's state: a second Enter before the re-render, or the screen remounted while the first
+    // start runs, sees it at once.
+    if (NEW_GAME_STARTING.get() || !idea.trim() || updating) {
       return
     }
 
-    starting.current = true
-    setBusy(true)
+    const { rev } = NEW_GAME_DRAFT.get()
+
+    NEW_GAME_STARTING.set(true)
 
     try {
       if ((await onStart({ idea, name: '', plan: mode === 'plan' })) === true) {
-        clearNewGameDraft()
+        clearNewGameDraft(rev)
       }
     } finally {
-      starting.current = false
-      setBusy(false)
+      NEW_GAME_STARTING.set(false)
     }
   }
 

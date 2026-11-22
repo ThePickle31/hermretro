@@ -107,7 +107,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.match(dom.window.document.querySelector('.cs-onb-steps').getAttribute('aria-label'), /step 2 of 3/)
     assert.ok(button('Start making games') && button('Set up my Chromatic'))
     assert.ok(button('Start making games').classList.contains('primary'), 'making games is the primary choice')
-    shows(/A Chromatic is optional/); shows(/Optional · 4 more steps/)
+    shows(/Optional · 4 more steps/)
   })
   await click('Start making games')
   check('Start making games: emulator only, then What do you want to make?', () => {

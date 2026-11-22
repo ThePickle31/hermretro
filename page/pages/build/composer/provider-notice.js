@@ -4,21 +4,12 @@
 import { Button, Codicon, host, jsx, jsxs, useQuery, useValue } from '#sdk'
 import { chatRequest } from '#pages/build/chat/store.js'
 import { AGENT, ID, STUDIO_PROFILE } from '#app/ids.js'
-import { studioTarget } from '#app/routing.js'
 
 export const PROVIDERS_HREF = '/settings?tab=providers'
 
 /** True when Hermes answered with a provider list and none of it is signed in with a model; false while unknown. */
 export function noProviderReady(data) {
   return Boolean(data && Array.isArray(data.providers) && !data.providers.some(item => item?.authenticated && Array.isArray(item.models) && item.models.length))
-}
-
-function activeProfile() {
-  try {
-    return host.state.profile?.get?.() ?? null
-  } catch {
-    return null
-  }
 }
 
 export function ProviderNotice() {
@@ -28,17 +19,16 @@ export function ProviderNotice() {
     queryFn: () => chatRequest('model.options', {}, 30_000),
     enabled: gateway === 'open',
     staleTime: 5 * 60_000,
+    // Asked again each time New Game shows (coming back from Settings after signing in), and silent until it answers:
+    // the answer from before the sign-in is not shown again.
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     retry: 1
   })
 
-  if (!noProviderReady(options.data)) {
+  if (options.isFetching || !noProviderReady(options.data)) {
     return null
   }
-
-  // Settings edit the profile the app is on unless "Applies to" says otherwise.
-  const routed = Boolean(studioTarget()?.profile)
-  const other = routed ? activeProfile() : null
 
   return jsxs('div', {
     className: 'cs-b-provider',
@@ -50,9 +40,8 @@ export function ProviderNotice() {
         children: [
           jsx('b', { children: `No model provider is signed in for the ${STUDIO_PROFILE} profile yet.` }),
           ` ${AGENT} needs one to answer. Your idea stays here until you send it.`,
-          routed
-            ? ` Settings change the${other ? ` \u201c${other}\u201d` : ''} profile Hermes is on: under Settings \u203a Providers, choose ${STUDIO_PROFILE} in \u201cApplies to\u201d first.`
-            : ''
+          // Settings keep the last "Applies to" choice, whichever profile the app is on.
+          ` In Settings \u203a Providers, check that \u201cApplies to\u201d is ${STUDIO_PROFILE}.`
         ]
       }),
       jsxs(Button, {

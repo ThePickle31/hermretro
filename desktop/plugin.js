@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 5d623bc9d1e297d162fd2561b7cc1623fd262e7ed074bfb0c3ac567b936cbe47
- * body: sha256 07c54bfe8ce6131d97793dd1d30a1ab2952a5fb2575dc6ec4720db89138424ae
+ * sources: sha256 803d76bdd209bb91c8836f6b1d7cb42c60b7c079e89b89123d1149e896b3a22f
+ * body: sha256 ae7745a5fcaab8ee513c92f3d739072e32800c49566da6c590b2d94c9c8d8771
  */
 // page/sdk.js
 import {
@@ -1163,7 +1163,7 @@ async function createBuildChat(title, pick = null) {
   patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
-async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
+async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false } = {}) {
   if (isUpdating()) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return false;
@@ -1195,11 +1195,11 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
-    return true;
+    return !mustLand;
   }
   if (!settled.ok) {
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
-    return true;
+    return !mustLand;
   }
   schedulePromptCheck(stored);
   try {
@@ -1222,6 +1222,7 @@ ${text2}` : text2;
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored);
     }
+    return !mustLand;
   }
   return true;
 }
@@ -7483,13 +7484,6 @@ var PROVIDERS_HREF = "/settings?tab=providers";
 function noProviderReady(data) {
   return Boolean(data && Array.isArray(data.providers) && !data.providers.some((item) => item?.authenticated && Array.isArray(item.models) && item.models.length));
 }
-function activeProfile2() {
-  try {
-    return host.state.profile?.get?.() ?? null;
-  } catch {
-    return null;
-  }
-}
 function ProviderNotice() {
   const gateway = useValue(host.state.gateway);
   const options = useQuery({
@@ -7497,14 +7491,15 @@ function ProviderNotice() {
     queryFn: () => chatRequest("model.options", {}, 3e4),
     enabled: gateway === "open",
     staleTime: 5 * 6e4,
+    // Asked again each time New Game shows (coming back from Settings after signing in), and silent until it answers:
+    // the answer from before the sign-in is not shown again.
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     retry: 1
   });
-  if (!noProviderReady(options.data)) {
+  if (options.isFetching || !noProviderReady(options.data)) {
     return null;
   }
-  const routed = Boolean(studioTarget()?.profile);
-  const other = routed ? activeProfile2() : null;
   return jsxs("div", {
     className: "cs-b-provider",
     role: "status",
@@ -7515,7 +7510,8 @@ function ProviderNotice() {
         children: [
           jsx("b", { children: `No model provider is signed in for the ${STUDIO_PROFILE} profile yet.` }),
           ` ${AGENT} needs one to answer. Your idea stays here until you send it.`,
-          routed ? ` Settings change the${other ? ` “${other}”` : ""} profile Hermes is on: under Settings › Providers, choose ${STUDIO_PROFILE} in “Applies to” first.` : ""
+          // Settings keep the last "Applies to" choice, whichever profile the app is on.
+          ` In Settings › Providers, check that “Applies to” is ${STUDIO_PROFILE}.`
         ]
       }),
       jsxs(Button, {
@@ -7529,13 +7525,15 @@ function ProviderNotice() {
 }
 
 // page/pages/build/new-game-draft.js
-var NEW_GAME_DRAFT = atom({ idea: "", plan: false, seq: 0 });
+var NEW_GAME_DRAFT = atom({ idea: "", plan: false, seq: 0, rev: 0 });
+var NEW_GAME_STARTING = atom(false);
 var KEY3 = "buildNewGame";
 var storage = null;
 var clean2 = (value) => ({
   idea: typeof value?.idea === "string" ? value.idea : "",
   plan: value?.plan === true,
-  seq: Number.isFinite(value?.seq) ? value.seq : 0
+  seq: Number.isFinite(value?.seq) ? value.seq : 0,
+  rev: Number.isFinite(value?.rev) ? value.rev : 0
 });
 function save(draft) {
   try {
@@ -7548,18 +7546,21 @@ function restoreNewGameDraft(ctx) {
   try {
     const saved = storage?.get(KEY3, null);
     if (saved && typeof saved === "object") {
-      NEW_GAME_DRAFT.set({ ...clean2(saved), seq: NEW_GAME_DRAFT.get().seq });
+      NEW_GAME_DRAFT.set({ ...clean2(saved), seq: NEW_GAME_DRAFT.get().seq, rev: NEW_GAME_DRAFT.get().rev });
     }
   } catch {
   }
 }
 function editNewGameDraft(change) {
-  const next = { ...NEW_GAME_DRAFT.get(), ...change };
+  const current = NEW_GAME_DRAFT.get();
+  const next = { ...current, ...change, rev: current.rev + 1 };
   NEW_GAME_DRAFT.set(next);
   save(next);
 }
-function clearNewGameDraft() {
-  editNewGameDraft({ idea: "", plan: false });
+function clearNewGameDraft(rev) {
+  if (NEW_GAME_DRAFT.get().rev === rev) {
+    editNewGameDraft({ idea: "", plan: false });
+  }
 }
 function takeFirstIdea({ idea = "", plan = false } = {}, ctx) {
   const words = String(idea ?? "").trim();
@@ -7573,7 +7574,7 @@ ${words}` : words;
     ctx?.storage?.set("buildSelected", "new");
   } catch {
   }
-  const next = { idea: merged, plan: plan === true, seq: current.seq + 1 };
+  const next = { idea: merged, plan: plan === true, seq: current.seq + 1, rev: current.rev + 1 };
   NEW_GAME_DRAFT.set(next);
   save(next);
 }
@@ -7590,9 +7591,8 @@ function BuildNewGame({ onStart, picker = null, updating = false }) {
   const mode = draft.plan ? "plan" : "build";
   const setIdea = (value) => editNewGameDraft({ idea: value });
   const setMode = (value) => editNewGameDraft({ plan: value === "plan" });
-  const [busy, setBusy] = useState(false);
+  const busy = useValue(NEW_GAME_STARTING);
   const box = useRef(null);
-  const starting = useRef(false);
   useEffect(() => {
     const element = box.current;
     if (draft.seq && draft.seq !== focusedSeq && element) {
@@ -7609,18 +7609,17 @@ function BuildNewGame({ onStart, picker = null, updating = false }) {
     }
   }, [idea]);
   const start = async () => {
-    if (starting.current || !idea.trim() || updating) {
+    if (NEW_GAME_STARTING.get() || !idea.trim() || updating) {
       return;
     }
-    starting.current = true;
-    setBusy(true);
+    const { rev } = NEW_GAME_DRAFT.get();
+    NEW_GAME_STARTING.set(true);
     try {
       if (await onStart({ idea, name: "", plan: mode === "plan" }) === true) {
-        clearNewGameDraft();
+        clearNewGameDraft(rev);
       }
     } finally {
-      starting.current = false;
-      setBusy(false);
+      NEW_GAME_STARTING.set(false);
     }
   };
   const onModeKey = (event) => {
@@ -11668,9 +11667,13 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
-      if (!await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim())) {
+      const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan });
+      if (!await sendBuildChat(id, first, idea.trim(), [], { mustLand: true })) {
         void buildRpc({ action: "cancel", stored: id }).catch(() => {
         });
+        if (!isUpdating()) {
+          host.notify({ kind: "error", message: "Could not start the conversation: Hermes did not take the first message." });
+        }
         return false;
       }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
@@ -13525,17 +13528,11 @@ function TryDemo() {
   if (typeof host.openWorkspace !== "function") {
     return null;
   }
-  return jsxs("div", {
-    className: "cs-row",
-    children: [
-      jsxs(Button, {
-        onClick: () => emit("setup.demoRequested", {}),
-        size: "sm",
-        variant: "ghost",
-        children: [jsx(Codicon, { name: "play", size: 14 }), "Try the demo while you wait"]
-      }),
-      jsx("span", { className: "cs-faint", children: "ModRetro's Hello Color example opens beside the chat. The install keeps going." })
-    ]
+  return jsxs(Button, {
+    onClick: () => emit("setup.demoRequested", {}),
+    size: "sm",
+    variant: "ghost",
+    children: [jsx(Codicon, { name: "play", size: 14 }), "Try the demo while you wait"]
   });
 }
 function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doctor }) {
@@ -13603,9 +13600,7 @@ function OnboardChromatic({ onEmulator, onDevice }) {
     children: [
       jsxs("p", { className: "cs-eyebrow", children: [jsx("span", { className: "cs-accent", children: "Step 2 of 3" }), jsx("span", { children: "Your hardware" })] }),
       jsxs("h2", { className: "cs-word cs-onb-title", children: ["Do you have a ", jsx("span", { className: "cs-accent", children: "Chromatic?" })] }),
-      jsx(Lede, {
-        children: "A Chromatic is optional: every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge, now or any time later from Setup."
-      }),
+      jsx(Lede, { children: "Every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge." }),
       jsxs("div", {
         className: "cs-hwcards",
         children: [
@@ -13622,7 +13617,7 @@ function OnboardChromatic({ onEmulator, onDevice }) {
             art: jsx("span", { "aria-hidden": true, className: "cs-hwart device" }),
             onClick: onDevice,
             tag: "Optional · 4 more steps",
-            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software. Each step asks first, and you can stop and come back.",
+            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
             title: "Set up my Chromatic",
             tone: "quiet"
           })

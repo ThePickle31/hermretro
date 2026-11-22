@@ -210,8 +210,15 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
 
-      if (!(await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim()))) {
+      // Only a first message Hermes accepted starts the game: otherwise New Game keeps the idea to send again.
+      const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan })
+
+      if (!(await sendBuildChat(id, first, idea.trim(), [], { mustLand: true }))) {
         void buildRpc({ action: 'cancel', stored: id }).catch(() => {})
+
+        if (!isUpdating()) {
+          host.notify({ kind: 'error', message: 'Could not start the conversation: Hermes did not take the first message.' })
+        }
 
         return false
       }

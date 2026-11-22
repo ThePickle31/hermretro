@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, shows, hides, heading, click, tab, currentTab, settle, button, typeInto, check, answered, status, doctor, installAnswer, complete, cli }) => {
+await runScenario(async ({ act, createRoot, dom, host, mount, scenario, page, root, render, shows, hides, heading, click, tab, currentTab, settle, button, typeInto, check, answered, status, doctor, installAnswer, complete, cli }) => {
   const doc = dom.window.document
   const sent = () => scenario.calls.filter(call => call[1] === 'session.create' || call[1] === 'prompt.submit' || call[0] === 'newChat' || call[0] === 'insert')
 
@@ -53,9 +53,17 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(notice, 'the provider notice')
     assert.match(notice.textContent, /No model provider is signed in for the hermretro profile yet\./)
     assert.match(notice.textContent, /Your idea stays here until you send it/)
-    assert.ok(!/Applies to/.test(notice.textContent), 'the app is on the hermretro profile: no profile switch to explain')
+    assert.match(notice.textContent, /check that \u201cApplies to\u201d is hermretro/, 'Settings keep the last Applies to choice, on any profile')
     assert.equal(box().value, 'a frog who delivers mail across a flooded town, with boats')
   })
+  scenario.models = { data: { providers: [{ slug: 'anthropic', name: 'Anthropic', authenticated: false, models: ['claude'] }] }, isFetching: true }
+  await render()
+  check('while the providers are asked again (back from Settings), the earlier answer is not shown', () => {
+    assert.ok(!doc.querySelector('.cs-b-provider'))
+    assert.equal(scenario.queries.filter(query => query.key === 'models').length > 0, true)
+  })
+  scenario.models = answered({ providers: [{ slug: 'anthropic', name: 'Anthropic', authenticated: false, models: ['claude'] }] })
+  await render()
   scenario.navigations.length = 0
   await click('Open provider settings', doc.querySelector('.cs-b-provider'))
   check('Open provider settings goes to Settings › Providers', () => {
@@ -92,6 +100,17 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.equal(second.querySelector('.cs-b-new textarea').value, 'a moth who collects lamps')
     assert.deepEqual(scenario.storage.buildNewGame, { idea: 'a moth who collects lamps', plan: false })
   })
+  // Hermes opened the conversation but refused its first message: the game did not start, so the idea stays too.
+  scenario.byMethod['session.create'] = () => ({ session_id: 'rt-refused', stored_session_id: 'st-refused', info: { model: 'gpt-x', provider: 'openai-codex' }, messages: [] })
+  scenario.byMethod['prompt.submit'] = () => { throw new Error('the gateway refused the turn') }
+  await act(async () => { second.querySelector('.cs-b-new .cs-b-send').click() })
+  await settle()
+  check('a first message Hermes refused keeps the idea in the box and in storage, and the start is undone', () => {
+    assert.match(scenario.notices.at(-1).message, /Could not start the conversation: Hermes did not take the first message/)
+    assert.equal(second.querySelector('.cs-b-new textarea').value, 'a moth who collects lamps')
+    assert.deepEqual(scenario.storage.buildNewGame, { idea: 'a moth who collects lamps', plan: false })
+    assert.deepEqual(builds.at(-1), { action: 'cancel', stored: 'st-refused' })
+  })
   await act(async () => { secondRoot.unmount() }); second.remove()
   delete scenario.byMethod['session.create']; delete scenario.byMethod['prompt.submit']; delete scenario.byMethod['plugin.hermretro.build']
 
@@ -103,7 +122,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   await act(async () => { root.render(null) }); await render()
   check('while installing, Try the demo is offered and nothing plays on its own', () => {
     assert.equal(heading(), 'Setting up the studio')
-    assert.ok(button('Try the demo while you wait')); shows(/The install keeps going/)
+    assert.ok(button('Try the demo while you wait'))
     assert.equal(scenario.workspaces.length, 0)
   })
   await click('Try the demo while you wait'); await settle()
@@ -112,7 +131,20 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.equal(scenario.workspaces[0].options.title, 'Emulator · Hello Color')
     assert.equal(heading(), 'Setting up the studio')
   })
+  const demo = await mount({ render: scenario.workspaces[0].options.render })
+  check('the demo tab asks the player for the bundled demo', () => {
+    const asked = scenario.queries.filter(query => query.key === 'player' && query.queryKey?.[2] === 'side').at(-1)
+    assert.equal(asked?.queryKey?.[3], 'demo')
+  })
+  await demo.close()
   scenario.workspaces.forEach(tab => tab.close())
+  const openWorkspace = host.openWorkspace
+  delete host.openWorkspace
+  await render()
+  check('a Desktop that cannot open a tab beside the chat offers no demo', () => {
+    assert.equal(heading(), 'Setting up the studio'); assert.ok(!button('Try the demo while you wait'))
+  })
+  host.openWorkspace = openWorkspace
   scenario.install = installAnswer({ state: 'idle' })
   await render()
   check('before the install starts (the review) the demo is not offered', () => {

@@ -48,7 +48,7 @@ test('handing over the same idea twice, or none, does not repeat or wipe the dra
   const { storage } = memory({})
 
   restoreNewGameDraft({ storage })
-  clearNewGameDraft()
+  clearNewGameDraft(NEW_GAME_DRAFT.get().rev)
   takeFirstIdea({ idea: 'a lighthouse', plan: false }, { storage })
   takeFirstIdea({ idea: 'a lighthouse', plan: false }, { storage })
   assert.equal(NEW_GAME_DRAFT.get().idea, 'a lighthouse')
@@ -62,10 +62,23 @@ test('a started game clears the draft, in memory and in storage', () => {
 
   restoreNewGameDraft({ storage })
   editNewGameDraft({ idea: 'something', plan: true })
-  clearNewGameDraft()
+  clearNewGameDraft(NEW_GAME_DRAFT.get().rev)
   assert.equal(NEW_GAME_DRAFT.get().idea, '')
   assert.equal(NEW_GAME_DRAFT.get().plan, false)
   assert.equal(kept.buildNewGame, null)
+})
+
+test('a start clears only the draft it sent: a newer idea written meanwhile stays', () => {
+  const { kept, storage } = memory({})
+
+  restoreNewGameDraft({ storage })
+  editNewGameDraft({ idea: 'the idea being sent', plan: false })
+  const sent = NEW_GAME_DRAFT.get().rev
+
+  editNewGameDraft({ idea: 'a second idea, written while the first one started' })
+  clearNewGameDraft(sent)
+  assert.equal(NEW_GAME_DRAFT.get().idea, 'a second idea, written while the first one started')
+  assert.deepEqual(kept.buildNewGame, { idea: 'a second idea, written while the first one started', plan: false })
 })
 
 test('the provider notice shows only when Hermes listed providers and none is signed in with a model', () => {

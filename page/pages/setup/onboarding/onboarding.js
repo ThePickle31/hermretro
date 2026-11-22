@@ -85,17 +85,11 @@ function TryDemo() {
     return null
   }
 
-  return jsxs('div', {
-    className: 'cs-row',
-    children: [
-      jsxs(Button, {
-        onClick: () => emit('setup.demoRequested', {}),
-        size: 'sm',
-        variant: 'ghost',
-        children: [jsx(Codicon, { name: 'play', size: 14 }), 'Try the demo while you wait']
-      }),
-      jsx('span', { className: 'cs-faint', children: "ModRetro's Hello Color example opens beside the chat. The install keeps going." })
-    ]
+  return jsxs(Button, {
+    onClick: () => emit('setup.demoRequested', {}),
+    size: 'sm',
+    variant: 'ghost',
+    children: [jsx(Codicon, { name: 'play', size: 14 }), 'Try the demo while you wait']
   })
 }
 
@@ -186,10 +180,7 @@ function OnboardChromatic({ onEmulator, onDevice }) {
     children: [
       jsxs('p', { className: 'cs-eyebrow', children: [jsx('span', { className: 'cs-accent', children: 'Step 2 of 3' }), jsx('span', { children: 'Your hardware' })] }),
       jsxs('h2', { className: 'cs-word cs-onb-title', children: ['Do you have a ', jsx('span', { className: 'cs-accent', children: 'Chromatic?' })] }),
-      jsx(Lede, {
-        children:
-          'A Chromatic is optional: every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge, now or any time later from Setup.'
-      }),
+      jsx(Lede, { children: 'Every game plays in the emulator here, with sound. With a ModRetro Chromatic you can also stream games to it and write them to a cartridge.' }),
       jsxs('div', {
         className: 'cs-hwcards',
         children: [
@@ -206,7 +197,7 @@ function OnboardChromatic({ onEmulator, onDevice }) {
             art: jsx('span', { 'aria-hidden': true, className: 'cs-hwart device' }),
             onClick: onDevice,
             tag: 'Optional · 4 more steps',
-            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software. Each step asks first, and you can stop and come back.",
+            text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
             title: 'Set up my Chromatic',
             tone: 'quiet'
           })
