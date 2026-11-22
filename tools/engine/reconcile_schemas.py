@@ -5,7 +5,7 @@ Starts one private engine process, enumerates every tool, and diffs name,
 description, inputSchema, outputSchema and annotations against the pinned file.
 Exits non-zero on any missing, extra, duplicate or altered contract.
 
-    python tools/engine/reconcile_schemas.py engine/pins/1.0.34/tools.json [report.json]
+    python tools/engine/reconcile_schemas.py engine/pins/<version>/tools.json [report.json]
 """
 
 from __future__ import annotations
@@ -25,23 +25,25 @@ def canonical_hash(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def main() -> int:
-    if len(sys.argv) not in (2, 3):
-        print(__doc__)
-        return 2
-    pinned_path = Path(sys.argv[1])
-    pinned_doc = json.loads(pinned_path.read_text())
-    pinned = pinned_doc["tools"]
-    with EngineProcess(
-        dev_engine_root(), node=paths.find_node()["path"], client_name="chromatic-studio-baseline"
-    ) as engine:
-        live, pages = engine.list_tools()
-        server_info, ready = engine.server_info, engine.ready_seconds
+def live_contracts(root: Path) -> dict:
+    """Start one engine from root and read its contracts, in the shape of a pinned tools.json (plus its startup time)."""
+    engine = EngineProcess(root, node=paths.find_node()["path"], client_name="chromatic-studio-baseline")
+    try:
+        initialize = engine.start()
+        tools, pages = engine.list_tools()
+        return {"initialize": initialize, "tools": tools, "pages": pages, "ready_seconds": engine.ready_seconds}
+    finally:
+        engine.close()
 
+
+def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
+    """Every difference between the pinned contracts and the live ones; passed only when there is none."""
+    pinned = pinned_doc["tools"]
+    live_tools, server_info, ready = live["tools"], live["initialize"].get("serverInfo"), live["ready_seconds"]
     pinned_names = [t["name"] for t in pinned]
-    live_names = [t["name"] for t in live]
+    live_names = [t["name"] for t in live_tools]
     pinned_by = {t["name"]: t for t in pinned}
-    live_by = {t["name"]: t for t in live}
+    live_by = {t["name"]: t for t in live_tools}
     altered = {}
     for name in sorted(set(pinned_by) & set(live_by)):
         fields = [f for f in FIELDS if pinned_by[name].get(f) != live_by[name].get(f)]
@@ -52,11 +54,11 @@ def main() -> int:
         "pinned_file": pinned_path.as_posix(),
         "pinned_file_sha256": hashlib.sha256(pinned_path.read_bytes()).hexdigest(),
         "pinned_tools_canonical_sha256": canonical_hash(pinned),
-        "live_tools_canonical_sha256": canonical_hash(live),
+        "live_tools_canonical_sha256": canonical_hash(live_tools),
         "live_server_info": server_info,
         "pinned_server_info": pinned_doc.get("initialize", {}).get("serverInfo"),
         "engine_ready_seconds": round(ready, 3) if ready else None,
-        "pages": pages,
+        "pages": live["pages"],
         "pinned_count": len(pinned_names),
         "live_count": len(live_names),
         "live_unique": len(set(live_names)),
@@ -73,6 +75,15 @@ def main() -> int:
         and not altered
         and report["live_server_info"] == report["pinned_server_info"]
     )
+    return report
+
+
+def main() -> int:
+    if len(sys.argv) not in (2, 3):
+        print(__doc__)
+        return 2
+    pinned_path = Path(sys.argv[1])
+    report = compare(json.loads(pinned_path.read_text()), live_contracts(dev_engine_root()), pinned_path)
     text = json.dumps(report, indent=2)
     print(text)
     if len(sys.argv) == 3:
