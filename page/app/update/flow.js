@@ -100,13 +100,13 @@ export async function busyChats(studio) {
   return sessions.filter(session => BUSY_STATUSES.has(session?.status)).map(session => String(session.title || session.preview || 'a chat').trim())
 }
 
-/** One sentence naming what is being built, for the popover and the Setup row. */
-export function busySentence(chats) {
+/** One sentence naming what is being built, for the popover, the Setup row and the reload banner. */
+export function busySentence(chats, verb = 'update') {
   const names = chats.slice(0, 2).map(name => `"${name}"`).join(' and ')
 
   return chats.length === 1
-    ? `A game is being built in ${names}. You can update when it finishes.`
-    : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? '…' : ''}). You can update when they finish.`
+    ? `A game is being built in ${names}. You can ${verb} when it finishes.`
+    : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? '…' : ''}). You can ${verb} when they finish.`
 }
 
 /** hermretro's row in Hermes's `plugins.manage list` answer, or null. */
@@ -152,6 +152,64 @@ async function reloadStudio(studio) {
   }
 
   return Boolean(answer.gateway_reloaded) && !answer.restart_required
+}
+
+/** Load the plugin's files on disk into `studio` (the profile that runs hermretro for the page): first the settings
+ *  they ship for the hermretro profile, refreshed from `install` (null for a linked checkout) when that is another
+ *  profile, then, once nothing is being built there, the plugin reloaded. Resolves to `{ ok: true, reloaded }`
+ *  (`reloaded` false when only a restart loads it) or `{ ok: false, error }`; never throws. */
+export async function loadIntoStudio({ install, studio, busy, onWaiting = () => {}, waitMs = 2_000, checkTries = 5 }) {
+  if (install && studio.profile === STUDIO_PROFILE && install.profile !== STUDIO_PROFILE) {
+    // Settings the new version ships for the hermretro profile (its SOUL, toolsets). Not done is not finished.
+    let finished
+
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000)
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) }
+    }
+
+    if (!finished?.ok) {
+      return { ok: false, error: `the hermretro profile's settings were not updated (${finished?.error ?? 'no answer'})` }
+    }
+  }
+
+  // A turn started meanwhile finishes on the code it started with, then the profile reloads. Only a successful answer
+  // with nothing building allows the reload: a failed check is never read as "idle".
+  for (let failures = 0; ; ) {
+    let chats
+
+    try {
+      chats = await busy()
+      failures = 0
+    } catch (error) {
+      failures += 1
+
+      if (failures >= checkTries) {
+        return { ok: false, error: `Could not check whether a game is being built (${String(error?.message ?? error)})` }
+      }
+
+      chats = null
+    }
+
+    if (chats && !chats.length) {
+      break
+    }
+
+    if (chats) {
+      onWaiting(chats)
+    }
+
+    await new Promise(resolve => globalThis.setTimeout(resolve, waitMs))
+  }
+
+  onWaiting(null)
+
+  try {
+    return { ok: true, reloaded: await reloadStudio(studio) }
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error) }
+  }
 }
 
 /** Run the whole update. `install` and `studio` are targets ({ route, profile }; `studio` null when there is no
@@ -258,59 +316,43 @@ export async function runUpdate({
   onStep(1)
 
   if (studio && studio.profile !== install.profile) {
-    // Settings the new version ships for the hermretro profile (its SOUL, toolsets). Not done is not finished.
-    let finished
+    const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries })
 
-    try {
-      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 240_000)
-    } catch (error) {
-      finished = { ok: false, error: String(error?.message ?? error) }
+    if (!loaded.ok) {
+      return { kind: 'partial', error: loaded.error }
     }
 
-    if (!finished?.ok) {
-      return { kind: 'partial', error: `the hermretro profile's settings were not updated (${finished?.error ?? 'no answer'})` }
-    }
-
-    // A turn started while Hermes was updating finishes on the code it started with, then the profile reloads. Only a
-    // successful answer with nothing building allows the reload: a failed check is never read as "idle".
-    for (let failures = 0; ; ) {
-      let chats
-
-      try {
-        chats = await busy()
-        failures = 0
-      } catch (error) {
-        failures += 1
-
-        if (failures >= checkTries) {
-          return { kind: 'partial', error: `Could not check whether a game is being built (${String(error?.message ?? error)})` }
-        }
-
-        chats = null
-      }
-
-      if (chats && !chats.length) {
-        break
-      }
-
-      if (chats) {
-        onWaiting(chats)
-      }
-
-      await new Promise(resolve => globalThis.setTimeout(resolve, waitMs))
-    }
-
-    onWaiting(null)
-
-    try {
-      restart = !(await reloadStudio(studio)) || restart
-    } catch (error) {
-      return { kind: 'partial', error: String(error?.message ?? error) }
-    }
+    restart = !loaded.reloaded || restart
   }
 
   onStep(2)
   remember({ result: 'updated', restart, at: Date.now() })
 
   return { kind: 'updated', restart, pageRefreshed: await refreshDesktopHalf() }
+}
+
+/** Load files already on disk (an update made outside this page: a terminal, Capabilities > Plugins, git) into
+ *  `studio` without updating: the same steps as the end of runUpdate, refused while something is being built.
+ *  Resolves to `{ kind: 'reloaded', pageRefreshed }`, `{ kind: 'restart' }` (only a restart of Hermes loads it),
+ *  `{ kind: 'busy', chats }` or `{ kind: 'failed', error }`; never throws. */
+export async function runReload({ install, studio, busy = async () => [], onWaiting, waitMs, checkTries }) {
+  let building
+
+  try {
+    building = await busy()
+  } catch (error) {
+    return { kind: 'failed', error: `Could not check whether a game is being built (${String(error?.message ?? error)})` }
+  }
+
+  if (building.length) {
+    return { kind: 'busy', chats: building }
+  }
+
+  const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries })
+
+  if (!loaded.ok) {
+    return { kind: 'failed', error: loaded.error }
+  }
+
+  return loaded.reloaded ? { kind: 'reloaded', pageRefreshed: await refreshDesktopHalf() } : { kind: 'restart' }
 }

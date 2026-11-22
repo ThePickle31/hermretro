@@ -31,5 +31,8 @@ export const UPDATE_CSS = `
 .cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
 .cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
 .cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-repair.bad { background: color-mix(in srgb, var(--ui-red) 10%, transparent); box-shadow: inset 2px 0 0 var(--ui-red); }
+.cs-repair.bad > i { color: var(--ui-red); }
+.cs-repair-wait { align-items: center; color: var(--ui-text-secondary); display: flex; gap: 6px; }
 .cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 `

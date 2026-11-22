@@ -42,7 +42,7 @@ function versionFact(data, update) {
   const standing = {
     failed: 'the update did not go through: see the update in the header',
     review: 'the update waits for your answer in the header',
-    restart: 'updated: quit and reopen Hermes to finish'
+    restart: `updated: ${update.restartAdvice.toLowerCase()} to finish`
   }[update.phase]
 
   if (standing) {
