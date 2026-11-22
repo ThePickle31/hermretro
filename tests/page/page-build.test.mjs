@@ -165,7 +165,15 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   })
   scenario.byMethod['session.resume'] = plainResume
   await ev('tool.complete', { tool_id: 'c1', name: 'chromatic_project_create', result: { ok: false, error: 'folder exists' } }, { seq: 6 })
-  await ev('message.complete', { text: 'Making the project', status: 'complete' }, { seq: 7 })
+  // A build that ran and stopped, as the engine answers it live: success false, the reason in a diagnostic.
+  await ev('tool.start', { tool_id: 'b1', name: 'chromatic_rom_build', args: {} }, { seq: 7 })
+  await ev('tool.complete', { tool_id: 'b1', name: 'chromatic_rom_build', result: { result: 'Operation failed (diagnostics: 1).', structuredContent: { success: false, diagnostics: [{ severity: 'error', message: 'Bank 3 is full.' }] } } }, { seq: 8 })
+  await ev('message.complete', { text: 'Making the project', status: 'complete' }, { seq: 9 })
+  check('a build that stopped, live, is a failed build card with its reason and no Play', () => {
+    const card = build14.node.querySelector('.cs-b-bc')
+    assert.ok(card?.classList.contains('bad')); assert.match(card.textContent, /didn’t finish.*Bank 3 is full/)
+    assert.ok(![...card.querySelectorAll('button')].some(node => /^\s*Play\b/.test(node.textContent)), 'nothing to play from a build that stopped')
+  })
   check('a failed step says why; the turn end folds the steps into "Worked for", ends the status, and keeps one reply', () => {
     const row = build14.node.querySelector('.cs-b-tool')
     assert.equal(row.dataset.state, 'failed'); assert.match(row.textContent, /Creating the project failed.*folder exists/)

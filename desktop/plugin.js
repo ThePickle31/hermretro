@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a92cca5f7fa3f372a64a2c9c586dc145e5684d53f89c9f7dedcb871c0e215d49
- * body: sha256 d7552adb38e209708e93d02932b6ff3231f39da91659379462e521066584ec83
+ * sources: sha256 075337e568689f0f687bd06c0a9ea55f9c27698b3fe27b166d06ea5237d4c69a
+ * body: sha256 b103e84feafcab4228f9379d3c9335b92606171fbf51fa0b5f279ad8a213ba20
  */
 // page/sdk.js
 import {
@@ -525,7 +525,17 @@ function unwrapCalls(id, name, args) {
 // page/pages/build/chat/steps.js
 function toolFailed(payload) {
   const result = toolResultObject(payload?.result);
-  return Boolean(payload?.error || result?.ok === false || result?.isError === true || result && typeof result.error === "string" && result.error);
+  return Boolean(
+    payload?.error || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
+  );
+}
+function engineError(parsed, content) {
+  if (content.success !== false) {
+    return null;
+  }
+  const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : [];
+  const error = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string");
+  return error?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
 var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
 function stepArgs(args) {
@@ -552,7 +562,7 @@ function stepInfo(name, result) {
   const text2 = (value) => typeof value === "string" && value ? value : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean).slice(0, 8);
   return {
-    error: text2(parsed.error) ? String(parsed.error).slice(0, 400) : null,
+    error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
@@ -795,7 +805,7 @@ function historyItems(messages, running = false) {
     } else if (message.role === "tool") {
       agentSinceUser = true;
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        const known = inner.id && (tools.get(inner.id) ?? (inner.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
+        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
         if (known) {
           if (at && known.startedAt) {
             known.duration = Math.max(0, (at - known.startedAt) / 1e3);
@@ -5446,7 +5456,7 @@ function buildHistory(turns) {
   return builds;
 }
 function turnBuilt(turn) {
-  return turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
+  return turnBuildState(turn) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
 function madeAssets(parts, root) {

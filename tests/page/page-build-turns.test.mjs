@@ -109,8 +109,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     ...['p1', 'p2', 'p3', 'p4', 'a1', 'a2', 'a3', 'w1', 'w2', 'b1', 'b2', 'r1'].map((id, index) => ({ role: 'tool', tool_call_id: id, timestamp: 2002 + index })),
     { role: 'assistant', content: 'Here they are:\n\nMEDIA:/home/u/games/FrogPost/assets/sprites/bird.png\nMEDIA:/home/u/games/FrogPost/cover.png\n\nWant it to flap all the time?', timestamp: 2100 },
     { role: 'user', content: 'add music', timestamp: 3000 },
-    { role: 'assistant', content: '', timestamp: 3001, tool_calls: [callOf('m1', 'chromatic_rom_build')] },
-    { role: 'tool', tool_call_id: 'm1', content: JSON.stringify({ ok: false, error: 'The song is 2.4 KB too big for the cartridge.' }), timestamp: 3050 },
+    // As the gateway resumes it: the build went through Hermes's tool_call door, and its result row has no name.
+    { role: 'assistant', content: '', timestamp: 3001, tool_calls: [callOf('m1', 'tool_call', { calls: [{ name: 'chromatic_rom_build', arguments: {} }] })] },
+    // The engine's own shape for a build that ran and stopped: success false, the reason in a diagnostic.
+    { role: 'tool', tool_call_id: 'm1', content: JSON.stringify({ result: 'Operation failed (diagnostics: 1).', structuredContent: { success: false, diagnostics: [{ severity: 'error', code: 'BANK_FULL', message: 'The song is 2.4 KB too big for the cartridge.' }] } }), timestamp: 3050 },
     { role: 'assistant', content: 'The music did not fit.', timestamp: 3060 }] })
   const build14ph = await mount(page)
   await settle(100)
@@ -140,6 +142,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.match(card.textContent, /#2The build didn’t finish/); assert.match(card.textContent, /2\.4 KB too big/)
     assert.ok(button('Ask HermRetro to fix it'))
     assert.match(build14ph.node.querySelector('.cs-b-pill').textContent, /Build #2 didn’t finish/)
+    assert.match(build14ph.node.querySelectorAll('.cs-b-turn')[1].textContent, /Worked for [^·]*· 1 step(?!s)/, 'the result row is the build step, not another one')
   })
   check('next-step chips show only under the newest reply', () => {
     assert.equal(build14ph.node.querySelectorAll('.cs-b-next-steps').length, 0, 'the last turn reported nothing to suggest')

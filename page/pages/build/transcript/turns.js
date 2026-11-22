@@ -182,9 +182,13 @@ export function buildHistory(turns) {
   return builds
 }
 
-/** Whether a turn built the game (cheap: the transcript asks it of every turn). */
+/** Whether a turn built the game (cheap: the transcript asks it of every turn): a build step finished, and its
+ *  last compile did not fail (a retry that stopped leaves the earlier turn's build the one that plays). */
 export function turnBuilt(turn) {
-  return turn.items.some(item => item.kind === 'tools' && item.tools.some(tool => tool.state === 'done' && BUILD_STEPS.has(shortTool(tool.name))))
+  return (
+    turnBuildState(turn) !== 'failed' &&
+    turn.items.some(item => item.kind === 'tools' && item.tools.some(tool => tool.state === 'done' && BUILD_STEPS.has(shortTool(tool.name))))
+  )
 }
 
 // Steps that only look at a picture (it is shown under the step, but the turn did not make it).

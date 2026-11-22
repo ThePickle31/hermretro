@@ -6,7 +6,27 @@ import { toolResultObject } from './tool-results.js'
 export function toolFailed(payload) {
   const result = toolResultObject(payload?.result)
 
-  return Boolean(payload?.error || result?.ok === false || result?.isError === true || (result && typeof result.error === 'string' && result.error))
+  // An engine operation that ran but did not succeed (a build that stopped) says so in its structured content only.
+  return Boolean(
+    payload?.error ||
+      result?.ok === false ||
+      result?.isError === true ||
+      result?.structuredContent?.success === false ||
+      (result && typeof result.error === 'string' && result.error)
+  )
+}
+
+/** Why an engine operation did not succeed: its first error diagnostic, else its summary line (a warning is not
+ *  the reason). */
+function engineError(parsed, content) {
+  if (content.success !== false) {
+    return null
+  }
+
+  const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : []
+  const error = diagnostics.find(item => item?.severity === 'error' && typeof item.message === 'string')
+
+  return error?.message ?? (typeof parsed.result === 'string' && parsed.result ? parsed.result : null)
 }
 
 // Argument keys worth keeping on a step (labels, details, image paths). Bulky ones (file bodies, code,
@@ -49,7 +69,7 @@ export function stepInfo(name, result) {
     .slice(0, 8)
 
   return {
-    error: text(parsed.error) ? String(parsed.error).slice(0, 400) : null,
+    error: (text(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text(content.projectRoot),
     assetPath: text(content.assetPath),
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
