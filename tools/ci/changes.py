@@ -1,6 +1,6 @@
 """What does a change need beyond the checks every run has? CI's job `changes` asks, with two revisions.
 
-    python tools/ci/changes.py [--push] OLD NEW     prints engine=, scaffold= and upgrade= (true or false) lines
+    python tools/ci/changes.py [--push] OLD NEW     prints engine= and upgrade= (true or false) lines
                                                     for $GITHUB_OUTPUT
 
 engine: the integration tier (the real-engine run). A pull request (OLD is the merge commit's first parent, the
@@ -10,12 +10,6 @@ difference is the `version:` line of plugin.yaml does not. The backend does read
 (backend/system/paths.py: PLUGIN_VERSION, and plugin.yaml's bytes in code_fingerprint), but the engine run only
 records the value: parsing it is tested by the unit job (tests/repo/test_version.py), and a changed fingerprint
 (the broker replaced after an update) by the update job's check, which both still run.
-
-scaffold: the page job's nested scaffold run (RD_SCAFFOLD_FULL=nested: every `retrodev new` kind, on the real
-features and pages too, then the full suites in that grown copy) instead of its smoke (one `new` of every kind,
-focused checks). A pull request needs it when it touches what `new` is or reads, the checks that judge it, the
-tests the grown copy runs that read the surrounding tree, or what the nested steps on the real pages and features
-read (page and tab descriptors, front doors; SCAFFOLD); every push to dev runs it.
 
 upgrade: the update-dev job's update from dev as it is now to this commit (the update from the newest
 published release always runs). A pull request needs it when it deletes or moves a file (a running process may
@@ -36,21 +30,6 @@ ENGINE = re.compile(
     r"^(backend/|engine/|player/|tests/acceptance/|__init__\.py$|plugin\.yaml$|tools/check\.py$|tools/ci/"
     r"|\.github/(workflows|actions)/|profile/)"
 )
-# retrodev itself and its templates, the files `new` parses, the checks that judge the copy, the tests run in the
-# grown copy that read the tree, and CI's own decision. Then what
-# only the nested run's steps on the REAL tree read or edit (tests/retrodev/scaffold_steps.py): every page and tab
-# descriptor (index.js: its tabs, slots and contributions) and page README, the page tests that pin the real pages'
-# tabs, slots and contributions, every front door (its EVENTS), and the listeners, RPCs and README of the features
-# those steps grow (REAL_LISTENERS, library's and history's RPCs). A page's other files (its views) stay with the smoke.
-SCAFFOLD = re.compile(
-    r"^(tools/retrodev/|tools/check\.py$|tools/bundle/|tools/py/|tools/npm/|tools/layout\.toml$|tests/retrodev/|tests/repo/"
-    r"|tests/support\.py$|tests/page/(harness|shells|sdk-stub|aliases)\.mjs$|tests/page/preview/"
-    r"|backend/features\.py$|page/pages/index\.js$|page/pages/build/transcript/step-words\.js$|plugin\.yaml$"
-    r"|docs/dev/(ARCHITECTURE|CONTRACT|STUDIO-PAGES)\.md$|tools/ci/changes\.py$|\.github/workflows/ci\.yml$"
-    r"|page/pages/.+/index\.js$|page/pages/[^/]+/README\.md$"
-    r"|tests/page/(registry|slots)\.test\.mjs$|tests/page/page-(setup|games|build|emulator)[\w-]*\.test\.mjs$"
-    r"|backend/[^/]+/__init__\.py$|backend/(history|assets|library|setup|hermes)/(listeners\.py|rpcs\.py|README\.md)$)"
-)
 # A clean install already checks the generated page bundle. The extra dev upgrade is for registration, the
 # backend and broker, installer inputs and the update flow itself, not an ordinary generated bundle change. Ignore
 # rules too (any .gitignore): the update check judges each ignored leftover file by them.
@@ -58,7 +37,7 @@ UPGRADE = re.compile(
     r"^(__init__\.py$|plugin\.yaml$|backend/|engine/|player/web/|page/app/update/|profile/|skills/|tools/layout\.toml$"
     r"|tools/ci/|\.github/workflows/ci\.yml$|\.github/actions/|(.+/)?\.gitignore$)"
 )
-# The same line release prepare changes (tools/retrodev/release.py VERSION_LINE).
+# The same line tools/release.py changes (VERSION_LINE there).
 VERSION_LINE = re.compile(r"^version:[ \t]*[\"']?([^\"'\s#]+)[\"']?.*$")
 
 
@@ -92,10 +71,9 @@ def decide(old: str, new: str, push: bool) -> dict[str, bool]:
     names = [path for _, path in files]
     plain = git("diff", "--no-color", "--no-ext-diff", "--no-renames", "-U0", old, new, "--", "plugin.yaml")
     if names == ["plugin.yaml"] and only_version_line(plain):
-        return {"engine": False, "scaffold": push, "upgrade": False}
+        return {"engine": False, "upgrade": False}
     return {
         "engine": push or any(ENGINE.match(name) for name in names),
-        "scaffold": push or any(SCAFFOLD.match(name) for name in names),
         "upgrade": push or any(status == "D" or UPGRADE.match(name) for status, name in files),
     }
 

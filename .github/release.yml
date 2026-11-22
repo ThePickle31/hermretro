@@ -1,6 +1,5 @@
-# How GitHub groups a release's generated notes when a release is made by hand (gh release create vX.Y.Z
-# --generate-notes); retrodev's release publish writes its own (tools/retrodev/release_notes.py). Each line is a
-# squash-merged pull request's title, so titles are written as plain sentences.
+# How GitHub groups a release's generated notes (gh release create vX.Y.Z --generate-notes, as tools/release.py
+# runs it). Each line is a squash-merged pull request's title: `type(scope): what it does`.
 changelog:
   exclude:
     labels: [skip-release-notes]

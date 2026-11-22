@@ -24,14 +24,11 @@ LOCATE_BUDGET_S = 120  # stop looking after this; the leak itself is already rep
 
 
 def unit_env(home: str, bytecode: str, tmp: str | None = None, source: dict | None = None) -> dict[str, str]:
-    """No HERMRETRO_* folders (nor RD_SCAFFOLD_* modes) from the developer's shell, HOME and HERMES_HOME (Hermes's plugin data folder,
+    """No HERMRETRO_* folders from the developer's shell, HOME and HERMES_HOME (Hermes's plugin data folder,
     host._data_dir(), lands there too) in the empty home, TMPDIR in the empty temp folder ``tmp``, and an empty
     bytecode folder (-B alone still reads stale .pyc)."""
-    # RD_SCAFFOLD_* belong to check.py scaffold's own run: in the suite they would run the slow scaffold module
-    # (nested, minutes) inside unit, and turn the tests of check.py scaffold itself to that mode.
-    dropped = ("HERMRETRO_", "RD_SCAFFOLD_")
-    source = os.environ if source is None else source  # tests pass their own: os.environ is shared by the pool
-    env = {k: v for k, v in source.items() if not k.startswith(dropped) and k != "GB_STUDIO_SETUP_ROOT"}
+    source = os.environ if source is None else source  # tests pass their own
+    env = {k: v for k, v in source.items() if not k.startswith("HERMRETRO_") and k != "GB_STUDIO_SETUP_ROOT"}
     env.update(HOME=home, HERMES_HOME=str(Path(home) / ".hermes"))
     if tmp:
         env.update(TMPDIR=tmp)
@@ -61,17 +58,13 @@ def test_modules(root: Path) -> list[str]:
     return sorted(found)
 
 
-def leaking_modules(
-    root: Path, temp_base: str, run: Callable, *, product_only: bool = False, modules: list[str] | None = None
-) -> list[str]:
+def leaking_modules(root: Path, temp_base: str, run: Callable, *, modules: list[str] | None = None) -> list[str]:
     """The test modules that write into an empty home, or leave something in an empty temp folder, when each runs
     alone (within LOCATE_BUDGET_S). ``run(cmd, env)`` runs one command from the repository root (check.py's run; tests
     pass a fake)."""
     found = []
     started = time.monotonic()
     for module in test_modules(root) if modules is None else modules:
-        if product_only and module.startswith("tests.retrodev."):
-            continue  # tests.retrodev's discovery hook leaves this package out of the product scope
         if time.monotonic() - started > LOCATE_BUDGET_S:
             found.append("(stopped looking after the time budget)")
             break
@@ -93,7 +86,6 @@ def leaks(
     temp_base: str,
     run: Callable,
     *,
-    product_only: bool = False,
     modules: list[str] | None = None,
 ) -> str:
     """After the suite ran with ``unit_env(home, bytecode, tmp)``: "" when it left nothing, else the failure message
@@ -101,7 +93,7 @@ def leaks(
     in_home, in_tmp = written(home), left(tmp)
     if not in_home and not in_tmp:
         return ""
-    found = leaking_modules(root, temp_base, run, product_only=product_only, modules=modules)
+    found = leaking_modules(root, temp_base, run, modules=modules)
     if in_home:
         return leak_message(in_home, found)
     return tmp_message(in_tmp, found)

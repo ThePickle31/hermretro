@@ -1,8 +1,8 @@
 """backend/library/tool_args.py's docstring lists every error code a library tool answers with, and only those
 (tool_project's own codes come from backend/hermes/tool_args.py, which it re-exports).
 
-The codes are read from tools.py and every *_tools.py sibling (the modules `retrodev new tool` writes past 400
-lines; the same set tools/retrodev/scaffold_tool.py reads), plus both tool_args.py.
+The codes are read from tools.py and every *_tools.py sibling (where tools go once tools.py passes 400 lines),
+plus both tool_args.py.
 
 Run alone: python -m unittest tests.backend.library.test_tool_args
 """
@@ -57,7 +57,7 @@ class ToolErrorCodes(unittest.TestCase):
         )
 
     def test_a_sibling_tools_module_counts(self):
-        """A tool moved to <x>_tools.py (as `retrodev new tool` does past 400 lines) keeps its codes in use."""
+        """A tool moved to <x>_tools.py (past 400 lines) keeps its codes in use."""
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / "library"
             folder.mkdir()

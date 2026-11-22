@@ -40,14 +40,11 @@ checkout's `dev` parent (`--update-from HEAD^1`, the tested merge commit's first
 that second update. Nothing to edit when releasing: once the new tag is on `main`, every later run updates from it. To try an older starting point, pass it: `--update-from v0.0.4`. A change that moves where user state
 lives (`backend/system/paths.py`) or what the broker answers to `hello` must keep this check green, or migrate.
 
-Before a release, `python tools/retrodev mac` runs the checks on the MacBook when one is set up
-(`retrodev config set mac_host <host>`; asleep or unset, CI's macOS runners cover it). Once `release publish` has
-made the draft, `python tools/retrodev release verify <version>` checks the notes and the tag (the update check from
-the previous stable release that publish ran on the same commit counts); `--publish` then publishes it.
+Before a release, the checks can also run on a MacBook over ssh: a fresh clone of the commit there and
+`python3 tools/check.py` (CI's macOS runners cover it otherwise).
 
 ## Then release
 
-The release rules are in the agent guide ("Releases"); the commands are `python tools/retrodev release run` (the
-version pull request only when `dev` does not say the version yet, then publish and the published release, then
-`release next` moves `dev` to the next version; `--draft` stops at the draft), or its steps one at a time, `release
-prepare`, `release publish`, `release verify` and `release next` (`tools/retrodev/README.md`, "Releases").
+`python tools/release.py`, run again after each step it stops at: the version pull request when `dev` still says the
+last released version, CI on `dev`'s head, `main` fast-forwarded, the tag, and the draft with generated notes. Read
+the draft, then `python tools/release.py --publish vX.Y.Z`. `--rc` makes a release candidate (`main` stays).

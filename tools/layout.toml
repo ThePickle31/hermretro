@@ -11,7 +11,7 @@
 "THIRD_PARTY_NOTICES.md" = "Notices for the vendored engine and player"
 ".gitignore" = "Files git leaves alone (notes/, caches)"
 ".gitattributes" = "Line endings and generated-file markers"
-"pyrightconfig.json" = "Editor settings for pyright/Pylance: tools/ on the import path, so tests/retrodev's `from retrodev import ...` resolves"
+"pyrightconfig.json" = "Editor settings for pyright/Pylance: the folders the tools import their helpers from"
 
 [folders.backend]
 purpose = "Python backend, one folder per feature"
@@ -63,7 +63,6 @@ areas.backend = "Python unit tests, one folder per backend feature"
 areas.page = "Page tests in jsdom, their harness and the browser preview"
 areas.repo = "Repository-wide checks: names in lock step, version, layout, portability, bundle, scan"
 areas.acceptance = "The real-engine run through the broker"
-areas.retrodev = "Tests for the development CLI"
 areas.dev = "Tests for the development loop (tools/dev)"
 
 [folders.tools]
@@ -75,7 +74,6 @@ areas.debug = "Debugging helpers for a running gateway"
 areas.dev = "The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview (python tools/dev)"
 areas.npm = "Pinned npm tools for development only"
 areas.py = "Pinned Python tools for development only (ruff), their settings, and check.py's helpers"
-areas.retrodev = "The development CLI: gates and commands for the working agreement (python tools/retrodev)"
 
 [folders.docs]
 purpose = "Documentation"
@@ -116,14 +114,10 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "profile/SOUL.md" = "The studio profile's personality"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
-"tools/retrodev/README.md" = "The development CLI: what it is, the quick path, the flow from plan to merge, exit codes"
-"tools/retrodev/REFERENCE.md" = "The development CLI in full: every command, new by kind, land, releases, state, config"
-"tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]
 # The one per-file size rule. Python and page source files: a warning above `warn` lines (check.py's unit row names
-# them), a failure above `fail` (tests/repo/test_layout.py). `retrodev new rpc` suggests --module 50 lines before
-# `warn` (tools/retrodev/scaffold_rpc.py big_rpcs reads it here), so a new handler lands before rpcs.py reaches `warn`.
+# them), a failure above `fail` (tests/repo/test_layout.py).
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]

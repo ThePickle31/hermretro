@@ -41,8 +41,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 Called with `host.request('plugin.hermretro.<name>', params)`. RPC names are global and flat: one namespace,
 `plugin.hermretro.<name>`, for every feature, with no feature or page prefix and no dots in `<name>` (`builds`,
 not `history.builds`). One name is declared once across all features: the page-name generator
-(`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second, and `python tools/retrodev
-new rpc <feature> <name>` refuses a taken one.
+(`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second.
 A disabled or missing backend answers JSON-RPC error `-32601`.
 Which profile the page asks is chosen by what the handler reads, not by its feature: one reading the Build
 conversations or the plugin data folder (`host._data_dir()`, one per profile: history snapshots, asset versions) is

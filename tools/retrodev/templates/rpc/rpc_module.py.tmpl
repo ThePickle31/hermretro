@@ -1,8 +1,0 @@
-"""{Name}'s page RPC handlers in their own module: rpcs.py declares each RPC and calls its factory here
-(tools/bundle/rpc_names.py and the lock-step test read the declarations in rpcs.py only)."""
-
-from __future__ import annotations
-
-from ..hermes import host
-
-logger = host.logger  # one logger for the Hermes side of the backend

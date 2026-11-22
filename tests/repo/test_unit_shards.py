@@ -4,7 +4,6 @@ modules are dealt by recorded time so no process is left with most of the work.
 """
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -18,27 +17,15 @@ sys.path.insert(0, str(ROOT / "tools" / "py"))
 import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_shards  # noqa: E402 - tools/py/ goes on sys.path first
 
-DEV_CLI = ["discover", "-s", "tests/retrodev", "-t", "."]
-
 
 class Groups(unittest.TestCase):
-    def setUp(self):
-        self.modules = unit_home.test_modules(ROOT)
-        self.product = [name for name in self.modules if not name.startswith("tests.retrodev.")]
-
-    def test_every_product_module_runs_in_exactly_one_process_and_the_dev_cli_in_its_own(self):
+    def test_every_module_runs_in_exactly_one_process(self):
+        modules = unit_home.test_modules(ROOT)
         for cpus in (1, 3, 4, 20):
             with self.subTest(cpus=cpus):
-                found = unit_shards.groups(ROOT, self.modules, product_only=False, times={}, cpus=cpus)
-                self.assertEqual(found[-1], DEV_CLI)
-                dealt = [name for group in found[:-1] for name in group]
-                self.assertCountEqual(dealt, self.product, "each product module once, none of the dev CLI's")
-                self.assertLessEqual(len(found) - 1, unit_shards.MAX_PRODUCT_SHARDS)
-
-    def test_a_product_only_run_has_no_dev_cli_process(self):
-        found = unit_shards.groups(ROOT, self.modules, product_only=True, times={}, cpus=4)
-        self.assertNotIn(DEV_CLI, found)
-        self.assertCountEqual([name for group in found for name in group], self.product)
+                found = unit_shards.groups(ROOT, modules, times={}, cpus=cpus)
+                self.assertCountEqual([name for group in found for name in group], modules)
+                self.assertLessEqual(len(found), unit_shards.MAX_SHARDS)
 
     def test_recorded_times_spread_the_work(self):
         weights = {"a": 10.0, "b": 6.0, "c": 5.0, "d": 1.0}
@@ -88,11 +75,10 @@ class Discovery(unittest.TestCase):
             "assert not loader.errors, loader.errors\n"
             "print(json.dumps(sorted({i.rsplit('.', 2)[0] for i in ids(suite)})))\n"
         )
-        env = {**os.environ, "HERMRETRO_UNIT_PRODUCT_ONLY": "1"}
-        found = subprocess.run([sys.executable, "-B", "-c", probe], cwd=ROOT, env=env, capture_output=True, text=True)
+        found = subprocess.run([sys.executable, "-B", "-c", probe], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(found.returncode, 0, found.stderr)
         discovered = {name for name in json.loads(found.stdout) if name.startswith("tests.")}
-        groups = unit_shards.groups(ROOT, unit_home.test_modules(ROOT), product_only=True, times={}, cpus=4)
+        groups = unit_shards.groups(ROOT, unit_home.test_modules(ROOT), times={}, cpus=4)
         self.assertEqual(discovered - {name for group in groups for name in group}, set())
 
     def test_the_module_list_follows_discovery_s_rules(self):
@@ -125,7 +111,7 @@ class Reports(unittest.TestCase):
             "FAILED (failures=1)\n"
         )
         failing = lambda cmd, **_kwargs: subprocess.CompletedProcess(cmd, 1, "", stderr)  # noqa: E731 - one-line fake
-        row, failure = unit_shards.run_suite(ROOT, failing, tempfile.gettempdir(), True)
+        row, failure = unit_shards.run_suite(ROOT, failing, tempfile.gettempdir())
         self.assertEqual(row, "")
         self.assertIn("AssertionError: the reason it failed", failure)
         self.assertNotIn("test_59 (", failure)
@@ -145,25 +131,11 @@ class Reports(unittest.TestCase):
             mock.patch.object(unit_home, "test_modules", return_value=[home_writer, tmp_writer]),
             mock.patch.object(unit_shards.os, "cpu_count", return_value=4),
         ):
-            row, failure = unit_shards.run_suite(ROOT, fake_run, tempfile.gettempdir(), True)
+            row, failure = unit_shards.run_suite(ROOT, fake_run, tempfile.gettempdir())
         self.assertEqual(row, "")
         self.assertIn(f"from-home-writer\nwritten by: {home_writer} (from-home-writer)", failure)
         self.assertIn(f"left by: {tmp_writer} (from-tmp-writer)", failure)
         self.assertNotIn(f"written by: {home_writer} (from-home-writer); ", failure)
-
-    def test_a_borrowed_dev_folder_keeps_its_own_checkout_s_times(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root, elsewhere = Path(folder) / "checkout", Path(folder) / "clone-dev"
-            (root / "tests").mkdir(parents=True)
-            (root / "tests" / "__init__.py").write_text("")
-            (root / "tests" / "test_a.py").write_text("")
-            elsewhere.mkdir()
-            (root / ".dev").symlink_to(elsewhere)
-            timed = "0.500s     test_x (tests.test_a.C.test_x)\nRan 1 test in 0.5s\n\nOK\n"
-            fake = lambda cmd, **_kwargs: subprocess.CompletedProcess(cmd, 0, "", timed)  # noqa: E731 - one-line fake
-            row, failure = unit_shards.run_suite(root, fake, folder, True)
-            self.assertEqual(failure, "")
-            self.assertEqual(list(elsewhere.iterdir()), [], "retrodev mac's linked .dev is the clone's, not this run's")
 
 
 if __name__ == "__main__":

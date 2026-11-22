@@ -8,7 +8,7 @@
  *   node tools/bundle/lint-page.mjs FILE...   only these files
  *
  * A deliberate exception is written on the line it excuses (or alone on the line above it), with its reason:
- *   import { x } from '#pages/games/model.js' // retrodev: allow hermretro/boundaries — why this one is fine
+ *   import { x } from '#pages/games/model.js' // hermretro: allow hermretro/boundaries — why this one is fine
  * `eslint-disable` comments are ignored. An allow without a reason, or one that excuses nothing, is an error;
  * every allow in use is listed at the end of the report, so exceptions stay visible.
  * ESLint, its React hooks plugin and `globals` come from tools/npm (npm ci --prefix tools/npm --ignore-scripts).
@@ -22,7 +22,7 @@ import { RULES } from './lint-rules.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const ALLOW = /\/\/\s*retrodev:\s*allow\s+(\S+)(?:\s+(?:\u2014|--|-)\s*(.*))?$/
+const ALLOW = /\/\/\s*hermretro:\s*allow\s+(\S+)(?:\s+(?:\u2014|--|-)\s*(.*))?$/
 const FIX = 'node tools/bundle/lint-page.mjs --fix'
 // Generated files: their generator decides their shape (page/app/rpc-names.js: tools/bundle/rpc_names.py).
 const GENERATED = ['page/app/rpc-names.js']
@@ -87,7 +87,7 @@ function config({ hooks, globals }) {
   ]
 }
 
-/** Apply `// retrodev: allow <rule> — <reason>` lines to one file's messages. */
+/** Apply `// hermretro: allow <rule> — <reason>` lines to one file's messages. */
 function applyAllows(file, messages) {
   const lines = readFileSync(path.join(ROOT, file), 'utf8').split('\n')
   const allows = new Map()
@@ -120,9 +120,9 @@ function applyAllows(file, messages) {
 
   for (const [line, allow] of allows) {
     if (!allow.reason) {
-      kept.push({ line, column: 1, severity: 2, ruleId: 'retrodev/allow', message: `the exception for ${allow.rule} has no reason. Fix: write "// retrodev: allow ${allow.rule} \u2014 <why this one is fine>"` })
+      kept.push({ line, column: 1, severity: 2, ruleId: 'hermretro/allow', message: `the exception for ${allow.rule} has no reason. Fix: write "// hermretro: allow ${allow.rule} \u2014 <why this one is fine>"` })
     } else if (!allow.hit) {
-      kept.push({ line, column: 1, severity: 2, ruleId: 'retrodev/allow', message: `this allows ${allow.rule}, but nothing it covers breaks that rule. Fix: remove the comment` })
+      kept.push({ line, column: 1, severity: 2, ruleId: 'hermretro/allow', message: `this allows ${allow.rule}, but nothing it covers breaks that rule. Fix: remove the comment` })
     }
   }
 
@@ -188,7 +188,7 @@ async function main(argv) {
   console.log(`${report.files} files: ${report.errors.length} errors, ${report.warnings.length} warnings, ${report.allowed.length} allowed exceptions`)
 
   if (report.errors.length) {
-    console.log(`FIX: fix each error above as its message says (automatic ones: ${FIX}); a deliberate exception gets "// retrodev: allow <rule> \u2014 <reason>" on its line`)
+    console.log(`FIX: fix each error above as its message says (automatic ones: ${FIX}); a deliberate exception gets "// hermretro: allow <rule> \u2014 <reason>" on its line`)
   }
 
   return report.errors.length ? 1 : 0

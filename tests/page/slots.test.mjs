@@ -2,7 +2,7 @@
 // contract a contributing page reads ("Props: { a, b, ... }" in the host page's index.js `slots`, plus
 // conditional ones written "plus x(...) on the <where> only"), so a prop documented but never passed, or passed
 // but never documented, fails here. A probe stands in for the real contributions while each host renders.
-// A slot declared but not yet rendered by any page (what `retrodev new slot` leaves) has no props to check
+// A slot declared but not yet rendered by any page (a new slot, before its page draws it) has no props to check
 // and passes; once a page renders it with jsx(Slot, { name: '...' }), it needs its recipe in HOSTS below.
 // Run alone: node tests/page/slots.test.mjs
 import assert from 'node:assert/strict'

@@ -1,5 +1,5 @@
 // The Emulator page's own Page: the bar above the shell's player and the notice under it. Its own file (not
-// index.js) so a tab can import it (python tools/retrodev new tab emulator <id> --from-page).
+// index.js) so a tab can import it.
 import { jsx } from '#sdk'
 import { PlayerNotice } from '#app/player/stage.js'
 import { EmulatorBar } from './emulator-bar.js'

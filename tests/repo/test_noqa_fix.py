@@ -1,7 +1,7 @@
 """`python tools/check.py fix` gives a bare ``# noqa: E402`` its standard reason (tools/py/noqa_reasons.py).
 
 Every E402 exception here means the same thing (the root goes on sys.path before the import), so the fix writes
-'# noqa: E402 - the repository root goes on sys.path first' in .py and .py.tmpl files outside engine/ and
+'# noqa: E402 - the repository root goes on sys.path first' in .py files outside engine/ and
 tools/npm/. Other bare codes need a person's reason and stay as they are (tests/repo/test_noqa.py names them).
 
 Run alone: python -m unittest tests.repo.test_noqa_fix
@@ -51,7 +51,6 @@ class CheckFix(unittest.TestCase):
             root = Path(tmp)
             files = {
                 "tests/a.py": BARE + BARE,
-                "tools/retrodev/templates/b.py.tmpl": "{{name}} = 1\n" + BARE,
                 "engine/c.py": BARE,
                 "tools/npm/d.py": BARE,
                 "tests/e.py": OTHER,
@@ -70,12 +69,9 @@ class CheckFix(unittest.TestCase):
                 code = check.fix(SimpleNamespace(strict=False))
             self.assertEqual(code, 1, "no ruff: the rest of the fix stops, the noqa reasons are still written")
             self.assertEqual((root / "tests/a.py").read_text(), f"import x  {FIXED}\n" * 2)
-            self.assertEqual(
-                (root / "tools/retrodev/templates/b.py.tmpl").read_text(), f"{{{{name}}}} = 1\nimport x  {FIXED}\n"
-            )
             for name in ("engine/c.py", "tools/npm/d.py", "tests/e.py", "notes.md"):
                 self.assertEqual((root / name).read_text(), files[name], name)
-            self.assertIn("gave 3 bare '# noqa: E402' the standard reason", out[0])
+            self.assertIn("gave 2 bare '# noqa: E402' the standard reason", out[0])
             self.assertIn("tests/a.py", out[0])
 
     def test_a_file_that_does_not_tokenize_is_left_byte_for_byte_and_reported_as_skipped(self):

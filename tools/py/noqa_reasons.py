@@ -46,11 +46,11 @@ def add_reason(text: str) -> tuple[str, int] | None:
 
 
 def fix(root: Path, names: list[str]) -> tuple[dict[str, int], list[str]]:
-    """Add the reason in every .py and .py.tmpl file of ``names`` outside the skipped folders: ({file: lines},
+    """Add the reason in every .py file of ``names`` outside the skipped folders: ({file: lines},
     the files with a bare E402 left as they are because they do not tokenize)."""
     done, skipped = {}, []
     for name in names:
-        if not name.endswith((".py", ".py.tmpl")) or name.startswith(SKIPPED):
+        if not name.endswith(".py") or name.startswith(SKIPPED):
             continue
         path = root / name
         text = path.read_text(encoding="utf-8")
