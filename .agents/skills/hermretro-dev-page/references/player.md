@@ -3,7 +3,7 @@
 ## The emulator beside the chat
 
 User request: show **our** emulator (the Emulator page's bar + ModRetro's real player from `backend/player/server.py`,
-Hermes Edition Midnight) beside the chat instead of the engine's page in the in-app browser — and only
+Hermes Edition Nous Black) beside the chat instead of the engine's page in the in-app browser — and only
 when the agent is ready to present the game after making it, never for the whole of development
 (user requirement: "it should not be there the entire time"). Builds open nothing.
 

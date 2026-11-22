@@ -154,7 +154,7 @@ class PlayerServer(unittest.TestCase):
         rule = '.codex-game-view .cgv-color[data-device-color] { order: 0; }'
         self.assertLess(text.index('[data-device-color="codex"] { order: -1; }'), text.index(rule))
         for finish in (
-            "Hermes Edition · Midnight",
+            "Hermes Edition · Nous Black",
             "Hermes Edition · Nous Blue",
             "Hermes Edition · White",
             "Hermes Edition · Clear Blue",
