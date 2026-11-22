@@ -1,5 +1,5 @@
 // Project files (art) loaded through the `asset` RPC, cached per game and version.
-import { createContext, useContext, useEffect, useState } from '#sdk'
+import { atom, createContext, useContext, useEffect, useState, useValue } from '#sdk'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET } from '#app/rpc.js'
 
@@ -8,6 +8,8 @@ import { RPC_ASSET } from '#app/rpc.js'
 export const AssetGame = createContext(null)
 
 const assetCache = new Map()
+// How many times a file was put back: everything showing pictures renders again when it changes.
+const PUT_BACK = atom(0)
 const ASSET_CACHE_LIMIT = 200
 const ASSET_RETRY_MS = 15_000
 const assetQueue = []
@@ -71,16 +73,26 @@ export function assetEntry(path, version, root) {
   return entry
 }
 
-/** Forget the cached look of a file (it was put back), so every thumbnail fetches it again. */
-export function forgetAsset(path) {
-  for (const key of [...assetCache.keys()]) {
-    if (key.startsWith(`${path}#`)) {
+/** Forget the cached look of a file (it was put back), so every picture of it on screen fetches it again: by each
+ *  path given (the one asked for, the backend's resolved one) and by the file a loaded entry turned out to be, so
+ *  another spelling of the same path is forgotten too. */
+export function forgetAsset(...paths) {
+  for (const [key, entry] of [...assetCache]) {
+    if (paths.some(path => key.startsWith(`${path}#`) || entry.value?.path === path)) {
       assetCache.delete(key)
     }
   }
+
+  PUT_BACK.set(PUT_BACK.get() + 1)
+}
+
+/** Changes whenever a file is put back, so what shows it renders again and fetches the forgotten entry afresh. */
+export function usePutBack() {
+  return useValue(PUT_BACK)
 }
 
 export function useAsset(path, version) {
+  usePutBack()
   const root = useContext(AssetGame)
   const entry = path ? assetEntry(path, version, root) : null
   const [, rerender] = useState(0)

@@ -37,7 +37,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
         throw new Error(answer?.error ?? 'It could not be put back.')
       }
 
-      forgetAsset(path)
+      forgetAsset(path, answer.path)
       setState('undone')
     } catch (error) {
       setState(null)

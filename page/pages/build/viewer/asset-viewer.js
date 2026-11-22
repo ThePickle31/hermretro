@@ -1,6 +1,6 @@
 // The asset viewer.
 import { Button, Codicon, host, jsx, jsxs, useEffect, useMemo, useRef, useState } from '#sdk'
-import { useAsset } from '#pages/build/assets/cache.js'
+import { forgetAsset, useAsset } from '#pages/build/assets/cache.js'
 import { imagePalette, useImage } from '#pages/build/assets/images.js'
 import { canvasImage, paintSheet, spriteAnimations, spriteFrameMs } from '#pages/build/assets/sprite.js'
 import { stepWords } from '#pages/build/transcript/step-words.js'
@@ -264,6 +264,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat
         throw new Error(answer?.error ?? 'It could not be restored.')
       }
 
+      forgetAsset(path, answer.path)
       host.notify({ kind: 'success', message: `v${shownNumber} is back in the game. Build again to play it.` })
       setRefresh(value => value + 1)
     } catch (error) {

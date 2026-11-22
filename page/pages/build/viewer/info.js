@@ -1,6 +1,6 @@
 // What the asset viewer loads about a file.
 import { useContext, useEffect, useState } from '#sdk'
-import { AssetGame, assetEntry } from '#pages/build/assets/cache.js'
+import { AssetGame, assetEntry, usePutBack } from '#pages/build/assets/cache.js'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET_INFO } from '#app/rpc.js'
 
@@ -34,6 +34,7 @@ export function useAssetInfo(path, refresh) {
 /** Images for several asset paths at once (a scene's background and its actors' sprites). */
 export function useImages(paths, version) {
   const root = useContext(AssetGame)
+  const putBack = usePutBack()
   const [images, setImages] = useState({})
   const key = paths.join('\n')
 
@@ -58,7 +59,7 @@ export function useImages(paths, version) {
     return () => {
       live = false
     }
-  }, [key, version, root])
+  }, [key, version, root, putBack])
 
   return images
 }
