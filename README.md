@@ -95,7 +95,7 @@ popover names it) or the game tools are installing.
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |
 | hermretro page: Build, Setup, Games, Emulator | Built; see below and `.agents/skills/hermretro-dev-page/SKILL.md` |
-| Playing inside Hermes | The Emulator page runs ModRetro's own player (with a demo cartridge when you have no games yet). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
+| Playing inside Hermes | The Emulator page runs ModRetro's own player with the game you pick on the Games page (a demo cartridge until you pick one). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
 

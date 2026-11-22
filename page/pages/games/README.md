@@ -18,7 +18,7 @@ Build can draft the message. The Games page navigates to the selected game or to
 `{ ctx, game, hardwareOn, item(icon, label, run, { disabled, why }) }` (return `item(...)`; starts empty).
 Contributes `InstallButton` to `emulator.barActions` (Install on Chromatic in the Emulator page's bar).
 
-**Exposes** (`index.js`): `GAME_STATES`, `gameMeta`, `latestGame`, `StateTag`.
+**Exposes** (`index.js`): `GAME_STATES`, `gameMeta`, `StateTag`.
 
 **Uses from other pages:** none.
 

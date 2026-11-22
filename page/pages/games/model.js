@@ -19,13 +19,6 @@ export function gameMeta(game, { kind = true, now = Date.now() } = {}) {
   ].filter(Boolean)
 }
 
-/** The game to show first: the most recently built one that the player can run. */
-export function latestGame(games) {
-  const list = [...(games ?? [])].sort((a, b) => (b.rom?.builtAt ?? 0) - (a.rom?.builtAt ?? 0))
-
-  return list.find(game => game.webExport) ?? list[0] ?? null
-}
-
 
 export function installPrompt(game) {
   return `Flash the built ROM of ${gameLabel(game)} to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks.`

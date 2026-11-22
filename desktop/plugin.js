@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 3ac18da688feb74028620cf9ec6d16378b1f545e5959fa192eec570e42915d47
- * body: sha256 3e609af8411ee0caf25d47ff0db27bac7535d1df509fd6cb26c711a628728a7f
+ * sources: sha256 d159e8b18924393c90e79dc9f6fc2758c78718ccdcea8475831e7401b4a3fb5e
+ * body: sha256 8149a5da1c53fa8bb9ebd6430dc9f1bac47e0e665d6a61ff7b7c4842f18515de
  */
 // page/sdk.js
 import {
@@ -8035,10 +8035,6 @@ function gameMeta(game, { kind = true, now = Date.now() } = {}) {
     game.rom?.size ? formatBytes(game.rom.size, { unit: "KB" }) : null,
     game.rom?.builtAt ? `built ${ago(game.rom.builtAt, now)}` : "never built"
   ].filter(Boolean);
-}
-function latestGame(games) {
-  const list = [...games ?? []].sort((a, b) => (b.rom?.builtAt ?? 0) - (a.rom?.builtAt ?? 0));
-  return list.find((game) => game.webExport) ?? list[0] ?? null;
 }
 function installPrompt(game) {
   return `Flash the built ROM of ${gameLabel(game)} to the connected Chromatic cartridge, then guide me through manual boot, gameplay, and audio checks.`;
@@ -17435,6 +17431,15 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
 }
 
 // page/app/studio-page.js
+var EMULATOR_GAME = "emulatorGame";
+function pickedGame(ctx) {
+  try {
+    const id = ctx.storage.get(EMULATOR_GAME, null);
+    return typeof id === "string" && id ? id : null;
+  } catch {
+    return null;
+  }
+}
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
@@ -17585,13 +17590,13 @@ function StudioPage({ ctx }) {
     retry: false
   });
   const gameList = Array.isArray(games.data?.games) ? games.data.games : [];
-  const [emu, setEmu] = useState({ id: null, reload: 0 });
+  const [emu, setEmu] = useState(() => ({ id: pickedGame(ctx), reload: 0 }));
   const [emuOpened, setEmuOpened] = useState(false);
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
   const libraryKnown = Boolean(games.data) || games.isError;
-  const game = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id) ?? (libraryKnown ? latestGame(gameList.filter((item) => item.webExport)) ?? demo : null);
+  const game = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id) ?? (libraryKnown ? demo : null);
   useEffect(() => {
     if (onEmulator && game) {
       setEmuOpened(true);
@@ -17647,6 +17652,10 @@ function StudioPage({ ctx }) {
   };
   const play = (id) => {
     setEmu((current) => ({ id, reload: current.reload }));
+    try {
+      ctx.storage.set(EMULATOR_GAME, id);
+    } catch {
+    }
     go("emulator");
   };
   const currentPage = pageById(page) ?? NAV_PAGES[0];
