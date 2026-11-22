@@ -1,7 +1,7 @@
 # ruff settings for hermretro's Python: `python tools/check.py lint` checks, `python tools/check.py fix` fixes.
 # The pinned ruff lives in .dev/py (python tools/py/setup.py). This file sits in tools/py/, so every path below is
 # taken from the repository root (ruff resolves them against the folder it runs in, which check.py sets).
-# A deliberate exception: `# noqa: <CODE> - <reason>` on the line (docs/dev/TESTING.md).
+# A deliberate exception: `# noqa: <CODE> - <reason>` on the line (.agents/skills/hermretro-dev-testing/references/testing.md).
 
 line-length = 120
 target-version = "py311"

@@ -1,4 +1,4 @@
-"""The game card limits in docs/dev/CONTRACT.md, game_card's constants and chromatic_game_info's schema agree."""
+"""The game card limits in .agents/skills/hermretro-dev-architecture/references/contract.md, game_card's constants and chromatic_game_info's schema agree."""
 
 import re
 import sys
@@ -12,7 +12,7 @@ from backend.library import game_card  # noqa: E402 - the repository root goes o
 from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
-CONTRACT = ROOT / "docs" / "dev" / "CONTRACT.md"
+CONTRACT = ROOT / "docs" / "dev" / ".agents/skills/hermretro-dev-architecture/references/contract.md"
 
 
 def card_section() -> str:
@@ -25,7 +25,9 @@ def card_section() -> str:
 def number(pattern: str, text: str) -> int:
     found = re.search(pattern, text)
     if not found:
-        raise AssertionError(f"docs/dev/CONTRACT.md's game card section no longer matches {pattern!r}")
+        raise AssertionError(
+            f".agents/skills/hermretro-dev-architecture/references/contract.md's game card section no longer matches {pattern!r}"
+        )
     return int(found.group(1))
 
 

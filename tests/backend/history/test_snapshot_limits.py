@@ -1,4 +1,4 @@
-"""The snapshot limits in docs/dev/CONTRACT.md's build history paragraph are the ones snapshots enforces."""
+"""The snapshot limits in .agents/skills/hermretro-dev-architecture/references/contract.md's build history paragraph are the ones snapshots enforces."""
 
 import re
 import sys
@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
 
-CONTRACT = ROOT / "docs" / "dev" / "CONTRACT.md"
+CONTRACT = ROOT / "docs" / "dev" / ".agents/skills/hermretro-dev-architecture/references/contract.md"
 
 
 def history_section() -> str:
@@ -24,7 +24,9 @@ def number(pattern: str, text: str) -> int:
     """The number the pattern's group holds, with its thousands spaces (``20 000``) removed."""
     found = re.search(pattern, text)
     if not found:
-        raise AssertionError(f"docs/dev/CONTRACT.md's build history section no longer matches {pattern!r}")
+        raise AssertionError(
+            f".agents/skills/hermretro-dev-architecture/references/contract.md's build history section no longer matches {pattern!r}"
+        )
     return int(re.sub(r"\s", "", found.group(1)))
 
 

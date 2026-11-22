@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 d21f2cbaeea33536e794bdedf75fc11aa69c81402409c1ff944e5df1725864fc
- * body: sha256 5adb88e447096087fa4dae8e9734c67fbb64397edd04412eb66aa470220bf56a
+ * sources: sha256 e719731969fa0dbf06dbbbf8fa892ffe6a8ed587267d80090cb4a534701d4ab4
+ * body: sha256 cf248e2d45afe30d3c8a5c04fd40f46a736ec649d7949d058c515bbdfa2ac311
  */
 // page/sdk.js
 import {
@@ -15365,7 +15365,7 @@ function wirePages(pages, { events, slots }) {
   if (problems.length) {
     throw new Error(`the page registry has problems:
   ${problems.join("\n  ")}
-FIX: see docs/dev/STUDIO-PAGES.md, "Adding to the page"`);
+FIX: see .agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"`);
   }
   const items = pages.flatMap((page) => [{ owner: page.id, item: page }, ...(page.tabs ?? []).map((tab) => ({ owner: page.id, item: tab }))]);
   for (const { owner, item } of items) {

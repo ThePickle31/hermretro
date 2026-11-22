@@ -8,7 +8,7 @@
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
   plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
-  `hooks.py`; the table in `ARCHITECTURE.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
+  `hooks.py`; the table in `.agents/skills/hermretro-dev-architecture/references/architecture.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
   `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
   feature's `tools.py` (with its Build-page step words), `plugin.yaml` `provides_tools`, the page's
   `step-words.js` and a line here.
@@ -30,7 +30,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). Besides them, the
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
   `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
-  `docs/dev/STUDIO-PAGES.md`), `chromatic_game_info` (the game card, below) and `chromatic_build_report`
+  `.agents/skills/hermretro-dev-page/references/player.md`), `chromatic_game_info` (the game card, below) and `chromatic_build_report`
   (the Build page's build card, below).
 - Skills are loaded as `skill_view("hermretro:<skill>")`:
   `setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`.
@@ -204,12 +204,12 @@ The page at `/hermretro` has one segmented control over its pages (`PAGES` in `p
 one conversation; the page opens here), **Setup** (the step wizard over `status` / `doctor` / `studio_profile`),
 **Games** (the library shelf, with New game opening the form on Build)
 and **Emulator** (ModRetro's real player in a `SandboxedFrame`). Full contract, result shapes and the
-page ↔ frame messages: `docs/dev/STUDIO-PAGES.md`. All RPCs answer `{ ok: false, error }` on failure
+page ↔ frame messages: `.agents/skills/hermretro-dev-page/` (its references). All RPCs answer `{ ok: false, error }` on failure
 instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `docs/dev/STUDIO-PAGES.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
+| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo? }` on the loopback player server |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |

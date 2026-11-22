@@ -2,7 +2,7 @@
 
 **Shows:** the shelf of cartridges from the `games` RPC (`games-page.js`), one card each with its split
 action and menu (`game-card.js`; the cartridge itself is `cartridge.js`, exported for Build's New Game shelf), the games folder, and the hardware chip. `model.js` is the library model.
-The cards read these fields of each game as the `games` RPC returns it (every field: [CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game-object)):
+The cards read these fields of each game as the `games` RPC returns it (every field: [.agents/skills/hermretro-dev-architecture/references/contract.md, "The game object"](../../../.agents/skills/hermretro-dev-architecture/references/contract.md#the-game-object)):
 `id`, `title`, `displayTitle`, `state` (the status and the split action), `error`, `thumb` (the label art),
 `cover` (whether `thumb` is the cover art), `card` (`tagline`, `description`, `genres`, `complete`), `rom`,
 `webExport`, `chat` and `projectRoot`. A game whose `thumb` is the title screen (`cover` false) gets the
@@ -33,4 +33,4 @@ Make a folder `page/pages/games/<tab>/` with an `index.js` exporting `{ id, labe
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/games/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:
-`docs/dev/STUDIO-PAGES.md`, "Adding to the page".
+`.agents/skills/hermretro-dev-page/references/adding.md`, "Adding to the page".

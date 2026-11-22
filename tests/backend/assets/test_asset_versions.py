@@ -250,10 +250,14 @@ class AssetVersions(unittest.TestCase):
 
 
 def documented_keep() -> int:
-    """The per-file limit docs/dev/STUDIO-PAGES.md's "Versions" paragraph states ("up to 40 per file")."""
-    text = (Path(__file__).resolve().parents[3] / "docs" / "dev" / "STUDIO-PAGES.md").read_text(encoding="utf-8")
+    """The per-file limit .agents/skills/hermretro-dev-page/references/build-page.md's "Versions" paragraph states ("up to 40 per file")."""
+    text = (
+        Path(__file__).resolve().parents[3] / ".agents/skills/hermretro-dev-page/references/build-page.md"
+    ).read_text(encoding="utf-8")
     found = re.search(r"^Versions: the plugin keeps a copy of a game image \(up to (\d+) per file", text, re.MULTILINE)
-    assert found, "docs/dev/STUDIO-PAGES.md has no Versions paragraph stating the per-file limit"
+    assert found, (
+        ".agents/skills/hermretro-dev-page/references/build-page.md has no Versions paragraph stating the per-file limit"
+    )
     return int(found.group(1))
 
 

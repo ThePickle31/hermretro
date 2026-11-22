@@ -1,4 +1,4 @@
-"""The presentation history keeps the newest N records, N as docs/dev/STUDIO-PAGES.md states ("newest 100 kept").
+"""The presentation history keeps the newest N records, N as .agents/skills/hermretro-dev-page/references/player.md states ("newest 100 kept").
 
 Run alone: python -m unittest tests.backend.library.test_presentation_history
 
@@ -25,16 +25,16 @@ from tests.support import isolated_home, make_project  # noqa: E402 - the reposi
 
 ROOT = Path(__file__).resolve().parents[3]
 START = 1_700_000_000.0  # the fake clock's first reading; record i is presented at START + i
-RPC_LIMIT = 20  # the RPC answers the newest 20 at most, oldest first (its section in docs/dev/STUDIO-PAGES.md)
+RPC_LIMIT = 20  # the RPC answers the newest 20 at most, oldest first (its section in .agents/skills/hermretro-dev-page/references/player.md)
 
 
 def documented_cap() -> int:
-    """The 'newest N kept' of the presentations RPC section in docs/dev/STUDIO-PAGES.md."""
-    text = (ROOT / "docs" / "dev" / "STUDIO-PAGES.md").read_text()
+    """The 'newest N kept' of the presentations RPC section in .agents/skills/hermretro-dev-page/references/player.md."""
+    text = (ROOT / ".agents/skills/hermretro-dev-page/references/player.md").read_text()
     section = text.split("### `presentations`", 1)[1].split("\n### ", 1)[0]
     found = re.findall(r"newest (\d+) kept", section)
     if len(found) != 1:
-        raise AssertionError(f"STUDIO-PAGES.md presentations section: expected one 'newest N kept', found {found}")
+        raise AssertionError(f"player.md presentations section: expected one 'newest N kept', found {found}")
     return int(found[0])
 
 

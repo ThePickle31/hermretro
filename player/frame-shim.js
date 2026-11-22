@@ -3,7 +3,7 @@
  * Source: page/frame/. Rebuild: node tools/bundle/bundle.mjs
  * Inlined first in the player frame page by the player backend (backend/player/); imports nothing.
  * build: esbuild 0.28.2
- * sources: sha256 3e9c3b56a4aeb01c34c4e53a5e0972fe10b256cdc084a65971dd5c7bb5f5f82f
+ * sources: sha256 2bdb93b5a88d28eb23bd6b72f33fc62ff82f4bbb491c22a89440c0f00b82b07b
  * body: sha256 03a4ed96d59e1ee36835b8c2eaa3bbc3327630e792ebcfb8c754b72246cc0be1
  */
 (() => {

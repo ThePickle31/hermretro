@@ -30,4 +30,4 @@ pages, only `#pages/index.js`. Pages may use the plumbing and hubs, never the sh
 ## Adding a tab
 
 Tabs belong to a page, not to the shell: see "Adding a tab here" in that page's README.md, and
-`docs/dev/STUDIO-PAGES.md`, "Adding to the page".
+`.agents/skills/hermretro-dev-page/references/adding.md`, "Adding to the page".

@@ -2,7 +2,7 @@
 // page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of four games
 // fed by the games RPC, the studio page mounted and Refresh pressed. Each file navigates to its own page from here.
 //   const { games, now2, studio } = await gamesStudio(helpers)   // helpers: what runScenario hands the scenario
-// Comet Drift and Old Orbit carry a `card` in the real shape (docs/dev/CONTRACT.md, "The game object";
+// Comet Drift and Old Orbit carry a `card` in the real shape (.agents/skills/hermretro-dev-architecture/references/contract.md, "The game object";
 // game_card.public()): Comet Drift's is complete with genres and controls, Old Orbit's is still missing its cover.
 // The RPC order (Comet Drift, Robo Run, Ace Arena, Old Orbit), the most recently built order (Comet Drift, Old Orbit,
 // then the unbuilt ones) and A-Z (Ace Arena first) all differ, so a test can tell which order a page uses: find a
@@ -42,7 +42,7 @@ export async function gamesStudio({ scenario, page, mount, click, answered, doct
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: false, code: 'NAME_TAKEN', error: 'A profile named hermretro already exists and was not made by hermretro.' }
   scenario.install = installAnswer({ state: 'idle' })
 
-  // Games and the Emulator, fed by the games / player RPCs (docs/dev/STUDIO-PAGES.md).
+  // Games and the Emulator, fed by the games / player RPCs (.agents/skills/hermretro-dev-page/references/player.md).
   scenario.status = answered({ ...complete, hardware_enabled: false }); scenario.doctor = answered(doctor([]))
   scenario.storage = { setup: { hardwareSkipped: true } }
   const now2 = Math.round(Date.now() / 1000)

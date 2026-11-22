@@ -1,6 +1,6 @@
 // Messages between the Studio page and the player frame (`page/frame/`). Every message is a
 // plain object whose `cs` field names it. The page sends `{ cs: 'cmd', type: CMD.*, ... }`; the frame
-// answers with `{ cs: FROM_FRAME.*, ... }`. Contract: docs/dev/STUDIO-PAGES.md "Page ↔ frame messages".
+// answers with `{ cs: FROM_FRAME.*, ... }`. Contract: .agents/skills/hermretro-dev-page/references/player.md "Page ↔ frame messages".
 
 export const TO_FRAME = 'cmd'
 

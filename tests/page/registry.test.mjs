@@ -60,7 +60,7 @@ test('the registry lists every page folder once, in nav order, each describing i
   }
 })
 
-// A page whose tabs are the whole page drops its own Page (docs/dev/STUDIO-PAGES.md, "A tab"): then each tab
+// A page whose tabs are the whole page drops its own Page (.agents/skills/hermretro-dev-page/references/adding.md, "A tab"): then each tab
 // needs one instead.
 function missingComponents(page) {
   if (page.tabs?.length) {
@@ -175,7 +175,7 @@ test('slots: the real ones are declared, and what fills them', () => {
   const expected = { 'emulator.barActions': [InstallButton] }
   const named = slots => JSON.stringify(Object.fromEntries(Object.entries(slots).map(([slot, list]) => [slot, list.map(item => item.name || '(anonymous)')])))
 
-  assert.deepEqual(filled, expected, `slots filled: ${named(filled)}, expected ${named(expected)}\nFIX: when a page's contributes changed on purpose, change \`expected\` here (STUDIO-PAGES.md, "A contribution to a slot")`)
+  assert.deepEqual(filled, expected, `slots filled: ${named(filled)}, expected ${named(expected)}\nFIX: when a page's contributes changed on purpose, change \`expected\` here (.agents/skills/hermretro-dev-page/references/adding.md, "A contribution to a slot")`)
 })
 
 test('an empty slot renders nothing', async () => {

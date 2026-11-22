@@ -3,7 +3,7 @@
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
 the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
 hermretro page in Hermes Desktop. Underneath both is the **engine**: ModRetro's own Chromatic MCP server,
-vendored unchanged under `engine/modretro-chromatic/` (one recorded patch, see `ENGINE-UPDATE.md`).
+vendored unchanged under `engine/modretro-chromatic/` (one recorded patch, see `.agents/skills/hermretro-dev-engine-update/references/engine-update.md`).
 
 ```
 Hermes gateway (one process, every profile)                 per user, ~/.hermes/hermretro/
@@ -64,8 +64,7 @@ Every folder in the repository.
 | `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview, and the sandbox (a private Hermes with a scripted model and a headless browser) (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |
 | `tools/py/` | Pinned Python tools for development only (ruff), their settings, and check.py's helpers |
-| `docs/` | Documentation |
-| `docs/dev/` | Developer references: architecture, testing, debugging, contract, pages, engine update |
+| `.agents/skills/` | The development skills: how to work on hermretro (`.claude/skills` links here) |
 | `.github/` | CI workflows, templates and community files |
 | `.github/workflows/` | CI, integration and nightly workflows |
 | `.github/actions/` | Shared workflow steps |
@@ -113,14 +112,14 @@ the owner, `from .module import NAME`). Importing it from the module that define
 
 | To add | Touch |
 |---|---|
-| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`, and a section in `CONTRACT.md`. Then `node tools/bundle/bundle.mjs` (regenerates the page's names, `RPC_<NAME>` in `page/app/rpc-names.js`). |
-| a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`. A tool about the selected game resolves the project with `tool_project(tool, args, kwargs)`, then its library game with `host.library_game_for([root])`, and answers failures with `tool_error(message, code)` (`from ..hermes.tool_args import tool_error, tool_project`) |
+| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`, and a section in `.agents/skills/hermretro-dev-architecture/references/contract.md`. Then `node tools/bundle/bundle.mjs` (regenerates the page's names, `RPC_<NAME>` in `page/app/rpc-names.js`). |
+| a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `.agents/skills/hermretro-dev-architecture/references/contract.md`. A tool about the selected game resolves the project with `tool_project(tool, args, kwargs)`, then its library game with `host.library_game_for([root])`, and answers failures with `tool_error(message, code)` (`from ..hermes.tool_args import tool_error, tool_project`) |
 | a split of a big `rpcs.py` | move each handler factory into `backend/<feature>/<topic>_rpcs.py` as `def rpc_<name>(ctx)`; `rpcs.py` keeps every `@rpc("<name>")` declaration, now `def rpc_<name>(ctx): return _<topic>_rpcs_mod.rpc_<name>(ctx)` after `from . import <topic>_rpcs as _<topic>_rpcs_mod` (the page's names and the lock-step test read only `rpcs.py`) |
 | a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`. A `post_tool_call` hook reads an engine tool's result with `host.tool_result_payload(result)` (the JSON text or the multimodal envelope's summary, as a dict) and finds its library game with `host.library_game_for(paths)` (`(game id, root)` of the game containing the first matching path; `backend/history/hooks.py` passes the result's `projectRoot`, the `projectPath` argument and the chat's project). A test of a chained hook asserts only the relative order it needs, so a feature's new callback does not break it |
 | an event | the owner's front door `EVENTS` + `emit(...)` where it happens: something the broker does is announced from the gateway side (the broker stays standard library only and emits nothing), in the RPC or hook that first learns of it, once per occurrence; listeners in `backend/<other>/listeners.py` with `@on(...)`. A listener goes in each feature that reacts (not `broker` or `system`, which stay standard library only) |
 | state a listener keeps | a module-level value in the feature's own module (where the listener lives, or the module it calls), with a reader function beside it (listeners run in the emitting process, so this value is per process: the gateway, a plugin host and a turn process each hold their own); export the reader in the front door's `__all__` only when another feature reads it (then as the row below). Not on `host` or another feature's module. State another process must read (the broker, the player, another Hermes process) is a file under `backend.system.paths.hermretro_home()`, written atomically with `paths.write_json_atomic(path, data)` (a temp file beside it, then `os.replace`), not module state |
 | a name exported from a feature's front door (a value other features read) | import it in the owner's `backend/<owner>/__init__.py` and add it to `__all__` (`tests/repo/test_boundaries.py` checks only these two); by hand also: that docstring's "Front door:" line when it says nothing is exported, the owner README's `## Front door` line, and the owner's "Front door / events" cell in the table above. Readers import `from ..<owner> import NAME` |
-| a module split or renamed inside a feature | as "Splitting a module" below: the feature README's module list (its opening paragraph) and any mention in `ARCHITECTURE.md`; `tests/repo/test_doc_pointers.py` fails on a backtick-quoted `backend/` or `page/` path that no longer exists |
+| a module split or renamed inside a feature | as "Splitting a module" below: the feature README's module list (its opening paragraph) and any mention in `.agents/skills/hermretro-dev-architecture/references/architecture.md`; `tests/repo/test_doc_pointers.py` fails on a backtick-quoted `backend/` or `page/` path that no longer exists |
 | a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its line in the Map above; tests in `tests/backend/<name>/`. |
 
 Each feature's row in the table above lists what it registers: a new RPC or tool goes in its Declares cell and a new
@@ -163,7 +162,7 @@ that with the files on disk now, so a broker an update rewrote underneath is tol
 ## The page half
 
 `page/` is the source: `app/` (shell and the page-wide plumbing), one folder per page under `pages/` with its
-tabs and areas inside, `shared/` and `frame/`, joined by import aliases (rules in `STUDIO-PAGES.md`, "The page's source");
+tabs and areas inside, `shared/` and `frame/`, joined by import aliases (rules in `.agents/skills/hermretro-dev-page/references/source.md`, "The page's source");
 `tools/bundle/bundle.mjs` builds it into two committed files: `desktop/plugin.js` (the page, one ESM file, because
 Hermes's loader evaluates exactly one file that may import only the SDK and React) and `player/frame-shim.js`
 (injected into the emulator frame). Installs run no build step, so the built files are committed and CI proves
@@ -173,10 +172,10 @@ Pages declare themselves: `page/pages/index.js` lists them (one line each), each
 descriptor and front door, and the shell (`page/app/`) builds the nav, routing, tab bars and stylesheet from
 that list. Pages connect only through what another page exposes: its front door's exports, page events
 (`app/events.js`) and UI slots (`app/slots.js`); ESLint (`python tools/check.py lint`) enforces the import
-boundaries. How to add a page, tab, event or slot: `STUDIO-PAGES.md`, "Adding to the page".
+boundaries. How to add a page, tab, event or slot: `.agents/skills/hermretro-dev-page/references/adding.md`, "Adding to the page".
 
 The page talks to the backend only through `plugin.hermretro.*` RPCs (names in `page/app/rpc.js`, generated
-from the backend's `@rpc` declarations; shapes in `CONTRACT.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through
+from the backend's `@rpc` declarations; shapes in `.agents/skills/hermretro-dev-architecture/references/contract.md`). Build chats are ordinary Hermes sessions in the `hermretro` profile, driven through
 the gateway (`page/pages/build/chat/`), never in another profile (`app/routing.js` `studioTarget()`).
 
 ## Where state lives

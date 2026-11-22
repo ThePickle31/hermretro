@@ -1,4 +1,4 @@
-// The game inside the build card that last built it (contract: docs/dev/STUDIO-PAGES.md "The game,
+// The game inside the build card that last built it (contract: .agents/skills/hermretro-dev-page/references/build-page.md "The game,
 // in the conversation"). The ModRetro player runs in its frame with its own controls hidden; this
 // draws them: one bar, the game at a whole-number scale (bare screen or the Chromatic around it), and
 // the play-test panel beside it (or under it in a narrow chat, or folded to a tab).

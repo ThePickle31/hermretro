@@ -1,10 +1,10 @@
-"""What the READMEs and docs/dev documents point readers at is still there.
+"""What the READMEs and the development skills point readers at is still there.
 
 - Every `tests/...` path they name exists. The docs send readers (and agents) to test files by path; a test that
   moves, splits or is renamed leaves those pointers dangling. Paths with a placeholder (`<feature>`, `*`, `{...}`)
   are patterns, not files, and are skipped.
 - Every backtick-quoted `backend/<feature>/<module>.py` and `page/....js` path they name exists: a module split or
-  renamed inside a feature otherwise leaves its README's module list and ARCHITECTURE.md naming a file that is gone.
+  renamed inside a feature otherwise leaves its README's module list and .agents/skills/hermretro-dev-architecture/references/architecture.md naming a file that is gone.
 - Every backtick-quoted relative source name (`provision.py`, `transcript/transcript.css.js`) in a feature or page
   README (backend/*/README.md, page/pages/*/README.md) exists beside that README, or in the folder its section's
   heading names (`## The New Game level (`attract/`)`). The "Adding ..." sections are skipped (they name files a
@@ -30,13 +30,13 @@ HEADING = re.compile(r"^#{2,6}\s+(.*)")
 
 
 def documents() -> list[Path]:
-    """Every README.md outside the vendored folders, and every docs/dev/*.md: tracked files only, so a
+    """Every README.md outside the vendored folders, and every .md of the development skills (.agents/skills/): tracked files only, so a
     developer's downloads cannot decide the result."""
     return [
         ROOT / rel
         for rel in files()
         if not rel.startswith(SKIPPED)
-        and (rel == "README.md" or rel.endswith("/README.md") or rel.startswith("docs/dev/"))
+        and (rel == "README.md" or rel.endswith("/README.md") or rel.startswith(".agents/skills/"))
         and rel.endswith(".md")
     ]
 
@@ -107,7 +107,7 @@ class DocPathTests(unittest.TestCase):
             "\nthese docs name backend/ or page/ files that do not exist:\n  "
             + "\n  ".join(missing)
             + "\nFIX: after a module split or rename, update the feature README's module list and any mention in "
-            "docs/dev/ARCHITECTURE.md (git log --follow -- <old path> finds where it went)",
+            ".agents/skills/hermretro-dev-architecture/references/architecture.md (git log --follow -- <old path> finds where it went)",
         )
 
     def test_a_doc_naming_a_missing_module_is_caught(self):
