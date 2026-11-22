@@ -24,7 +24,7 @@ export function ReloadBanner({ update }) {
   }
 
   if (reload.phase === 'restart') {
-    return banner(null, 'refresh', 'hermretro was updated. Restart Hermes to finish loading it.')
+    return banner(null, 'refresh', `hermretro was updated. ${reload.advice} to finish loading it.`)
   }
 
   const reloading = reload.phase === 'reloading'

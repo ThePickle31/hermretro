@@ -2,7 +2,7 @@
 // button's progress, and how the last update went (told by the page that loads after it).
 import { host, useEffect, useQuery, useQueryClient, useRef, useState } from '#sdk'
 import { LINKS } from '#shared/ui/links.js'
-import { ID, PLUGINS_HREF } from '#app/ids.js'
+import { ID, PLUGINS_HREF, STUDIO_PROFILE } from '#app/ids.js'
 import { routing } from '#app/routing.js'
 import { busyChats, busySentence, installTarget, pluginRow, requestOn, runReload, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
 import { setUpdating } from './lock.js'
@@ -59,7 +59,8 @@ const RESTART_ADVICE = { hermes: 'Restart Hermes', app: 'Quit and reopen Hermes'
  *  failed (nothing changed), partial (installed, but the hermretro profile or the page is not done: Finish update
  *  runs the rest), restart (installed, but something only a restart loads), done (just updated), current.
  *  `reload` is the banner's Reload, for files updated outside this page while Hermes runs the old code (status
- *  `restart_needed`): its phase is idle, reloading, restart (only a restart of Hermes loads it) or failed.
+ *  `restart_needed`): its phase is idle, reloading, restart (only a restart of Hermes, or of the app for the page's
+ *  copy, loads it; `advice` says which) or failed.
  *  `installing`: the page's toolchain install is running. While it is, or while a chat in the hermretro profile is
  *  building (`blocked` says which), Update is refused: an update must never swap the plugin under a build. */
 export function usePluginUpdate({ ctx, status, running, installing = false }) {
@@ -253,8 +254,15 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
         outcome = { kind: 'failed', error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` }
       }
 
+      const install = await installTarget(installedIn)
+
+      // Installed into another profile than hermretro: its settings come from there, so that profile must be reached.
+      if (!outcome && !install && profile && profile !== STUDIO_PROFILE) {
+        outcome = { kind: 'failed', error: `Could not reach the ${profile} profile, where hermretro is installed` }
+      }
+
       outcome ??= await runReload({
-        install: await installTarget(installedIn),
+        install,
         studio,
         busy: () => (installingNow.current ? Promise.resolve(['the game tools install']) : busyChats(studio))
       })
@@ -264,7 +272,13 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
 
     setReloadState(
-      outcome.kind === 'failed' ? { phase: 'failed', error: outcome.error } : { phase: outcome.kind === 'restart' ? 'restart' : 'idle', error: null }
+      outcome.kind === 'failed'
+        ? { phase: 'failed', error: outcome.error }
+        : outcome.kind === 'restart'
+          ? { phase: 'restart', error: null, restartFor: 'hermes' }
+          : outcome.kind === 'reloaded' && !outcome.pageRefreshed
+            ? { phase: 'restart', error: null, restartFor: 'app' }
+            : { phase: 'idle', error: null }
     )
     void queryClient.invalidateQueries({ queryKey: [ID] })
   }
@@ -291,7 +305,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     restartAdvice: RESTART_ADVICE[state.restartFor] ?? RESTART_ADVICE.hermes,
     // Hermes runs older code than is on disk (status restart_needed), and the banner's Reload
     stale,
-    reload: { ...reloadState, blocked: blockedFor('reload'), start: () => void reload() },
+    reload: { ...reloadState, advice: RESTART_ADVICE[reloadState.restartFor] ?? RESTART_ADVICE.hermes, blocked: blockedFor('reload'), start: () => void reload() },
     open,
     setOpen,
     start: () => void start(),

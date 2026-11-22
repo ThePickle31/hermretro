@@ -483,7 +483,8 @@ export function StudioPage({ ctx }) {
             className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
               // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
-              running && (pluginUpdate.stale || pluginUpdate.reload.phase !== 'idle') && pluginUpdate.phase !== 'restart'
+              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
+              ((running && pluginUpdate.stale) || pluginUpdate.reload.phase !== 'idle') && pluginUpdate.phase !== 'restart'
                 ? jsx(ReloadBanner, { update: pluginUpdate }, 'restart')
                 : null,
               broken

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 6bd4a964e89f8ca5f8bb41e035cb5ce4d823c72b03bdf901516b33f1a693bb15
- * body: sha256 b5323603704b51b7c9a3310e51b812b16c5541a4ac6c0ba41b917136f5b04801
+ * sources: sha256 34eac9339ccb2add853d2f56cb0de270b8c42ab6cb961f70638c58ea5165b926
+ * body: sha256 d7552adb38e209708e93d02932b6ff3231f39da91659379462e521066584ec83
  */
 // page/sdk.js
 import {
@@ -17034,7 +17034,7 @@ function ReloadBanner({ update }) {
     );
   }
   if (reload.phase === "restart") {
-    return banner(null, "refresh", "hermretro was updated. Restart Hermes to finish loading it.");
+    return banner(null, "refresh", `hermretro was updated. ${reload.advice} to finish loading it.`);
   }
   const reloading = reload.phase === "reloading";
   return banner(
@@ -17240,8 +17240,12 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       } catch (error) {
         outcome = { kind: "failed", error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` };
       }
+      const install = await installTarget(installedIn);
+      if (!outcome && !install && profile && profile !== STUDIO_PROFILE) {
+        outcome = { kind: "failed", error: `Could not reach the ${profile} profile, where hermretro is installed` };
+      }
       outcome ??= await runReload({
-        install: await installTarget(installedIn),
+        install,
         studio,
         busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio)
       });
@@ -17250,7 +17254,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       setUpdating(false);
     }
     setReloadState(
-      outcome.kind === "failed" ? { phase: "failed", error: outcome.error } : { phase: outcome.kind === "restart" ? "restart" : "idle", error: null }
+      outcome.kind === "failed" ? { phase: "failed", error: outcome.error } : outcome.kind === "restart" ? { phase: "restart", error: null, restartFor: "hermes" } : outcome.kind === "reloaded" && !outcome.pageRefreshed ? { phase: "restart", error: null, restartFor: "app" } : { phase: "idle", error: null }
     );
     void queryClient.invalidateQueries({ queryKey: [ID] });
   };
@@ -17275,7 +17279,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     restartAdvice: RESTART_ADVICE[state.restartFor] ?? RESTART_ADVICE.hermes,
     // Hermes runs older code than is on disk (status restart_needed), and the banner's Reload
     stale,
-    reload: { ...reloadState, blocked: blockedFor("reload"), start: () => void reload() },
+    reload: { ...reloadState, advice: RESTART_ADVICE[reloadState.restartFor] ?? RESTART_ADVICE.hermes, blocked: blockedFor("reload"), start: () => void reload() },
     open,
     setOpen,
     start: () => void start(),
@@ -17624,7 +17628,8 @@ function StudioPage({ ctx }) {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
               // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
-              running && (pluginUpdate.stale || pluginUpdate.reload.phase !== "idle") && pluginUpdate.phase !== "restart" ? jsx(ReloadBanner, { update: pluginUpdate }, "restart") : null,
+              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
+              (running && pluginUpdate.stale || pluginUpdate.reload.phase !== "idle") && pluginUpdate.phase !== "restart" ? jsx(ReloadBanner, { update: pluginUpdate }, "restart") : null,
               broken ? jsxs(
                 "div",
                 {

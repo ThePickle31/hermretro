@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, answered, status, doctor, installAnswer }) => {
+await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, answered, notLoaded, status, doctor, installAnswer }) => {
   const document = dom.window.document
   const banner = () => document.querySelector('.cs-repair')?.textContent.replace(/\s+/g, ' ') ?? ''
   const log = []
@@ -70,8 +70,52 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.match(banner(), /Reload did not finish: hermretro could not be switched back on in the hermretro profile\./)
     assert.ok(document.querySelector('.cs-repair.bad')); assert.ok(button('Try again'))
   })
+  scenario.status = notLoaded
+  await render()
+  check('the failure stays said once hermretro stops answering', () => {
+    assert.match(banner(), /Reload did not finish/); assert.ok(button('Try again'))
+  })
+  scenario.status = stale()
+  await render()
   toggleAnswer = () => ({ ok: true, gateway_reloaded: true, restart_required: false })
   log.length = 0
   await click('Try again'); await settle(40)
   check('Try again reloads again', () => { assert.deepEqual(log.slice(-2), ['toggle:false', 'toggle:true']) })
+
+  // Installed into a profile the app cannot reach: its settings cannot be refreshed, so nothing is reloaded.
+  await fresh({ installedIn: { profile: 'work', linked: false } })
+  await click('Reload'); await settle(40)
+  check('an install profile that cannot be reached fails the reload before anything changes', () => {
+    assert.match(banner(), /Reload did not finish: Could not reach the work profile, where hermretro is installed\./)
+    assert.ok(!log.some(entry => entry.startsWith('toggle')))
+  })
+
+  // The app cannot refresh the page's copy: reopening it does.
+  dom.window.hermesDesktop = {}
+  await fresh()
+  await click('Reload'); await settle(40)
+  check('when the page could not be refreshed, the banner asks to quit and reopen Hermes', () => {
+    assert.equal(banner(), 'hermretro was updated. Quit and reopen Hermes to finish loading it.')
+  })
+  dom.window.hermesDesktop = { reconcileDesktopPlugins: async () => { reconciled.push(true); return [] } }
+
+  // The app on the profile hermretro was installed into, the hermretro profile reached through its route: the
+  // settings refresh goes to the install profile, the build checks and the switch off and on to the hermretro profile.
+  const elsewhere = { ...stale().data, profile: { name: 'default', is_studio: false, studio: { name: 'hermretro', exists: true, installed: false, ours: false } } }
+  const routed = []
+  scenario.ambient = elsewhere
+  scenario.routes = [{ profile: 'default', connectionId: 'local' }, { profile: 'hermretro', connectionId: 'local' }]
+  scenario.requestProfileHook = (route, method, params) => {
+    routed.push(`${route.profile}:${method === 'plugins.manage' ? `toggle:${params.enable}` : method}`)
+    return method === 'session.active_list' ? { sessions: [] } : { ok: true, gateway_reloaded: true, restart_required: false }
+  }
+  await act(async () => { root.render(null) })
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'games' }
+  scenario.status = answered(elsewhere); log.length = 0
+  await render()
+  await click('Reload'); await settle(40)
+  check('each step goes to its profile', () => {
+    assert.deepEqual(log, ['finish'])
+    assert.deepEqual(routed, ['hermretro:session.active_list', 'hermretro:session.active_list', 'hermretro:toggle:false', 'hermretro:toggle:true'])
+  })
 })
