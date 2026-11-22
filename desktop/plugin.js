@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 075337e568689f0f687bd06c0a9ea55f9c27698b3fe27b166d06ea5237d4c69a
- * body: sha256 b103e84feafcab4228f9379d3c9335b92606171fbf51fa0b5f279ad8a213ba20
+ * sources: sha256 811b2b03d51c64307d6bcaff730667306b98c90b3eb20c40a9e071adbb7fef7b
+ * body: sha256 f60394e391c5d59229f62e1612fbb6779f02e73e27c304a5a0f634e39afc69b2
  */
 // page/sdk.js
 import {
@@ -1721,7 +1721,7 @@ function attachToBuild(stored, attachments, text2 = "") {
   const current = all[stored];
   BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text: text2, attach: attachments } });
 }
-function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false }) {
+function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false, ask = null }) {
   const [text2, setText] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [mention, setMention] = useState(null);
@@ -1809,6 +1809,25 @@ ${inject.text}` : inject.text);
       void onSend(value, attachments);
     }
   };
+  if (ask) {
+    return jsxs("div", {
+      className: "cs-b-comp asking",
+      children: [
+        status,
+        ask,
+        busy ? jsx("div", {
+          className: "cs-b-comp-row",
+          children: [
+            jsx("span", { className: "cs-grow" }, "grow"),
+            jsx(Tip, {
+              label: `Stop ${AGENT}`,
+              children: jsxs("button", { "aria-label": "Stop", className: "cs-b-stop", onClick: onStop, type: "button", children: [jsx("i", {}), jsx("span", { className: "cs-sr", children: "Stop" })] })
+            }, "stop")
+          ]
+        }) : null
+      ]
+    });
+  }
   return jsxs("div", {
     className: "cs-b-comp",
     children: [
@@ -4923,6 +4942,46 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   });
 }
 
+// page/shared/ui/screen.js
+function Screen({ game, className = "cs-screen" }) {
+  return game?.thumb ? jsx("img", { alt: `${game.title} title screen`, className, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: `${className} ph`, children: game?.title ?? "" });
+}
+
+// page/pages/build/player/play-card.js
+function PlayCard({ game, frame, state, note, build = null, onPlay }) {
+  const ready = state === "ready";
+  const picture = frame ? jsx(AssetImage, { asset: frame, className: "cs-b-pc-img", fallback: jsx(Screen, { className: "cs-b-pc-img", game }) }) : jsx(Screen, { className: "cs-b-pc-img", game });
+  return jsxs("div", {
+    className: `cs-b-pc ${state}`,
+    children: [
+      jsxs("div", {
+        className: "cs-b-pc-stage",
+        children: [
+          jsx("button", {
+            "aria-label": ready ? `Play ${game?.title ?? "the game"}` : void 0,
+            className: "cs-b-pc-screen",
+            disabled: !ready,
+            onClick: onPlay,
+            tabIndex: -1,
+            type: "button",
+            children: picture
+          }),
+          ready ? jsxs("button", {
+            className: "cs-b-pc-go",
+            onClick: onPlay,
+            type: "button",
+            children: [jsx(Codicon, { name: "play", size: 13 }), build ? `Play build #${build}` : "Play"]
+          }) : jsx("span", {
+            className: "cs-b-pc-wait",
+            children: state === "busy" ? `Playable again when ${AGENT} finishes` : "The playable copy is not ready yet"
+          })
+        ]
+      }),
+      note && ready ? jsx("p", { className: "cs-b-pc-note", children: note }) : null
+    ]
+  });
+}
+
 // page/shared/ui/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
@@ -4970,44 +5029,6 @@ function timeOfDay(at) {
   } catch {
     return "";
   }
-}
-
-// page/shared/ui/screen.js
-function Screen({ game, className = "cs-screen" }) {
-  return game?.thumb ? jsx("img", { alt: `${game.title} title screen`, className, src: game.thumb }) : jsx("span", { "aria-hidden": true, className: `${className} ph`, children: game?.title ?? "" });
-}
-
-// page/pages/build/player/play-card.js
-function PlayCard({ game, frame, state, note, onPlay, onOpenAsset }) {
-  const ready = state === "ready";
-  const builtAt = game?.web?.builtAt ?? game?.rom?.builtAt ?? null;
-  return jsxs("div", {
-    className: `cs-b-pc ${state}`,
-    children: [
-      jsxs("button", {
-        "aria-label": ready ? `Play ${game?.title ?? "the game"}` : void 0,
-        className: "cs-b-pc-screen",
-        disabled: !ready,
-        onClick: onPlay,
-        type: "button",
-        children: [
-          frame ? jsx(AssetImage, { asset: frame, className: "cs-b-pc-img", fallback: jsx(Screen, { className: "cs-b-pc-img", game }) }) : jsx(Screen, { className: "cs-b-pc-img", game }),
-          ready ? jsx("span", { "aria-hidden": true, className: "cs-b-pc-go", children: jsx(Codicon, { name: "play", size: 18 }) }) : null
-        ]
-      }),
-      jsxs("div", {
-        className: "cs-b-pc-info",
-        children: [
-          jsx("b", { children: game?.title ?? "Your game" }),
-          jsx("small", {
-            children: state === "busy" ? `Playable again when ${AGENT} finishes` : state === "unplayable" ? "The playable copy is not ready yet" : builtAt ? `Built ${ago(builtAt, Date.now())}` : "Ready to play"
-          }),
-          note && ready ? jsx("span", { className: "cs-b-pc-note", children: note }) : null
-        ]
-      }),
-      jsxs(Button, { disabled: !ready, onClick: onPlay, size: "sm", children: [jsx(Codicon, { name: "play", size: 13 }), "Play"] })
-    ]
-  });
 }
 
 // page/pages/build/transcript/step-words.js
@@ -5186,7 +5207,7 @@ function assetKind(path) {
 }
 
 // page/pages/build/transcript/status.js
-function BuildStatus({ chat, onStop, onJump }) {
+function BuildStatus({ chat, onStop }) {
   const now = useNow(Boolean(chat?.busy));
   if (!chat?.busy) {
     return null;
@@ -5202,7 +5223,6 @@ function BuildStatus({ chat, onStop, onJump }) {
   if (waiting) {
     tone = "wait";
     headline = `${AGENT} is waiting for your answer`;
-    detail = jsx("button", { className: "cs-b-link", onClick: onJump, type: "button", children: "Jump to the question" });
   } else if ((chat.unreachable ?? 0) >= 3) {
     tone = "warn";
     headline = "Reconnecting to Hermes…";
@@ -6499,7 +6519,7 @@ function ChangeList({ changes, root, onOpen }) {
     })
   });
 }
-function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, play, playLabel }) {
+function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false);
   const failed = build?.state === "failed";
   const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
@@ -6528,14 +6548,13 @@ function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBus
       summary ? jsx("p", { className: "cs-b-bc-sum", children: summary }) : null,
       ...edited.map((path) => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
       changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
-      play,
       hasFoot ? jsxs("div", {
         className: "cs-b-bc-foot",
         children: [
           tested.length ? jsxs("span", { children: [jsx("span", { className: "cs-b-ok", children: "✓" }), ` ${tested.length} play-tested`] }) : null,
           untested.length ? jsx("span", { className: "cs-faint", children: `○ ${untested.length} not tested` }) : null,
           notes.length ? jsx("span", { className: "cs-faint", children: `⚠ ${notes.length} ${notes.length === 1 ? "note" : "notes"}` }) : null,
-          failed && isLast && !chatBusy ? jsx(Button, { onClick: () => onSend?.("The build failed. Please fix it and build again."), size: "sm", children: `Ask ${AGENT} to fix it` }) : null,
+          failed && isLast && !chatBusy ? jsx(Button, { onClick: () => onSend?.("The build failed. Please fix it and build again."), size: "sm", variant: "outline", children: `Ask ${AGENT} to fix it` }) : null,
           jsx("span", { className: "cs-grow" }),
           jsxs("button", {
             "aria-expanded": details,
@@ -6568,6 +6587,12 @@ function NextSteps({ stored, suggestions }) {
       (text2) => jsxs("button", { className: "cs-b-sugg-chip", onClick: () => injectBuildDraft(stored, text2), type: "button", children: [jsx(Codicon, { name: "arrow-small-right", size: 12 }), text2] }, text2)
     )
   });
+}
+
+// page/shared/ui/elapsed.js
+function Elapsed({ since }) {
+  const now = useNow(Boolean(since));
+  return since ? clock(now - since) : "";
 }
 
 // page/pages/build/transcript/questions.js
@@ -6661,7 +6686,7 @@ function BuildQuestions({ stored, item }) {
       jsxs("div", {
         className: "cs-row",
         children: [
-          jsx(Button, { disabled: !complete || sending, onClick: () => void send(), size: "sm", children: sending ? "Sending…" : "Send answer" }),
+          jsx(Button, { disabled: !complete || sending, onClick: () => void send(), size: "sm", variant: "outline", children: sending ? "Sending…" : "Send answer" }),
           jsx("span", { className: "cs-faint cs-grow", children: `${AGENT} is waiting for you` }),
           jsx(Button, { onClick: () => openInFullChat(stored), size: "sm", variant: "ghost", children: "Answer in full chat" })
         ]
@@ -6690,7 +6715,7 @@ function BuildPromptCard({ stored, item }) {
         className: "cs-row",
         children: [
           ...choices.map(
-            (choice) => jsx(Button, { onClick: () => void answerBuildPrompt(stored, item, choice), size: "sm", variant: choice === "deny" ? "outline" : "default", children: APPROVAL_LABELS[choice] }, choice)
+            (choice) => jsx(Button, { onClick: () => void answerBuildPrompt(stored, item, choice), size: "sm", variant: choice === "deny" ? "ghost" : "outline", children: APPROVAL_LABELS[choice] }, choice)
           ),
           jsx("span", { className: "cs-grow" }),
           jsx(Button, { onClick: () => openInFullChat(stored), size: "sm", variant: "ghost", children: "Answer in full chat" })
@@ -6698,12 +6723,6 @@ function BuildPromptCard({ stored, item }) {
       }) : jsx(BuildQuestions, { item, stored })
     ]
   });
-}
-
-// page/shared/ui/elapsed.js
-function Elapsed({ since }) {
-  const now = useNow(Boolean(since));
-  return since ? clock(now - since) : "";
 }
 
 // page/pages/build/transcript/worked.js
@@ -6956,17 +6975,13 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   let playLabel = null;
   if (latestBuild && game) {
     if (chatBusy) {
-      play = carded ? null : jsx(PlayCard, { frame, game, onOpenAsset: openAsset, state: "busy" });
-      playLabel = jsx("span", { className: "cs-faint cs-small", children: `Playable again when ${AGENT} finishes` });
+      playLabel = carded ? jsx("span", { className: "cs-faint cs-small", children: `Playable again when ${AGENT} finishes` }) : null;
     } else if (!playable) {
-      play = carded ? null : jsx(PlayCard, { frame, game, onOpenAsset: openAsset, state: "unplayable" });
-      playLabel = jsx("span", { className: "cs-faint cs-small", children: "The playable copy is not ready yet" });
+      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, state: "unplayable" });
     } else if (playerOpen) {
       play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`);
-    } else if (carded) {
-      playLabel = jsxs(Button, { onClick: onPlay, size: "sm", children: [jsx(Codicon, { name: "play", size: 13 }), "Play"] });
     } else {
-      play = jsx(PlayCard, { frame, game, note: parts.note, onOpenAsset: openAsset, onPlay, state: "ready" });
+      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, note: parts.note, onPlay, state: "ready" });
     }
   } else if (build?.state === "built" && !live) {
     playLabel = jsx("span", { className: "cs-faint cs-small", children: "Earlier build" });
@@ -6980,7 +6995,6 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     onOpenAsset: openAsset,
     onSend,
     parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
-    play,
     playLabel,
     report,
     root,
@@ -7002,21 +7016,14 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
       hasAgent ? jsxs("div", {
         className: "cs-b-her",
         children: [
-          jsxs("div", {
-            className: "cs-b-who",
-            children: [
-              AGENT,
-              jsx("span", {
-                children: `${live ? "working now" : timeOfDay(agentAt ?? startedAt)}${user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? "") !== (previousModel.effort ?? "")) ? ` · ${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ""}` : ""}`
-              })
-            ]
-          }),
+          // No name over the reply (it is the agent's thread); a line only where the model changed.
+          user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? "") !== (previousModel.effort ?? "")) ? jsx("div", { className: "cs-b-who", children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ""}` }) : null,
           ...parts.intro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `i${index}`)),
           showWorked ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? turnStartedAt ?? startedAt ?? Date.now() : startedAt, status: end?.status ?? null }, "worked") : null,
           // With a report the card says it all and the reply is a line after it; without one the reply
           // is the words, and the card (a build) follows them.
-          ...report ? [card, ...outro] : [...outro, card],
-          ...parts.prompts.map((item) => jsx(BuildPromptCard, { item, stored }, item.requestId ?? item.id ?? "prompt")),
+          // Questions and approvals are asked in the message box, not here.
+          ...report ? [card, carded ? play : null, ...outro] : [...outro, card, carded ? play : null],
           ...parts.errors.map(
             (item, index) => jsxs(
               "div",
@@ -7025,7 +7032,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
                 children: [
                   jsxs("div", { className: "cs-row", children: [jsx(Codicon, { name: "error", size: 14 }), jsx("b", { children: "Something went wrong" })] }),
                   jsx("p", { className: "cs-small", children: item.text }),
-                  isLast && !chatBusy && item.resend ? jsx("div", { className: "cs-row", children: jsx(Button, { onClick: () => onSend(item.resend.text, item.resend.shown, item.resend.attachments ?? []), size: "sm", children: "Try again" }) }) : null
+                  isLast && !chatBusy && item.resend ? jsx("div", { className: "cs-row", children: jsx(Button, { onClick: () => onSend(item.resend.text, item.resend.shown, item.resend.attachments ?? []), size: "sm", variant: "outline", children: "Try again" }) }) : null
                 ]
               },
               `e${index}`
@@ -7036,7 +7043,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
             children: [
               jsxs("div", { className: "cs-row", children: [jsx(Codicon, { name: "error", size: 14 }), jsx("b", { children: "The build failed" })] }),
               jsx("p", { className: "cs-small", children: parts.buildFailed }),
-              isLast && !chatBusy ? jsx("div", { className: "cs-row", children: jsx(Button, { onClick: () => onSend("The build failed. Please fix it and build again."), size: "sm", children: `Ask ${AGENT} to fix it` }) }) : null
+              isLast && !chatBusy ? jsx("div", { className: "cs-row", children: jsx(Button, { onClick: () => onSend("The build failed. Please fix it and build again."), size: "sm", variant: "outline", children: `Ask ${AGENT} to fix it` }) }) : null
             ]
           }) : null,
           end?.status === "interrupted" && isLast && !chatBusy ? jsxs("div", {
@@ -11867,7 +11874,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       pendingItem && !shownChat?.busy ? jsx(Button, { onClick: () => void discard(pendingItem), size: "sm", variant: "ghost", children: "Discard" }) : null
     ]
   });
-  const jumpToQuestion = () => document.querySelector?.('.cs-b-card[data-prompt="open"]')?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  const openPrompt = shownChat?.items?.find((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered) ?? null;
   const playable = Boolean(game && game.webExport && playableSha(game));
   const emptyState = jsx("div", {
     className: "cs-b-hello",
@@ -11954,7 +11961,8 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
         onStop: () => void stopBuildChat(shownStored),
         picker: elsewhere || shownChat?.missing ? null : fresh ? jsx(DraftModelPicker, { ctx, disabled: startingGame || updating, onPick: setDraftPick, options: draftOptions, pick: draftPick }) : shownStored ? jsx(ChatModelPicker, { chat: shownChat, ctx, disabled: !shownChat?.runtime, stored: shownStored }) : null,
         placeholder: updating ? "hermretro is updating. You can send again in a moment." : startingGame ? "Starting the conversation…" : shownChat?.busy ? `Reply to ${AGENT}…` : `Tell ${AGENT} what to change in ${title}…`,
-        status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onJump: jumpToQuestion, onStop: () => void stopBuildChat(shownStored) }) : null,
+        status: shownChat ? jsx(BuildStatus, { chat: { ...shownChat, stored: shownStored }, onStop: () => void stopBuildChat(shownStored) }) : null,
+        ask: openPrompt && shownStored ? jsx(BuildPromptCard, { item: openPrompt, stored: shownStored }, openPrompt.requestId ?? "prompt") : null,
         stored: shownStored
       }, `composer:${composerKey}`)
     ]
@@ -13928,6 +13936,7 @@ function watchBuildChats(ctx) {
 var COMPOSER_CSS = `
 /* status and the message box */
 .cs-b-comp { align-self: center; background: var(--ui-bg-secondary); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; margin: 0 clamp(14px, 3cqi, 28px) 16px; max-width: var(--cs-b-width); padding: 9px 9px 9px 14px; width: calc(100% - 2 * clamp(14px, 3cqi, 28px)); }
+.cs-b-comp.asking { gap: 4px; padding: 10px 10px 8px 12px; }
 .cs-b-comp:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 60%, var(--ui-stroke-secondary)); }
 .cs-b-comp textarea { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; font-size: 13.5px; line-height: 1.5; max-height: 200px; min-height: 22px; outline: none; padding: 4px 0; resize: none; }
 .cs-b-send, .cs-b-stop { align-items: center; appearance: none; border: 0; border-radius: 50%; cursor: pointer; display: inline-flex; flex: none; height: 30px; justify-content: center; transition: opacity .15s ease, transform .1s ease; width: 30px; }
@@ -14136,19 +14145,17 @@ var NEW_GAME_CSS = `
 
 // page/pages/build/player/inline-player.css.js
 var INLINE_PLAYER_CSS = `
-/* the game */
-.cs-b-pc { align-items: center; animation: cs-b-in .2s ease-out; background: var(--ui-bg-secondary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; gap: 12px; max-width: 520px; padding: 8px 12px 8px 8px; transition: opacity .2s ease; }
-.cs-b-pc.ready { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
-.cs-b-pc.busy, .cs-b-pc.unplayable { opacity: .62; }
-.cs-b-pc-screen { appearance: none; background: color-mix(in srgb, var(--ui-bg-editor) 70%, black); border: 0; border-radius: 6px; cursor: pointer; flex: none; overflow: hidden; padding: 4px; position: relative; width: 104px; }
+/* the game, resting under the newest build: its screen at twice its size in a dark frame, Play at the corner */
+.cs-b-pc { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 6px; max-width: 560px; transition: opacity .2s ease; }
+.cs-b-pc-stage { align-items: center; background: color-mix(in srgb, var(--ui-bg-editor) 55%, black); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); display: flex; justify-content: center; padding: 16px; position: relative; }
+.cs-b-pc.busy .cs-b-pc-stage, .cs-b-pc.unplayable .cs-b-pc-stage { opacity: .62; }
+.cs-b-pc-screen { appearance: none; background: none; border: 0; cursor: pointer; display: block; padding: 0; width: min(320px, 100%); }
 .cs-b-pc-screen:disabled { cursor: default; }
 .cs-b-pc-img { aspect-ratio: 160 / 144; border-radius: 3px; display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
-.cs-b-pc-go { align-items: center; background: var(--ui-accent); border-radius: 50%; box-shadow: 0 0 0 5px color-mix(in srgb, var(--ui-accent) 28%, transparent); color: white; display: flex; height: 34px; justify-content: center; left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); transition: transform .15s ease; width: 34px; }
-.cs-b-pc-screen:hover .cs-b-pc-go { transform: translate(-50%, -50%) scale(1.08); }
-.cs-b-pc-info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
-.cs-b-pc-info b { font-size: 13px; }
-.cs-b-pc-info small { color: var(--ui-text-quaternary); font-size: 11px; }
-.cs-b-pc-note { border-left: 2px solid var(--ui-accent); color: var(--ui-text-secondary); font-size: 12px; line-height: 1.4; margin-top: 4px; padding-left: 8px; }
+.cs-b-pc-go { align-items: center; appearance: none; backdrop-filter: blur(6px); background: color-mix(in srgb, white 14%, transparent); border: 0; border-radius: 999px; bottom: 12px; color: white; cursor: pointer; display: inline-flex; font: inherit; font-size: 12.5px; gap: 6px; padding: 6px 13px; position: absolute; right: 12px; transition: background .12s ease; }
+.cs-b-pc-go:hover { background: color-mix(in srgb, white 24%, transparent); }
+.cs-b-pc-wait { bottom: 12px; color: var(--ui-text-tertiary); font-size: 12px; position: absolute; right: 14px; }
+.cs-b-pc-note { border-left: 2px solid var(--ui-stroke-secondary); color: var(--ui-text-secondary); font-size: 12.5px; line-height: 1.45; margin: 0; padding-left: 10px; }
 .cs-b-old { color: var(--ui-text-quaternary); font-size: 11.5px; margin: 0; }
 .cs-b-live { background: var(--ui-text-quaternary); border-radius: 50%; flex: none; height: 7px; transition: background .2s ease; width: 7px; }
 .cs-b-live.on { animation: cs-b-pulse 1.6s infinite; background: var(--ui-green); }
@@ -14234,38 +14241,37 @@ var INLINE_PLAYER_CSS = `
 
 // page/pages/build/transcript/build-card.css.js
 var BUILD_CARD_CSS = `
-/* the build card (a turn that built the game, or reported what it did) */
-.cs-b-bc { animation: cs-b-in .2s ease-out; background: var(--ui-bg-secondary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.cs-b-bc.bad { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-red) 45%, transparent); }
-.cs-b-bc-head { align-items: center; display: flex; flex-wrap: wrap; gap: 6px 10px; min-height: 30px; padding: 11px 14px 4px 16px; }
-.cs-b-bc-title { color: var(--ui-text-primary); font-size: 14.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+/* a build: one quiet line (number, title, time), what changed under it, what was tested; no box around it */
+.cs-b-bc { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cs-b-bc-head { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; min-height: 26px; }
+.cs-b-bc-title { color: var(--ui-text-primary); font-size: 13.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cs-b-bc-meta { font-size: 11.5px; white-space: nowrap; }
-.cs-b-bn { background: var(--ui-accent); border-radius: 5px; color: var(--ui-bg-editor); flex: none; font: 700 10.5px/1 ${MONO}; padding: 4px 6px; }
-.cs-b-bn.old { background: var(--ui-bg-quaternary); color: var(--ui-text-tertiary); }
-.cs-b-bn.bad { background: color-mix(in srgb, var(--ui-red) 22%, transparent); color: var(--ui-red); }
-.cs-b-bn.live { background: transparent; box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-accent); }
-.cs-b-bc-sum { color: var(--ui-text-primary); line-height: 1.6; margin: 0; padding: 2px 16px 12px; }
-.cs-b-bc-changes { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; font-size: 12.5px; gap: 6px; list-style: none; margin: 0; padding: 10px 16px 12px; }
-.cs-b-bc-changes li { align-items: center; color: var(--ui-text-secondary); display: flex; gap: 8px; min-width: 0; }
-.cs-b-bc-mark { color: var(--ui-accent); flex: none; font: 700 12px ${MONO}; text-align: center; width: 10px; }
+.cs-b-bn { border-radius: 5px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); flex: none; font: 700 10.5px/1 ${MONO}; padding: 4px 6px; }
+.cs-b-bn.old { color: var(--ui-text-tertiary); }
+.cs-b-bn.bad { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-red) 55%, transparent); color: var(--ui-red); }
+.cs-b-bn.live { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-accent); }
+.cs-b-bc.bad .cs-b-bc-title { color: var(--ui-red); }
+.cs-b-bc-sum { color: var(--ui-text-secondary); line-height: 1.55; margin: 0; }
+.cs-b-bc-changes { display: flex; flex-direction: column; font-size: 12.5px; gap: 5px; list-style: none; margin: 0; padding: 0 0 0 2px; }
+.cs-b-bc-changes li { align-items: center; color: var(--ui-text-tertiary); display: flex; gap: 8px; min-width: 0; }
+.cs-b-bc-mark { color: var(--ui-yellow); flex: none; font: 700 12px ${MONO}; text-align: center; width: 10px; }
 .cs-b-bc-changes li[data-kind='added'] .cs-b-bc-mark { color: var(--ui-green); }
-.cs-b-bc-changes li[data-kind='removed'] .cs-b-bc-mark { color: var(--ui-text-quaternary); }
-.cs-b-bc-foot { align-items: center; background: color-mix(in srgb, var(--ui-bg-editor) 45%, transparent); border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 6px 14px; padding: 8px 16px; }
+.cs-b-bc-changes li[data-kind='removed'] .cs-b-bc-mark { color: var(--ui-red); }
+.cs-b-bc-foot { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 6px 14px; padding-left: 2px; }
 .cs-b-bc-foot .cs-b-link { align-items: center; display: inline-flex; gap: 3px; }
 .cs-b-ok { color: var(--ui-green); font-weight: 700; }
-.cs-b-bc-details { border-top: 1px solid var(--ui-stroke-tertiary); display: grid; font-size: 12.5px; gap: 12px 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); padding: 10px 16px 14px; }
+.cs-b-bc-details { border-left: 2px solid var(--ui-stroke-tertiary); display: grid; font-size: 12.5px; gap: 12px 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-left: 2px; padding: 2px 0 4px 12px; }
 .cs-b-bc-details p { line-height: 1.45; margin: 5px 0 0; }
 .cs-b-bc-details pre { margin: 6px 0 0; white-space: pre-wrap; }
-.cs-b-ba { border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; }
-.cs-b-ba-pair { align-items: center; display: flex; gap: 16px; justify-content: center; }
-.cs-b-ba-side { align-items: center; appearance: none; background: none; border: 0; color: inherit; cursor: zoom-in; display: flex; flex-direction: column; font: inherit; gap: 6px; min-width: 0; padding: 0; }
-.cs-b-ba-img { align-items: center; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-editor) 0 50%) 0 0 / 12px 12px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); box-sizing: border-box; display: flex; height: clamp(90px, 13cqi, 150px); justify-content: center; max-width: 100%; padding: 8px; width: clamp(110px, 17cqi, 190px); }
+.cs-b-ba { display: flex; flex-direction: column; gap: 8px; padding: 2px 0; }
+.cs-b-ba-pair { align-items: center; display: flex; gap: 12px; }
+.cs-b-ba-side { align-items: center; appearance: none; background: none; border: 0; color: inherit; cursor: zoom-in; display: flex; flex-direction: column; font: inherit; gap: 4px; min-width: 0; padding: 0; }
+.cs-b-ba-img { align-items: center; background: repeating-conic-gradient(var(--ui-bg-quaternary) 0 25%, var(--ui-bg-editor) 0 50%) 0 0 / 10px 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); box-sizing: border-box; display: flex; height: 72px; justify-content: center; padding: 6px; width: 72px; }
 .cs-b-ba-side:not(.now) .cs-b-ba-img { opacity: .72; }
-.cs-b-ba-side.now .cs-b-ba-img { box-shadow: inset 0 0 0 2px var(--ui-accent); }
 .cs-b-ba-img img, .cs-b-ba-img .cs-b-spr { height: 100%; image-rendering: pixelated; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; }
-.cs-b-ba-cap { color: var(--ui-text-tertiary); font-size: 11.5px; }
-.cs-b-ba-side.now .cs-b-ba-cap { color: var(--ui-text-primary); font-weight: 600; }
-.cs-b-ba-arrow { color: var(--ui-accent); flex: none; font-size: 20px; }
+.cs-b-ba-cap { color: var(--ui-text-quaternary); font-size: 11px; }
+.cs-b-ba-side.now .cs-b-ba-cap { color: var(--ui-text-secondary); }
+.cs-b-ba-arrow { color: var(--ui-text-quaternary); flex: none; font-size: 16px; }
 .cs-b-ba-acts { gap: 8px; }
 /* next steps (a reply's suggestions) */
 .cs-b-next-steps { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -14279,21 +14285,28 @@ var BUILD_CARD_CSS = `
 var CARDS_CSS = `
 /* cards */
 .cs-b-card { animation: cs-b-in .2s ease-out; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
-.cs-b-card.ask { background: color-mix(in srgb, var(--ui-accent) 7%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent), 0 8px 26px color-mix(in srgb, black 18%, transparent); }
-.cs-b-card.warn { background: color-mix(in srgb, var(--ui-yellow) 7%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 45%, transparent); }
-.cs-b-card.bad { background: color-mix(in srgb, var(--ui-red) 6%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-red) 40%, transparent); }
+/* a question or an approval, asked in the message box: no box of its own */
+.cs-b-comp .cs-b-card.ask, .cs-b-comp .cs-b-card.warn { animation: none; gap: 8px; padding: 2px 0; }
+.cs-b-comp .cs-b-card > .cs-row:first-child { color: var(--ui-text-tertiary); font-size: 12px; }
+.cs-b-comp .cs-b-card > .cs-row:first-child b { font-weight: 500; }
+.cs-b-card.warn > .cs-row:first-child > i { color: var(--ui-yellow); }
+/* in the thread (something went wrong, a turn that stopped): a rule beside it, no fill */
+.cs-b-card.bad, .cs-b-tx .cs-b-card.warn { border-left: 2px solid color-mix(in srgb, var(--ui-red) 70%, transparent); border-radius: 0; gap: 6px; padding: 2px 0 2px 12px; }
+.cs-b-tx .cs-b-card.warn { border-left-color: color-mix(in srgb, var(--ui-yellow) 70%, transparent); }
 .cs-b-card.bad > .cs-row > i { color: var(--ui-red); }
 .cs-b-card p { margin: 0; }
 .cs-b-qs { display: flex; flex-direction: column; gap: 14px; }
 .cs-b-q { display: flex; flex-direction: column; gap: 7px; }
 .cs-b-qt { font-weight: 600; margin: 0; }
-.cs-b-choices { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.cs-b-choice { align-items: center; appearance: none; background: var(--ui-bg-secondary); border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; gap: 9px; padding: 8px 10px; text-align: left; transition: background .12s ease, box-shadow .12s ease; }
-.cs-b-choice:hover { background: var(--ui-bg-quaternary); }
+.cs-b-choices { display: flex; flex-direction: column; gap: 2px; }
+.cs-b-choice { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 10px; padding: 6px 8px; text-align: left; transition: background .12s ease, color .12s ease; }
+.cs-b-choice:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
 .cs-b-choice kbd { border: 1px solid var(--ui-stroke-secondary); border-bottom-width: 2px; border-radius: 3px; color: var(--ui-text-tertiary); font: 600 10px ${MONO}; padding: 0 4px; }
-.cs-b-choice[aria-pressed='true'] { background: color-mix(in srgb, var(--ui-accent) 16%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
-.cs-b-sugg { border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: 3px; color: var(--ui-accent); flex: none; font: 700 9px ${MONO}; letter-spacing: .08em; padding: 0 4px; text-transform: uppercase; }
-.cs-b-own { background: transparent; border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); color: var(--ui-text-primary); font: inherit; padding: 7px 10px; }
+.cs-b-choice[aria-pressed='true'] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-choice[aria-pressed='true'] kbd { border-color: var(--ui-text-secondary); color: var(--ui-text-primary); }
+.cs-b-sugg { color: var(--ui-text-quaternary); flex: none; font-size: 11.5px; }
+.cs-b-own { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; outline: none; padding: 6px 8px 2px 36px; }
+.cs-b-own::placeholder { color: var(--ui-text-quaternary); }
 .cs-b-cmd { background: var(--ui-bg-quaternary); border-radius: 6px; font: 11px/1.5 ${MONO}; margin: 0; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 .cs-b-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cs-b-chip { align-items: center; background: var(--ui-bg-secondary); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); display: inline-flex; font-size: 11.5px; gap: 5px; max-width: 100%; overflow: hidden; padding: 2px 9px; text-overflow: ellipsis; white-space: nowrap; }
@@ -14315,7 +14328,7 @@ var CARDS_CSS = `
 var TRANSCRIPT_CSS = `
 /* the conversation */
 .cs-b-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
-.cs-b-head { align-items: center; align-self: center; box-sizing: border-box; display: flex; gap: 10px; max-width: var(--cs-b-width); min-height: 46px; padding: 8px clamp(14px, 3cqi, 28px) 2px; width: 100%; }
+.cs-b-head { align-items: center; border-bottom: 1px solid var(--ui-stroke-tertiary); box-sizing: border-box; display: flex; gap: 10px; min-height: 50px; padding: 8px clamp(14px, 3cqi, 28px); width: 100%; }
 .cs-b-head .cs-word { font-size: 22px; }
 .cs-top-profile { align-items: center; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-tertiary); cursor: default; display: inline-flex; font-size: 11px; gap: 5px; margin-left: 10px; padding: 1px 9px 1px 7px; white-space: nowrap; }
 .cs-b-txwrap { display: flex; flex: 1; flex-direction: column; min-height: 0; position: relative; }
@@ -14329,8 +14342,7 @@ var TRANSCRIPT_CSS = `
 .cs-b-user.queued { background: transparent; border: 1px dashed var(--ui-stroke-secondary); color: var(--ui-text-secondary); }
 .cs-b-qlabel { color: var(--ui-text-quaternary); font-size: 11px; }
 .cs-b-her { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cs-b-who { color: var(--ui-text-secondary); font-size: 12px; font-weight: 600; }
-.cs-b-who span { color: var(--ui-text-quaternary); font-size: 11px; font-weight: 400; margin-left: 7px; }
+.cs-b-who { color: var(--ui-text-quaternary); font-size: 11.5px; }
 .cs-b-agent { color: var(--ui-text-primary); line-height: 1.65; min-width: 0; overflow-wrap: anywhere; }
 /* The app un-does Typography's margins only inside its own chat ([data-slot='aui_assistant-message-content']).
    Here its \`.prose :where(img) { margin: 2em 0 }\` would slide a MEDIA: image down out of its reserved frame,

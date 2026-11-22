@@ -3,21 +3,28 @@ import { MONO } from '#shared/styles/tokens.js'
 export const CARDS_CSS = `
 /* cards */
 .cs-b-card { animation: cs-b-in .2s ease-out; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
-.cs-b-card.ask { background: color-mix(in srgb, var(--ui-accent) 7%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 45%, transparent), 0 8px 26px color-mix(in srgb, black 18%, transparent); }
-.cs-b-card.warn { background: color-mix(in srgb, var(--ui-yellow) 7%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 45%, transparent); }
-.cs-b-card.bad { background: color-mix(in srgb, var(--ui-red) 6%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-red) 40%, transparent); }
+/* a question or an approval, asked in the message box: no box of its own */
+.cs-b-comp .cs-b-card.ask, .cs-b-comp .cs-b-card.warn { animation: none; gap: 8px; padding: 2px 0; }
+.cs-b-comp .cs-b-card > .cs-row:first-child { color: var(--ui-text-tertiary); font-size: 12px; }
+.cs-b-comp .cs-b-card > .cs-row:first-child b { font-weight: 500; }
+.cs-b-card.warn > .cs-row:first-child > i { color: var(--ui-yellow); }
+/* in the thread (something went wrong, a turn that stopped): a rule beside it, no fill */
+.cs-b-card.bad, .cs-b-tx .cs-b-card.warn { border-left: 2px solid color-mix(in srgb, var(--ui-red) 70%, transparent); border-radius: 0; gap: 6px; padding: 2px 0 2px 12px; }
+.cs-b-tx .cs-b-card.warn { border-left-color: color-mix(in srgb, var(--ui-yellow) 70%, transparent); }
 .cs-b-card.bad > .cs-row > i { color: var(--ui-red); }
 .cs-b-card p { margin: 0; }
 .cs-b-qs { display: flex; flex-direction: column; gap: 14px; }
 .cs-b-q { display: flex; flex-direction: column; gap: 7px; }
 .cs-b-qt { font-weight: 600; margin: 0; }
-.cs-b-choices { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.cs-b-choice { align-items: center; appearance: none; background: var(--ui-bg-secondary); border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-primary); cursor: pointer; display: flex; font: inherit; gap: 9px; padding: 8px 10px; text-align: left; transition: background .12s ease, box-shadow .12s ease; }
-.cs-b-choice:hover { background: var(--ui-bg-quaternary); }
+.cs-b-choices { display: flex; flex-direction: column; gap: 2px; }
+.cs-b-choice { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 10px; padding: 6px 8px; text-align: left; transition: background .12s ease, color .12s ease; }
+.cs-b-choice:hover { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
 .cs-b-choice kbd { border: 1px solid var(--ui-stroke-secondary); border-bottom-width: 2px; border-radius: 3px; color: var(--ui-text-tertiary); font: 600 10px ${MONO}; padding: 0 4px; }
-.cs-b-choice[aria-pressed='true'] { background: color-mix(in srgb, var(--ui-accent) 16%, var(--ui-bg-secondary)); box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
-.cs-b-sugg { border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent); border-radius: 3px; color: var(--ui-accent); flex: none; font: 700 9px ${MONO}; letter-spacing: .08em; padding: 0 4px; text-transform: uppercase; }
-.cs-b-own { background: transparent; border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-stroke-tertiary); color: var(--ui-text-primary); font: inherit; padding: 7px 10px; }
+.cs-b-choice[aria-pressed='true'] { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); }
+.cs-b-choice[aria-pressed='true'] kbd { border-color: var(--ui-text-secondary); color: var(--ui-text-primary); }
+.cs-b-sugg { color: var(--ui-text-quaternary); flex: none; font-size: 11.5px; }
+.cs-b-own { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; outline: none; padding: 6px 8px 2px 36px; }
+.cs-b-own::placeholder { color: var(--ui-text-quaternary); }
 .cs-b-cmd { background: var(--ui-bg-quaternary); border-radius: 6px; font: 11px/1.5 ${MONO}; margin: 0; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 .cs-b-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cs-b-chip { align-items: center; background: var(--ui-bg-secondary); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); display: inline-flex; font-size: 11.5px; gap: 5px; max-width: 100%; overflow: hidden; padding: 2px 9px; text-overflow: ellipsis; white-space: nowrap; }

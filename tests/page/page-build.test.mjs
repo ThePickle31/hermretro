@@ -134,7 +134,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'true', 'the steps are open while it works')
     assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Working for/)
     assert.match(build14.node.querySelector('.cs-b-status').textContent, /HermRetro is creating the project/)
-    assert.match(build14.node.querySelector('.cs-b-who').textContent, /HermRetroworking now/)
+    assert.ok(!build14.node.querySelector('.cs-b-who'), 'no name over the reply, as in a chat thread')
   })
   // Questions reach the app as server requests: while the turn runs the page reads the open ones.
   let openRequests = [{ id: 'srq-1', method: 'clarify', params: { session_id: 'rt-new-1', questions: [
@@ -145,8 +145,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   scenario.byMethod['clarify.lock'] = params => { scenario.locks.push(params); if (scenario.locks.length === 2) openRequests = []; return { status: 'ok', remaining: [] } }
   await clock.fire()
   menu14 = await gamesMenu(build14)
-  check('a question shows as one card, outside the steps, with numbered choices and the suggested one marked', () => {
+  check('a question is asked in the message box, with numbered choices and the suggested one marked', () => {
     assert.equal(build14.node.querySelectorAll('.cs-b-card.ask').length, 1)
+    assert.ok(build14.node.querySelector('.cs-b-comp.asking .cs-b-card.ask'), 'in the box, not in the thread')
+    assert.ok(!build14.node.querySelector('.cs-b-comp textarea'), 'the box is the question while it is open')
     const card = build14.node.querySelector('.cs-b-card.ask')
     assert.match(card.textContent, /What is the core loop\?.*Explore.*Suggested.*Sneak.*How long\?/)
     assert.ok(!card.textContent.includes('(Recommended)'))
@@ -199,7 +201,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await clock.fire()
   check('an approval seen both as an event and by the poll is one card', () => {
     assert.equal(build14.node.querySelectorAll('.cs-b-card.warn').length, 1)
-    assert.match(build14.node.querySelector('.cs-b-card.warn').textContent, /needs your OK/)
+    assert.match(build14.node.querySelector('.cs-b-comp.asking .cs-b-card.warn').textContent, /needs your OK/)
   })
   await ev('approval.settled', { request_id: 'ap-1' }, { seq: 4, replay_epoch: 'E2' })
   scenario.byMethod['session.resume'] = plainResume
@@ -347,12 +349,13 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(link.querySelectorAll('.cs-b-stack-i').length, 1)
     assert.ok(!/new images/.test(build14b.node.querySelector('.cs-b-wk-head').textContent))
   })
-  check('a turn that built the game ends in build card #1, titled by the request, and says it is not playable yet', () => {
+  check('a turn that built the game ends in build #1, titled by the request, with its game frame saying it is not playable yet', () => {
     const card = build14b.node.querySelector('.cs-b-bc')
     assert.ok(card); assert.equal(card.dataset.build, '1')
     assert.match(card.querySelector('.cs-b-bc-head').textContent, /#1make the frog jump/)
-    assert.match(card.textContent, /The playable copy is not ready yet/)
-    assert.ok(!build14b.node.querySelector('.cs-ip')); assert.ok(!build14b.node.querySelector('.cs-b-pc'), 'no separate play card under a build card')
+    const frame = build14b.node.querySelector('.cs-b-pc.unplayable')
+    assert.ok(frame && !card.contains(frame), 'the frame is under the build line, not in it'); assert.match(frame.textContent, /The playable copy is not ready yet/)
+    assert.ok(!build14b.node.querySelector('.cs-ip'))
   })
   check('the header shows the build pill and a Builds menu; the Assets panel and Full chat button are gone', () => {
     assert.equal(build14b.node.querySelector('.cs-b-pill').textContent, 'Build #1 · up to date')

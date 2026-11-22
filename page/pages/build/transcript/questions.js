@@ -109,7 +109,7 @@ function BuildQuestions({ stored, item }) {
       jsxs('div', {
         className: 'cs-row',
         children: [
-          jsx(Button, { disabled: !complete || sending, onClick: () => void send(), size: 'sm', children: sending ? 'Sending…' : 'Send answer' }),
+          jsx(Button, { disabled: !complete || sending, onClick: () => void send(), size: 'sm', variant: 'outline', children: sending ? 'Sending…' : 'Send answer' }),
           jsx('span', { className: 'cs-faint cs-grow', children: `${AGENT} is waiting for you` }),
           jsx(Button, { onClick: () => openInFullChat(stored), size: 'sm', variant: 'ghost', children: 'Answer in full chat' })
         ]
@@ -141,7 +141,7 @@ export function BuildPromptCard({ stored, item }) {
             className: 'cs-row',
             children: [
               ...choices.map(choice =>
-                jsx(Button, { onClick: () => void answerBuildPrompt(stored, item, choice), size: 'sm', variant: choice === 'deny' ? 'outline' : 'default', children: APPROVAL_LABELS[choice] }, choice)
+                jsx(Button, { onClick: () => void answerBuildPrompt(stored, item, choice), size: 'sm', variant: choice === 'deny' ? 'ghost' : 'outline', children: APPROVAL_LABELS[choice] }, choice)
               ),
               jsx('span', { className: 'cs-grow' }),
               jsx(Button, { onClick: () => openInFullChat(stored), size: 'sm', variant: 'ghost', children: 'Answer in full chat' })

@@ -1,46 +1,45 @@
-// The game as a resting card in the conversation.
-import { Button, Codicon, jsx, jsxs } from '#sdk'
+// The game as it rests in the conversation: a frame with its screen at twice its size, under the newest build.
+// Play opens the real player in its place.
+import { Codicon, jsx, jsxs } from '#sdk'
 import { AssetImage } from '#pages/build/assets/images.js'
 import { AGENT } from '#app/ids.js'
-import { ago } from '#shared/ui/time.js'
 import { Screen } from '#shared/ui/screen.js'
 
-export function PlayCard({ game, frame, state, note, onPlay, onOpenAsset }) {
+export function PlayCard({ game, frame, state, note, build = null, onPlay }) {
   const ready = state === 'ready'
-  const builtAt = game?.web?.builtAt ?? game?.rom?.builtAt ?? null
+  const picture = frame
+    ? jsx(AssetImage, { asset: frame, className: 'cs-b-pc-img', fallback: jsx(Screen, { className: 'cs-b-pc-img', game }) })
+    : jsx(Screen, { className: 'cs-b-pc-img', game })
 
   return jsxs('div', {
     className: `cs-b-pc ${state}`,
     children: [
-      jsxs('button', {
-        'aria-label': ready ? `Play ${game?.title ?? 'the game'}` : undefined,
-        className: 'cs-b-pc-screen',
-        disabled: !ready,
-        onClick: onPlay,
-        type: 'button',
-        children: [
-          frame ? jsx(AssetImage, { asset: frame, className: 'cs-b-pc-img', fallback: jsx(Screen, { className: 'cs-b-pc-img', game }) }) : jsx(Screen, { className: 'cs-b-pc-img', game }),
-          ready ? jsx('span', { 'aria-hidden': true, className: 'cs-b-pc-go', children: jsx(Codicon, { name: 'play', size: 18 }) }) : null
-        ]
-      }),
       jsxs('div', {
-        className: 'cs-b-pc-info',
+        className: 'cs-b-pc-stage',
         children: [
-          jsx('b', { children: game?.title ?? 'Your game' }),
-          jsx('small', {
-            children:
-              state === 'busy'
-                ? `Playable again when ${AGENT} finishes`
-                : state === 'unplayable'
-                  ? 'The playable copy is not ready yet'
-                  : builtAt
-                    ? `Built ${ago(builtAt, Date.now())}`
-                    : 'Ready to play'
+          jsx('button', {
+            'aria-label': ready ? `Play ${game?.title ?? 'the game'}` : undefined,
+            className: 'cs-b-pc-screen',
+            disabled: !ready,
+            onClick: onPlay,
+            tabIndex: -1,
+            type: 'button',
+            children: picture
           }),
-          note && ready ? jsx('span', { className: 'cs-b-pc-note', children: note }) : null
+          ready
+            ? jsxs('button', {
+                className: 'cs-b-pc-go',
+                onClick: onPlay,
+                type: 'button',
+                children: [jsx(Codicon, { name: 'play', size: 13 }), build ? `Play build #${build}` : 'Play']
+              })
+            : jsx('span', {
+                className: 'cs-b-pc-wait',
+                children: state === 'busy' ? `Playable again when ${AGENT} finishes` : 'The playable copy is not ready yet'
+              })
         ]
       }),
-      jsxs(Button, { disabled: !ready, onClick: onPlay, size: 'sm', children: [jsx(Codicon, { name: 'play', size: 13 }), 'Play'] })
+      note && ready ? jsx('p', { className: 'cs-b-pc-note', children: note }) : null
     ]
   })
 }
