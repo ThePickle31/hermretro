@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 d159e8b18924393c90e79dc9f6fc2758c78718ccdcea8475831e7401b4a3fb5e
- * body: sha256 8149a5da1c53fa8bb9ebd6430dc9f1bac47e0e665d6a61ff7b7c4842f18515de
+ * sources: sha256 60f58cdb5b1957bb276cf4748d8345191873c4c07cd291a84fb2b6a3e8e1fe5f
+ * body: sha256 f6f50e0b0d9b26c1b7146108f8fb14c37613b1fa9f6474f93bac58691b808851
  */
 // page/sdk.js
 import {
@@ -8777,7 +8777,7 @@ function rememberSelection(ctx, selection) {
   } catch {
   }
 }
-function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
   const [local, setLocal] = useState({ bound: {}, released: {} });
@@ -11071,7 +11071,6 @@ function Build({ shell }) {
     localPending: shell.buildPending,
     changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,
-    onPlay: shell.play,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
     selection: shell.buildSelection,
@@ -17595,8 +17594,19 @@ function StudioPage({ ctx }) {
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
+  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games));
   const libraryKnown = Boolean(games.data) || games.isError;
-  const game = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id) ?? (libraryKnown ? demo : null);
+  const picked = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id);
+  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null);
+  useEffect(() => {
+    if (libraryRead && emu.id && !picked) {
+      setEmu((current) => ({ id: null, reload: current.reload }));
+      try {
+        ctx.storage.set(EMULATOR_GAME, null);
+      } catch {
+      }
+    }
+  }, [libraryRead, emu.id, Boolean(picked)]);
   useEffect(() => {
     if (onEmulator && game) {
       setEmuOpened(true);

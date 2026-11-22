@@ -38,7 +38,7 @@ function rememberSelection(ctx, selection) {
 }
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onPlay, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).

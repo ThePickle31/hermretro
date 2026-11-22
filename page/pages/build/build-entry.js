@@ -17,7 +17,6 @@ export function Build({ shell }) {
     localPending: shell.buildPending,
     changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,
-    onPlay: shell.play,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
     selection: shell.buildSelection,

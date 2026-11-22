@@ -279,11 +279,26 @@ export function StudioPage({ ctx }) {
   const [capturesOpen, setCapturesOpen] = useState(false)
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
   // The page plays only the game picked on the Games page (remembered across visits), even without a web build (its
-  // error says how to build it); with none picked, or one no longer in the library, the demo cartridge. A game a
-  // chat builds or presents never loads here by itself. While the library is still loading nothing is chosen, so
-  // the frame does not load the demo and then switch.
+  // error says how to build it); with none picked the demo cartridge. A game a chat builds or presents never loads
+  // here by itself. Nothing is chosen until the library has answered (a picked game, until it answered
+  // successfully), so the frame does not load the demo and then switch.
+  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games))
   const libraryKnown = Boolean(games.data) || games.isError
-  const game = emu.id === DEMO_ID ? demo : (gameList.find(item => item.id === emu.id) ?? (libraryKnown ? demo : null))
+  const picked = emu.id === DEMO_ID ? demo : gameList.find(item => item.id === emu.id)
+  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null)
+
+  // A picked game gone from the library is forgotten, so a different game made later in its folder (with the same
+  // id) is never played here without a new Play.
+  useEffect(() => {
+    if (libraryRead && emu.id && !picked) {
+      setEmu(current => ({ id: null, reload: current.reload }))
+      try {
+        ctx.storage.set(EMULATOR_GAME, null)
+      } catch {
+        // for this visit only
+      }
+    }
+  }, [libraryRead, emu.id, Boolean(picked)])
 
   useEffect(() => {
     if (onEmulator && game) {
