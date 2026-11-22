@@ -1,4 +1,4 @@
-"""The prepared engine copy is rebuilt, with no download, when the bundled engine changed under it."""
+"""A new prepared engine copy is made, with no download, when the bundled engine changed under the old one."""
 
 import hashlib
 import json
@@ -16,70 +16,108 @@ from backend.system import paths  # noqa: E402 - the repository root goes on sys
 from tests.support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
 EXE, NOTICE = b"cli build", b"cli notice"
+TARGET = "linux-x64-gnu"
+
+
+def pin(rel: str, data: bytes, mode: str) -> dict:
+    return {"path": rel, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "mode": mode}
+
+
 PINS = {
     "version": "1.2.1",
     "package": {"name": "@modretro/chromatic-cli-x", "url": "https://registry.npmjs.org/@modretro/x", "sha256": "0"},
-    "executable": {"path": "linux-x64-gnu/bin/chromatic-cli", "sha256": hashlib.sha256(EXE).hexdigest()},
-    "notice": {"path": "linux-x64-gnu/NOTICE", "sha256": hashlib.sha256(NOTICE).hexdigest()},
+    "executable": pin(f"{TARGET}/bin/chromatic-cli", EXE, "0755"),
+    "notice": pin(f"{TARGET}/NOTICE", NOTICE, "0644"),
 }
 
 
-class PreparedRefresh(unittest.TestCase):
+class Refresh(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        deps = throwaway_deps(Path(tmp.name))
+        self.base = Path(tmp.name)
+        deps = throwaway_deps(self.base)
         deps.__enter__()
         self.addCleanup(deps.__exit__, None, None, None)
+        paths.DEPS_ROOT.mkdir(parents=True)
         for patcher in (
-            mock.patch.object(provision, "host_target", return_value={"target": "linux-x64-gnu", "reason": None}),
+            mock.patch.object(provision, "host_target", return_value={"target": TARGET, "reason": None}),
             mock.patch.object(provision, "_pins", return_value=PINS),
-            mock.patch.object(paths, "find_node", return_value={"ok": True, "path": "node"}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
-        provision._REFRESH_FAILED.clear()
-        self.built = []
-        prepare = mock.patch.object(provision, "_prepare", side_effect=self.record)
-        prepare.start()
-        self.addCleanup(prepare.stop)
+        provision._NOT_REUSABLE.clear()
+        self.addCleanup(provision._NOT_REUSABLE.clear)
+
+    def earlier_copy(self, name: str, executable: bytes = EXE, **receipt) -> Path:
+        copy = paths.DEPS_ROOT / f"engine-{name}"
+        for entry, data in ((PINS["executable"], executable), (PINS["notice"], NOTICE)):
+            (copy / provision.CLI_DIR / entry["path"]).parent.mkdir(parents=True, exist_ok=True)
+            (copy / provision.CLI_DIR / entry["path"]).write_bytes(data)
+        fields = {
+            "target": TARGET,
+            "cli_version": "1.2.1",
+            "vendor_terms": provision.VENDOR_TERMS_URL,
+            "vendor_terms_accepted": True,
+            "installed_at": "2026-01-01T00:00:00Z",
+            **receipt,
+        }
+        (paths.DEPS_ROOT / f"device-cli-{name}.json").write_text(json.dumps(fields))
+        return copy
+
+
+class ChoosingTheSource(Refresh):
+    """Which earlier copy may give its CLI files (the build itself stubbed)."""
+
+    def setUp(self):
+        super().setUp()
+        self.built, self.verified = [], iter([False, True])
+        for patcher in (
+            mock.patch.object(provision, "_prepare", side_effect=self.record),
+            mock.patch.object(paths, "verify_prepared_engine", side_effect=lambda: {"verified": next(self.verified)}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def record(self, *args, **dates):
         self.built.append((args, dates))
 
-    def earlier_copy(self, version: str, executable: bytes = EXE) -> Path:
-        copy = paths.DEPS_ROOT / f"engine-{version}"
-        for pin, data in ((PINS["executable"], executable), (PINS["notice"], NOTICE)):
-            (copy / provision.CLI_DIR / pin["path"]).parent.mkdir(parents=True, exist_ok=True)
-            (copy / provision.CLI_DIR / pin["path"]).write_bytes(data)
-        receipt = {
-            "engine_version": version,
-            "target": "linux-x64-gnu",
-            "vendor_terms_accepted": True,
-            "installed_at": "2026-01-01T00:00:00Z",
-        }
-        (paths.DEPS_ROOT / f"device-cli-{version}.json").write_text(json.dumps(receipt))
-        return copy
-
-    def test_another_versions_copy_gives_its_cli_and_is_removed(self):
-        old = self.earlier_copy("0.9.0")
-        self.assertTrue(provision.refresh_prepared_engine())
+    def test_the_newest_earlier_copy_gives_its_cli_and_older_ones_go(self):
+        oldest = self.earlier_copy("1.0.33")
+        source = self.earlier_copy("1.0.34")
+        self.assertTrue(provision.refresh_prepared_engine("/usr/bin/node"))
         ((args, dates),) = self.built
-        self.assertEqual(args, ("linux-x64-gnu", PINS, EXE, NOTICE))
+        self.assertEqual(args, (TARGET, PINS, EXE, NOTICE))
+        self.assertEqual(dates["node_path"], "/usr/bin/node")
         self.assertEqual(dates["installed_at"], "2026-01-01T00:00:00Z")
-        self.assertTrue(dates["refreshed_at"])
-        self.assertFalse(old.exists())
-        self.assertFalse((paths.DEPS_ROOT / "device-cli-0.9.0.json").exists())
+        self.assertTrue(source.exists(), "a running worker may still read the copy it started in")
+        self.assertFalse(oldest.exists())
+        self.assertFalse((paths.DEPS_ROOT / "device-cli-1.0.33.json").exists())
 
-    def test_the_same_versions_copy_is_rebuilt_in_place(self):
-        copy = self.earlier_copy(paths.ENGINE_VERSION)
-        self.assertEqual(copy, paths.PREPARED_ENGINE)
+    def test_a_copy_made_meanwhile_is_not_made_again(self):
+        self.earlier_copy("1.0.34")
+        self.verified = iter([True])
         self.assertTrue(provision.refresh_prepared_engine())
-        self.assertEqual(len(self.built), 1)
-        self.assertTrue(copy.exists(), "_prepare swaps it; refresh does not delete the current copy")
+        self.assertEqual(self.built, [])
 
-    def test_a_cli_the_engine_does_not_pin_is_not_reused(self):
-        self.earlier_copy("0.9.0", executable=b"another cli build")
+    def test_only_a_cli_accepted_for_this_release_and_computer_is_reused(self):
+        cases = {
+            "1.0.30": {"executable": b"another cli build"},
+            "1.0.31": {"cli_version": "1.2.0"},
+            "1.0.32": {"vendor_terms": "https://example.invalid/terms"},
+            "1.0.33": {"target": "darwin-arm64"},
+            "1.0.34": {"vendor_terms_accepted": False},
+        }
+        for name, change in cases.items():
+            executable = change.pop("executable", EXE)
+            self.earlier_copy(name, executable, **change)
+        self.assertFalse(provision.refresh_prepared_engine())
+        self.assertEqual(self.built, [])
+
+    def test_receipts_with_odd_names_or_shapes_are_ignored(self):
+        self.earlier_copy("1.0.34")
+        (paths.DEPS_ROOT / "device-cli-1.0.34.json").write_text("[]")
+        (paths.DEPS_ROOT / "device-cli-..%2F..json").write_text("{}")
         self.assertFalse(provision.refresh_prepared_engine())
         self.assertEqual(self.built, [])
 
@@ -87,33 +125,69 @@ class PreparedRefresh(unittest.TestCase):
         with mock.patch.object(provision, "host_target", side_effect=AssertionError("asked the host")):
             self.assertFalse(provision.refresh_prepared_engine())
 
-    def test_a_failed_rebuild_is_not_tried_again(self):
-        self.earlier_copy("0.9.0")
-        with mock.patch.object(
-            provision, "_prepare", side_effect=provision.ProvisionError("ENGINE_REFUSED", "no")
-        ) as failing:
+    def test_a_failed_build_is_not_tried_again_and_keeps_its_source(self):
+        source = self.earlier_copy("1.0.34")
+        self.verified = iter([False, False])
+        failing = mock.patch.object(provision, "_prepare", side_effect=provision.ProvisionError("ENGINE_REFUSED", "no"))
+        with failing as build:
             self.assertFalse(provision.refresh_prepared_engine())
             self.assertFalse(provision.refresh_prepared_engine())
-        self.assertEqual(failing.call_count, 1)
-        self.assertTrue((paths.DEPS_ROOT / "engine-0.9.0").exists(), "a failed rebuild keeps the copy it read")
+        self.assertEqual(build.call_count, 1)
+        self.assertTrue(source.exists())
 
-    def test_select_engine_chooses_again_after_a_rebuild(self):
-        answers = iter(
-            [
-                {"root": paths.ENGINE_ROOT, "prepared": False, "check": {"verified": True}},
-                {"root": paths.PREPARED_ENGINE, "prepared": True, "check": {"verified": True}},
-            ]
-        )
-        self.earlier_copy("0.9.0")
-        with mock.patch.object(paths, "select_engine", side_effect=lambda: next(answers)):
-            self.assertTrue(provision.select_engine()["prepared"])
+    def test_a_busy_lock_is_tried_again_later(self):
+        self.earlier_copy("1.0.34")
+        busy = mock.patch.object(provision, "_lock", side_effect=provision.ProvisionError("BUSY", "busy"))
+        with busy:
+            self.assertFalse(provision.refresh_prepared_engine())
+        self.assertTrue(provision.refresh_prepared_engine())
 
     def test_an_unverified_bundled_engine_is_never_copied(self):
-        self.earlier_copy("0.9.0")
+        self.earlier_copy("1.0.34")
         unverified = {"root": paths.ENGINE_ROOT, "prepared": False, "check": {"verified": False}}
         with mock.patch.object(paths, "select_engine", return_value=unverified):
             self.assertFalse(provision.select_engine()["prepared"])
         self.assertEqual(self.built, [])
+
+
+class TheRealBuild(Refresh):
+    """The whole path with only Node stubbed: a small bundled engine, an earlier copy, a new copy that verifies."""
+
+    def setUp(self):
+        super().setUp()
+        bundled = self.base / "bundled"
+        files = {
+            "package.json": '{"name": "modretro-chromatic"}',
+            "dist/server.js": "edited",
+            "scripts/start-mcp.mjs": "",
+        }
+        for rel, text in files.items():
+            (bundled / rel).parent.mkdir(parents=True, exist_ok=True)
+            (bundled / rel).write_text(text)
+        (bundled / "assets" / "devices").mkdir(parents=True)
+        manifest = self.base / "manifest.json"
+        entries = [{"path": rel, "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest()} for rel in files]
+        manifest.write_text(json.dumps({"entries": entries}))
+        for patcher in (
+            mock.patch.object(paths, "ENGINE_ROOT", bundled),
+            mock.patch.object(paths, "ENGINE_MANIFEST", manifest),
+            mock.patch.object(provision, "_node", return_value={}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        paths.verify_engine.cache_clear()
+        self.addCleanup(paths.verify_engine.cache_clear)
+
+    def test_the_new_copy_verifies_and_is_chosen(self):
+        source = self.earlier_copy("1.0.33")
+        selection = provision.select_engine("/usr/bin/node")
+        self.assertTrue(selection["prepared"], selection)
+        self.assertEqual(selection["root"], paths.PREPARED_ENGINE)
+        self.assertEqual((paths.PREPARED_ENGINE / "dist/server.js").read_text(), "edited")
+        receipt = json.loads(paths.DEVICE_CLI_RECEIPT.read_text())
+        self.assertEqual((receipt["installed_at"], receipt["vendor_terms_accepted"]), ("2026-01-01T00:00:00Z", True))
+        self.assertTrue(source.exists())
+        self.assertEqual(list(paths.DEPS_ROOT.glob("engine.*")), [], "no staging or old folder left")
 
 
 if __name__ == "__main__":

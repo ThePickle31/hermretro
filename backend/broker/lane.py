@@ -114,7 +114,7 @@ class LaneMixin:
     # -- engine workers --------------------------------------------------------
     def new_engine(self, client_name: str) -> EngineProcess:
         # Re-read each start: setup may have prepared a copy since, or the engine changed under the copy (rebuilt here).
-        selection = setup.select_engine()
+        selection = setup.select_engine(self.node if paths.node_usable(self.node) else None)
         if not selection["check"].get("verified"):
             raise Denied(
                 "ENGINE_NOT_VERIFIED",

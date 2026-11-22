@@ -20,6 +20,7 @@ import io
 import json
 import os
 import platform
+import re
 import shutil
 import stat
 import subprocess
@@ -79,15 +80,15 @@ class ProvisionError(RuntimeError):
         self.code = code
 
 
-def _node_platform() -> tuple[str, str] | None:
+def _node_platform(node_path: str | None = None) -> tuple[str, str] | None:
     """(platform, arch) as the Node.js that runs the engine reports them. The engine picks the CLI it accepts
     from its own ``process.platform``/``process.arch``, so a download must match Node, not this Python
-    (they differ when one of them runs under Rosetta)."""
-    node = paths.find_node()
-    if not node.get("path"):
+    (they differ when one of them runs under Rosetta). node_path: the Node a worker runs with, else the one found."""
+    node_path = node_path or paths.find_node().get("path")
+    if not node_path:
         return None
     try:
-        return _platform_of(node["path"], os.stat(node["path"]).st_mtime_ns)
+        return _platform_of(node_path, os.stat(node_path).st_mtime_ns)
     except OSError:
         return None
 
@@ -104,10 +105,11 @@ def _platform_of(node: str, _stamp: int) -> tuple[str, str] | None:
     return (out[0], out[1]) if len(out) == 2 else None
 
 
-def host_target() -> dict:
-    """The engine's name for this computer, or why ModRetro's CLI cannot run here."""
+def host_target(node_path: str | None = None) -> dict:
+    """The engine's name for this computer (as node_path, or the Node found, runs it), or why ModRetro's CLI cannot
+    run here."""
     system, machine = platform.system(), platform.machine().lower()
-    reported = _node_platform()
+    reported = _node_platform(node_path)
     node_system, node_arch = reported if reported else (host_os.system_name(), host_os.native_arch())
     arch = {"x64": "x64", "arm64": "arm64"}.get(node_arch)
     name = {"linux": "linux", "darwin": "darwin"}.get(node_system)
@@ -146,9 +148,9 @@ def read_receipt() -> dict | None:
         return None
 
 
-def device_cli_status() -> dict:
+def device_cli_status(selection: dict | None = None) -> dict:
     """Never downloads, never runs the vendor executable. May rebuild the prepared copy from files it holds already
-    (select_engine)."""
+    (select_engine), unless the caller already chose (selection)."""
     host = host_target()
     answer = {
         "state": "missing",
@@ -162,7 +164,7 @@ def device_cli_status() -> dict:
     if host["target"] is None:
         answer.update(state="unsupported", detail=host["reason"])
         return answer
-    selection = select_engine()
+    selection = selection or select_engine()
     if selection["prepared"]:
         receipt = read_receipt() or {}
         answer.update(
@@ -223,23 +225,28 @@ def _member(archive: tarfile.TarFile, name: str, pin: dict) -> bytes:
     return data
 
 
-def _node(script: str, *args: str, cwd: Path) -> dict:
-    node = paths.find_node()
-    if not node["ok"]:
-        raise ProvisionError("NODE_REQUIRED", f"Node.js {node['required']} or newer is required.")
+def _node(script: str, *args: str, cwd: Path, node_path: str | None = None) -> dict:
+    """Run an engine script with node_path (a worker's Node), else the Node found."""
+    found = paths.find_node()
+    node_path = node_path or (found["path"] if found["ok"] else None)
+    if not node_path:
+        raise ProvisionError("NODE_REQUIRED", f"Node.js {found['required']} or newer is required.")
     env = {
         key: os.environ[key]
         for key in ("PATH", "HOME", "LANG", "USER", "LOGNAME", "TMPDIR", *host_os.NETWORK_ENV)
         if key in os.environ
     }
-    done = subprocess.run(
-        [node["path"], "--input-type=module", "-e", script, *args],
-        cwd=str(cwd),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        done = subprocess.run(
+            [node_path, "--input-type=module", "-e", script, *args],
+            cwd=str(cwd),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        raise ProvisionError("ENGINE_REFUSED", "The engine's own check did not finish in two minutes.") from None
     if done.returncode != 0:
         raise ProvisionError(
             "ENGINE_REFUSED",
@@ -316,7 +323,9 @@ def _require_bundled_engine() -> None:
         )
 
 
-def _prepare(target: str, pins: dict, executable: bytes, notice: bytes, **dates: str | None) -> None:
+def _prepare(
+    target: str, pins: dict, executable: bytes, notice: bytes, node_path: str | None = None, **dates: str | None
+) -> None:
     """Build the prepared copy from the bundled engine and the verified CLI files, swap it in and write its receipt.
     The caller holds the provision lock."""
     exe_rel, notice_rel = pins["executable"]["path"], pins["notice"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
@@ -345,9 +354,13 @@ def _prepare(target: str, pins: dict, executable: bytes, notice: bytes, **dates:
         os.chmod(stage / "package.json", 0o644)
 
         runtime = json.dumps((stage / "scripts" / "chromatic-runtime.mjs").as_uri())
-        artwork = _node(_UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage)
+        artwork = _node(
+            _UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage, node_path=node_path
+        )
         _tighten(stage)
-        _node(_RESOLVE % {"runtime": runtime}, cwd=stage)  # the engine's own admission, before the swap
+        _node(
+            _RESOLVE % {"runtime": runtime}, cwd=stage, node_path=node_path
+        )  # the engine's admission, before the swap
 
         previous = None
         if paths.PREPARED_ENGINE.exists():
@@ -382,83 +395,121 @@ def _prepare(target: str, pins: dict, executable: bytes, notice: bytes, **dates:
 
 
 # -- keeping the prepared copy in step with the bundled engine -------------------------------------------
+# Each copy is named by the engine it was made from (paths.ENGINE_IDENTITY) and never changed once made: a worker
+# keeps reading from the copy it started in, even after the engine changes and a new copy appears beside it.
 
-_REFRESH_FAILED: set[tuple[str, int]] = set()  # (receipt, its mtime): not tried again in this process
+_COPY_NAME = re.compile(r"\d+\.\d+\.\d+(?:-[0-9a-f]{12})?")
+_KINDS = ("executable", "notice")
+_NOT_REUSABLE: set[tuple] = set()  # earlier copies looked at, by their files' stamps: not read again until one changes
 
 
-def select_engine() -> dict:
-    """``paths.select_engine``, after rebuilding the prepared copy when the bundled engine changed under it (the
-    maintainer's edit or a new version) and an earlier copy already holds the CLI build this engine pins. Nothing is
-    downloaded and nothing is asked: the user accepted ModRetro's terms for that CLI when they installed it."""
+def select_engine(node_path: str | None = None) -> dict:
+    """``paths.select_engine``, after making the prepared copy for the bundled engine when the engine changed (the
+    maintainer's edit or a new version) and an earlier copy holds the CLI build this engine pins. Nothing is
+    downloaded and nothing is asked: the user accepted ModRetro's terms for that CLI when they installed it.
+    node_path: the Node the worker runs with, which decides the CLI build."""
     selection = paths.select_engine()
-    if selection.get("prepared") or not selection["check"].get("verified") or not refresh_prepared_engine():
+    if selection.get("prepared") or not selection["check"].get("verified") or not refresh_prepared_engine(node_path):
         return selection
     return paths.select_engine()
 
 
-def _reusable_cli(target: str, pins: dict) -> tuple[bytes, bytes, dict, Path, Path] | None:
-    """The pinned CLI files from an earlier prepared copy: (executable, notice, receipt, receipt path, copy)."""
-    for receipt_path in sorted(paths.DEPS_ROOT.glob("device-cli-*.json")):
+def _earlier_copies() -> list[tuple[Path, Path]]:
+    """(receipt, copy) of every prepared copy in the download folder, newest receipt first. A receipt
+    device-cli-<name>.json belongs to the folder engine-<name>; any other name is ignored."""
+    found = []
+    for receipt in paths.DEPS_ROOT.glob("device-cli-*.json"):
+        name = receipt.name.removeprefix("device-cli-").removesuffix(".json")
+        copy = paths.DEPS_ROOT / f"engine-{name}"
         try:
-            key = (str(receipt_path), receipt_path.stat().st_mtime_ns)
-            receipt = json.loads(receipt_path.read_text())
-            if (
-                key in _REFRESH_FAILED
-                or receipt.get("target") != target
-                or receipt.get("vendor_terms_accepted") is not True
-            ):
-                continue
-            copy = paths.DEPS_ROOT / f"engine-{receipt['engine_version']}"
-            found = [(copy / CLI_DIR / pins[kind]["path"]).read_bytes() for kind in ("executable", "notice")]
-        except (OSError, ValueError, KeyError, TypeError):
+            if _COPY_NAME.fullmatch(name) and copy.is_dir() and not copy.is_symlink():
+                found.append((receipt.stat().st_mtime_ns, receipt, copy))
+        except OSError:
             continue
-        if all(
-            hashlib.sha256(data).hexdigest() == pins[kind]["sha256"]
-            for data, kind in zip(found, ("executable", "notice"), strict=True)
+    return [(receipt, copy) for _stamp, receipt, copy in sorted(found, reverse=True)]
+
+
+def _reusable_cli(target: str, pins: dict) -> tuple[bytes, bytes, dict, Path, tuple] | None:
+    """The pinned CLI files from an earlier copy, when the user accepted these terms for this CLI release on this
+    computer: (executable, notice, receipt, copy, stamps)."""
+    for receipt_path, copy in _earlier_copies():
+        files = [copy / CLI_DIR / pins[kind]["path"] for kind in _KINDS]
+        try:
+            stamps = tuple((f.lstat().st_size, f.lstat().st_mtime_ns) for f in (receipt_path, *files))
+        except OSError:
+            continue
+        key = (str(copy), stamps, pins["executable"]["sha256"], pins["notice"]["sha256"])
+        if key in _NOT_REUSABLE:
+            continue
+        try:
+            receipt = json.loads(receipt_path.read_text())
+            usable = (
+                isinstance(receipt, dict)
+                and receipt.get("target") == target
+                and receipt.get("cli_version") == pins["version"]
+                and receipt.get("vendor_terms") == VENDOR_TERMS_URL
+                and receipt.get("vendor_terms_accepted") is True
+                and all(
+                    f.is_file() and not f.is_symlink() and f.lstat().st_size == int(pins[kind]["bytes"])
+                    for f, kind in zip(files, _KINDS, strict=True)
+                )
+            )
+            found = [f.read_bytes() for f in files] if usable else []
+        except (OSError, ValueError, KeyError, TypeError):
+            found = []
+        if found and all(
+            hashlib.sha256(data).hexdigest() == pins[kind]["sha256"] for data, kind in zip(found, _KINDS, strict=True)
         ):
-            return found[0], found[1], receipt, receipt_path, copy
+            return found[0], found[1], receipt, copy, key
+        _NOT_REUSABLE.add(key)
     return None
 
 
-def refresh_prepared_engine() -> bool:
-    """Rebuild the prepared copy from the bundled engine and an earlier copy's CLI files; the earlier copy of another
-    engine version is removed. False when there is none to reuse or the rebuild fails (setup then offers the install)."""
+def refresh_prepared_engine(node_path: str | None = None) -> bool:
+    """Make the prepared copy for the bundled engine from an earlier copy's CLI files, then remove the copies older
+    than that earlier one. False when there is none to reuse, another setup holds the lock, or the new copy does not
+    verify (setup then offers the install)."""
     if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
         return False
-    target = host_target()["target"]
-    if target is None or not paths.find_node()["ok"]:
+    target = host_target(node_path)["target"]
+    if target is None:
         return False
     try:
         pins = _pins(target)
-        found = _reusable_cli(target, pins)
-        if found is None:
-            return False
-        executable, notice, receipt, receipt_path, copy = found
-        key = (str(receipt_path), receipt_path.stat().st_mtime_ns)
-        try:
-            with _lock():
-                _prepare(
-                    target, pins, executable, notice, installed_at=receipt.get("installed_at"), refreshed_at=_now()
-                )
-        except (ProvisionError, OSError, ValueError, KeyError):
-            _REFRESH_FAILED.add(key)
-            return False
-        if copy != paths.PREPARED_ENGINE:
-            _rmtree(copy)
-            receipt_path.unlink(missing_ok=True)
+        with _lock():
+            if paths.verify_prepared_engine()["verified"]:  # another process made it while this one waited
+                return True
+            found = _reusable_cli(target, pins)
+            if found is None:
+                return False
+            executable, notice, receipt, source, key = found
+            dates = {"installed_at": receipt.get("installed_at"), "refreshed_at": _now()}
+            try:
+                _prepare(target, pins, executable, notice, node_path=node_path, **dates)
+            except (ProvisionError, OSError, ValueError, KeyError):
+                _NOT_REUSABLE.add(key)
+                return False
+            if not paths.verify_prepared_engine()["verified"]:
+                _NOT_REUSABLE.add(key)
+                return False
+            for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
+                if copy not in (paths.PREPARED_ENGINE, source):
+                    _rmtree(copy)
+                    receipt_path.unlink(missing_ok=True)
         return True
-    except (ProvisionError, OSError, ValueError, KeyError, StopIteration):
+    except (ProvisionError, OSError, ValueError, KeyError, StopIteration):  # BUSY included: tried again later
         return False
 
 
 def summary() -> dict:
-    """Where this install keeps its dependencies. Passive."""
+    """Where this install keeps its dependencies. Never downloads (device_cli_status)."""
+    selection = select_engine()
     return {
         "root": str(paths.DEPS_ROOT),
         "toolchain_root": str(paths.setup_root()),
         "toolchain_cache_reused_from": _seed_source(),
-        "engine_root": str(select_engine()["root"]),
-        "device_cli": device_cli_status(),
+        "engine_root": str(selection["root"]),
+        "device_cli": device_cli_status(selection),
     }
 
 

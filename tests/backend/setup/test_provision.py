@@ -31,7 +31,7 @@ class ProvisionTests(unittest.TestCase):
         cache = paths.hermretro_home().resolve() / ".cache"
         self.assertEqual(paths.DEPS_ROOT, cache)
         self.assertEqual(paths.setup_root(), cache / "toolchain")
-        self.assertEqual(paths.PREPARED_ENGINE, cache / f"engine-{paths.ENGINE_VERSION}")
+        self.assertEqual(paths.PREPARED_ENGINE, cache / f"engine-{paths.ENGINE_IDENTITY}")
         for folder in (paths.DEPS_ROOT, paths.setup_root(), paths.PREPARED_ENGINE):
             self.assertFalse(folder.is_relative_to(paths.PLUGIN_ROOT), folder)
 
