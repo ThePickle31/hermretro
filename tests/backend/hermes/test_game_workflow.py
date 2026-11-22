@@ -64,7 +64,7 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_planned_new_game_waits_for_the_users_approval(self):
         context = self.context("pending", {"name": "Robin", "plan": True})
-        self.assertIn("wait for the user to approve the brief before building anything", context)
+        self.assertIn("wait for the user to approve the brief before authoring anything", context)
         self.assertIn(hermes_host.GAME_STEPS, context)
 
     def test_a_quick_new_game_still_playtests_before_presenting(self):
@@ -72,8 +72,18 @@ class OneWorkflow(unittest.TestCase):
         self.assertIn(hermes_host.GAME_STEPS, context)
         self.assertIn(hermes_host.GAME_RULES, context)
 
-    def test_a_games_own_chat_hears_the_rules(self):
-        self.assertIn(hermes_host.GAME_RULES, self.context("game", {"title": "Robin", "projectRoot": "/g/robin"}))
+    def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
+        context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})
+        self.assertIn(hermes_host.GAME_STEPS, context)
+        self.assertIn(hermes_host.GAME_RULES, context)
+
+    def test_a_planned_game_keeps_waiting_for_approval_on_later_turns(self):
+        context = self.context("pending", {"name": "Robin", "plan": True}, first=False)
+        self.assertIn("Author nothing until the user has approved the game brief", context)
+        self.assertNotIn("Author nothing", self.context("pending", {"name": "Robin"}, first=False))
+
+    def test_drawing_art_and_importing_it_stays_allowed(self):
+        self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", hermes_host.GAME_RULES)
 
     def test_a_build_says_to_playtest_and_fill_the_card_before_presenting(self):
         built = {
@@ -96,9 +106,8 @@ class CardRulesUpFront(unittest.TestCase):
         for field in ("title", "tagline", "description"):
             low, high = game_card.LIMITS[field]
             self.assertEqual((self.schema[field]["minLength"], self.schema[field]["maxLength"]), (low, high))
-        self.assertEqual(
-            (self.schema["genres"]["minItems"], self.schema["genres"]["maxItems"]), (1, game_card.MAX_GENRES)
-        )
+        self.assertEqual(self.schema["genres"]["maxItems"], game_card.MAX_GENRES)
+        self.assertNotIn("minItems", self.schema["genres"], "an empty list clears the genres in a partial update")
 
     def test_the_cover_field_states_every_cover_rule(self):
         rules = self.schema["cover"]["description"]

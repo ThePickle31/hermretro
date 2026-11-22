@@ -65,7 +65,9 @@ approved by the user, that the build and test work follows.
    - `docs/game/DECISIONS.md`: dated, numbered entries for decisions and scope
      changes, with status (proposed / approved / superseded).
 4. **Review with the user.** Summarize the brief in a few lines, list open
-   questions, and ask for approval. Do not start building on silence.
+   questions, and ask for approval. Do not author scenes, art or scripts, or
+   build, on silence: until approval the project holds only its starter and
+   these documents.
 5. **Hand off.** Once approved, load `hermretro:authoring` and build the
    first-playable backlog items. Run `TEST-PLAN.md` checks with
    `hermretro:rom-debugging` and record results against the exact ROM

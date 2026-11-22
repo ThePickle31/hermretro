@@ -170,7 +170,7 @@ class ResultTests(unittest.TestCase):
     def test_an_opened_web_preview_also_points_at_present_game(self):
         preview = {"ok": True, "result": {"content": [], "structuredContent": {"success": True, "url": "http://e/"}}}
         payload = json.loads(results.encode(preview, "chromatic_web_preview", None, False))
-        self.assertIn("call chromatic_present_game", payload["nextStep"])
+        self.assertIn("show it with chromatic_present_game", payload["nextStep"])
         self.assertNotIn("studioPlayerUrl", payload)
 
     def test_the_prompt_section_describes_presenting_not_auto_open(self):

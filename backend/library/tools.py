@@ -175,10 +175,9 @@ GAME_INFO_TOOL = {
             },
             "genres": {
                 "type": "array",
-                "minItems": 1,
                 "maxItems": game_card.MAX_GENRES,
                 "items": {"type": "string", "enum": list(game_card.GENRES)},
-                "description": f"1 to {game_card.MAX_GENRES} genres.",
+                "description": f"1 to {game_card.MAX_GENRES} genres (at least one to present).",
             },
             "tags": {
                 "type": "array",

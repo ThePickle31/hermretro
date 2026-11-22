@@ -35,7 +35,14 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
                 f"({bound.get('projectRoot')}). The game is selected for you on the first chromatic "
                 "call. This conversation works on this one game: do not create or open other "
                 "projects here; for another game the user uses New Game or picks it on the "
-                "hermretro Build page. " + SHOW_ART_CONTEXT + " " + host.BUILD_REPORT_GUIDANCE + " " + host.GAME_RULES
+                "hermretro Build page. "
+                + SHOW_ART_CONTEXT
+                + " "
+                + host.GAME_STEPS
+                + " "
+                + host.BUILD_REPORT_GUIDANCE
+                + " "
+                + host.GAME_RULES
             )
         }
     if kind == "pending":
@@ -44,15 +51,16 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
         how = (
             "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write "
             "the game brief, backlog and test plan into it, and wait for the user to approve the brief before "
-            "building anything."
+            "authoring anything."
             if bound.get("plan")
             else "Ask the user a few quick questions first."
         )
-        start = (
-            ("; their message is the idea. " + how)
-            if is_first_turn
-            else ". If its project does not exist yet, create it once the user is ready."
+        later = ". If its project does not exist yet, create it once the user is ready." + (
+            " Author nothing until the user has approved the game brief (hermretro:game-planning)."
+            if bound.get("plan")
+            else ""
         )
+        start = ("; their message is the idea. " + how) if is_first_turn else later
         return {
             "context": (
                 f"[hermretro] The user started a new Game Boy Color game{called} with New Game on the "
