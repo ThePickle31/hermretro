@@ -120,8 +120,10 @@ export async function createBuildChat(title, pick = null) {
 }
 
 /** Send a message. Returns true once the transcript owns the message, even if it must offer a retry.
- *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. */
-export async function sendBuildChat(stored, text, shown = text, attachments = []) {
+ *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand` (a New
+ *  Game's first message), true only once Hermes accepted it: a message it did not take is not the transcript's to
+ *  keep, so the caller keeps its own copy. */
+export async function sendBuildChat(stored, text, shown = text, attachments = [], { mustLand = false } = {}) {
   // An update is swapping and reloading the plugin: no new turn starts until it is done.
   if (isUpdating()) {
     host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
@@ -167,7 +169,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   if (!chat?.runtime) {
     patchChat(stored, current => ({ ...current, items: [...current.items, { kind: 'error', text: 'This conversation could not be opened, so the message was not sent.' }] }))
 
-    return true
+    return !mustLand
   }
 
   // The change it waited for failed ("Could not switch" says why): the message is kept to send again, not sent on
@@ -175,7 +177,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   if (!settled.ok) {
     patchChat(stored, current => endTurn({ ...current, items: [...current.items, { kind: 'error', text: 'The model change did not go through, so the message was not sent.', resend: { text, shown, attachments } }] }, 'error'))
 
-    return true
+    return !mustLand
   }
 
   schedulePromptCheck(stored)
@@ -212,6 +214,8 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored)
     }
+
+    return !mustLand
   }
 
   return true

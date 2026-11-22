@@ -15,8 +15,10 @@ export const ENABLE_COMMAND = `hermes plugins enable ${ID}`
 // the agent plugin key (`?agent=`). `pluginSettingsHref()` builds `?plugin=`,
 // which addresses pages a DESKTOP half registers — this desktop half registers
 // none, so the agent route is the right deep link (it also resolves when the
-// form is folded under a desktop entry as "Agent settings").
-export const AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}`
+// form is folded under a desktop entry as "Agent settings"). `&profile=` is Settings' own scope hand-off (the
+// Capabilities gear's): the form edits the hermretro profile, where the hardware tools are, even while the app is on
+// another profile. A Hermes without it ignores the parameter and edits the profile the app is on.
+export const AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}&profile=${STUDIO_PROFILE}`
 export const PLUGINS_HREF = `/capabilities?tab=plugins&plugin=${ID}`
 
 // A chat with the agent, one game per conversation. Each reply folds its steps into "Worked for…"

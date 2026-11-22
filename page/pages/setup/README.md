@@ -8,7 +8,8 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 
 **Tabs:** none.
 
-**Events:** emits none, listens to none.
+**Events:** emits `setup.firstIdea` `{ idea, plan }` when onboarding's last screen hands its idea to Build (not
+sent), and `setup.demoRequested` `{}` when Try the demo is picked during the install. Listens to none.
 
 **Slots:** declares none, contributes none.
 
@@ -21,7 +22,7 @@ The nav segment carries a dot while setup is unfinished (`Badge` in `index.js`).
 **Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `setup`.
 
 **Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-recovery.test.mjs` (the install's failure,
-cancel and recovery states), `tests/page/page-studio.test.mjs`.
+cancel and recovery states), `tests/page/page-setup-handoff.test.mjs`, `tests/page/page-studio.test.mjs`.
 
 ## Adding a tab here
 

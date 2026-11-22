@@ -2,8 +2,10 @@
 // shell's (it stays loaded while other pages are shown); this page adds the bar above it, the notice, the row
 // under it, and the emulator tab beside the chat that opens when the agent presents a game.
 import { jsx } from '#sdk'
+import { DEMO_GAME, DEMO_ID } from '#app/ids.js'
 import { SideEmulatorRow } from './beside-chat/row.js'
 import { watchBuilds } from './beside-chat/present.js'
+import { openSideEmulator } from './beside-chat/tab.js'
 import { Emulator } from './emulator-page.js'
 import { EMULATOR_CSS } from './emulator.css.js'
 
@@ -25,6 +27,10 @@ export const EMULATOR_PAGE = {
   BelowPlayer,
   css: [EMULATOR_CSS],
   register: watchBuilds,
+  // Setup's opt-in demo: the bundled cartridge in its own tab beside the chat, so the setup screen stays as it is.
+  listens: {
+    'setup.demoRequested': (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
+  },
   events: {
     'emulator.presented':
       'The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation.'

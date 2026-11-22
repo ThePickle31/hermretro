@@ -11,8 +11,9 @@ objects ([CONTRACT.md, "The game object"](../../../docs/dev/CONTRACT.md#the-game
 **Tabs:** none (its areas are subfolders, not tabs).
 
 **Events:** emits none. Listens to `games.coverRequested` (queues the cover draft in the game's message box,
-not sent) and `emulator.presented` (plays the presented game in its conversation). The Games cover action
-separately opens the game with `shell.go('build', game.id)`.
+not sent), `emulator.presented` (plays the presented game in its conversation) and `setup.firstIdea` (opens New Game
+with onboarding's idea and mode, unsent; `new-game-draft.js`). The Games cover action separately opens the game
+with `shell.go('build', game.id)`.
 
 **Slots:** declares none, contributes none.
 
@@ -20,19 +21,21 @@ separately opens the game with `shell.go('build', game.id)`.
 `toolResultObject`, `unwrapCalls`, for the Emulator page's tab beside the chat.
 
 **Starts with the plugin** (`register`): `watchBuildChats(ctx)`, the gateway listeners that keep a conversation
-streaming while the page is closed.
+streaming while the page is closed, and `restoreNewGameDraft(ctx)`, the New Game box's kept draft.
 
 **Uses from other pages:** `#pages/games/index.js` (game states, and the `Cartridge` of the New Game shelf), `#pages/setup/index.js` (creating the studio
 profile).
 
-**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `buildSelected`, `buildModel`, `buildModelStars`, `inlinePlayer` and `playtest`.
+**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `buildSelected`, `buildModel`, `buildModelStars`, `buildNewGame` (the New Game draft), `inlinePlayer` and `playtest`.
 
 **Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
 `tests/page/page-build-speed.test.mjs` (the model panel's rail, stars and Standard / Fast),
 `tests/page/page-build-model-routing.test.mjs` (fresh sessions and the picked route),
 `tests/page/build-player.test.mjs`, `tests/page/registry.test.mjs` (its listeners), `tests/page/attract.test.mjs`
 (the New Game level, run headless), `tests/page/attract-run.test.mjs` (running it in the page),
-`tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf).
+`tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf),
+`tests/page/page-setup-handoff.test.mjs` and `tests/page/new-game-draft.test.mjs` (onboarding's idea, the kept draft and
+the provider notice).
 
 ## The header
 

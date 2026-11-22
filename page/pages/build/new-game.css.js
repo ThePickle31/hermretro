@@ -18,4 +18,10 @@ export const NEW_GAME_CSS = `
 .cs-b-opt b { color: var(--ui-text-primary); display: block; font-size: 13.5px; font-weight: 600; }
 .cs-b-opt span span { color: var(--ui-text-tertiary); display: block; font-size: 12.5px; line-height: 1.45; margin-top: 2px; }
 .cs-b-opt em { color: var(--ui-text-quaternary, var(--ui-text-tertiary)); display: block; font: 700 10px/1.3 ${MONO}; font-style: normal; letter-spacing: .1em; margin-top: 7px; text-transform: uppercase; }
+/* No signed-in model provider in the studio profile: one frosted line with the way to fix it */
+.cs-b-provider { align-items: center; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass, var(--ui-bg-tertiary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-text-secondary); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 10px; line-height: 1.45; padding: 10px 12px; position: relative; z-index: 1; }
+.cs-b-provider > span { flex: 1 1 260px; min-width: 0; }
+.cs-b-provider > i { flex: none; }
+.cs-b-provider b { color: var(--ui-text-primary); font-weight: 600; }
+.cs-b-provider > i:first-child { color: var(--ui-yellow); }
 `

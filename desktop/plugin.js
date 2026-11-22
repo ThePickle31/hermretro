@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f209be162ad780a39c06a2432b4984467b4426ee0a22b67d4ec412e140f7c5ec
- * body: sha256 726ed494eb22154986e9ee1b98bc0853b65880be3ed5c8664ab042ce97a6a4be
+ * sources: sha256 803d76bdd209bb91c8836f6b1d7cb42c60b7c079e89b89123d1149e896b3a22f
+ * body: sha256 ae7745a5fcaab8ee513c92f3d739072e32800c49566da6c590b2d94c9c8d8771
  */
 // page/sdk.js
 import {
@@ -38,7 +38,7 @@ var DEMO_ID = "demo";
 var DEMO_GAME = { id: DEMO_ID, title: "Hello Color", kind: "gbdk", note: "ModRetro example" };
 var STUDIO_PROFILE = "hermretro";
 var ENABLE_COMMAND = `hermes plugins enable ${ID}`;
-var AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}`;
+var AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}&profile=${STUDIO_PROFILE}`;
 var PLUGINS_HREF = `/capabilities?tab=plugins&plugin=${ID}`;
 var AGENT = "HermRetro";
 
@@ -1163,7 +1163,7 @@ async function createBuildChat(title, pick = null) {
   patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
-async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
+async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false } = {}) {
   if (isUpdating()) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return false;
@@ -1195,11 +1195,11 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = []) {
   }));
   if (!chat?.runtime) {
     patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
-    return true;
+    return !mustLand;
   }
   if (!settled.ok) {
     patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
-    return true;
+    return !mustLand;
   }
   schedulePromptCheck(stored);
   try {
@@ -1222,6 +1222,7 @@ ${text2}` : text2;
     if (/not.?found|4007|unknown session/i.test(message)) {
       void reopenBuildChat(stored);
     }
+    return !mustLand;
   }
   return true;
 }
@@ -7478,17 +7479,128 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
   });
 }
 
+// page/pages/build/composer/provider-notice.js
+var PROVIDERS_HREF = "/settings?tab=providers";
+function noProviderReady(data) {
+  return Boolean(data && Array.isArray(data.providers) && !data.providers.some((item) => item?.authenticated && Array.isArray(item.models) && item.models.length));
+}
+function ProviderNotice() {
+  const gateway = useValue(host.state.gateway);
+  const options = useQuery({
+    queryKey: [ID, "models", "profile"],
+    queryFn: () => chatRequest("model.options", {}, 3e4),
+    enabled: gateway === "open",
+    staleTime: 5 * 6e4,
+    // Asked again each time New Game shows (coming back from Settings after signing in), and silent until it answers:
+    // the answer from before the sign-in is not shown again.
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+    retry: 1
+  });
+  if (options.isFetching || !noProviderReady(options.data)) {
+    return null;
+  }
+  return jsxs("div", {
+    className: "cs-b-provider",
+    role: "status",
+    children: [
+      jsx(Codicon, { name: "warning", size: 14 }),
+      jsxs("span", {
+        className: "cs-grow",
+        children: [
+          jsx("b", { children: `No model provider is signed in for the ${STUDIO_PROFILE} profile yet.` }),
+          ` ${AGENT} needs one to answer. Your idea stays here until you send it.`,
+          // Settings keep the last "Applies to" choice, whichever profile the app is on.
+          ` In Settings › Providers, check that “Applies to” is ${STUDIO_PROFILE}.`
+        ]
+      }),
+      jsxs(Button, {
+        onClick: () => host.navigate?.(PROVIDERS_HREF),
+        size: "sm",
+        variant: "outline",
+        children: [jsx(Codicon, { name: "settings-gear", size: 14 }), "Open provider settings"]
+      })
+    ]
+  });
+}
+
+// page/pages/build/new-game-draft.js
+var NEW_GAME_DRAFT = atom({ idea: "", plan: false, seq: 0, rev: 0 });
+var NEW_GAME_STARTING = atom(false);
+var KEY3 = "buildNewGame";
+var storage = null;
+var clean2 = (value) => ({
+  idea: typeof value?.idea === "string" ? value.idea : "",
+  plan: value?.plan === true,
+  seq: Number.isFinite(value?.seq) ? value.seq : 0,
+  rev: Number.isFinite(value?.rev) ? value.rev : 0
+});
+function save(draft) {
+  try {
+    storage?.set(KEY3, draft.idea || draft.plan ? { idea: draft.idea, plan: draft.plan } : null);
+  } catch {
+  }
+}
+function restoreNewGameDraft(ctx) {
+  storage = ctx?.storage ?? null;
+  try {
+    const saved = storage?.get(KEY3, null);
+    if (saved && typeof saved === "object") {
+      NEW_GAME_DRAFT.set({ ...clean2(saved), seq: NEW_GAME_DRAFT.get().seq, rev: NEW_GAME_DRAFT.get().rev });
+    }
+  } catch {
+  }
+}
+function editNewGameDraft(change) {
+  const current = NEW_GAME_DRAFT.get();
+  const next = { ...current, ...change, rev: current.rev + 1 };
+  NEW_GAME_DRAFT.set(next);
+  save(next);
+}
+function clearNewGameDraft(rev) {
+  if (NEW_GAME_DRAFT.get().rev === rev) {
+    editNewGameDraft({ idea: "", plan: false });
+  }
+}
+function takeFirstIdea({ idea = "", plan = false } = {}, ctx) {
+  const words = String(idea ?? "").trim();
+  const current = NEW_GAME_DRAFT.get();
+  const kept = current.idea.trim();
+  const merged = !words || kept.includes(words) ? current.idea : kept ? `${kept}
+
+${words}` : words;
+  storage ??= ctx?.storage ?? null;
+  try {
+    ctx?.storage?.set("buildSelected", "new");
+  } catch {
+  }
+  const next = { idea: merged, plan: plan === true, seq: current.seq + 1, rev: current.rev + 1 };
+  NEW_GAME_DRAFT.set(next);
+  save(next);
+}
+
 // page/pages/build/new-game.js
 var NEW_GAME_MODES = [
   { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
   { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
 ];
+var focusedSeq = 0;
 function BuildNewGame({ onStart, picker = null, updating = false }) {
-  const [idea, setIdea] = useState("");
-  const [mode, setMode] = useState("build");
-  const [busy, setBusy] = useState(false);
+  const draft = useValue(NEW_GAME_DRAFT);
+  const idea = draft.idea;
+  const mode = draft.plan ? "plan" : "build";
+  const setIdea = (value) => editNewGameDraft({ idea: value });
+  const setMode = (value) => editNewGameDraft({ plan: value === "plan" });
+  const busy = useValue(NEW_GAME_STARTING);
   const box = useRef(null);
-  const starting = useRef(false);
+  useEffect(() => {
+    const element = box.current;
+    if (draft.seq && draft.seq !== focusedSeq && element) {
+      focusedSeq = draft.seq;
+      element.focus?.();
+      element.setSelectionRange?.(element.value.length, element.value.length);
+    }
+  }, [draft.seq]);
   useLayoutEffect(() => {
     const element = box.current;
     if (element) {
@@ -7497,16 +7609,17 @@ function BuildNewGame({ onStart, picker = null, updating = false }) {
     }
   }, [idea]);
   const start = async () => {
-    if (starting.current || !idea.trim() || updating) {
+    if (NEW_GAME_STARTING.get() || !idea.trim() || updating) {
       return;
     }
-    starting.current = true;
-    setBusy(true);
+    const { rev } = NEW_GAME_DRAFT.get();
+    NEW_GAME_STARTING.set(true);
     try {
-      await onStart({ idea, name: "", plan: mode === "plan" });
+      if (await onStart({ idea, name: "", plan: mode === "plan" }) === true) {
+        clearNewGameDraft(rev);
+      }
     } finally {
-      starting.current = false;
-      setBusy(false);
+      NEW_GAME_STARTING.set(false);
     }
   };
   const onModeKey = (event) => {
@@ -7557,6 +7670,8 @@ function BuildNewGame({ onStart, picker = null, updating = false }) {
           })
         ]
       }),
+      // Right under the box, where it is seen before sending (not under the cards, where the shelf can cover it).
+      jsx(ProviderNotice, {}, "providers"),
       jsx("div", {
         "aria-label": "How to start",
         className: "cs-b-opts",
@@ -7845,13 +7960,13 @@ function edgesFor(L, A) {
   return [...best.values()];
 }
 function withoutMovers(L, fn) {
-  const save = L.oneways, saveM = L.movers;
+  const save2 = L.oneways, saveM = L.movers;
   L.oneways = L.oneways.filter((o) => !o.mover);
   L.movers = [];
   try {
     return fn();
   } finally {
-    L.oneways = save;
+    L.oneways = save2;
     L.movers = saveM;
   }
 }
@@ -11546,23 +11661,33 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
   };
   const startGame = async ({ idea, name, plan }) => {
     if (refuseWhileUpdating()) {
-      return;
+      return false;
     }
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
+      const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan });
+      if (!await sendBuildChat(id, first, idea.trim(), [], { mustLand: true })) {
+        void buildRpc({ action: "cancel", stored: id }).catch(() => {
+        });
+        if (!isUpdating()) {
+          host.notify({ kind: "error", message: "Could not start the conversation: Hermes did not take the first message." });
+        }
+        return false;
+      }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
       changePending((current) => [...current, created]);
       select(`pending:${id}`);
-      await sendBuildChat(id, recorded ? idea.trim() : newGamePrompt({ idea, name, plan }), idea.trim());
       onLibraryChanged();
+      return true;
     } catch (error) {
       host.notify({ kind: "error", message: `Could not start the conversation: ${describeRequestError(error).message}` });
       if (id) {
         void buildRpc({ action: "cancel", stored: id }).catch(() => {
         });
       }
+      return false;
     }
   };
   const discard = async (item) => {
@@ -12614,7 +12739,10 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
 
 // page/pages/setup/profile-step.js
 var PROFILE_FACTS = [
-  ["Sign-in", "It uses your existing sign-in and keys, so there is nothing to log in to again."],
+  [
+    "Sign-in",
+    "It starts with the sign-ins and keys Hermes can share from the profile the plugin is installed in. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one."
+  ],
   ["Skills", "hermretro and its six skills are turned on there, with a game-developer persona."],
   ["Tools", "Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults."],
   ["Approvals", "Kept on (smart mode), so installing device software and anything that touches your Chromatic goes through an approval check."]
@@ -13396,6 +13524,17 @@ function OnboardWelcome({ manifest, onStart }) {
     ]
   });
 }
+function TryDemo() {
+  if (typeof host.openWorkspace !== "function") {
+    return null;
+  }
+  return jsxs(Button, {
+    onClick: () => emit("setup.demoRequested", {}),
+    size: "sm",
+    variant: "ghost",
+    children: [jsx(Codicon, { name: "play", size: 14 }), "Try the demo while you wait"]
+  });
+}
 function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doctor }) {
   const installer = useInstaller({ ctx, doctor, install, status, toolchainDone });
   const data = install.data;
@@ -13421,7 +13560,8 @@ function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doct
           jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
           jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase, verifying: installer.verifying }),
           ...InstallError({ installer }),
-          jsx(InstallActions, { installer })
+          jsx(InstallActions, { installer }),
+          phase === "running" ? jsx(TryDemo, {}) : null
         ]
       }),
       jsxs("div", {
@@ -13470,15 +13610,15 @@ function OnboardChromatic({ onEmulator, onDevice }) {
             primary: true,
             tag: "Ready now",
             text: "Make and play games in the emulator. You can add a Chromatic later from Setup.",
-            title: "Not yet",
+            title: "Start making games",
             tone: "good"
           }),
           card({
             art: jsx("span", { "aria-hidden": true, className: "cs-hwart device" }),
             onClick: onDevice,
-            tag: "4 more steps",
+            tag: "Optional · 4 more steps",
             text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
-            title: "Yes, I have one",
+            title: "Set up my Chromatic",
             tone: "quiet"
           })
         ]
@@ -13486,32 +13626,22 @@ function OnboardChromatic({ onEmulator, onDevice }) {
     ]
   });
 }
-var NEW_GAME_PROMPT = "Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.";
-var PLAN_GAME_PROMPT = "Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project.";
 var IDEAS = [
   ["Tiny platformer", "a tiny platformer where a frog hops across lily pads to reach home"],
   ["Top-down adventure", "a top-down adventure where a gardener collects three seeds to open a gate"],
   ["Puzzle game", "a short puzzle game about pushing crates onto switches"],
   ["Spooky story", "a spooky little story game set in an abandoned lighthouse"]
 ];
-function makePrompt(idea) {
-  const text2 = idea.trim();
-  return text2 ? `Use hermretro to make a new Game Boy Color game: ${text2}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.` : NEW_GAME_PROMPT;
-}
-function OnboardMake({ ctx, onDone }) {
+function OnboardMake({ onDone, onDevice }) {
   const [idea, setIdea] = useState("");
-  const [busy, setBusy] = useState(false);
-  const go = async (prompt) => {
-    if (busy) {
-      return;
+  const handOff = (plan) => {
+    if (idea.trim() || plan) {
+      emit("setup.firstIdea", { idea: idea.trim(), plan });
     }
-    setBusy(true);
-    try {
-      await sendPromptToChat(ctx, prompt, { fresh: true });
-      onDone();
-    } finally {
-      setBusy(false);
-    }
+  };
+  const go = (plan) => {
+    handOff(plan);
+    onDone();
   };
   return jsxs("div", {
     className: "cs-onb-hero",
@@ -13534,7 +13664,7 @@ function OnboardMake({ ctx, onDone }) {
                 onKeyDown: (event) => {
                   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault();
-                    void go(makePrompt(idea));
+                    go(false);
                   }
                 },
                 placeholder: "A frog who delivers mail across a flooded town…",
@@ -13545,28 +13675,46 @@ function OnboardMake({ ctx, onDone }) {
                 className: "cs-row",
                 style: { justifyContent: "space-between" },
                 children: [
-                  jsx("span", { className: "cs-faint", children: "Hermes asks a few questions, then builds the first room. The prompt opens in a new chat." }),
-                  jsxs(Button, {
-                    disabled: busy,
-                    onClick: () => void go(makePrompt(idea)),
-                    size: "sm",
-                    variant: "default",
-                    children: ["Start in chat", jsx(Codicon, { name: "arrow-right", size: 14 })]
+                  jsx("span", { className: "cs-faint", children: "It goes into the New Game box on Build. Nothing is sent until you press send there." }),
+                  jsxs("div", {
+                    className: "cs-row",
+                    style: { gap: 8 },
+                    children: [
+                      jsx(Button, { onClick: () => go(true), size: "sm", variant: "outline", children: "Plan it first" }),
+                      jsxs(Button, {
+                        onClick: () => go(false),
+                        size: "sm",
+                        variant: "default",
+                        children: ["Continue in Build", jsx(Codicon, { name: "arrow-right", size: 14 })]
+                      })
+                    ]
                   })
                 ]
               })
             ]
           }),
-          jsxs("div", {
+          jsx("div", {
             "aria-label": "Ideas",
             className: "cs-ideas",
             role: "group",
-            children: [
-              ...IDEAS.map(([label, text2]) => jsx("button", { onClick: () => setIdea(text2), type: "button", children: label }, label)),
-              jsx("button", { disabled: busy, onClick: () => void go(PLAN_GAME_PROMPT), type: "button", children: "Plan it first" }, "plan")
-            ]
+            children: IDEAS.map(([label, text2]) => jsx("button", { onClick: () => setIdea(text2), type: "button", children: label }, label))
           }),
-          jsx("div", { children: jsx(Button, { onClick: onDone, size: "sm", variant: "ghost", children: "Skip, take me to the studio" }) })
+          jsxs("div", {
+            className: "cs-row",
+            style: { gap: 8 },
+            children: [
+              jsx(Button, { onClick: () => go(false), size: "sm", variant: "ghost", children: "Skip, take me to the studio" }),
+              onDevice ? jsx(Button, {
+                onClick: () => {
+                  handOff(false);
+                  onDevice();
+                },
+                size: "sm",
+                variant: "ghost",
+                children: "Set up my Chromatic first"
+              }) : null
+            ]
+          })
         ]
       }),
       jsx(Art, {})
@@ -13586,7 +13734,7 @@ function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFi
   } else if (screen2 === "chromatic") {
     body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
   } else {
-    body2 = jsx(OnboardMake, { ctx, onDone: onFinish });
+    body2 = jsx(OnboardMake, { onDevice, onDone: onFinish });
   }
   const section = useRef(null);
   const shown = useRef(screen2);
@@ -13613,7 +13761,11 @@ var SETUP_PAGE = {
   label: "Setup",
   Page: SetupPage,
   Badge: SetupBadge,
-  css: [SETUP_CSS, ONBOARDING_CSS]
+  css: [SETUP_CSS, ONBOARDING_CSS],
+  events: {
+    "setup.firstIdea": "Onboarding's last screen handed its idea on: { idea, plan }. Build opens New Game with the idea in its box and Build it (plan false) or Plan first (plan true) chosen, not sent.",
+    "setup.demoRequested": "Try the demo was picked during setup: {}. The Emulator page opens the bundled demo beside the chat; it needs neither the toolchain nor a model."
+  }
 };
 
 // page/pages/build/studio-needed.js
@@ -13964,6 +14116,12 @@ var NEW_GAME_CSS = `
 .cs-b-opt b { color: var(--ui-text-primary); display: block; font-size: 13.5px; font-weight: 600; }
 .cs-b-opt span span { color: var(--ui-text-tertiary); display: block; font-size: 12.5px; line-height: 1.45; margin-top: 2px; }
 .cs-b-opt em { color: var(--ui-text-quaternary, var(--ui-text-tertiary)); display: block; font: 700 10px/1.3 ${MONO}; font-style: normal; letter-spacing: .1em; margin-top: 7px; text-transform: uppercase; }
+/* No signed-in model provider in the studio profile: one frosted line with the way to fix it */
+.cs-b-provider { align-items: center; -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); background: var(--cs-at-glass, var(--ui-bg-tertiary)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 55%, transparent); color: var(--ui-text-secondary); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 10px; line-height: 1.45; padding: 10px 12px; position: relative; z-index: 1; }
+.cs-b-provider > span { flex: 1 1 260px; min-width: 0; }
+.cs-b-provider > i { flex: none; }
+.cs-b-provider b { color: var(--ui-text-primary); font-weight: 600; }
+.cs-b-provider > i:first-child { color: var(--ui-yellow); }
 `;
 
 // page/pages/build/player/inline-player.css.js
@@ -14395,9 +14553,13 @@ var BUILD_PAGE = {
   ],
   // After every other page's rules: the inline player overrides the Emulator page's stage rules.
   cssLast: true,
-  register: watchBuildChats,
+  register: (ctx) => {
+    watchBuildChats(ctx);
+    restoreNewGameDraft(ctx);
+  },
   listens: {
     "games.coverRequested": coverRequested,
+    "setup.firstIdea": takeFirstIdea,
     "emulator.presented": (presentation) => notePresented(presentation)
   }
 };
@@ -15039,6 +15201,10 @@ var EMULATOR_PAGE = {
   BelowPlayer,
   css: [EMULATOR_CSS],
   register: watchBuilds,
+  // Setup's opt-in demo: the bundled cartridge in its own tab beside the chat, so the setup screen stays as it is.
+  listens: {
+    "setup.demoRequested": (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
+  },
   events: {
     "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation."
   },
