@@ -5,6 +5,13 @@ import { AssetImage } from '#pages/build/assets/images.js'
 import { AGENT } from '#app/ids.js'
 import { Screen } from '#shared/ui/screen.js'
 
+/** Whether the copy the player loads was made by ``build`` (its time is in seconds, the build's in milliseconds):
+ *  a compile that only made a ROM leaves the player on an earlier build's copy. */
+export function playsBuild(game, build) {
+  const madeAt = (game?.web ?? game?.rom)?.builtAt
+  return Boolean(build?.startAt && madeAt && madeAt * 1000 >= build.startAt - 2000)
+}
+
 export function PlayCard({ game, frame, state, note, build = null, onPlay }) {
   const ready = state === 'ready'
   const picture = frame

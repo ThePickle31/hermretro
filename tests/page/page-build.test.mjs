@@ -205,10 +205,13 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   })
   await ev('approval.settled', { request_id: 'ap-1' }, { seq: 4, replay_epoch: 'E2' })
   scenario.byMethod['session.resume'] = plainResume
-  await ev('error', { message: 'provider went away' }, { seq: 5, replay_epoch: 'E2' })
-  check('an error frame ends the turn and says why in a card', () => {
+  // A second approval the turn never settles: when the turn ends it has expired and must not hold the message box.
+  await ev('approval.request', { request_id: 'ap-2', command: 'flash', description: 'Flash again' }, { seq: 5, replay_epoch: 'E2' })
+  await ev('error', { message: 'provider went away' }, { seq: 6, replay_epoch: 'E2' })
+  check('an error frame ends the turn and says why in a card; an approval it left open no longer holds the box', () => {
     assert.match(build14.node.querySelector('.cs-b-card.bad').textContent, /Something went wrong.*provider went away/); assert.ok(!button('Stop'))
     assert.equal(build14.node.querySelectorAll('.cs-b-card.warn').length, 0)
+    assert.ok(build14.node.querySelector('.cs-b-comp textarea')); assert.ok(!build14.node.querySelector('.cs-b-comp.asking'))
   })
   // The game the conversation made appears in the library: the conversation becomes that game's.
   scenario.games = answered({ games: [...lib14], pending: [{ storedId: 'st-new-1', name: 'Lamplight' }], device: { hardwareEnabled: false, skipped: true } })

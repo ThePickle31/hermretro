@@ -228,7 +228,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   lib14[0] = { ...lib14[0], session: lib14Session }
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   // The game plays inside the conversation, only while the agent is not working.
-  lib14[0] = { ...lib14[0], web: { sha256: 'w1' } }
+  lib14[0] = { ...lib14[0], web: { sha256: 'w1', builtAt: 2100 } } // made by build #1 (it ran from 2000 s)
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   const playerBefore = scenario.player
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post' })

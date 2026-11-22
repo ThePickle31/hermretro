@@ -474,8 +474,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           ]
         })
 
-  // An open question or approval is asked in the message box (one at a time, the oldest first).
-  const openPrompt = shownChat?.items?.find(item => (item.kind === 'clarify' || item.kind === 'approval') && !item.answered) ?? null
+  // An open question or approval is asked in the message box (one at a time, the oldest first); only while a turn
+  // runs: one its turn ended without settling has expired and must not hold the box.
+  const openPrompt = shownChat?.busy ? (shownChat.items?.find(item => (item.kind === 'clarify' || item.kind === 'approval') && !item.answered) ?? null) : null
   const playable = Boolean(game && game.webExport && playableSha(game))
   const emptyState = jsx('div', {
     className: 'cs-b-hello',

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 811b2b03d51c64307d6bcaff730667306b98c90b3eb20c40a9e071adbb7fef7b
- * body: sha256 f60394e391c5d59229f62e1612fbb6779f02e73e27c304a5a0f634e39afc69b2
+ * sources: sha256 522f48e8001eb4262865304cf4ae10b92605771b0e9d9ae893e1401152dda752
+ * body: sha256 19185404d1625553cbde86c41d6b25dc8f3d6db16ea31f4564f2aeda2af2758a
  */
 // page/sdk.js
 import {
@@ -4948,6 +4948,10 @@ function Screen({ game, className = "cs-screen" }) {
 }
 
 // page/pages/build/player/play-card.js
+function playsBuild(game, build) {
+  const madeAt = (game?.web ?? game?.rom)?.builtAt;
+  return Boolean(build?.startAt && madeAt && madeAt * 1e3 >= build.startAt - 2e3);
+}
 function PlayCard({ game, frame, state, note, build = null, onPlay }) {
   const ready = state === "ready";
   const picture = frame ? jsx(AssetImage, { asset: frame, className: "cs-b-pc-img", fallback: jsx(Screen, { className: "cs-b-pc-img", game }) }) : jsx(Screen, { className: "cs-b-pc-img", game });
@@ -6977,11 +6981,11 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     if (chatBusy) {
       playLabel = carded ? jsx("span", { className: "cs-faint cs-small", children: `Playable again when ${AGENT} finishes` }) : null;
     } else if (!playable) {
-      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, state: "unplayable" });
+      play = jsx(PlayCard, { frame, game, state: "unplayable" });
     } else if (playerOpen) {
       play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`);
     } else {
-      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, note: parts.note, onPlay, state: "ready" });
+      play = jsx(PlayCard, { build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: "ready" });
     }
   } else if (build?.state === "built" && !live) {
     playLabel = jsx("span", { className: "cs-faint cs-small", children: "Earlier build" });
@@ -7253,10 +7257,11 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
               )
             ),
             chat?.lost?.length && !busy ? jsx(LostTurnCard, { chat, stored }, "lost") : null,
-            // A playable game whose conversation has not built it (it was built elsewhere): play it here.
-            latestBuild === -1 && playableGame && turns.length ? jsx("div", {
+            // A playable game whose conversation has not built it (it was built elsewhere): play it here, once the
+            // agent is not working.
+            latestBuild === -1 && playableGame && turns.length && !busy ? jsx("div", {
               className: "cs-b-her",
-              children: playerOpen && !busy ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay, state: busy ? "busy" : "ready" })
+              children: playerOpen ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay, state: "ready" })
             }) : null
           ]
         })
@@ -11874,7 +11879,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       pendingItem && !shownChat?.busy ? jsx(Button, { onClick: () => void discard(pendingItem), size: "sm", variant: "ghost", children: "Discard" }) : null
     ]
   });
-  const openPrompt = shownChat?.items?.find((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered) ?? null;
+  const openPrompt = shownChat?.busy ? shownChat.items?.find((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered) ?? null : null;
   const playable = Boolean(game && game.webExport && playableSha(game));
   const emptyState = jsx("div", {
     className: "cs-b-hello",
@@ -14307,6 +14312,7 @@ var CARDS_CSS = `
 .cs-b-sugg { color: var(--ui-text-quaternary); flex: none; font-size: 11.5px; }
 .cs-b-own { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; outline: none; padding: 6px 8px 2px 36px; }
 .cs-b-own::placeholder { color: var(--ui-text-quaternary); }
+.cs-b-own:focus-visible { border-radius: 6px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .cs-b-cmd { background: var(--ui-bg-quaternary); border-radius: 6px; font: 11px/1.5 ${MONO}; margin: 0; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 .cs-b-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cs-b-chip { align-items: center; background: var(--ui-bg-secondary); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); display: inline-flex; font-size: 11.5px; gap: 5px; max-width: 100%; overflow: hidden; padding: 2px 9px; text-overflow: ellipsis; white-space: nowrap; }

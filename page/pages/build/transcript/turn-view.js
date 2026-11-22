@@ -4,7 +4,7 @@ import { attachmentKey } from '#pages/build/chat/attachments.js'
 import { AttachmentChip } from '#pages/build/composer/attachment-chip.js'
 import { effortLabel, modelName } from '#pages/build/composer/model-names.js'
 import { InlinePlayer } from '#pages/build/player/inline-player.js'
-import { PlayCard } from '#pages/build/player/play-card.js'
+import { PlayCard, playsBuild } from '#pages/build/player/play-card.js'
 import { AGENT } from '#app/ids.js'
 import { spanWords, timeOfDay } from '#shared/ui/time.js'
 import { playableSha } from '#app/player/stage.js'
@@ -57,11 +57,11 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     if (chatBusy) {
       playLabel = carded ? jsx('span', { className: 'cs-faint cs-small', children: `Playable again when ${AGENT} finishes` }) : null
     } else if (!playable) {
-      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, state: 'unplayable' })
+      play = jsx(PlayCard, { frame, game, state: 'unplayable' })
     } else if (playerOpen) {
       play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`)
     } else {
-      play = jsx(PlayCard, { build: build?.n ?? null, frame, game, note: parts.note, onPlay, state: 'ready' })
+      play = jsx(PlayCard, { build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: 'ready' })
     }
   } else if (build?.state === 'built' && !live) {
     playLabel = jsx('span', { className: 'cs-faint cs-small', children: 'Earlier build' })

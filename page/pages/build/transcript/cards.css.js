@@ -25,6 +25,7 @@ export const CARDS_CSS = `
 .cs-b-sugg { color: var(--ui-text-quaternary); flex: none; font-size: 11.5px; }
 .cs-b-own { background: transparent; border: 0; color: var(--ui-text-primary); font: inherit; outline: none; padding: 6px 8px 2px 36px; }
 .cs-b-own::placeholder { color: var(--ui-text-quaternary); }
+.cs-b-own:focus-visible { border-radius: 6px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .cs-b-cmd { background: var(--ui-bg-quaternary); border-radius: 6px; font: 11px/1.5 ${MONO}; margin: 0; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 .cs-b-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cs-b-chip { align-items: center; background: var(--ui-bg-secondary); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); display: inline-flex; font-size: 11.5px; gap: 5px; max-width: 100%; overflow: hidden; padding: 2px 9px; text-overflow: ellipsis; white-space: nowrap; }
