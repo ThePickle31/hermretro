@@ -12,5 +12,6 @@ files, what changed and why.
   original path made Hermes's install-time scanner ask for confirmation on every install.
 - `assets/devices/images.br` (removed), `dist/server.js`: the device finishes' pictures live in the plugin's
   `player/skins/<id>/skin.webp|png`, not in the engine. The engine reads them from the folder in
-  `CHROMATIC_DEVICE_SKINS` (the broker sets it), loose rather than packed, for its web preview and the hardware
+  `CHROMATIC_DEVICE_SKINS` (the broker sets it, for the prepared copy outside the plugin), else the plugin's own
+  `player/skins/` beside the bundled engine, loose rather than packed, for its web preview and the hardware
   live-feed window (`deviceArtworkFile` maps `chromatic-<id>.<ext>` to `<id>/skin.<ext>`), so each picture exists once.

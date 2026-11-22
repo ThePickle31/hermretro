@@ -66302,7 +66302,7 @@ var NativeDeviceCaptureService = class {
 var SERVER_NAME = "modretro-chromatic";
 var SERVER_VERSION = "1.0.34";
 var WEB_ANNOTATION_ASSETS = fileURLToPath3(new URL("../dist/web-annotations/", import.meta.url));
-var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path45.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath3(new URL("../assets/devices/", import.meta.url));
+var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path45.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath3(new URL("../../../player/skins/", import.meta.url));
 var readOnly3 = {
   readOnlyHint: true,
   destructiveHint: false,
