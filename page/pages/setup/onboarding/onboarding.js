@@ -1,7 +1,7 @@
 // First-run onboarding: welcome, install, Chromatic or not, first game.
-import { Button, Codicon, jsx, jsxs, useEffect, useRef, useState } from '#sdk'
+import { Button, Codicon, host, jsx, jsxs, useEffect, useRef, useState } from '#sdk'
 import { describeRequestError } from '#app/backend.js'
-import { sendPromptToChat } from '#app/chat-insert.js'
+import { emit } from '#app/events.js'
 import { formatBytes } from '#app/format.js'
 import { InstallActions, InstallError, InstallProgress } from '#pages/setup/install/install-actions.js'
 import { DownloadTable, InstallFacts, InstallLog, profileRowState } from '#pages/setup/install/install-panel.js'
@@ -78,6 +78,21 @@ function OnboardWelcome({ manifest, onStart }) {
   })
 }
 
+/** While the tools install: the bundled demo, only when asked for, in its own tab beside the chat (the Emulator page
+ *  opens it on `setup.demoRequested`). It needs neither the tools being installed nor a model. */
+function TryDemo() {
+  if (typeof host.openWorkspace !== 'function') {
+    return null
+  }
+
+  return jsxs(Button, {
+    onClick: () => emit('setup.demoRequested', {}),
+    size: 'sm',
+    variant: 'ghost',
+    children: [jsx(Codicon, { name: 'play', size: 14 }), 'Try the demo while you wait']
+  })
+}
+
 function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doctor }) {
   const installer = useInstaller({ ctx, doctor, install, status, toolchainDone })
   const data = install.data
@@ -114,7 +129,8 @@ function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doct
           jsx(InstallFacts, { manifest: data?.manifest, root: data?.root, status }),
           jsx(InstallProgress, { elsewhere: installer.elsewhere, install: data?.install, phase, verifying: installer.verifying }),
           ...InstallError({ installer }),
-          jsx(InstallActions, { installer })
+          jsx(InstallActions, { installer }),
+          phase === 'running' ? jsx(TryDemo, {}) : null
         ]
       }),
       jsxs('div', {
@@ -174,15 +190,15 @@ function OnboardChromatic({ onEmulator, onDevice }) {
             primary: true,
             tag: 'Ready now',
             text: 'Make and play games in the emulator. You can add a Chromatic later from Setup.',
-            title: 'Not yet',
+            title: 'Start making games',
             tone: 'good'
           }),
           card({
             art: jsx('span', { 'aria-hidden': true, className: 'cs-hwart device' }),
             onClick: onDevice,
-            tag: '4 more steps',
+            tag: 'Optional · 4 more steps',
             text: "Update its firmware, turn on Developer Mode and install ModRetro's device software.",
-            title: 'Yes, I have one',
+            title: 'Set up my Chromatic',
             tone: 'quiet'
           })
         ]
@@ -191,11 +207,6 @@ function OnboardChromatic({ onEmulator, onDevice }) {
   })
 }
 
-const NEW_GAME_PROMPT =
-  'Use hermretro to help me start a new Game Boy Color game. Ask me what I want to make, then create the project, build it and show me the first frame.'
-const PLAN_GAME_PROMPT =
-  'Use hermretro to help me plan a small Game Boy Color game before we build anything. Interview me briefly, then write the game brief, backlog and test plan into the project.'
-
 const IDEAS = [
   ['Tiny platformer', 'a tiny platformer where a frog hops across lily pads to reach home'],
   ['Top-down adventure', 'a top-down adventure where a gardener collects three seeds to open a gate'],
@@ -203,31 +214,19 @@ const IDEAS = [
   ['Spooky story', 'a spooky little story game set in an abandoned lighthouse']
 ]
 
-function makePrompt(idea) {
-  const text = idea.trim()
-
-  return text
-    ? `Use hermretro to make a new Game Boy Color game: ${text}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.`
-    : NEW_GAME_PROMPT
-}
-
-function OnboardMake({ ctx, onDone }) {
+/** The last screen: the idea goes on to Build's New Game box (`setup.firstIdea`), never sent from here. Every way
+ *  out (Build it, Plan first, Skip, Set up my Chromatic) takes what was typed along. */
+function OnboardMake({ onDone, onDevice }) {
   const [idea, setIdea] = useState('')
-  const [busy, setBusy] = useState(false)
 
-  const go = async prompt => {
-    if (busy) {
-      return
+  const handOff = plan => {
+    if (idea.trim() || plan) {
+      emit('setup.firstIdea', { idea: idea.trim(), plan })
     }
-
-    setBusy(true)
-
-    try {
-      await sendPromptToChat(ctx, prompt, { fresh: true })
-      onDone()
-    } finally {
-      setBusy(false)
-    }
+  }
+  const go = plan => {
+    handOff(plan)
+    onDone()
   }
 
   return jsxs('div', {
@@ -251,7 +250,7 @@ function OnboardMake({ ctx, onDone }) {
                 onKeyDown: event => {
                   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault()
-                    void go(makePrompt(idea))
+                    go(false)
                   }
                 },
                 placeholder: 'A frog who delivers mail across a flooded town…',
@@ -262,28 +261,48 @@ function OnboardMake({ ctx, onDone }) {
                 className: 'cs-row',
                 style: { justifyContent: 'space-between' },
                 children: [
-                  jsx('span', { className: 'cs-faint', children: 'Hermes asks a few questions, then builds the first room. The prompt opens in a new chat.' }),
-                  jsxs(Button, {
-                    disabled: busy,
-                    onClick: () => void go(makePrompt(idea)),
-                    size: 'sm',
-                    variant: 'default',
-                    children: ['Start in chat', jsx(Codicon, { name: 'arrow-right', size: 14 })]
+                  jsx('span', { className: 'cs-faint', children: 'It goes into the New Game box on Build. Nothing is sent until you press send there.' }),
+                  jsxs('div', {
+                    className: 'cs-row',
+                    style: { gap: 8 },
+                    children: [
+                      jsx(Button, { onClick: () => go(true), size: 'sm', variant: 'outline', children: 'Plan it first' }),
+                      jsxs(Button, {
+                        onClick: () => go(false),
+                        size: 'sm',
+                        variant: 'default',
+                        children: ['Continue in Build', jsx(Codicon, { name: 'arrow-right', size: 14 })]
+                      })
+                    ]
                   })
                 ]
               })
             ]
           }),
-          jsxs('div', {
+          jsx('div', {
             'aria-label': 'Ideas',
             className: 'cs-ideas',
             role: 'group',
-            children: [
-              ...IDEAS.map(([label, text]) => jsx('button', { onClick: () => setIdea(text), type: 'button', children: label }, label)),
-              jsx('button', { disabled: busy, onClick: () => void go(PLAN_GAME_PROMPT), type: 'button', children: 'Plan it first' }, 'plan')
-            ]
+            children: IDEAS.map(([label, text]) => jsx('button', { onClick: () => setIdea(text), type: 'button', children: label }, label))
           }),
-          jsx('div', { children: jsx(Button, { onClick: onDone, size: 'sm', variant: 'ghost', children: 'Skip, take me to the studio' }) })
+          jsxs('div', {
+            className: 'cs-row',
+            style: { gap: 8 },
+            children: [
+              jsx(Button, { onClick: () => go(false), size: 'sm', variant: 'ghost', children: 'Skip, take me to the studio' }),
+              onDevice
+                ? jsx(Button, {
+                    onClick: () => {
+                      handOff(false)
+                      onDevice()
+                    },
+                    size: 'sm',
+                    variant: 'ghost',
+                    children: 'Set up my Chromatic first'
+                  })
+                : null
+            ]
+          })
         ]
       }),
       jsx(Art, {})
@@ -305,7 +324,7 @@ export function Onboarding({ ctx, screen, status, install, steps, update, onFini
   } else if (screen === 'chromatic') {
     body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) })
   } else {
-    body = jsx(OnboardMake, { ctx, onDone: onFinish })
+    body = jsx(OnboardMake, { onDevice, onDone: onFinish })
   }
 
   // A new screen moves focus to its heading (announced once); the section is not a live region, or every

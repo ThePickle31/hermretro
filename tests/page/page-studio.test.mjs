@@ -81,7 +81,8 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   await tab('Setup')
   check('a plugin installed into an ordinary profile starts with creating the studio profile', () => {
     assert.equal(heading(), 'Create the hermretro profile'); assert.match(text(), /Step 1 of 6/)
-    assert.match(text(), /uses your existing sign-in and keys/)
+    assert.match(text(), /starts with the sign-ins and keys Hermes can share/); assert.match(text(), /Some accounts may not carry over/)
+    assert.ok(!/nothing to log in to again/.test(text()), 'no promise that every sign-in is shared')
     assert.match(text(), /The "default" profile, where the plugin is installed, is not changed/)
   })
   scenario.calls.length = 0; scenario.notices.length = 0
@@ -116,18 +117,17 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   })
   scenario.status = answered(moved)
   await studioPage.rerender()
-  // The first-game planning action still drafts in the routed studio profile, never the active composer.
+  // Onboarding hands planning to Build without reaching the active profile's chat or opening any session.
   const setupMemory = scenario.storage
   scenario.storage = { setup: { onboardStarted: true, hardwareSkipped: true } }
   const onboarding = await mount(page)
   scenario.calls.length = 0; scenario.inserted.length = 0
   await click('Plan it first')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('onboarding planning opens a draft in the studio profile without sending it', () => {
-    assert.deepEqual(scenario.calls[0], ['newChat', 'hermretro'])
-    assert.match(scenario.inserted.at(-1)?.[1], /plan a small Game Boy Color game before we build anything/)
-    assert.ok(!scenario.calls.some(([kind, argument, method]) =>
-      (kind === 'request' && argument === 'prompt.submit') || (kind === 'requestProfile' && method === 'prompt.submit')))
+  check('routed onboarding planning opens Build without creating or sending a chat', () => {
+    assert.equal(onboarding.node.querySelector('[data-mode="plan"]')?.getAttribute('aria-checked'), 'true')
+    assert.ok(!scenario.calls.some(call => call.some(value => ['newChat', 'session.create', 'prompt.submit'].includes(value))))
+    assert.deepEqual(scenario.inserted, [])
   })
   await onboarding.close()
   scenario.storage = setupMemory
