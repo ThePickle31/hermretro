@@ -16,16 +16,17 @@ export function toolFailed(payload) {
   )
 }
 
-/** Why an engine operation did not succeed: its first error diagnostic, else its summary line. */
+/** Why an engine operation did not succeed: its first error diagnostic, else its summary line (a warning is not
+ *  the reason). */
 function engineError(parsed, content) {
   if (content.success !== false) {
     return null
   }
 
   const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : []
-  const first = diagnostics.find(item => item?.severity === 'error' && typeof item.message === 'string') ?? diagnostics.find(item => typeof item?.message === 'string')
+  const error = diagnostics.find(item => item?.severity === 'error' && typeof item.message === 'string')
 
-  return first?.message ?? (typeof parsed.result === 'string' && parsed.result ? parsed.result : null)
+  return error?.message ?? (typeof parsed.result === 'string' && parsed.result ? parsed.result : null)
 }
 
 // Argument keys worth keeping on a step (labels, details, image paths). Bulky ones (file bodies, code,

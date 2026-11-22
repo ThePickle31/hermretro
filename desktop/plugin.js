@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 713aee75ba5b1c7bc68a82826f9c8f3b91fe2f254a9d26ac6ac69ee1121d4ffa
- * body: sha256 b04e6d62f451a4680b712da12c96d293072c985aff55f6fb92a4f7bf2b40f5f5
+ * sources: sha256 075337e568689f0f687bd06c0a9ea55f9c27698b3fe27b166d06ea5237d4c69a
+ * body: sha256 b103e84feafcab4228f9379d3c9335b92606171fbf51fa0b5f279ad8a213ba20
  */
 // page/sdk.js
 import {
@@ -534,8 +534,8 @@ function engineError(parsed, content) {
     return null;
   }
   const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : [];
-  const first = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string") ?? diagnostics.find((item) => typeof item?.message === "string");
-  return first?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
+  const error = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string");
+  return error?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
 var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
 function stepArgs(args) {
@@ -5456,7 +5456,7 @@ function buildHistory(turns) {
   return builds;
 }
 function turnBuilt(turn) {
-  return turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
+  return turnBuildState(turn) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
 function madeAssets(parts, root) {
