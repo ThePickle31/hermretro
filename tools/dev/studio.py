@@ -175,7 +175,9 @@ def alive(name: str) -> bool:
     if not entry or not isinstance(entry.get("started"), str):
         return False
     started, command = process(entry["pid"])
-    if started is None or MARKERS[name] not in command:
+    # Node moves its arguments while it starts, so its command line reads empty for a moment: only a command line
+    # without the marker says the pid now belongs to another program.
+    if started is None or (command and MARKERS[name] not in command):
         return False
     recorded = entry["started"]
     # A record from before the marks were exact holds ps's lstart text: compare it the way it was made.

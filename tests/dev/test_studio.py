@@ -40,6 +40,11 @@ class AliveTest(unittest.TestCase):
         with self.running("tick:1000"):
             self.assertTrue(studio.alive("browser"))
 
+    def test_a_command_line_read_empty_while_node_starts_is_still_ours(self):
+        self.record("tick:1000")
+        with self.running("tick:1000", ""):
+            self.assertTrue(studio.alive("browser"))
+
     def test_another_process_with_the_pid_is_not_ours(self):
         self.record("tick:1000")
         with self.running("tick:1001"):  # a pid reused a moment later, with the same command
@@ -47,7 +52,7 @@ class AliveTest(unittest.TestCase):
         with self.running("tick:1000", "vim notes.txt"):
             self.assertFalse(studio.alive("browser"))
         with self.running(None, ""):
-            self.assertFalse(studio.alive("browser"))
+            self.assertFalse(studio.alive("browser"), "gone")
 
     def test_a_record_from_before_exact_marks_is_compared_the_way_it_was_made(self):
         self.record("Sat Nov 21 20:59:43 2026")
