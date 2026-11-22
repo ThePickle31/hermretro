@@ -77,7 +77,7 @@ def rpc_asset(ctx):
                     "code": "TOO_LARGE",
                     "error": f"The image is larger than {limit}, too large to preview.",
                 }
-            _keep_version(real)
+            _keep_version(real, root)
             earlier = None
             wanted = str(params.get("version") or "")
             if wanted:
@@ -85,12 +85,12 @@ def rpc_asset(ctx):
                 if not wanted.isdigit():
                     return {"ok": False, "code": "INVALID", "error": "Unknown version."}
                 if int(wanted) != real.stat().st_mtime_ns:
-                    kept = _versions_dir(real) / f"{wanted}{real.suffix.lower()}"
+                    kept = _versions_dir(real, root) / f"{wanted}{real.suffix.lower()}"
                     if not kept.is_file():
                         return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
                     earlier = kept
             elif params.get("at") is not None:
-                earlier = _version_at(real, params.get("at"))
+                earlier = _version_at(real, root, params.get("at"))
             source = earlier or real
             data = source.read_bytes()
             width, height = _image_size(data)
@@ -148,11 +148,17 @@ def rpc_asset_info(ctx):
             if not found:
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in this game are shown here."}
             real, root = found
-            _keep_version(real)
+            _keep_version(real, root)
             frames = _is_frames(root)
             relative = None if frames else real.relative_to(root).as_posix()
             kind = "frame" if frames else _asset_kind(relative)
-            answer = {"ok": True, "path": str(real), "relative": relative, "kind": kind, "versions": _versions(real)}
+            answer = {
+                "ok": True,
+                "path": str(real),
+                "relative": relative,
+                "kind": kind,
+                "versions": _versions(real, root),
+            }
             if not frames and real == cover_path(root).resolve():
                 answer["kind"] = "cover"
             if frames or kind not in ("sprite", "background"):
@@ -227,10 +233,10 @@ def rpc_asset_restore(ctx):
             real, root = found
             if _is_frames(root):
                 return {"ok": False, "code": "INVALID", "error": "Playtest frames are not restored."}
-            kept = _versions_dir(real) / f"{wanted}{real.suffix.lower()}"
+            kept = _versions_dir(real, root) / f"{wanted}{real.suffix.lower()}"
             if not kept.is_file():
                 return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
-            _keep_version(real)
+            _keep_version(real, root)
             # A new temporary file of its own (never one already there, which could be a link elsewhere).
             handle, partial = tempfile.mkstemp(dir=real.parent, prefix=f".{real.name}.", suffix=".restore")
             try:
@@ -240,9 +246,9 @@ def rpc_asset_restore(ctx):
             except BaseException:
                 Path(partial).unlink(missing_ok=True)
                 raise
-            _keep_version(real)
+            _keep_version(real, root)
             emit("assets.image_restored", path=str(real))
-            return {"ok": True, "path": str(real), "versions": _versions(real)}
+            return {"ok": True, "path": str(real), "versions": _versions(real, root)}
         except Exception as error:
             logger.exception("hermretro asset_restore failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}

@@ -2,6 +2,7 @@
 it delivered, and the viewer's ``asset`` call answers that version for a reply's time."""
 
 import base64
+import hashlib
 import os
 import re
 import sys
@@ -13,10 +14,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as assets_versions  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, make_library_game  # noqa: E402 - the repository root goes on sys.path first
 
 PNG_A = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"A" * 20
 PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"B" * 20
+
+
+def path_digest(real: Path) -> str:
+    """The folder name earlier releases kept an image's versions under: its resolved path alone."""
+    return hashlib.sha256(str(real).encode("utf-8")).hexdigest()[:24]
 
 
 class AssetVersions(unittest.TestCase):
@@ -30,6 +37,7 @@ class AssetVersions(unittest.TestCase):
         self.cover = self.game / "cover.png"
         rpc_asset = assets_rpcs.rpc_asset(None)
         self.asset = lambda params: rpc_asset({"root": str(self.game), **params})  # this game's own Build page
+        self.data = home.data
 
     def write(self, data, seconds):
         self.cover.write_bytes(data)
@@ -72,12 +80,12 @@ class AssetVersions(unittest.TestCase):
         self.shown()
         self.write(PNG_A, 2000)
         self.shown()
-        folder = assets_versions._versions_dir(self.cover.resolve())
+        folder = assets_versions._versions_dir(self.cover.resolve(), self.game.resolve())
         self.assertEqual(len(list(folder.iterdir())), 1)
         outside = self.outside / "elsewhere.png"
         outside.write_bytes(PNG_A)
         assets_versions.keep_delivered_images(assistant_response=f"MEDIA:{outside}")
-        self.assertFalse(assets_versions._versions_dir(outside.resolve()).exists())
+        self.assertEqual(list(folder.parent.iterdir()), [folder])  # nothing kept for the image outside every game
 
     def test_versions_are_listed_picked_by_id_and_restored(self):
         self.write(PNG_A, 1000)
@@ -101,7 +109,8 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(sum(entry["current"] for entry in restored["versions"]), 1)
         # The version that was replaced is still kept.
         kept = [
-            assets_versions._versions_dir(self.cover.resolve()) / f"{entry['id']}.png" for entry in restored["versions"]
+            assets_versions._versions_dir(self.cover.resolve(), self.game.resolve()) / f"{entry['id']}.png"
+            for entry in restored["versions"]
         ]
         self.assertIn(PNG_B, [path.read_bytes() for path in kept if path.is_file()])
 
@@ -232,15 +241,70 @@ class AssetVersions(unittest.TestCase):
         self.assertFalse(assets_rpcs.rpc_assets(None)({})["ok"])
 
     def test_older_versions_counts_the_kept_versions_but_not_the_current_one(self):
-        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # no file yet
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve(), self.game.resolve()), 0)  # no file yet
         self.write(PNG_A, 1000)
         self.shown()
-        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 0)  # only the current one
+        self.assertEqual(
+            assets_versions.older_versions(self.cover.resolve(), self.game.resolve()), 0
+        )  # only the current one
         self.write(PNG_B, 2000)
         self.shown()
         self.write(PNG_A, 3000)
         self.shown()
-        self.assertEqual(assets_versions.older_versions(self.cover.resolve()), 2)
+        self.assertEqual(assets_versions.older_versions(self.cover.resolve(), self.game.resolve()), 2)
+
+    def test_a_folder_that_becomes_a_game_starts_with_none_of_the_outer_games_versions(self):
+        pond = self.game / "pond"
+        (pond / "assets").mkdir(parents=True)
+        lily = pond / "assets" / "lily.png"
+        for data, seconds in ((PNG_A, 1000), (PNG_B, 2000)):
+            lily.write_bytes(data)
+            os.utime(lily, ns=(seconds * 10**9, seconds * 10**9))
+            self.asset({"path": str(lily)})  # Cat Field's picture, shown on its page: both versions kept
+        (pond / "pond.gbsproj").write_text("{}")
+        hermes_host._registry().upsert(str(pond))  # the folder is a game of its own now
+
+        pond_page = {"root": str(pond), "path": str(lily)}
+        info = assets_rpcs.rpc_asset_info(None)(pond_page)
+        self.assertEqual([entry["current"] for entry in info["versions"]], [True], "only the file as it is now")
+        self.assertFalse(assets_rpcs.rpc_asset(None)({**pond_page, "at": 1500 * 1000})["earlier"])
+        older = assets_versions._versions(lily.resolve(), self.game.resolve())[0]["id"]
+        self.assertEqual(assets_rpcs.rpc_asset(None)({**pond_page, "version": older})["code"], "MISSING")
+        self.assertEqual(assets_rpcs.rpc_asset_restore(None)({**pond_page, "version": older})["code"], "MISSING")
+        self.assertEqual(lily.read_bytes(), PNG_B)
+
+    def test_versions_kept_by_path_alone_move_to_their_game(self):
+        self.write(PNG_A, 1000)
+        old = self.data / "asset-versions" / path_digest(self.cover.resolve())
+        old.mkdir(parents=True)
+        (old / f"{1000 * 10**9}.png").write_bytes(PNG_A)
+        self.write(PNG_B, 2000)
+        self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
+        self.assertFalse(old.exists())
+
+    def test_versions_kept_by_path_alone_never_move_to_a_game_that_no_longer_holds_the_image(self):
+        self.write(PNG_A, 1000)
+        old = self.data / "asset-versions" / path_digest(self.cover.resolve())
+        old.mkdir(parents=True)
+        (old / f"{1000 * 10**9}.png").write_bytes(PNG_A)
+        stale = self.outside.resolve()  # an owner picked a moment ago that holds the image no more
+        self.assertFalse(assets_versions._versions_dir(self.cover.resolve(), stale).exists())
+        self.assertTrue(old.is_dir())
+
+    def test_versions_kept_by_path_alone_stay_put_when_two_games_hold_the_image(self):
+        pond = self.game / "pond"
+        pond.mkdir()
+        (pond / "pond.gbsproj").write_text("{}")
+        hermes_host._registry().upsert(str(pond))
+        lily = pond / "lily.png"
+        lily.write_bytes(PNG_A)
+        os.utime(lily, ns=(1000 * 10**9, 1000 * 10**9))
+        old = self.data / "asset-versions" / path_digest(lily.resolve())  # Cat Field's or Pond's?
+        old.mkdir(parents=True)
+        (old / f"{500 * 10**9}.png").write_bytes(PNG_B)
+        answer = assets_rpcs.rpc_asset(None)({"root": str(pond), "path": str(lily), "at": 700 * 1000})
+        self.assertFalse(answer["earlier"])
+        self.assertTrue(old.is_dir())
 
     def test_a_too_large_image_names_the_limit(self):
         self.assertEqual(assets_versions.size_text(6 * 1024 * 1024), "6 MB")
@@ -280,7 +344,7 @@ class AssetRetention(unittest.TestCase):
         assets_versions.keep_inspected_images(tool_name="vision_analyze", args={"image_url": str(self.cover)})
 
     def kept(self):
-        folder = assets_versions._versions_dir(self.cover.resolve())
+        folder = assets_versions._versions_dir(self.cover.resolve(), self.game.resolve())
         files = sorted(folder.iterdir(), key=lambda item: int(item.stem))
         return [int(item.stem) // 10**9 - 1000 for item in files], [
             int.from_bytes(f.read_bytes()[24:], "big") for f in files

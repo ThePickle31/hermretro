@@ -113,25 +113,33 @@ def _is_frames(root: Path) -> bool:
     return _same_folder(root, _frames_dir())
 
 
-def _image_root(real: Path) -> Path | None:
-    """The folder an image is shown from, spelled as in ``real``: the saved frames, or the library game that most
-    closely holds it (the deepest, so an image of a game inside another game's folder belongs to the inner game);
-    None for neither. Folders are matched by identity, not spelling."""
-    owners = set()
+def _holders(real: Path) -> list[Path]:
+    """The saved frames or library games whose folders hold an image, deepest first, spelled as in ``real``. Folders
+    are matched by identity, not spelling."""
+    roots = set()
     for base in _asset_roots():
         try:
             found = base.stat()
         except OSError:
             continue
-        owners.add((found.st_dev, found.st_ino))
+        roots.add((found.st_dev, found.st_ino))
+    holders = []
     for folder in real.parents:
         try:
             found = folder.stat()
         except OSError:
             continue
-        if (found.st_dev, found.st_ino) in owners:
-            return folder
-    return None
+        if (found.st_dev, found.st_ino) in roots:
+            holders.append(folder)
+    return holders
+
+
+def _image_root(real: Path) -> Path | None:
+    """The folder an image is shown from, spelled as in ``real``: the saved frames, or the library game that most
+    closely holds it (the deepest, so an image of a game inside another game's folder belongs to the inner game);
+    None for neither."""
+    holders = _holders(real)
+    return holders[0] if holders else None
 
 
 def _shown_in(root: Path, game_root) -> bool:
@@ -166,18 +174,39 @@ def _asset_file(raw, game_root=None, *, any_game=False) -> tuple[Path, Path] | N
     return real, root
 
 
-def _versions_dir(real: Path) -> Path:
-    return host._data_dir() / "asset-versions" / hashlib.sha256(str(real).encode("utf-8")).hexdigest()[:24]
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
 
 
-def _keep_version(real: Path) -> None:
+def _versions_dir(real: Path, root: Path) -> Path:
+    """Where the kept versions of ``real`` live as an image shown from ``root`` (``_image_root``): filed under the
+    game that owns it, so a folder that later becomes a game of its own starts with none of the outer game's."""
+    base = host._data_dir() / "asset-versions"
+    folder = base / _digest(f"{root}\0{real}")
+    if not folder.exists():
+        _adopt_path_versions(base / _digest(str(real)), folder, real, root)
+    return folder
+
+
+def _adopt_path_versions(old: Path, folder: Path, real: Path, root: Path) -> None:
+    """Versions kept by earlier releases were filed by path alone. They move to ``root`` only when it alone (a game or
+    the saved frames) holds the image: with a game inside another's folder, the old ones could be either's."""
+    try:
+        holders = _holders(real) if old.is_dir() else []
+        if len(holders) == 1 and _same_folder(holders[0], root):
+            old.rename(folder)
+    except OSError:
+        logger.debug("hermretro could not move an image's kept versions", exc_info=True)
+
+
+def _keep_version(real: Path, root: Path) -> None:
     """Keep this version of a game image (named by its modification time), so a later rewrite of the
     same file (cover.png made again) does not change what an earlier reply showed."""
     try:
         stat = real.stat()
         if stat.st_size > ASSET_MAX_BYTES:
             return
-        folder = _versions_dir(real)
+        folder = _versions_dir(real, root)
         target = folder / f"{stat.st_mtime_ns}{real.suffix.lower()}"
         if target.exists():
             return
@@ -195,7 +224,7 @@ def _keep_version(real: Path) -> None:
         logger.debug("hermretro could not keep an image version", exc_info=True)
 
 
-def _version_at(real: Path, at_ms) -> Path | None:
+def _version_at(real: Path, root: Path, at_ms) -> Path | None:
     """The kept version of ``real`` that was current at ``at_ms`` (a reply's time), when the file has
     been rewritten since; None when the file on disk is still that version (or nothing older was kept)."""
     try:
@@ -204,7 +233,7 @@ def _version_at(real: Path, at_ms) -> Path | None:
         return None
     if at_ns <= 0 or real.stat().st_mtime_ns <= at_ns:
         return None
-    folder = _versions_dir(real)
+    folder = _versions_dir(real, root)
     if not folder.is_dir():
         return None
     older = [
@@ -218,7 +247,7 @@ def _keep_paths(values) -> None:
         if isinstance(value, str) and value:
             found = _asset_file(value, any_game=True)
             if found:
-                _keep_version(found[0])
+                _keep_version(*found)
 
 
 def keep_delivered_images(assistant_response=None, **_kwargs):
@@ -239,9 +268,9 @@ def keep_inspected_images(tool_name=None, args=None, **_kwargs):
         logger.debug("hermretro keep_inspected_images failed", exc_info=True)
 
 
-def _versions(real: Path) -> list[dict]:
-    """Every kept version of a file, oldest first, with the current one marked."""
-    folder = _versions_dir(real)
+def _versions(real: Path, root: Path) -> list[dict]:
+    """Every kept version of a file shown from ``root``, oldest first, with the current one marked."""
+    folder = _versions_dir(real, root)
     kept = (
         sorted(
             (item for item in folder.iterdir() if item.stem.isdigit() and item.suffix != ".part"),
@@ -265,10 +294,10 @@ def _versions(real: Path) -> list[dict]:
     return versions
 
 
-def older_versions(real: Path) -> int:
-    """How many kept versions of a game image are older than the file as it is now (the current one is not
-    counted); 0 when none are kept or the file cannot be read."""
+def older_versions(real: Path, root: Path) -> int:
+    """How many kept versions of a game image (shown from ``root``) are older than the file as it is now (the current
+    one is not counted); 0 when none are kept or the file cannot be read."""
     try:
-        return sum(1 for version in _versions(real) if not version["current"])
+        return sum(1 for version in _versions(real, root) if not version["current"])
     except OSError:
         return 0
