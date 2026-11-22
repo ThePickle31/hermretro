@@ -57,11 +57,13 @@ agreement and checks every tracked file sits in one of them).
 | `tests/repo/` | Repository-wide checks: names in lock step, version, layout, portability, bundle, scan |
 | `tests/acceptance/` | The real-engine run through the broker |
 | `tests/retrodev/` | Tests for the development CLI |
+| `tests/dev/` | Tests for the development loop (tools/dev) |
 | `tools/` | Developer tools; check.py runs every check |
 | `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
 | `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
+| `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |
 | `tools/py/` | Pinned Python tools for development only (ruff), their settings, and check.py's helpers |
 | `tools/retrodev/` | The development CLI: gates and commands for the working agreement (python tools/retrodev) |
