@@ -21,7 +21,7 @@ export const SHELL_CSS = `
 .cs-pad { display: flex; flex: 1; flex-direction: column; gap: 28px; isolation: isolate; padding: 26px clamp(16px, 3.5cqi, 64px) 36px; position: relative; }
 /* the page's background (background-layer.js): behind everything in the page area */
 .cs-bg { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: -1; }
-.cs-bg[hidden] { display: none; }
+.cs-bg[hidden] { display: none !important; }
 .cs-pad.flush { gap: 0; padding: 0; }
 .cs-chip { align-items: center; background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); display: inline-flex; font: 400 11px/1 ${MONO}; gap: 6px; padding: 5px 8px; white-space: nowrap; }
 .cs-chip > i { background: var(--ui-text-quaternary); display: block; flex: none; height: 6px; width: 6px; }

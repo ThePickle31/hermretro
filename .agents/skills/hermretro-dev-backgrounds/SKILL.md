@@ -13,25 +13,34 @@ scene work the same way.
 
 1. **The folder** `page/backgrounds/<id>/` (lower-case letters, digits and dashes). It imports only its own files and
    `#shared/` (no React, no pages, no app).
-2. **`index.js`**, exporting one descriptor named after it:
+2. **`index.js`**, exporting one descriptor named after it. The smallest background is styles alone:
 
 ```js
-import { STARFIELD_CSS } from './starfield.css.js'
+// page/backgrounds/dusk/index.js
+export const DUSK = {
+  id: 'dusk',
+  css: [`.cs-bg[data-bg=dusk] { background: linear-gradient(var(--ui-bg-editor), color-mix(in srgb, var(--ui-accent) 25%, var(--ui-bg-editor))); }`],
+  start: () => () => {} // nothing to run, nothing to undo
+}
+```
 
+   Anything that moves draws in `start`, which returns the function that undoes it:
+
+```js
 export const STARFIELD = {
   id: 'starfield',
   css: [STARFIELD_CSS],
-  // Draw into `layer` (an empty div filling the page area). Return the function that undoes everything.
   start({ host, layer, env }) {
     const canvas = layer.ownerDocument.createElement('canvas')
     layer.append(canvas)
+    const paint = time => { /* size the canvas to layer.clientWidth x clientHeight, then draw the stars at `time` */ }
     let frame = 0
-    const draw = time => {
-      frame = env.raf(draw)
-      if (env.isHidden()) return // its page is not shown (or the window is hidden): do nothing, keep the state
-      // ...size the canvas to layer.clientWidth/clientHeight and paint...
+    const tick = time => {
+      frame = env.raf(tick)
+      if (!env.isHidden() && !env.motion?.matches) paint(time) // hidden or reduced motion: no work
     }
-    draw(0) // the first frame now, before the page paints: it never fades in late
+    paint(0) // the first frame now, before the page paints: it never comes in late
+    frame = env.raf(tick)
     return () => {
       env.caf(frame)
       canvas.remove()
@@ -47,7 +56,8 @@ export const STARFIELD = {
      onResize)`, `motion`, the reduced-motion query, and `isHidden()`). Use them instead of globals, so the
      background can be tested with fakes.
    - `start` runs once. When a page without this background is shown, the layer is hidden (`isHidden()` turns true)
-     but the background keeps its state; when a page asks for it again it carries on. Stop work while hidden.
+     but the background keeps its state; when a page asks for it again it carries on. Do no work while hidden: the
+     page area then belongs to another page (wait until shown before resizing to it).
    - Under reduced motion (`env.motion.matches`), draw one still frame.
 3. **Styles** in `<name>.css.js`, scoped to `.cs-bg[data-bg=<id>]`, listed in `css`. Colours come from the theme
    (`var(--ui-*)`, or the page colour read with `backgroundOf` from `#shared/ui/background.js`), so light and dark

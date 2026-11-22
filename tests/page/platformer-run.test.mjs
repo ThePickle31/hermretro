@@ -38,16 +38,16 @@ function setup({ still = false } = {}) {
     return w
   }
   const motion = { matches: still, listeners: [], addEventListener(_, f) { this.listeners.push(f) }, removeEventListener(_, f) { this.listeners = this.listeners.filter(g => g !== f) } }
-  let observed = null, resized = null, now = 0
+  let observed = null, resized = null, now = 0, hidden = false
   const env = {
     raf: f => frames.push(f), caf: () => {}, setTimer: f => timers.push(f), clearTimer: () => {},
-    getStyle: el => dom.window.getComputedStyle(el), isHidden: () => false, motion,
+    getStyle: el => dom.window.getComputedStyle(el), isHidden: () => hidden, motion,
     observe: (els, onChange) => { observed = els; resized = onChange; return () => { observed = null } }
   }
   const stop = runAttract({ host, canvasEl: doc.querySelector('canvas'), makeWorld, env, seed: 5 })
   const tick = (n = 1) => { for (let i = 0; i < n; i++) { now += 1000 / 60; const f = frames.shift(); f?.(now) } }
   const fireTimers = () => { while (timers.length) timers.shift()() }
-  return { dom, doc, host, form, worlds, tick, fireTimers, stop, motion, observed: () => observed, resize: () => resized() }
+  return { dom, doc, host, form, worlds, tick, fireTimers, stop, motion, observed: () => observed, resize: () => resized(), hide: value => { hidden = value } }
 }
 
 test('the level is built for the area alone, not around the form, and keeps going', () => {
@@ -71,6 +71,31 @@ test('a resize to the same size (the page shown again, or another page with this
   t.host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 800, width: 1000, height: 800 })
   t.resize(); t.fireTimers()
   assert.equal(t.worlds.length, 2, 'a new size: a level that fits it')
+  t.stop()
+})
+
+test('while hidden it waits: another page\'s size rebuilds nothing until it is shown again', () => {
+  const t = setup()
+  t.worlds[0].W = 600; t.worlds[0].H = 400
+  t.hide(true)
+  t.host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1200, bottom: 2400, width: 1200, height: 2400 })
+  t.resize(); t.fireTimers(); t.tick(5)
+  assert.equal(t.worlds.length, 1, 'no rebuild while another page is shown')
+  t.host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 })
+  t.hide(false)
+  t.tick(1)
+  assert.equal(t.worlds.length, 1, 'shown again at its own size: the same world')
+  t.stop()
+})
+
+test('switching reduced motion on at the same size settles a still frame', () => {
+  const t = setup()
+  t.worlds[0].W = 600; t.worlds[0].H = 400
+  t.motion.matches = true
+  for (const listener of t.motion.listeners) listener()
+  t.fireTimers()
+  assert.equal(t.worlds.length, 2, 'rebuilt for the still frame')
+  assert.equal(t.worlds[1].steps, 90, 'settled once')
   t.stop()
 })
 

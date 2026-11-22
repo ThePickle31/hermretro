@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 478201f4f5d0a9f6f45f4c3aa59d38e2924440ec25adf691b291540604cdfa4b
- * body: sha256 5cbef3d3a7196d96e755ed9accceb54997b30854e79b8b6a9a45e7cb54455eaa
+ * sources: sha256 3ac18da688feb74028620cf9ec6d16378b1f545e5959fa192eec570e42915d47
+ * body: sha256 3e609af8411ee0caf25d47ff0db27bac7535d1df509fd6cb26c711a628728a7f
  */
 // page/sdk.js
 import {
@@ -100,7 +100,8 @@ var BUILD_RESPONSIVE_CSS = `
 // page/pages/build/build.css.js
 var BUILD_CSS = `
 /* build: games rail · the conversation with the agent (the game plays inside it) */
-.cs-pad.build { gap: 0; padding: 0; }
+/* the page area ends with the Build area, so its background's ground and the New Game shelf share a bottom edge */
+.cs-pad.build { flex: none; gap: 0; padding: 0; }
 .cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
 .cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
 .cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
@@ -11920,6 +11921,7 @@ function flatSpans(root, canvasEl) {
 function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env;
   let world = null, flat = "[]", sky = "", bgCss = "", frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true;
+  let waiting = false, force = false;
   const still = () => !!motion?.matches;
   const look = () => {
     const bg = backgroundOf(host2, getStyle), name = skyFor(bg.rgb), changed2 = name !== sky || bg.css !== bgCss;
@@ -11932,13 +11934,18 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const build = () => {
     timer = 0;
     if (!alive) return;
+    if (world && isHidden()) {
+      waiting = true;
+      return;
+    }
     const area = host2.getBoundingClientRect();
     if (area.width < 40 || area.height < 40) return;
     const W = Math.ceil(area.width / SCALE), H = Math.ceil(area.height / SCALE);
     canvasEl.style.width = `${W * SCALE}px`;
     canvasEl.style.height = `${H * SCALE}px`;
     const spans = flatSpans(host2, canvasEl);
-    if (world && world.W === W && world.H === H && JSON.stringify(spans) === flat) return;
+    if (world && !force && world.W === W && world.H === H && JSON.stringify(spans) === flat) return;
+    force = false;
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null;
     look();
     flat = JSON.stringify(spans);
@@ -11953,11 +11960,19 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
   const later2 = () => {
     if (!timer) timer = setTimer(build, 150);
   };
+  const motionChanged = () => {
+    force = true;
+    later2();
+  };
   const frame = (now) => {
     frameId = raf(frame);
     if (!world || isHidden()) {
       last = now;
       return;
+    }
+    if (waiting) {
+      waiting = false;
+      build();
     }
     if (++ticks % LOOK_EVERY === 0) {
       if (look() && still()) world.render();
@@ -11978,7 +11993,7 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
     if (n) world.render();
   };
   const unobserve = observe([host2], later2);
-  motion?.addEventListener?.("change", later2);
+  motion?.addEventListener?.("change", motionChanged);
   build();
   frameId = raf(frame);
   return () => {
@@ -11988,7 +12003,7 @@ function runAttract({ host: host2, canvasEl, makeWorld, env, seed }) {
     unobserve();
     host2.style.removeProperty("--cs-at-bg");
     host2.style.removeProperty("--cs-at-ground");
-    motion?.removeEventListener?.("change", later2);
+    motion?.removeEventListener?.("change", motionChanged);
   };
 }
 
@@ -14848,7 +14863,7 @@ var SHELL_CSS = `
 .cs-pad { display: flex; flex: 1; flex-direction: column; gap: 28px; isolation: isolate; padding: 26px clamp(16px, 3.5cqi, 64px) 36px; position: relative; }
 /* the page's background (background-layer.js): behind everything in the page area */
 .cs-bg { inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: -1; }
-.cs-bg[hidden] { display: none; }
+.cs-bg[hidden] { display: none !important; }
 .cs-pad.flush { gap: 0; padding: 0; }
 .cs-chip { align-items: center; background: var(--ui-bg-quaternary); color: var(--ui-text-secondary); display: inline-flex; font: 400 11px/1 ${MONO}; gap: 6px; padding: 5px 8px; white-space: nowrap; }
 .cs-chip > i { background: var(--ui-text-quaternary); display: block; flex: none; height: 6px; width: 6px; }
