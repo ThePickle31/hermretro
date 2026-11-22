@@ -307,10 +307,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
                     handle.write(data)
                 os.chmod(destination, mode)
 
-            manifest = json.loads((paths.ENGINE_ROOT / "package.json").read_text())
-            manifest.pop("bundledChromaticFormat", None)
-            manifest["bundledChromaticTarget"] = target
-            package_json = (json.dumps(manifest, indent=2) + "\n").encode()
+            package_json = paths.prepared_package_json(target)
             (stage / "package.json").write_bytes(package_json)
             os.chmod(stage / "package.json", 0o644)
 

@@ -3,8 +3,8 @@
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
 the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
 hermretro page in Hermes Desktop. Underneath both is the **engine**: ModRetro's own Chromatic MCP server,
-a pinned release under `engine/modretro-chromatic/` (what was left out and its one recorded patch:
-`THIRD_PARTY_NOTICES.md`; the files: `engine/pins/<version>/manifest.json`).
+a pinned release under `engine/modretro-chromatic/` with the maintainer's changes (`engine/CHANGES.md`; what was
+left out: `THIRD_PARTY_NOTICES.md`; the files: `engine/pins/<version>/manifest.json`).
 
 ```
 Hermes gateway (one process, every profile)                 per user, ~/.hermes/hermretro/
@@ -42,7 +42,8 @@ Every folder in the repository.
 | `player/web/` | ModRetro's web player (vendored) |
 | `player/skins/` | The emulator's device skins, one folder each (`skin.webp`, `skin.json`) (`hermretro-dev-skins`) |
 | `engine/` | The vendored ModRetro engine and its pins |
-| `engine/modretro-chromatic/` | The vendored engine, unchanged outside a deliberate engine update |
+| `engine/modretro-chromatic/` | The vendored engine; only the maintainer changes it (`engine/CHANGES.md`) |
+| `engine/CHANGES.md` | hermretro's changes to the engine, one line each |
 | `engine/pins/` | Per engine version: tool contracts and file manifest |
 | `skills/` | Skills the plugin gives the agent |
 | `skills/authoring/` | Making a game project |
@@ -61,7 +62,7 @@ Every folder in the repository.
 | `tools/` | Developer tools; check.py runs every check |
 | `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
-| `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
+| `tools/engine/` | Engine helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
 | `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview, and the sandbox (a private Hermes with a scripted model and a headless browser) (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |

@@ -10,7 +10,8 @@ Reports about any of these are welcome. Only the latest release is supported.
 
 ## Known advisories in the vendored engine
 
-The engine (`engine/modretro-chromatic/`) is ModRetro's release, vendored unchanged and verified by hash, and its
+The engine (`engine/modretro-chromatic/`) is ModRetro's release with the maintainer's changes (`engine/CHANGES.md`),
+verified by hash, and its
 Node dependencies are installed from its own pinned lock file. We cannot bump them without an engine update, so
 GitHub's alerts for them stay open as accepted risks until then, and Dependabot opens no pull requests for that
 folder.

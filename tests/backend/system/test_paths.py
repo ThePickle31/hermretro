@@ -258,5 +258,45 @@ class HermesHomeHandOver(unittest.TestCase):
         self.assertIs(hermes_home._ask, api.default_hermes_root)
 
 
+class PreparedEngine(unittest.TestCase):
+    """The per-user engine copy verifies against the bundled engine as it is now, package.json included."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        base = Path(tmp.name)
+        self.bundled, self.prepared = base / "bundled", base / "prepared"
+        self.manifest, receipt = base / "manifest.json", base / "receipt.json"
+        for name, value in (
+            ("ENGINE_ROOT", self.bundled),
+            ("PREPARED_ENGINE", self.prepared),
+            ("ENGINE_MANIFEST", self.manifest),
+            ("DEVICE_CLI_RECEIPT", receipt),
+        ):
+            patcher = mock.patch.object(paths, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.release('{"name": "modretro-chromatic", "bundledChromaticFormat": "packed"}')
+        receipt.write_text(json.dumps({"engine_version": paths.ENGINE_VERSION, "target": "linux-x64", "added": {}}))
+
+    def release(self, package: str) -> None:
+        """Ship a bundled engine with this package.json and prepare the copy from it, as provisioning does."""
+        self.bundled.mkdir(exist_ok=True)
+        (self.bundled / "package.json").write_text(package)
+        digest = paths._file_sha256(self.bundled / "package.json")
+        self.manifest.write_text(json.dumps({"entries": [{"path": "package.json", "sha256": digest}]}))
+        self.prepared.mkdir(exist_ok=True)
+        (self.prepared / "package.json").write_bytes(paths.prepared_package_json("linux-x64"))
+
+    def test_the_copy_prepared_from_the_bundled_engine_verifies(self):
+        self.assertEqual(paths.verify_prepared_engine(), {"present": True, "verified": True, "detail": ""})
+
+    def test_an_edited_package_json_retires_the_old_copy(self):
+        prepared_before = (self.prepared / "package.json").read_bytes()
+        self.release('{"name": "modretro-chromatic", "edited": true}')
+        (self.prepared / "package.json").write_bytes(prepared_before)
+        self.assertEqual(paths.verify_prepared_engine()["detail"], "changed package.json")
+
+
 if __name__ == "__main__":
     unittest.main()

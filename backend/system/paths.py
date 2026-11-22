@@ -326,6 +326,14 @@ def verify_engine() -> dict:
         return {"present": True, "version": None, "verified": False, "detail": f"Could not verify: {error}"}
 
 
+def prepared_package_json(target: str) -> bytes:
+    """The prepared copy's package.json: the bundled one, naming the CLI build it holds for this computer."""
+    package = json.loads((ENGINE_ROOT / "package.json").read_text())
+    package.pop("bundledChromaticFormat", None)
+    package["bundledChromaticTarget"] = target
+    return (json.dumps(package, indent=2) + "\n").encode()
+
+
 def verify_prepared_engine() -> dict:
     """The per-user engine copy: the recorded engine, minus the packed vendor archives, plus exactly
     the files its receipt lists (vendor CLI for one platform, unpacked device artwork, manifest)."""
@@ -342,7 +350,7 @@ def verify_prepared_engine() -> dict:
             }
         expected = {rel: digest for rel, digest in _recorded().items() if rel not in VENDOR_ARCHIVES}
         expected.update(receipt["added"])
-        expected["package.json"] = receipt["package_json_sha256"]
+        expected["package.json"] = hashlib.sha256(prepared_package_json(receipt["target"])).hexdigest()
         problems = (
             _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG))
             if PREPARED_ENGINE.is_dir()

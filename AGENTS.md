@@ -44,8 +44,11 @@ Read CI with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 
 1. **Generated files.** Never edit `desktop/plugin.js`, `player/frame-shim.js` or `page/app/rpc-names.js` by hand.
    Change `page/` or the backend, run `node tools/bundle/bundle.mjs`, and commit the generated files with the sources.
-2. **The engine is untouched.** Nothing under `engine/` changes outside a deliberate engine update
-   (`engine/pins/<version>/manifest.json` records its files and one local patch).
+2. **The engine is the maintainer's.** `engine/modretro-chromatic/` is ModRetro's release with the maintainer's
+   changes, one line each in `engine/CHANGES.md`. Only the repository owner's pull requests change `engine/` (CI fails
+   any other); a contributor who needs an engine change opens an issue. Every engine change comes with its
+   `engine/CHANGES.md` line and a fresh manifest (`python tools/engine/manifest.py write`): the plugin starts only
+   an engine that matches it.
 3. **Install scanner.** `python tools/check.py scan` must say `safe`: one line rated high makes every install ask,
    one rated critical blocks installs. What trips it: `.agents/skills/hermretro-dev-testing/references/install-scanner.md` (instruction verbs aimed at
    agent configuration file names: write "this guide" instead).

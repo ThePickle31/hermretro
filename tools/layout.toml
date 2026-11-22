@@ -7,6 +7,7 @@
 "README.md" = "What the plugin does, install, use and develop"
 "AGENTS.md" = "Rules and commands for contributors and agents"
 "THIRD_PARTY_NOTICES.md" = "Notices for the vendored engine and player"
+"engine/CHANGES.md" = "hermretro's changes to the vendored engine, one line each"
 "backend/*/README.md" = "Each backend feature: what it does, adds and exposes, where its tests are"
 "page/app/README.md" = "The page shell and page-wide plumbing"
 "page/shared/README.md" = "What every page shares"

@@ -39,8 +39,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- Nothing under `engine/` changes: it is a pinned ModRetro release (what was left out and its one recorded patch:
-  `THIRD_PARTY_NOTICES.md`).
+- Only the maintainer changes `engine/` (ModRetro's release with the maintainer's changes, listed in
+  `engine/CHANGES.md`); CI fails a pull request from anyone else that touches it. Need an engine change? Open an issue.
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.

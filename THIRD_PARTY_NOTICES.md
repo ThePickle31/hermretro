@@ -4,17 +4,14 @@ The MIT licence in `LICENSE` covers the hermretro backend, desktop page, skills 
 repository. It does not cover the bundled engine under `engine/modretro-chromatic/` or the components inside
 it, which keep their own licences, listed below.
 
-hermretro bundles one third-party package under `engine/modretro-chromatic/`, with one small change (below).
+hermretro bundles one third-party package under `engine/modretro-chromatic/`, with the changes below.
 Every file in it is recorded with size, mode and SHA-256 in
 `engine/pins/1.0.34/manifest.json`, and the plugin refuses to start an engine that does not
 match that record.
 
-**Change made by hermretro** (allowed by the engine's MIT licence; recorded as `local_patches` in the
-manifest): in `dist/server.js` and `dist/device-capture/linux-helper.js`, the path ffmpeg uses to read the
-Chromatic's video during Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path
-under the proc filesystem. On Linux `/dev/fd` is a link to that same directory, so ffmpeg opens the same
-file. The original path made Hermes's install-time security scan ask for confirmation on every install.
-Nothing else in the engine differs from ModRetro's 1.0.34.
+**Changes made by hermretro** (allowed by the engine's MIT licence): every one is listed in `engine/CHANGES.md`,
+and `git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows them against ModRetro's 1.0.34.
+Nothing else in the engine differs from it.
 
 **Left out by hermretro:** the engine's two FFmpeg builds for Linux hardware capture
 (`native/capture/linux/x64/ffmpeg` and `native/capture/linux/arm64/ffmpeg`). They are LGPL-2.1-or-later and
