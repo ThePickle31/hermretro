@@ -16,9 +16,13 @@ request into `dev` and CI.
 ## Trying a change in Hermes Desktop
 
 1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development, link a
-   checkout instead of installing the plugin"), and enable it.
+   checkout instead of installing the plugin"), and enable it. The studio profile loads the plugin through its own
+   link, `${HERMES_HOME:-$HOME/.hermes}/profiles/hermretro/plugins/hermretro`: check with `ls -l` that it points at
+   your checkout. Setup leaves an installed copy there alone, so with one, remove that install or try your checkout
+   in a throwaway Hermes home (`HERMES_HOME=<temp folder>`).
 2. Page changes (`page/`): `node tools/bundle/bundle.mjs`, then reload the app.
-3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: restart the gateway (`hermes gateway restart`);
+3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: restart the studio profile's gateway
+   (`hermes -p hermretro gateway restart`);
    tools and the prompt apply from the next chat.
    `profile/` is different: it holds templates that the page's setup copies into the `hermretro` profile when it
    makes it. A restart does not change a profile that already exists, and finishing setup again keeps its
@@ -35,7 +39,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- Nothing under `engine/` changes: it is ModRetro's engine, vendored as released.
+- Nothing under `engine/` changes: it is a pinned ModRetro release (what was left out and its one recorded patch:
+  `THIRD_PARTY_NOTICES.md`).
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.

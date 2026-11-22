@@ -238,6 +238,7 @@ it.
 
 ## Looking at the page
 
-`node tests/page/preview/build.mjs <out>` builds a browser preview with a stand-in SDK (needs a Hermes
-Desktop checkout for its theme); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
+`node tests/page/preview/build.mjs <out> [<Hermes checkout>/apps/desktop]` builds a browser preview with a stand-in
+SDK, drawn with Hermes Desktop's own stylesheet. It needs that Desktop folder with its npm dependencies installed and
+its `dist/assets` built (default: `~/.hermes/hermes-agent/apps/desktop`); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
 listed on the page. Screenshot with Playwright and a short `TMPDIR`.

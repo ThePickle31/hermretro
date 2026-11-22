@@ -1,7 +1,6 @@
 # The pages
 
-The maintainer approved clickable mockups (kept outside this repository; the table names their files) for a multi-page
-hermretro and asked to build all of them. This file is the shared contract between the
+This file is the shared contract between the
 page (`page/`, bundled into `desktop/plugin.js`) and the backend (`backend/`). Both halves must match it exactly.
 
 ## Pages (one segmented control in the header, always in the same place)
@@ -11,13 +10,13 @@ The **HermRetro** entry in the Hermes Desktop sidebar opens `/hermretro`.
 `Build · Setup · Games · Emulator` (Chromatic and Guide are not designed yet: do not add them). The page opens on
 Build, or on the page the user last chose (a remembered page that no longer exists opens Build).
 
-| Page | Approved design (details below) | Mockup file (source template) |
-|---|---|---|
-| Setup | Atelier wizard with the flying Chromatic | `src/setup-page.template.html` variant 5 (`.flyer` CSS) |
-| Games | **Shelf**, layout "A1 · split Play" | `src/games-page.template.html` (`.mcart.real`) |
-| Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) | `src/emulator-page.template.html` variant 5 + `src/player/*` |
+| Page | Design (details below) |
+|---|---|
+| Setup | Atelier wizard with the flying Chromatic |
+| Games | **Shelf**, layout "A1 · split Play" |
+| Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) |
 
-Beside Refresh, the header shows an update chip (`page/app/update/`, mockup round "one-click update", A + C) only
+Beside Refresh, the header shows an update chip (`page/app/update/`) only
 while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
 `plugin.installed_in`), while an update runs, or just after one. Its popover runs the update: Hermes's
 `plugins.manage update` in that profile (a caution scan or a widened plugin is shown and needs "Install anyway"; a
@@ -41,8 +40,7 @@ widened plugin) is kept for the next try. An update Hermes installed whose later
 version and, when one is ready, Update.
 
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
-adds both: a row whose two design columns say `not designed yet` until the owner approves a mockup, and a
-`### <Page>` subsection saying what it shows.
+adds both: a row naming its design, and a `### <Page>` subsection saying what it shows.
 
 ### Setup
 
