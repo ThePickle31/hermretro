@@ -37,6 +37,13 @@ class EngineManifestTests(unittest.TestCase):
             rebuilt = manifest.build(self.engine(Path(checkout), {}), recorded)
         self.assertEqual([e["path"] for e in rebuilt["entries"]], ["package.json", ARCHIVE])
 
+    def test_a_left_out_file_that_is_present_is_hashed_as_it_is(self):
+        with tempfile.TemporaryDirectory() as before, tempfile.TemporaryDirectory() as after:
+            recorded = manifest.build(self.engine(Path(before), {ARCHIVE: "packed"}))
+            rebuilt = manifest.build(self.engine(Path(after), {ARCHIVE: "repacked"}), recorded)
+        entry = {e["path"]: e for e in rebuilt["entries"]}[ARCHIVE]
+        self.assertEqual(entry["size"], len("repacked"))
+
     def test_an_edited_file_gets_its_new_hash(self):
         with tempfile.TemporaryDirectory() as before, tempfile.TemporaryDirectory() as after:
             recorded = manifest.build(self.engine(Path(before), {"dist/server.js": "old"}))
