@@ -23,7 +23,7 @@ capped at 104 bytes on macOS).
 `annotation` (a page-sent game screen), and a name already taken gets `-2`, `-3`… (`_free_name`). Beside it,
 `<file>.json` holds `id`, `kind`, `media` (the file name), `mimeType`, `bytes`, `sha256`, `createdAt`, `game` (the game id),
 `romSha256` and `sourceRevision` (the build it came from; player saves only) and `metadata` (what the engine sent, null
-for an `annotation`). Which RPCs read and write them: [backend/library/README.md, "Captures"](../../backend/library/README.md#captures).
+for an `annotation`). Which RPCs read and write them: [backend/library/README.md, "Captures"](../../../../backend/library/README.md#captures).
 
 ## Calling a page RPC by hand
 

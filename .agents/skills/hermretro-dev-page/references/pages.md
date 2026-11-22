@@ -65,10 +65,10 @@ adds both: a row whose two design columns say `not designed yet` until the owner
 - **Cartridge grid**: the HermRetro cartridge (`page/shared/art/cart-hermretro.png`, 299×340, dark grey, HERMRETRO on its top plate) with the game's title screen filling the label window (`left 13.38%, top 28.82%, width 73.24%, height 56.76%`, `border-radius 1.5cqw`, no border).
 - Under each (layout "A1 · split Play", rows line up across the shelf): title (the card's); one line of tagline (failed: the build error in red; none: "No description yet"; description and genres in its tooltip); a status line (coloured dot + Ready / Changed / Build failed / Not built, then "built … ago"; size in its tooltip); one split control.
 - Its main half is the next action: Play (→ Emulator page), Build & play when changed since the last build (build prompt into its chat, not sent), Fix in chat when failed, Build in chat when never built.
-- Its arrow opens a menu: Play last build (changed only), Install on Chromatic (see below; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder.
+- Its arrow opens a menu: Play last build (changed only), Install on Chromatic (`player.md`, "Install"; disabled with the reason), Open its chat, Make cover art / Finish card (incomplete card only), Show in folder.
 - A game showing its title screen rather than a cover gets a small "No cover" tag on the label.
 - The hardware state is one chip beside New game ("Chromatic tools on", or the button "Emulator only · Set up my Chromatic"); the full strip stays only on the empty library.
-- The label shows the game card's cover art when it has one (`docs/dev/CONTRACT.md`, game card), else the captured title screen.
+- The label shows the game card's cover art when it has one (`.agents/skills/hermretro-dev-architecture/references/contract.md`, "The game card (`game.json` + `cover.png`)"), else the captured title screen.
 - A game without a complete card offers **Make cover art** (or Finish card) in its menu, which opens that game on Build with the request in its message box, not sent.
 - **New game** (header and faded Blank cartridge, or the action in the empty or unreadable library) opens Build's
   New Game form with **Build it** and **Plan first**. Navigation alone does not start a chat.
@@ -76,10 +76,10 @@ adds both: a row whose two design columns say `not designed yet` until the owner
 
 ### Emulator
 
-- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (below), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
+- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (`player.md`, the `player` RPC), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
 - A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
 - Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf picks the game).
 - Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
 - "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
-- Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (see below).
+- Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (`player.md`, "The emulator beside the chat").
 - Default device finish **Hermes Edition · Midnight**.

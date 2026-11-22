@@ -8,7 +8,8 @@ description: Making a change to hermretro, from branch to open pull request. Use
 1. **Branch from `dev`.** A contributor forks, clones the fork and branches from `dev`; the maintainer makes a
    worktree beside the checkout: `git worktree add ../hermretro-wt/<topic> -b <type>/<topic> origin/dev`. Types:
    `feat`, `fix`, `docs`, `chore`. Then `python tools/dev setup` in it.
-2. **Try it in Hermes.** `python tools/dev live` makes Hermes load this checkout; `reload` after a backend change;
+2. **Try it in Hermes.** The first time, link a checkout as the plugin and finish the page's setup so the
+   `hermretro` profile exists (README.md, "Contributing"). Then `python tools/dev live` makes Hermes load this checkout; `reload` after a backend change;
    `watch` in the background for page work (it rebuilds on save and serves the live preview). Look at the result
    yourself: the sandbox (`hermretro-dev-sandbox`), the live preview or Hermes Desktop. `live main` when done.
    Everything about this loop: [references/dev-loop.md](references/dev-loop.md).
@@ -21,5 +22,6 @@ description: Making a change to hermretro, from branch to open pull request. Use
 A contributor stops here: the maintainer reviews and merges (`hermretro-dev-maintain`). Answer review comments with
 new commits on the same branch; first-time contributors' CI waits for the maintainer's approval.
 
-`profile/` holds templates copied into the `hermretro` profile when setup makes it; an existing profile keeps its
-files, so try a template change in a throwaway Hermes home (`HERMES_HOME=<temp folder>`).
+`profile/` holds templates copied into the `hermretro` profile when setup makes it. An existing profile keeps its
+files, except a `SOUL.md` that is an unedited older template (`OLDER_SOULS` in `backend/setup/studio_profile.py`),
+which finishing setup again replaces; try a template change in a throwaway Hermes home (`HERMES_HOME=<temp folder>`).
