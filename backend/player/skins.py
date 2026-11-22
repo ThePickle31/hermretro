@@ -1,4 +1,5 @@
-"""The emulator's device skins: each is ``player/skins/<id>.webp`` (or ``.png``) with ``<id>.json`` beside it.
+"""The emulator's device skins: one folder each, ``player/skins/<id>/``, holding ``skin.webp`` (or ``skin.png``) and,
+optionally, ``skin.json``.
 
 The JSON names the skin and its colours: ``{"name": "Midnight", "edition": "Hermes Edition", "background":
 "#15171c", "ink": "#e6edf3", "order": 1}``, every field optional. ``background`` is the page behind the handheld
@@ -25,21 +26,23 @@ COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
 DEFAULTS = {"edition": "", "background": "#15171c", "ink": "#e6edf3", "order": 100}
 
 
-def _read(meta: Path) -> dict | None:
-    """One skin from its JSON file, or None (logged) when it cannot be used."""
-    skin_id = meta.stem
+def _read(folder: Path) -> dict | None:
+    """One skin from its folder, or None (logged) when it cannot be used."""
+    skin_id = folder.name
     if not SKIN_ID.fullmatch(skin_id):
-        logger.warning("hermretro: skin %s skipped: an id is lower-case letters, digits and dashes", meta.name)
+        logger.warning("hermretro: skin %s skipped: a skin's folder is lower-case letters, digits and dashes", skin_id)
         return None
-    image = next((meta.with_suffix(kind) for kind in IMAGE_TYPES if meta.with_suffix(kind).is_file()), None)
+    image = next((folder / f"skin{kind}" for kind in IMAGE_TYPES if (folder / f"skin{kind}").is_file()), None)
     if image is None:
-        logger.warning("hermretro: skin %s skipped: no %s.webp or %s.png beside its JSON", skin_id, skin_id, skin_id)
+        logger.warning("hermretro: skin %s skipped: its folder has no skin.webp or skin.png", skin_id)
         return None
-    try:
-        data = json.loads(meta.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        logger.warning("hermretro: skin %s skipped: its JSON does not read: %s", skin_id, error)
-        return None
+    data = {}
+    if (folder / "skin.json").is_file():
+        try:
+            data = json.loads((folder / "skin.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            logger.warning("hermretro: skin %s skipped: its skin.json does not read: %s", skin_id, error)
+            return None
     data = data if isinstance(data, dict) else {}
     skin = {"id": skin_id, "name": skin_id.replace("-", " ").title(), **DEFAULTS, "image": image}
     for key in ("name", "edition"):
@@ -55,7 +58,7 @@ def _read(meta: Path) -> dict | None:
 
 def skins() -> list[dict]:
     """Every usable skin, in order: ``{id, name, edition, background, ink, order, image}``."""
-    found = [skin for meta in sorted(SKINS_DIR.glob("*.json")) if (skin := _read(meta))]
+    found = [skin for folder in sorted(SKINS_DIR.iterdir()) if folder.is_dir() and (skin := _read(folder))]
     return sorted(found, key=lambda skin: (skin["order"], skin["id"]))
 
 
@@ -77,7 +80,7 @@ def page_skins() -> list[dict]:
 
 def signature() -> tuple:
     """What changes when a skin is added, removed or edited (for caches built from them)."""
-    return tuple((path.name, path.stat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*")) if path.is_file())
+    return tuple((str(path), path.stat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
 
 
 def rail_entries(taken: set[str]) -> tuple[str, str]:

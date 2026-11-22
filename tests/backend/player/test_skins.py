@@ -1,4 +1,4 @@
-"""The device skins: player/skins/<id>.webp|png with <id>.json, the shipped ones and what a broken one does."""
+"""The device skins: player/skins/<id>/ with skin.webp|png and skin.json, the shipped ones and what a broken one does."""
 
 import json
 import sys
@@ -27,10 +27,12 @@ class ShippedSkins(unittest.TestCase):
             head = skin["image"].read_bytes()[:12]
             self.assertTrue(head[8:12] == b"WEBP" or head[:8] == b"\x89PNG\r\n\x1a\n", skin["id"])
 
-    def test_every_file_in_the_folder_is_part_of_a_usable_skin(self):
+    def test_every_folder_is_a_usable_skin_of_only_its_two_files(self):
         usable = {skin["id"] for skin in skins.skins()}
-        for path in skins.SKINS_DIR.iterdir():
-            self.assertIn(path.stem, usable, f"{path.name} is not part of a usable skin")
+        for folder in skins.SKINS_DIR.iterdir():
+            self.assertIn(folder.name, usable, f"player/skins/{folder.name} is not a usable skin")
+            extra = {path.name for path in folder.iterdir()} - {"skin.webp", "skin.png", "skin.json"}
+            self.assertEqual(extra, set(), f"player/skins/{folder.name} holds files no skin uses")
 
 
 class AFolderOfSkins(unittest.TestCase):
@@ -43,12 +45,15 @@ class AFolderOfSkins(unittest.TestCase):
         self.addCleanup(patch.stop)
 
     def add(self, skin_id, data, image=".webp"):
+        folder = self.folder / skin_id
+        folder.mkdir()
         if image:
-            (self.folder / f"{skin_id}{image}").write_bytes(WEBP)
-        (self.folder / f"{skin_id}.json").write_text(data if isinstance(data, str) else json.dumps(data))
+            (folder / f"skin{image}").write_bytes(WEBP)
+        if data is not None:
+            (folder / "skin.json").write_text(data if isinstance(data, str) else json.dumps(data))
 
-    def test_an_image_and_an_empty_json_make_a_skin_with_defaults(self):
-        self.add("sunset-orange", {}, image=".png")
+    def test_a_folder_with_only_its_image_is_a_skin_with_defaults(self):
+        self.add("sunset-orange", None, image=".png")
         (skin,) = skins.skins()
         self.assertEqual(
             {key: skin[key] for key in ("id", "name", "edition", "background", "ink", "order")},
@@ -61,7 +66,7 @@ class AFolderOfSkins(unittest.TestCase):
                 "order": 100,
             },
         )
-        self.assertEqual(skins.image_for("sunset-orange"), self.folder / "sunset-orange.png")
+        self.assertEqual(skins.image_for("sunset-orange"), self.folder / "sunset-orange" / "skin.png")
 
     def test_order_then_id_and_bad_values_fall_back(self):
         self.add("b-skin", {"order": 2, "name": "  Bee  ", "background": "red", "ink": "#ABCDEF"})
