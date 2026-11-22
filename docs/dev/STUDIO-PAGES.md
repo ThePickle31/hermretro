@@ -41,9 +41,8 @@ widened plugin) is kept for the next try. An update Hermes installed whose later
 version and, when one is ready, Update.
 
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
-(`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
-approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps
-means both.
+adds both: a row whose two design columns say `not designed yet` until the owner approves a mockup, and a
+`### <Page>` subsection saying what it shows.
 
 ### Setup
 
@@ -119,7 +118,7 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 `games[id].session = {storedId, profile, createdAt, aliases}` (aliases: live session ids after
 compression rotates them, noted on each tool call) and `pending[storedId] = {storedId, profile, name,
-plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50: `games.MAX_PENDING`, checked by `tests/repo/test_lockstep.py`).
+plan, createdAt, aliases}` (New Game conversations whose project does not exist yet; the newest `games.MAX_PENDING` are kept).
 The first project a pending conversation creates is bound to it (`observe` → `claim_pending`);
 selecting an existing game does not claim it. Unknown top-level keys in `games.json` are kept, since
 every hermretro copy shares the file.
@@ -143,7 +142,7 @@ page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes anot
 ### `asset` RPC
 
 `{path}` (absolute, or `file://`) → `{ok, path, relative, name, kind, width, height, bytes,
-modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to 6 MB, only inside a library game's
+modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to `versions.ASSET_MAX_BYTES`, only inside a library game's
 folder or the plugin's saved frames (symlinks are resolved first). `sprite = {name, frameWidth,
 frameHeight, animSpeed, canvasWidth, canvasHeight, palette, standing: {tiles, flip}, moving: {frames,
 flip}}` from the `.gbsres` sidecar and the project: GB Studio stores sprites in four placeholder
@@ -505,7 +504,7 @@ Defined once in `page/shared/player/protocol.js` (page side `shared/player/bridg
 Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge" prompt (with the game named) to that game's chat. Hardware gating and the approval prompt stay exactly as today; locked with "Needs your Chromatic" when hardware is not set up.
 
 ## Constraints that apply to both halves
-- The page's source is `page/`; `desktop/plugin.js` and `player/frame-shim.js` are generated from it by `tools/bundle/bundle.mjs` and committed. Never edit a generated file: change the sources, rebuild, commit them together. Each banner's `sources: sha256` hashes whole folders (`page/` for the bundle; `page/frame/` and `page/shared/` for the shim), because `tests/repo/test_desktop_bundle.py` recomputes it without Node or esbuild and so cannot know which files esbuild took: an edit in `page/shared/` can change only the `sources` line of `player/frame-shim.js` (its body unchanged). That is expected; commit it. The bundle stays plain readable ESM (`jsx`/`jsxs`, not minified), imports only `@hermes/plugin-sdk`, `react`, `react/jsx-runtime`, scoped CSS under `.cs-page`, every colour a `var(--ui-*)`. Size: Hermes Desktop reads a plugin file up to 16 MiB through `readPluginSource`; an older shell without it stops at 512 KiB and says to update, and the bundle (about 635 KB) needs the newer one. Hermes's install scanner notes a file over 1024 KB; the bundler refuses a bundle over 1,000,000 bytes. `desktop/` holds only `plugin.js`: the app copies and lints that whole folder. Small art is a PNG or SVG in `page/shared/art/` plus an import in `shared/art/index.js` (the bundler embeds it as a data URL); provider logos have their own folder and index, `page/shared/art/providers/` ("Provider marks" above); device skins are served by the backend only.
+- The page's source is `page/`; `desktop/plugin.js` and `player/frame-shim.js` are generated from it by `tools/bundle/bundle.mjs` and committed. Never edit a generated file: change the sources, rebuild, commit them together. Each banner's `sources: sha256` hashes whole folders (`page/` for the bundle; `page/frame/` and `page/shared/` for the shim), because the banner hashes whole folders and so cannot know which files esbuild took: an edit in `page/shared/` can change only the `sources` line of `player/frame-shim.js` (its body unchanged). That is expected; commit it. The bundle stays plain readable ESM (`jsx`/`jsxs`, not minified), imports only `@hermes/plugin-sdk`, `react`, `react/jsx-runtime`, scoped CSS under `.cs-page`, every colour a `var(--ui-*)`. Size: Hermes Desktop reads a plugin file up to 16 MiB through `readPluginSource`; an older shell without it stops at 512 KiB and says to update, and the bundle (about 635 KB) needs the newer one. Hermes's install scanner notes a file over 1024 KB; the bundler refuses a bundle over 1,000,000 bytes. `desktop/` holds only `plugin.js`: the app copies and lints that whole folder. Small art is a PNG or SVG in `page/shared/art/` plus an import in `shared/art/index.js` (the bundler embeds it as a data URL); provider logos have their own folder and index, `page/shared/art/providers/` ("Provider marks" above); device skins are served by the backend only.
 - Never edit `engine/`. Never touch hardware. No wording that trips the install scanner (see the trigger list in tools/skills_guard.py; never quote the triggers in our own files).
 - Verify: `node tools/bundle/bundle.mjs --check`, `python -m unittest discover -s tests -t .`, `node --check desktop/plugin.js`, `node --test 'tests/page/**/*test*.mjs'` (it includes the page scenario files `page-*.test.mjs`), the preview build, and `python tests/acceptance/broker_acceptance.py` after backend changes. Before a release: `node tools/bundle/bundle.mjs --check --same-esbuild`.
 
@@ -516,7 +515,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 - `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `build/`, `setup/` (with `onboarding/` and `install/`), `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`BUILD_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
 - `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (PNG and SVG art; `art/providers/` the provider logos and their index), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
 - `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
-- Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// retrodev: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
+- Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// hermretro: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
 - One main component per file, named after it in kebab-case (`BuildCard` in `build-card.js`), with its private helpers. Pure logic lives in noun-named files without components (`turns.js`, `reducer.js`). Named exports only, each name unique across the tree (a front door's `export { x } from './y.js'` passes a name on and does not count).
 - Imports: `./file.js` for the module's own folder, `./sub/file.js` for a folder inside it, and an alias for anything else: `#sdk` (`page/sdk.js`), `#app/`, `#pages/`, `#shared/`, `#frame/` (the folders of the same name; `ALIASES` in `tools/bundle/bundle.mjs`, used by esbuild, the lint and `tests/page/aliases.mjs`). No path climbs a folder (Hermes's install scanner notes relative paths that climb two). No import cycles (the build fails on one).
 - Module state (atoms, maps, caches, listener sets) is declared once, in the module that owns it, and changed only by that module's functions; a feature with more than a little keeps it in `store.js`/`state.js`/`cache.js`. Another page learns of a change through a page event, never by reading the state. Gateway listeners start from a page's `register(ctx)`; features export `watchX(ctx)`.
@@ -546,14 +545,13 @@ shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `viaProfile`, 
 `player`…; `viaProfile` is the profile the shell's own queries go to when it is not the app's, else `null`: key
 a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
-`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
+`README.md` (copy `page/pages/games/README.md`'s sections).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
 `contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
 player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after
 `Page` and before `BelowPlayer`: a page puts its content above the player (`Page`) or below it (`BelowPlayer`,
-which needs `pad`); content beside the player needs a change to that shell. Or:
-`python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
-nav list (it goes last; move it in both).
+which needs `pad`); content beside the player needs a change to that shell. Add the page to the registry (`page/pages/index.js`) and to
+the registry test's nav list (`tests/page/registry.test.mjs`) in the same place.
 
 ### Reference content
 
@@ -566,8 +564,8 @@ the page outside it (arrows, Z, X, Enter, Shift, P: not all of the default map, 
 
 ### A tab
 
-On a page without tabs, first make a tab whose `Page` is the page's old `Page` component:
-`python tools/retrodev new tab <page> <id> --from-page` (the page then looks the same, with a tab bar of one).
+On a page without tabs, first make a tab whose `Page` is the page's old `Page` component (the page then looks the
+same, with a tab bar of one).
 Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
@@ -580,8 +578,7 @@ drawn by `app/studio-page.js` after the page view, so they stay under every tab 
 page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator
 (`onEmulator`) and `BelowPlayer` whenever the page has `pad`, whichever tab is chosen (`page-view.js` draws only
 the tab bar and the tab's body, and the shell does not know the chosen tab, which `page-view.js` keeps in
-`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
-`python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
+`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). That needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 
 Testing a tab: a scenario file `tests/page/page-<page>-<tab>.test.mjs` on the real harness (`tests/page/harness.mjs`),
@@ -627,8 +624,7 @@ emitter. An undeclared name throws. List it in both READMEs.
 The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
 `page/pages/<page>/index.js`, and renders `jsx(Slot, { name: '<page>.<name>', props: { ... } })` (from
 `#app/slots.js`) where the contributions go. Empty, it renders nothing, so declaring one changes nothing on
-screen. Or: `python tools/retrodev new slot <page> <name> --doc '...'` declares it (and lists it in the registry
-test); rendering the `Slot` stays yours. Write the props in the doc string as `Props: { a, b, ... }` (a prop
+screen. List it in the registry test too. Write the props in the doc string as `Props: { a, b, ... }` (a prop
 passed only in one place: `plus x(...) on the <where> only`): `tests/page/slots.test.mjs` renders each host with a
 probe contribution and fails when the props passed differ from those, so give its `HOSTS` the new slot's host.
 
@@ -650,8 +646,6 @@ Every place to edit for a new contribution: `contributes` in the contributing pa
 fills it with Install"); the "Events and slots today" line below; the `filled`
 assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
 its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
-Or: `python tools/retrodev new contribution <page> <slot> <Component>` writes the stub, `contributes` with its import,
-the README Slots line and the registry `filled` assertion; the docs and HOSTS stay yours.
 
 Test what the item does in the host page's scenario test, where the slot is drawn with the real page around it: for
 `games.cardMenu`, `tests/page/page-games.test.mjs` (`openGameMenu(card)` opens a card's arrow menu, then

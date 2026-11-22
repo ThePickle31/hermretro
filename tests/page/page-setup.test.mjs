@@ -10,7 +10,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.status = notLoaded
   await render()
   // The registry test (registry.test.mjs) pins every page in nav order; here the shell draws them, the built-in ones
-  // first, so a page added at the end (python tools/retrodev new page) changes only the registry and its test.
+  // first, so a page added at the end changes only the registry and its test.
   check('one segmented control starts with Build · Setup · Games · Emulator, opening on Build', () => {
     const labels = [...nav().querySelectorAll('button')].map(node => node.firstChild.textContent)
     assert.deepEqual(labels.slice(0, 4), ['Build', 'Setup', 'Games', 'Emulator'])
@@ -80,7 +80,11 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   check('the install status is polled quickly while it runs; the doctor is not', () => {
     const last = key => scenario.queries.filter(query => query.key === key).at(-1)
-    assert.equal(last('install').enabled, true); assert.notEqual(last('doctor').refetchInterval, 8000)
+    const install = last('install')
+    assert.equal(install.enabled, true)
+    assert.equal(install.refetchInterval({ state: { data: scenario.install.data } }), 1_500, 'fast while it runs')
+    assert.equal(install.refetchInterval({ state: { data: installAnswer({ state: 'done' }).data } }), 5_000, 'slower once it is done')
+    assert.equal(last('doctor').refetchInterval, false, 'the doctor is not polled')
   })
   scenario.install = installAnswer({ state: 'failed', started_at: 1, error: 'cli: yarn: ENOTFOUND registry.npmjs.org', run: { components: {
     gbdk: { state: 'done', checks: [] }, cli: { state: 'failed', error: 'yarn: ENOTFOUND registry.npmjs.org', checks: [] } } } })
@@ -147,9 +151,21 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.byMethod['plugin.hermretro.install'] = { ok: false, code: 'OPERATION_IN_PROGRESS', error: 'Another setup operation is already running' }
   await click('Download and install'); await settle()
   delete scenario.byMethod['plugin.hermretro.install']
-  check('install already running in a chat: waits and keeps checking, no failure', () => {
-    shows(/being installed from a chat/); assert.ok(!button('Try again'))
+  check('install already running in a chat (an older backend that cannot say so): waits, with Check again, no failure', () => {
+    shows(/being installed from a chat/); assert.ok(!button('Try again')); assert.ok(button('Check again'))
+  })
+  scenario.install = installAnswer({ state: 'idle', elsewhere: true })
+  await render()
+  check('the backend says a chat holds the setup lock: the tools check repeats while it does', () => {
+    shows(/being installed from a chat/)
     assert.equal(scenario.queries.filter(query => query.key === 'doctor').at(-1).refetchInterval, 8000)
+  })
+  scenario.install = installAnswer({ state: 'idle', elsewhere: false })
+  await render()
+  check("the chat's install ended without the tools: the page says so and offers its own install", () => {
+    shows(/install that was running in a chat stopped before the tools were ready/)
+    assert.ok(button('Download and install') && !button('Download and install').disabled)
+    assert.equal(scenario.queries.filter(query => query.key === 'doctor').at(-1).refetchInterval, false)
   })
   await act(async () => { root.render(null) })
 
@@ -181,9 +197,9 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(!dom.window.document.querySelector('.cs-repair'), 'no repair banner on the Setup page itself')
     hides('Start building', 'prompt library must not show during setup')
   })
-  check('toolchain step polls the check; status polls fast during setup', () => {
+  check('the toolchain step does not repeat the tools check while it is only read; status polls fast during setup', () => {
     const last = key => scenario.queries.filter(query => query.key === key).at(-1)
-    assert.equal(last('doctor').refetchInterval, 8000)
+    assert.equal(last('doctor').refetchInterval, false)
     assert.equal(last('status').refetchInterval, 4000)
   })
 

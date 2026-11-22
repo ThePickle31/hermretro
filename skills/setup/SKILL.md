@@ -125,3 +125,4 @@ Everything is installed in `~/.hermes/hermretro/.cache/`, which plugin updates a
 | `PROJECT_WRITER_BUSY` | Another chat is editing or building this project right now: wait, or continue there. |
 | `HARDWARE_DISABLED` | Hardware tools are off: tell the user where to turn them on; do not retry. |
 | `ENGINE_NOT_VERIFIED` | The plugin's engine files were changed: tell the user to reinstall the plugin. |
+| `NODE_MISSING` | The Node.js the background service started with was removed while other chats still run games: ask the user to finish or close those chats, then retry. |

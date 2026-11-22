@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -114,6 +115,7 @@ def describe(home: Path, target: Path | None = None) -> dict:
         }
     target = target or studio_dir()
     exists = _exists(target)
+    ours = exists and _ours(target)
     return {
         "name": name,
         "is_studio": False,
@@ -121,7 +123,10 @@ def describe(home: Path, target: Path | None = None) -> dict:
             "name": STUDIO_PROFILE,
             "exists": exists,
             "installed": exists and _ready(target),
-            "ours": exists and _ours(target),
+            "ours": ours,
+            # Someone else's profile has the name: finishing it would be refused (NAME_TAKEN), so the page says so
+            # before it downloads anything.
+            "conflict": exists and not ours and not _has_plugin(target),
         },
         "create": create_params(),
     }
@@ -193,8 +198,38 @@ def _run_hermes(target: Path, *arguments: str) -> None:
         )
 
 
-def finish(home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes) -> dict:
-    """Make the freshly created studio profile a Chromatic one. Safe to run again."""
+# One finish at a time in this process: the install, Setup's button, Build's Repair and the in-app update can all
+# ask at once, and the hermes config commands must never run concurrently on one profile. A call made while
+# another runs waits for it and shares its answer (or its error) instead of running every command again.
+_finishing = threading.Lock()
+_flight: dict = {}
+
+
+def finish(home: Path, **options) -> dict:
+    """Make the freshly created studio profile a Chromatic one. Safe to run again; single-flight per process."""
+    with _finishing:
+        flight = _flight.get("current")
+        leader = flight is None
+        if leader:
+            flight = _flight["current"] = {"done": threading.Event()}
+    if not leader:
+        flight["done"].wait()
+        if "error" in flight:
+            raise flight["error"]
+        return {**flight["answer"], "shared": True}
+    try:
+        flight["answer"] = _finish(home, **options)
+        return flight["answer"]
+    except BaseException as error:
+        flight["error"] = error
+        raise
+    finally:
+        with _finishing:
+            _flight.pop("current", None)
+        flight["done"].set()
+
+
+def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes) -> dict:
     if profile_name(home) == STUDIO_PROFILE:
         return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
     target = target or studio_dir()

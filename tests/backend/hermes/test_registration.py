@@ -25,35 +25,34 @@ def load_plugin():
 
 
 class Recorder:
-    """A fake plugin ctx: ``calls`` by kind, and ``order``, every register_* call in order (for the snapshot in
-    tests/repo/test_registration_snapshot.py)."""
+    """A fake plugin ctx: ``calls``, the names registered by kind, and ``given``, what each call handed Hermes."""
 
     def __init__(self, profile):
         self.profile_name = profile
         self.calls = {"tool": [], "skill": [], "rpc": [], "hook": [], "section": []}
-        self.order = []
+        self.given = {kind: [] for kind in self.calls}
 
     def get_config(self, _key, default=None):
         return default
 
-    def _note(self, kind, name, *detail):
+    def _note(self, kind, name, detail):
         self.calls[kind].append(name)
-        self.order.append([kind, name, *detail])
+        self.given[kind].append((name, detail))
 
     def register_tool(self, name, toolset=None, emoji=None, handler=None, **_kwargs):
-        self._note("tool", name, toolset, emoji, callable(handler))
+        self._note("tool", name, handler)
 
     def register_skill(self, name, path):
-        self._note("skill", name, Path(path).relative_to(ROOT).as_posix())
+        self._note("skill", name, Path(path))
 
     def register_rpc(self, name, handler):
-        self._note("rpc", name, callable(handler))
+        self._note("rpc", name, handler)
 
     def register_hook(self, name, handler):
-        self._note("hook", name, callable(handler))
+        self._note("hook", name, handler)
 
-    def register_system_prompt_section(self, name, _text, **options):
-        self._note("section", name, options)
+    def register_system_prompt_section(self, name, text, **options):
+        self._note("section", name, (text, options))
 
 
 class Registration(unittest.TestCase):
@@ -61,12 +60,15 @@ class Registration(unittest.TestCase):
     def setUpClass(cls):
         cls.plugin = load_plugin()
 
-    def register(self, profile, env=None):
+    def recorded(self, profile, env=None):
         ctx = Recorder(profile)
         clean = {k: v for k, v in os.environ.items() if k != "HERMRETRO_EVERY_PROFILE"}
         with mock.patch.dict(os.environ, {**clean, **(env or {})}, clear=True):
             self.plugin.register(ctx)
-        return ctx.calls
+        return ctx
+
+    def register(self, profile, env=None):
+        return self.recorded(profile, env).calls
 
     def test_the_studio_profile_gets_everything(self):
         calls = self.register("hermretro")
@@ -75,14 +77,28 @@ class Registration(unittest.TestCase):
         self.assertEqual(
             len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
         )
-        self.assertEqual(
-            sorted(calls["hook"]),
-            sorted(
-                ["pre_tool_call", "subagent_start", "subagent_stop", "pre_llm_call", "post_llm_call", "post_tool_call"]
-            ),
-        )
+        # Collection (one name, every callback chained in order) is tested by tests/backend/hermes/test_declare.py.
         self.assertEqual(calls["section"], ["hermretro.guide"])
         self.assertIn("status", calls["rpc"])
+
+    def test_what_hermes_runs_is_usable(self):
+        """Hermes stores each handler and calls it later, resolves skill_view by the registered name, runs every hook
+        entry it was given, and drops a prompt section longer than its max_chars: each must hold at registration."""
+        given = self.recorded("hermretro").given
+        for kind in ("tool", "rpc", "hook"):
+            broken = [name for name, handler in given[kind] if not callable(handler)]
+            self.assertEqual(broken, [], f"{kind}s registered without a callable handler")
+        hooks = [name for name, _ in given["hook"]]
+        self.assertEqual(sorted(hooks), sorted(set(hooks)), "a hook registered twice runs twice")
+        shipped = {
+            path.name: path / "SKILL.md" for path in (ROOT / "skills").iterdir() if (path / "SKILL.md").is_file()
+        }
+        self.assertEqual(dict(given["skill"]), shipped, "each skill under its folder's name, pointing at its SKILL.md")
+        for name, (text, options) in given["section"]:
+            self.assertLessEqual(len(text), options["max_chars"], f"{name}: Hermes skips a section over max_chars")
+            named = set(re.findall(r"hermretro:([\w-]+)", text))
+            self.assertTrue(named, f"{name} names the skills to load")
+            self.assertLessEqual(named, set(shipped), f"{name} names skills that are not registered")
 
     def test_any_other_profile_gets_the_page_rpcs_and_nothing_an_agent_sees(self):
         studio = self.register("hermretro")

@@ -1,89 +1,4 @@
-# Where everything in this repository lives. tests/repo/test_layout.py checks every tracked file against it,
-# and docs/dev/ARCHITECTURE.md ("Map") lists the same folders, so the map and the docs cannot drift.
-# Adding a folder: add it here with a one-line purpose, add the same line to the Map, then commit.
-
-[root]
-"__init__.py" = "The plugin's entry point: register()"
-"plugin.yaml" = "The plugin manifest: tools, hooks, RPCs and the one version"
-"README.md" = "What the plugin does, install, use and develop"
-"AGENTS.md" = "Rules and commands for contributors and agents"
-"LICENSE" = "MIT licence for hermretro's own code"
-"THIRD_PARTY_NOTICES.md" = "Notices for the vendored engine and player"
-".gitignore" = "Files git leaves alone (notes/, caches)"
-".gitattributes" = "Line endings and generated-file markers"
-"pyrightconfig.json" = "Editor settings for pyright/Pylance: tools/ on the import path, so tests/retrodev's `from retrodev import ...` resolves"
-
-[folders.backend]
-purpose = "Python backend, one folder per feature"
-areas.system = "Locations and every Linux/macOS difference (stdlib only)"
-areas.hermes = "Everything that touches Hermes: tools, hooks, prompt, contracts, results"
-areas.broker = "The per-user broker process and its engine workers (stdlib only)"
-areas.setup = "Setup page RPCs: toolchain install, removal, the studio profile"
-areas.library = "Games, Build and Emulator RPCs, the library, game cards, the game tools"
-areas.assets = "Game images for the Build page and their kept versions"
-areas.history = "Build history: a snapshot of a game after each build, and restoring one"
-areas.player = "The loopback server for the page's emulator"
-
-[folders.page]
-purpose = "Source of the Hermes Desktop page and the player frame script"
-areas.app = "The page shell and page-wide plumbing (registry, page events and slots, RPC names, routing)"
-areas.pages = "One folder per page, its tabs and areas inside"
-areas.shared = "UI parts, styles, art and player helpers every page uses (imports no app/ or pages/)"
-areas.frame = "The script injected into the emulator frame"
-
-[folders.desktop]
-purpose = "Generated page bundle (plugin.js) that Hermes Desktop loads"
-
-[folders.player]
-purpose = "The browser player served to the page, its device art and the generated frame script"
-areas.web = "ModRetro's web player (vendored)"
-areas.devices = "Device art for the player"
-
-[folders.engine]
-purpose = "The vendored ModRetro engine and its pins"
-vendored = true
-areas.modretro-chromatic = "The vendored engine, unchanged outside a deliberate engine update"
-areas.pins = "Per engine version: tool contracts and file manifest"
-
-[folders.skills]
-purpose = "Skills the plugin gives the agent"
-areas.authoring = "Making a game project"
-areas.deployment = "Getting a game onto a Chromatic"
-areas.game-planning = "Planning a game"
-areas.pixel-art = "Drawing sprites and backgrounds"
-areas.rom-debugging = "Finding faults in a built ROM"
-areas.setup = "Setting up the toolchain and device"
-
-[folders.profile]
-purpose = "Files for the hermretro studio profile"
-
-[folders.tests]
-purpose = "Tests, mirroring the code layout; support.py holds the shared temp-folder helpers"
-areas.backend = "Python unit tests, one folder per backend feature"
-areas.page = "Page tests in jsdom, their harness and the browser preview"
-areas.repo = "Repository-wide checks: names in lock step, version, layout, portability, bundle, scan"
-areas.acceptance = "The real-engine run through the broker"
-areas.retrodev = "Tests for the development CLI"
-
-[folders.tools]
-purpose = "Developer tools; check.py runs every check"
-areas.bundle = "Builds page/ into the generated files and lints it (ESLint config and the boundary rules)"
-areas.ci = "Clean install, toolchain preparation and Hermes API checks used by CI"
-areas.engine = "Engine update helpers: manifest, schema reconciliation"
-areas.debug = "Debugging helpers for a running gateway"
-areas.npm = "Pinned npm tools for development only"
-areas.py = "Pinned Python tools for development only (ruff), their settings, and check.py's helpers"
-areas.retrodev = "The development CLI: gates and commands for the working agreement (python tools/retrodev)"
-
-[folders.docs]
-purpose = "Documentation"
-areas.dev = "Developer references: architecture, testing, debugging, contract, pages, engine update"
-
-[folders.".github"]
-purpose = "CI workflows, templates and community files"
-areas.workflows = "CI, integration and nightly workflows"
-areas.actions = "Shared workflow steps"
-areas.ISSUE_TEMPLATE = "Issue forms"
+# The committed documents (tests/repo/test_docs.py) and the source file size rule (tests/repo/test_layout.py).
 
 [docs]
 # Every committed document (Markdown, text, logs) is listed here with what it is for: tests/repo/test_docs.py
@@ -114,14 +29,10 @@ areas.ISSUE_TEMPLATE = "Issue forms"
 "profile/SOUL.md" = "The studio profile's personality"
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
-"tools/retrodev/README.md" = "The development CLI: what it is, the quick path, the flow from plan to merge, exit codes"
-"tools/retrodev/REFERENCE.md" = "The development CLI in full: every command, new by kind, land, releases, state, config"
-"tools/retrodev/review/brief.md" = "The reviewer's brief template, filled in per round"
 
 [size]
 # The one per-file size rule. Python and page source files: a warning above `warn` lines (check.py's unit row names
-# them), a failure above `fail` (tests/repo/test_layout.py). `retrodev new rpc` suggests --module 50 lines before
-# `warn` (tools/retrodev/scaffold_rpc.py big_rpcs reads it here), so a new handler lands before rpcs.py reaches `warn`.
+# them), a failure above `fail` (tests/repo/test_layout.py).
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]

@@ -121,6 +121,14 @@ class LaneMixin:
                 + (selection["check"].get("detail") or "unknown difference")
                 + ". Reinstall the plugin.",
             )
+        if not paths.node_usable(self.node):
+            # A client replaces an idle broker in this state; this one stays for the games it still runs.
+            raise Denied(
+                "NODE_MISSING",
+                f"The Node.js hermretro's game tools started with ({self.node}) is no longer installed. Finish or "
+                "close the chats that are running games: the game tools restart with the current Node.js once "
+                "no game is running, then try again.",
+            )
         engine = EngineProcess(
             selection["root"],
             node=self.node,

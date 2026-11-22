@@ -10,10 +10,6 @@ none, while inside a span a backslash is literal and escapes nothing.
 import re
 
 OPENING = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-# A line that starts a block of its own (ATX heading, block quote, list item, table row), so a span does not run
-# into it from the line before.
-BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:\s|$)|>|[-+*](?:\s|$)|\d{1,9}[.)](?:\s|$)|\|)")
-ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")
 
 
 def _closes(line: str, fence: str) -> bool:
@@ -105,52 +101,3 @@ def split_code_spans(text: str) -> list[tuple[str, bool]]:
     if at < len(text):
         pieces.append((text[at:], False))
     return pieces
-
-
-def without_code_spans(text: str) -> str:
-    """``text`` with its inline code spans removed."""
-    return "".join(piece for piece, code in split_code_spans(text) if not code)
-
-
-# A Setext heading underline or a thematic break ends the paragraph above it (CommonMark 4.1, 4.3); it holds no
-# prose of its own.
-BLOCK_END = re.compile(r"^ {0,3}(?:=+|-+|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})[ \t]*$")
-
-
-def _paragraphs(text: str) -> list[list[int]]:
-    """Indexes of ``text``'s lines grouped into the runs a code span can cross: not fenced, not blank, a new group at a
-    line that starts a block, a Setext underline or thematic break ends one, and an ATX heading stands alone."""
-    groups: list[list[int]] = []
-    current: list[int] = []
-    for number, (line, fenced) in enumerate(zip(text.splitlines(), fenced_lines(text), strict=True)):
-        if fenced or not line.strip() or BLOCK_START.match(line) or BLOCK_END.match(line):
-            if current:
-                groups.append(current)
-            current = []
-            if fenced or not line.strip() or BLOCK_END.match(line):
-                continue
-        current.append(number)
-        if ATX_HEADING.match(line):
-            groups.append(current)
-            current = []
-    if current:
-        groups.append(current)
-    return groups
-
-
-def prose_lines(text: str) -> list[str]:
-    """For each line of ``text``, its prose: empty for a fenced line, code spans removed (a span may cross a line
-    break within a paragraph), so line numbers stay the same."""
-    lines = text.splitlines()
-    prose = [""] * len(lines)
-    for group in _paragraphs(text):
-        joined = "\n".join(lines[number] for number in group)
-        kept, at = [], 0
-        for start, end, _width in _spans(joined):
-            kept.append(joined[at:start])
-            kept.append("\n" * joined.count("\n", start, end))
-            at = end
-        kept.append(joined[at:])
-        for number, line in zip(group, "".join(kept).split("\n"), strict=True):
-            prose[number] = line
-    return prose

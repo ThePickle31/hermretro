@@ -17,8 +17,7 @@ Hermes gateway (one process, every profile)                 per user, ~/.hermes/
 
 ## Map
 
-Every folder in the repository, from `tools/layout.toml` (`tests/repo/test_layout.py` keeps the two in
-agreement and checks every tracked file sits in one of them).
+Every folder in the repository.
 
 | Folder | What it holds |
 |---|---|
@@ -54,17 +53,17 @@ agreement and checks every tracked file sits in one of them).
 | `tests/` | Tests, mirroring the code layout; support.py holds the shared temp-folder helpers |
 | `tests/backend/` | Python unit tests, one folder per backend feature |
 | `tests/page/` | Page tests in jsdom, their harness and the browser preview |
-| `tests/repo/` | Repository-wide checks: names in lock step, version, layout, portability, bundle, scan |
+| `tests/repo/` | Repository-wide checks: names in lock step, version, file sizes, portability, bundle, scan |
 | `tests/acceptance/` | The real-engine run through the broker |
-| `tests/retrodev/` | Tests for the development CLI |
+| `tests/dev/` | Tests for the development loop (tools/dev) |
 | `tools/` | Developer tools; check.py runs every check |
 | `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
 | `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
+| `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |
 | `tools/py/` | Pinned Python tools for development only (ruff), their settings, and check.py's helpers |
-| `tools/retrodev/` | The development CLI: gates and commands for the working agreement (python tools/retrodev) |
 | `docs/` | Documentation |
 | `docs/dev/` | Developer references: architecture, testing, debugging, contract, pages, engine update |
 | `.github/` | CI workflows, templates and community files |
@@ -93,15 +92,17 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
 the page's RPCs in every profile; tools, skills, hooks and the prompt section only in the `hermretro` profile. A
-hook several features declare is registered once and calls each in feature order (`declare.chain`). The full list
-of registrations, in order, is pinned by `tests/repo/test_registration_snapshot.py`.
+hook several features declare is registered once and calls each in feature order (`declare.chain`).
+`tests/backend/hermes/test_registration.py` checks what each profile gets and that what Hermes runs is usable
+(callable handlers, each hook once, skills under their folder names, the guide within its limit);
+`tests/repo/test_lockstep.py` checks the manifest names the tools and hooks that register.
 
 How features may connect is checked by `tests/repo/test_boundaries.py`: a module imports the standard library,
 its own feature, the shared layers, and another feature only through its front door's `__all__`;
 `backend/system/` imports nothing above it (Hermes's answer for its home is handed down through
 `system/hermes_home.py` when `backend.hermes` is imported); events are declared once by their owner, emitted only
 by it, and listened to from `listeners.py`. A deliberate exception is a line comment
-`retrodev: allow <rule> — <reason>`, listed as a warning on every run.
+`hermretro: allow <rule> — <reason>`, listed as a warning on every run.
 
 So a value (a constant, a function, a class) that another feature reads is imported into the owner's front door
 `backend/<owner>/__init__.py` and listed in its `__all__`, and the reader writes `from ..<owner> import NAME` (inside
@@ -112,19 +113,18 @@ the owner, `from .module import NAME`). Importing it from the module that define
 
 | To add | Touch |
 |---|---|
-| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`, and a section in `CONTRACT.md`. Then `node tools/bundle/bundle.mjs` (regenerates the page's names, `RPC_<NAME>` in `page/app/rpc-names.js`) and `python tests/repo/test_registration_snapshot.py --write`. Or: `python tools/retrodev new rpc <feature> <name>` (all of it, with a test) |
-| a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`, the snapshot. Or: `python tools/retrodev new tool <feature> <name> --step '<running>' '<done>'`. A tool about the selected game resolves the project with `tool_project(tool, args, kwargs)`, then its library game with `host.library_game_for([root])`, and answers failures with `tool_error(message, code)` (`from ..hermes.tool_args import tool_error, tool_project`) |
-| a split of a big `rpcs.py` | move each handler factory into `backend/<feature>/<topic>_rpcs.py` as `def rpc_<name>(ctx)`; `rpcs.py` keeps every `@rpc("<name>")` declaration, now `def rpc_<name>(ctx): return _<topic>_rpcs_mod.rpc_<name>(ctx)` after `from . import <topic>_rpcs as _<topic>_rpcs_mod` (the page's names and the lock-step test read only `rpcs.py`; `retrodev new rpc --module <topic>_rpcs` writes new ones this way) |
-| a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`; the snapshot. A `post_tool_call` hook reads an engine tool's result with `host.tool_result_payload(result)` (the JSON text or the multimodal envelope's summary, as a dict) and finds its library game with `host.library_game_for(paths)` (`(game id, root)` of the game containing the first matching path; `backend/history/hooks.py` passes the result's `projectRoot`, the `projectPath` argument and the chat's project). A test of a chained hook asserts only the relative order it needs, so a feature's new callback does not break it |
-| an event | the owner's front door `EVENTS` + `emit(...)` where it happens: something the broker does is announced from the gateway side (the broker stays standard library only and emits nothing), in the RPC or hook that first learns of it, once per occurrence; listeners in `backend/<other>/listeners.py` with `@on(...)`. Or: `python tools/retrodev new event <feature> <name>` (the entry, an `emits.py` function, a test, the CONTRACT row), and `python tools/retrodev new listener <feature> <event>` for each feature that reacts (not `broker` or `system`, which stay standard library only) |
+| an RPC | `backend/<feature>/rpcs.py`: `@rpc("name") def rpc_name(ctx)`, and a section in `CONTRACT.md`. Then `node tools/bundle/bundle.mjs` (regenerates the page's names, `RPC_<NAME>` in `page/app/rpc-names.js`). |
+| a plugin tool | `backend/<feature>/tools.py`: schema, handler, `Tool(SCHEMA, handler, step_words=(…))` in `TOOLS`; `plugin.yaml` `provides_tools`. Then the page's `step-words.js` (checked against `step_words`), `CONTRACT.md`. A tool about the selected game resolves the project with `tool_project(tool, args, kwargs)`, then its library game with `host.library_game_for([root])`, and answers failures with `tool_error(message, code)` (`from ..hermes.tool_args import tool_error, tool_project`) |
+| a split of a big `rpcs.py` | move each handler factory into `backend/<feature>/<topic>_rpcs.py` as `def rpc_<name>(ctx)`; `rpcs.py` keeps every `@rpc("<name>")` declaration, now `def rpc_<name>(ctx): return _<topic>_rpcs_mod.rpc_<name>(ctx)` after `from . import <topic>_rpcs as _<topic>_rpcs_mod` (the page's names and the lock-step test read only `rpcs.py`) |
+| a hook | `backend/<feature>/hooks.py`: `@hook("name")`; a name no feature hooked before also goes in `plugin.yaml` `provides_hooks`. A `post_tool_call` hook reads an engine tool's result with `host.tool_result_payload(result)` (the JSON text or the multimodal envelope's summary, as a dict) and finds its library game with `host.library_game_for(paths)` (`(game id, root)` of the game containing the first matching path; `backend/history/hooks.py` passes the result's `projectRoot`, the `projectPath` argument and the chat's project). A test of a chained hook asserts only the relative order it needs, so a feature's new callback does not break it |
+| an event | the owner's front door `EVENTS` + `emit(...)` where it happens: something the broker does is announced from the gateway side (the broker stays standard library only and emits nothing), in the RPC or hook that first learns of it, once per occurrence; listeners in `backend/<other>/listeners.py` with `@on(...)`. A listener goes in each feature that reacts (not `broker` or `system`, which stay standard library only) |
 | state a listener keeps | a module-level value in the feature's own module (where the listener lives, or the module it calls), with a reader function beside it (listeners run in the emitting process, so this value is per process: the gateway, a plugin host and a turn process each hold their own); export the reader in the front door's `__all__` only when another feature reads it (then as the row below). Not on `host` or another feature's module. State another process must read (the broker, the player, another Hermes process) is a file under `backend.system.paths.hermretro_home()`, written atomically with `paths.write_json_atomic(path, data)` (a temp file beside it, then `os.replace`), not module state |
 | a name exported from a feature's front door (a value other features read) | import it in the owner's `backend/<owner>/__init__.py` and add it to `__all__` (`tests/repo/test_boundaries.py` checks only these two); by hand also: that docstring's "Front door:" line when it says nothing is exported, the owner README's `## Front door` line, and the owner's "Front door / events" cell in the table above. Readers import `from ..<owner> import NAME` |
 | a module split or renamed inside a feature | as "Splitting a module" below: the feature README's module list (its opening paragraph) and any mention in `ARCHITECTURE.md`; `tests/repo/test_doc_pointers.py` fails on a backtick-quoted `backend/` or `page/` path that no longer exists |
-| a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its area in `tools/layout.toml` and the Map above; tests in `tests/backend/<name>/`. Or: `python tools/retrodev new feature <name> --purpose '...'` (all of it) |
+| a feature | `backend/<name>/` with `__init__.py` (docstring, `__all__`, `EVENTS`), `README.md` and its declaration files; one line in `backend/features.py`; its line in the Map above; tests in `tests/backend/<name>/`. |
 
-Each feature's row in the table above lists what it registers: `python tools/retrodev new rpc|tool <feature> ...`
-adds the new name to its Declares cell, and `new event` adds the event to its Front door / events cell; by hand, add
-it there along with the feature's README.
+Each feature's row in the table above lists what it registers: a new RPC or tool goes in its Declares cell and a new
+event in its Front door / events cell, along with the feature's README.
 
 **Splitting a module.** The new module goes next to the old one in the same feature folder
 (`backend/<feature>/<new>.py`). Update every caller to import from it, or, when tests or other features still use the
@@ -133,8 +133,8 @@ tests to `tests/backend/<feature>/test_<new>.py`. Then change the feature README
 names the old module for the moved code (`tests/repo/test_doc_pointers.py` checks the paths they name); `git grep`
 the old module's path too, for comments and docs that name it without backticks. Splitting or renaming, the new
 module's name can shadow a local or parameter of the same name in its users (`from . import progress` in a function
-with a `progress` variable): `git grep -w <new>` across `backend/`, `tools/` and `tests/` (`tests/retrodev`
-included) and rename those locals first. A split can rename log lines: the
+with a `progress` variable): `git grep -w <new>` across `backend/`, `tools/` and `tests/`
+and rename those locals first. A split can rename log lines: the
 modules that log with `logging.getLogger(__name__)` (`backend/player/server.py`, `backend/system/events.py`,
 `backend/hermes/host.py`) name their logger after the module, so moved code logs under the new name; say so in the
 pull request body. The rest log through `host.logger` and keep its name.
@@ -154,7 +154,9 @@ imports; there are no exceptions).
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the
 gateway talks to it over a private Unix socket with a token. It replaces itself when the backend's code on disk
-changes and it is idle (the fingerprint covers every file under `backend/` and `plugin.yaml`). The broker
+changes and it is idle (the fingerprint covers every file under `backend/` and `plugin.yaml`), and likewise when
+its handshake shows its new workers cannot start (its `node` was removed, or `temp_ok` is false while the
+client's TMPDIR would work); a busy one keeps its games. The broker
 reads its fingerprint once, at start, and its handshake names it as `loaded_fingerprint`; the client compares
 that with the files on disk now, so a broker an update rewrote underneath is told apart from a new one.
 

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 d9c638b0e9fd4400095047333bc7bdf068d8dc165f471e066fb4419a2bf436dd
- * body: sha256 5cd3bdcba4941415c8c55b3b91f03272fff0aaf66f97089e4b9376044f9027e2
+ * sources: sha256 f209be162ad780a39c06a2432b4984467b4426ee0a22b67d4ec412e140f7c5ec
+ * body: sha256 726ed494eb22154986e9ee1b98bc0853b65880be3ed5c8664ab042ce97a6a4be
  */
 // page/sdk.js
 import {
@@ -11900,6 +11900,8 @@ var ONBOARDING_CSS = `
 
 // page/pages/setup/setup.css.js
 var SETUP_CSS = `
+/* setup: the install's stage, for screen readers only */
+.cs-onb .cs-sr, .cs-setup .cs-sr { clip: rect(0 0 0 0); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 /* setup: rail, current step, flying Chromatic */
 .cs-setup { align-items: start; display: grid; gap: clamp(24px, 3.6cqi, 64px); grid-template-columns: clamp(180px, 13cqi, 240px) minmax(0, 820px) minmax(130px, 1fr); }
 .cs-rail { display: flex; flex-direction: column; position: sticky; top: 76px; }
@@ -12464,9 +12466,18 @@ function createStudioProfileOnce(profile) {
   });
   return profileCreation;
 }
-function useInstaller({ ctx, status, install, toolchainDone }) {
+var STOPPED = ["failed", "cancelled", "interrupted"];
+function checkedSince(doctor, finishedAt) {
+  if (!doctor || doctor.isFetching || !(doctor.data || doctor.isError)) {
+    return false;
+  }
+  const at = Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0);
+  return !at || !finishedAt || at >= finishedAt * 1e3;
+}
+function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   const [starting, setStarting] = useState(false);
   const [failure, setFailure] = useState(null);
+  const [cancelError, setCancelError] = useState(null);
   const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
   const [elsewhere, setElsewhere] = useState(false);
   const data = install.data;
@@ -12474,10 +12485,16 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
   const state = data?.install?.state ?? "idle";
   const profile = status.data?.profile;
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
+  const conflict = Boolean(needsProfile && profile.studio?.conflict);
   const node = nodeState(status.data?.node);
+  const manifestReady = Boolean(data?.manifest?.items?.length) && Number(data?.manifest?.bytes) > 0;
+  const noSpace = data?.space?.enough === false;
+  const backendElsewhere = data?.install?.elsewhere;
+  const waitingElsewhere = backendElsewhere === true || elsewhere && backendElsewhere === void 0;
+  const elsewhereEnded = elsewhere && backendElsewhere === false && !toolchainDone;
   const updating = useUpdating();
   const makeProfile = () => {
-    if (!needsProfile) {
+    if (!needsProfile || conflict) {
       return;
     }
     setProfileWork({ state: "running", error: null });
@@ -12489,8 +12506,23 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
       (error) => setProfileWork({ state: "failed", error: String(error?.message ?? error) })
     );
   };
+  const repairProfile = async () => {
+    if (!profile) {
+      return;
+    }
+    setProfileWork({ state: "running", error: null });
+    try {
+      await createStudioProfileOnce(profile);
+      routing.scannedAt = 0;
+      forgetRoute();
+      setProfileWork({ state: "done", error: null });
+      await status.refetch?.();
+    } catch (error) {
+      setProfileWork({ state: "failed", error: String(error?.message ?? error) });
+    }
+  };
   const start = async () => {
-    if (starting) {
+    if (starting || !manifestReady || conflict || noSpace) {
       return;
     }
     if (isUpdating()) {
@@ -12504,6 +12536,7 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
       const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
       if (answer?.code === "OPERATION_IN_PROGRESS") {
         setElsewhere(true);
+        await install.refetch?.();
         return;
       }
       if (!answer?.ok) {
@@ -12517,6 +12550,22 @@ function useInstaller({ ctx, status, install, toolchainDone }) {
       setStarting(false);
     }
   };
+  const cancel = async () => {
+    setCancelError(null);
+    try {
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: data?.install?.run_id ?? null }, 3e4);
+      if (!answer?.ok) {
+        setCancelError(answer?.error || "The install could not be cancelled.");
+      }
+    } catch (error) {
+      setCancelError(describeRequestError(error).message || String(error?.message ?? error));
+    }
+    await install.refetch?.();
+  };
+  const recheck = async () => {
+    setFailure(null);
+    await Promise.all([install.refetch?.(), status.refetch?.(), doctor?.refetch?.()]);
+  };
   const ask = () => sendPromptToChat(
     ctx,
     `${SETUP_PROMPT}
@@ -12525,22 +12574,39 @@ The install on the hermretro page stopped with this error:
 ${failure ?? data?.install?.error ?? "unknown error"}`,
     { fresh: true }
   );
-  const verifying = (state === "done" || elsewhere) && !toolchainDone;
-  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || state === "failed" ? "failed" : "review";
+  const unverified = state === "done" && !toolchainDone && checkedSince(doctor, data?.install?.finished_at);
+  const verifying = (state === "done" && !unverified || waitingElsewhere) && !toolchainDone;
+  const phase = toolchainDone ? "done" : starting || state === "running" || verifying ? "running" : failure || unverified || STOPPED.includes(state) ? "failed" : "review";
+  const missing = doctor?.data?.ok ? doctor.data.missing_required ?? [] : [];
   return {
     ask,
+    cancel,
+    cancelError: state === "running" ? cancelError : null,
+    cancelling: Boolean(data?.install?.cancelling),
+    conflict,
     data,
-    elsewhere,
+    doctor,
+    elsewhere: waitingElsewhere,
+    elsewhereEnded,
     failure: failure ?? data?.install?.error ?? null,
+    hint: failure ? null : data?.install?.hint ?? null,
     makeProfile,
+    manifestReady,
+    missing,
     needsProfile,
     node,
+    noSpace,
     phase,
+    spaceWarning: data?.space?.warning ?? null,
+    profile,
     profileWork,
+    recheck,
+    repairProfile,
     start,
     starting,
     state,
     unsupported,
+    unverified,
     updating,
     verifying
   };
@@ -12606,6 +12672,214 @@ function ProfileBody({ status }) {
       failure ? jsx("p", { className: "cs-error", children: failure }) : null
     ]
   });
+}
+
+// page/pages/setup/install/install-actions.js
+var STAGE = { gbdk: "GBDK", cli: "GB Studio and its packages", uv: "uv", emulator: "Python, PyBoy and Pillow" };
+var QUIET_NOTE_SECONDS = 90;
+function clock2(seconds) {
+  const total = Math.max(0, Math.round(seconds ?? 0));
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+function stageText(install, verifying) {
+  if (verifying) {
+    return "Checking the installed tools";
+  }
+  if (install?.cancelling) {
+    return "Stopping safely";
+  }
+  return install?.current ? `Installing ${STAGE[install.current] ?? install.current}` : "Preparing the install";
+}
+function StageAnnouncer({ text: text2 }) {
+  const [spoken, setSpoken] = useState(text2);
+  const last = useRef(text2);
+  useEffect(() => {
+    if (last.current !== text2) {
+      last.current = text2;
+      setSpoken(text2);
+    }
+  }, [text2]);
+  return jsx("span", { "aria-live": "polite", className: "cs-sr", role: "status", children: spoken });
+}
+function InstallProgress({ install, phase, verifying, elsewhere }) {
+  if (phase !== "running") {
+    return null;
+  }
+  if (elsewhere && install?.state !== "running") {
+    return jsx(Working, { children: "The tools are being installed from a chat. This page moves on when they are verified." });
+  }
+  const fraction = Math.max(0.02, Math.min(1, install?.fraction ?? 0));
+  const downloaded = install?.downloaded_bytes ?? 0;
+  const percent = Math.round(fraction * 100);
+  const stage = stageText(install, verifying);
+  const quiet = !verifying && install?.state === "running" && (install?.quiet_seconds ?? 0) >= QUIET_NOTE_SECONDS;
+  return jsxs("div", {
+    className: "cs-col",
+    style: { gap: 8 },
+    children: [
+      jsxs("div", {
+        className: "cs-row cs-mono",
+        style: { justifyContent: "space-between", fontSize: 11.5 },
+        children: [
+          jsx("span", {
+            "aria-hidden": true,
+            children: verifying ? "Checking the installed tools…" : `${percent}% · ${stage}${install?.elapsed_seconds != null ? ` · ${clock2(install.elapsed_seconds)}` : ""}`
+          }),
+          jsx("span", { className: "cs-faint", children: downloaded > 0 ? `${formatBytes(downloaded)} downloaded` : install?.seeded ? "Using files already on this computer" : "" })
+        ]
+      }),
+      jsx("div", {
+        "aria-label": "Game tools install",
+        "aria-valuemax": 100,
+        "aria-valuemin": 0,
+        "aria-valuenow": percent,
+        "aria-valuetext": verifying ? stage : `${percent}%, ${stage}`,
+        className: "cs-progress",
+        role: "progressbar",
+        children: jsx("b", { style: { width: `${fraction * 100}%` } })
+      }),
+      jsx(StageAnnouncer, { text: stage }),
+      quiet ? jsx(Small, {
+        children: `Still working: nothing new on disk for ${clock2(install.quiet_seconds)}. Building GB Studio can stay at one percentage for several minutes.`
+      }) : null
+    ]
+  });
+}
+var recheckButton = (installer, label = "Check again") => jsx(AsyncButton, { icon: "refresh", run: installer.recheck, variant: "default", children: label }, "recheck");
+function InstallActions({ installer, compact = false }) {
+  const { phase, start, starting, ask, node, unsupported } = installer;
+  const size = compact ? "sm" : "lg";
+  if (unsupported) {
+    return jsxs("div", {
+      className: "cs-col",
+      style: { gap: 10 },
+      children: [
+        jsx(Small, { tone: "warn", children: "This hermretro backend cannot install from the page yet. Update the plugin, or let Hermes do it in a chat." }),
+        jsx("div", { className: "cs-actions", children: jsx(AsyncButton, { icon: "comment-discussion", run: ask, variant: "default", children: "Set up in chat" }) })
+      ]
+    });
+  }
+  if (!node.ok) {
+    return jsxs("div", {
+      className: "cs-col",
+      style: { gap: 10 },
+      children: [
+        jsx(Small, {
+          tone: "warn",
+          children: node.version ? `Found Node.js ${node.version}, which is too old (hermretro needs ${node.required} or newer). Update Hermes, then check again.` : `Node.js was not found. Hermes normally installs it; run "hermes update", restart Hermes, then check again.`
+        }),
+        jsx("div", { className: "cs-actions", children: recheckButton(installer) })
+      ]
+    });
+  }
+  if (phase === "done" && installer.needsProfile) {
+    return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
+      className: "cs-actions",
+      children: jsx(Button, { disabled: installer.updating || installer.conflict, onClick: installer.makeProfile, size, variant: "default", children: "Create the hermretro profile" })
+    });
+  }
+  if (phase === "done" && installer.profileWork.state !== "failed") {
+    return jsxs("div", {
+      className: "cs-col",
+      style: { gap: 10 },
+      children: [
+        jsx(Working, { quiet: true, children: installer.profileWork.state === "running" ? "Repairing the hermretro profile…" : "Tools verified. Waiting for Hermes to start the hermretro profile…" }),
+        jsx("div", {
+          className: "cs-actions",
+          children: jsx(AsyncButton, { disabled: installer.updating || installer.profileWork.state === "running", icon: "tools", run: installer.repairProfile, children: "Repair the profile" })
+        })
+      ]
+    });
+  }
+  if (phase === "done") {
+    return jsx("div", {
+      className: "cs-actions",
+      children: jsx(AsyncButton, { disabled: installer.updating, icon: "tools", run: installer.repairProfile, variant: "default", children: "Repair the profile" })
+    });
+  }
+  if (phase === "running") {
+    if (installer.elsewhere && installer.state !== "running") {
+      return jsx("div", { className: "cs-actions", children: recheckButton(installer) });
+    }
+    if (installer.state !== "running" || installer.verifying) {
+      return null;
+    }
+    return installer.cancelling ? jsx(Working, { quiet: true, children: "Stopping safely: waiting for the installer to finish its current step…" }) : jsx("div", {
+      className: "cs-actions",
+      children: jsx(AsyncButton, { icon: "debug-stop", run: installer.cancel, title: "Stops after the current step; finished parts are kept", children: "Cancel" })
+    });
+  }
+  if (phase === "review") {
+    const blocked = !installer.manifestReady || installer.conflict || installer.noSpace;
+    return jsxs("div", {
+      className: "cs-actions",
+      children: [
+        jsxs(Button, {
+          disabled: starting || installer.updating || blocked,
+          onClick: () => void start(),
+          size,
+          variant: "default",
+          children: [jsx(Codicon, { name: "cloud-download", size: 14 }), "Download and install"]
+        }),
+        blocked ? recheckButton(installer) : null
+      ]
+    });
+  }
+  if (phase === "failed" && installer.unverified) {
+    return jsxs("div", {
+      className: "cs-actions",
+      children: [
+        recheckButton(installer),
+        installer.missing.length ? jsxs(Button, {
+          disabled: starting || installer.updating,
+          onClick: () => void start(),
+          size,
+          variant: "outline",
+          children: [jsx(Codicon, { name: "refresh", size: 14 }), "Retry install"]
+        }) : null,
+        jsx(AsyncButton, { icon: "comment-discussion", run: ask, title: "Opens a chat with the error in it, not sent", children: "Ask Hermes to fix it" })
+      ]
+    });
+  }
+  if (phase === "failed") {
+    return jsxs("div", {
+      className: "cs-actions",
+      children: [
+        jsxs(Button, {
+          disabled: starting || installer.updating || !installer.manifestReady || installer.conflict || installer.noSpace,
+          onClick: () => void start(),
+          size,
+          variant: "default",
+          children: [jsx(Codicon, { name: "refresh", size: 14 }), installer.state === "cancelled" ? "Install again" : "Try again"]
+        }),
+        jsx(AsyncButton, { icon: "comment-discussion", run: ask, title: "Opens a chat with the error in it, not sent", children: "Ask Hermes to fix it" })
+      ]
+    });
+  }
+  return null;
+}
+function InstallError({ installer }) {
+  const { failure, phase, profileWork, hint } = installer;
+  const profileName = installer.profile?.studio?.name ?? "hermretro";
+  const doctor = installer.doctor;
+  const before = phase === "review" || phase === "failed";
+  const note = (key, text2, tone = "cs-error") => jsx("p", { className: tone, children: text2 }, key);
+  return [
+    installer.conflict && phase !== "running" ? note("conflict", `A Hermes profile named "${profileName}" already exists and was not made by hermretro, so nothing was downloaded. Rename or remove that profile in Hermes, then check again.`) : null,
+    before && !installer.manifestReady && !installer.unsupported ? note("manifest", "The download list could not be read, so nothing can be reviewed or installed yet. Check again; if it stays empty, update or reinstall hermretro.") : null,
+    before && installer.noSpace ? note("space", `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`) : null,
+    before && !installer.noSpace && installer.spaceWarning ? note("space-warning", installer.spaceWarning, "cs-small") : null,
+    phase === "running" && installer.cancelError ? note("cancel", installer.cancelError) : null,
+    phase === "review" && installer.elsewhereEnded ? note("elsewhere", "The install that was running in a chat stopped before the tools were ready. Install them here instead.", "cs-small") : null,
+    phase === "failed" && installer.unverified ? note(
+      "unverified",
+      doctor?.isError || doctor?.data?.ok === false ? `The install finished, but the tools check failed: ${doctor?.data?.error || String(doctor?.error?.message ?? doctor?.error ?? "unknown error")}` : `The install finished, but the tools check still reports missing: ${installer.missing.join(", ") || "unknown"}.`
+    ) : null,
+    phase === "failed" && !installer.unverified && failure ? note("error", failure) : null,
+    phase === "failed" && !installer.unverified && hint ? note("hint", hint, "cs-small") : null,
+    profileWork.state === "failed" ? note("profile", `The hermretro profile could not be created: ${profileWork.error}`) : null
+  ];
 }
 
 // page/pages/setup/install/install-panel.js
@@ -12711,94 +12985,6 @@ function InstallFacts({ manifest, status, root }) {
     ]
   });
 }
-function InstallProgress({ install, phase, verifying, elsewhere }) {
-  if (phase !== "running") {
-    return null;
-  }
-  if (elsewhere && install?.state !== "running") {
-    return jsx(Working, { children: "The tools are being installed from a chat. This page moves on when they are verified." });
-  }
-  const fraction = Math.max(0.02, Math.min(1, install?.fraction ?? 0));
-  const downloaded = install?.downloaded_bytes ?? 0;
-  return jsxs("div", {
-    className: "cs-col",
-    style: { gap: 8 },
-    children: [
-      jsxs("div", {
-        className: "cs-row cs-mono",
-        style: { justifyContent: "space-between", fontSize: 11.5 },
-        children: [
-          jsx("span", { children: verifying ? "Checking the installed tools…" : `${Math.round(fraction * 100)}%` }),
-          jsx("span", { className: "cs-faint", children: downloaded > 0 ? `${formatBytes(downloaded)} downloaded` : install?.seeded ? "Using files already on this computer" : "" })
-        ]
-      }),
-      jsx("div", { className: "cs-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(fraction * 100), children: jsx("b", { style: { width: `${fraction * 100}%` } }) })
-    ]
-  });
-}
-function InstallActions({ installer, compact = false }) {
-  const { phase, start, starting, ask, node, unsupported } = installer;
-  if (unsupported) {
-    return jsxs("div", {
-      className: "cs-col",
-      style: { gap: 10 },
-      children: [
-        jsx(Small, { tone: "warn", children: "This hermretro backend cannot install from the page yet. Update the plugin, or let Hermes do it in a chat." }),
-        jsx("div", { className: "cs-actions", children: jsx(AsyncButton, { icon: "comment-discussion", run: ask, variant: "default", children: "Set up in chat" }) })
-      ]
-    });
-  }
-  if (!node.ok) {
-    return jsx(Small, {
-      tone: "warn",
-      children: node.version ? `Found Node.js ${node.version}, which is too old (hermretro needs ${node.required} or newer). Update Hermes, then come back.` : `Node.js was not found. Hermes normally installs it; run "hermes update", restart Hermes, then come back.`
-    });
-  }
-  if (phase === "done" && installer.needsProfile) {
-    return installer.profileWork.state === "running" ? jsx(Working, { children: "Creating the hermretro profile…" }) : jsx("div", {
-      className: "cs-actions",
-      children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? "sm" : "lg", variant: "default", children: "Create the hermretro profile" })
-    });
-  }
-  if (phase === "done" && installer.profileWork.state !== "failed") {
-    return jsx(Working, { quiet: true, children: "Tools verified. Waiting for Hermes to start the hermretro profile…" });
-  }
-  if (phase === "review") {
-    return jsx("div", {
-      className: "cs-actions",
-      children: jsxs(Button, {
-        disabled: starting || installer.updating,
-        onClick: () => void start(),
-        size: compact ? "sm" : "lg",
-        variant: "default",
-        children: [jsx(Codicon, { name: "cloud-download", size: 14 }), "Download and install"]
-      })
-    });
-  }
-  if (phase === "failed") {
-    return jsxs("div", {
-      className: "cs-actions",
-      children: [
-        jsxs(Button, {
-          disabled: starting || installer.updating,
-          onClick: () => void start(),
-          size: compact ? "sm" : "lg",
-          variant: "default",
-          children: [jsx(Codicon, { name: "refresh", size: 14 }), "Try again"]
-        }),
-        jsx(AsyncButton, { icon: "comment-discussion", run: ask, title: "Opens a chat with the error in it, not sent", children: "Ask Hermes to fix it" })
-      ]
-    });
-  }
-  return null;
-}
-function InstallError({ installer }) {
-  const { failure, phase, profileWork } = installer;
-  return [
-    phase === "failed" && failure ? jsx("p", { className: "cs-error", children: failure }, "error") : null,
-    profileWork.state === "failed" ? jsx("p", { className: "cs-error", children: `The hermretro profile could not be created: ${profileWork.error}` }, "profile") : null
-  ];
-}
 function profileRowState(installer, profileStep, status) {
   const profile = status.data?.profile;
   if (!profile) {
@@ -12812,8 +12998,8 @@ function profileRowState(installer, profileStep, status) {
   }
   return installer.profileWork.state !== "idle" || profile.studio?.installed ? "running" : "pending";
 }
-function InstallPanel({ ctx, status, install, step, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone: step.state === "done" });
+function InstallPanel({ ctx, status, install, step, profileStep, doctor }) {
+  const installer = useInstaller({ ctx, doctor, install, status, toolchainDone: step.state === "done" });
   const data = install.data;
   return jsxs("div", {
     className: "cs-content",
@@ -12942,7 +13128,7 @@ function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
         tone: "warn",
         children: platform.rosetta ? "Hermes is running under Rosetta (Intel emulation). It works, but builds are slower: install the Apple Silicon version of Hermes." : platform.node_arch && platform.machine && platform.node_arch !== platform.machine ? `The Node.js hermretro found is built for ${platform.node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine === "arm64" ? "Apple Silicon" : platform.machine} version of Node.js (for example with Homebrew in /opt/homebrew).` : `${platform.system ?? "This system"} ${platform.machine ?? ""} has not been tested yet; some steps may not work.`
       }) : null,
-      (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
+      (step.state === "todo" || step.state === "blocked") && install ? jsx(InstallPanel, { ctx, doctor, install, profileStep: steps?.find((item) => item.id === "profile"), status, step }) : null,
       step.state === "done" || step.state === "error" ? jsx("div", {
         className: "cs-comps",
         children: [
@@ -13210,8 +13396,8 @@ function OnboardWelcome({ manifest, onStart }) {
     ]
   });
 }
-function OnboardInstall({ ctx, status, install, toolchainDone, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone });
+function OnboardInstall({ ctx, status, install, toolchainDone, profileStep, doctor }) {
+  const installer = useInstaller({ ctx, doctor, install, status, toolchainDone });
   const data = install.data;
   const { phase } = installer;
   const title = phase === "failed" ? ["One part ", jsx("span", { className: "cs-bad", children: "didn't finish" }, "a")] : phase === "review" ? ["Here's what gets ", jsx("span", { className: "cs-accent", children: "downloaded" }, "a")] : ["Setting up the ", jsx("span", { className: "cs-accent", children: "studio" }, "a")];
@@ -13387,7 +13573,7 @@ function OnboardMake({ ctx, onDone }) {
     ]
   });
 }
-function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice }) {
+function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice, doctor }) {
   const toolchain = steps.find((step) => step.id === "toolchain");
   const profileStep = steps.find((step) => step.id === "profile");
   let body2;
@@ -13396,13 +13582,26 @@ function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFi
   } else if (screen2 === "welcome") {
     body2 = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
   } else if (screen2 === "install") {
-    body2 = jsx(OnboardInstall, { ctx, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
+    body2 = jsx(OnboardInstall, { ctx, doctor, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
   } else if (screen2 === "chromatic") {
     body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
   } else {
     body2 = jsx(OnboardMake, { ctx, onDone: onFinish });
   }
-  return jsx("section", { "aria-live": "polite", className: "cs-onb", "data-screen": screen2, children: body2 });
+  const section = useRef(null);
+  const shown = useRef(screen2);
+  useEffect(() => {
+    if (shown.current === screen2) {
+      return;
+    }
+    shown.current = screen2;
+    const title = section.current?.querySelector("h1, h2");
+    if (title) {
+      title.tabIndex = -1;
+      title.focus?.({ preventScroll: true });
+    }
+  }, [screen2]);
+  return jsx("section", { className: "cs-onb", "data-screen": screen2, ref: section, children: body2 });
 }
 
 // page/pages/setup/index.js
@@ -16894,15 +17093,42 @@ function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
   const install = useInstall({ enabled: wantInstall });
   const installState = install.data?.install?.state ?? null;
+  const installElsewhere = Boolean(install.data?.install?.elsewhere);
   const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
-  const lastInstall = useRef(installState);
+  const lastElsewhere = useRef(installElsewhere);
+  const finishedAt = install.data?.install?.finished_at ?? null;
+  const doneRun = installState === "done" ? `${install.data?.install?.run_id ?? ""}@${finishedAt ?? ""}` : null;
+  const verifiedRun = useRef(null);
+  const doctorAsked = useRef({ fetching: false, at: 0, answerAt: 0 });
   useEffect(() => {
-    const before = lastInstall.current;
-    lastInstall.current = installState;
-    if (before === "running" && installState === "done") {
+    const asked = doctorAsked.current;
+    if (doctor.isFetching && !asked.fetching) {
+      asked.at = Date.now();
+    } else if (!doctor.isFetching && asked.fetching) {
+      asked.answerAt = asked.at;
+    }
+    asked.fetching = Boolean(doctor.isFetching);
+  }, [doctor.isFetching]);
+  useEffect(() => {
+    const wasElsewhere = lastElsewhere.current;
+    lastElsewhere.current = installElsewhere;
+    if (wasElsewhere && !installElsewhere) {
       void doctor.refetch?.();
     }
-  }, [installState]);
+  }, [installElsewhere]);
+  useEffect(() => {
+    if (!doneRun || verifiedRun.current === doneRun) {
+      return;
+    }
+    const finishedMs = Number(finishedAt) * 1e3 || 0;
+    const asked = doctorAsked.current;
+    const answeredAt = asked.answerAt || Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0);
+    const current = doctor.isFetching ? asked.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
+    verifiedRun.current = doneRun;
+    if (!finishedMs || !current) {
+      void doctor.refetch?.();
+    }
+  }, [doneRun, doctor.isFetching]);
   const finishOnboarding = () => {
     update({ onboarded: true });
     go("build");
@@ -16911,10 +17137,12 @@ function StudioPage({ ctx }) {
     const toolchainOpen = toolchainStep && toolchainStep.state !== "done" && toolchainStep.state !== "checking";
     const next = {
       fast: autoId !== "ready",
-      pollDoctor: Boolean(toolchainOpen) && installState !== "running" && (autoId === "toolchain" || onboardScreen === "install")
+      // Each check starts an engine worker: never while someone reads the review or waits on the page's own
+      // install (its end triggers one check above), only while a chat installs where this page cannot see it.
+      pollDoctor: Boolean(toolchainOpen) && installElsewhere
     };
     setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
-  }, [autoId, toolchainStep?.state, installState, onboardScreen]);
+  }, [autoId, toolchainStep?.state, installElsewhere]);
   const go = (id, selection = null) => {
     setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current.visit + 1 });
     try {
@@ -17072,7 +17300,7 @@ function StudioPage({ ctx }) {
     body2 = [
       jsx(
         Onboarding,
-        { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
+        { ctx, doctor, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
         "onboarding"
       )
     ];

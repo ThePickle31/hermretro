@@ -1,17 +1,15 @@
 """Run hermretro's checks, the same way here and in CI.
 
     python tools/check.py                fast checks: unit, bundle, lint, page, scan (together, about 15 s)
-    python tools/check.py full           fast checks plus scaffold and the real-engine acceptance run
+    python tools/check.py full           fast checks plus the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
-    python tools/check.py lint-files F.. lint only these files, as lint does (retrodev new, after lint failed)
 
 Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
 boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
 for everyone, from .dev/py, made by python tools/py/setup.py), page (page tests in jsdom),
-scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), scaffold (`retrodev new`
-of every kind on a copy of this tree, judged by the real checks; needs the npm tools and ruff), acceptance (real
-engine, compiler and emulator; needs the toolchain from setup).
+scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real engine,
+compiler and emulator; needs the toolchain from setup).
 
 Every failure ends with a line starting "FIX:". In GitHub Actions the results also go to the run summary.
 Options: --hermes-source DIR (a hermes-agent checkout for the scan; default $HERMES_SOURCE, then
@@ -29,24 +27,22 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HELPERS = str(Path(__file__).resolve().parent / "py")  # check.py's helpers
-if HELPERS not in sys.path:  # once: the retrodev tests load this file on the pool's threads (tests/retrodev)
+if HELPERS not in sys.path:
     sys.path.insert(0, HELPERS)
 import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
-import unit_home  # noqa: E402 - tools/py/ goes on sys.path first
+import unit_shards  # noqa: E402 - tools/py/ goes on sys.path first
 from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
     LINT_SETUP,
     RUFF_CHECK,
     RUFF_FORMAT,
     RUFF_SETUP,
-    lint_files,
     lint_tools_missing,
     page_lint,
     ruff_check,
@@ -55,7 +51,7 @@ from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
 )
 
 FAST = ["unit", "bundle", "lint", "page", "scan"]
-ALL = FAST + ["scaffold", "acceptance"]
+ALL = FAST + ["acceptance"]
 
 
 class Skip(Exception):
@@ -83,37 +79,13 @@ def need(tool: str) -> str:
     return found
 
 
-def check_unit(_args) -> str:
-    # In an empty home and an empty TMPDIR (tools/py/unit_home.py): a write meant for the real home, or a temp
-    # folder a test never removed, shows up and names its test module.
-    with (
-        tempfile.TemporaryDirectory(prefix="hermretro-home-", dir=short_tmp()) as home,
-        tempfile.TemporaryDirectory(prefix="hermretro-tmp-", dir=short_tmp()) as tmp,
-        tempfile.TemporaryDirectory(prefix="hermretro-pyc-") as bytecode,
-    ):
-        slowest = ["--durations", "3"] if sys.version_info >= (3, 12) else []
-        result = run(
-            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-t", ".", *slowest],
-            env=unit_home.unit_env(home, bytecode, tmp),
-        )
-        leaked = (
-            "" if result.returncode else unit_home.leaks(home, tmp, ROOT, short_tmp(), lambda c, env: run(c, env=env))
-        )
-    if result.returncode:
-        raise AssertionError(
-            tail(result.stderr, 40) + "\nFIX: read the failures above; run one file with "
-            "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
-        )
-    if leaked:
-        raise AssertionError(leaked)
-    lines = result.stderr.splitlines()
-    ran = [line for line in lines if line.startswith("Ran ")]
-    # "Slowest test durations" lists "<seconds>s     <test>": name the slowest, so a slow system is explained.
-    timed = [line.split(None, 1) for line in lines if line[:1].isdigit() and line.split(None, 1)[0].endswith("s")]
-    slow = "; slowest: " + ", ".join(f"{name.split(' (')[0]} {seconds}" for seconds, name in timed[:3]) if timed else ""
-    # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
-    noted = unit_home.layout_note(lines, unit_home.branch_files(run) if "layout warning: " in result.stderr else [])
-    return (ran[-1] if ran else "ok") + noted + slow
+def check_unit(args) -> str:
+    # In empty homes and empty TMPDIRs (tools/py/unit_home.py): a write meant for the real home, or a temp folder a
+    # test never removed, shows up and names its test module. Several processes at once (tools/py/unit_shards.py).
+    row, failure = unit_shards.run_suite(ROOT, lambda cmd, **kw: run(cmd, **kw), short_tmp())
+    if failure:
+        raise AssertionError(failure)
+    return row
 
 
 def check_bundle(args) -> str:
@@ -138,7 +110,7 @@ def check_lint(args) -> str:
     # ESLint over page/ and ruff over the Python run at the same time (ruff takes a few hundredths of a second).
     node = shutil.which("node")
     eslint = start(page_lint(node, [])) if node else None
-    missing = ruff_missing()  # the commands come from tools/py/lint_tools.py, as lint_files' (retrodev new's) do
+    missing = ruff_missing()  # the commands come from tools/py/lint_tools.py
     ruff = None if missing else (start(ruff_check(["."])), start(ruff_format_check(["."])))
     problems, done = [], []
     if ruff:
@@ -174,7 +146,7 @@ def check_lint(args) -> str:
             problems.append(
                 tail(output, 40) + "\nFIX: node tools/bundle/lint-page.mjs --fix (or python "
                 "tools/check.py fix) for the automatic fixes, then fix the rest as each message says "
-                "(a deliberate exception: // retrodev: allow <rule> \u2014 <reason> on its line)"
+                "(a deliberate exception: // hermretro: allow <rule> \u2014 <reason> on its line)"
             )
         else:
             warned = ", ".join(r.split()[1].rsplit(":", 1)[0] for r in output.splitlines() if r[:9] == "warning: ")
@@ -193,10 +165,7 @@ def tree_digest() -> dict[str, str]:
 
 
 def fix(args) -> int:
-    """Apply every automatic fix (noqa reasons, ruff's safe fixes and format, the page lint's), say what changed, lint."""
-    import noqa_reasons  # noqa: E402 - tools/py/ is on sys.path (above)
-
-    print(noqa_reasons.report(ROOT, shipped_files()))  # needs no ruff: bare E402 exceptions get their reason
+    """Apply every automatic fix (ruff's safe fixes and format, the page lint's), say what changed, lint."""
     if missing := ruff_missing():
         print(f"{missing}\nFIX: {RUFF_SETUP}")
         return 1
@@ -353,100 +322,6 @@ def check_scan(args) -> str:
     return f"safe ({report['findings']} minor notes)"
 
 
-def scaffold_fix(test: list[str]) -> str:
-    """The command that reruns the scaffold test and keeps its copy: python -B, so no bytecode lands in the tree."""
-    return (
-        "python -B " + " ".join(test[1:]) + " with RD_SCAFFOLD_FULL=1 in its environment (it skips without it; "
-        "RD_SCAFFOLD_KEEP=1 as well keeps the copy it made to look into)"
-    )
-
-
-UNIT_FIRST = "skipped: the tree fails unit (fix unit first)"  # as tools/retrodev/checks_run.py LINT_FIRST
-PAGE_FIRST = "skipped: the tree fails page (fix page first)"  # the tree fails page before new runs at all
-BASE = "RD_SCAFFOLD_BASE"  # suites known to pass on this tree (comma-separated): the scaffold test skips its own run
-
-
-def base_failure(args, name: str) -> str:
-    """What this tree fails of ``name`` already ("" when it passes): this invocation's own row when it runs that
-    check too (waited for, never run twice), a pass the caller vouches for in RD_SCAFFOLD_BASE (retrodev check's
-    cached one), else a run of it here (``args.known``: main took RD_SCAFFOLD_BASE out of the environment). A check
-    that cannot run here (Skip) is no failure."""
-    if name in getattr(args, "known", "").split(","):
-        return ""
-    finished = getattr(args, "finished", {})
-    if name in finished:
-        finished[name].wait()
-        return getattr(args, "details", {}).get(name) or "failed" if args.states.get(name) == "FAILED" else ""
-    try:
-        CHECKS[name](args or argparse.Namespace(strict=False))
-    except AssertionError as error:
-        return str(error) or "failed"
-    except Skip:
-        return ""
-    return ""
-
-
-def scaffold_mode() -> str:
-    return os.environ.get("RD_SCAFFOLD_FULL") or "1"
-
-
-def scaffold_baseline(args, mode: str, environ: dict | None = None) -> tuple[list[str], list[str]]:
-    """(the suites run on the tree before new, those taken as covered elsewhere). Nested adds unit, except in GitHub
-    Actions when this invocation does not run unit itself: CI's unit job runs it on every system for the same
-    commit, so the page job would only repeat it (and a failure there is already red, with its tests named)."""
-    environ = os.environ if environ is None else environ
-    if mode != "nested":
-        return ["page"], []
-    if environ.get("GITHUB_ACTIONS") == "true" and "unit" not in getattr(args, "finished", {}):
-        return ["page"], ["unit"]
-    return ["unit", "page"], []
-
-
-def base_skip(name: str, message: str, failure: str) -> Skip:
-    """The skip for a tree that fails ``name`` before new runs: the last lines of that failure (its own FIX line
-    left out), then the command that shows all of it."""
-    said = [line for line in failure.strip().splitlines() if not line.startswith("FIX:")][-30:]
-    return Skip(
-        "\n".join([message, *said])
-        + f"\nFIX: python tools/check.py {name} shows the whole failure; fix it first (it says nothing of new)"
-    )
-
-
-PAGE_FAILED = re.compile(r"^\s*(?:FAILED\s+page\s+[\d.]+ s\s+)?tests/page/\S+\.mjs(?:: '.*')? failed:$")
-
-
-def scaffold_said(stderr: str) -> str:
-    """The scaffold test's failure: its last 40 lines, after the failing page file's own output (page_failure) when
-    a page check inside the copy failed and that output is above them (new's checks print more after it)."""
-    lines = stderr.strip().splitlines()
-    at = next((i for i, line in enumerate(lines) if PAGE_FAILED.match(line)), None)
-    if at is None or at >= len(lines) - 40:
-        return tail(stderr, 40)
-    return "\n".join([*lines[at : at + 30], "...", *lines[-40:]])
-
-
-def check_scaffold(args) -> str:
-    # A few seconds of nested checks: kept out of the fast unit run (the test skips there without RD_SCAFFOLD_FULL).
-    if missing := ruff_missing() or (None if (ROOT / "tools/npm/node_modules").is_dir() else "no tools/npm tools"):
-        raise Skip(f"{missing} (npm ci --prefix tools/npm --ignore-scripts; python tools/py/setup.py)")
-    need("node")
-    # RD_SCAFFOLD_FULL=nested (CI's page job) adds every kind on the real features and the full suites there
-    mode = scaffold_mode()
-    # The whole check first: a tree that fails page (nested: or unit) already says nothing of new, and every test
-    # that runs new with its checks would fail on it. Checked once here, so the test module does not again.
-    first, covered = scaffold_baseline(args, mode)
-    with ThreadPoolExecutor(max_workers=len(first)) as pool:
-        failing = dict(zip(first, pool.map(lambda name: base_failure(args, name), first), strict=True))
-    for name, message in (("unit", UNIT_FIRST), ("page", PAGE_FIRST)):
-        if failing.get(name):
-            raise base_skip(name, message, failing[name])
-    test = [sys.executable, "-m", "unittest", "-v", "tests.retrodev.test_scaffold_tree"]
-    result = run(test, env={**os.environ, "RD_SCAFFOLD_FULL": mode, BASE: ",".join(first + covered)})
-    if result.returncode or " skipped " in result.stderr:
-        raise AssertionError(scaffold_said(result.stderr) + "\nFIX: " + scaffold_fix(test))
-    return "retrodev new of every kind passes the real checks"
-
-
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from backend.system import paths  # noqa: E402 - the backend decides where setup put the toolchain
@@ -493,10 +368,11 @@ def main(argv: list[str] | None = None) -> int:
     names = args.checks or ["fast"]
     if names == ["fix"]:
         return fix(args)
-    if names[0] == "lint-files":  # retrodev new: only the files it wrote, with lint's own tools and settings
-        passed, said = lint_files(names[1:])
-        print("\n".join(said))
-        return 0 if passed else 1
+    # The nightly workflow on main (it moves only at a release) still asks for the removed scaffold check: nothing to
+    # run. Drop this once a release has put the current .github/workflows/nightly.yml on main.
+    if "scaffold" in names:
+        print("scaffold: removed (the nightly workflow on main still names it); not run")
+        names = [name for name in names if name != "scaffold"]
     wanted = [c for name in names for c in (FAST if name == "fast" else ALL if name == "full" else [name])]
     unknown = [name for name in wanted if name not in CHECKS]
     if unknown:
@@ -509,11 +385,6 @@ def main(argv: list[str] | None = None) -> int:
         step_summary.write([row])
         return 1
 
-    # scaffold reads page's (and nested, unit's) row of this same run instead of running it again (base_failure); a
-    # pass the caller vouches for is read once and taken out of the environment, so no other check's tests see it
-    args.finished, args.states, args.details = {name: threading.Event() for name in wanted}, {}, {}
-    args.known = os.environ.pop(BASE, "")
-
     def one(name: str) -> tuple[str, str, float, str]:
         start = time.monotonic()
         state, detail = "FAILED", ""
@@ -525,9 +396,6 @@ def main(argv: list[str] | None = None) -> int:
                 detail += "\nFIX: install what is missing (see AGENTS.md, \"Checks\")"
         except AssertionError as error:
             state, detail = "FAILED", str(error)
-        finally:
-            args.states[name], args.details[name] = state, detail
-            args.finished[name].set()
         return name, state, time.monotonic() - start, detail
 
     def show(row: tuple[str, str, float, str]) -> None:

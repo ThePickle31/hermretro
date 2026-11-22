@@ -11,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import threading
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -171,10 +172,54 @@ def _node_version(path: str) -> tuple[int, ...] | None:
     return tuple(int(part) for part in match.groups()) if match else None
 
 
-@lru_cache(maxsize=1)
+def _node_stamp(path: str) -> tuple[int, ...] | None:
+    try:
+        info = os.stat(path)
+        if stat.S_ISREG(info.st_mode) and os.access(path, os.X_OK):
+            return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_mode
+    except OSError:
+        pass
+    return None
+
+
+def node_usable(path: str) -> bool:
+    """Whether ``path`` is still an executable file (a broker's Node can be removed under it)."""
+    return _node_stamp(path) is not None
+
+
+class _UnverifiedNode(Exception):
+    pass
+
+
+@lru_cache(maxsize=16)
+def _verified_node_version(path: str, _stamp: tuple[int, ...]) -> tuple[int, ...]:
+    version = _node_version(path)
+    if version is None:
+        raise _UnverifiedNode  # lru_cache keeps no exception: failures go to _failed_probes instead
+    return version
+
+
+# A candidate whose probe failed (a stalled shim takes the whole 10 s timeout) is skipped for a while, so a
+# Setup poll or a tool call is not slowed by it each time; a changed file (another stamp) is probed at once.
+PROBE_RETRY_SECONDS = 60.0
+_failed_probes: dict[str, tuple[tuple[int, ...], float]] = {}
+
+
+def _installed_node_version(path: str, stamp: tuple[int, ...]) -> tuple[int, ...] | None:
+    failed = _failed_probes.get(path)
+    if failed is not None and failed[0] == stamp and time.monotonic() - failed[1] < PROBE_RETRY_SECONDS:
+        return None
+    try:
+        version = _verified_node_version(path, stamp)
+    except _UnverifiedNode:
+        _failed_probes[path] = (stamp, time.monotonic())  # one entry per candidate path: bounded
+        return None
+    _failed_probes.pop(path, None)
+    return version
+
+
 def find_node() -> dict:
-    """Find a usable Node.js. Desktop-launched apps often lack the shell's PATH, so also
-    look in the engine's managed setup root and common per-user locations."""
+    """Discover Node again on refresh, but only probe the version of a new or changed executable."""
     candidates: list[str] = []
     override = os.environ.get("HERMRETRO_NODE")
     if override:
@@ -186,8 +231,10 @@ def find_node() -> dict:
     if managed.is_dir():
         candidates.extend(str(p) for p in sorted(managed.glob("**/bin/node"), reverse=True))
     home = Path.home()
-    # The Node.js Hermes installs for itself (~/.hermes/tools/node-<version>-<platform>/bin/node).
-    candidates.extend(str(p) for p in sorted((home / ".hermes" / "tools").glob("node-*/bin/node"), reverse=True))
+    # Desktop launched from Finder may not have the shell's PATH. Hermes's tool store follows its root,
+    # including custom HERMES_HOME installations; keep the conventional location as an older install fallback.
+    for store in dict.fromkeys((_hermes_root() / "tools", home / ".hermes" / "tools")):
+        candidates.extend(str(p) for p in sorted(store.glob("node-*/bin/node"), reverse=True))
     # Apple Silicon Homebrew before /usr/local, where an Intel (Rosetta) Homebrew keeps its Node on the same Mac.
     candidates.extend(
         str(p)
@@ -200,12 +247,11 @@ def find_node() -> dict:
     )
     candidates.extend(str(p) for p in sorted((home / ".nvm/versions/node").glob("*/bin/node"), reverse=True))
     best: dict | None = None
-    seen: set[str] = set()
-    for candidate in candidates:
-        if candidate in seen or not os.path.isfile(candidate) or not os.access(candidate, os.X_OK):
+    for candidate in dict.fromkeys(candidates):
+        stamp = _node_stamp(candidate)
+        if stamp is None:
             continue
-        seen.add(candidate)
-        version = _node_version(candidate)
+        version = _installed_node_version(candidate, stamp)
         if version is None:
             continue
         found = {

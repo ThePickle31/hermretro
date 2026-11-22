@@ -21,18 +21,19 @@ class LibraryGameFixture(unittest.TestCase):
         self.assertTrue(games.valid_id(game), game)
         self.assertEqual(Path(host._game_root(game)), root)
         fresh, _why = games.export_freshness(root)
-        return root, fresh, game_card.status(root, strict=True)["complete"]
+        return root, fresh, game_card.status(root, strict=True)["complete"], game
 
     def test_by_default_the_game_is_ready_to_present(self):
-        root, fresh, complete = self.state("Ready Game")  # the name stays the second positional argument
+        root, fresh, complete, game = self.state("Ready Game")  # the name stays the second positional argument
         self.assertEqual(root.name, "ready-game")
         self.assertEqual((fresh, complete), (True, True))
         self.assertTrue((root / "build" / "project.gb").is_file())
+        self.assertEqual(host._registry().get(game)["title"], "Ready Game")
 
     def test_the_switches_make_a_not_ready_game(self):
-        self.assertEqual(self.state("No Copy", web=False)[1:], (False, True))
-        self.assertEqual(self.state("No Card", card=False)[1:], (True, False))
-        root, _fresh, _complete = self.state("No Rom", built=False)
+        self.assertEqual(self.state("No Copy", web=False)[1:3], (False, True))
+        self.assertEqual(self.state("No Card", card=False)[1:3], (True, False))
+        root, _fresh, _complete, _game = self.state("No Rom", built=False)
         self.assertFalse((root / "build" / "project.gb").exists())
         self.assertTrue((root / "build" / "web" / "index.html").is_file())
 

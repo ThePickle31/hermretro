@@ -2,7 +2,7 @@
 
 A line that breaks a rule on purpose carries a comment naming the rule and the reason:
 
-    from ..library.games import _json  # retrodev: allow <rule> — <why this line cannot follow the rule>
+    from ..library.games import _json  # hermretro: allow <rule> — <why this line cannot follow the rule>
 
 (``//`` instead of ``#`` in JavaScript; ``--`` works as well as the dash.) The reason is required. The checks
 that honour allowances (tests/repo/test_boundaries.py) skip that line for that rule only, and every allowance
@@ -22,9 +22,8 @@ RULES = {
     "layer": "backend.system imports nothing of ours above it; only the Hermes layer imports backend.features",
     "front-door-export": "a front door does not leak private names",
     "event": "events are declared once by their owner, emitted only by it, and literal",
-    "pool": "a test on the unit pool's threads leaves process-wide state alone (tests/repo/test_pool_guard.py)",
 }
-MARK = re.compile(r"(?:#|//)\s*retrodev:\s*allow\s+([\w-]+)\s*(?:(?:—|--)\s*(.*?))?\s*$")
+MARK = re.compile(r"(?:#|//)\s*hermretro:\s*allow\s+([\w-]+)\s*(?:(?:—|--)\s*(.*?))?\s*$")
 
 
 @dataclass(frozen=True)

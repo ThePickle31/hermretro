@@ -8,20 +8,20 @@ request into `dev` and CI.
 
 1. Linux or macOS (Apple Silicon or Intel), Python 3.11 or newer, Node.js 22 or newer, Git.
 2. Fork the repository, clone your fork and branch from `dev`: `feat/…`, `fix/…`, `docs/…` or `chore/…`.
-3. `python tools/py/setup.py` (ruff, the Python linter and formatter) and
-   `npm ci --prefix tools/npm --ignore-scripts` (page tools); both for development only.
+3. `python tools/dev setup` (ruff, the Python linter and formatter, and the page tools; development only).
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
    `python tools/ci/prepare_toolchain.py` once, then `python tools/check.py full`.
 
 
 ## Trying a change in Hermes Desktop
 
-1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development,
-   link a checkout instead of installing the plugin"), and enable it.
-2. Page changes (`page/`): rebuild with `node tools/bundle/bundle.mjs` (or keep `node tools/bundle/bundle.mjs
-   --watch` running) and reload the app's window; the gateway keeps running.
-3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/` load only when the gateway starts: restart it
-   yourself (`hermes gateway restart`), then reload the app.
+1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development, link a
+   checkout instead of installing the plugin"), and enable it. `python tools/dev live` points a linked profile at another checkout or worktree.
+2. Page changes (`page/`): keep `python tools/dev watch` running; it rebuilds on every save and the app reloads the
+   page.
+3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: `python tools/dev reload` reloads the plugin in
+   the running gateway (tools and the prompt apply from the next chat). More: `docs/dev/DEBUGGING.md`, "The
+   development loop".
    `profile/` is different: it holds templates that the page's setup copies into the `hermretro` profile when it
    makes it. A restart does not change a profile that already exists, and finishing setup again keeps its
    `SOUL.md` unless that file is an unedited older template (its hash is in `OLDER_SOULS` in
@@ -44,10 +44,9 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 ## Pull requests
 
-- One concern per pull request, against `dev`. The title is one plain sentence: it becomes the squash commit and
-  the release-note line.
-- Fill in the template: why, what changed, how you verified it (and on which systems), risks, what is not done.
-  If an AI agent wrote the change, say which one.
+- One concern per pull request, against `dev`. The title is `type(scope): what it does` (`feat`, `fix`, `docs`,
+  `chore`, `test`, `ci`; the scope optional): it becomes the squash commit and the release-note line.
+- Fill in the template: what changed and why, and how you verified it (on which systems).
 - CI must be green (**All checks pass**). The maintainer reviews and merges; first-time contributors' workflow
   runs wait for approval.
 - If your pull request conflicts in `desktop/plugin.js`, merge `origin/dev`, run `node tools/bundle/bundle.mjs` and commit

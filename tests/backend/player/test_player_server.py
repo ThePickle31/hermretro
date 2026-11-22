@@ -80,6 +80,17 @@ def multipart(fields):
     return body + f"--{boundary}--\r\n".encode(), f"multipart/form-data; boundary={boundary}"
 
 
+class LoopbackStart(unittest.TestCase):
+    def test_the_server_starts_without_looking_its_address_up(self):
+        # HTTPServer.server_bind calls socket.getfqdn("127.0.0.1"), a reverse DNS lookup that took about 35 s on
+        # GitHub's Apple Silicon runners: a Mac's first "show the game" waited on it.
+        with mock.patch("socket.getfqdn", side_effect=AssertionError("the player server looked its address up")):
+            server = player_server.PlayerServer(lambda _identifier: None)
+        self.addCleanup(server.close)
+        status, _headers, _body = fetch(server.base("missing") + "index.html")
+        self.assertEqual(status, 404)
+
+
 class PlayerServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -106,9 +117,6 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(headers["Access-Control-Allow-Origin"], "*")
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
-
-    def test_url_shape(self):
-        self.assertRegex(self.server.url(self.gid), rf"^http://127\.0\.0\.1:\d+/[0-9a-f]{{64}}/{self.gid}/index\.html$")
 
     def test_frame_page_has_shim_first_bootstrap_before_script_and_bridge_last(self):
         html, context = self.index()

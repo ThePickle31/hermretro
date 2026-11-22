@@ -20,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import check  # noqa: E402 - tools/check.py is imported from its own folder
+import importlib.util
+import re
 
 PROBE = ["-c", "import probe; print(probe.WORD)"]
 OK = "Ran 1 test in 0.001s\n\nOK\n"
@@ -106,7 +108,7 @@ class UnitCheckHomeTests(unittest.TestCase):
 
         def fake_run(cmd, **kwargs):  # the whole suite leaks; rerun alone, only one module does
             calls.append(cmd)
-            if "discover" in cmd or cmd[-1] == "tests.backend.library.test_build_report":
+            if "tests.backend.library.test_build_report" in cmd:  # its process, then the module rerun alone
                 (Path(kwargs["env"]["HOME"]) / ".hermes" / "hermretro").mkdir(parents=True, exist_ok=True)
             return subprocess.CompletedProcess(cmd, 0, "", OK)
 
@@ -123,13 +125,17 @@ class UnitCheckHomeTests(unittest.TestCase):
             "layout warning: tests/page/big.test.mjs has 437 lines (warning above 400, failure above 600)\n"
             "layout warning: allowance backend/x.py:3 front-door: a reason\n" + OK
         )
-        with mock.patch.object(check, "run", lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, "", warned)):
+
+        def fake_run(cmd, **kwargs):  # only the process that runs tests.repo.test_layout prints its warnings
+            return subprocess.CompletedProcess(cmd, 0, "", warned if "tests.repo.test_layout" in cmd else OK)
+
+        with mock.patch.object(check, "run", fake_run):
             row = check.check_unit(None)
         self.assertIn("2 layout warnings; over the size warning: tests/page/big.test.mjs (all: python -m unittest", row)
 
     def test_a_temp_folder_left_behind_fails_the_run_and_names_its_module(self):
         def fake_run(cmd, **kwargs):  # a tempfile.mkdtemp() without a cleanup, in the TMPDIR the run gets
-            if "discover" in cmd or cmd[-1] == "tests.backend.setup.test_onboarding":
+            if "tests.backend.setup.test_onboarding" in cmd:  # its process, then the module rerun alone
                 tempfile.mkdtemp(prefix="leaked-", dir=kwargs["env"]["TMPDIR"])
             return subprocess.CompletedProcess(cmd, 0, "", OK)
 
@@ -139,6 +145,17 @@ class UnitCheckHomeTests(unittest.TestCase):
         self.assertRegex(message, r"left files in the temp folder: \S*hermretro-tmp-\w+/leaked-", "names the path")
         self.assertIn("left by: tests.backend.setup.test_onboarding (leaked-", message)
         self.assertIn("FIX: clean up with addCleanup / TemporaryDirectory", message)
+
+
+class LayoutSummary(unittest.TestCase):
+    def test_the_branch_s_own_big_files_are_named_first(self):
+        spec = importlib.util.spec_from_file_location("unit_home_round_eighteen", ROOT / "tools/py/unit_home.py")
+        unit_home = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(unit_home)
+        lines = [f"layout warning: backend/f{n}.py has 450 lines (over 400)" for n in range(9)]
+        note = unit_home.layout_note(lines, ["backend/f8.py", "docs/x.md"])
+        self.assertTrue(re.search(r"over the size warning: backend/f8\.py, backend/f0\.py", note), note)
+        self.assertIn("and 3 more", note)
 
 
 if __name__ == "__main__":
