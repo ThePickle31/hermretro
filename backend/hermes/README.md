@@ -16,11 +16,11 @@ A shared layer: features import `backend.hermes.host` (shared helpers, called as
 
 ## Tests
 
-`tests/backend/hermes/`; registration as a whole: `tests/repo/test_registration_snapshot.py`.
+`tests/backend/hermes/`; registration as a whole: `tests/backend/hermes/test_registration.py`.
 
 ## Adding here
 
-- an RPC: add the `@rpc("<name>")` handler in `rpcs.py` (a factory returning the handler `(params, **kwargs)` that answers `{ok, ...}` and never raises), its test, its `docs/dev/CONTRACT.md` section and this README's line, then run `node tools/bundle/bundle.mjs` (it regenerates `page/app/rpc-names.js`) and `python tests/repo/test_registration_snapshot.py --write`. RPC names are global and flat (`plugin.hermretro.<name>`): pick one no other feature uses.
+- an RPC: add the `@rpc("<name>")` handler in `rpcs.py` (a factory returning the handler `(params, **kwargs)` that answers `{ok, ...}` and never raises), its test, its `docs/dev/CONTRACT.md` section and this README's line, then run `node tools/bundle/bundle.mjs` (it regenerates `page/app/rpc-names.js`). RPC names are global and flat (`plugin.hermretro.<name>`): pick one no other feature uses.
 - a tool: a plugin-owned tool belongs to the feature that does the work (for example `library`), not here. This layer's `TOOLS` is a function building the engine tools from the pin; a tool of this layer itself is a hand edit to `TOOLS()` in `backend/hermes/tools.py` (its `Tool(...)` in the list it returns), plus every place `tests/repo/test_lockstep.py`'s opening comment lists.
 - a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`.
 - an event: this front door (`__init__.py`) has no `EVENTS` dict yet: add `EVENTS: dict[str, str] = {}` to `backend/hermes/__init__.py` first (as `backend/player/__init__.py` has it), then declare `"hermes.<name>"` there and a function in `emits.py` that emits it (call it where it happens), its test, the `docs/dev/CONTRACT.md` row and this README's line.

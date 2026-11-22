@@ -165,10 +165,7 @@ def tree_digest() -> dict[str, str]:
 
 
 def fix(args) -> int:
-    """Apply every automatic fix (noqa reasons, ruff's safe fixes and format, the page lint's), say what changed, lint."""
-    import noqa_reasons  # noqa: E402 - tools/py/ is on sys.path (above)
-
-    print(noqa_reasons.report(ROOT, shipped_files()))  # needs no ruff: bare E402 exceptions get their reason
+    """Apply every automatic fix (ruff's safe fixes and format, the page lint's), say what changed, lint."""
     if missing := ruff_missing():
         print(f"{missing}\nFIX: {RUFF_SETUP}")
         return 1

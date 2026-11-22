@@ -2,10 +2,8 @@
 
 The plugin's ``__init__.register`` collects what each feature declares (rpcs.py, tools.py, hooks.py,
 prompt.py; see backend/hermes/declare.py) in this order, and events (backend/system/events.py) load each
-feature's listeners.py in this order. The order is part of the contract: tests/repo/
-test_registration_snapshot.py pins the resulting registration list. Adding a feature: make
-``backend/<name>/`` (front door ``__init__.py`` with ``__all__`` and ``EVENTS``, README.md), add its line
-here and its area to tools/layout.toml.
+feature's listeners.py in this order. Adding a feature: make ``backend/<name>/`` (front door ``__init__.py``
+with ``__all__`` and ``EVENTS``, README.md) and add its line here.
 """
 
 FEATURES = [

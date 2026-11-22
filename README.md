@@ -97,7 +97,7 @@ Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests 
 - `skills/` — agent skills.
 - `engine/pins/<version>/` — the engine's pinned tool contracts and file manifest.
 - `tests/` — mirrors the code (`backend/<feature>/`, `page/`, `repo/`, `acceptance/`); the full folder map is in
-  `docs/dev/ARCHITECTURE.md` and `tools/layout.toml`.
+  `docs/dev/ARCHITECTURE.md`.
 
 ## Supported systems
 

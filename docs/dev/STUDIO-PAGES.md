@@ -118,7 +118,7 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 `games[id].session = {storedId, profile, createdAt, aliases}` (aliases: live session ids after
 compression rotates them, noted on each tool call) and `pending[storedId] = {storedId, profile, name,
-plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50: `games.MAX_PENDING`, checked by `tests/repo/test_lockstep.py`).
+plan, createdAt, aliases}` (New Game conversations whose project does not exist yet; the newest `games.MAX_PENDING` are kept).
 The first project a pending conversation creates is bound to it (`observe` → `claim_pending`);
 selecting an existing game does not claim it. Unknown top-level keys in `games.json` are kept, since
 every hermretro copy shares the file.
@@ -142,7 +142,7 @@ page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes anot
 ### `asset` RPC
 
 `{path}` (absolute, or `file://`) → `{ok, path, relative, name, kind, width, height, bytes,
-modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to 6 MB, only inside a library game's
+modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to `versions.ASSET_MAX_BYTES`, only inside a library game's
 folder or the plugin's saved frames (symlinks are resolved first). `sprite = {name, frameWidth,
 frameHeight, animSpeed, canvasWidth, canvasHeight, palette, standing: {tiles, flip}, moving: {frames,
 flip}}` from the `.gbsres` sidecar and the project: GB Studio stores sprites in four placeholder
@@ -545,7 +545,7 @@ shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `viaProfile`, 
 `player`…; `viaProfile` is the profile the shell's own queries go to when it is not the app's, else `null`: key
 a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
-`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
+`README.md` (copy `page/pages/games/README.md`'s sections).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
 `contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
 player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after
