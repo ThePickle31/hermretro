@@ -7,7 +7,8 @@ hooks.py and studio_profile.py are never imported from here.
 """
 
 from .progress import download_bytes, progress as install_progress
-from .provision import folder_bytes, seed_toolchain_cache
+from .provision import folder_bytes, select_engine
+from .seed import seed_toolchain_cache
 from .recovery import (
     activity_mark,
     classify,
@@ -37,6 +38,7 @@ __all__ = [
     "read_journal",
     "recovered_install",
     "seed_toolchain_cache",
+    "select_engine",
     "settled",
     "worker_left",
     "write_journal",

@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
-from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import provision, seed  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import registered_hook  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
@@ -68,7 +68,7 @@ class ProvisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as scratch, throwaway_deps(Path(scratch) / "hr"):
             foreign = Path(scratch) / "not-a-setup-root"
             (foreign / "downloads").mkdir(parents=True)
-            answer = provision.seed_toolchain_cache(foreign)
+            answer = seed.seed_toolchain_cache(foreign)
             self.assertFalse(answer["seeded"])
             self.assertEqual(sorted(p.name for p in foreign.iterdir()), ["downloads"])
             self.assertEqual(list(paths.DEPS_ROOT.glob("toolchain.seeding-*")), [])

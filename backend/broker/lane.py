@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import library
+from .. import library, setup
 from ..system import paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 
@@ -113,7 +113,8 @@ class LaneMixin:
 
     # -- engine workers --------------------------------------------------------
     def new_engine(self, client_name: str) -> EngineProcess:
-        selection = paths.select_engine()  # re-read each start: setup may have prepared a copy since
+        # Re-read each start: setup may have prepared a copy since, or the engine changed under the copy (rebuilt here).
+        selection = setup.select_engine()
         if not selection["check"].get("verified"):
             raise Denied(
                 "ENGINE_NOT_VERIFIED",

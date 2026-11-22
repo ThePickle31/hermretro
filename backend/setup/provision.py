@@ -33,6 +33,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..system import host as host_os, paths
+from .seed import _seed_source
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
@@ -146,7 +147,8 @@ def read_receipt() -> dict | None:
 
 
 def device_cli_status() -> dict:
-    """Passive. Never downloads, never runs the vendor executable."""
+    """Never downloads, never runs the vendor executable. May rebuild the prepared copy from files it holds already
+    (select_engine)."""
     host = host_target()
     answer = {
         "state": "missing",
@@ -160,7 +162,7 @@ def device_cli_status() -> dict:
     if host["target"] is None:
         answer.update(state="unsupported", detail=host["reason"])
         return answer
-    selection = paths.select_engine()
+    selection = select_engine()
     if selection["prepared"]:
         receipt = read_receipt() or {}
         answer.update(
@@ -271,82 +273,14 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     if host["target"] is None:
         raise ProvisionError("UNSUPPORTED_HOST", host["reason"])
     target = host["target"]
-    bundled = paths.verify_engine()
-    if not bundled["verified"]:
-        raise ProvisionError(
-            "ENGINE_NOT_VERIFIED", "The bundled engine does not match its manifest: " + bundled["detail"]
-        )
+    _require_bundled_engine()
     pins = _pins(target)
-    exe_rel = pins["executable"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
-    notice_rel = pins["notice"]["path"]
     with _lock():
         archive_bytes = _download(pins["package"], opener)
         with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
-            executable = _member(archive, "package/" + exe_rel.split("/", 1)[1], pins["executable"])
-            notice = _member(archive, "package/" + notice_rel.split("/", 1)[1], pins["notice"])
-
-        stage = paths.DEPS_ROOT / f"engine.staging-{os.getpid()}"
-        shutil.rmtree(stage, ignore_errors=True)
-        skipped = {str(paths.ENGINE_ROOT / rel) for rel in paths.VENDOR_ARCHIVES}
-        try:
-            shutil.copytree(
-                paths.ENGINE_ROOT,
-                stage,
-                symlinks=False,
-                ignore=lambda folder, names: [
-                    n for n in names if str(Path(folder) / n) in skipped or n == "__pycache__"
-                ],
-            )
-            for rel, data, mode in (
-                (exe_rel, executable, int(pins["executable"]["mode"], 8)),
-                (notice_rel, notice, int(pins["notice"]["mode"], 8)),
-            ):
-                destination = stage / CLI_DIR / rel
-                destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-                with open(destination, "xb") as handle:
-                    handle.write(data)
-                os.chmod(destination, mode)
-
-            package_json = paths.prepared_package_json(target)
-            (stage / "package.json").write_bytes(package_json)
-            os.chmod(stage / "package.json", 0o644)
-
-            runtime = json.dumps((stage / "scripts" / "chromatic-runtime.mjs").as_uri())
-            artwork = _node(_UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage)
-            _tighten(stage)
-            _node(_RESOLVE % {"runtime": runtime}, cwd=stage)  # the engine's own admission, before the swap
-
-            previous = None
-            if paths.PREPARED_ENGINE.exists():
-                previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
-                os.replace(paths.PREPARED_ENGINE, previous)
-            os.replace(stage, paths.PREPARED_ENGINE)
-            if previous is not None:
-                shutil.rmtree(previous, ignore_errors=True)
-        finally:
-            shutil.rmtree(stage, ignore_errors=True)
-
-        added = {
-            f"{CLI_DIR}/{exe_rel}": pins["executable"]["sha256"],
-            f"{CLI_DIR}/{notice_rel}": pins["notice"]["sha256"],
-            **{f"assets/devices/{name}": digest for name, digest in artwork.items()},
-        }
-        receipt = {
-            "schema": 1,
-            "engine_version": paths.ENGINE_VERSION,
-            "target": target,
-            "cli_version": pins["version"],
-            "package": pins["package"]["name"],
-            "url": pins["package"]["url"],
-            "archive_sha256": pins["package"]["sha256"],
-            "executable": exe_rel,
-            "package_json_sha256": hashlib.sha256(package_json).hexdigest(),
-            "added": added,
-            "vendor_terms": VENDOR_TERMS_URL,
-            "vendor_terms_accepted": True,
-            "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
-        paths.write_json_atomic(paths.DEVICE_CLI_RECEIPT, receipt)
+            executable = _member(archive, "package/" + pins["executable"]["path"].split("/", 1)[1], pins["executable"])
+            notice = _member(archive, "package/" + pins["notice"]["path"].split("/", 1)[1], pins["notice"])
+        _prepare(target, pins, executable, notice, installed_at=_now())
 
     selection = paths.select_engine()
     if not selection["prepared"]:
@@ -370,81 +304,151 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     }
 
 
-# -- reuse of an existing download cache ---------------------------------------------------------
-
-_SETUP_MARKER = ".gb-studio-setup.json"
-_SEED_PARTS = ("downloads", "cache")
-TOOLCHAIN_SEED_RECORD = "toolchain-seed.json"
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def shared_setup_root() -> Path:
-    """Where the engine keeps its toolchain when another app (ModRetro's Codex plugin) hosts it."""
-    system = platform.system()
-    if system == "Darwin":
-        return Path.home() / "Library" / "Application Support" / "modretro-chromatic"
-    if system == "Windows":
-        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "modretro-chromatic"
-    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "modretro-chromatic"
+def _require_bundled_engine() -> None:
+    bundled = paths.verify_engine()
+    if not bundled["verified"]:
+        raise ProvisionError(
+            "ENGINE_NOT_VERIFIED", "The bundled engine does not match its manifest: " + bundled["detail"]
+        )
 
 
-def seed_toolchain_cache(source: Path | None = None) -> dict:
-    """Copy another install's verified download cache into this plugin's own toolchain folder.
-
-    Only the engine's download archives and package caches are copied, never an installed toolchain:
-    the engine then installs from them into the toolchain folder exactly as it would after downloading,
-    re-checking every archive against its pinned SHA-256. The other install is read, never changed.
-    Happens only for a toolchain folder that does not exist yet."""
-    destination = paths.setup_root()
-    source = Path(source) if source is not None else shared_setup_root()
-    if os.environ.get("GB_STUDIO_SETUP_ROOT"):
-        return {"seeded": False, "reason": "a custom toolchain folder is configured"}
-    if destination.exists():
-        return {"seeded": False, "reason": "the toolchain folder already exists"}
+def _prepare(target: str, pins: dict, executable: bytes, notice: bytes, **dates: str | None) -> None:
+    """Build the prepared copy from the bundled engine and the verified CLI files, swap it in and write its receipt.
+    The caller holds the provision lock."""
+    exe_rel, notice_rel = pins["executable"]["path"], pins["notice"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
+    stage = paths.DEPS_ROOT / f"engine.staging-{os.getpid()}"
+    shutil.rmtree(stage, ignore_errors=True)
+    skipped = {str(paths.ENGINE_ROOT / rel) for rel in paths.VENDOR_ARCHIVES}
     try:
-        if source.resolve() == destination.resolve() or not source.is_dir() or source.is_symlink():
-            return {"seeded": False, "reason": "no other install found"}
-        marker = source / _SETUP_MARKER
-        info = marker.lstat()
-        owner = getattr(os, "getuid", lambda: info.st_uid)()
-        if (
-            not stat.S_ISREG(info.st_mode)
-            or info.st_size > 4096
-            or info.st_uid != owner
-            or source.lstat().st_uid != owner
-            or json.loads(marker.read_text()).get("owner") != "codex-gb-studio-setup"
+        shutil.copytree(
+            paths.ENGINE_ROOT,
+            stage,
+            symlinks=False,
+            ignore=lambda folder, names: [n for n in names if str(Path(folder) / n) in skipped or n == "__pycache__"],
+        )
+        for rel, data, mode in (
+            (exe_rel, executable, int(pins["executable"]["mode"], 8)),
+            (notice_rel, notice, int(pins["notice"]["mode"], 8)),
         ):
-            return {"seeded": False, "reason": "the other install is not an engine-owned setup folder"}
-        parts = [name for name in _SEED_PARTS if (source / name).is_dir() and not (source / name).is_symlink()]
-        if "downloads" not in parts:
-            return {"seeded": False, "reason": "the other install has no download cache"}
-        paths.DEPS_ROOT.mkdir(mode=0o755, parents=True, exist_ok=True)
-        stage = paths.DEPS_ROOT / f"toolchain.seeding-{os.getpid()}"
+            destination = stage / CLI_DIR / rel
+            destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            with open(destination, "xb") as handle:
+                handle.write(data)
+            os.chmod(destination, mode)
+
+        package_json = paths.prepared_package_json(target)
+        (stage / "package.json").write_bytes(package_json)
+        os.chmod(stage / "package.json", 0o644)
+
+        runtime = json.dumps((stage / "scripts" / "chromatic-runtime.mjs").as_uri())
+        artwork = _node(_UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage)
+        _tighten(stage)
+        _node(_RESOLVE % {"runtime": runtime}, cwd=stage)  # the engine's own admission, before the swap
+
+        previous = None
+        if paths.PREPARED_ENGINE.exists():
+            previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
+            os.replace(paths.PREPARED_ENGINE, previous)
+        os.replace(stage, paths.PREPARED_ENGINE)
+        if previous is not None:
+            shutil.rmtree(previous, ignore_errors=True)
+    finally:
         shutil.rmtree(stage, ignore_errors=True)
+
+    receipt = {
+        "schema": 1,
+        "engine_version": paths.ENGINE_VERSION,
+        "target": target,
+        "cli_version": pins["version"],
+        "package": pins["package"]["name"],
+        "url": pins["package"]["url"],
+        "archive_sha256": pins["package"]["sha256"],
+        "executable": exe_rel,
+        "package_json_sha256": hashlib.sha256(package_json).hexdigest(),
+        "added": {
+            f"{CLI_DIR}/{exe_rel}": pins["executable"]["sha256"],
+            f"{CLI_DIR}/{notice_rel}": pins["notice"]["sha256"],
+            **{f"assets/devices/{name}": digest for name, digest in artwork.items()},
+        },
+        "vendor_terms": VENDOR_TERMS_URL,
+        "vendor_terms_accepted": True,
+        **{key: value for key, value in dates.items() if value},
+    }
+    paths.write_json_atomic(paths.DEVICE_CLI_RECEIPT, receipt)
+
+
+# -- keeping the prepared copy in step with the bundled engine -------------------------------------------
+
+_REFRESH_FAILED: set[tuple[str, int]] = set()  # (receipt, its mtime): not tried again in this process
+
+
+def select_engine() -> dict:
+    """``paths.select_engine``, after rebuilding the prepared copy when the bundled engine changed under it (the
+    maintainer's edit or a new version) and an earlier copy already holds the CLI build this engine pins. Nothing is
+    downloaded and nothing is asked: the user accepted ModRetro's terms for that CLI when they installed it."""
+    selection = paths.select_engine()
+    if selection.get("prepared") or not selection["check"].get("verified") or not refresh_prepared_engine():
+        return selection
+    return paths.select_engine()
+
+
+def _reusable_cli(target: str, pins: dict) -> tuple[bytes, bytes, dict, Path, Path] | None:
+    """The pinned CLI files from an earlier prepared copy: (executable, notice, receipt, receipt path, copy)."""
+    for receipt_path in sorted(paths.DEPS_ROOT.glob("device-cli-*.json")):
         try:
-            stage.mkdir(mode=0o700)
-            for name in parts:
-                shutil.copytree(source / name, stage / name, symlinks=True)
-            shutil.copy2(marker, stage / _SETUP_MARKER)
-            os.rename(stage, destination)  # fails if a toolchain folder appeared meanwhile
-        finally:
-            shutil.rmtree(stage, ignore_errors=True)
-        record = {
-            "seeded": True,
-            "from": str(source),
-            "parts": parts,
-            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
-        (paths.DEPS_ROOT / TOOLCHAIN_SEED_RECORD).write_text(json.dumps(record, indent=2) + "\n")
-        return record
-    except (OSError, ValueError) as error:
-        return {"seeded": False, "reason": f"could not reuse the other install's cache: {error}"}
+            key = (str(receipt_path), receipt_path.stat().st_mtime_ns)
+            receipt = json.loads(receipt_path.read_text())
+            if (
+                key in _REFRESH_FAILED
+                or receipt.get("target") != target
+                or receipt.get("vendor_terms_accepted") is not True
+            ):
+                continue
+            copy = paths.DEPS_ROOT / f"engine-{receipt['engine_version']}"
+            found = [(copy / CLI_DIR / pins[kind]["path"]).read_bytes() for kind in ("executable", "notice")]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if all(
+            hashlib.sha256(data).hexdigest() == pins[kind]["sha256"]
+            for data, kind in zip(found, ("executable", "notice"), strict=True)
+        ):
+            return found[0], found[1], receipt, receipt_path, copy
+    return None
 
 
-def _seed_source() -> str | None:
+def refresh_prepared_engine() -> bool:
+    """Rebuild the prepared copy from the bundled engine and an earlier copy's CLI files; the earlier copy of another
+    engine version is removed. False when there is none to reuse or the rebuild fails (setup then offers the install)."""
+    if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
+        return False
+    target = host_target()["target"]
+    if target is None or not paths.find_node()["ok"]:
+        return False
     try:
-        return json.loads((paths.DEPS_ROOT / TOOLCHAIN_SEED_RECORD).read_text()).get("from")
-    except (OSError, ValueError):
-        return None
+        pins = _pins(target)
+        found = _reusable_cli(target, pins)
+        if found is None:
+            return False
+        executable, notice, receipt, receipt_path, copy = found
+        key = (str(receipt_path), receipt_path.stat().st_mtime_ns)
+        try:
+            with _lock():
+                _prepare(
+                    target, pins, executable, notice, installed_at=receipt.get("installed_at"), refreshed_at=_now()
+                )
+        except (ProvisionError, OSError, ValueError, KeyError):
+            _REFRESH_FAILED.add(key)
+            return False
+        if copy != paths.PREPARED_ENGINE:
+            _rmtree(copy)
+            receipt_path.unlink(missing_ok=True)
+        return True
+    except (ProvisionError, OSError, ValueError, KeyError, StopIteration):
+        return False
 
 
 def summary() -> dict:
@@ -453,7 +457,7 @@ def summary() -> dict:
         "root": str(paths.DEPS_ROOT),
         "toolchain_root": str(paths.setup_root()),
         "toolchain_cache_reused_from": _seed_source(),
-        "engine_root": str(paths.select_engine()["root"]),
+        "engine_root": str(select_engine()["root"]),
         "device_cli": device_cli_status(),
     }
 
