@@ -105,11 +105,15 @@ def load(name: str, desktop: Path) -> None:
     studio.up(desktop)
 
 
-def scenario(name: str, desktop: Path) -> None:
+def scenario(name: str, desktop: Path, before_turn=None) -> None:
+    """Load the scenario's snapshot, call ``before_turn`` (a page reload would lose a live turn: do it there), then
+    start its live turn if it has one."""
     if name not in SCENARIOS:
         raise studio.StudioError(f"no scenario {name!r}; one of: {', '.join(SCENARIOS)}")
     snapshot, message, wait_for, _ = SCENARIOS[name]
     load(snapshot, desktop)
+    if before_turn:
+        before_turn()
     if message:
         studio.call("say", text=message, wait=False)
         studio.call("wait", target=wait_for, timeout=120)

@@ -65,6 +65,29 @@ waits for the turn), `wait [TEXT] [--ms N]`, `idle`, `eval JS`, `resize W [H]`, 
 `errors` (the page's console errors since the last call) and `url`. A TARGET is a CSS selector, a button's name or
 text on the page. Logs: `.dev/sandbox/logs/`, and `.dev/sandbox/model.jsonl` (every scripted reply and the tools Hermes offered).
 
+### Mockups
+
+`python tools/dev mockup <round folder>` shoots a round of mockups inside the sandbox, so they show the real Hermes
+shell, real games and real conversations, at real widths. A round folder (outside this repository, for example
+`~/projects/chromatic-studio-mockups/<round>/`) holds:
+
+- `round.json`: `replaces` (the page module the mockups stand in for, such as `page/pages/build/build-page.js`),
+  `exports` (its components, such as `["BuildPage"]`), and the defaults for `states` (sandbox scenarios), `widths`
+  and `themes`.
+- `mockups/<id>.jsx`: each exports `title` and the same components. It may import anything of the page through
+  `#sdk`, `#app/`, `#pages/` and `#shared/`, and today's version of the module it replaces as `#original` (to wrap
+  it or reuse it). The id's part before the first dash is its label (`b2-dock.jsx` is B2).
+
+`tools/dev/mockup_build.mjs` builds the whole page with that module replaced by a switch (plugin storage key `mockup`,
+changed live by a `hermretro-mockup` window event). Hermes copies a linked plugin's page again whenever it differs
+from the source, so the command serves it from an overlay (`.dev/sandbox/mockup-plugin/`: links to this checkout,
+except `desktop/plugin.js`) that the sandbox's default profile links to while it runs; the checkout's own files are
+never changed. Then for each state, mockup (and today's page, `Now`), theme and width it writes
+`<round>/shots/<id>.<state>.<width>.<theme>.png`
+and finally `<round>/gallery.html` (one file with every picture: filters, and a viewer that pages with the arrow
+keys, zooms with the wheel and pans by dragging). The sandbox's real page is put back at the end. `--states`,
+`--widths`, `--themes` and `--only` narrow a run.
+
 ## Where to look
 
 | What | Where |
