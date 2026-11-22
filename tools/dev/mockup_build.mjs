@@ -30,6 +30,17 @@ if (!modules) {
 const esbuild = createRequire(path.join(modules, 'noop.js'))('esbuild')
 const id = file => file.replace(/\.(jsx|js)$/, '')
 
+// Every mockup exports every component it stands in for: a missing one would show today's page under its name.
+for (const file of files) {
+  const own = await esbuild.build({ entryPoints: [path.join(roundDir, 'mockups', file)], bundle: false, format: 'esm', jsx: 'automatic', loader: { '.jsx': 'jsx' }, metafile: true, write: false, outdir: 'out', logLevel: 'silent' })
+  const exported = Object.values(own.metafile.outputs)[0]?.exports ?? []
+  const missing = names.filter(name => !exported.includes(name))
+  if (missing.length) {
+    console.error(`mockups/${file} does not export ${missing.join(', ')} (round.json "exports")`)
+    process.exit(1)
+  }
+}
+
 // The switch that stands in for the replaced module.
 const switcher = `
 import { jsx, useEffect, useState } from '#sdk'

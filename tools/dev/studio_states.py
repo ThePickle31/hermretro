@@ -73,7 +73,7 @@ def current(desktop: Path) -> bool:
     return made_by == studio_sync.stamp(studio_sync.SEED_INPUTS, desktop)
 
 
-def load(name: str, desktop: Path) -> None:
+def load(name: str, desktop: Path, sync: bool = True) -> None:
     archive_path = SNAPSHOTS / f"{checked(name)}.tar.gz"
     if snapshots() and not current(desktop):
         print("the snapshots were made by older code (backend, Hermes or the seed scripts changed): seeding again")
@@ -102,16 +102,16 @@ def load(name: str, desktop: Path) -> None:
     if (restore / BROWSER_STATE.name).is_file():
         (restore / BROWSER_STATE.name).replace(BROWSER_STATE)
     shutil.rmtree(restore)
-    studio.up(desktop)
+    studio.up(desktop, sync=sync)
 
 
-def scenario(name: str, desktop: Path, before_turn=None) -> None:
+def scenario(name: str, desktop: Path, before_turn=None, sync: bool = True) -> None:
     """Load the scenario's snapshot, call ``before_turn`` (a page reload would lose a live turn: do it there), then
-    start its live turn if it has one."""
+    start its live turn if it has one. ``sync=False`` keeps the checkout where it is (a mockup round syncs once)."""
     if name not in SCENARIOS:
         raise studio.StudioError(f"no scenario {name!r}; one of: {', '.join(SCENARIOS)}")
     snapshot, message, wait_for, _ = SCENARIOS[name]
-    load(snapshot, desktop)
+    load(snapshot, desktop, sync=sync)
     if before_turn:
         before_turn()
     if message:

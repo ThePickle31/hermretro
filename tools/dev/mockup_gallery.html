@@ -22,7 +22,7 @@ section h2 { font-size: 14px; margin: 0 0 10px; display: flex; gap: 10px; align-
 .tag { font: 700 12px ui-monospace, monospace; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 7px; }
 .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
 figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: zoom-in; }
-figure:hover { border-color: var(--acc); }
+figure:hover, figure:focus-visible { border-color: var(--acc); outline: none; }
 figure img { display: block; width: 100%; height: auto; }
 figcaption { padding: 7px 10px; font-size: 12px; color: var(--mut); }
 #viewer { position: fixed; inset: 0; z-index: 5; background: rgba(5, 6, 9, .96); display: none; }
@@ -105,7 +105,9 @@ function render() {
       figure.innerHTML = '<img loading="lazy" alt=""><figcaption></figcaption>'
       figure.querySelector('img').src = shot.src
       figure.querySelector('figcaption').textContent = detail(shot)
+      figure.tabIndex = 0
       figure.onclick = () => open(visible.indexOf(shot))
+      figure.onkeydown = event => (event.key === 'Enter' || event.key === ' ') && (event.preventDefault(), open(visible.indexOf(shot)))
       section.querySelector('.row').append(figure)
     }
     grid.append(section)

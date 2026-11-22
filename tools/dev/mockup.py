@@ -11,6 +11,8 @@ Standard library only; development only; Linux and macOS.
 from __future__ import annotations
 
 import base64
+import contextlib
+import fcntl
 import json
 import re
 import shutil
@@ -57,59 +59,85 @@ def build(folder: Path) -> list[str]:
     return json.loads(done.stdout.strip().splitlines()[-1])["mockups"]
 
 
-def install(page: Path | None) -> None:
-    """Serve ``page`` as hermretro's page in the sandbox (None: this checkout's own again), and reopen it."""
-    if page is None:
-        hermes.point(LINK, studio.TOP)
-    else:
-        shutil.rmtree(OVERLAY, ignore_errors=True)
-        OVERLAY.mkdir()
-        for entry in studio.TOP.iterdir():
-            if entry.name not in {"desktop", ".dev", ".git"}:
-                (OVERLAY / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
-        (OVERLAY / "desktop").mkdir()
-        shutil.copyfile(page, OVERLAY / "desktop" / "plugin.js")
-        hermes.point(LINK, OVERLAY)
+def install(page: Path) -> None:
+    """Serve ``page`` as hermretro's page in the sandbox, and reopen it."""
+    shutil.rmtree(OVERLAY, ignore_errors=True)
+    OVERLAY.mkdir()
+    for entry in studio.TOP.iterdir():
+        if entry.name not in {"desktop", ".dev", ".git"}:
+            (OVERLAY / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
+    (OVERLAY / "desktop").mkdir()
+    shutil.copyfile(page, OVERLAY / "desktop" / "plugin.js")
+    hermes.point(LINK, OVERLAY)
     studio.call("reload")
 
 
+def restore() -> None:
+    """The sandbox serves this checkout's page again (also when the browser is gone: `up` reopens it)."""
+    if LINK.is_symlink():
+        hermes.point(LINK, studio.TOP)
+    if studio.alive("browser"):
+        studio.call("reload")
+        studio.call("resize", width=1440, height=900)
+        studio.call("theme", mode="dark")
+
+
+@contextlib.contextmanager
+def one_round():
+    """One round at a time per checkout: rounds share the sandbox's browser, page and overlay."""
+    lock = studio.TOP / ".dev" / "mockup.lock"
+    lock.parent.mkdir(exist_ok=True)
+    with lock.open("w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise studio.StudioError("another mockup round is running in this checkout's sandbox") from error
+        yield
+
+
 def shoot(folder: Path, desktop: Path, *, states: list[str], widths: list[int], themes: list[str], only: list[str]):
-    if not studio_states.current(desktop):  # seeding clears the sandbox's folder: before the build lands in it
-        studio_states.seed(desktop)
-    ids = build(folder)
-    variants = ["current", *[mockup for mockup in ids if not only or mockup in only]]
-    names = titles(folder, ids)
-    shots = folder / "shots"
-    shots.mkdir(exist_ok=True)
-    for old in shots.glob("*.png"):  # this command's own pictures from the last run
-        old.unlink()
-    entries = []
-    try:
-        for state in states:
-            studio_states.scenario(state, desktop, before_turn=lambda: install(studio.SANDBOX / "mockup-plugin.js"))
-            for variant in variants:
-                studio.call("eval", js=SWITCH.format(id=json.dumps(variant)))
-                for theme in themes:
-                    studio.call("theme", mode=theme)
-                    for width in widths:
-                        studio.call("resize", width=width, height=900)
-                        studio.call("wait", ms=700)
-                        name = f"{variant}.{state}.{width}.{theme}"
-                        made = Path(studio.call("shot", name=f"mockup-{name}")["file"])
-                        target = shots / f"{name}.png"
-                        shutil.move(made, target)
-                        entries.append(
-                            {"file": str(target), "mockup": variant, "label": label(variant), "title": names[variant],
-                             "state": state, "width": width, "theme": theme}
-                        )  # fmt: skip
-                        print(target, flush=True)
-    finally:
-        if studio.alive("browser"):
-            install(None)
-            studio.call("resize", width=1440, height=900)
-            studio.call("theme", mode="dark")
-    gallery(folder, entries)
-    return entries
+    with one_round():
+        # The round's one sync with dev: the bundle and every shot come from the same code.
+        studio.up(desktop)
+        if not studio_states.current(desktop):  # seeding clears the sandbox's folder: before the build lands in it
+            studio_states.seed(desktop)
+        ids = build(folder)
+        unknown = sorted(set(only) - set(ids))
+        if unknown:
+            raise studio.StudioError(
+                f"no mockup {', '.join(unknown)} in {folder / 'mockups'} (there: {', '.join(ids)})"
+            )
+        variants = ["current", *[mockup for mockup in ids if not only or mockup in only]]
+        names = titles(folder, ids)
+        # Shot into a folder of their own; the last round's pictures are replaced only once every shot is taken.
+        staged = folder / "shots.new"
+        shutil.rmtree(staged, ignore_errors=True)
+        staged.mkdir()
+        entries = []
+        try:
+            for state in states:
+                page = studio.SANDBOX / "mockup-plugin.js"
+                studio_states.scenario(state, desktop, before_turn=lambda: install(page), sync=False)
+                for variant in variants:
+                    studio.call("eval", js=SWITCH.format(id=json.dumps(variant)))
+                    for theme in themes:
+                        studio.call("theme", mode=theme)
+                        for width in widths:
+                            studio.call("resize", width=width, height=900)
+                            studio.call("wait", ms=700)
+                            name = f"{variant}.{state}.{width}.{theme}"
+                            shutil.move(studio.call("shot", name=f"mockup-{name}")["file"], staged / f"{name}.png")
+                            entries.append(
+                                {"file": f"{name}.png", "mockup": variant, "label": label(variant),
+                                 "title": names[variant], "state": state, "width": width, "theme": theme}
+                            )  # fmt: skip
+                            print(folder / "shots" / f"{name}.png", flush=True)
+        finally:
+            restore()
+        shutil.rmtree(folder / "shots", ignore_errors=True)
+        staged.rename(folder / "shots")
+        gallery(folder, [{**entry, "file": str(folder / "shots" / entry["file"])} for entry in entries])
+        return entries
 
 
 def gallery(folder: Path, entries: list[dict]) -> Path:
