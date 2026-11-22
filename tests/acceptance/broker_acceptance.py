@@ -612,15 +612,15 @@ def main() -> int:
     check(
         "D2",
         "The panel view reports a chat's project, build, latest real frame and log from memory; "
-        "an unknown chat falls back to the most recent one; other profiles see nothing",
+        "an unknown chat sees no other chat's; other profiles see nothing",
         seen.get("matched") == "chat"
         and bool(seen["lane"]["project_root"])
         and "rom_build" in tools_seen
         and (seen.get("build") or {}).get("ok") is True
         and frame.get("mimeType") == "image/png"
         and len(frame.get("data") or "") > 200
-        and fallback.get("matched") == "recent"
-        and fallback.get("lane") is not None
+        and fallback.get("matched") is None
+        and fallback.get("lane") is None
         and elsewhere.get("lane") is None,
         tools=tools_seen[-8:],
         build=seen.get("build"),

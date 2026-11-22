@@ -4,7 +4,6 @@ handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from .. import player as player_server
@@ -116,6 +115,9 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     "title": record["title"],
                     "note": record["note"],
                     "presentedAt": record["t"],
+                    # Presented by the game's own Build conversation: the Build page plays it, nothing opens beside.
+                    "buildConversation": (host._bound_game(conversation_id, session_id) or {}).get("id")
+                    == record["gameId"],
                 },
                 "message": "Shown to the user beside the chat.",
             }
@@ -387,9 +389,8 @@ def _report_asset(raw: str, root: Path | None) -> tuple[str | None, str | None]:
         text = text[len("file://") :]
     candidate = Path(text).expanduser()
     if root is None:
-        if not candidate.is_absolute():
-            return None, f"{raw}: a relative path needs the game's project"
-        return os.path.normpath(str(candidate)), None
+        # Without this chat's game there is no folder to check it against: it could be another game's picture.
+        return None, f"{raw}: this chat has no game project"
     if not candidate.is_absolute():
         candidate = root / candidate
     try:

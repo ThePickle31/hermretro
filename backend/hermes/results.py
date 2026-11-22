@@ -11,6 +11,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import threading
 from pathlib import Path
 
 
@@ -43,7 +45,8 @@ def save_images(result: dict, directory: Path) -> list[dict]:
         path = directory / digest[:2] / f"{digest}{suffix}"
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = path.with_suffix(path.suffix + ".tmp")
+            # Its own temporary name: two chats can save the same picture at the same moment.
+            temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
             temporary.write_bytes(data)
             temporary.replace(path)
         records.append(

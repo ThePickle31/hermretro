@@ -245,12 +245,16 @@ def _game_root(identifier) -> Path | None:
     return root if root is not None and root.is_dir() else None
 
 
+def _chat_binding(conversation_id: str, session_id: str) -> tuple[str | None, dict | None]:
+    """What this chat is on the Build page: ``("game", entry)``, ``("pending", record)`` (a New Game conversation
+    whose project does not exist yet) or ``(None, None)``."""
+    ids = [value for value in (conversation_id, session_id) if value]
+    return _registry().binding_for(_profile_identity(), ids) if ids else (None, None)
+
+
 def _bound_game(conversation_id: str, session_id: str) -> dict | None:
     """The library entry of the game whose Build conversation this chat is, or None (not a game's chat)."""
-    ids = [value for value in (conversation_id, session_id) if value]
-    if not ids:
-        return None
-    kind, entry = _registry().binding_for(_profile_identity(), ids)
+    kind, entry = _chat_binding(conversation_id, session_id)
     return entry if kind == "game" and isinstance(entry, dict) else None
 
 
@@ -305,8 +309,9 @@ def tool_result_payload(result) -> dict | None:
 
 
 def library_game_for(candidates) -> tuple[str, Path] | None:
-    """``(game id, real project root)`` of the first library game whose project is, or contains, one of
-    ``candidates`` (paths from the result, the arguments, the chat; non-strings are skipped), or None."""
+    """``(game id, real project root)`` of the library game whose project is, or most closely contains, the first of
+    ``candidates`` that is in one (paths from the result, the arguments, the chat; non-strings are skipped), or None.
+    The deepest root wins, so a project inside another game's folder is never taken for that game."""
     roots = []
     for entry in _registry().load()["games"].values():
         if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
@@ -321,9 +326,10 @@ def library_game_for(candidates) -> tuple[str, Path] | None:
             real = Path(os.path.realpath(candidate))
         except (OSError, ValueError):
             continue
-        for root in roots:
-            if (real == root or root in real.parents) and root.is_dir():
-                return library.game_id(root), root
+        holding = [root for root in roots if (real == root or root in real.parents) and root.is_dir()]
+        if holding:
+            root = max(holding, key=lambda path: len(path.parts))
+            return library.game_id(root), root
     return None
 
 

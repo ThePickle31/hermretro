@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 60f58cdb5b1957bb276cf4748d8345191873c4c07cd291a84fb2b6a3e8e1fe5f
- * body: sha256 f6f50e0b0d9b26c1b7146108f8fb14c37613b1fa9f6474f93bac58691b808851
+ * sources: sha256 623d31695d14995f76ebffecdf55e5cd0b00d5bf06a6759c58234f6bc12a025f
+ * body: sha256 ecfa6e8109d2749ff7820bfde8c9f54d26910515461e8ffc52fa5a8be54fd159
  */
 // page/sdk.js
 import {
@@ -3851,26 +3851,35 @@ async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
     copied ? { kind: "info", message: "Prompt copied — paste it into a chat to use it." } : { kind: "warning", message: "Could not reach a chat composer or the clipboard. Copy the prompt from the page." }
   );
 }
+function gameConversation(game) {
+  const session = game?.session;
+  if (session?.storedId && session.thisProfile !== false && session.exists !== false) {
+    return { stored: session.storedId, profile: session.profileName ?? null };
+  }
+  return game?.chat?.sessionId ? { stored: game.chat.sessionId, profile: game.chat.profile ?? null } : null;
+}
 async function openGameChat(game) {
-  const stored = game?.chat?.sessionId;
+  const conversation = gameConversation(game);
   const target = studioTarget();
-  const inStudio = game?.chat?.profile ? game.chat.profile === STUDIO_PROFILE : true;
+  const inStudio = conversation?.profile ? conversation.profile === STUDIO_PROFILE : true;
+  const stored = conversation?.stored;
   if (!stored || !target || !inStudio || typeof host.openSession !== "function") {
-    return false;
+    return null;
   }
   try {
     await host.openSession(stored, target.profile ? { profile: target.profile } : {});
-    return true;
+    return stored;
   } catch {
-    return false;
+    return null;
   }
 }
 async function sendToGameChat(ctx, game, text2) {
-  if (await openGameChat(game) && await insertWhenMounted(ctx, null, text2)) {
+  const stored = await openGameChat(game);
+  if (stored && await insertWhenMounted(ctx, stored, text2)) {
     promptAdded();
     return;
   }
-  await sendPromptToChat(ctx, text2);
+  await sendPromptToChat(ctx, text2, { fresh: true });
 }
 
 // page/app/game-prompts.js
@@ -8137,7 +8146,7 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
       disabled: !hardwareOn || !game.rom,
       why: !hardwareOn ? "Needs your Chromatic" : !game.rom ? "Build it first" : "Puts the flash prompt in its chat; Hermes asks before writing"
     }) : null,
-    item("comment-discussion", "Open its chat", () => openGameChat(game), { disabled: !game.chat, why: game.chat ? game.chat.title || void 0 : "No chat recorded" }),
+    item("comment-discussion", "Open its chat", () => openGameChat(game), { disabled: !game.chat && !game.session, why: game.chat ? game.chat.title || void 0 : game.session ? void 0 : "No chat recorded" }),
     !card?.complete && onMakeCover ? item("sparkle", game.cover ? "Finish card" : "Make cover art", () => onMakeCover(game)) : null,
     game.projectRoot ? item("folder-opened", "Show in folder", () => revealGame(ctx, game)) : null,
     // What other pages add to this menu (games/index.js declares the slot).
@@ -15157,7 +15166,7 @@ function watchBuilds(ctx) {
     } else if (name === PRESENT_TOOL) {
       const studio = presentedGame(payload);
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: isBuildSession(event.session_id) });
+        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id) });
       }
     }
   });
@@ -15166,7 +15175,6 @@ function watchBuilds(ctx) {
       return;
     }
     pending?.();
-    const fromBuild = isBuildSession(event?.session_id);
     const run = async () => {
       BUILD_TICK.set(BUILD_TICK.get() + 1);
       let answer;
@@ -15184,11 +15192,12 @@ function watchBuilds(ctx) {
       const list = Array.isArray(answer.presentations) ? answer.presentations : [];
       const newest = /* @__PURE__ */ new Map();
       for (const item of list) {
-        if (item && typeof item.gameId === "string") {
+        if (item && typeof item.gameId === "string" && item.thisProfile !== false) {
           newest.set(item.gameId, item);
         }
       }
       for (const item of newest.values()) {
+        const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId);
         presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild });
       }
     };

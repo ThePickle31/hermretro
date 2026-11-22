@@ -523,6 +523,18 @@ class Registry:
         wanted = {value for value in ids if isinstance(value, str) and value}
         return self._binding_in(self.load(), profile, wanted) if wanted else (None, None)
 
+    def game_around(self, path: str) -> dict | None:
+        """The library game whose folder holds ``path`` (not ``path`` itself); None when there is none. Only folders that
+        still exist count: a game deleted from disk leaves its folder free."""
+        real = Path(os.path.realpath(path))
+        for entry in self.load()["games"].values():
+            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+                continue
+            root = Path(os.path.realpath(entry["projectRoot"]))
+            if root in real.parents and root.is_dir():
+                return entry
+        return None
+
     def game_for_root(self, root: str) -> dict | None:
         real = os.path.realpath(root)
         entry = self.load()["games"].get(game_id(real))
