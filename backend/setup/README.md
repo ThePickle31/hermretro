@@ -1,7 +1,7 @@
 # backend/setup
 
 Preparing the machine and the studio profile: the page's toolchain install and its progress (`progress.py`), its
-journal, failure hints, free-space check and cancel settling (`recovery.py`), ModRetro's CLI and removing downloads (`provision.py`), the `hermretro` profile (`studio_profile.py`) and the Setup page's RPCs (`rpcs.py`).
+journal, failure hints, free-space check and cancel settling (`recovery.py`), ModRetro's CLI, the prepared engine copy (one per engine, never changed once made; made anew with no download when the bundled engine changes) and removing downloads (`provision.py`), reusing another install's toolchain cache (`seed.py`), the `hermretro` profile (`studio_profile.py`) and the Setup page's RPCs (`rpcs.py`).
 
 ## What it adds
 
@@ -15,13 +15,13 @@ journal, failure hints, free-space check and cancel settling (`recovery.py`), Mo
 
 ## Front door
 
-`backend.setup`: `install_progress`, `download_bytes`, `folder_bytes`, `seed_toolchain_cache`, and from `recovery.py`
+`backend.setup`: `install_progress`, `download_bytes`, `folder_bytes`, `seed_toolchain_cache`, `select_engine` (the engine a new worker starts from, after rebuilding a stale prepared copy), and from `recovery.py`
 `write_journal`, `read_journal`, `recovered_install`, `classify`, `explain`, `foreign_lock_hint`, `free_space`,
 `settled`, `lock_path`, `lock_started`, `worker_left`, `activity_mark` (used by the broker). Standard library only: the broker imports it, so it never imports `rpcs.py`, `tools.py`, `hooks.py` or `studio_profile.py`.
 
 ## Tests
 
-`tests/backend/setup/`. They reach into `provision.py` by these private names, so a split of `provision.py` keeps them on `provision` (imported back into it) or updates the tests in the same change: `provision._node_platform` (patched with `mock.patch.object(provision, "_node_platform", ...)` in `test_status_and_first_run.py` and `tests/backend/system/test_host_os.py`, and called), `provision.subprocess` (its `run` patched, so `provision.py` must keep calling `subprocess.run` through its own `subprocess` import), `provision._node`, `provision._platform_of` (its `cache_clear()`), `provision._pins` and `provision._RUST_TARGETS` (`test_provision.py`). `grep -rn "provision\._\|provision\.subprocess" tests/` lists them.
+`tests/backend/setup/`. They reach into `provision.py` by these private names, so a split of `provision.py` keeps them on `provision` (imported back into it) or updates the tests in the same change: `provision._node_platform` (patched with `mock.patch.object(provision, "_node_platform", ...)` in `test_status_and_first_run.py` and `tests/backend/system/test_host_os.py`, and called), `provision.subprocess` (its `run` patched, so `provision.py` must keep calling `subprocess.run` through its own `subprocess` import), `provision._node`, `provision._platform_of` (its `cache_clear()`), `provision._pins` and `provision._RUST_TARGETS` (`test_provision.py`), `provision._prepare`, `provision._pins`, `provision._lock`, `provision._node` (patched) and `provision._NOT_REUSABLE` (its `clear()`) (`test_prepared_refresh.py`). `grep -rn "provision\._\|provision\.subprocess" tests/` lists them.
 
 ## Adding here
 

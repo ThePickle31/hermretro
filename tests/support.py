@@ -71,9 +71,9 @@ def throwaway_deps(base: Path):
     cache = Path(base) / ".cache"
     with ExitStack() as stack:
         stack.enter_context(mock.patch.object(paths, "DEPS_ROOT", cache))
-        stack.enter_context(mock.patch.object(paths, "PREPARED_ENGINE", cache / f"engine-{paths.ENGINE_VERSION}"))
+        stack.enter_context(mock.patch.object(paths, "PREPARED_ENGINE", cache / f"engine-{paths.ENGINE_IDENTITY}"))
         stack.enter_context(
-            mock.patch.object(paths, "DEVICE_CLI_RECEIPT", cache / f"device-cli-{paths.ENGINE_VERSION}.json")
+            mock.patch.object(paths, "DEVICE_CLI_RECEIPT", cache / f"device-cli-{paths.ENGINE_IDENTITY}.json")
         )
         stack.enter_context(mock.patch.object(paths, "setup_root", lambda: cache / "toolchain"))
         yield cache

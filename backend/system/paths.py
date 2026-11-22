@@ -78,9 +78,21 @@ def hermretro_home() -> Path:
 
 # Downloaded per user, under the hermretro home, so plugin updates and removal never touch it.
 DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".cache").resolve()
-# Named by engine version: two plugin copies (an installed one and a dev checkout) share this folder.
-PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_VERSION}"  # bundled engine + ModRetro's CLI for this computer
-DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_VERSION}.json"
+
+
+def _engine_identity() -> str:
+    """The bundled engine's version and the start of its manifest's digest: an edited engine is a new identity."""
+    try:
+        return f"{ENGINE_VERSION}-{json.loads(ENGINE_MANIFEST.read_text())['aggregate_sha256'][:12]}"
+    except (OSError, ValueError, KeyError, TypeError):
+        return ENGINE_VERSION
+
+
+# Named by the engine it was made from, and never changed once made (backend/setup/provision.py): two plugin copies
+# (an installed one and a dev checkout) share this folder, and a running worker keeps reading the copy it started in.
+ENGINE_IDENTITY = _engine_identity()
+PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_IDENTITY}"  # bundled engine + ModRetro's CLI for this computer
+DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_IDENTITY}.json"
 # ModRetro's proprietary CLI, packed for all platforms. A distributable build of the plugin leaves
 # these two out; setup then fetches the CLI for one platform from ModRetro (see provision.py).
 VENDOR_ARCHIVES = ("third-party/chromatic-cli/executables-v2.br", "third-party/chromatic-cli/notices.br")
@@ -341,6 +353,8 @@ def verify_prepared_engine() -> dict:
         receipt = json.loads(DEVICE_CLI_RECEIPT.read_text())
     except (OSError, ValueError):
         return {"present": False, "verified": False, "detail": ""}
+    if not isinstance(receipt, dict):
+        return {"present": True, "verified": False, "detail": "unreadable receipt"}
     try:
         if receipt.get("engine_version") != ENGINE_VERSION:
             return {
