@@ -61,7 +61,7 @@ Every folder in the repository.
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
 | `tools/engine/` | Engine update helpers: manifest, schema reconciliation |
 | `tools/debug/` | Debugging helpers for a running gateway |
-| `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview (python tools/dev) |
+| `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview, and the sandbox (a private Hermes with a scripted model and a headless browser) (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |
 | `tools/py/` | Pinned Python tools for development only (ruff), their settings, and check.py's helpers |
 | `docs/` | Documentation |

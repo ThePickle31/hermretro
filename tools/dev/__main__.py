@@ -7,6 +7,11 @@
   rpc METHOD [JSON] call one gateway RPC; a bare name means plugin.hermretro.<name>
   watch             rebuild the page on every save, keep Hermes Desktop's copy current and serve the
                     browser preview, live against the real gateway (prints its address)
+  studio VERB       the sandbox: a private Hermes on this checkout with a scripted model and a headless
+                    browser (up, down, reset, status, reload, seed, save, load, scenario, release)
+  ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
+  mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
+                    FOLDER/gallery.html
 
 Docs: docs/dev/DEBUGGING.md, "The development loop". Standard library only; Linux and macOS.
 """
@@ -14,6 +19,7 @@ Docs: docs/dev/DEBUGGING.md, "The development loop". Standard library only; Linu
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import signal
@@ -25,6 +31,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_hermes as hermes  # noqa: E402 - this folder, put on the path just above
+import mockup  # noqa: E402
+import studio  # noqa: E402
+import studio_states  # noqa: E402
 
 TOP = Path(__file__).resolve().parents[2]
 BUNDLE = TOP / "desktop" / "plugin.js"
@@ -198,6 +207,96 @@ def cmd_watch(args) -> int:
             child.wait(10)
 
 
+def cmd_studio(args) -> int:
+    desktop = desktop_source(args.desktop)
+    verb, name = args.verb, args.name
+    if verb in {"save", "load", "scenario"} and not name:
+        print(f"studio {verb} needs a name", file=sys.stderr)
+        return 1
+    if verb == "up":
+        studio.up(desktop)
+    elif verb == "down":
+        studio.down()
+        print("sandbox stopped")
+    elif verb == "reset":
+        studio.reset()
+    elif verb == "reload":
+        studio.reload()
+    elif verb == "release":
+        studio.release()
+    elif verb == "seed":
+        studio_states.seed(desktop)
+    elif verb == "save":
+        studio_states.save(name, desktop)
+    elif verb == "load":
+        studio_states.load(name, desktop)
+        print(f"loaded {name}")
+    elif verb == "scenario":
+        studio_states.scenario(name, desktop)
+    else:  # status
+        print(f"sandbox: {studio.SANDBOX if studio.CONFIG.is_file() else 'not created'}")
+        for process in studio.MARKERS:
+            print(f"{process}: {'running' if studio.alive(process) else 'stopped'}")
+        print(f"snapshots: {', '.join(studio_states.snapshots()) or 'none'}")
+        for scenario, (_, _, _, what) in studio_states.SCENARIOS.items():
+            print(f"  scenario {scenario}: {what}")
+    return 0
+
+
+def cmd_ui(args) -> int:
+    rest = args.args
+    verb = args.verb
+    if verb == "shot":
+        result = studio.call("shot", name=rest[0] if rest else None, full=args.full, target=args.of)
+    elif verb == "text":
+        result = studio.call("text", target=rest[0] if rest else None)
+    elif verb in {"go", "click"}:
+        result = studio.call(verb, **{"page" if verb == "go" else "target": " ".join(rest)})
+    elif verb == "type":
+        result = studio.call("type", text=" ".join(rest), target=args.into, submit=args.submit)
+    elif verb == "say":
+        result = studio.call("say", text=" ".join(rest), wait=not args.no_wait)
+    elif verb == "wait":
+        result = studio.call("wait", target=" ".join(rest) or None, ms=args.ms)
+    elif verb == "eval":
+        result = studio.call("eval", js=" ".join(rest))
+    elif verb == "resize":
+        result = studio.call("resize", width=int(rest[0]), height=int(rest[1]) if len(rest) > 1 else None)
+    elif verb == "theme":
+        result = studio.call("theme", mode=rest[0] if rest else "dark")
+    else:
+        result = studio.call(verb)
+    for key in ("file", "text", "url"):
+        if key in result:
+            print(result[key])
+            return 0
+    if result:
+        print(json.dumps(result, indent=2))
+    return 0
+
+
+def listed(value: str | None) -> list[str]:
+    """A comma-separated option as a list (empty when not given)."""
+    return [item for item in (value or "").split(",") if item]
+
+
+def cmd_mockup(args) -> int:
+    folder = Path(args.folder).expanduser().resolve()
+    if not (folder / "round.json").is_file():
+        print(f"{folder} has no round.json (docs/dev/DEBUGGING.md, \"Mockups\")", file=sys.stderr)
+        return 1
+    settings = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+    mockup.shoot(
+        folder,
+        desktop_source(args.desktop),
+        states=listed(args.states) or settings.get("states") or ["builds"],
+        widths=[int(width) for width in listed(args.widths) or settings.get("widths") or [1440]],
+        themes=listed(args.themes) or settings.get("themes") or ["dark"],
+        only=listed(args.only),
+    )
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
         prog="python tools/dev", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -222,15 +321,48 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("--port", type=int, default=0, help="the preview's port (default: a free one)")
     watch.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     watch.set_defaults(run=cmd_watch)
+    sandbox = commands.add_parser("studio")
+    sandbox.add_argument(
+        "verb", choices=["up", "down", "reset", "status", "reload", "seed", "save", "load", "scenario", "release"]
+    )
+    sandbox.add_argument("name", nargs="?", help="the snapshot or scenario (save, load, scenario)")
+    sandbox.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
+    sandbox.set_defaults(run=cmd_studio)
+    ui = commands.add_parser("ui")
+    ui.add_argument(
+        "verb",
+        choices=["shot", "text", "go", "click", "type", "say", "wait", "idle", "eval", "resize", "theme", "reload",
+                 "errors", "url"],
+    )  # fmt: skip
+    ui.add_argument("args", nargs="*", help="what the verb takes: a name, a target, text, a size")
+    ui.add_argument("--full", action="store_true", help="shot: the whole scrolling page")
+    ui.add_argument("--of", help="shot: only this element (a selector, a button's name or text)")
+    ui.add_argument("--into", help="type: the field to type into (default the message box)")
+    ui.add_argument("--submit", action="store_true", help="type: press Enter after")
+    ui.add_argument("--no-wait", action="store_true", help="say: return once sent, not when the turn ends")
+    ui.add_argument("--ms", type=int, help="wait: this many milliseconds")
+    ui.set_defaults(run=cmd_ui)
+    round_ = commands.add_parser("mockup")
+    round_.add_argument("folder", help="a round: round.json and mockups/*.jsx")
+    round_.add_argument("--states", help="scenarios, comma-separated (default: round.json's, else builds)")
+    round_.add_argument("--widths", help="page widths, comma-separated (default: round.json's, else 1440)")
+    round_.add_argument("--themes", help="dark, light or both (default: round.json's, else dark)")
+    round_.add_argument("--only", help="these mockups only (ids, comma-separated); today's page is always shot")
+    round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
+    round_.set_defaults(run=cmd_mockup)
     return top
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    if shutil.which("node") is None and args.command in {"rpc", "watch", "setup"}:
+    if shutil.which("node") is None and args.command in {"rpc", "watch", "setup", "studio", "ui", "mockup"}:
         print("needs Node.js 22 or newer on PATH", file=sys.stderr)
         return 1
-    return args.run(args)
+    try:
+        return args.run(args)
+    except studio.StudioError as error:
+        print(error, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

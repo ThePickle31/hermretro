@@ -1,0 +1,8 @@
+{
+  "match": "give the robot a dash",
+  "steps": [
+    {"say": "Adding a dash on B: twice the walking speed for half a second.", "hold": true,
+     "call": [{"tool": "chromatic_project_inspect", "args": {}}]},
+    {"say": "Done."}
+  ]
+}

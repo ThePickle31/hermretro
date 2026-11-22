@@ -31,6 +31,10 @@ python tools/dev live            # Hermes loads this checkout (every linked prof
 python tools/dev reload          # after a backend change: re-import the plugin in the running gateway
 python tools/dev watch           # rebuild the page on save; serves the live browser preview (prints its address)
 python tools/dev rpc status      # one gateway RPC (plugin.hermretro.status)
+python tools/dev studio up       # the sandbox: a private Hermes on this checkout (kept on current dev), headless
+python tools/dev studio scenario builds   # a saved state (new-game, first-build, builds, working, question)
+python tools/dev ui shot NAME    # a screenshot of the sandbox's page; `ui go|click|say|text` drive it
+python tools/dev mockup FOLDER   # shoot a round of mockups in the sandbox; writes FOLDER/shots and FOLDER/gallery.html
 python tools/check.py            # fast checks: unit, bundle, lint, page, scan
 python tools/check.py fix        # automatic lint fixes and the Python formatting
 python tools/check.py full       # plus the real-engine run (python tools/ci/prepare_toolchain.py first)
@@ -77,7 +81,8 @@ front doors and events (`docs/dev/ARCHITECTURE.md`, "Adding things" lists every 
    origin/dev`, then `python tools/dev setup` in it. Types: `feat`, `fix`, `docs`, `chore`. The main checkout stays
    on `dev`.
 3. **Build and try it.** `python tools/dev live` in the worktree, `watch` in the background for page work, `reload`
-   after backend edits; look at the result yourself (the live preview, or Hermes Desktop). `live main` when done.
+   after backend edits; look at the result yourself in the sandbox (`studio up`, `ui shot`; it never opens a window),
+   the live preview or Hermes Desktop. `live main` when done.
 4. **Check and open the pull request.** `python tools/check.py fix`, commit, `python tools/check.py`, push, then a
    pull request into `dev`. Title: `type(scope): what it does`, at most 72 characters; it becomes the squash commit
    and the release-note line. Body: the template's sections. No agent co-author or "generated with" lines.

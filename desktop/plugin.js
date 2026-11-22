@@ -5,7 +5,7 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 34eac9339ccb2add853d2f56cb0de270b8c42ab6cb961f70638c58ea5165b926
+ * sources: sha256 a92cca5f7fa3f372a64a2c9c586dc145e5684d53f89c9f7dedcb871c0e215d49
  * body: sha256 d7552adb38e209708e93d02932b6ff3231f39da91659379462e521066584ec83
  */
 // page/sdk.js

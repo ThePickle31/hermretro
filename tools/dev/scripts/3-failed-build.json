@@ -1,0 +1,7 @@
+{
+  "match": "add calm background music",
+  "steps": [
+    {"say": "Adding a calm loop and building it.", "call": [{"tool": "chromatic_rom_build", "args": {"timeoutMs": 1000}}]},
+    {"say": "The build stopped before it finished. Nothing else changed: you are still playing the last build."}
+  ]
+}
