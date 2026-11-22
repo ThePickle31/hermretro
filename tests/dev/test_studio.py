@@ -5,7 +5,9 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,6 +55,24 @@ class AliveTest(unittest.TestCase):
             self.assertFalse(studio.alive("browser"))
         with self.running(None, ""):
             self.assertFalse(studio.alive("browser"), "gone")
+
+    def test_a_zombie_is_gone(self):
+        # An exited child nobody reaped yet keeps its start tick and reads an empty command line.
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        self.addCleanup(child.wait)
+        for _ in range(200):
+            if studio.process(child.pid)[0] is None:
+                break
+            time.sleep(0.01)
+        self.assertEqual(studio.process(child.pid), (None, ""))
+
+    def test_a_record_from_before_exact_marks_needs_the_marker_seen(self):
+        self.record("Sat Nov 21 20:59:43 2026")
+        with (
+            self.running("tick:1000", ""),
+            mock.patch.object(studio, "legacy_started", return_value="Sat Nov 21 20:59:43 2026"),
+        ):
+            self.assertFalse(studio.alive("browser"), "a second-precision record and no command line is not enough")
 
     def test_a_record_from_before_exact_marks_is_compared_the_way_it_was_made(self):
         self.record("Sat Nov 21 20:59:43 2026")

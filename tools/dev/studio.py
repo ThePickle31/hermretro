@@ -140,23 +140,29 @@ def create(desktop: Path) -> None:
 
 
 def process(pid: int) -> tuple[str | None, str]:
-    """An exact mark of when ``pid`` started, and its command line now; None and "" when it is gone. Linux: the start
-    tick in /proc (ps's lstart is the clock minus the uptime there, so one process can read a second apart). macOS:
-    ps's lstart in the C locale, which it reads from the process's own start time."""
+    """An exact mark of when ``pid`` started, and its command line now; None and "" when it is gone (an exited child
+    nobody reaped yet, a zombie, counts as gone). Linux: the start tick in /proc (ps's lstart is the clock minus the
+    uptime there, so one process can read a second apart). macOS: ps's lstart in the C locale, which it reads from the
+    process's own start time."""
     proc = Path(f"/proc/{pid}")
     if proc.is_dir():
         try:
-            tick = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
+            state, *fields = (proc / "stat").read_text().rsplit(")", 1)[1].split()
             command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
-        except (OSError, IndexError):
+        except (OSError, ValueError):
             return None, ""
-        return f"tick:{tick}", command
+        return (f"tick:{fields[18]}", command) if state != "Z" and len(fields) > 18 else (None, "")
     plain = {**os.environ, "LC_ALL": "C"}
     row = subprocess.run(
-        ["ps", "-ww", "-o", "lstart=", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, env=plain
+        ["ps", "-ww", "-o", "lstart=", "-o", "stat=", "-o", "command=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        env=plain,
     )
     fields = row.stdout.split()
-    return (f"lstart:{' '.join(fields[:5])}", " ".join(fields[5:])) if len(fields) > 5 else (None, "")
+    if len(fields) < 7 or fields[5].startswith("Z"):
+        return None, ""
+    return f"lstart:{' '.join(fields[:5])}", " ".join(fields[6:])
 
 
 def legacy_started(pid: int) -> str:
@@ -168,22 +174,23 @@ def tracked() -> dict:
     return json.loads(PROCESSES.read_text(encoding="utf-8")) if PROCESSES.is_file() else {}
 
 
-def alive(name: str) -> bool:
-    """Whether the process the sandbox started as ``name`` still runs: the same pid started at the same time, and
-    its command line is still that process's (the `hermes` launcher replaces itself, so only a marker is checked)."""
-    entry = tracked().get(name)
+def alive(name: str, entry: dict | None = None) -> bool:
+    """Whether the process the sandbox started as ``name`` (its record, else the one in processes.json) still runs.
+    An exact start mark identifies it, together with the marker in its command line; that line may read empty for a
+    moment while Node starts (it moves its arguments), which still counts as ours. The `hermes` launcher replaces
+    itself, so only the marker is checked, not the whole line."""
+    entry = entry if entry is not None else tracked().get(name)
     if not entry or not isinstance(entry.get("started"), str):
         return False
     started, command = process(entry["pid"])
-    # Node moves its arguments while it starts, so its command line reads empty for a moment: only a command line
-    # without the marker says the pid now belongs to another program.
     if started is None or (command and MARKERS[name] not in command):
         return False
     recorded = entry["started"]
-    # A record from before the marks were exact holds ps's lstart text: compare it the way it was made.
-    return (
-        started == recorded if recorded.startswith(("tick:", "lstart:")) else legacy_started(entry["pid"]) == recorded
-    )
+    if recorded.startswith(("tick:", "lstart:")):
+        return started == recorded
+    # A record from before the marks were exact holds ps's lstart text, a second apart at best: compare it the way it
+    # was made, and only with the marker actually seen.
+    return bool(command) and legacy_started(entry["pid"]) == recorded
 
 
 def start(name: str, argv: list[str], record: dict | None = None, **extra: str) -> None:
@@ -205,15 +212,16 @@ def start(name: str, argv: list[str], record: dict | None = None, **extra: str) 
 
 def stop(name: str) -> None:
     """Stop the process (and its process group) only when it is still the one the sandbox started."""
-    if alive(name):
-        pid = tracked()[name]["pid"]
+    entry = tracked().get(name)
+    if alive(name, entry):
+        pid = entry["pid"]
         os.killpg(pid, signal.SIGTERM)
         for _ in range(40):
             if process(pid)[0] is None:
                 break
             time.sleep(0.25)
         else:
-            if alive(name):  # still the same process, not a new one that took its pid
+            if alive(name, entry):  # still the same process, not a new one that took its pid
                 os.killpg(pid, signal.SIGKILL)
     entries = tracked()
     entries.pop(name, None)
