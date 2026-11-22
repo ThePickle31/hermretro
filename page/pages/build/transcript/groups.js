@@ -2,6 +2,8 @@
 import { shortTool } from './step-words.js'
 
 const PLAN_STEPS = new Set(['skill_view', 'project_select', 'project_inspect', 'project_inventory', 'project_discover', 'project_refresh', 'toolchain_doctor', 'toolchain_prepare', 'web_search', 'web_extract', 'clarify', 'read_file', 'search_files'])
+// The steps that make or choose the conversation's project (rootOf).
+const PROJECT_STEPS = new Set(['project_create', 'project_create_blank', 'project_select'])
 // Steps that are only a glance: left out of the simple view unless they show a picture.
 export const MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/
 // Always the same groups, in this order: [kind, while it runs, once done, done without a picture].
@@ -91,7 +93,8 @@ export function groupTitle(group, live, made) {
   return live ? words[1] : group.kind === 'art' && !made && words[3] ? words[3] : words[2]
 }
 
-/** The project folder a conversation works in: the game's, or the one its first step created. */
+/** The project folder a conversation works in: the game's, or the one its first project step made or chose (not
+ *  another step's, such as the toolchain check's runtime folder). */
 export function rootOf(game, items) {
   if (game?.projectRoot) {
     return game.projectRoot
@@ -99,7 +102,7 @@ export function rootOf(game, items) {
 
   for (const item of items) {
     for (const tool of item.kind === 'tools' ? item.tools : []) {
-      if (tool.info?.projectRoot) {
+      if (PROJECT_STEPS.has(shortTool(tool.name)) && tool.info?.projectRoot) {
         return tool.info.projectRoot
       }
     }

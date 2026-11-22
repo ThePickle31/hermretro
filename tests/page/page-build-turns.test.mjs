@@ -61,13 +61,18 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
     { role: 'user', text: 'secret', display_kind: 'hidden' }] })
   scenario.assetCalls = []
+  scenario.assetRoots = new Set()
   scenario.byMethod['plugin.hermretro.asset'] = params => {
     scenario.assetCalls.push(params.path)
+    scenario.assetRoots.add(params.root)
+    if (params.path.startsWith('/home/u/games/Lamplight/')) {
+      return { ok: false, code: 'OTHER_GAME', error: 'That image belongs to another game.' }
+    }
     return { ok: true, path: params.path, name: params.path.split('/').pop(), relative: 'assets/sprites/frog.png', kind: 'sprite', width: 32, height: 16, bytes: 90,
       dataUrl: 'data:image/png;base64,iVBORw0KGgo=', sprite: { name: 'Frog', frameWidth: 16, frameHeight: 16, animSpeed: 15 } }
   }
   // What the viewer shows beside a sprite: its animations (from the sidecar) and kept versions.
-  scenario.byMethod['plugin.hermretro.asset_info'] = params => ({ ok: true, path: params.path, relative: 'assets/sprites/frog.png', kind: 'sprite',
+  scenario.byMethod['plugin.hermretro.asset_info'] = params => (scenario.assetRoots.add(params.root), { ok: true, path: params.path, relative: 'assets/sprites/frog.png', kind: 'sprite',
     versions: [{ id: '1', at: 1000, file: params.path, current: true }],
     sprite: { name: 'Frog', id: 'frog', type: 'fixed_movement', flipLeft: false, canvasWidth: 16, canvasHeight: 16, animSpeed: 15, numTiles: 4,
       animations: [{ slot: 0, name: 'Idle', frames: [[{ x: 0, y: 0, sliceX: 0, sliceY: 0 }, { x: 8, y: 0, sliceX: 8, sliceY: 0 }]] }] },
@@ -110,7 +115,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
       callOf('w1', 'chromatic_scene_update'), callOf('w2', 'chromatic_actor_update'),
       callOf('b1', 'chromatic_rom_build'), callOf('b2', 'chromatic_emulator_step'), callOf('r1', 'chromatic_build_report', report14)] },
     ...['p1', 'p2', 'p3', 'p4', 'a1', 'a2', 'a3', 'w1', 'w2', 'b1', 'b2', 'r1'].map((id, index) => ({ role: 'tool', tool_call_id: id, timestamp: 2002 + index })),
-    { role: 'assistant', content: 'Here they are:\n\nMEDIA:/home/u/games/FrogPost/assets/sprites/bird.png\nMEDIA:/home/u/games/FrogPost/cover.png\n\nWant it to flap all the time?', timestamp: 2100 },
+    { role: 'assistant', content: 'Here they are:\n\nMEDIA:/home/u/games/FrogPost/assets/sprites/bird.png\nMEDIA:/home/u/games/FrogPost/cover.png\nMEDIA:/home/u/games/Lamplight/cover.png\n\nWant it to flap all the time?', timestamp: 2100 },
     { role: 'user', content: 'add music', timestamp: 3000 },
     // As the gateway resumes it: the build went through Hermes's tool_call door, and its result row has no name.
     { role: 'assistant', content: '', timestamp: 3001, tool_calls: [callOf('m1', 'tool_call', { calls: [{ name: 'chromatic_rom_build', arguments: {} }] })] },
@@ -133,6 +138,14 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.ok(order.indexOf('cs-b-bc') < order.lastIndexOf('cs-b-agent'), 'card first, then the reply')
     const cards = turn.querySelectorAll('.cs-b-rimgs .cs-b-rchip')
     assert.equal(cards.length, 2)
+  })
+  check('every picture is asked for as Frog Post\u2019s, so the backend can refuse another game\u2019s', () => {
+    assert.deepEqual([...scenario.assetRoots], [lib14[0].projectRoot])
+  })
+  check('another game\u2019s picture in the reply stays an inert line the app does not open', () => {
+    const turn = build14ph.node.querySelectorAll('.cs-b-turn')[0]
+    const inert = [...turn.querySelectorAll('[data-markdown][data-inert]')].map(node => node.textContent)
+    assert.deepEqual(inert, ['MEDIA:/home/u/games/Lamplight/cover.png'])
   })
   await click('Details', build14ph.node.querySelector('.cs-b-bc[data-build="1"]'))
   check('Details lists what was play-tested, not tested and the notes', () => {

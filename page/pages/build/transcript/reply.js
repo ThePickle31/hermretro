@@ -42,13 +42,14 @@ export function replyAssets(items, root) {
 }
 
 /** A picture the reply delivered, as a small card (the reply stays words; the Assets panel and the
- *  viewer show pictures big): a click opens the asset viewer. Anything the backend will not give
- *  (outside the games) stays the app's own MEDIA rendering. */
+ *  viewer show pictures big): a click opens the asset viewer. Another game's picture stays an inert line (the app
+ *  would read the file itself); anything else the backend will not give (outside the games) stays the app's own
+ *  MEDIA rendering. */
 function ReplyImage({ asset, line, onOpen }) {
-  const { state, asset: loaded } = useAsset(asset.path, asset.version)
+  const { state, code, asset: loaded } = useAsset(asset.path, asset.version)
 
   if (state === 'none') {
-    return MessageTextContent ? jsx(MessageTextContent, { text: line }) : null
+    return MessageTextContent ? jsx(MessageTextContent, code === 'OTHER_GAME' ? { media: false, previewOnly: true, text: line } : { text: line }) : null
   }
 
   if (state === 'loading') {

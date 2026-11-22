@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from ..hermes import host
@@ -28,8 +30,11 @@ from .versions import (
     _asset_file,
     _asset_kind,
     _asset_roots,
+    _image_root,
     _image_size,
+    _is_frames,
     _keep_version,
+    _shown_in,
     _version_at,
     _versions,
     _versions_dir,
@@ -41,8 +46,8 @@ logger = host.logger  # one logger for the Hermes side of the backend,
 
 @rpc("asset")
 def rpc_asset(ctx):
-    """One image for the Build page (a thumbnail, the asset viewer): only from a library game's folder
-    or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
+    """One image for the Build page (a thumbnail, the asset viewer): only from the folder of the library game the
+    page shows (``root``, its project folder) or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
     frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply's time, in
     ms) it answers the version the file had then, when it was kept and the file has changed since."""
 
@@ -59,10 +64,11 @@ def rpc_asset(ctx):
             mime = ASSET_SUFFIXES.get(real.suffix.lower())
             if mime is None or not real.is_file():
                 return {"ok": False, "code": "NOT_IMAGE", "error": "Not an image."}
-            roots = _asset_roots()
-            root = next((base for base in roots if real == base or base in real.parents), None)
+            root = _image_root(real)
             if root is None:
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
+            if not _shown_in(root, params.get("root")):
+                return {"ok": False, "code": "OTHER_GAME", "error": "That image belongs to another game."}
             size = real.stat().st_size
             if size > ASSET_MAX_BYTES:
                 limit = size_text(ASSET_MAX_BYTES)
@@ -88,7 +94,7 @@ def rpc_asset(ctx):
             source = earlier or real
             data = source.read_bytes()
             width, height = _image_size(data)
-            relative = real.relative_to(root).as_posix() if root != (host._data_dir() / "frames").resolve() else None
+            relative = None if _is_frames(root) else real.relative_to(root).as_posix()
             answer = {
                 "ok": True,
                 "path": str(real),
@@ -131,18 +137,19 @@ def rpc_asset(ctx):
 
 @rpc("asset_info")
 def rpc_asset_info(ctx):
-    """What the asset viewer shows beside an image: its kind, every kept version, and for a sprite or
+    """What the asset viewer shows beside an image of the game at ``root``: its kind, every kept version, and for a sprite or
     background its animations, the palette the game paints it with, and the scenes that use it (drawn
     by the page as the game would)."""
 
     def asset_info(params, **_kwargs):
         try:
-            found = _asset_file((params or {}).get("path") if isinstance(params, dict) else None)
+            params = params if isinstance(params, dict) else {}
+            found = _asset_file(params.get("path"), params.get("root"))
             if not found:
-                return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
+                return {"ok": False, "code": "OUTSIDE", "error": "Only images in this game are shown here."}
             real, root = found
             _keep_version(real)
-            frames = root == (host._data_dir() / "frames").resolve()
+            frames = _is_frames(root)
             relative = None if frames else real.relative_to(root).as_posix()
             kind = "frame" if frames else _asset_kind(relative)
             answer = {"ok": True, "path": str(real), "relative": relative, "kind": kind, "versions": _versions(real)}
@@ -203,30 +210,36 @@ def rpc_asset_info(ctx):
 
 @rpc("asset_restore")
 def rpc_asset_restore(ctx):
-    """Put a kept version of a game image back in place (the one there now is kept first, so this can
+    """Put a kept version of an image of the game at ``root`` back in place (the one there now is kept first, so this can
     be undone the same way)."""
 
     def asset_restore(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
-            found = _asset_file(params.get("path"))
+            found = _asset_file(params.get("path"), params.get("root"))
             wanted = str(params.get("version") or "")
             if not found or not wanted.isdigit():
                 return {
                     "ok": False,
                     "code": "INVALID",
-                    "error": "Only a kept version of an image in your games can be restored.",
+                    "error": "Only a kept version of an image in this game can be restored.",
                 }
             real, root = found
-            if root == (host._data_dir() / "frames").resolve():
+            if _is_frames(root):
                 return {"ok": False, "code": "INVALID", "error": "Playtest frames are not restored."}
             kept = _versions_dir(real) / f"{wanted}{real.suffix.lower()}"
             if not kept.is_file():
                 return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
             _keep_version(real)
-            partial = real.with_name(f".{real.name}.restore")
-            partial.write_bytes(kept.read_bytes())
-            partial.replace(real)
+            # A new temporary file of its own (never one already there, which could be a link elsewhere).
+            handle, partial = tempfile.mkstemp(dir=real.parent, prefix=f".{real.name}.", suffix=".restore")
+            try:
+                with os.fdopen(handle, "wb") as writer:
+                    writer.write(kept.read_bytes())
+                os.replace(partial, real)
+            except BaseException:
+                Path(partial).unlink(missing_ok=True)
+                raise
             _keep_version(real)
             emit("assets.image_restored", path=str(real))
             return {"ok": True, "path": str(real), "versions": _versions(real)}
@@ -248,8 +261,7 @@ def _list_root(params) -> Path | None:
             wanted = Path(str(params["root"])).expanduser().resolve(strict=True)
         except (OSError, RuntimeError):
             return None
-        frames = (host._data_dir() / "frames").resolve()
-        root = next((base for base in _asset_roots() if base == wanted and base != frames), None)
+        root = next((base for base in _asset_roots() if base == wanted and not _is_frames(base)), None)
     return root
 
 
@@ -282,6 +294,8 @@ def rpc_assets(ctx):
                     }
                 )
             for image, real, kind in project_images(root):
+                if _image_root(real) != root:
+                    continue  # a game inside this one's art folders keeps its own pictures
                 if len(items) >= ASSET_LIST_LIMIT:
                     truncated = True  # a picture is left out; at exactly the cap there is none
                     break

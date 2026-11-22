@@ -5,6 +5,7 @@ import {
   jsx,
   jsxs,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -18,7 +19,7 @@ import { PlayCard } from '#pages/build/player/play-card.js'
 import { AssetViewer } from '#pages/build/viewer/asset-viewer.js'
 import { AGENT } from '#app/ids.js'
 import { playableSha } from '#app/player/stage.js'
-import { rootOf } from './groups.js'
+import { AssetGame } from '#pages/build/assets/cache.js'
 import { TurnMemo } from './turn-view.js'
 import { buildHistory, deriveTurns, turnBuilt } from './turns.js'
 
@@ -43,7 +44,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
 
     return byIndex
   }, [turns])
-  const root = useMemo(() => rootOf(game, items), [game?.projectRoot, items])
+  const root = useContext(AssetGame)
   const scroller = useRef(null)
   const stuck = useRef(true)
   const [behind, setBehind] = useState(false)

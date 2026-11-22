@@ -1,12 +1,13 @@
 // What the asset viewer loads about a file.
-import { useEffect, useState } from '#sdk'
-import { assetEntry } from '#pages/build/assets/cache.js'
+import { useContext, useEffect, useState } from '#sdk'
+import { AssetGame, assetEntry } from '#pages/build/assets/cache.js'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET_INFO } from '#app/rpc.js'
 
 export const VIEWER_KIND = { cover: 'Game cover', sprite: 'Sprite', background: 'Background', ui: 'Interface', frame: 'Playtest frame', capture: 'Capture', image: 'Image' }
 
 export function useAssetInfo(path, refresh) {
+  const root = useContext(AssetGame)
   const [info, setInfo] = useState(null)
 
   useEffect(() => {
@@ -18,20 +19,21 @@ export function useAssetInfo(path, refresh) {
 
     let live = true
 
-    callStudioOnly(RPC_ASSET_INFO, { path }, 20_000)
+    callStudioOnly(RPC_ASSET_INFO, { path, root }, 20_000)
       .then(answer => live && setInfo(answer?.ok ? answer : null))
       .catch(() => live && setInfo(null))
 
     return () => {
       live = false
     }
-  }, [path, refresh])
+  }, [path, root, refresh])
 
   return info
 }
 
 /** Images for several asset paths at once (a scene's background and its actors' sprites). */
 export function useImages(paths, version) {
+  const root = useContext(AssetGame)
   const [images, setImages] = useState({})
   const key = paths.join('\n')
 
@@ -41,7 +43,7 @@ export function useImages(paths, version) {
     setImages({})
 
     for (const path of paths) {
-      void assetEntry(path, version).promise.then(answer => {
+      void assetEntry(path, version, root).promise.then(answer => {
         if (!live || !answer?.dataUrl) {
           return
         }
@@ -56,7 +58,7 @@ export function useImages(paths, version) {
     return () => {
       live = false
     }
-  }, [key, version])
+  }, [key, version, root])
 
   return images
 }

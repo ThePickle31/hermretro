@@ -14,6 +14,8 @@ import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/mode
 import { InlinePlayer } from './player/inline-player.js'
 import { PlayCard } from './player/play-card.js'
 import { BuildStatus } from './transcript/status.js'
+import { rootOf } from './transcript/groups.js'
+import { AssetGame } from './assets/cache.js'
 import { Transcript } from './transcript/transcript.js'
 import { buildHistory, deriveTurns } from './transcript/turns.js'
 import { callStudioOnly, describeRequestError } from '#app/backend.js'
@@ -593,5 +595,6 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           ]
         })
 
-  return jsx('div', { className: 'cs-b', children: main })
+  // The game whose images this page shows (the backend answers no other game's).
+  return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx('div', { className: 'cs-b', children: main }) })
 }

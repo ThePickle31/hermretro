@@ -5,6 +5,7 @@ kept versions."""
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 
@@ -77,19 +78,75 @@ _MEDIA_LINE = re.compile(
 )
 
 
-def _asset_roots() -> list[Path]:
-    roots = [(host._data_dir() / "frames").resolve()]
-    for game in host._registry().library():
-        try:
-            roots.append(Path(game["projectRoot"]).resolve())
-        except (KeyError, OSError, RuntimeError):
-            continue
+def _game_roots() -> list[Path]:
+    """Every library game's project folder, straight from the registry: a game whose details cannot be read right now
+    still owns its files."""
+    roots = []
+    for entry in host._registry().load()["games"].values():
+        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
+            try:
+                roots.append(Path(entry["projectRoot"]).resolve())
+            except (OSError, RuntimeError):
+                continue
     return roots
 
 
-def _asset_file(raw) -> tuple[Path, Path] | None:
-    """The real file and the root it is shown from, for an image inside a library game or the saved
-    frames; None for anything else."""
+def _asset_roots() -> list[Path]:
+    return [_frames_dir(), *_game_roots()]
+
+
+def _frames_dir() -> Path:
+    """The frames Hermes saved from tool results (content-addressed, shared by every game's chat)."""
+    return (host._data_dir() / "frames").resolve()
+
+
+def _same_folder(one, other) -> bool:
+    """Whether two paths name the same existing folder (by identity, so a differently cased spelling on a
+    case-insensitive disk is the same folder)."""
+    try:
+        return os.path.samefile(one, other)
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def _is_frames(root: Path) -> bool:
+    return _same_folder(root, _frames_dir())
+
+
+def _image_root(real: Path) -> Path | None:
+    """The folder an image is shown from, spelled as in ``real``: the saved frames, or the library game that most
+    closely holds it (the deepest, so an image of a game inside another game's folder belongs to the inner game);
+    None for neither. Folders are matched by identity, not spelling."""
+    owners = set()
+    for base in _asset_roots():
+        try:
+            found = base.stat()
+        except OSError:
+            continue
+        owners.add((found.st_dev, found.st_ino))
+    for folder in real.parents:
+        try:
+            found = folder.stat()
+        except OSError:
+            continue
+        if (found.st_dev, found.st_ino) in owners:
+            return folder
+    return None
+
+
+def _shown_in(root: Path, game_root) -> bool:
+    """Whether an image shown from ``root`` belongs on the Build page of the game whose project folder is
+    ``game_root``: a saved frame always does, a game's file only on that game's own page (never on another game's,
+    and never where ``game_root`` is not a library game)."""
+    if _is_frames(root):
+        return True
+    wanted = Path(str(game_root or "")).expanduser()
+    return wanted.is_absolute() and _same_folder(wanted, root)
+
+
+def _asset_file(raw, game_root=None, *, any_game=False) -> tuple[Path, Path] | None:
+    """The real file and the root it is shown from, for an image of the game whose project folder is ``game_root``
+    or a saved frame (``any_game``: an image of any library game); None for anything else."""
     raw = str(raw or "")
     if raw.startswith("file://"):
         raw = raw[len("file://") :]
@@ -103,8 +160,10 @@ def _asset_file(raw) -> tuple[Path, Path] | None:
         return None
     if real.suffix.lower() not in ASSET_SUFFIXES or not real.is_file():
         return None
-    root = next((base for base in _asset_roots() if real == base or base in real.parents), None)
-    return (real, root) if root is not None else None
+    root = _image_root(real)
+    if root is None or not (any_game or _shown_in(root, game_root)):
+        return None
+    return real, root
 
 
 def _versions_dir(real: Path) -> Path:
@@ -157,7 +216,7 @@ def _version_at(real: Path, at_ms) -> Path | None:
 def _keep_paths(values) -> None:
     for value in values:
         if isinstance(value, str) and value:
-            found = _asset_file(value)
+            found = _asset_file(value, any_game=True)
             if found:
                 _keep_version(found[0])
 

@@ -258,7 +258,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat
     setRestoring(true)
 
     try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 20_000)
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 20_000)
 
       if (!answer?.ok) {
         throw new Error(answer?.error ?? 'It could not be restored.')

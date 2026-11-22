@@ -74,15 +74,20 @@ page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes anot
 
 ### `asset` RPC
 
-`{path}` (absolute, or `file://`) → `{ok, path, relative, name, kind, width, height, bytes,
-modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to `versions.ASSET_MAX_BYTES`, only inside a library game's
-folder or the plugin's saved frames (symlinks are resolved first). `sprite = {name, frameWidth,
+`{path, root}` (`path` absolute, or `file://`; `root` the project folder of the game the Build page shows) →
+`{ok, path, relative, name, kind, width, height, bytes, modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up
+to `versions.ASSET_MAX_BYTES`, only from that library game's own folder or the plugin's saved frames (symlinks are
+resolved first; folders are matched by identity, not spelling). An image of another game, including a game inside
+this one's folder (the deepest library folder holding a file owns it, read from the registry's entries), is
+`OTHER_GAME`, and so is every game image when `root` is missing or not a library game; the reply then shows the
+`MEDIA:` line as inert text (`MessageTextContent` with `media: false, previewOnly: true`), so a reply in one game's
+chat never shows another game's files. `sprite = {name, frameWidth,
 frameHeight, animSpeed, canvasWidth, canvasHeight, palette, standing: {tiles, flip}, moving: {frames,
 flip}}` from the `.gbsres` sidecar and the project: GB Studio stores sprites in four placeholder
 greens with `#65ff00` as transparency, so the page paints every sprite thumbnail with `palette` (the
 one its first use in a scene is painted with, else the default sprite palette) and draws the frame
 that use stands in. The project lookup is cached per game until a settings, palette, scene, actor or
-sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE`,
+sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE` (in no game), `OTHER_GAME`,
 `TOO_LARGE`, `MISSING`. With `at` (a reply's time, ms) it answers the version the file had then; with
 `version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
 
@@ -93,7 +98,7 @@ it. So a file rewritten later (cover.png made again) still shows each reply what
 
 ### `asset_info` RPC
 
-`{path}` → `{ok, path, relative, kind, versions}`, `kind` one of `cover` (the game card's cover),
+`{path, root}` (as for `asset`) → `{ok, path, relative, kind, versions}`, `kind` one of `cover` (the game card's cover),
 `sprite`, `background`, `ui`, `frame`, `capture`, `image`; `versions = [{id, at, file, current}]`
 oldest first, exactly one `current`. A sprite adds `sprite = {name, id, type, flipLeft, states,
 canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
@@ -107,15 +112,15 @@ project files; nothing is compiled.
 
 ### `asset_restore` RPC
 
-`{path, version}` → `{ok, path, versions}`: puts a kept version back in place, keeping the one it
-replaces first. Not for saved frames.
+`{path, root, version}` (`path` and `root` as for `asset`) → `{ok, path, versions}`: puts a kept version back in
+place, keeping the one it replaces first. Not for saved frames.
 
 ### `assets` RPC
 
 `{game}` (a library id) or `{root}` (a library game's folder) → `{ok, root, assets, truncated}`, the
 pictures the Build page's @ picker lists: the game card's cover first, then every image under
 `assets/sprites`, `assets/backgrounds`, `assets/ui` and `assets/fonts` (symlinks leaving the game are
-skipped), at most 400. Each is `{path, relative, name, file, kind, modifiedAt, bytes}`; `name` is the
+skipped, and so are a nested game's pictures), at most 400. Each is `{path, relative, name, file, kind, modifiedAt, bytes}`; `name` is the
 sidecar's (`.gbsres`) name when there is one, `kind` one of `cover`, `sprite`, `background`, `ui`.
 No image data: the page loads each through `asset`. Failure: `NO_GAME`.
 
@@ -197,7 +202,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets
   show one frame (a one-row sheet plays in the Latest card, CSS steps only). An image line in a reply
   (`MEDIA:<image>`) is drawn by the page too, at the version the reply delivered. Images come from the
-  `asset` RPC, cached per path and version, four at a time.
+  `asset` RPC, cached per game, path and version, four at a time. The Build page provides its game's project folder
+  (`AssetGame` in `page/pages/build/assets/cache.js`: the game's, else the one the conversation's first step made),
+  and every `asset`, `asset_info` and `asset_restore` call sends it as `root`.
 - **The viewer** (approved mockups A + C + E + F, "remove the suggested prompts"). A click on any
   picture opens one window, picture first: Fit (the biggest whole zoom) / 1–8×, wheel zoom, drag to
   pan, an 8×8 tile grid (8×16 for sprites). The kind picks the views: a cover Image · In game (its

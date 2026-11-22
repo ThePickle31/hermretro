@@ -28,7 +28,8 @@ class AssetVersions(unittest.TestCase):
         self.outside.mkdir()
         _game, self.game = make_library_game(home, "Cat Field")
         self.cover = self.game / "cover.png"
-        self.asset = assets_rpcs.rpc_asset(None)
+        rpc_asset = assets_rpcs.rpc_asset(None)
+        self.asset = lambda params: rpc_asset({"root": str(self.game), **params})  # this game's own Build page
 
     def write(self, data, seconds):
         self.cover.write_bytes(data)
@@ -82,7 +83,7 @@ class AssetVersions(unittest.TestCase):
         self.write(PNG_A, 1000)
         self.shown()
         self.write(PNG_B, 2000)
-        info = assets_rpcs.rpc_asset_info(None)({"path": str(self.cover)})
+        info = assets_rpcs.rpc_asset_info(None)({"root": str(self.game), "path": str(self.cover)})
         self.assertTrue(info["ok"], info)
         self.assertEqual(info["kind"], "cover")
         self.assertEqual([entry["current"] for entry in info["versions"]], [False, True])
@@ -92,7 +93,9 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(answer["versionId"], first)
         self.assertFalse(self.asset({"path": str(self.cover), "version": "../x"})["ok"])
 
-        restored = assets_rpcs.rpc_asset_restore(None)({"path": str(self.cover), "version": first})
+        restored = assets_rpcs.rpc_asset_restore(None)(
+            {"root": str(self.game), "path": str(self.cover), "version": first}
+        )
         self.assertTrue(restored["ok"], restored)
         self.assertEqual(self.cover.read_bytes(), PNG_A)
         self.assertEqual(sum(entry["current"] for entry in restored["versions"]), 1)
@@ -176,7 +179,7 @@ class AssetVersions(unittest.TestCase):
             json.dumps({"name": "Friend", "spriteSheetId": "cat", "x": 3, "y": 4, "direction": "down", "paletteId": ""})
         )
 
-        info = assets_rpcs.rpc_asset_info(None)({"path": str(sprites / "cat.png")})
+        info = assets_rpcs.rpc_asset_info(None)({"root": str(self.game), "path": str(sprites / "cat.png")})
         self.assertTrue(info["ok"], info)
         self.assertEqual(info["kind"], "sprite")
         self.assertEqual([animation["name"] for animation in info["sprite"]["animations"]][4], "Walk right")
@@ -190,7 +193,7 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual((friend["flip"], friend["tiles"][0]["sliceX"]), (False, 0))
         self.assertTrue(info["scenes"][0]["background"].endswith("field.png"))
 
-        background = assets_rpcs.rpc_asset_info(None)({"path": str(backgrounds / "field.png")})
+        background = assets_rpcs.rpc_asset_info(None)({"root": str(self.game), "path": str(backgrounds / "field.png")})
         self.assertEqual((background["kind"], background["usedIn"][0]["scene"]), ("background", "Grassy Field"))
 
         # Thumbnails draw a sprite the way the game does: the asset call carries its palette, the frame
@@ -266,8 +269,8 @@ class AssetRetention(unittest.TestCase):
 
     def setUp(self):
         home = isolated_home(self)
-        _game, game = make_library_game(home, "Cat Field")
-        self.cover = game / "cover.png"
+        _game, self.game = make_library_game(home, "Cat Field")
+        self.cover = self.game / "cover.png"
 
     def rewrite(self, index):
         """Version ``index``: a small PNG of its own and a modification time of ``1000 + index`` seconds."""
@@ -295,7 +298,7 @@ class AssetRetention(unittest.TestCase):
             (newest, newest),
             f"one past the limit: version 0 dropped, 1 to {limit} kept (ASSET_KEEP_VERSIONS must match the docs)",
         )
-        info = assets_rpcs.rpc_asset_info(None)({"path": str(self.cover)})
+        info = assets_rpcs.rpc_asset_info(None)({"root": str(self.game), "path": str(self.cover)})
         self.assertEqual([int(entry["id"]) // 10**9 - 1000 for entry in info["versions"]], newest)  # oldest first
         self.assertEqual([entry["current"] for entry in info["versions"]], [False] * (limit - 1) + [True])
 
