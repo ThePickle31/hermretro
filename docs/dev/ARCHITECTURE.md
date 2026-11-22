@@ -92,8 +92,10 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
 the page's RPCs in every profile; tools, skills, hooks and the prompt section only in the `hermretro` profile. A
-hook several features declare is registered once and calls each in feature order (`declare.chain`). The full list
-of registrations is checked by `tests/backend/hermes/test_registration.py`.
+hook several features declare is registered once and calls each in feature order (`declare.chain`).
+`tests/backend/hermes/test_registration.py` checks what each profile gets and that what Hermes runs is usable
+(callable handlers, each hook once, skills under their folder names, the guide within its limit);
+`tests/repo/test_lockstep.py` checks the manifest names the tools and hooks that register.
 
 How features may connect is checked by `tests/repo/test_boundaries.py`: a module imports the standard library,
 its own feature, the shared layers, and another feature only through its front door's `__all__`;

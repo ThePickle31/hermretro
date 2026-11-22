@@ -16,7 +16,7 @@ A game's images live in `<root>/assets/<kind>/` (`sprites/`, `backgrounds/`, `ui
 ## Kept versions
 
 `versions.py` keeps each version of a game image a reply showed or a step looked at, under the plugin data folder's
-`asset-versions/`, newest `ASSET_KEEP_VERSIONS` (40) per image, images up to `ASSET_MAX_BYTES` (6 MB) only. To count
+`asset-versions/`, newest `ASSET_KEEP_VERSIONS` per image, images up to `ASSET_MAX_BYTES` only. To count
 an image's older versions, use `older_versions(real)` (`real` the resolved path; the current file is not counted);
 `_versions(real)` lists them all, the current one marked.
 

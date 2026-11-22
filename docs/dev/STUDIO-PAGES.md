@@ -118,7 +118,7 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 
 `games[id].session = {storedId, profile, createdAt, aliases}` (aliases: live session ids after
 compression rotates them, noted on each tool call) and `pending[storedId] = {storedId, profile, name,
-plan, createdAt, aliases}` (New Game conversations whose project does not exist yet, newest 50: `games.MAX_PENDING`, checked by `tests/repo/test_lockstep.py`).
+plan, createdAt, aliases}` (New Game conversations whose project does not exist yet; the newest `games.MAX_PENDING` are kept).
 The first project a pending conversation creates is bound to it (`observe` → `claim_pending`);
 selecting an existing game does not claim it. Unknown top-level keys in `games.json` are kept, since
 every hermretro copy shares the file.
@@ -142,7 +142,7 @@ page replaced or freed it first) and `OTHER_PROFILE` (`replace` never takes anot
 ### `asset` RPC
 
 `{path}` (absolute, or `file://`) → `{ok, path, relative, name, kind, width, height, bytes,
-modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to 6 MB, only inside a library game's
+modifiedAt, dataUrl, sprite?}` for PNG, GIF, JPEG or WebP up to `versions.ASSET_MAX_BYTES`, only inside a library game's
 folder or the plugin's saved frames (symlinks are resolved first). `sprite = {name, frameWidth,
 frameHeight, animSpeed, canvasWidth, canvasHeight, palette, standing: {tiles, flip}, moving: {frames,
 flip}}` from the `.gbsres` sidecar and the project: GB Studio stores sprites in four placeholder

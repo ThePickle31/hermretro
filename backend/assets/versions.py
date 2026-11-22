@@ -22,7 +22,7 @@ ASSET_SUFFIXES = {
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
 }
-ASSET_MAX_BYTES = 6 * 1024 * 1024  # the "up to 6 MB" of docs/dev/STUDIO-PAGES.md (tests/repo/test_lockstep.py)
+ASSET_MAX_BYTES = 6 * 1024 * 1024  # the largest image the asset viewer shows
 
 
 def size_text(size: int) -> str:
