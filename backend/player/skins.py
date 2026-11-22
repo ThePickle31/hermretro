@@ -24,20 +24,63 @@ IMAGE_TYPES = (".webp", ".png")
 SKIN_ID = re.compile(r"[a-z0-9-]{1,40}")
 COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
 DEFAULTS = {"edition": "", "background": "#15171c", "ink": "#e6edf3", "order": 100}
+# The engine's own finishes (its view.js ``DEVICE_COLORS``) and the id prefix its stylesheet treats specially.
+ENGINE_VIEW = paths.ENGINE_ROOT / "dist" / "web-annotations" / "view.js"
+ENGINE_PREFIX = "transparent-"
+_engine_cache: dict[tuple, frozenset] = {}
+
+
+def engine_ids() -> frozenset:
+    """The ids of the engine's own finishes: a skin may not take one."""
+    try:
+        info = ENGINE_VIEW.stat()
+    except OSError:
+        return frozenset()
+    key = (info.st_size, info.st_mtime_ns)
+    if key not in _engine_cache:
+        text = ENGINE_VIEW.read_text(encoding="utf-8")
+        block = text[text.find("DEVICE_COLORS = [") : text.find("];", text.find("DEVICE_COLORS = ["))]
+        _engine_cache.clear()
+        _engine_cache[key] = frozenset(re.findall(r'\{ id: "([a-z0-9-]+)"', block))
+    return _engine_cache[key]
+
+
+def _text(value) -> str | None:
+    """A JSON string field as text the player can serve, or None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    return value.strip()
 
 
 def _read(folder: Path) -> dict | None:
     """One skin from its folder, or None (logged) when it cannot be used."""
     skin_id = folder.name
-    if not SKIN_ID.fullmatch(skin_id):
-        logger.warning("hermretro: skin %s skipped: a skin's folder is lower-case letters, digits and dashes", skin_id)
+    problem = (
+        "a skin's folder is lower-case letters, digits and dashes (at most 40)"
+        if not SKIN_ID.fullmatch(skin_id)
+        else "the engine has a finish with that id"
+        if skin_id in engine_ids() or skin_id.startswith(ENGINE_PREFIX)
+        else "a skin is a folder, not a link"
+        if folder.is_symlink()
+        else None
+    )
+    if problem:
+        logger.warning("hermretro: skin %s skipped: %s", skin_id, problem)
         return None
-    image = next((folder / f"skin{kind}" for kind in IMAGE_TYPES if (folder / f"skin{kind}").is_file()), None)
+    files = {kind: folder / f"skin{kind}" for kind in (*IMAGE_TYPES, ".json")}
+    if any(path.is_symlink() for path in files.values()):
+        logger.warning("hermretro: skin %s skipped: its files must be files, not links", skin_id)
+        return None
+    image = next((files[kind] for kind in IMAGE_TYPES if files[kind].is_file()), None)
     if image is None:
         logger.warning("hermretro: skin %s skipped: its folder has no skin.webp or skin.png", skin_id)
         return None
     data = {}
-    if (folder / "skin.json").is_file():
+    if files[".json"].is_file():
         try:
             data = json.loads((folder / "skin.json").read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
@@ -46,8 +89,8 @@ def _read(folder: Path) -> dict | None:
     data = data if isinstance(data, dict) else {}
     skin = {"id": skin_id, "name": skin_id.replace("-", " ").title(), **DEFAULTS, "image": image}
     for key in ("name", "edition"):
-        if isinstance(data.get(key), str) and data[key].strip():
-            skin[key] = data[key].strip()
+        if (text := _text(data.get(key))) is not None:
+            skin[key] = text
     for key in ("background", "ink"):
         if isinstance(data.get(key), str) and COLOUR.fullmatch(data[key]):
             skin[key] = data[key]
@@ -58,6 +101,8 @@ def _read(folder: Path) -> dict | None:
 
 def skins() -> list[dict]:
     """Every usable skin, in order: ``{id, name, edition, background, ink, order, image}``."""
+    if not SKINS_DIR.is_dir():
+        return []
     found = [skin for folder in sorted(SKINS_DIR.iterdir()) if folder.is_dir() and (skin := _read(folder))]
     return sorted(found, key=lambda skin: (skin["order"], skin["id"]))
 
@@ -80,18 +125,11 @@ def page_skins() -> list[dict]:
 
 def signature() -> tuple:
     """What changes when a skin is added, removed or edited (for caches built from them)."""
-    return tuple((str(path), path.stat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
+    return tuple((str(path), path.lstat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
 
 
-def rail_entries(taken: set[str]) -> tuple[str, str]:
-    """The engine's ``DEVICE_COLORS`` lines for the skins whose id the engine does not use itself, and the CSS that
-    puts them first in its colour rail."""
-    listed = []
-    for skin in skins():
-        if skin["id"] in taken:
-            logger.warning("hermretro: skin %s skipped: the engine has a finish with that id", skin["id"])
-        else:
-            listed.append(skin)
+def rail_entries() -> tuple[str, str]:
+    """The engine's ``DEVICE_COLORS`` lines for the skins, and the CSS that puts them first in its colour rail."""
 
     def entry(skin: dict) -> str:
         label = f"{skin['edition']} · {skin['name']}" if skin["edition"] else skin["name"]
@@ -100,6 +138,7 @@ def rail_entries(taken: set[str]) -> tuple[str, str]:
         ]
         return "    {{ id: {}, name: {}, background: {}, ink: {} }},\n".format(*quoted)
 
+    listed = skins()
     lines = "".join(entry(skin) for skin in listed)
     css = "".join(
         f'.codex-game-view .cgv-color[data-device-color="{skin["id"]}"] {{ order: -4; }}\n' for skin in listed

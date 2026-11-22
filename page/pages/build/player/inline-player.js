@@ -92,6 +92,8 @@ export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }
     queryFn: () => callStudio(RPC_PLAYER, { id: game.id }, 30_000),
     enabled: live,
     staleTime: Infinity,
+    // asked again each time the player opens, so its finish menu lists the skins there are now
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: false

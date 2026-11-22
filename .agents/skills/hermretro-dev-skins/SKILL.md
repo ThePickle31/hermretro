@@ -5,13 +5,15 @@ description: Making an emulator skin (a Chromatic device finish) for hermretro's
 
 # Emulator skins
 
-A skin is one folder, `player/skins/<id>/`. The folder's name is the skin's id: lower-case letters, digits and
-dashes, not one of the engine's own finishes (such as `cloud` or `codex`). It holds two files:
+A skin is one folder, `player/skins/<id>/`. The folder's name is the skin's id: up to 40 lower-case letters, digits
+and dashes, not one of the engine's own finishes (the ids in `DEVICE_COLORS` of
+`engine/modretro-chromatic/dist/web-annotations/view.js`, such as `cloud` or `codex`) and not starting with
+`transparent-` (the engine moves those screens). It holds only these files:
 
 - `skin.webp` (or `skin.png`): the handheld, square, **1946×1946**, transparent around the device. The player draws
   the game and its touch controls over it at fixed places, so keep the outline, screen, D-pad, A/B and Select/Start
   exactly where they are in the shipped skins: copy one of their folders (`hermes-white/` repaints easily) and
-  change only the finish.
+  change only the finish. When both are there, `skin.webp` wins: replacing a copied WebP with a PNG, delete the WebP.
 - `skin.json` (optional; every field optional):
 
 ```json

@@ -101,8 +101,7 @@ def patched_view(source: Path) -> bytes:
         return _view_cache[key]
     text = source.read_text()
     if VIEW_ANCHOR in text:
-        taken = set(re.findall(r'^\s*\{ id: "([a-z0-9-]+)"', text[text.index(VIEW_ANCHOR) :], re.M))
-        entries, order = skins.rail_entries(taken)
+        entries, order = skins.rail_entries()
         text = text.replace(VIEW_ANCHOR, VIEW_ANCHOR + entries, 1)
         if RAIL_ANCHOR in text:
             text = text.replace(RAIL_ANCHOR, order + RAIL_ANCHOR, 1)

@@ -85,16 +85,39 @@ class AFolderOfSkins(unittest.TestCase):
             self.assertEqual([skin["id"] for skin in skins.skins()], ["good"])
         self.assertEqual(len(logged.output), 3)
 
-    def test_the_rail_lists_them_first_and_skips_an_engine_id(self):
+    def test_an_engine_finish_id_is_left_out_everywhere(self):
+        self.assertIn("cloud", skins.engine_ids())
         self.add("cloud", {"order": 1})
+        self.add("transparent-sunset", {"order": 1})
         self.add("mine", {"name": "Mine", "edition": "Club", "background": "#112233", "ink": "#ffffff"})
-        with self.assertLogs(skins.logger, "WARNING"):
-            entries, order = skins.rail_entries({"cloud", "codex"})
+        with self.assertLogs(skins.logger, "WARNING") as logged:
+            self.assertEqual([skin["id"] for skin in skins.skins()], ["mine"])
+            self.assertEqual((skins.default_skin(), skins.image_for("cloud")), ("mine", None))
+            entries, order = skins.rail_entries()
+        self.assertTrue(all("the engine has a finish" in line for line in logged.output))
         self.assertEqual(entries, '    { id: "mine", name: "Club · Mine", background: "#112233", ink: "#ffffff" },\n')
         self.assertEqual(order, '.codex-game-view .cgv-color[data-device-color="mine"] { order: -4; }\n')
 
-    def test_no_skins_leaves_the_engine_default(self):
-        self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries(set())), ([], "", ("", "")))
+    def test_links_and_text_the_player_cannot_serve_are_kept_out(self):
+        outside = self.folder.parent / f"{self.folder.name}-outside"
+        outside.mkdir()
+        self.addCleanup(lambda: [path.unlink() for path in outside.iterdir()] and None or outside.rmdir())
+        (outside / "skin.webp").write_bytes(WEBP)
+        (self.folder / "linked").symlink_to(outside)
+        self.add("file-link", None, image=None)
+        (self.folder / "file-link" / "skin.webp").symlink_to(outside / "skin.webp")
+        self.add("odd-name", '{"name": "\\ud800", "edition": "Club"}')
+        with self.assertLogs(skins.logger, "WARNING") as logged:
+            listed = skins.skins()
+        self.assertEqual([skin["id"] for skin in listed], ["odd-name"])
+        self.assertEqual(listed[0]["name"], "Odd Name", "a name that cannot be served falls back to the folder's")
+        self.assertEqual(len(logged.output), 2)
+        skins.rail_entries()[0].encode("utf-8")
+
+    def test_no_skins_or_no_folder_leaves_the_engine_default(self):
+        self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ("", "")))
+        with mock.patch.object(skins, "SKINS_DIR", self.folder / "gone"):
+            self.assertEqual((skins.skins(), skins.signature(), skins.page_skins()), ([], (), []))
 
 
 if __name__ == "__main__":

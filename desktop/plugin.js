@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 5da2bbd0e41df37e4a4d3f94a3e4a137efa883b20d7eb79ebd8d8c36b228996a
- * body: sha256 6c0d517935a78037061f7b51cff004d0287ec11e536b8dfb69a73dc2c3637c67
+ * sources: sha256 59e74003086f58bff0139d3afbc5dd95258e6435d84eea63fcc53ca2fc3a7ff9
+ * body: sha256 c1d197bdc8b03e2774d603508b108886174267f4528d9211a87b6ae39eb51eb5
  */
 // page/sdk.js
 import {
@@ -4849,6 +4849,8 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
     queryFn: () => callStudio(RPC_PLAYER, { id: game.id }, 3e4),
     enabled: live,
     staleTime: Infinity,
+    // asked again each time the player opens, so its finish menu lists the skins there are now
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: false
