@@ -5,6 +5,7 @@ Run alone: python -m unittest tests.backend.library.test_game_isolation
 """
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -87,6 +88,14 @@ class TwoGamesAtOnce(unittest.TestCase):
             )
         )
         self.assertEqual(refused["code"], "ONE_GAME_PER_CONVERSATION")
+
+    def test_binding_links_the_game_to_its_build_conversation(self):
+        self.assertEqual(hermes_host._registry().get(self.a)["chat"]["sessionId"], "chat-a")
+
+    def test_a_link_to_the_games_folder_is_the_same_game(self):
+        link = self.root_b.parent / "sky-link"
+        os.symlink(self.root_b, link)
+        self.assertTrue(self.present({"project": str(link)}, "chat-b")["ok"])
 
 
 if __name__ == "__main__":

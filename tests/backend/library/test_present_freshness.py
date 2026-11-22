@@ -100,6 +100,51 @@ class PresentFreshness(unittest.TestCase):
         hermes_host._registry().upsert(str(self.root), build=build)
         self.assertIn("Fix what the build reported first", self.freshness()[2])
 
+    def export(self, arguments=None):
+        """The broker's record of a successful web_preview open in this game's lane."""
+        games.Registry(paths.library_dir()).observe(
+            "web_preview",
+            arguments or {},
+            {"success": True, "url": "http://e/"},
+            False,
+            lane_root=str(self.root),
+            conversation_id="conv",
+            sessions_seen=[],
+            profile="p",
+        )
+
+    def test_with_its_sources_recorded_only_a_real_source_change_counts(self):
+        (self.root / "assets" / "sprites").mkdir(parents=True)
+        (self.root / "assets" / "sprites" / "cat.png").write_bytes(b"png")
+        self.export()
+        (self.root / "README.md").write_text("rewritten after the build")
+        os.utime(self.root / "assets" / "sprites" / "cat.png")  # touched, same bytes
+        self.assertTrue(self.freshness()[0])
+        (self.root / "assets" / "sprites" / "cat.png").unlink()  # a deletion leaves no newer file behind
+        fresh, why, _next = self.freshness()
+        self.assertFalse(fresh)
+        self.assertIn("changed after the playable copy", why)
+
+    def test_an_export_to_another_folder_says_nothing_about_build_web(self):
+        before = games.Registry(paths.library_dir()).get(games.game_id(self.root)).get("lastWebExport")
+        self.export({"outputPath": str(self.root / "elsewhere")})
+        self.assertEqual(games.Registry(paths.library_dir()).get(games.game_id(self.root)).get("lastWebExport"), before)
+        self.export({"outputPath": "build/web"})
+        self.assertIn("sources", games.Registry(paths.library_dir()).get(games.game_id(self.root))["lastWebExport"])
+
+    def test_a_missing_copy_of_a_current_build_asks_only_for_the_copy(self):
+        shutil.rmtree(self.web)
+        build = {"t": time.time(), "ok": True, "rom": None, "sha256": None, "error": None}
+        hermes_host._registry().upsert(str(self.root), build=build)
+        self.assertIn("chromatic_web_preview", self.freshness()[2])
+        self.assertNotIn("Run chromatic_rom_build", self.freshness()[2])
+
+    def test_the_record_must_name_the_index_the_player_serves(self):
+        manifest = json.loads((self.web / games.WEB_MANIFEST).read_text())
+        manifest["indexPath"] = "other.html"
+        (self.web / games.WEB_MANIFEST).write_text(json.dumps(manifest))
+        self.assertFalse(games.engine_made_export(self.root))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -94,7 +94,8 @@ class ResultTests(unittest.TestCase):
                 False,
             )
         )
-        self.assertEqual(out, {"error": "off", "code": "HARDWARE_DISABLED", "dispatched": False})
+        self.assertEqual((out["error"], out["code"], out["dispatched"]), ("off", "HARDWARE_DISABLED", False))
+        self.assertIn("Nothing ran", out["nextStep"])
 
     def test_unknown_outcome_warns_against_repeating(self):
         out = json.loads(

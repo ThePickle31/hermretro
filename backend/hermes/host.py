@@ -112,6 +112,18 @@ def _deliver(response: dict, name: str):
         )
 
 
+# How many numbered folders a new game tries when other chats keep taking the free one.
+NAME_ATTEMPTS = 5
+
+
+def _destination_taken(response: dict) -> bool:
+    result = response.get("result") if response.get("ok") else None
+    structured = (result or {}).get("structuredContent")
+    return bool(result and result.get("isError") and isinstance(structured, dict)) and (
+        structured.get("code") == "PROJECT_ALREADY_EXISTS"
+    )
+
+
 _STAY_IN_TOOLS = (
     "Do not build, play or edit the game outside the chromatic tools while they are unavailable, and do not "
     "save a workaround as a skill."
@@ -120,8 +132,9 @@ _STAY_IN_TOOLS = (
 
 def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str) -> dict:
     """The answer when another copy of the plugin's broker still runs games: whether one of them is this very
-    chat's (hermretro's folder changed while the chat was working) or another chat's."""
-    own = False
+    chat's (hermretro's folder changed while the chat was working), only other chats', or, when that copy cannot
+    be asked (an older version), unknown."""
+    own = None
     ids = [value for value in (conversation_id, session_id) if value]
     client, _ = try_connect(paths.runtime_dir()) if ids else (None, None)
     if client is not None:
@@ -130,20 +143,30 @@ def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str
                 answer = client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
             except (BrokerUnavailable, ValueError):
                 answer = {}
-        own = bool(answer.get("ok") and answer.get("matched") == "chat" and (answer.get("lane") or {}).get("alive"))
+        if answer.get("ok"):
+            own = answer.get("matched") == "chat" and bool((answer.get("lane") or {}).get("alive"))
     where = f" ({error.plugin_root})" if error.plugin_root else ""
     if own:
         message = (
             f"This chat's game is still open in another copy of hermretro{where}: hermretro's plugin folder changed "
-            "while this chat was working, and that copy keeps the chat's game until it has been idle for about "
-            "half an hour. Nothing was run."
+            "while this chat was working, and that copy keeps the chat's game until it has been idle for a while "
+            "(longer while its player is open). Nothing was run."
         )
         next_step = "Tell the user the game tools are paused for that reason, and stop. " + _STAY_IN_TOOLS
-    else:
+    elif own is False:
         message = str(error) + " Nothing was run."
         next_step = (
             "Tell the user another copy of hermretro is running games in other chats, and try again once those "
             "chats are finished (it stops by itself when they are idle). " + _STAY_IN_TOOLS
+        )
+    else:
+        message = (
+            str(error) + " One of those may be this chat's own game, if hermretro's plugin folder changed while it "
+            "was working. Nothing was run."
+        )
+        next_step = (
+            "Tell the user the game tools are paused until that copy of hermretro has finished its games (it stops "
+            "by itself when they are idle), and stop. " + _STAY_IN_TOOLS
         )
     return {"error": message, "code": "UNAVAILABLE", "dispatched": False, "nextStep": next_step}
 
@@ -166,14 +189,19 @@ def make_tool_handler(ctx, tool: dict):
                 "hardware_enabled": bool(ctx.get_config("hardware_enabled", False)),
                 "live_player": bool(ctx.get_config("live_player", True)),
             }
-            if original in contracts.CREATORS and isinstance(args, dict) and not args.get("destinationPath"):
-                # New games live in the Studio's games folder unless the user asked for another place.
-                paths.games_dir(create=True)
-                args = {**args, "destinationPath": contracts.default_destination(args.get("name"))}
+            args = args if isinstance(args, dict) else {}
+            # New games live in the Studio's games folder unless the user asked for another place.
+            automatic = original in contracts.CREATORS and not args.get("destinationPath")
             with ensure_broker() as client:
-                response = client.call(
-                    owner, original, args if isinstance(args, dict) else {}, origin=origin, policy=policy
-                )
+                for _attempt in range(NAME_ATTEMPTS):
+                    if automatic:
+                        paths.games_dir(create=True)
+                        args = {**args, "destinationPath": contracts.default_destination(args.get("name"))}
+                    response = client.call(owner, original, args, origin=origin, policy=policy)
+                    # Two chats making games of the same name can both pick the same free folder; the
+                    # engine refuses the second, which then takes the next free number.
+                    if not (automatic and _destination_taken(response)):
+                        break
             if conversation_id and session_id and session_id != conversation_id and not origin["delegated"]:
                 try:  # a game's conversation keeps its game when compression rotates the session id
                     _registry().note_alias(_profile_identity(), conversation_id, session_id)

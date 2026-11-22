@@ -18,12 +18,20 @@ from .results import ADAPTER_ERROR_NEXT_STEP
 
 def tool_error(message: str, code: str, next_step: str | None = None) -> str:
     """A tool's failure answer: ``{"ok": false, "error": message, "code": code, "nextStep": ...}`` as JSON.
-    ``nextStep`` tells the agent what to do about it; ``ADAPTER_ERROR`` always gets the same one."""
-    payload = {"ok": False, "error": message, "code": code}
-    next_step = next_step or (ADAPTER_ERROR_NEXT_STEP if code == "ADAPTER_ERROR" else None)
-    if next_step:
-        payload["nextStep"] = next_step
-    return json.dumps(payload)
+    ``nextStep`` tells the agent what to do about it: ``next_step``, else the one its code always has."""
+    next_step = next_step or NEXT_STEPS.get(code) or "Fix what the error says, then call the tool again."
+    return json.dumps({"ok": False, "error": message, "code": code, "nextStep": next_step})
+
+
+# The next step of a failure whose code always means the same thing.
+NEXT_STEPS = {
+    "ADAPTER_ERROR": ADAPTER_ERROR_NEXT_STEP,
+    "INVALID_ARGUMENTS": "Fix the argument the error names and call the tool again.",
+    "PROJECT_NOT_FOUND": "Leave out project to use this chat's game, or pass the absolute folder of an existing "
+    "project.",
+    "NO_PROJECT": "Create or select the game's project first, then call the tool again.",
+    "PARENT_ONLY": "Return what you found to the main conversation; it makes this call.",
+}
 
 
 def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id: str) -> str | None:

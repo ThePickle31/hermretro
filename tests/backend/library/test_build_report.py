@@ -96,7 +96,9 @@ class BuildReport(unittest.TestCase):
         )
 
     def test_the_shared_tool_helpers_answer_the_codes_the_tools_use(self):
-        self.assertEqual(json.loads(tool_args.tool_error("no", "X")), {"ok": False, "error": "no", "code": "X"})
+        answer = json.loads(tool_args.tool_error("no", "X"))
+        self.assertEqual((answer["ok"], answer["error"], answer["code"]), (False, "no", "X"))
+        self.assertTrue(answer["nextStep"])
         self.assertEqual(tool_args.tool_project("t", {}, {}), (str(self.root), None))
         self.assertEqual(tool_args.tool_project("t", {"project": str(self.base)}, {}), (str(self.base), None))
         for bad, code in (("relative", "PROJECT_NOT_FOUND"), ("  ", "INVALID_ARGUMENTS"), (3, "INVALID_ARGUMENTS")):

@@ -51,7 +51,14 @@ def device_cli_handler(args: dict, **_kwargs) -> str:
             return json.dumps(answer)
         return json.dumps(provision.summary())
     except provision.ProvisionError as error:
-        return json.dumps({"error": str(error), "code": error.code, "installed": False})
+        return json.dumps(
+            {
+                "error": str(error),
+                "code": error.code,
+                "installed": False,
+                "nextStep": "Tell the user what it said. Never fetch or unpack ModRetro's CLI another way.",
+            }
+        )
     except Exception as error:  # a handler must never raise
         logger.exception("chromatic_studio_device_cli failed")
         return tool_error(f"hermretro adapter error: {type(error).__name__}: {error}", "ADAPTER_ERROR")

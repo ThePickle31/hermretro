@@ -49,7 +49,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
     """Return a JSON string, or the Hermes multimodal envelope when images are attached."""
     if response.get("denied"):
         denied = response["denied"]
-        return json.dumps({"error": denied["message"], "code": denied["code"], "dispatched": False})
+        return json.dumps(
+            {
+                "error": denied["message"],
+                "code": denied["code"],
+                "dispatched": False,
+                "nextStep": "Nothing ran. Do what the error says; do not repeat the same call unchanged.",
+            }
+        )
     if not response.get("ok"):
         if response.get("dispatched"):
             return json.dumps(
@@ -62,7 +69,13 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
                 }
             )
         return json.dumps(
-            {"error": response.get("error") or "hermretro is unavailable.", "code": "UNAVAILABLE", "dispatched": False}
+            {
+                "error": response.get("error") or "hermretro is unavailable.",
+                "code": "UNAVAILABLE",
+                "dispatched": False,
+                "nextStep": "Nothing ran. Try once more; if it fails again, tell the user what it said. Do not build, "
+                "play or edit the game outside the chromatic tools.",
+            }
         )
 
     result = response["result"]

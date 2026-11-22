@@ -55,6 +55,19 @@ class OtherCopyOfThePlugin(unittest.TestCase):
         self.assertIn("other chats", answer["nextStep"])
         self.assertIn("outside the chromatic tools", answer["nextStep"])
 
+    def test_a_copy_that_cannot_be_asked_leaves_whose_games_open(self):
+        def busy():
+            raise OtherCopyBusy("The previous version of hermretro is still running games.")
+
+        with (
+            mock.patch.object(hermes_host, "ensure_broker", busy),
+            mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, ValueError("old handshake"))),
+        ):
+            handler = hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})
+            answer = json.loads(handler({}, conversation_id="chat-a", session_id="chat-a"))
+        self.assertIn("may be this chat's own game", answer["error"])
+        self.assertIn("stop", answer["nextStep"])
+
     def test_a_broker_that_cannot_start_points_at_setup(self):
         def down():
             raise hermes_host.BrokerUnavailable("Node.js 22 or newer is required but was not found.")
@@ -68,12 +81,38 @@ class FailureAnswers(unittest.TestCase):
     def test_an_unexpected_fault_says_not_to_work_around_it(self):
         answer = json.loads(tool_error("hermretro adapter error: KeyError: 'x'", "ADAPTER_ERROR"))
         self.assertIn("do not retry the same call blindly", answer["nextStep"])
-        self.assertNotIn("nextStep", json.loads(tool_error("project must be a path.", "INVALID_ARGUMENTS")))
+        self.assertIn(
+            "Fix the argument", json.loads(tool_error("project must be a path.", "INVALID_ARGUMENTS"))["nextStep"]
+        )
+        self.assertIn("nextStep", json.loads(tool_error("Something else.", "SOMETHING_NEW")))
 
 
 class NewGameFolders(unittest.TestCase):
     def setUp(self):
         isolated_home(self)
+
+    def test_a_name_another_chat_took_meanwhile_moves_to_the_next_number(self):
+        games = paths.games_dir(create=True)
+
+        def engine(_owner, _tool, args, **_options):
+            if not Path(args["destinationPath"]).name.endswith(" 2"):
+                Path(args["destinationPath"]).mkdir()  # the other chat won this folder first
+                refused = {"code": "PROJECT_ALREADY_EXISTS", "error": "The project destination already exists."}
+                return {"ok": True, "dispatched": True, "result": {"isError": True, "structuredContent": refused}}
+            return {"ok": True, "dispatched": True, "result": {"structuredContent": {"success": True}}}
+
+        client = FakeBrokerClient(engine)
+        ctx = mock.Mock()
+        ctx.get_config = lambda key, default=None: default
+        with (
+            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
+            mock.patch.object(hermes_host, "_attach_images", lambda: False),
+        ):
+            hermes_host.make_tool_handler(ctx, {"name": "project_create_blank"})({"name": "Cat Game"})
+        self.assertEqual(
+            [args["destinationPath"] for _owner, _tool, args in client.calls],
+            [str(games / "Cat Game"), str(games / "Cat Game 2")],
+        )
 
     def test_a_taken_name_gets_the_next_number(self):
         games = paths.games_dir(create=True)
