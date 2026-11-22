@@ -15,7 +15,8 @@ when the agent is ready to present the game after making it, never for the whole
   library game whose chat link is this conversation (`host._chat_project`). It requires a fresh web export
   (`library.export_freshness`: `build/web` exists, is the engine's own (its `.codex-web-build.json` lists the ROM
   and `index.html` with hashes that still match), is not older than the last ROM build — the registry's
-  `lastBuild.t`, else the newest native ROM under `build/` — and no game source changed after it, where the
+  `lastBuild.t`, else the newest native ROM under `build/` — and its sources are unchanged (`lastWebExport.sources`, a
+  content digest; for an older record, no source file newer than the copy), where the
   export's time is the later of its ROM file and `lastWebExport.t`, which the broker records on every successful
   `web_preview` open, because the engine reuses an export whose sources did not change without rewriting its
   files; a failed build after it also counts as stale); otherwise `{ok:false, code:"BUILD_FIRST", error,
