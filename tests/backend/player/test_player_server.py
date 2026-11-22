@@ -21,6 +21,7 @@ from backend.library import games  # noqa: E402 - the repository root goes on sy
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.player import server as player_server  # noqa: E402 - the repository root goes on sys.path first
+from backend.player import skins  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
@@ -123,8 +124,8 @@ class PlayerServer(unittest.TestCase):
         head = html.index("<head>")
         self.assertLess(html.index("document.oai"), html.index('<meta charset'))
         self.assertGreater(html.index("document.oai"), head)
-        # The shim keeps the handheld's finish in memory, under the player's key, Midnight by default.
-        self.assertIn('installStorage(params, "hermes-midnight", "codex-gb-studio:device-color:v1")', html)
+        # The shim keeps the handheld's finish in memory, under the player's key, the first skin by default.
+        self.assertIn(f'installStorage(params, "{skins.default_skin()}", "codex-gb-studio:device-color:v1")', html)
         self.assertNotIn("__COLOR_KEY__", html)
         # The handheld fills the frame: sized by the frame's height (850:1440 device) and capped by its width,
         # instead of the engine's fixed 420 px.
@@ -148,6 +149,9 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(status, 200)
         text = body.decode()
         self.assertLess(text.index('id: "hermes-midnight"'), text.index('id: "codex"'))
+        # first in the colour rail, before the engine's own ordered finishes
+        rule = '.codex-game-view .cgv-color[data-device-color="hermes-midnight"] { order: -4; }'
+        self.assertLess(text.index(rule), text.index('[data-device-color="supply-co"] { order: -2; }'))
         for finish in (
             "Hermes Edition · Midnight",
             "Hermes Edition · Nous Blue",
@@ -289,6 +293,9 @@ class PlayerRpcs(unittest.TestCase):
         self.assertEqual(fetch(answer["url"])[0], 200)
         rom = (self.root / "build/web/rom/test.gbc").read_bytes()
         self.assertEqual(answer["romSha256"], hashlib.sha256(rom).hexdigest())
+        # the device skins for the page's menu (player/skins/), the first the one it starts in
+        self.assertEqual((answer["skin"], answer["skins"]), (skins.default_skin(), skins.page_skins()))
+        self.assertIn({"id": "hermes-blue", "name": "Nous Blue", "swatch": "#0053fd"}, answer["skins"])
 
     def test_player_rpc_explains_a_missing_web_build(self):
         (self.root / "build/web/js/binjgb.wasm").unlink()

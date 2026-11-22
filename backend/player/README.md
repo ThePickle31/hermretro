@@ -1,6 +1,6 @@
 # backend/player
 
-The browser player: ModRetro's real web player served from a loopback server in the gateway process (`server.py`), for the page's emulator and `chromatic_present_game`; game captures and the demo cartridge.
+The browser player: ModRetro's real web player served from a loopback server in the gateway process (`server.py`), for the page's emulator and `chromatic_present_game`; game captures, the demo cartridge and the device skins in `player/skins/` (`skins.py`).
 
 ## What it adds
 
@@ -9,7 +9,7 @@ The browser player: ModRetro's real web player served from a loopback server in 
 
 ## Front door
 
-`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `capture_root`, `list_captures`, `save_capture`, `PlayerError`. Standard library only.
+`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `capture_root`, `list_captures`, `save_capture`, `PlayerError`, `page_skins`, `default_skin`. Standard library only.
 
 ## Tests
 

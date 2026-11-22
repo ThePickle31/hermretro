@@ -3,8 +3,8 @@
  * Source: page/frame/. Rebuild: node tools/bundle/bundle.mjs
  * Inlined first in the player frame page by the player backend (backend/player/); imports nothing.
  * build: esbuild 0.28.2
- * sources: sha256 2bdb93b5a88d28eb23bd6b72f33fc62ff82f4bbb491c22a89440c0f00b82b07b
- * body: sha256 03a4ed96d59e1ee36835b8c2eaa3bbc3327630e792ebcfb8c754b72246cc0be1
+ * sources: sha256 cf9fb790165acc807debfe39e2de1e9c3949cfa7990a6f1194ee0296aea988fb
+ * body: sha256 5a1208987d9d56c979e400de5bda0b341afa059edc498206a8c360527f9af86d
  */
 (() => {
   // page/shared/player/protocol.js
@@ -222,7 +222,6 @@
 
   // page/frame/view.css.js
   var FULL = `
-.codex-game-view .cgv-color[data-device-color^="hermes-"]{order:-4}
 html:not([data-hr-ui=inline]) .codex-game-view .cgv-player,
 html:not([data-hr-ui=inline]) .codex-game-view .cgv-mode-views{width:max(220px,min(calc((100svh - 136px)*850/1440),calc(100vw - 112px)));max-width:none}
 `;

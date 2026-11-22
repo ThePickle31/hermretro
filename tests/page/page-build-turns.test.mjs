@@ -6,9 +6,12 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
+// The player RPC's device skins (player/skins/), as the backend answers them.
+const SKINS = { skins: [{ id: 'hermes-midnight', name: 'Midnight', swatch: '#15171c' }, { id: 'hermes-blue', name: 'Nous Blue', swatch: '#0053fd' }], skin: 'hermes-midnight' }
+
 await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, click, settle, button, typeInto, key, mount, check, answered, installAnswer, complete }) => {
   // Where the Emulator scenarios leave the app: a game loaded in the player.
-  scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
+  scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift', ...SKINS })
   scenario.install = installAnswer({ state: 'idle' })
 
   // The same games, conversations and backend replies as page-build.test.mjs.
@@ -231,7 +234,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   lib14[0] = { ...lib14[0], web: { sha256: 'w1', builtAt: 2100 } } // made by build #1 (it ran from 2000 s)
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   const playerBefore = scenario.player
-  scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post' })
+  scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post', ...SKINS })
   const tabsBefore = scenario.workspaces.length
   const build14p = await mount(page)
   await settle(100)

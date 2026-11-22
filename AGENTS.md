@@ -76,6 +76,7 @@ add to it. Read the one for the work at hand.
 | `hermretro-dev-page` | changing the Hermes Desktop page or the player frame |
 | `hermretro-dev-testing` | writing or running tests, reading CI, the install scanner |
 | `hermretro-dev-debugging` | something is broken: logs, the broker, symptoms, environment variables |
+| `hermretro-dev-skins` | making an emulator skin (a Chromatic device finish) |
 
 Pull requests go into `dev` (`.github/CONTRIBUTING.md`). This guide and the skills change in the same pull request as
 any command or rule they describe.

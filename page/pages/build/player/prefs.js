@@ -1,19 +1,11 @@
-// The inline player's remembered choices: bare screen or Chromatic, scale, device finish, and whether
-// the play-test panel starts open. Kept in the page's storage, the same for every game.
+// The inline player's remembered choices: bare screen or Chromatic, scale, device skin (one of the `player`
+// RPC's `skins`, from player/skins/), and whether the play-test panel starts open. Kept in the page's storage, the same for every game.
 import { useCallback, useState } from '#sdk'
 import { SCALES } from './scale.js'
 
 const KEY = 'inlinePlayer'
 
-/** The Hermes Edition finishes (backend/player/server.py HERMES_COLORS), Midnight first. */
-export const FINISHES = Object.freeze([
-  { id: 'hermes-midnight', name: 'Midnight', swatch: '#15171c' },
-  { id: 'hermes-blue', name: 'Nous Blue', swatch: '#0053fd' },
-  { id: 'hermes-white', name: 'White', swatch: '#f2f5fc' },
-  { id: 'hermes-clear', name: 'Clear Blue', swatch: '#cfdcff' }
-])
-
-const DEFAULTS = { view: 'screen', scale: 'fit', finish: FINISHES[0].id, panel: true }
+const DEFAULTS = { view: 'screen', scale: 'fit', finish: '', panel: true }
 
 function clean(saved) {
   const value = { ...DEFAULTS, ...(saved && typeof saved === 'object' ? saved : {}) }
@@ -21,7 +13,7 @@ function clean(saved) {
   return {
     view: value.view === 'device' ? 'device' : 'screen',
     scale: SCALES.includes(value.scale) ? value.scale : 'fit',
-    finish: FINISHES.some(finish => finish.id === value.finish) ? value.finish : DEFAULTS.finish,
+    finish: /^[a-z0-9-]{1,40}$/.test(String(value.finish)) ? value.finish : DEFAULTS.finish,
     panel: value.panel !== false
   }
 }

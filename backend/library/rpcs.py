@@ -184,6 +184,11 @@ def rpc_game_thumb(ctx):
     return game_thumb
 
 
+def _skins() -> dict:
+    """The device skins for the page's player menu, and the one a player starts in."""
+    return {"skins": player_server.page_skins(), "skin": player_server.default_skin()}
+
+
 @rpc("player")
 def rpc_player(ctx):
     """Open ModRetro's real player for one game, served from this process's loopback server. Without
@@ -201,6 +206,7 @@ def rpc_player(ctx):
                     "romSha256": build["romSha256"],
                     "title": player_server.DEMO["title"],
                     "demo": True,
+                    **_skins(),
                 }
             root = host._game_root(identifier)
             if root is None:
@@ -215,7 +221,13 @@ def rpc_player(ctx):
                 }
             build = player_server.game_build(root)
             server = player_server.get_server(host._game_root)
-            return {"ok": True, "url": server.url(identifier), "romSha256": build["romSha256"], "title": title}
+            return {
+                "ok": True,
+                "url": server.url(identifier),
+                "romSha256": build["romSha256"],
+                "title": title,
+                **_skins(),
+            }
         except player_server.PlayerError as error:
             return {"ok": False, "error": str(error)}
         except Exception as error:

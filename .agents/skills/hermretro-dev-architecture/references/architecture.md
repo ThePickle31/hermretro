@@ -39,7 +39,7 @@ Every folder in the repository.
 | `desktop/` | Generated page bundle (plugin.js) that Hermes Desktop loads |
 | `player/` | The browser player served to the page, its device art and the generated frame script |
 | `player/web/` | ModRetro's web player (vendored) |
-| `player/devices/` | Device art for the player |
+| `player/skins/` | The emulator's device skins, one folder each (`skin.webp`, `skin.json`) (`hermretro-dev-skins`) |
 | `engine/` | The vendored ModRetro engine and its pins |
 | `engine/modretro-chromatic/` | The vendored engine, unchanged outside a deliberate engine update |
 | `engine/pins/` | Per engine version: tool contracts and file manifest |
