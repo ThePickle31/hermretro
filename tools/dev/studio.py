@@ -40,8 +40,6 @@ HEAVY = ("installs", "cache")
 # The only parts of the caller's environment the sandbox's processes get: no keys or tokens, and no display, so
 # nothing they start can open a window.
 KEEP_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "XDG_RUNTIME_DIR", "SHELL")
-# Seconds two readings of one process's start time may differ by (ps rounds a clock that moves).
-START_SLACK = 2
 # What each process's command line contains, checked before it is stopped.
 MARKERS = {"model": "script_model.py", "gateway": "gateway run", "browser": "studio_browser.mjs"}
 
@@ -141,21 +139,29 @@ def create(desktop: Path) -> None:
 # -- processes ----------------------------------------------------------------------------------------------------
 
 
-def epoch(lstart: str) -> float | None:
-    """ps's `lstart` (in the C locale) as seconds since the epoch."""
-    try:
-        return time.mktime(time.strptime(" ".join(lstart.split()), "%a %b %d %H:%M:%S %Y"))
-    except ValueError:
-        return None
+def process(pid: int) -> tuple[str | None, str]:
+    """An exact mark of when ``pid`` started, and its command line now; None and "" when it is gone. Linux: the start
+    tick in /proc (ps's lstart is the clock minus the uptime there, so one process can read a second apart). macOS:
+    ps's lstart in the C locale, which it reads from the process's own start time."""
+    proc = Path(f"/proc/{pid}")
+    if proc.is_dir():
+        try:
+            tick = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
+            command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+        except (OSError, IndexError):
+            return None, ""
+        return f"tick:{tick}", command
+    plain = {**os.environ, "LC_ALL": "C"}
+    row = subprocess.run(
+        ["ps", "-ww", "-o", "lstart=", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, env=plain
+    )
+    fields = row.stdout.split()
+    return (f"lstart:{' '.join(fields[:5])}", " ".join(fields[5:])) if len(fields) > 5 else (None, "")
 
 
-def process(pid: int) -> tuple[float | None, str]:
-    """When ``pid`` started (seconds since the epoch) and its command line now; None and "" when it is gone."""
-    plain = {**os.environ, "LC_ALL": "C"}  # lstart in English on every system
-    started = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, env=plain)
-    command = subprocess.run(["ps", "-ww", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
-    when = epoch(started.stdout)
-    return (when, command.stdout.strip()) if when is not None else (None, "")
+def legacy_started(pid: int) -> str:
+    """ps's lstart as the sandbox recorded it before marks were exact: in the caller's locale, as printed."""
+    return subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
 
 
 def tracked() -> dict:
@@ -166,14 +172,16 @@ def alive(name: str) -> bool:
     """Whether the process the sandbox started as ``name`` still runs: the same pid started at the same time, and
     its command line is still that process's (the `hermes` launcher replaces itself, so only a marker is checked)."""
     entry = tracked().get(name)
-    recorded = entry.get("started") if entry else None
-    if isinstance(recorded, str):  # recorded as ps printed it, before this check allowed for drift
-        recorded = epoch(recorded)
-    if not isinstance(recorded, (int, float)):
+    if not entry or not isinstance(entry.get("started"), str):
         return False
     started, command = process(entry["pid"])
-    # ps derives a start time from the clock minus the uptime, so the same process can read a second apart.
-    return started is not None and abs(started - recorded) <= START_SLACK and MARKERS[name] in command
+    if started is None or MARKERS[name] not in command:
+        return False
+    recorded = entry["started"]
+    # A record from before the marks were exact holds ps's lstart text: compare it the way it was made.
+    return (
+        started == recorded if recorded.startswith(("tick:", "lstart:")) else legacy_started(entry["pid"]) == recorded
+    )
 
 
 def start(name: str, argv: list[str], record: dict | None = None, **extra: str) -> None:
@@ -203,7 +211,8 @@ def stop(name: str) -> None:
                 break
             time.sleep(0.25)
         else:
-            os.killpg(pid, signal.SIGKILL)
+            if alive(name):  # still the same process, not a new one that took its pid
+                os.killpg(pid, signal.SIGKILL)
     entries = tracked()
     entries.pop(name, None)
     if SANDBOX.is_dir():
