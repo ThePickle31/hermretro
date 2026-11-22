@@ -1,0 +1,10 @@
+{
+  "match": "add a morning bell",
+  "steps": [
+    {"say": "A couple of choices first.",
+     "call": [{"tool": "clarify", "args": {"questions": [
+       {"question": "When should the bell ring?", "choices": ["After three minutes (Recommended)", "When every toy is fixed", "Never: endless mode"]},
+       {"question": "What happens when it rings?", "choices": ["The day ends and shows a score (Recommended)", "Customers arrive"]}]}}]},
+    {"say": "Got it."}
+  ]
+}
