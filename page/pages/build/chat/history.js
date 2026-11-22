@@ -86,8 +86,9 @@ export function historyItems(messages, running = false) {
       agentSinceUser = true
 
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        // A deferred call's result row names only the outer tool_call: its one call is <id>:0.
-        const known = inner.id && (tools.get(inner.id) ?? (inner.name === 'tool_call' ? tools.get(`${inner.id}:0`) : null))
+        // A deferred call's result row names only the outer tool_call (or nothing: the gateway's resume leaves the
+        // name out): its one call is <id>:0.
+        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === 'tool_call' ? tools.get(`${inner.id}:0`) : null))
 
         if (known) {
           // The result row's time is when the step finished.

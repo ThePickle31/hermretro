@@ -230,7 +230,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   Steps read in plain words from `STEP_WORDS` ("Creating the project", "Built the game");
   Hermes's `tool_call` wrapper is unwrapped live and in history (Hermes splits a batch into one
   `tool_call` per call, so the inner call keeps the outer id, and its result row names only the outer
-  id); a history result row with `ok: false` or an `error` marks its step failed. Plumbing
+  id, or no tool at all as the gateway resumes it); a result with `ok: false`, `isError`, an `error`, or the engine's `structuredContent.success: false` (a build that ran and stopped; its first error diagnostic is the reason) marks its step failed, live and in history. Plumbing
   (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
   lead the reply, words between steps are notes inside, words after the last step close it. Steps
   keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).

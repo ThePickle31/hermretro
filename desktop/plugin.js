@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a92cca5f7fa3f372a64a2c9c586dc145e5684d53f89c9f7dedcb871c0e215d49
- * body: sha256 d7552adb38e209708e93d02932b6ff3231f39da91659379462e521066584ec83
+ * sources: sha256 713aee75ba5b1c7bc68a82826f9c8f3b91fe2f254a9d26ac6ac69ee1121d4ffa
+ * body: sha256 b04e6d62f451a4680b712da12c96d293072c985aff55f6fb92a4f7bf2b40f5f5
  */
 // page/sdk.js
 import {
@@ -525,7 +525,17 @@ function unwrapCalls(id, name, args) {
 // page/pages/build/chat/steps.js
 function toolFailed(payload) {
   const result = toolResultObject(payload?.result);
-  return Boolean(payload?.error || result?.ok === false || result?.isError === true || result && typeof result.error === "string" && result.error);
+  return Boolean(
+    payload?.error || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
+  );
+}
+function engineError(parsed, content) {
+  if (content.success !== false) {
+    return null;
+  }
+  const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : [];
+  const first = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string") ?? diagnostics.find((item) => typeof item?.message === "string");
+  return first?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
 var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
 function stepArgs(args) {
@@ -552,7 +562,7 @@ function stepInfo(name, result) {
   const text2 = (value) => typeof value === "string" && value ? value : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean).slice(0, 8);
   return {
-    error: text2(parsed.error) ? String(parsed.error).slice(0, 400) : null,
+    error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
@@ -795,7 +805,7 @@ function historyItems(messages, running = false) {
     } else if (message.role === "tool") {
       agentSinceUser = true;
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        const known = inner.id && (tools.get(inner.id) ?? (inner.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
+        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
         if (known) {
           if (at && known.startedAt) {
             known.duration = Math.max(0, (at - known.startedAt) / 1e3);
