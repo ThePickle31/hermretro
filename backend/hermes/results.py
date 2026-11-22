@@ -103,9 +103,10 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
     # Builds open nothing for the user: the agent shows the game with chromatic_present_game when it is
     # ready to try. The engine's own preview address is not offered; the user plays in the Studio emulator.
     present = (
-        "When the game is ready for the user to try (after your own testing), call chromatic_present_game, "
-        "optionally with a short note on what to try; it shows the game in the hermretro emulator beside "
-        "the chat. Do not use desktop_preview or drive_preview for the game. Only if the user says they cannot see "
+        "Playtest it yourself with the chromatic_emulator_* tools. When the game is ready for the user to try, "
+        "fill in its game card with chromatic_game_info (call it with no fields to see what is missing), then "
+        "call chromatic_present_game, optionally with a short note on what to try; it shows the game in the "
+        "hermretro emulator beside the chat. Do not use desktop_preview or drive_preview for the game. Only if the user says they cannot see "
         "the emulator, open studio.playerUrl from chromatic_present_game with desktop_preview (action \"open\"); "
         "without desktop tools, give the user that url. Never press \"Install on Chromatic\" in a player for the "
         "user."

@@ -39,6 +39,7 @@ OLDER_SOULS = frozenset(
     {
         "27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
         "5f6b61c41f1be0c5c691243dbd176dd5ff13da82fdf6be432c37ddde3ac67cb3",
+        "0d723cea8a6bb62e7819d0a371a802a4481895b1c9de751f8e32ff859ce01218",
     }
 )
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"

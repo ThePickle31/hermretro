@@ -30,8 +30,9 @@ PRESENT_TOOL = {
         "changes the user should test; each call loads the newest build there. Nothing opens by itself after a "
         "build. Needs a fresh playable copy (run chromatic_rom_build first) and a complete game card (cover art, "
         "title, tagline, description, genres; set them with chromatic_game_info). Never touches a device. Do not open "
-        "the game with desktop_preview instead; only if the user says they cannot see the emulator, open the "
-        "returned studio.playerUrl with desktop_preview."
+        "the game with desktop_preview instead or reload it with drive_preview; only if the user says they cannot "
+        "see the emulator, open the returned studio.playerUrl with desktop_preview (action \"open\"), and without "
+        "desktop tools give the user that url."
     ),
     "parameters": {
         "type": "object",
@@ -126,32 +127,42 @@ def present_game_handler(args: dict, **kwargs) -> str:
 
 # -- plugin-owned tool: the game card (game.json + cover.png) ------------------------------
 
+COVER_RULES = (
+    f"The cover is pixel art you draw yourself in the game's own palette (see hermretro:pixel-art), never Image "
+    f"Generation and never an unchanged copy of an image under assets/: exactly {game_card.COVER_WIDTH}x"
+    f"{game_card.COVER_HEIGHT}, every pixel opaque, {game_card.MIN_COVER_COLOURS} to {game_card.MAX_COVER_COLOURS} "
+    f"colours, a plain 8-bit or palette PNG (not interlaced) of at most {game_card.MAX_COVER_BYTES // 1024} KB."
+)
+
 GAME_INFO_TOOL = {
     "name": "chromatic_game_info",
     "description": (
         "Read or fill in the game card that the hermretro Games page shows and chromatic_present_game requires: "
         "game.json (title, tagline, description, about, genres, tags, controls) and cover.png at the project root. "
-        "Call it with no fields to see what is missing. The cover must be pixel art you draw yourself: exactly "
-        f"{game_card.COVER_WIDTH}x{game_card.COVER_HEIGHT}, opaque, at most {game_card.MAX_COVER_COLOURS} colours, "
-        "in the game's own palette, never Image Generation (see hermretro:pixel-art); pass the path of its PNG and it is copied "
-        "into the project. A call with any invalid field changes nothing and lists the problems. Never touches "
-        "game sources or a device."
+        "Call it with no fields to see what is missing. Required to present: title, tagline, description, 1 to "
+        f"{game_card.MAX_GENRES} genres and a cover; no placeholder words (TODO, TBD, lorem ipsum, coming soon). "
+        "The cover's rules are on the cover field; pass the path of its PNG and it is copied into the project. A call with any invalid field changes nothing "
+        "and lists the problems. Never touches game sources or a device."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "title": {
                 "type": "string",
+                "minLength": game_card.LIMITS["title"][0],
                 "maxLength": game_card.LIMITS["title"][1],
                 "description": "The game's name as players see it.",
             },
             "tagline": {
                 "type": "string",
+                "minLength": game_card.LIMITS["tagline"][0],
                 "maxLength": game_card.LIMITS["tagline"][1],
-                "description": "One line that sells the game, e.g. 'Walk a tabby through a sunny meadow.'",
+                "description": f"{game_card.LIMITS['tagline'][0]} to {game_card.LIMITS['tagline'][1]} characters: one "
+                "line that sells the game, e.g. 'Walk a tabby through a sunny meadow.'",
             },
             "description": {
                 "type": "string",
+                "minLength": game_card.LIMITS["description"][0],
                 "maxLength": game_card.LIMITS["description"][1],
                 "description": f"{game_card.LIMITS['description'][0]} to "
                 f"{game_card.LIMITS['description'][1]} characters: what the game is "
@@ -164,6 +175,7 @@ GAME_INFO_TOOL = {
             },
             "genres": {
                 "type": "array",
+                "minItems": 1,
                 "maxItems": game_card.MAX_GENRES,
                 "items": {"type": "string", "enum": list(game_card.GENRES)},
                 "description": f"1 to {game_card.MAX_GENRES} genres.",
@@ -183,7 +195,7 @@ GAME_INFO_TOOL = {
             "cover": {
                 "type": "string",
                 "maxLength": 4096,
-                "description": "Path of the cover PNG you drew (absolute, or relative to the project).",
+                "description": "Path of the cover PNG you drew (absolute, or relative to the project). " + COVER_RULES,
             },
             "project": {
                 "type": "string",

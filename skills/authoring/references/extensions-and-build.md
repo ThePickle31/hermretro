@@ -57,7 +57,9 @@ short local `C:` paths. When `GB_STUDIO_MCP_PATH_VISIBILITY=workspace-only` is
 configured, external runtime/toolchain paths are intentionally redacted in MCP
 responses; that does not expand project authorization.
 
-The official upstream CLI documents:
+The official upstream CLI documents the commands below. In hermretro, never run
+them yourself: `chromatic_rom_build` and `chromatic_web_preview` run them, and
+`chromatic_present_game` shows only a playable copy those tools made.
 
 ```text
 gb-studio-cli make:rom path/to/project.gbsproj out/game.gb
