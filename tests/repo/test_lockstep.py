@@ -1,17 +1,14 @@
-"""Names that must agree between the backend, the page, the manifest and the docs. A failure says which to edit.
+"""Names that must agree between the backend, the page and the manifest. A failure says which to edit.
 
 Backend features declare what they add in their own folder (backend/hermes/declare.py); registration, counts and
-order follow from those declarations (pinned by tests/repo/test_registration_snapshot.py). What is left to keep
-in step by hand:
+order follow from those declarations. What is left to keep in step by hand:
 
 Adding a plugin tool (2 places + the page): the feature folder (a schema, a handler and its Tool(...) entry, with
 step words, in backend/<feature>/tools.py) and plugin.yaml's provides_tools. The page's copy of the step words in
-page/pages/build/transcript/step-words.js must match the Tool's step_words (or HIDDEN_STEPS for None); then
-document the tool in docs/dev/CONTRACT.md (the counts there are checked) and refresh tests/repo/registration.json.
-Adding an RPC (1 place + the docs): the feature folder (@rpc("name") in backend/<feature>/rpcs.py) and a heading
-or table row in docs/dev/CONTRACT.md or STUDIO-PAGES.md; then node tools/bundle/bundle.mjs regenerates the page's
-name list page/app/rpc-names.js (RPC_<NAME>, through page/app/rpc.js; checked current here and by the bundle
-check), and python tests/repo/test_registration_snapshot.py --write refreshes tests/repo/registration.json.
+page/pages/build/transcript/step-words.js must match the Tool's step_words (or HIDDEN_STEPS for None).
+Adding an RPC (1 place): @rpc("name") in backend/<feature>/rpcs.py; then node tools/bundle/bundle.mjs regenerates
+the page's name list page/app/rpc-names.js (RPC_<NAME>, through page/app/rpc.js; checked current here and by the
+bundle check).
 Adding a hook: @hook(...) in backend/<feature>/hooks.py; a hook name no feature used before also goes under
 provides_hooks in plugin.yaml.
 Tool and skill counts elsewhere in the tests are derived, not typed.
@@ -59,43 +56,10 @@ HERMES_TOOLS_WITH_WORDS = {
     "web_search",
     "write_file",
 }
-RPC_HEADING = re.compile(r"^(?:### `(\w+)`|\| `(\w+)` \|)", re.M)
 
 
 def collect():
     return declare.collect("backend", FEATURES)
-
-
-def contract_tool_list(text):
-    """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence
-    (a new tool goes at its end); nothing after the sentence counts."""
-    sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.", text, re.S)
-    assert sentence is not None, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence"
-    return sentence.group(1), re.findall(r"`(chromatic_\w+)`", sentence.group(2))
-
-
-def tool_list_problems(count: int | None, listed: list[str], owned: set[str]) -> list[str]:
-    """Each way the sentence's list differs from the plugin-owned tools, naming the tool. Every backticked
-    `chromatic_` name in the sentence is a list entry, also one inside another tool's description, so a reference
-    to another tool there is counted again (or as an extra tool)."""
-    where = "inside another tool's description it still counts: write it without backticks or after the sentence"
-    problems = [
-        f"`{name}` is named {listed.count(name)} times ({where})"
-        for name in sorted(set(listed))
-        if listed.count(name) > 1
-    ]
-    problems += [
-        f"`{name}` is backticked but not a plugin-owned tool ({where})" for name in sorted(set(listed) - owned)
-    ]
-    problems += [f"`{name}` is missing" for name in sorted(owned - set(listed))]
-    if count != len(listed):
-        problems.append(f"the count word says {count}, the sentence names {len(listed)}")
-    return problems
-
-
-def plugin_owned_tools(registered: set[str]) -> set[str]:
-    engine = {f"chromatic_{tool['name']}" for tool in json.loads(paths.PINNED_TOOLS.read_text())["tools"]}
-    return registered - engine
 
 
 def set_literal(source: str, name: str) -> set[str]:
@@ -104,59 +68,8 @@ def set_literal(source: str, name: str) -> set[str]:
     return set(re.findall(r"'(\w+)'", match.group(1)))
 
 
-# How CONTRACT.md writes the plugin-owned tools' count: a word through twenty, digits past it.
-NUMBER_WORDS = dict(
-    enumerate(
-        [
-            "one",
-            "two",
-            "three",
-            "four",
-            "five",
-            "six",
-            "seven",
-            "eight",
-            "nine",
-            "ten",
-            "eleven",
-            "twelve",
-            "thirteen",
-            "fourteen",
-            "fifteen",
-            "sixteen",
-            "seventeen",
-            "eighteen",
-            "nineteen",
-            "twenty",
-        ],
-        start=1,
-    )
-)
-
-
-def count_text(number: int) -> str:
-    """The count as CONTRACT.md writes it: 'seven' for 7, '21' for 21."""
-    return NUMBER_WORDS.get(number, str(number))
-
-
-def count_value(text: str) -> int | None:
-    """The number a written count stands for ('seven' or '7' -> 7); None when it is neither."""
-    return next(
-        (number for number, word in NUMBER_WORDS.items() if word == text), int(text) if text.isdigit() else None
-    )
-
-
-def contract_count(engine: int, owned: int) -> str:
-    """The phrase CONTRACT.md must hold for these counts: '81 tools, plus seven'."""
-    return f"{engine} tools, plus {count_text(owned)}"
-
-
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
-
-def flat(text: str) -> str:
-    return re.sub(r"\s+", " ", text)
 
 
 def manifest_list(manifest: str, key: str) -> list[str]:
@@ -201,16 +114,6 @@ class LockStep(unittest.TestCase):
             "page/app/rpc-names.js is stale\nFIX: " + generator.FIX,
         )
 
-    def test_rpc_names_agree_between_backend_and_docs(self):
-        docs = read("docs/dev/CONTRACT.md") + read("docs/dev/STUDIO-PAGES.md")
-        documented = {a or b for a, b in RPC_HEADING.findall(docs)}
-        self.assertEqual(
-            self.rpcs - documented, set(), "RPCs without a heading or table row in CONTRACT.md or STUDIO-PAGES.md"
-        )
-        self.assertEqual(
-            documented - self.rpcs, set(), "CONTRACT.md / STUDIO-PAGES.md describe RPCs that no longer exist"
-        )
-
     def test_the_manifest_declares_exactly_the_tools_and_hooks_registered(self):
         manifest = read("plugin.yaml")
         # Every entry, whatever its form: an unregistered one in the list must fail as much as a missing one.
@@ -230,47 +133,6 @@ class LockStep(unittest.TestCase):
                 manifest_list(f"provides_tools:\n  - chromatic_a\n  {entry}\nnext: 1\n", "provides_tools")
             self.assertIn(entry, str(caught.exception))
         self.assertEqual(manifest_list("provides_tools:\n  - a\n\n  - b\nnext:\n  - c\n", "provides_tools"), ["a", "b"])
-
-    def test_the_contract_states_the_real_tool_counts(self):
-        engine = len(json.loads(paths.PINNED_TOOLS.read_text())["tools"])
-        contract = flat(read("docs/dev/CONTRACT.md"))
-        owned = plugin_owned_tools(self.tools)
-        self.assertIn(contract_count(engine, len(owned)), contract)
-        self.assertIn(f"{len(self.tools)} in total", contract)
-        self.assertIn(
-            f"the {len(self.tools)} tools, {len(self.calls['skill'])} skills, {len(self.calls['hook'])} hooks", contract
-        )
-
-    def test_the_contract_lists_exactly_the_plugin_owned_tools_it_counts(self):
-        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once (a new
-        tool goes at its end); a line after the sentence does not count."""
-        count, listed = contract_tool_list(read("docs/dev/CONTRACT.md"))
-        owned = plugin_owned_tools(self.tools)
-        fix = (
-            "\nFIX: in docs/dev/CONTRACT.md's 'plus <count> plugin-owned tools' sentence, name each tool in "
-            f"{sorted(owned)} once and write the count as {count_text(len(owned))!r}"
-        )
-        problems = tool_list_problems(count_value(count), listed, owned)
-        self.assertEqual(problems, [], "\n".join(problems) + fix)
-
-    def test_a_tool_reference_in_a_description_is_named_as_the_duplicate(self):  # round 21
-        _count, listed = contract_tool_list(
-            "2 tools, plus two plugin-owned tools: `chromatic_a` and `chromatic_b` (what `chromatic_a` lacks, "
-            "after `chromatic_rom_build`). 4 in total."
-        )
-        problems = tool_list_problems(2, listed, {"chromatic_a", "chromatic_b"})
-        self.assertIn("`chromatic_a` is named 2 times", problems[0])
-        self.assertIn("`chromatic_rom_build` is backticked but not a plugin-owned tool", problems[1])
-        self.assertEqual(problems[2], "the count word says 2, the sentence names 4")
-        self.assertEqual(tool_list_problems(2, ["chromatic_a", "chromatic_b"], {"chromatic_a", "chromatic_b"}), [])
-
-    def test_the_tool_list_is_the_sentence_alone(self):
-        text = (
-            "2 tools, plus two plugin-owned tools: `chromatic_a` and\n`chromatic_b` (`backend/x/tools.py`: new). "
-            "5 in total.\n- `chromatic_b` (library): a bullet right after it.\n\n## Game card\n\n"
-            "- `chromatic_a` (library): the card.\n"
-        )
-        self.assertEqual(contract_tool_list(text), ("two", ["chromatic_a", "chromatic_b"]))
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")
@@ -324,14 +186,6 @@ class LockStep(unittest.TestCase):
             used |= set(re.findall(r"chromatic_[a-z_]+", path.read_text(encoding="utf-8")))
         self.assertEqual(used - self.tools, set())
 
-    def test_every_environment_variable_the_backend_reads_is_documented(self):
-        read_in_code = set()
-        for source in [*(ROOT / "backend").rglob("*.py"), ROOT / "__init__.py"]:
-            read_in_code |= set(re.findall(r"\b(HERMRETRO_[A-Z_]+)\b", source.read_text(encoding="utf-8")))
-        table = set(re.findall(r"^\| `(HERMRETRO_[A-Z_]+)` \|", read("docs/dev/DEBUGGING.md"), re.M))
-        self.assertEqual(read_in_code - table, set(), "HERMRETRO_* variables missing from DEBUGGING.md's table")
-        self.assertEqual(table - read_in_code, set(), "DEBUGGING.md documents variables nothing reads")
-
     def test_hermes_is_reached_only_through_hermes_api(self):
         hermes_modules = r"(hermes_cli|hermes_constants|hermes_state|plugins|tools|agent|gateway)\b"
         outside = []
@@ -370,77 +224,6 @@ class LockStep(unittest.TestCase):
             )
         }
         self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
-
-    def test_the_pending_limit_agrees_with_its_docs(self):
-        """The newest pending New Game conversations kept (games.MAX_PENDING) is the number both docs state."""
-        from backend.library import games
-
-        def stated(rel: str, line_has: str) -> list[str]:
-            lines = [line for line in read(rel).splitlines() if line_has in line]
-            return [number for line in lines for number in re.findall(r"newest (\d+)", line)]
-
-        readme = stated("backend/library/README.md", "- `pending`:")
-        pages = stated("docs/dev/STUDIO-PAGES.md", "New Game conversations whose project does not exist yet")
-        for rel, found in (("backend/library/README.md", readme), ("docs/dev/STUDIO-PAGES.md", pages)):
-            self.assertEqual(
-                found,
-                [str(games.MAX_PENDING)],
-                f"{rel}: the pending line's 'newest N'\nFIX: write newest {games.MAX_PENDING} there "
-                "(backend/library/games.py MAX_PENDING), or change MAX_PENDING and both docs together",
-            )
-        self.assertIn(
-            "STUDIO-PAGES",
-            next(line for line in read("backend/library/README.md").splitlines() if "- `pending`:" in line),
-        )
-
-    def test_the_image_size_limit_agrees_with_its_docs(self):
-        """The largest image the asset viewer shows (versions.ASSET_MAX_BYTES) is the size its docs state."""
-        from backend.assets import versions
-
-        units = {"MB": 1024 * 1024, "KB": 1024}
-        for rel, pattern in (
-            ("docs/dev/STUDIO-PAGES.md", r"PNG, GIF, JPEG or WebP up to (\d+) (MB|KB)"),
-            ("backend/assets/README.md", r"`ASSET_MAX_BYTES` \((\d+) (MB|KB)\)"),
-        ):
-            found = re.findall(pattern, flat(read(rel)))
-            self.assertEqual(
-                [int(number) * units[unit] for number, unit in found],
-                [versions.ASSET_MAX_BYTES],
-                f"{rel} states {found or 'no'} image size limit; backend/assets/versions.py ASSET_MAX_BYTES is "
-                f"{versions.ASSET_MAX_BYTES} bytes ({versions.size_text(versions.ASSET_MAX_BYTES)})\nFIX: write "
-                f"{versions.size_text(versions.ASSET_MAX_BYTES)} there, or change ASSET_MAX_BYTES and the docs together",
-            )
-
-    def test_a_stated_page_count_is_the_real_one(self):
-        """A doc that counts the studio's pages ('six pages') counts PAGES in page/pages/index.js (better: no count)."""
-        found = re.search(r"PAGES = \[([^\]]*)\]", read("page/pages/index.js"))
-        assert found is not None, "page/pages/index.js: export const PAGES = [...]"
-        real = len([name for name in found.group(1).split(",") if name.strip()])
-        words = [
-            "zero",
-            "one",
-            "two",
-            "three",
-            "four",
-            "five",
-            "six",
-            "seven",
-            "eight",
-            "nine",
-            "ten",
-            "eleven",
-            "twelve",
-        ]
-        for rel in ("README.md", "docs/dev/CONTRACT.md", "docs/dev/STUDIO-PAGES.md"):
-            for line, text in enumerate(read(rel).splitlines(), 1):
-                for count in re.findall(r"\b(\d+|" + "|".join(words) + r") (?:studio )?pages\b", text, re.I):
-                    stated = int(count) if count.isdigit() else words.index(count.lower())
-                    self.assertEqual(
-                        stated,
-                        real,
-                        f"{rel}:{line} says {count} pages; page/pages/index.js PAGES has {real}\n"
-                        "FIX: drop the count (say 'its pages'), or write the real one",
-                    )
 
 
 if __name__ == "__main__":

@@ -545,7 +545,7 @@ shares, built in `app/studio-page.js`: `ctx`, `go(id)`, `status`, `viaProfile`, 
 `player`…; `viaProfile` is the profile the shell's own queries go to when it is not the app's, else `null`: key
 a page's own queries on it, as the shell does).
 Add one line to `page/pages/index.js` (import it, and put it in `PAGES` where its nav segment goes), and a
-`README.md` (copy `page/pages/games/README.md`'s sections; `tests/repo/test_readmes.py` fails without one).
+`README.md` (copy `page/pages/games/README.md`'s sections).
 Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`, `events`, `listens`, `slots`,
 `contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
 player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after

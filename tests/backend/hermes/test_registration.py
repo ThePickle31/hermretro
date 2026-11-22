@@ -26,7 +26,7 @@ def load_plugin():
 
 class Recorder:
     """A fake plugin ctx: ``calls`` by kind, and ``order``, every register_* call in order (for the snapshot in
-    tests/repo/test_registration_snapshot.py)."""
+    this module)."""
 
     def __init__(self, profile):
         self.profile_name = profile
@@ -75,8 +75,7 @@ class Registration(unittest.TestCase):
         self.assertEqual(
             len(calls["skill"]), len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
         )
-        # The exact hook list is pinned by tests/repo/test_registration_snapshot.py, and collection (one name,
-        # every callback chained in order) by tests/backend/hermes/test_declare.py.
+        # Collection (one name, every callback chained in order) is tested by tests/backend/hermes/test_declare.py.
         self.assertEqual(calls["section"], ["hermretro.guide"])
         self.assertIn("status", calls["rpc"])
 
