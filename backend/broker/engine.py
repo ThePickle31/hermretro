@@ -50,6 +50,11 @@ class EngineError(RuntimeError):
         self.payload = payload
 
 
+class EngineCancelled(EngineError):
+    """The caller cancelled a request: the engine was told with MCP's ``notifications/cancelled`` and sends no
+    answer for it. The work may still be winding down; the caller waits for that before closing the worker."""
+
+
 def sanitized_environment(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {k: os.environ[k] for k in _PASSTHROUGH if k in os.environ}
     env["GB_STUDIO_LOG_LEVEL"] = "info"
@@ -83,6 +88,7 @@ class EngineProcess:
         self._write_lock = threading.Lock()
         self._seq = 0
         self.stderr_tail: list[str] = []
+        self.output_lines = 0  # every line the worker has written so far: a sign of life during a long tool call
         self.notifications: list[dict] = []
         self.server_info: dict | None = None
         self.capabilities: dict | None = None
@@ -198,6 +204,7 @@ class EngineProcess:
     def _read_stdout(self) -> None:
         assert self._proc and self._proc.stdout
         for line in self._proc.stdout:
+            self.output_lines += 1
             try:
                 message = json.loads(line)
             except json.JSONDecodeError:
@@ -228,6 +235,7 @@ class EngineProcess:
     def _read_stderr(self) -> None:
         assert self._proc and self._proc.stderr
         for line in self._proc.stderr:
+            self.output_lines += 1
             self.stderr_tail.append(line)
             del self.stderr_tail[:-400]
 
@@ -244,7 +252,11 @@ class EngineProcess:
             obj["params"] = params
         self._send(obj)
 
-    def request(self, method: str, params: dict | None = None, timeout: float = 60.0) -> dict:
+    def request(
+        self, method: str, params: dict | None = None, timeout: float = 60.0, cancel: threading.Event | None = None
+    ) -> dict:
+        """One JSON-RPC request. With ``cancel``, setting that event asks the engine to stop through MCP's own
+        cancellation (``notifications/cancelled`` for this request id) and raises EngineCancelled at once."""
         waiter: queue.Queue = queue.Queue(maxsize=1)
         with self._lock:
             self._seq += 1
@@ -255,7 +267,7 @@ class EngineProcess:
             obj["params"] = params
         self._send(obj)
         try:
-            message = waiter.get(timeout=timeout)
+            message = self._wait(waiter, request_id, timeout, cancel)
         except queue.Empty:
             with self._lock:
                 self._pending.pop(request_id, None)
@@ -265,6 +277,28 @@ class EngineProcess:
         if "error" in message:
             raise EngineError(f"{method} failed: {message['error'].get('message')}", message["error"])
         return message["result"]
+
+    def _wait(self, waiter: queue.Queue, request_id: int, timeout: float, cancel: threading.Event | None) -> dict:
+        if cancel is None:
+            return waiter.get(timeout=timeout)
+        deadline = time.monotonic() + timeout
+        while True:
+            if cancel.is_set():
+                with self._lock:
+                    self._pending.pop(request_id, None)
+                reason = getattr(cancel, "reason", None) or "Cancelled by the user."
+                try:
+                    self.notify("notifications/cancelled", {"requestId": request_id, "reason": reason})
+                except (EngineError, OSError) as error:
+                    raise EngineCancelled(f"Cancelled; the engine could not be told ({error})") from error
+                raise EngineCancelled(reason)
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise queue.Empty
+            try:
+                return waiter.get(timeout=min(0.25, left))
+            except queue.Empty:
+                continue
 
     # -- MCP conveniences -------------------------------------------------
     def list_tools(self) -> tuple[list[dict], int]:
@@ -278,9 +312,11 @@ class EngineProcess:
             if not cursor:
                 return tools, pages
 
-    def call_tool(self, name: str, arguments: dict | None = None, timeout: float = 900.0) -> dict:
+    def call_tool(
+        self, name: str, arguments: dict | None = None, timeout: float = 900.0, cancel: threading.Event | None = None
+    ) -> dict:
         """Return the complete raw MCP tool result, unmodified."""
-        return self.request("tools/call", {"name": name, "arguments": arguments or {}}, timeout=timeout)
+        return self.request("tools/call", {"name": name, "arguments": arguments or {}}, timeout=timeout, cancel=cancel)
 
     def __enter__(self) -> EngineProcess:
         self.start()

@@ -1,11 +1,10 @@
 // The install view: what gets downloaded, progress, log and actions.
-import { Button, Codicon, jsx, jsxs } from '#sdk'
+import { jsx, jsxs } from '#sdk'
 import { nodeState } from '#app/backend.js'
 import { formatBytes, shortPath } from '#app/format.js'
 import { Glyph } from '#shared/ui/glyph.js'
-import { AsyncButton } from '#shared/ui/page.js'
-import { Small } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
+import { InstallActions, InstallError, InstallProgress } from './install-actions.js'
 import { useInstaller } from './installer.js'
 
 const ROW_LABEL = { done: 'verified', running: 'installing', failed: 'failed', pending: '' }
@@ -131,115 +130,6 @@ export function InstallFacts({ manifest, status, root }) {
   })
 }
 
-export function InstallProgress({ install, phase, verifying, elsewhere }) {
-  if (phase !== 'running') {
-    return null
-  }
-
-  if (elsewhere && install?.state !== 'running') {
-    return jsx(Working, { children: 'The tools are being installed from a chat. This page moves on when they are verified.' })
-  }
-
-  const fraction = Math.max(0.02, Math.min(1, install?.fraction ?? 0))
-  const downloaded = install?.downloaded_bytes ?? 0
-
-  return jsxs('div', {
-    className: 'cs-col',
-    style: { gap: 8 },
-    children: [
-      jsxs('div', {
-        className: 'cs-row cs-mono',
-        style: { justifyContent: 'space-between', fontSize: 11.5 },
-        children: [
-          jsx('span', { children: verifying ? 'Checking the installed tools…' : `${Math.round(fraction * 100)}%` }),
-          jsx('span', { className: 'cs-faint', children: downloaded > 0 ? `${formatBytes(downloaded)} downloaded` : install?.seeded ? 'Using files already on this computer' : '' })
-        ]
-      }),
-      jsx('div', { className: 'cs-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(fraction * 100), children: jsx('b', { style: { width: `${fraction * 100}%` } }) })
-    ]
-  })
-}
-
-/** The buttons under an install: start, retry, ask Hermes. */
-export function InstallActions({ installer, compact = false }) {
-  const { phase, start, starting, ask, node, unsupported } = installer
-
-  if (unsupported) {
-    return jsxs('div', {
-      className: 'cs-col',
-      style: { gap: 10 },
-      children: [
-        jsx(Small, { tone: 'warn', children: 'This hermretro backend cannot install from the page yet. Update the plugin, or let Hermes do it in a chat.' }),
-        jsx('div', { className: 'cs-actions', children: jsx(AsyncButton, { icon: 'comment-discussion', run: ask, variant: 'default', children: 'Set up in chat' }) })
-      ]
-    })
-  }
-
-  if (!node.ok) {
-    return jsx(Small, {
-      tone: 'warn',
-      children: node.version
-        ? `Found Node.js ${node.version}, which is too old (hermretro needs ${node.required} or newer). Update Hermes, then come back.`
-        : `Node.js was not found. Hermes normally installs it; run "hermes update", restart Hermes, then come back.`
-    })
-  }
-
-  if (phase === 'done' && installer.needsProfile) {
-    return installer.profileWork.state === 'running'
-      ? jsx(Working, { children: 'Creating the hermretro profile…' })
-      : jsx('div', {
-          className: 'cs-actions',
-          children: jsx(Button, { disabled: installer.updating, onClick: installer.makeProfile, size: compact ? 'sm' : 'lg', variant: 'default', children: 'Create the hermretro profile' })
-        })
-  }
-
-  if (phase === 'done' && installer.profileWork.state !== 'failed') {
-    return jsx(Working, { quiet: true, children: 'Tools verified. Waiting for Hermes to start the hermretro profile…' })
-  }
-
-  if (phase === 'review') {
-    return jsx('div', {
-      className: 'cs-actions',
-      children: jsxs(Button, {
-        disabled: starting || installer.updating,
-        onClick: () => void start(),
-        size: compact ? 'sm' : 'lg',
-        variant: 'default',
-        children: [jsx(Codicon, { name: 'cloud-download', size: 14 }), 'Download and install']
-      })
-    })
-  }
-
-  if (phase === 'failed') {
-    return jsxs('div', {
-      className: 'cs-actions',
-      children: [
-        jsxs(Button, {
-          disabled: starting || installer.updating,
-          onClick: () => void start(),
-          size: compact ? 'sm' : 'lg',
-          variant: 'default',
-          children: [jsx(Codicon, { name: 'refresh', size: 14 }), 'Try again']
-        }),
-        jsx(AsyncButton, { icon: 'comment-discussion', run: ask, title: 'Opens a chat with the error in it, not sent', children: 'Ask Hermes to fix it' })
-      ]
-    })
-  }
-
-  return null
-}
-
-export function InstallError({ installer }) {
-  const { failure, phase, profileWork } = installer
-
-  return [
-    phase === 'failed' && failure ? jsx('p', { className: 'cs-error', children: failure }, 'error') : null,
-    profileWork.state === 'failed'
-      ? jsx('p', { className: 'cs-error', children: `The hermretro profile could not be created: ${profileWork.error}` }, 'profile')
-      : null
-  ]
-}
-
 export function profileRowState(installer, profileStep, status) {
   const profile = status.data?.profile
 
@@ -260,8 +150,8 @@ export function profileRowState(installer, profileStep, status) {
 }
 
 /** The toolchain step on the Setup page (repairs after onboarding): the same install, compact. */
-export function InstallPanel({ ctx, status, install, step, profileStep }) {
-  const installer = useInstaller({ ctx, install, status, toolchainDone: step.state === 'done' })
+export function InstallPanel({ ctx, status, install, step, profileStep, doctor }) {
+  const installer = useInstaller({ ctx, doctor, install, status, toolchainDone: step.state === 'done' })
   const data = install.data
 
   return jsxs('div', {

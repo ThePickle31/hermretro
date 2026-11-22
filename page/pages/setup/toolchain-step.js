@@ -88,7 +88,7 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
           })
         : null,
       (step.state === 'todo' || step.state === 'blocked') && install
-        ? jsx(InstallPanel, { ctx, install, profileStep: steps?.find(item => item.id === 'profile'), status, step })
+        ? jsx(InstallPanel, { ctx, doctor, install, profileStep: steps?.find(item => item.id === 'profile'), status, step })
         : null,
       step.state === 'done' || step.state === 'error'
         ? jsx('div', {
