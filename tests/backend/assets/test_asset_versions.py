@@ -2,6 +2,7 @@
 it delivered, and the viewer's ``asset`` call answers that version for a reply's time."""
 
 import base64
+import hashlib
 import os
 import re
 import sys
@@ -18,6 +19,11 @@ from tests.support import isolated_home, make_library_game  # noqa: E402 - the r
 
 PNG_A = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"A" * 20
 PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (160).to_bytes(4, "big") + (144).to_bytes(4, "big") + b"B" * 20
+
+
+def path_digest(real: Path) -> str:
+    """The folder name earlier releases kept an image's versions under: its resolved path alone."""
+    return hashlib.sha256(str(real).encode("utf-8")).hexdigest()[:24]
 
 
 class AssetVersions(unittest.TestCase):
@@ -269,14 +275,21 @@ class AssetVersions(unittest.TestCase):
 
     def test_versions_kept_by_path_alone_move_to_their_game(self):
         self.write(PNG_A, 1000)
-        old = (
-            self.data / "asset-versions" / assets_versions._digest(str(self.cover.resolve()))
-        )  # as earlier releases filed it
+        old = self.data / "asset-versions" / path_digest(self.cover.resolve())
         old.mkdir(parents=True)
         (old / f"{1000 * 10**9}.png").write_bytes(PNG_A)
         self.write(PNG_B, 2000)
         self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
         self.assertFalse(old.exists())
+
+    def test_versions_kept_by_path_alone_never_move_to_a_game_that_no_longer_holds_the_image(self):
+        self.write(PNG_A, 1000)
+        old = self.data / "asset-versions" / path_digest(self.cover.resolve())
+        old.mkdir(parents=True)
+        (old / f"{1000 * 10**9}.png").write_bytes(PNG_A)
+        stale = self.outside.resolve()  # an owner picked a moment ago that holds the image no more
+        self.assertFalse(assets_versions._versions_dir(self.cover.resolve(), stale).exists())
+        self.assertTrue(old.is_dir())
 
     def test_versions_kept_by_path_alone_stay_put_when_two_games_hold_the_image(self):
         pond = self.game / "pond"
@@ -286,7 +299,7 @@ class AssetVersions(unittest.TestCase):
         lily = pond / "lily.png"
         lily.write_bytes(PNG_A)
         os.utime(lily, ns=(1000 * 10**9, 1000 * 10**9))
-        old = self.data / "asset-versions" / assets_versions._digest(str(lily.resolve()))  # Cat Field's or Pond's?
+        old = self.data / "asset-versions" / path_digest(lily.resolve())  # Cat Field's or Pond's?
         old.mkdir(parents=True)
         (old / f"{500 * 10**9}.png").write_bytes(PNG_B)
         answer = assets_rpcs.rpc_asset(None)({"root": str(pond), "path": str(lily), "at": 700 * 1000})

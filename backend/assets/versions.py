@@ -184,15 +184,16 @@ def _versions_dir(real: Path, root: Path) -> Path:
     base = host._data_dir() / "asset-versions"
     folder = base / _digest(f"{root}\0{real}")
     if not folder.exists():
-        _adopt_path_versions(base / _digest(str(real)), folder, real)
+        _adopt_path_versions(base / _digest(str(real)), folder, real, root)
     return folder
 
 
-def _adopt_path_versions(old: Path, folder: Path, real: Path) -> None:
-    """Versions kept by earlier releases were filed by path alone. They move to their game only when exactly one
-    game (or the saved frames) holds the image: with a game inside another's folder, the old ones could be either's."""
+def _adopt_path_versions(old: Path, folder: Path, real: Path, root: Path) -> None:
+    """Versions kept by earlier releases were filed by path alone. They move to ``root`` only when it alone (a game or
+    the saved frames) holds the image: with a game inside another's folder, the old ones could be either's."""
     try:
-        if old.is_dir() and len(_holders(real)) == 1:
+        holders = _holders(real) if old.is_dir() else []
+        if len(holders) == 1 and _same_folder(holders[0], root):
             old.rename(folder)
     except OSError:
         logger.debug("hermretro could not move an image's kept versions", exc_info=True)
