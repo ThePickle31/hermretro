@@ -248,7 +248,7 @@ class ToolsAndPresent(unittest.TestCase):
         refused = self.present()
         self.assertEqual(refused["code"], "GAME_INFO_INCOMPLETE")
         self.assertEqual(refused["missing"], ["tagline", "description", "genres", "cover"])
-        self.assertIn("chromatic_game_info", refused["guidance"])
+        self.assertIn("chromatic_game_info", refused["nextStep"])
         self.assertTrue((self.root / "game.json").is_file(), "the starter card exists for the agent to fill")
         status = self.info({})
         self.assertFalse(status["complete"])
@@ -264,6 +264,8 @@ class ToolsAndPresent(unittest.TestCase):
     def test_a_cover_that_is_just_a_game_background_is_refused(self):
         (self.root / "assets" / "backgrounds").mkdir(parents=True)
         (self.root / "assets" / "backgrounds" / "field.png").write_bytes(COVER)
+        old = time.time() - 900  # part of the game before its build, so the build stays current
+        os.utime(self.root / "assets" / "backgrounds" / "field.png", (old, old))
         answer = self.info({**GOOD, "cover": str(self.root / "assets" / "backgrounds" / "field.png")})
         self.assertEqual(answer["code"], "INVALID_GAME_INFO")
         self.assertIn("unchanged copy of assets/backgrounds/field.png", answer["error"])

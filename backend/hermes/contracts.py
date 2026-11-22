@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 from functools import lru_cache
 
@@ -80,10 +81,16 @@ CREATORS = frozenset({"project_create", "project_create_blank"})
 
 
 def default_destination(name: object) -> str:
-    """``<games folder>/<Name without unsafe characters>`` for a new game called ``name``."""
+    """``<games folder>/<Name without unsafe characters>`` for a new game called ``name``, numbered (``Name 2``,
+    ``Name 3``, …) when that folder is taken: the engine only creates a project in a new folder."""
     text = name if isinstance(name, str) else ""
-    slug = re.sub(r"[^A-Za-z0-9 _.-]+", "", text).strip().strip(".") or "MyGame"
-    return str(paths.games_dir() / slug[:80])
+    slug = (re.sub(r"[^A-Za-z0-9 _.-]+", "", text).strip().strip(".") or "MyGame")[:80]
+    folder = paths.games_dir() / slug
+    number = 2
+    while os.path.lexists(folder):
+        folder = paths.games_dir() / f"{slug} {number}"
+        number += 1
+    return str(folder)
 
 
 def hermes_schema(tool: dict) -> dict:

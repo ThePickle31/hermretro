@@ -118,7 +118,7 @@ Everything is installed in `~/.hermes/hermretro/.cache/`, which plugin updates a
 
 | Result | What it means here |
 | --- | --- |
-| `UNAVAILABLE` | The plugin's background service could not start (often Node.js 22+ is missing). Report the error. |
+| `UNAVAILABLE` | The game tools cannot run right now. Do what its `nextStep` says: when another copy of hermretro is still running games, tell the user and stop; otherwise the background service could not start (often Node.js 22+ is missing), so report the error. Never build, play or edit the game outside the `chromatic_*` tools instead. |
 | `IDENTITY_REQUIRED` | The call came from inside `execute_code`. Call `chromatic_*` tools directly. |
 | `PARENT_ONLY`, `LEASE_REQUIRED` | A delegated subagent can only inspect; setup, project selection, edits, emulator and hardware run in the main conversation. |
 | `PATH_OUTSIDE_PROJECT` | This chat's engine worker is bound to another project folder: use a new chat. |

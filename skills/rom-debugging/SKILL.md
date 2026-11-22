@@ -133,8 +133,8 @@ only.
   successful project `chromatic_rom_build` also refreshes the playable web copy, and the result's `player`
   and `nextStep` report it. If `player.ready` is false, say the playable copy could not be updated and
   why. If `nextStep` says the preview still belongs to an older build, follow it and do not claim the new
-  build is in a player. `chromatic_present_game` returns `BUILD_FIRST` until the copy matches the last
-  successful build.
+  build is in a player. `chromatic_present_game` returns `BUILD_FIRST` until the copy is the engine's own copy of
+  the current build; its `nextStep` says what to do.
 - Playtest the ROM the user will play: the emulator beside the chat loads the web copy
   (`build/web/rom/*.gbc`), a separate compilation that is not byte-identical to the native build. Pass
   its path to `chromatic_emulator_run` when you test right before presenting.

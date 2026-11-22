@@ -9,20 +9,51 @@ resolves the project with ``tool_project`` and then its library game with ``host
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from . import host
+from .results import ADAPTER_ERROR_NEXT_STEP
 
 
-def tool_error(message: str, code: str) -> str:
-    """A tool's failure answer: ``{"ok": false, "error": message, "code": code}`` as JSON."""
-    return json.dumps({"ok": False, "error": message, "code": code})
+def tool_error(message: str, code: str, next_step: str | None = None) -> str:
+    """A tool's failure answer: ``{"ok": false, "error": message, "code": code, "nextStep": ...}`` as JSON.
+    ``nextStep`` tells the agent what to do about it: ``next_step``, else the one its code always has."""
+    next_step = next_step or NEXT_STEPS.get(code) or "Fix what the error says, then call the tool again."
+    return json.dumps({"ok": False, "error": message, "code": code, "nextStep": next_step})
+
+
+# The next step of a failure whose code always means the same thing.
+NEXT_STEPS = {
+    "ADAPTER_ERROR": ADAPTER_ERROR_NEXT_STEP,
+    "INVALID_ARGUMENTS": "Fix the argument the error names and call the tool again.",
+    "PROJECT_NOT_FOUND": "Leave out project to use this chat's game, or pass the absolute folder of an existing "
+    "project.",
+    "NO_PROJECT": "Create or select the game's project first, then call the tool again.",
+    "PARENT_ONLY": "Return what you found to the main conversation; it makes this call.",
+}
+
+
+def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id: str) -> str | None:
+    """The ``ONE_GAME_PER_CONVERSATION`` answer when this chat is a game's Build conversation and ``folder`` is not
+    that game; None when the chat may act on ``folder``."""
+    bound = host._bound_game(conversation_id, session_id)
+    if bound is None or os.path.realpath(folder) == os.path.realpath(bound["projectRoot"]):
+        return None
+    title = bound.get("title") or Path(bound["projectRoot"]).name
+    return tool_error(
+        f"This conversation belongs to the game \"{title}\" ({bound['projectRoot']}), so {tool} cannot act on "
+        f"{folder}. Nothing was changed.",
+        "ONE_GAME_PER_CONVERSATION",
+        f"Leave out project to act on \"{title}\". To work on another game, tell the user to open it on the "
+        "hermretro Build page.",
+    )
 
 
 def tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str | None]:
-    """The project a plugin-owned tool acts on: ``project`` when given, else this chat's. Returns
-    ``(root, None)`` or ``(None, error json)``; the codes are ``INVALID_ARGUMENTS``, ``PROJECT_NOT_FOUND`` and
-    ``NO_PROJECT``."""
+    """The project a plugin-owned tool acts on: ``project`` when given, else this chat's. A game's Build
+    conversation acts on its own game only. Returns ``(root, None)`` or ``(None, error json)``; the codes are
+    ``INVALID_ARGUMENTS``, ``PROJECT_NOT_FOUND``, ``ONE_GAME_PER_CONVERSATION`` and ``NO_PROJECT``."""
     conversation_id = str(kwargs.get("conversation_id") or "")
     session_id = str(kwargs.get("session_id") or "")
     project = args.get("project")
@@ -34,6 +65,9 @@ def tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str |
             return None, tool_error(
                 f"{project} is not an existing project folder (give an absolute path).", "PROJECT_NOT_FOUND"
             )
+        refused = other_game_refusal(tool, candidate, conversation_id, session_id)
+        if refused:
+            return None, refused
         return str(candidate), None
     root = host._chat_project(conversation_id, session_id)
     if not root or not Path(root).is_dir():

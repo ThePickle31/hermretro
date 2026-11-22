@@ -34,6 +34,8 @@ MAX_NOTE_CHARS = 300
 ERROR_CHARS = 240
 # File times of a build and the web export made right after it can differ by a little.
 FRESH_SLACK_SECONDS = 2.0
+# The record the engine writes into each web export it makes (engine/modretro-chromatic/dist/web-build.js).
+WEB_MANIFEST = ".codex-web-build.json"
 
 
 def game_id(root: str | os.PathLike) -> str:
@@ -178,46 +180,123 @@ def web_export_time(root: Path) -> float | None:
         return None
 
 
+def engine_made_export(root: Path) -> bool:
+    """Whether ``build/web`` is the engine's own export, unchanged: its ``.codex-web-build.json`` lists the
+    ROM and ``index.html`` it wrote, with their hashes, and both files still match. A copy assembled or edited
+    by hand has no such record, or one whose hashes no longer match."""
+    web = web_dir(root)
+    manifest = _json(web / WEB_MANIFEST)
+    files = manifest.get("files")
+    rom = web_rom(root)
+    if not isinstance(files, list) or rom is None or manifest.get("indexPath") != "index.html":
+        return False
+    if manifest.get("romPath") != rom.relative_to(web).as_posix():
+        return False
+    hashes = {item.get("path"): item.get("sha256") for item in files if isinstance(item, dict)}
+    for relative in ("index.html", manifest["romPath"]):
+        try:
+            # The bytes as they are now, never a cached digest: a swapped file can keep its size and time.
+            current = hashlib.sha256((web / relative).read_bytes()).hexdigest()
+        except OSError:
+            return False
+        if current != hashes.get(relative):
+            return False
+    return True
+
+
+# What a GB Studio web export is made from (the engine's own source fingerprint covers the same).
+EXPORT_SOURCES = ("project", "assets", "plugins")
+
+
+def source_digest(root: Path) -> str | None:
+    """A digest of what the playable copy is made from: the ``.gbsproj`` and every file under ``project/``,
+    ``assets/`` and ``plugins/``, by path and content. A deleted or renamed file changes it too; the card, the
+    plans and the README do not. None for a project that is not GB Studio's, or past ``MAX_SOURCE_FILES``."""
+    descriptor = project_file(root)
+    if descriptor is None:
+        return None
+    digest = hashlib.sha256(b"hermretro\0export-sources\0v1\0")
+    seen = 0
+    files = [descriptor]
+    for folder in EXPORT_SOURCES:
+        for directory, folders, names in os.walk(root / folder):
+            folders.sort()
+            files += [Path(directory, name) for name in sorted(names)]
+    for path in files:
+        seen += 1
+        if seen > MAX_SOURCE_FILES:
+            return None
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            digest.update(path.relative_to(root).as_posix().encode() + b"\0" + file_sha256(path).encode() + b"\0")
+        except OSError:
+            continue
+    return digest.hexdigest()
+
+
+# What to do about a stale playable copy, by why it is stale.
+_REBUILD = (
+    "Run chromatic_rom_build for this project (with the 'Keep the playable copy current' setting on it also "
+    "makes the playable copy; with it off, call chromatic_web_preview after it), then call "
+    "chromatic_present_game again."
+)
+_REMAKE = (
+    "Call chromatic_web_preview to make the playable copy from the current build, then call chromatic_present_game "
+    "again. If chromatic_web_preview fails, tell the user what it said instead of building again."
+)
+
+
 def export_freshness(
     root: Path, last_build: dict | None = None, last_web_export: dict | None = None
-) -> tuple[bool, str | None]:
-    """Whether the web copy shows the latest build: it exists, and it is not older than the last ROM
-    build. When the library recorded the build, its time counts (the native ROM file otherwise), and
-    the copy's time is the later of its files and the last successful web export the broker recorded
-    (the engine reuses an unchanged export without rewriting it). A failed build after the copy also
-    counts as stale: the user would be shown an older game than the one being worked on."""
+) -> tuple[bool, str | None, str | None]:
+    """Whether the web copy shows the latest build: ``(fresh, why, next step)``. Fresh means it exists, the engine
+    made it (``engine_made_export``), it is not older than the last ROM build, and no game source changed after it.
+    When the library recorded the build, its time counts (the native ROM file otherwise), and the copy's time is
+    the later of its files and the last successful web export the broker recorded (the engine reuses an unchanged
+    export without rewriting it). A failed build after the copy also counts as stale: the user would be shown an
+    older game than the one being worked on."""
+    last = last_build if isinstance(last_build, dict) else None
+    recorded = float(last.get("t") or 0) if last else 0.0
+    newest_rom = _newest_build_rom(root)
+    try:
+        rom_time = newest_rom.stat().st_mtime if newest_rom is not None else None
+    except OSError:
+        rom_time = None
+    # When hermretro's own successful build is the newest ROM, only its playable copy is missing: building the
+    # same thing again would loop, so the copy is made from it. A newer ROM nobody recorded needs a real build.
+    remake = bool(last and last.get("ok")) and recorded + FRESH_SLACK_SECONDS >= (rom_time or 0.0)
+    recover = _REMAKE if remake else _REBUILD
     exported = web_export_time(root)
     if exported is None:
-        return False, (
-            "This game has no playable web copy yet. Build it with chromatic_rom_build first (with the "
-            "'Keep the playable copy current' setting on, the build makes the web copy too; with it off, "
-            "call chromatic_web_preview after the build)."
+        return False, "This game has no playable web copy yet.", recover
+    if not engine_made_export(root):
+        return (
+            False,
+            "The playable copy in build/web was not made by hermretro's build, or was changed after it, so it may "
+            "not be this game as its sources stand.",
+            "Never make, copy or edit files in build/ yourself. " + recover,
         )
     if isinstance(last_web_export, dict) and isinstance(last_web_export.get("t"), (int, float)):
         exported = max(exported, float(last_web_export["t"]))
-    last = last_build if isinstance(last_build, dict) else None
-    recorded = float(last.get("t") or 0) if last else 0.0
-    built = None
-    if not last:
-        newest = _newest_build_rom(root)
-        try:
-            built = newest.stat().st_mtime if newest is not None else None
-        except OSError:
-            built = None
+    built = None if last else rom_time  # a recorded build's time counts, else the newest ROM file's
     if last and last.get("ok") is False and recorded > exported + FRESH_SLACK_SECONDS:
-        return False, (
-            "The last chromatic_rom_build of this game failed, so the playable copy is an older build. "
-            "Fix the build, run chromatic_rom_build again, then present the game."
+        return (
+            False,
+            "The last chromatic_rom_build of this game failed, so the playable copy is an older build.",
+            "Fix what the build reported first. " + _REBUILD,
         )
     latest = max([moment for moment in (built, recorded if last and last.get("ok") else None) if moment] or [0.0])
     if latest > exported + FRESH_SLACK_SECONDS:
-        return False, (
-            "The playable web copy is older than the last ROM build. Run chromatic_rom_build again "
-            "(it refreshes the web copy; with the 'Keep the playable copy current' setting off, call "
-            "chromatic_web_preview after it), "
-            "then present the game."
-        )
-    return True, None
+        return False, "The playable web copy is older than the last ROM build.", recover
+    recorded_sources = last_web_export.get("sources") if isinstance(last_web_export, dict) else None
+    if isinstance(recorded_sources, str):
+        changed = source_digest(root) != recorded_sources
+    else:  # an export recorded before the library kept its sources' digest
+        changed = sources_newer_than(root, exported)
+    if changed:
+        return False, "Game files changed after the playable copy was made, so it is not the current game.", _REBUILD
+    return True, None, None
 
 
 def sources_newer_than(root: Path, moment: float) -> bool:
@@ -260,6 +339,25 @@ def _session_matches(binding, profile: str | None, wanted: set) -> bool:
         return False
     known = {binding["storedId"], *(alias for alias in binding.get("aliases") or [] if isinstance(alias, str))}
     return bool(known & wanted)
+
+
+def _takes_chat(entry: dict, chat: dict) -> bool:
+    """Whether ``chat`` may become the game's chat link. A game with a Build conversation keeps that one: another
+    chat that touches it (with the user's go-ahead) must never become the chat that finds this game later."""
+    session = entry.get("session")
+    if not isinstance(session, dict):
+        return True
+    return _session_matches(session, chat.get("profile"), {chat.get("conversationId"), chat.get("sessionId")})
+
+
+def _chat_follows_session(entry: dict) -> None:
+    """A game just given its Build conversation links to it, unless its chat link already names that conversation
+    (the shelf and the player open the linked chat)."""
+    session = entry["session"]
+    chat = entry.get("chat")
+    if not isinstance(chat, dict) or not _takes_chat(entry, chat):
+        stored = session["storedId"]
+        entry["chat"] = {"conversationId": stored, "sessionId": stored, "profile": session.get("profile")}
 
 
 def public_session(binding) -> dict | None:
@@ -318,6 +416,7 @@ class Registry:
         chat: dict | None = None,
         build: dict | None = None,
         web_export: float | None = None,
+        sources: str | None = None,
         only_if_missing: bool = False,
     ) -> dict | None:
         real = Path(os.path.realpath(root))
@@ -338,12 +437,12 @@ class Registry:
                 entry["kind"] = project_kind(real)
             except OSError:
                 entry.setdefault("title", real.name)
-            if chat:
+            if chat and _takes_chat(entry, chat):
                 entry["chat"] = chat
             if build is not None:
                 entry["lastBuild"] = build
             if web_export is not None:
-                entry["lastWebExport"] = {"t": web_export}
+                entry["lastWebExport"] = {"t": web_export, **({"sources": sources} if sources else {})}
             data["games"][identifier] = entry
             self._save(data)
             return entry
@@ -368,7 +467,7 @@ class Registry:
                 entry["kind"] = project_kind(real)
             except OSError:
                 entry.setdefault("title", real.name)
-            if chat:
+            if chat and _takes_chat(entry, chat):
                 entry["chat"] = chat
             entry["presented"] = {"t": now, "note": note}
             data["games"][identifier] = entry
@@ -492,6 +591,7 @@ class Registry:
             elif replace is not None:
                 raise BindingError("STALE", "This game no longer has the conversation being replaced.")
             entry["session"] = {"storedId": stored, "profile": profile, "createdAt": time.time(), "aliases": []}
+            _chat_follows_session(entry)
             data["pending"].pop(stored, None)
             self._save(data)
             return entry
@@ -530,6 +630,7 @@ class Registry:
                 "createdAt": time.time(),
                 "aliases": [],
             }
+            _chat_follows_session(entry)
             data["pending"].pop(record["storedId"], None)
             self._save(data)
             return entry
@@ -635,8 +736,12 @@ class Registry:
             return self.upsert(root, chat=chat, build=build)
         if tool == "web_preview" and not failed and lane_root and arguments.get("action") in (None, "open"):
             # The engine reuses an export whose sources did not change without rewriting its files, so
-            # a successful open is what proves the web copy matches the latest build, not file times.
-            return self.upsert(lane_root, chat=chat, web_export=time.time())
+            # a successful open is what proves the web copy matches the latest build, not file times. Only the
+            # game's own build/web counts: an export to another folder says nothing about it.
+            output = arguments.get("outputPath")
+            if output and os.path.realpath(Path(lane_root, output)) != os.path.realpath(web_dir(Path(lane_root))):
+                return None
+            return self.upsert(lane_root, chat=chat, web_export=time.time(), sources=source_digest(Path(lane_root)))
         return None
 
     # -- what the page sees ---------------------------------------------------------

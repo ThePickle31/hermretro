@@ -379,7 +379,7 @@ class GamesRpc(unittest.TestCase):
             payload = self.present()
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["code"], "BUILD_FIRST")
-            self.assertIn("chromatic_rom_build", payload["error"] + payload["guidance"])
+            self.assertIn("chromatic_rom_build", payload["error"] + payload["nextStep"])
             self.assertIsNone(games.Registry(paths.library_dir()).get(games.game_id(root)))
             self.assertEqual(library_rpcs.rpc_presentations(self.ctx)({})["presentations"], [])
 
@@ -389,7 +389,7 @@ class GamesRpc(unittest.TestCase):
         with mock.patch.object(hermes_host, "try_connect", connect_bare):
             payload = self.present()
         self.assertEqual(payload["code"], "BUILD_FIRST")
-        self.assertIn("chromatic_rom_build", payload["error"])
+        self.assertIn("chromatic_rom_build", payload["error"] + payload["nextStep"])
 
     def test_a_failed_build_after_the_web_copy_makes_it_stale(self):
         root = make_project(self.base)
@@ -399,7 +399,9 @@ class GamesRpc(unittest.TestCase):
         registry.upsert(
             str(root), build={"t": time.time() - 1000, "ok": True, "rom": None, "sha256": None, "error": None}
         )
-        self.assertEqual(games.export_freshness(root, registry.get(games.game_id(root))["lastBuild"]), (True, None))
+        self.assertEqual(
+            games.export_freshness(root, registry.get(games.game_id(root))["lastBuild"]), (True, None, None)
+        )
 
     def test_an_unchanged_export_the_engine_reused_still_counts_as_fresh(self):
         # Seen for real: a rebuild without source changes rewrites build/*.gb but the engine reuses the
@@ -433,7 +435,7 @@ class GamesRpc(unittest.TestCase):
         )
         entry = registry.get(games.game_id(root))
         self.assertIn("lastWebExport", entry)
-        self.assertEqual(games.export_freshness(root, entry["lastBuild"], entry["lastWebExport"]), (True, None))
+        self.assertEqual(games.export_freshness(root, entry["lastBuild"], entry["lastWebExport"]), (True, None, None))
         seen, connect = self.lane_client(root)
         with mock.patch.object(hermes_host, "try_connect", connect):
             self.assertTrue(self.present()["ok"])

@@ -15,8 +15,8 @@ from pathlib import Path
 from backend.library import tool_args
 
 LIBRARY = Path(__file__).resolve().parents[3] / "backend" / "library"
-# A code is the second argument of tool_error, or a "code": "..." value.
-CODE = re.compile(r'"code": "([A-Z_]+)"|tool_error\((?:[^()]|\([^()]*\))*?,\s*"([A-Z_]+)"\s*,?\s*\)', re.S)
+# A code is the second argument of tool_error (a next step may follow it), or a "code": "..." value.
+CODE = re.compile(r'"code": "([A-Z_]+)"|tool_error\((?:[^()]|\([^()]*\))*?,\s*"([A-Z_]+)"\s*[,)]', re.S)
 
 
 def tool_modules(folder: Path) -> list[Path]:

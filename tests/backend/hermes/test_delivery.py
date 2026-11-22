@@ -52,7 +52,7 @@ class Delivery(unittest.TestCase):
         with mock.patch.object(results, "encode", side_effect=self.broken):
             payload = self.deliver()
         self.assertEqual((payload["code"], payload["dispatched"]), ("RESULT_NOT_DELIVERED", True))
-        self.assertIn("do not simply repeat it", payload["guidance"])
+        self.assertIn("do not simply repeat it", payload["nextStep"])
 
 
 class StalePlayer(unittest.TestCase):

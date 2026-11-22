@@ -14,6 +14,13 @@ import json
 from pathlib import Path
 
 
+# What an agent does about an unexpected failure inside the plugin, whichever tool it came from.
+ADAPTER_ERROR_NEXT_STEP = (
+    "This is a fault in hermretro, not in the game. Tell the user what failed; do not retry the same call blindly, "
+    "and do not work around it outside the chromatic tools."
+)
+
+
 def save_images(result: dict, directory: Path) -> list[dict]:
     """Store each image block content-addressed and return its record (with the original base64)."""
     records = []
@@ -42,7 +49,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
     """Return a JSON string, or the Hermes multimodal envelope when images are attached."""
     if response.get("denied"):
         denied = response["denied"]
-        return json.dumps({"error": denied["message"], "code": denied["code"], "dispatched": False})
+        return json.dumps(
+            {
+                "error": denied["message"],
+                "code": denied["code"],
+                "dispatched": False,
+                "nextStep": "Nothing ran. Do what the error says; do not repeat the same call unchanged.",
+            }
+        )
     if not response.get("ok"):
         if response.get("dispatched"):
             return json.dumps(
@@ -50,12 +64,18 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
                     "error": response.get("error") or "The engine did not answer.",
                     "code": "OUTCOME_UNKNOWN",
                     "dispatched": True,
-                    "guidance": "The operation may have run. Inspect current state before deciding what to do; "
+                    "nextStep": "The operation may have run. Inspect current state before deciding what to do; "
                     "do not simply repeat it.",
                 }
             )
         return json.dumps(
-            {"error": response.get("error") or "hermretro is unavailable.", "code": "UNAVAILABLE", "dispatched": False}
+            {
+                "error": response.get("error") or "hermretro is unavailable.",
+                "code": "UNAVAILABLE",
+                "dispatched": False,
+                "nextStep": "Nothing ran. Try once more; if it fails again, tell the user what it said. Do not build, "
+                "play or edit the game outside the chromatic tools.",
+            }
         )
 
     result = response["result"]

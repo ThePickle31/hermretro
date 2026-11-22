@@ -18,6 +18,16 @@ class BrokerUnavailable(RuntimeError):
     pass
 
 
+class OtherCopyBusy(BrokerUnavailable):
+    """The running broker belongs to another copy of the plugin (another folder, or an older version that
+    cannot say which), and it still has live game workers, so it is neither used nor replaced.
+    ``plugin_root`` is that copy's folder when it said."""
+
+    def __init__(self, message: str, plugin_root: str | None = None):
+        super().__init__(message)
+        self.plugin_root = plugin_root
+
+
 class BrokerClient:
     def __init__(self, state_dir: Path, token: str | None = None):
         self.state_dir = Path(state_dir)
@@ -221,7 +231,7 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
         client, last = try_connect(state_dir, retire_broken=True)
         if isinstance(last, BrokenBroker):
             if not last.stopping:
-                raise BrokerUnavailable(
+                raise OtherCopyBusy(
                     "The previous version of hermretro is still running games. Finish or close those chats "
                     "(it stops by itself once they are idle), then try again."
                 )
@@ -249,9 +259,10 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
                     # A second copy of the plugin (another profile's install) has its own engine and
                     # dependency folders; its broker must not serve this copy's conversations.
                     client.close()
-                    raise BrokerUnavailable(
-                        "Another copy of hermretro (" + str(client.hello.get("plugin_root")) + ") is "
-                        "running games right now. Finish or close those chats, then try again."
+                    raise OtherCopyBusy(
+                        "Another copy of hermretro (" + str(theirs) + ") is running games right now. Finish or "
+                        "close those chats, then try again.",
+                        theirs,
                     )
                 return client
             client.close()

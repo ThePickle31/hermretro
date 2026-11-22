@@ -9,6 +9,7 @@ which ``HERMRETRO_HOME`` alone does not move. ``throwaway_profile`` patches only
 Import these as ``from tests.support import ...``: putting tests/ itself on sys.path makes tests/backend shadow
 the real backend package (tests/repo/test_test_imports.py refuses it)."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -176,6 +177,17 @@ def add_images(root: Path, count: int, folder: str = "sprites", prefix: str = "i
     return images
 
 
+def write_web_manifest(web_dir: Path, rom: str = "rom/game.gbc") -> None:
+    """The record the engine writes into a web export it made (``.codex-web-build.json``): the ROM and
+    ``index.html`` with their current hashes, so ``games.engine_made_export`` takes the folder as the engine's."""
+    files = [
+        {"path": relative, "sha256": hashlib.sha256((web_dir / relative).read_bytes()).hexdigest()}
+        for relative in ("index.html", rom)
+    ]
+    manifest = {"version": 1, "builder": "gb-studio-cli", "indexPath": "index.html", "romPath": rom, "files": files}
+    (web_dir / ".codex-web-build.json").write_text(json.dumps(manifest))
+
+
 def make_project(base: Path, name="Space Game", web=True, built=True, card=True) -> Path:
     root = base / name.lower().replace(" ", "-")
     (root / "project").mkdir(parents=True)
@@ -192,6 +204,7 @@ def make_project(base: Path, name="Space Game", web=True, built=True, card=True)
         (web_dir / "js" / "binjgb.wasm").write_bytes(b"\0asm-test")
         (web_dir / "index.html").write_text("<html><head></head><body></body></html>")
         (web_dir / "gbstudio.json").write_text(json.dumps({"rom": "rom/game.gbc", "project": {"name": name}}))
+        write_web_manifest(web_dir)
     if card:
         complete_card(root)
     old = time.time() - 600
