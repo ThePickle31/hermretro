@@ -73,10 +73,12 @@ export function assetEntry(path, version, root) {
   return entry
 }
 
-/** Forget the cached look of a file (it was put back), so every picture of it on screen fetches it again. */
-export function forgetAsset(path) {
-  for (const key of [...assetCache.keys()]) {
-    if (key.startsWith(`${path}#`)) {
+/** Forget the cached look of a file (it was put back), so every picture of it on screen fetches it again: by each
+ *  path given (the one asked for, the backend's resolved one) and by the file a loaded entry turned out to be, so
+ *  another spelling of the same path is forgotten too. */
+export function forgetAsset(...paths) {
+  for (const [key, entry] of [...assetCache]) {
+    if (paths.some(path => key.startsWith(`${path}#`) || entry.value?.path === path)) {
       assetCache.delete(key)
     }
   }

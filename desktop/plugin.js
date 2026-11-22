@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a70958a9cb472c526b5e3183c553fa79585727a94c32f741f83d5830ffe9a786
- * body: sha256 91bcddfc4e5844f54ecb4feeab9068984afce4f4337df9fe176e6849a18af055
+ * sources: sha256 73ed31048e5c57ffeff673d7d7ba33cafd510eedf8c8281d836e5b129731c2de
+ * body: sha256 f7b86b7cb2ef607c30b5f78cc2aec5871a9b76a5078a37b3011345a17cfc870c
  */
 // page/sdk.js
 import {
@@ -1396,9 +1396,9 @@ function assetEntry(path, version, root) {
   }
   return entry;
 }
-function forgetAsset(path) {
-  for (const key of [...assetCache.keys()]) {
-    if (key.startsWith(`${path}#`)) {
+function forgetAsset(...paths) {
+  for (const [key, entry] of [...assetCache]) {
+    if (paths.some((path) => key.startsWith(`${path}#`) || entry.value?.path === path)) {
       assetCache.delete(key);
     }
   }
@@ -6164,7 +6164,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root,
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be restored.");
       }
-      forgetAsset(path);
+      forgetAsset(path, answer.path);
       host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
       setRefresh((value) => value + 1);
     } catch (error) {
@@ -6524,7 +6524,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be put back.");
       }
-      forgetAsset(path);
+      forgetAsset(path, answer.path);
       setState("undone");
     } catch (error) {
       setState(null);

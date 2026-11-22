@@ -206,7 +206,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   `asset` RPC, cached per game, path and version, four at a time. The Build page provides its game's project folder
   (`AssetGame` in `page/pages/build/assets/cache.js`: the game's, else the one the conversation's first step made),
   and every `asset`, `asset_info` and `asset_restore` call sends it as `root`. A file put back (the viewer's Restore,
-  a build card's Undo) goes through `forgetAsset(path)`: every picture of it on screen loads it again.
+  a build card's Undo) goes through `forgetAsset(path, answer.path)`: every picture of that file on screen loads it
+  again, whichever spelling of its path it asked for.
 - **The viewer** (approved mockups A + C + E + F, "remove the suggested prompts"). A click on any
   picture opens one window, picture first: Fit (the biggest whole zoom) / 1–8×, wheel zoom, drag to
   pan, an 8×8 tile grid (8×16 for sprites). The kind picks the views: a cover Image · In game (its

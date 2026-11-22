@@ -264,7 +264,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat
         throw new Error(answer?.error ?? 'It could not be restored.')
       }
 
-      forgetAsset(path)
+      forgetAsset(path, answer.path)
       host.notify({ kind: 'success', message: `v${shownNumber} is back in the game. Build again to play it.` })
       setRefresh(value => value + 1)
     } catch (error) {
