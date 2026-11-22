@@ -89,19 +89,15 @@ def rail_entries(taken: set[str]) -> tuple[str, str]:
             logger.warning("hermretro: skin %s skipped: the engine has a finish with that id", skin["id"])
         else:
             listed.append(skin)
-    lines = "".join(
-        "    { id: %s, name: %s, background: %s, ink: %s },\n"
-        % tuple(
-            json.dumps(value, ensure_ascii=False)
-            for value in (
-                skin["id"],
-                f"{skin['edition']} · {skin['name']}" if skin["edition"] else skin["name"],
-                skin["background"],
-                skin["ink"],
-            )
-        )
-        for skin in listed
-    )
+
+    def entry(skin: dict) -> str:
+        label = f"{skin['edition']} · {skin['name']}" if skin["edition"] else skin["name"]
+        quoted = [
+            json.dumps(value, ensure_ascii=False) for value in (skin["id"], label, skin["background"], skin["ink"])
+        ]
+        return "    {{ id: {}, name: {}, background: {}, ink: {} }},\n".format(*quoted)
+
+    lines = "".join(entry(skin) for skin in listed)
     css = "".join(
         f'.codex-game-view .cgv-color[data-device-color="{skin["id"]}"] {{ order: -4; }}\n' for skin in listed
     )
