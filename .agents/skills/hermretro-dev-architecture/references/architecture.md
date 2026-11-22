@@ -36,6 +36,7 @@ Every folder in the repository.
 | `page/pages/` | One folder per page, its tabs and areas inside |
 | `page/shared/` | UI parts, styles, art and player helpers every page uses (imports no app/ or pages/) |
 | `page/frame/` | The script injected into the emulator frame |
+| `page/backgrounds/` | What pages draw behind them, one folder each (`hermretro-dev-backgrounds`) |
 | `desktop/` | Generated page bundle (plugin.js) that Hermes Desktop loads |
 | `player/` | The browser player served to the page, its device art and the generated frame script |
 | `player/web/` | ModRetro's web player (vendored) |

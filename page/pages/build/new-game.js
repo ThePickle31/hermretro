@@ -14,7 +14,7 @@ const NEW_GAME_MODES = [
 let focusedSeq = 0
 
 /** New Game: one centred composer (the Build page's own) and two choices under it, each saying what it does.
- *  No name field: the agent names the project when it creates it. The attract-mode level (attract/) plays behind
+ *  No name field: the agent names the project when it creates it. The platformer background (page/backgrounds/) plays behind
  *  it and takes no part in the form. The idea and the choice are a kept draft (new-game-draft.js): onboarding's
  *  first idea arrives here unsent, and leaving the page keeps what was typed. `onStart` answers true once the
  *  conversation has the idea; only then is the draft cleared. */

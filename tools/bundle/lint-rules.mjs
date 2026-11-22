@@ -10,14 +10,16 @@
  *             another page only through its front door '#pages/<b>/index.js'
  *   pages/index.js  the registry: only './<page>/index.js'
  *   frame/    the player frame script: only frame/ and #shared/ (no React, SDK, shell or pages)
+ *   backgrounds/<b>  a background: its own folder and #shared/ (pages choose one by id, app/background.js)
+ *   backgrounds/index.js  their registry: only './<background>/index.js'; only app/ imports it
  *   index.js  the entry: sdk.js and app/ (pages start through their descriptors, never directly)
  */
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 // app/ modules that are the shell itself: pages never import them (they would import every page back).
-const SHELL = new Set(['studio-page.js', 'nav.js', 'not-running.js', 'registry.js', 'page-view.js', 'shell.css.js'])
-const ALIAS = { '#sdk': 'page/sdk.js', '#app/': 'page/app/', '#pages/': 'page/pages/', '#shared/': 'page/shared/', '#frame/': 'page/frame/' }
+const SHELL = new Set(['studio-page.js', 'nav.js', 'not-running.js', 'registry.js', 'page-view.js', 'shell.css.js', 'background-layer.js'])
+const ALIAS = { '#sdk': 'page/sdk.js', '#app/': 'page/app/', '#pages/': 'page/pages/', '#shared/': 'page/shared/', '#frame/': 'page/frame/', '#backgrounds/': 'page/backgrounds/' }
 
 /** The repository path an import of `spec` from `file` (both repository-relative) points at, or null. */
 function target(file, spec) {
@@ -40,6 +42,14 @@ function zone(file) {
 
   if (file === 'page/pages/index.js') {
     return { layer: 'registry' }
+  }
+
+  if (file === 'page/backgrounds/index.js') {
+    return { layer: 'backgroundRegistry' }
+  }
+
+  if (parts[1] === 'backgrounds') {
+    return { layer: 'background', background: parts[2] }
   }
 
   return parts[1] === 'pages' ? { layer: 'page', page: parts[2] } : { layer: parts[1] }
@@ -71,7 +81,9 @@ const why = {
   app: 'the shell reaches pages only through the registry, so adding a page never touches app/',
   frame: 'frame/ runs inside the player frame as a classic script, without React, the SDK, the shell or the pages',
   entry: 'the entry starts pages through their descriptors (register, listens), run by startPages in app/registry.js',
-  registryOnly: 'the registry is one line per page and nothing else'
+  registryOnly: 'the registry is one line per page and nothing else',
+  background: 'a background is one folder that draws behind a page; it stands alone, so any page can show it and it can be moved or removed freely',
+  backgroundPick: 'pages choose a background by its id (app/background.js), so a page never depends on how one is drawn'
 }
 
 /** The problem with importing `spec` from `file`, or null: { message, fix? } */
@@ -84,6 +96,20 @@ function problem(file, spec, root, node) {
 
   const from = zone(file)
   const dest = zone(to)
+
+  if ((dest.layer === 'background' || dest.layer === 'backgroundRegistry') && from.layer !== 'background' && from.layer !== 'backgroundRegistry') {
+    if (!(from.layer === 'app' && to === 'page/backgrounds/index.js' && spec === '#backgrounds/index.js')) {
+      return { message: `imports '${spec}': ${why.backgroundPick}. Fix: render jsx(Background, { id }) from '#app/background.js'.` }
+    }
+  }
+
+  if (from.layer === 'background' && !((dest.layer === 'background' && dest.background === from.background) || dest.layer === 'shared')) {
+    return { message: `imports '${spec}': ${why.background}. Fix: import only from this background's folder and #shared/.` }
+  }
+
+  if (from.layer === 'backgroundRegistry' && !(dest.layer === 'background' && to === `page/backgrounds/${dest.background}/index.js` && spec === `./${dest.background}/index.js`)) {
+    return { message: `imports '${spec}': page/backgrounds/index.js is one line per background. Fix: import only './<background>/index.js' here.` }
+  }
 
   if (from.layer === 'page') {
     if (dest.layer === 'registry') {

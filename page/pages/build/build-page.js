@@ -25,7 +25,7 @@ import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
 import { BuildPromptCard } from './transcript/questions.js'
 import { BuildNewGame } from './new-game.js'
-import { AttractLevel } from './attract/index.js'
+import { Background } from '#app/background.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
 
@@ -554,7 +554,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       ? jsxs('div', {
           className: 'cs-b-chat cs-b-attract',
           children: [
-            jsx(AttractLevel, {}, 'level'),
+            jsx(Background, { id: 'platformer' }, 'level'),
             header,
             jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, 'new'),
             jsx(CartShelf, { entries, onAll: view => setSwitcherRequest(current => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, 'shelf')

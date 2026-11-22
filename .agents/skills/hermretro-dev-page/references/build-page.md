@@ -180,7 +180,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   "About <path>:" like any attachment); the user's bubble shows it as `@name`.
 - **New Game** keeps its two choices over a game the page draws behind them: the Nous Girl plays a
   Game Boy Color style level by herself, behind the frosted message box and choices, which take no
-  part in it (`page/pages/build/attract/`, described in the Build page's README).
+  part in it (the `platformer` background, `page/backgrounds/`, described in its README).
   Under the form, the games being worked on (those with a Build conversation, and New Game chats
   still being set up) stand as cartridges on the level's floor: waiting for an answer first, then the
   newest; each opens its chat, and a last "+N · All games" tile opens the games menu

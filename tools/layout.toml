@@ -10,6 +10,7 @@
 "backend/*/README.md" = "Each backend feature: what it does, adds and exposes, where its tests are"
 "page/app/README.md" = "The page shell and page-wide plumbing"
 "page/shared/README.md" = "What every page shares"
+"page/backgrounds/README.md" = "The backgrounds pages draw behind them"
 "page/pages/*/README.md" = "Each page: what it shows, tabs, events, slots, tests"
 ".github/CONTRIBUTING.md" = "For people opening pull requests"
 ".github/SECURITY.md" = "Reporting a security problem; known advisories"

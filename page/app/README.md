@@ -6,7 +6,8 @@ across pages (`player/`), the not-running and repair notices, the footer (`studi
 the nav, the routing (the remembered page) and the stylesheet from the registry: `page/pages/index.js` lists
 the pages, `registry.js` checks each page's descriptor, declares their events and slots and starts them.
 
-**Hubs other pages use:** `events.js` (`on`, `emit`), `slots.js` (`Slot`), `style.js` (`PageStyle`).
+**Hubs other pages use:** `events.js` (`on`, `emit`), `slots.js` (`Slot`), `style.js` (`PageStyle`), `background.js`
+(`Background`: a background behind the page, drawn by the shell's `background-layer.js`).
 **Plumbing:** `backend.js` (RPC queries), `rpc.js` (RPC names, re-exported from the generated `rpc-names.js`; never edit that one), `routing.js`
 (the hermretro profile), `chat-insert.js` and `prompt-block.js` (prompts into chats),
 `ids.js`, `tools.js` (agent tool names), `game-prompts.js`, `format.js`, `paths.js`. `update/`: updating hermretro
@@ -20,7 +21,7 @@ from the page (the header chip and popover, the update steps, the state pages re
 
 **Boundaries** (`tools/bundle/lint-rules.mjs`): app/ imports `#sdk`, `#shared/`, its own files and, of the
 pages, only `#pages/index.js`. Pages may use the plumbing and hubs, never the shell modules (`studio-page.js`,
-`nav.js`, `not-running.js`, `registry.js`, `page-view.js`, `shell.css.js`).
+`nav.js`, `not-running.js`, `registry.js`, `page-view.js`, `shell.css.js`, `background-layer.js`).
 
 **Tests:** `tests/page/registry.test.mjs` (registry, events, slots, tabs, stylesheet order); `tests/page/page-update.test.mjs`
 (the update chip and its steps), `tests/page/page-update-busy.test.mjs` (no update while a game is being built),

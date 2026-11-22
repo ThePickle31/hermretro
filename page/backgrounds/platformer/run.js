@@ -1,8 +1,9 @@
-// Running the attract level inside the New Game area: building the world for the area's size, the fixed 60 Hz
-// loop, following the theme and rebuilding when the area changes size. The page in front plays no part in the
-// level; the one thing read from it is where the ground must stay flat (`data-at-flat`: the New Game shelf), and
-// the level tells the page where its ground is (`--cs-at-ground`, px from the bottom). Plain DOM code with the browser functions passed in (`env`), so tests drive it with a fake
-// world and a fake clock.
+// Running the platformer in the page area (`host`): building the world for the area's size, the fixed 60 Hz loop,
+// following the theme and rebuilding when the area changes size (the same size keeps the world going, so a page
+// switch or a return to the page does not restart it). The page in front plays no part in the level; the one thing
+// read from it is where the ground must stay flat (`data-at-flat`: the New Game shelf), and the level tells the page
+// where its ground is (`--cs-at-ground`, px from the bottom) and its colour (`--cs-at-bg`). Plain DOM code with the
+// browser functions passed in (`env`), so tests drive it with a fake world and a fake clock.
 
 import { backgroundOf } from '#shared/ui/background.js'
 
@@ -27,6 +28,9 @@ export function flatSpans(root, canvasEl) {
 export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
   const { raf, caf, setTimer, clearTimer, getStyle, observe, motion, isHidden } = env
   let world = null, flat = '[]', sky = '', bgCss = '', frameId = 0, timer = 0, last = 0, acc = 0, ticks = 0, alive = true
+  // a rebuild asked for while hidden waits until shown (the area then is another page's); reduced motion switched
+  // rebuilds even at the same size, to settle a still frame or start moving again
+  let waiting = false, force = false
   const still = () => !!motion?.matches
 
   // the theme: the palette and `--cs-at-bg` (the frosted glass) follow the page background; true when either changed
@@ -41,14 +45,18 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
   const build = () => {
     timer = 0
     if (!alive) return
+    if (world && isHidden()) { waiting = true; return }
     const area = host.getBoundingClientRect()
     if (area.width < 40 || area.height < 40) return
     const W = Math.ceil(area.width / SCALE), H = Math.ceil(area.height / SCALE)
     canvasEl.style.width = `${W * SCALE}px`
     canvasEl.style.height = `${H * SCALE}px`
+    const spans = flatSpans(host, canvasEl)
+    // the same area and the same flat ground: the level she is playing still fits
+    if (world && !force && world.W === W && world.H === H && JSON.stringify(spans) === flat) return
+    force = false
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null
     look()
-    const spans = flatSpans(host, canvasEl)
     flat = JSON.stringify(spans)
     world = makeWorld(seed)
     world.build(W, H, { flat: spans })
@@ -61,10 +69,12 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     world.render()
   }
   const later = () => { if (!timer) timer = setTimer(build, 150) }
+  const motionChanged = () => { force = true; later() }
 
   const frame = now => {
     frameId = raf(frame)
     if (!world || isHidden()) { last = now; return }
+    if (waiting) { waiting = false; build() }
     // the theme is checked in both modes, so a still frame repaints in the new colours too
     // and whether the flat ground moved (the shelf appeared, or gained or lost a cartridge)
     if (++ticks % LOOK_EVERY === 0) {
@@ -79,7 +89,7 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
   }
 
   const unobserve = observe([host], later)
-  motion?.addEventListener?.('change', later)
+  motion?.addEventListener?.('change', motionChanged)
   build()
   frameId = raf(frame)
 
@@ -90,6 +100,6 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     unobserve()
     host.style.removeProperty('--cs-at-bg')
     host.style.removeProperty('--cs-at-ground')
-    motion?.removeEventListener?.('change', later)
+    motion?.removeEventListener?.('change', motionChanged)
   }
 }

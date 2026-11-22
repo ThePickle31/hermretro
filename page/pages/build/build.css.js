@@ -1,6 +1,7 @@
 export const BUILD_CSS = `
 /* build: games rail · the conversation with the agent (the game plays inside it) */
-.cs-pad.build { gap: 0; padding: 0; }
+/* the page area ends with the Build area, so its background's ground and the New Game shelf share a bottom edge */
+.cs-pad.build { flex: none; gap: 0; padding: 0; }
 .cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
 .cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
 .cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }

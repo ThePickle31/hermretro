@@ -1,6 +1,6 @@
-// The New Game shelf: the games being worked on, standing as HermRetro cartridges on the floor of the attract level.
+// The New Game shelf: the games being worked on, standing as HermRetro cartridges on the floor of the platformer background.
 // A click opens that game's Build chat; the last tile lists the rest. The level takes no notice of the shelf (the
-// Nous Girl walks behind it); it only keeps the ground under it flat (`data-at-flat`, read by attract/run.js).
+// Nous Girl walks behind it); it only keeps the ground under it flat (`data-at-flat`, read by page/backgrounds/platformer/run.js).
 import { jsx, jsxs, useEffect, useRef, useState } from '#sdk'
 import { Cartridge } from '#pages/games/index.js'
 import { statusMark } from './switcher.js'

@@ -41,7 +41,8 @@ export const ALIASES = {
   '#app': `${SOURCE}/app`,
   '#pages': `${SOURCE}/pages`,
   '#shared': `${SOURCE}/shared`,
-  '#frame': `${SOURCE}/frame`
+  '#frame': `${SOURCE}/frame`,
+  '#backgrounds': `${SOURCE}/backgrounds`
 }
 export const EXTERNAL = ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime']
 const MAX_LINE = 2_000
