@@ -1,7 +1,7 @@
 import { MONO } from '#shared/styles/tokens.js'
 
 export const CART_SHELF_CSS = `
-/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from attract/run.js) */
+/* New Game shelf: the games being worked on, standing on the level's floor (--cs-at-ground, from the platformer background) */
 .cs-b-attract > .cs-b-shelf, .cs-b-attract > .cs-b-shelf-probe { position: absolute; }
 .cs-b-shelf-probe { height: 0; width: 0; }
 .cs-b-attract { --cs-b-cap: 38px; }

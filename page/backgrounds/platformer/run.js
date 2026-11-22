@@ -1,8 +1,9 @@
-// Running the attract level inside the New Game area: building the world for the area's size, the fixed 60 Hz
-// loop, following the theme and rebuilding when the area changes size. The page in front plays no part in the
-// level; the one thing read from it is where the ground must stay flat (`data-at-flat`: the New Game shelf), and
-// the level tells the page where its ground is (`--cs-at-ground`, px from the bottom). Plain DOM code with the browser functions passed in (`env`), so tests drive it with a fake
-// world and a fake clock.
+// Running the platformer in the page area (`host`): building the world for the area's size, the fixed 60 Hz loop,
+// following the theme and rebuilding when the area changes size (the same size keeps the world going, so a page
+// switch or a return to the page does not restart it). The page in front plays no part in the level; the one thing
+// read from it is where the ground must stay flat (`data-at-flat`: the New Game shelf), and the level tells the page
+// where its ground is (`--cs-at-ground`, px from the bottom) and its colour (`--cs-at-bg`). Plain DOM code with the
+// browser functions passed in (`env`), so tests drive it with a fake world and a fake clock.
 
 import { backgroundOf } from '#shared/ui/background.js'
 
@@ -46,9 +47,11 @@ export function runAttract({ host, canvasEl, makeWorld, env, seed }) {
     const W = Math.ceil(area.width / SCALE), H = Math.ceil(area.height / SCALE)
     canvasEl.style.width = `${W * SCALE}px`
     canvasEl.style.height = `${H * SCALE}px`
+    const spans = flatSpans(host, canvasEl)
+    // the same area and the same flat ground: the level she is playing still fits
+    if (world && world.W === W && world.H === H && JSON.stringify(spans) === flat) return
     const keep = world ? { score: world.score, coinsGot: world.coinsGot } : null
     look()
-    const spans = flatSpans(host, canvasEl)
     flat = JSON.stringify(spans)
     world = makeWorld(seed)
     world.build(W, H, { flat: spans })

@@ -40,6 +40,7 @@ import { PageStyle } from './style.js'
 import { Footer } from '#shared/ui/page.js'
 import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
+import { BackgroundLayer } from './background-layer.js'
 import { PageView } from './page-view.js'
 import { NAV_PAGES, pageById } from './registry.js'
 import { UpdateChip } from './update/chip.js'
@@ -482,6 +483,7 @@ export function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
+              jsx(BackgroundLayer, {}, 'background'),
               // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
               // A reload under way or ended stays said even when hermretro stops answering (left switched off).
               ((running && pluginUpdate.stale) || pluginUpdate.reload.phase !== 'idle') && pluginUpdate.phase !== 'restart'

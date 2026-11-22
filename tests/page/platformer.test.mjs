@@ -1,13 +1,13 @@
-// The New Game attract mode (page/pages/build/attract/): the real game run headless, without a canvas. For a few
+// The platformer background (page/backgrounds/platformer/): the real game run headless, without a canvas. For a few
 // window sizes and layouts, minutes of play each: she never falls or stays stuck, uses the whole level, coins come
 // back only when 90% are taken and are all reachable, the form takes no part in it, and the sprites keep their rules.
-// Run alone: node tests/page/attract.test.mjs
+// Run alone: node tests/page/platformer.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-const { World } = await import('../../page/pages/build/attract/world.js')
-const { NG_H, NG_W, ngFrames } = await import('../../page/pages/build/attract/girl.js')
-const { GH } = await import('../../page/pages/build/attract/physics.js')
+const { World } = await import('../../page/backgrounds/platformer/world.js')
+const { NG_H, NG_W, ngFrames } = await import('../../page/backgrounds/platformer/girl.js')
+const { GH } = await import('../../page/backgrounds/platformer/physics.js')
 
 
 /** Play `minutes` of the game; what the tests look at. */

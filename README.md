@@ -208,7 +208,7 @@ node tools/bundle/bundle.mjs --report                           # lines per modu
 Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
 TypeScript, jsdom and React from the pinned `tools/npm/` (or a Hermes Desktop checkout; `tools/bundle/node-modules.mjs`
 has the search order). The plugin itself has no npm dependencies, and users never install `tools/npm/`. It also checks the source tree on every build: only `sdk.js` imports
-packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`) and none
+packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`, `#backgrounds/`) and none
 climbs a folder, no import cycles, no file over 400 lines (three large components are
 listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where code goes
 is described in `.agents/skills/hermretro-dev-page/references/source.md` ("The page's source").

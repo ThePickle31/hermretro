@@ -1,5 +1,5 @@
 // The New Game shelf's order and fit (page/pages/build/cart-shelf.js), and the flat ground the level keeps under it
-// (page/pages/build/attract/level.js), without a browser.
+// (page/backgrounds/platformer/level.js), without a browser.
 // Run alone: node tests/page/cart-shelf.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -10,8 +10,8 @@ const { JSDOM } = await import('jsdom')
 const { labelNote, shelfFit, shelfOrder } = await import('../../page/pages/build/cart-shelf.js')
 const { CART_SHELF_CSS } = await import('../../page/pages/build/cart-shelf.css.js')
 const { NEW_GAME_CSS } = await import('../../page/pages/build/new-game.css.js')
-const { World } = await import('../../page/pages/build/attract/world.js')
-const { T } = await import('../../page/pages/build/attract/physics.js')
+const { World } = await import('../../page/backgrounds/platformer/world.js')
+const { T } = await import('../../page/backgrounds/platformer/physics.js')
 
 const game = (key, state = null) => ({ key, title: key, game: { id: key }, state })
 

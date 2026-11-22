@@ -1,27 +1,29 @@
-// Running the New Game level in the page (page/pages/build/attract/run.js) with a fake world and a fake clock, in
-// jsdom: it is built for the area alone (the form takes no part), follows the theme even under reduced motion,
-// cleans up, and the header (with the game switcher's menu) stays above the form.
-// Run alone: node tests/page/attract-run.test.mjs
+// Running the platformer background (page/backgrounds/platformer/run.js) in the page area, behind the Build page's
+// New Game form, with a fake world and a fake clock, in jsdom: it is built for the area alone (the form takes no
+// part), keeps its world while the area keeps its size, follows the theme even under reduced motion, cleans up, and
+// the header (with the game switcher's menu) stays above the form.
+// Run alone: node tests/page/platformer-run.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { registerAliases } from './aliases.mjs'
 
 registerAliases()
 const { JSDOM } = await import('jsdom')
-const { runAttract } = await import('../../page/pages/build/attract/run.js')
+const { runAttract } = await import('../../page/backgrounds/platformer/run.js')
 const { BUILD_PAGE } = await import('../../page/pages/build/index.js')
+const { SHELL_CSS } = await import('../../page/app/shell.css.js')
 
 const NIGHT = 'rgb(16, 18, 24)', DAY = 'rgb(250, 250, 250)'
-// The stylesheet the Build page actually gets: a rule dropped from its composition fails here even if it is
-// still in attract.css.js.
-const BUILD_CSS = BUILD_PAGE.css.join('\n')
+// The stylesheet the Build page actually gets (after the shell's): a rule dropped from its composition fails here
+// even if it is still in new-game-glass.css.js.
+const BUILD_CSS = SHELL_CSS + BUILD_PAGE.css.join('\n')
 
 /** The New Game area with its form, a fake world, a fake clock and frame queue. */
 function setup({ still = false } = {}) {
-  const dom = new JSDOM(`<!doctype html><div class="cs-b-chat cs-b-attract" style="background-color: ${NIGHT}">
-    <div class="cs-at"><canvas></canvas></div><header class="cs-b-head"></header>
-    <div class="cs-b-new"><h1></h1><div class="cs-b-comp"><textarea></textarea></div></div></div>`)
-  const doc = dom.window.document, host = doc.querySelector('.cs-b-chat'), form = doc.querySelector('.cs-b-new')
+  const dom = new JSDOM(`<!doctype html><div class="cs-pad build" style="background-color: ${NIGHT}">
+    <div class="cs-bg" data-bg="platformer"><canvas></canvas></div><div class="cs-b-chat cs-b-attract"><header class="cs-b-head"></header>
+    <div class="cs-b-new"><h1></h1><div class="cs-b-comp"><textarea></textarea></div></div></div></div>`)
+  const doc = dom.window.document, host = doc.querySelector('.cs-pad'), form = doc.querySelector('.cs-b-new')
   // layout: jsdom has none, so the area and the canvas report a rectangle
   const box = (el, x, y, w, h) => { el.getBoundingClientRect = () => ({ left: x, top: y, right: x + w, bottom: y + h, width: w, height: h }) }
   box(host, 0, 0, 1200, 800); box(doc.querySelector('canvas'), 0, 0, 1200, 800)
@@ -36,16 +38,16 @@ function setup({ still = false } = {}) {
     return w
   }
   const motion = { matches: still, listeners: [], addEventListener(_, f) { this.listeners.push(f) }, removeEventListener(_, f) { this.listeners = this.listeners.filter(g => g !== f) } }
-  let observed = null, now = 0
+  let observed = null, resized = null, now = 0
   const env = {
     raf: f => frames.push(f), caf: () => {}, setTimer: f => timers.push(f), clearTimer: () => {},
     getStyle: el => dom.window.getComputedStyle(el), isHidden: () => false, motion,
-    observe: els => { observed = els; return () => { observed = null } }
+    observe: (els, onChange) => { observed = els; resized = onChange; return () => { observed = null } }
   }
   const stop = runAttract({ host, canvasEl: doc.querySelector('canvas'), makeWorld, env, seed: 5 })
   const tick = (n = 1) => { for (let i = 0; i < n; i++) { now += 1000 / 60; const f = frames.shift(); f?.(now) } }
   const fireTimers = () => { while (timers.length) timers.shift()() }
-  return { dom, doc, host, form, worlds, tick, fireTimers, stop, motion, observed: () => observed }
+  return { dom, doc, host, form, worlds, tick, fireTimers, stop, motion, observed: () => observed, resize: () => resized() }
 }
 
 test('the level is built for the area alone, not around the form, and keeps going', () => {
@@ -59,6 +61,17 @@ test('the level is built for the area alone, not around the form, and keeps goin
   t.stop()
   assert.equal(t.observed(), null, 'resize watching stopped')
   assert.equal(t.motion.listeners.length, 0, 'reduced-motion listener removed')
+})
+
+test('a resize to the same size (the page shown again, or another page with this background) keeps the world', () => {
+  const t = setup()
+  t.worlds[0].W = 600; t.worlds[0].H = 400
+  t.resize(); t.fireTimers()
+  assert.equal(t.worlds.length, 1, 'she keeps playing the same level')
+  t.host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 800, width: 1000, height: 800 })
+  t.resize(); t.fireTimers()
+  assert.equal(t.worlds.length, 2, 'a new size: a level that fits it')
+  t.stop()
 })
 
 test('the shelf\'s span is kept flat, and the page learns where the ground is', () => {
@@ -161,7 +174,7 @@ test('the header (and the game switcher\'s menu) stays above the form; the level
   t.doc.head.append(style)
   const z = sel => Number(t.dom.window.getComputedStyle(t.doc.querySelector(sel)).zIndex)
   assert.ok(z('.cs-b-head') > z('.cs-b-new'), `header ${z('.cs-b-head')} over form ${z('.cs-b-new')}`)
-  assert.ok(z('.cs-b-new') > z('.cs-at'), 'the form over the level')
+  assert.ok(z('.cs-b-new') > z('.cs-bg'), 'the form over the level')
   t.stop()
 })
 

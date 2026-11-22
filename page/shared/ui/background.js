@@ -1,4 +1,4 @@
-// The app's own background colour behind an element (the attract level's sky, the player frame's page).
+// The app's own background colour behind an element (the platformer's sky, the player frame's page).
 
 /** The page's own background under `el` (the first ancestor that paints one): { css, rgb: [r, g, b] 0-255 }.
  *  Browsers report it as rgb()/rgba() or, for a color-mix() theme, as color(srgb r g b) with 0-1 channels. */

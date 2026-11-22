@@ -1,8 +1,9 @@
-// The page's one stylesheet: the shared base, the shell, then each page's own rules (`css` in its index.js).
+// The page's one stylesheet: the shared base, the shell, the backgrounds' rules, then each page's own rules (`css` in its index.js).
 // app/registry.js composes it at startup (pages here never import the registry, so the side emulator tab
 // can render it too). Order is the cascade: pages in nav order, then the narrow-pane rules for those pages,
 // then a page marked `cssLast` (Build: its inline player overrides the Emulator page's stage rules).
 import { jsx } from '#sdk'
+import { BACKGROUNDS } from '#backgrounds/index.js'
 import { BASE_CSS } from '#shared/styles/base.css.js'
 import { RESPONSIVE_CSS } from '#shared/styles/responsive.css.js'
 import { FLYER_CSS } from '#shared/ui/flyer.css.js'
@@ -20,6 +21,7 @@ export function composeStyles(pages) {
     SHELL_CSS,
     UPDATE_CSS,
     FLYER_CSS,
+    ...BACKGROUNDS.flatMap(background => background.css ?? []),
     ...pages.filter(page => !page.cssLast).flatMap(chunks),
     RESPONSIVE_CSS,
     ...pages.filter(page => page.cssLast).flatMap(chunks)
