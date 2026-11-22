@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 623d31695d14995f76ebffecdf55e5cd0b00d5bf06a6759c58234f6bc12a025f
- * body: sha256 ecfa6e8109d2749ff7820bfde8c9f54d26910515461e8ffc52fa5a8be54fd159
+ * sources: sha256 161f3d187b781d10be88df857c72888dbe8df2146b0d93456b4a4c8b293467fb
+ * body: sha256 e249d829d7eaf050d15d96059c77d8a89cae3be4a6185e33e0c0c492fcafc332
  */
 // page/sdk.js
 import {
@@ -28,7 +28,7 @@ import {
   useTheme,
   useValue
 } from "@hermes/plugin-sdk";
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 
 // page/app/ids.js
@@ -1346,6 +1346,7 @@ function AttachmentChip({ item, onRemove = null, disabled = false }) {
 }
 
 // page/pages/build/assets/cache.js
+var AssetGame = createContext(null);
 var assetCache = /* @__PURE__ */ new Map();
 var ASSET_CACHE_LIMIT = 200;
 var ASSET_RETRY_MS = 15e3;
@@ -1361,8 +1362,8 @@ function pumpAssets() {
     });
   }
 }
-function assetEntry(path, version) {
-  const key = `${path}#${version ?? ""}`;
+function assetEntry(path, version, root) {
+  const key = `${path}#${version ?? ""}#${root ?? ""}`;
   let entry = assetCache.get(key);
   if (entry?.done && !entry.value && Date.now() - entry.failedAt > ASSET_RETRY_MS) {
     assetCache.delete(key);
@@ -1375,8 +1376,9 @@ function assetEntry(path, version) {
         try {
           const at = typeof version === "string" && version.startsWith("reply:") ? Number(version.slice(6)) || null : null;
           const kept = typeof version === "string" && version.startsWith("kept:") ? version.slice(5) : null;
-          const answer = await callStudioOnly(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 2e4);
+          const answer = await callStudioOnly(RPC_ASSET, { path, root, ...kept ? { version: kept } : at ? { at } : {} }, 2e4);
           entry.value = answer?.ok && typeof answer.dataUrl === "string" ? answer : null;
+          entry.code = entry.value ? null : answer?.code ?? null;
         } catch {
           entry.value = null;
         }
@@ -1393,8 +1395,16 @@ function assetEntry(path, version) {
   }
   return entry;
 }
+function forgetAsset(path) {
+  for (const key of [...assetCache.keys()]) {
+    if (key.startsWith(`${path}#`)) {
+      assetCache.delete(key);
+    }
+  }
+}
 function useAsset(path, version) {
-  const entry = path ? assetEntry(path, version) : null;
+  const root = useContext(AssetGame);
+  const entry = path ? assetEntry(path, version, root) : null;
   const [, rerender] = useState(0);
   useEffect(() => {
     if (!entry || entry.done) {
@@ -1409,7 +1419,7 @@ function useAsset(path, version) {
   if (!entry) {
     return { state: "none" };
   }
-  return entry.done ? entry.value ? { state: "ok", asset: entry.value } : { state: "none" } : { state: "loading" };
+  return entry.done ? entry.value ? { state: "ok", asset: entry.value } : { state: "none", code: entry.code } : { state: "loading" };
 }
 
 // page/pages/build/assets/sprite.js
@@ -5300,6 +5310,88 @@ function BuildStatus({ chat, onStop }) {
   });
 }
 
+// page/pages/build/transcript/groups.js
+var PLAN_STEPS = /* @__PURE__ */ new Set(["skill_view", "project_select", "project_inspect", "project_inventory", "project_discover", "project_refresh", "toolchain_doctor", "toolchain_prepare", "web_search", "web_extract", "clarify", "read_file", "search_files"]);
+var PROJECT_STEPS = /* @__PURE__ */ new Set(["project_create", "project_create_blank", "project_select"]);
+var MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/;
+var WORK_GROUPS = [
+  ["plan", "Planning", "Planned it"],
+  ["art", "Drawing the art", "Drew the art", "Worked on the art"],
+  ["level", "Setting up the level", "Set up the level"],
+  ["build", "Building it", "Built it"],
+  ["test", "Play-testing it", "Play-tested it"],
+  ["other", "Working on it", "Worked on it"]
+];
+var GROUP_MIN_STEPS = 8;
+var GIST_WORDS = { plan: "planned", art: "drew the art", level: "set up the level", build: "built it", test: "played it" };
+var ART_HINT = /\.(png|gif|aseprite)\b|art-src|sprite|background|cover|palette/i;
+function phaseOf(tool) {
+  const short = shortTool(tool.name);
+  if (PLAN_STEPS.has(short)) {
+    return "plan";
+  }
+  if (/^(sprite_|asset_|palette_|graphics_|native_graphics_|tilemap_|image_generate$|game_info$)/.test(short)) {
+    return "art";
+  }
+  if (/^(project_create|scene_|actor_|trigger_|script_|dialogue_|collision_|variable_|settings_|engine_field_|world_dependencies$)/.test(short)) {
+    return "level";
+  }
+  if (/^(rom_|web_build|web_preview|present_game$)/.test(short)) {
+    return "build";
+  }
+  if (/^emulator_/.test(short)) {
+    return "test";
+  }
+  if (/^(terminal|execute_code|write_file|patch)$/.test(short) && ART_HINT.test(JSON.stringify(tool.args ?? {}))) {
+    return "art";
+  }
+  return null;
+}
+function workGroups(entries) {
+  const groups = /* @__PURE__ */ new Map();
+  const before = [];
+  let current = null;
+  for (const entry of entries) {
+    const kind = entry.type === "step" ? phaseOf(entry.tool) : null;
+    if (kind) {
+      current = kind;
+      if (!groups.has(kind)) {
+        groups.set(kind, []);
+      }
+      groups.get(kind).push(...before.splice(0), entry);
+    } else if (current) {
+      groups.get(current).push(entry);
+    } else {
+      before.push(entry);
+    }
+  }
+  if (before.length) {
+    groups.set("other", before);
+    current = current ?? "other";
+  }
+  return {
+    groups: WORK_GROUPS.filter(([kind]) => groups.has(kind)).map(([kind]) => ({ kind, entries: groups.get(kind) })),
+    last: current
+  };
+}
+function groupTitle(group, live, made) {
+  const words = WORK_GROUPS.find(([kind]) => kind === group.kind) ?? WORK_GROUPS[WORK_GROUPS.length - 1];
+  return live ? words[1] : group.kind === "art" && !made && words[3] ? words[3] : words[2];
+}
+function rootOf(game, items) {
+  if (game?.projectRoot) {
+    return game.projectRoot;
+  }
+  for (const item of items) {
+    for (const tool of item.kind === "tools" ? item.tools : []) {
+      if (PROJECT_STEPS.has(shortTool(tool.name)) && tool.info?.projectRoot) {
+        return tool.info.projectRoot;
+      }
+    }
+  }
+  return null;
+}
+
 // page/pages/build/transcript/reply.js
 var MEDIA_IMAGE_LINE = /^[ \t]*MEDIA:[ \t]*([`"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$/gim;
 function replySegments(text2, root) {
@@ -5324,9 +5416,9 @@ function replyAssets(items, root) {
   );
 }
 function ReplyImage({ asset, line, onOpen }) {
-  const { state, asset: loaded } = useAsset(asset.path, asset.version);
+  const { state, code, asset: loaded } = useAsset(asset.path, asset.version);
   if (state === "none") {
-    return MessageTextContent ? jsx(MessageTextContent, { text: line }) : null;
+    return MessageTextContent ? jsx(MessageTextContent, code === "OTHER_GAME" ? { media: false, previewOnly: true, text: line } : { text: line }) : null;
   }
   if (state === "loading") {
     return jsx("span", { "aria-hidden": true, className: "cs-b-rchip loading" });
@@ -5711,6 +5803,7 @@ function CoverInGame({ image, game }) {
 // page/pages/build/viewer/info.js
 var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
 function useAssetInfo(path, refresh) {
+  const root = useContext(AssetGame);
   const [info, setInfo] = useState(null);
   useEffect(() => {
     if (!path) {
@@ -5718,21 +5811,22 @@ function useAssetInfo(path, refresh) {
       return void 0;
     }
     let live = true;
-    callStudioOnly(RPC_ASSET_INFO, { path }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
+    callStudioOnly(RPC_ASSET_INFO, { path, root }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
     return () => {
       live = false;
     };
-  }, [path, refresh]);
+  }, [path, root, refresh]);
   return info;
 }
 function useImages(paths, version) {
+  const root = useContext(AssetGame);
   const [images, setImages] = useState({});
   const key = paths.join("\n");
   useEffect(() => {
     let live = true;
     setImages({});
     for (const path of paths) {
-      void assetEntry(path, version).promise.then((answer) => {
+      void assetEntry(path, version, root).promise.then((answer) => {
         if (!live || !answer?.dataUrl) {
           return;
         }
@@ -5744,7 +5838,7 @@ function useImages(paths, version) {
     return () => {
       live = false;
     };
-  }, [key, version]);
+  }, [key, version, root]);
   return images;
 }
 
@@ -6059,7 +6153,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root,
     }
     setRestoring(true);
     try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: shownEntry.id }, 2e4);
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 2e4);
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be restored.");
       }
@@ -6404,99 +6498,12 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
   });
 }
 
-// page/pages/build/transcript/groups.js
-var PLAN_STEPS = /* @__PURE__ */ new Set(["skill_view", "project_select", "project_inspect", "project_inventory", "project_discover", "project_refresh", "toolchain_doctor", "toolchain_prepare", "web_search", "web_extract", "clarify", "read_file", "search_files"]);
-var MINOR_STEPS = /^(skill_view|read_file|search_files|project_inventory|project_inspect|toolchain_doctor|world_dependencies|.+_inspect|.+_status|.+_analyze)$/;
-var WORK_GROUPS = [
-  ["plan", "Planning", "Planned it"],
-  ["art", "Drawing the art", "Drew the art", "Worked on the art"],
-  ["level", "Setting up the level", "Set up the level"],
-  ["build", "Building it", "Built it"],
-  ["test", "Play-testing it", "Play-tested it"],
-  ["other", "Working on it", "Worked on it"]
-];
-var GROUP_MIN_STEPS = 8;
-var GIST_WORDS = { plan: "planned", art: "drew the art", level: "set up the level", build: "built it", test: "played it" };
-var ART_HINT = /\.(png|gif|aseprite)\b|art-src|sprite|background|cover|palette/i;
-function phaseOf(tool) {
-  const short = shortTool(tool.name);
-  if (PLAN_STEPS.has(short)) {
-    return "plan";
-  }
-  if (/^(sprite_|asset_|palette_|graphics_|native_graphics_|tilemap_|image_generate$|game_info$)/.test(short)) {
-    return "art";
-  }
-  if (/^(project_create|scene_|actor_|trigger_|script_|dialogue_|collision_|variable_|settings_|engine_field_|world_dependencies$)/.test(short)) {
-    return "level";
-  }
-  if (/^(rom_|web_build|web_preview|present_game$)/.test(short)) {
-    return "build";
-  }
-  if (/^emulator_/.test(short)) {
-    return "test";
-  }
-  if (/^(terminal|execute_code|write_file|patch)$/.test(short) && ART_HINT.test(JSON.stringify(tool.args ?? {}))) {
-    return "art";
-  }
-  return null;
-}
-function workGroups(entries) {
-  const groups = /* @__PURE__ */ new Map();
-  const before = [];
-  let current = null;
-  for (const entry of entries) {
-    const kind = entry.type === "step" ? phaseOf(entry.tool) : null;
-    if (kind) {
-      current = kind;
-      if (!groups.has(kind)) {
-        groups.set(kind, []);
-      }
-      groups.get(kind).push(...before.splice(0), entry);
-    } else if (current) {
-      groups.get(current).push(entry);
-    } else {
-      before.push(entry);
-    }
-  }
-  if (before.length) {
-    groups.set("other", before);
-    current = current ?? "other";
-  }
-  return {
-    groups: WORK_GROUPS.filter(([kind]) => groups.has(kind)).map(([kind]) => ({ kind, entries: groups.get(kind) })),
-    last: current
-  };
-}
-function groupTitle(group, live, made) {
-  const words = WORK_GROUPS.find(([kind]) => kind === group.kind) ?? WORK_GROUPS[WORK_GROUPS.length - 1];
-  return live ? words[1] : group.kind === "art" && !made && words[3] ? words[3] : words[2];
-}
-function rootOf(game, items) {
-  if (game?.projectRoot) {
-    return game.projectRoot;
-  }
-  for (const item of items) {
-    for (const tool of item.kind === "tools" ? item.tools : []) {
-      if (tool.info?.projectRoot) {
-        return tool.info.projectRoot;
-      }
-    }
-  }
-  return null;
-}
-
 // page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
-function dropAsset(path) {
-  for (const key of [...assetCache.keys()]) {
-    if (key.startsWith(`${path}#`)) {
-      assetCache.delete(key);
-    }
-  }
-}
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const before = useAsset(path, `reply:${from}`);
   const after = useAsset(path, to ? `reply:${to}` : null);
+  const root = useContext(AssetGame);
   const [state, setState] = useState(null);
   if (before.state !== "ok" || !before.asset.earlier || after.state !== "ok") {
     return null;
@@ -6505,11 +6512,11 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const undo = async () => {
     setState("busy");
     try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 2e4);
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: before.asset.versionId }, 2e4);
       if (!answer?.ok) {
         throw new Error(answer?.error ?? "It could not be put back.");
       }
-      dropAsset(path);
+      forgetAsset(path);
       setState("undone");
     } catch (error) {
       setState(null);
@@ -7128,7 +7135,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     }
     return byIndex;
   }, [turns]);
-  const root = useMemo(() => rootOf(game, items), [game?.projectRoot, items]);
+  const root = useContext(AssetGame);
   const scroller = useRef(null);
   const stuck = useRef(true);
   const [behind, setBehind] = useState(false);
@@ -9195,7 +9202,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       }, `composer:${composerKey}`)
     ]
   });
-  return jsx("div", { className: "cs-b", children: main });
+  return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx("div", { className: "cs-b", children: main }) });
 }
 
 // page/pages/setup/onboarding/onboarding.css.js

@@ -20,5 +20,5 @@ export {
   useTheme,
   useValue
 } from '@hermes/plugin-sdk'
-export { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+export { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 export { jsx, jsxs } from 'react/jsx-runtime'

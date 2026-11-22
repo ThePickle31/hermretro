@@ -126,7 +126,8 @@ export const Tip = props => props.children
 export const useTheme = () => ({ renderedMode: scenario.theme ?? 'dark', resolvedMode: scenario.theme ?? 'dark' })
 // The real one renders a sandboxed iframe; here a plain one is enough to see what it was given.
 export const SandboxedFrame = props => jsx('iframe', { ref: props.ref, src: props.src, title: props.title, 'data-sandbox': props.sandbox })
-export const MessageTextContent = props => jsx('div', { 'data-markdown': '', children: props.text })
+// data-inert: the app's own media and file previews are off (media: false, previewOnly).
+export const MessageTextContent = props => jsx('div', { 'data-markdown': '', ...(props.media === false && props.previewOnly ? { 'data-inert': '' } : {}), children: props.text })
 export const randomUuid = () => `uuid-${Math.random().toString(16).slice(2)}`
 export const PALETTE_AREA = 'palette'
 export const ROUTES_AREA = 'routes'

@@ -1,9 +1,13 @@
-// Project files (art) loaded through the `asset` RPC, cached per version.
-import { useEffect, useState } from '#sdk'
+// Project files (art) loaded through the `asset` RPC, cached per game and version.
+import { createContext, useContext, useEffect, useState } from '#sdk'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET } from '#app/rpc.js'
 
-export const assetCache = new Map()
+/** The project folder of the game the Build page shows. Every image is asked for as that game's: the backend
+ *  answers only its files and the saved frames, so a reply in one game's chat never shows another game's. */
+export const AssetGame = createContext(null)
+
+const assetCache = new Map()
 const ASSET_CACHE_LIMIT = 200
 const ASSET_RETRY_MS = 15_000
 const assetQueue = []
@@ -21,10 +25,10 @@ function pumpAssets() {
   }
 }
 
-/** One image from the backend, fetched once per path and version (a step that rewrote the file is a
- *  new version) and at most four at a time. */
-export function assetEntry(path, version) {
-  const key = `${path}#${version ?? ''}`
+/** One image of the game at `root` from the backend, fetched once per path and version (a step that rewrote the
+ *  file is a new version) and at most four at a time. */
+export function assetEntry(path, version, root) {
+  const key = `${path}#${version ?? ''}#${root ?? ''}`
   let entry = assetCache.get(key)
 
   // A failed load is retried after a while (the file may appear, or the backend may have been restarted).
@@ -43,9 +47,10 @@ export function assetEntry(path, version) {
           const at = typeof version === 'string' && version.startsWith('reply:') ? Number(version.slice(6)) || null : null
           // The viewer's version strip asks for one kept version by id.
           const kept = typeof version === 'string' && version.startsWith('kept:') ? version.slice(5) : null
-          const answer = await callStudioOnly(RPC_ASSET, kept ? { path, version: kept } : at ? { path, at } : { path }, 20_000)
+          const answer = await callStudioOnly(RPC_ASSET, { path, root, ...(kept ? { version: kept } : at ? { at } : {}) }, 20_000)
 
           entry.value = answer?.ok && typeof answer.dataUrl === 'string' ? answer : null
+          entry.code = entry.value ? null : (answer?.code ?? null)
         } catch {
           entry.value = null
         }
@@ -66,8 +71,18 @@ export function assetEntry(path, version) {
   return entry
 }
 
+/** Forget the cached look of a file (it was put back), so every thumbnail fetches it again. */
+export function forgetAsset(path) {
+  for (const key of [...assetCache.keys()]) {
+    if (key.startsWith(`${path}#`)) {
+      assetCache.delete(key)
+    }
+  }
+}
+
 export function useAsset(path, version) {
-  const entry = path ? assetEntry(path, version) : null
+  const root = useContext(AssetGame)
+  const entry = path ? assetEntry(path, version, root) : null
   const [, rerender] = useState(0)
 
   useEffect(() => {
@@ -88,5 +103,5 @@ export function useAsset(path, version) {
     return { state: 'none' }
   }
 
-  return entry.done ? (entry.value ? { state: 'ok', asset: entry.value } : { state: 'none' }) : { state: 'loading' }
+  return entry.done ? (entry.value ? { state: 'ok', asset: entry.value } : { state: 'none', code: entry.code }) : { state: 'loading' }
 }

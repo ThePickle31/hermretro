@@ -67,3 +67,11 @@ test('the frame names a build only when the copy the player loads was made by it
   assert.equal(playsBuild({ rom: { builtAt: 5_001 } }, build), true, 'no web copy: the ROM plays')
   assert.equal(playsBuild({ web: { builtAt: 5_010 } }, { n: 2, startAt: null }), false)
 })
+
+test('a conversation works in the project its project step made, not in a folder another step named', async () => {
+  const { rootOf } = await import('#pages/build/transcript/groups.js')
+  const tools = (...steps) => [{ kind: 'tools', tools: steps.map(([name, projectRoot]) => ({ name, info: { projectRoot } })) }]
+  assert.equal(rootOf(null, tools(['chromatic_toolchain_doctor', '/home/u/.hermes/hermretro/.cache/runtime'], ['chromatic_project_create', '/home/u/games/Pond'])), '/home/u/games/Pond')
+  assert.equal(rootOf(null, tools(['chromatic_toolchain_doctor', '/home/u/.hermes/hermretro/.cache/runtime'])), null)
+  assert.equal(rootOf({ projectRoot: '/home/u/games/Frog' }, tools(['chromatic_project_create', '/home/u/games/Pond'])), '/home/u/games/Frog')
+})

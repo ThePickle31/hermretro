@@ -142,6 +142,58 @@ class Snapshots(unittest.TestCase):
         self.assertEqual(os.listdir(elsewhere), [])
         self.assertIn("a link or file is in the way", " ".join(answer["problems"]))
 
+    def test_a_game_inside_this_games_folder_is_never_kept_or_restored(self):
+        pond = make_project(self.root, "Pond", web=False, built=False)  # another game's project inside this one
+        (pond / "project" / "scene.gbsres").write_text("pond-1")
+        snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        self.assertFalse([name for name in self.files_of("1000") if name.startswith("pond/")])
+
+        (pond / "project" / "scene.gbsres").write_text("pond-2")
+        (pond / "project" / "new.gbsres").write_text("{}")
+        (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-2")
+        snapshots.restore(self.store, "g", self.root, "1000", now_ms=2000)
+        self.assertEqual((self.root / "assets" / "sprites" / "robin.png").read_bytes(), b"robin-1")
+        self.assertEqual((pond / "project" / "scene.gbsres").read_text(), "pond-2", "Pond's file was put back")
+        self.assertTrue((pond / "project" / "new.gbsres").is_file(), "Pond's new file was removed")
+
+    def test_a_nested_project_file_in_capitals_or_as_a_link_still_marks_another_game(self):
+        for name, kind in (("caps", "file"), ("linked", "link")):
+            folder = self.root / name
+            folder.mkdir()
+            (folder / "notes.txt").write_text("theirs")
+            if kind == "file":
+                (folder / "Caps.GBSPROJ").write_text("{}")
+            else:
+                (folder / "real.json").write_text("{}")
+                (folder / "linked.gbsproj").symlink_to(folder / "real.json")
+        snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        self.assertFalse([name for name in self.files_of("1000") if name.startswith(("caps/", "linked/"))])
+        snapshots.restore(self.store, "g", self.root, "1000", now_ms=2000)
+        self.assertEqual([(self.root / name / "notes.txt").read_text() for name in ("caps", "linked")], ["theirs"] * 2)
+
+    def test_restore_never_writes_through_a_temporary_file_already_there(self):
+        robin = self.root / "assets" / "sprites" / "robin.png"
+        snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        robin.write_bytes(b"robin-2")
+        outside = self.base / "outside.bin"
+        outside.write_bytes(b"theirs")
+        (robin.parent / ".robin.png.hr-restore").symlink_to(outside)
+        snapshots.restore(self.store, "g", self.root, "1000", now_ms=2000)
+        self.assertEqual((robin.read_bytes(), outside.read_bytes()), (b"robin-1", b"theirs"))
+
+    def test_a_folder_that_became_a_game_since_the_snapshot_is_left_alone(self):
+        later = self.root / "later"
+        later.mkdir()
+        (later / "notes.txt").write_text("old")
+        snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
+        self.assertIn("later/notes.txt", self.files_of("1000"))
+
+        (later / "later.gbsproj").write_text("{}")  # now its own game's project
+        (later / "notes.txt").write_text("new")
+        snapshots.restore(self.store, "g", self.root, "1000", now_ms=2000)
+        self.assertEqual((later / "notes.txt").read_text(), "new")
+        self.assertTrue((later / "later.gbsproj").is_file())
+
     def test_an_unknown_snapshot_is_refused(self):
         with self.assertRaises(snapshots.SnapshotError) as caught:
             snapshots.restore(self.store, "g", self.root, "123")

@@ -1,6 +1,6 @@
 // A build in the conversation: one quiet line (its number, title, time), what changed under it, what was tested.
-import { Button, Codicon, host, jsx, jsxs, useState } from '#sdk'
-import { assetCache, useAsset } from '#pages/build/assets/cache.js'
+import { Button, Codicon, host, jsx, jsxs, useContext, useState } from '#sdk'
+import { AssetGame, forgetAsset, useAsset } from '#pages/build/assets/cache.js'
 import { AssetThumb, SheetFrame } from '#pages/build/assets/images.js'
 import { injectBuildDraft } from '#pages/build/chat/store.js'
 import { callStudioOnly, describeRequestError } from '#app/backend.js'
@@ -13,21 +13,13 @@ import { madeAssets } from './turns.js'
 
 const CHANGE_MARK = { added: '+', changed: '~', removed: '\u2212' }
 
-/** Forget the cached look of a file (it was put back), so every thumbnail fetches it again. */
-function dropAsset(path) {
-  for (const key of [...assetCache.keys()]) {
-    if (key.startsWith(`${path}#`)) {
-      assetCache.delete(key)
-    }
-  }
-}
-
 /** An edited picture as it was before the turn and as it is after, with Keep and Undo (Undo puts the
  *  earlier version back through the kept versions; the one there now is kept too, so it can be redone).
  *  Shows nothing when the file is new this turn (nothing earlier was kept). */
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const before = useAsset(path, `reply:${from}`)
   const after = useAsset(path, to ? `reply:${to}` : null)
+  const root = useContext(AssetGame)
   const [state, setState] = useState(null)
 
   if (before.state !== 'ok' || !before.asset.earlier || after.state !== 'ok') {
@@ -39,13 +31,13 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     setState('busy')
 
     try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, version: before.asset.versionId }, 20_000)
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: before.asset.versionId }, 20_000)
 
       if (!answer?.ok) {
         throw new Error(answer?.error ?? 'It could not be put back.')
       }
 
-      dropAsset(path)
+      forgetAsset(path)
       setState('undone')
     } catch (error) {
       setState(null)

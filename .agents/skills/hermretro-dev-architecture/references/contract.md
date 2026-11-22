@@ -268,14 +268,17 @@ and `structuredContent.success === true`, not a `sourcePath` build) of a game in
 copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
 `{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…] }`.
 Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
-`captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …) and every symlink. A project over 64 MB
+`captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
+project that holds a `.gbsproj` of its own (in any case, a file or a link, as the engine finds a project: another
+game's project, which restoring this one never changes, even
+when an older snapshot holds files there from before it was a game). A project over 64 MB
 or 20 000 files is skipped. When the files are identical to the newest snapshot (path + size + SHA-256 of
 each), no copy is made and the build's time is appended to that snapshot's `builds`. The newest 30 are kept.
 
 - `builds { game }` → `{ ok, builds: [{ id, at, builds, files, bytes, reason, from? }] }`, newest first.
 - `build_restore { game, id }` first keeps the current files as a `before-restore` snapshot (`from` = the
   restored id; reused when identical to the newest), then deletes project files the snapshot lacks and
-  writes back every file that differs (temp sibling + rename; never through a link). Restored files get a
+  writes back every file that differs (a new temp sibling + rename; never through a link). Restored files get a
   new modification time, so the game counts as changed and needs a rebuild, which records a new build.
 
 ## The game card (`game.json` + `cover.png`)

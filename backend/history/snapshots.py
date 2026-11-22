@@ -6,8 +6,9 @@ adds its time to the newest snapshot's ``builds`` list instead of a new copy. Re
 current files as a ``before-restore`` snapshot, then makes the project's files match the chosen one.
 
 Pure functions over paths: no Hermes, broker or registry imports, so everything here is unit-testable.
-Generated and personal folders are never copied, compared, deleted or restored (``EXCLUDED_TOP``), and
-symbolic links are skipped everywhere (never followed, copied or removed).
+Generated and personal folders are never copied, compared, deleted or restored (``EXCLUDED_TOP``), nor is a
+folder inside the project that holds a ``.gbsproj`` of its own (another game's project: restoring this game must
+never change that one), and symbolic links are skipped everywhere (never followed, copied or removed).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -33,6 +35,7 @@ STALE_PART_SECONDS = 600
 META = "snapshot.json"
 FILES = "files"
 REASONS = ("build", "before-restore")
+PROJECT_SUFFIX = ".gbsproj"
 _CHUNK = 1024 * 1024
 
 
@@ -46,9 +49,34 @@ def _temporary(name: str) -> bool:
     return name.endswith(TEMP_SUFFIXES) or name.startswith(".~")
 
 
+def _holds_project(entries) -> bool:
+    """Whether a folder's entries include a game project file (``*.gbsproj`` in any case, a file or a link to one), as
+    the engine finds a project."""
+    return any(
+        entry.name.lower().endswith(PROJECT_SUFFIX) and (entry.is_file() or entry.is_symlink()) for entry in entries
+    )
+
+
+def _other_game(root: Path, relative: str, seen: dict[str, bool]) -> bool:
+    """Whether ``relative`` (a file's path under ``root``) lies in a folder below ``root`` that is another game's
+    project (holds a ``.gbsproj``). ``seen`` remembers each folder's answer across calls."""
+    parts = relative.split("/")[:-1]
+    for index in range(1, len(parts) + 1):
+        folder = "/".join(parts[:index])
+        if folder not in seen:
+            try:
+                seen[folder] = _holds_project(list(os.scandir(root / folder)))
+            except OSError:
+                seen[folder] = False
+        if seen[folder]:
+            return True
+    return False
+
+
 def walk(root: Path, *, exclude_top: bool = True) -> dict[str, Path]:
     """Every regular file under ``root`` by its relative posix path. Symlinks (files or folders) are
-    skipped and never followed; so are the excluded top-level folders and temporary files."""
+    skipped and never followed; so are the excluded top-level folders, temporary files and every folder below
+    ``root`` that is another game's project (holds a ``.gbsproj``)."""
     found: dict[str, Path] = {}
     stack = [(Path(root), "")]
     while stack:
@@ -56,6 +84,8 @@ def walk(root: Path, *, exclude_top: bool = True) -> dict[str, Path]:
         try:
             entries = list(os.scandir(folder))
         except OSError:
+            continue
+        if prefix and _holds_project(entries):
             continue
         for entry in entries:
             if entry.is_symlink():
@@ -300,6 +330,7 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
         current = walk(root)
         removed = changed = 0
         problems = []
+        games: dict[str, bool] = {}
         for relative in sorted(set(current) - set(wanted)):
             try:
                 os.unlink(current[relative])
@@ -315,8 +346,8 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
                     break
                 parent = parent.parent
         for relative in sorted(wanted):
-            if relative.split("/", 1)[0] in EXCLUDED_TOP:
-                continue
+            if relative.split("/", 1)[0] in EXCLUDED_TOP or _other_game(root, relative, games):
+                continue  # a folder that is now another game's project is that game's to keep
             here = current.get(relative)
             if here is not None and here.is_file() and not here.is_symlink():
                 try:
@@ -336,10 +367,12 @@ def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int |
                 if os.path.islink(target):
                     problems.append(f"{relative}: a link is in the way")
                     continue
-                partial = parent / f".{target.name}.hr-restore"
-                # A plain copy: the restored file gets a new modification time, so the game counts as
-                # changed since its last build and the page asks for a rebuild.
-                shutil.copyfile(wanted[relative], partial, follow_symlinks=False)
+                # A new temporary file of its own (never one already there, which could be a link elsewhere), and
+                # a plain copy: the restored file gets a new modification time, so the game counts as changed
+                # since its last build and the page asks for a rebuild.
+                handle, partial = tempfile.mkstemp(dir=parent, prefix=f".{target.name}.", suffix=".hr-restore")
+                with os.fdopen(handle, "wb") as writer, open(wanted[relative], "rb") as reader:
+                    shutil.copyfileobj(reader, writer, _CHUNK)
                 os.replace(partial, target)
                 changed += 1
             except OSError as error:
