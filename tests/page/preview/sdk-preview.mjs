@@ -1,10 +1,33 @@
 // A look-alike of @hermes/plugin-sdk for previewing the page in a browser. The buttons use the
 // app's own class names, and the preview page loads the app's built stylesheet, so they draw
-// the way the real ones do. Data comes from window.preview.scenario.
+// the way the real ones do. Data comes from window.preview.scenario, or, live (`?live=<token>`, served by
+// tools/dev/preview_server.mjs), from the real gateway through that server.
+import { useQuery as useLiveQuery, useQueryClient as useLiveQueryClient } from '@tanstack/react-query'
 import { createElement, useEffect, useState, useSyncExternalStore } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const listeners = new Set()
+
+/** The live preview's token, or null for the canned scenarios. */
+export const liveToken = new URLSearchParams(location.search).get('live')
+
+// The profile the live preview stands in for: the studio, where the page's chats and tools run.
+const LIVE_PROFILE = 'hermretro'
+
+async function bridge(profile, method, params = {}, timeoutMs) {
+  const response = await fetch('/rpc', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-preview-token': liveToken },
+    body: JSON.stringify({ profile, method, params, timeoutMs })
+  })
+  const answer = await response.json()
+
+  if (answer.error) {
+    throw Object.assign(new Error(answer.error.message ?? String(answer.error)), { code: answer.error.code, data: answer.error.data })
+  }
+
+  return answer.result
+}
 
 export const preview = {
   scenario: { status: { isPending: true }, doctor: { isPending: true } },
@@ -57,6 +80,25 @@ export const host = {
   composer: { insertText: async () => true }
 }
 
+if (liveToken) {
+  const routeProfile = route => (typeof route === 'string' ? route : route?.profile)
+
+  Object.assign(host, {
+    state: { ...host.state, profile: readable(LIVE_PROFILE) },
+    request: (method, params, timeoutMs) => bridge(LIVE_PROFILE, method, params, timeoutMs),
+    requestProfile: (route, method, params, timeoutMs) => bridge(routeProfile(route), method, params, timeoutMs),
+    profileRoutes: async () => (await fetch('/routes', { headers: { 'x-preview-token': liveToken } })).json(),
+    retainProfile: async () => () => {},
+    retainProfileSocket: () => () => {}
+  })
+  new EventSource(`/events?token=${encodeURIComponent(liveToken)}`).onmessage = message => preview.emit(JSON.parse(message.data))
+}
+
+// The served preview reloads itself when the page is rebuilt.
+if (location.protocol.startsWith('http')) {
+  new EventSource('/reload').addEventListener('reload', () => location.reload())
+}
+
 export const atom = initial => {
   let value = initial
   const subscribers = new Set()
@@ -69,7 +111,7 @@ export const atom = initial => {
 const still = () => () => {}
 export const useValue = store => useSyncExternalStore(store.listen ?? still, store.get, store.get)
 
-export const useQuery = options => {
+const useScenarioQuery = options => {
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -83,7 +125,11 @@ export const useQuery = options => {
   return preview.scenario[options.queryKey[1]] ?? { isPending: true, data: undefined }
 }
 
-export const useQueryClient = () => ({ invalidateQueries: () => listeners.forEach(fn => fn()) })
+const useScenarioQueryClient = () => ({ invalidateQueries: () => listeners.forEach(fn => fn()) })
+
+// Live, the queries are the app's own (TanStack Query, as @hermes/plugin-sdk re-exports it) and run against the gateway.
+export const useQuery = liveToken ? useLiveQuery : useScenarioQuery
+export const useQueryClient = liveToken ? useLiveQueryClient : useScenarioQueryClient
 
 const BASE =
   'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[2.5px] text-xs leading-4 font-medium whitespace-nowrap shadow-none transition-all duration-100 disabled:pointer-events-none disabled:opacity-50'

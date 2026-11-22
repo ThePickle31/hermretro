@@ -20,7 +20,7 @@ This guide holds the rules and commands. Deeper references are in `docs/dev/` an
 | `skills/` | Skills the plugin gives the agent (adapted from the engine's own skills) |
 | `profile/` | Files for the `hermretro` studio profile the plugin sets up |
 | `tests/` | Mirrors the code: `backend/<feature>/` unit tests, `page/` page tests, `repo/` repository-wide checks (lock step, version, layout, portability), `acceptance/` real-engine run, `retrodev/` the development CLI's tests; `support.py` temp-folder helpers |
-| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/` (documented in `docs/dev/TESTING.md`), `engine/`, `debug/`, `npm/` (pinned npm tools for development only), `py/` (pinned Python tools: ruff and its settings), `retrodev/` (the development CLI) |
+| `tools/` | `check.py` (all checks), `layout.toml` (the folder map), `bundle/` (page build), `ci/` (documented in `docs/dev/TESTING.md`), `engine/`, `debug/`, `dev/` (the development loop), `npm/` (pinned npm tools for development only), `py/` (pinned Python tools: ruff and its settings), `retrodev/` (the development CLI) |
 | `docs/dev/` | `ARCHITECTURE.md` (how it fits together, and the full folder Map), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC shapes), `STUDIO-PAGES.md` (the page and the player frame), `ENGINE-UPDATE.md`, `INSTALL-SCANNER.md`, `RELEASE-CHECKLIST.md` |
 | `.github/` | Workflows, templates, and `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` for people opening pull requests or reporting problems |
 
@@ -31,8 +31,9 @@ and on Python or page source over 600 lines (it warns above 400; a split leaves 
 
 ## Checks
 
-One-time setup: `python tools/py/setup.py` (ruff, pinned by hash, into the git-ignored `.dev/py`; a no-op when
-current) and `npm ci --prefix tools/npm --ignore-scripts` for page work (needs Node 22 or newer).
+One-time setup: `python tools/dev setup` (ruff, pinned by hash, into the git-ignored `.dev/py`, and the pinned npm
+tools; needs Node 22 or newer). Trying a change in the local Hermes: `python tools/dev live`, `reload` and `watch`
+(`docs/dev/DEBUGGING.md`, "The development loop").
 
 ```sh
 python tools/check.py            # fast: unit, bundle, lint, page, scan (together, about 28 s on an idle machine)

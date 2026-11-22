@@ -1,7 +1,9 @@
-// Renders the real desktop/plugin.js page with canned backend answers, for looking at it.
+// Renders the real desktop/plugin.js page with canned backend answers, for looking at it; with ?live=<token>
+// (python tools/dev watch), with the real gateway's answers instead.
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { jsx } from 'react/jsx-runtime'
-import { preview } from '@hermes/plugin-sdk'
+import { liveToken, preview } from '@hermes/plugin-sdk'
 import { THEME_PRESET_PALETTES } from 'hermes-theme-presets'
 import plugin from '../../../desktop/plugin.js'
 
@@ -372,7 +374,10 @@ preview.scenario.models = answered(MODEL_OPTIONS)
 if (chosen.rpc) preview.scenario.rpc = { 'plugin.hermretro.games': chosen.games?.data, ...chosen.rpc }
 
 const registrations = []
-const storage = { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
+const storage = liveToken ? { page: params.get('p') ?? undefined } : { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
+// Live, the page's queries need the client the app wraps every plugin in.
+const queryClient = new QueryClient()
+const render = (holder, element) => createRoot(holder).render(liveToken ? jsx(QueryClientProvider, { client: queryClient, children: element }) : element)
 const ctx = {
   registerMany: list => registrations.push(...list),
   setTimeout: (fn, ms) => {
@@ -408,19 +413,19 @@ if (params.get('view') === 'side' || params.get('view') === 'both') {
   preview.scenario.rpc = { 'plugin.hermretro.games': chosen.games?.data ?? library().data }
   preview.onWorkspace = tab => {
     document.title = tab.title
-    createRoot(document.getElementById('side')).render(jsx(tab.render, {}))
+    render(document.getElementById('side'), jsx(tab.render, {}))
   }
   const present = () =>
     preview.emit({ type: 'tool.complete', session_id: 'rt-comet', payload: { name: 'chromatic_present_game', args: {}, result: { ok: true, studio: { gameId: GAMES[0].id, playerUrl: 'http://127.0.0.1/', title: GAMES[0].title, note: params.get('note') ?? 'Try the new double jump on the second ledge.', presentedAt: 1 }, message: 'Shown to the user beside the chat.' } } })
 
   if (params.get('view') === 'both') {
-    createRoot(document.getElementById('left')).render(jsx(page.render, {}))
+    render(document.getElementById('left'), jsx(page.render, {}))
     setTimeout(present, 1500)
   } else {
     present()
   }
 } else {
-  createRoot(document.getElementById('page')).render(jsx(page.render, {}))
+  render(document.getElementById('page'), jsx(page.render, {}))
 
   // Build: the reply to the last message streams in, with steps and the art they make, like a live turn.
   if (chosen.live) {
@@ -451,19 +456,29 @@ if (params.get('view') === 'side' || params.get('view') === 'both') {
 }
 
 const bar = document.getElementById('bar')
+const linkTail = `&mode=${params.get('mode') ?? 'light'}${params.get('p') ? `&p=${params.get('p')}` : ''}`
+
+if (liveToken) {
+  const link = document.createElement('a')
+
+  link.textContent = 'Live'
+  link.href = `?live=${encodeURIComponent(liveToken)}${linkTail}`
+  link.setAttribute('aria-current', 'page')
+  bar.append(link)
+}
 
 for (const [id, scenario] of Object.entries(SCENARIOS)) {
   const link = document.createElement('a')
 
   link.textContent = scenario.label
-  link.href = `?s=${id}&mode=${params.get('mode') ?? 'light'}${params.get('p') ? `&p=${params.get('p')}` : ''}`
-  if (scenario === chosen) link.setAttribute('aria-current', 'page')
+  link.href = `?s=${id}${linkTail}`
+  if (scenario === chosen && !liveToken) link.setAttribute('aria-current', 'page')
   bar.append(link)
 }
 
 const mode = document.createElement('a')
 
 mode.textContent = params.get('mode') === 'dark' ? 'Light' : 'Dark'
-mode.href = `?s=${params.get('s') ?? 'toolchain'}&mode=${params.get('mode') === 'dark' ? 'light' : 'dark'}${params.get('p') ? `&p=${params.get('p')}` : ''}`
+mode.href = `?${liveToken ? `live=${encodeURIComponent(liveToken)}` : `s=${params.get('s') ?? 'toolchain'}`}&mode=${params.get('mode') === 'dark' ? 'light' : 'dark'}${params.get('p') ? `&p=${params.get('p')}` : ''}`
 mode.className = 'mode'
 bar.append(mode)
