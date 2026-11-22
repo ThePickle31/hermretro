@@ -1,8 +1,9 @@
 // The page's side of the player frame protocol (messages in ./protocol.js, contract in
 // docs/dev/STUDIO-PAGES.md "Page ↔ frame messages"). In: focus, snaps, the player's state, marks while
-// annotating, notes from the in-frame note card, logs. Out: keys, snap requests, hold/release, and the
-// inline player's commands. Everything the frame sends is checked (./frame-values.js) before use.
+// annotating, notes from the in-frame note card, logs. Out: keys, snap requests, hold/release, the app's
+// colours, and the inline player's commands. Everything the frame sends is checked (./frame-values.js) before use.
 import { useCallback, useEffect, useRef, useState } from '#sdk'
+import { backgroundOf } from '#shared/ui/background.js'
 import { cleanImage, cleanMarks, cleanNote } from './frame-values.js'
 import { CMD, FROM_FRAME, TO_FRAME } from './protocol.js'
 
@@ -16,6 +17,20 @@ const ARROW_GROUP = '[role=tab], [role=radio], [role=menuitem], [role=menuitemra
 
 const IDLE = Object.freeze({ ready: false, paused: false, muted: false, annotating: false, recording: false })
 const REPLY_MS = 2500
+
+/** The app's colours where the frame sits: the background behind it (so the player's page looks part of the
+ *  app, whatever finish the handheld is in), the text colour and the accent. */
+function appColours(frame) {
+  const style = getComputedStyle(frame)
+
+  return { accent: style.getPropertyValue('--ui-accent').trim() || '#3d7bff', background: backgroundOf(frame.parentElement, getComputedStyle).css, ink: style.color }
+}
+
+/** The frame's theme: the accent for our overlay, and the app's background and text in place of the
+ *  finish's own (the engine sets those on the body inline, so these need `!important`). */
+function themeCss({ accent, background, ink }) {
+  return `:root{--hr-accent:${accent}}body.codex-game-view-mounted{--cgv-background:${background}!important;--cgv-ink:${ink}!important}`
+}
 
 function keepsKey(event) {
   const target = event.target
@@ -60,6 +75,10 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
   }, [])
 
   const send = useCallback((type, payload = {}) => post({ cs: TO_FRAME, ...payload, type }), [])
+
+  // The app's colours. Sent with every report of the player's state, so a frame that just loaded (its
+  // first report) gets them too.
+  const paint = useCallback(() => frameRef.current && send(CMD.THEME, { css: themeCss(appColours(frameRef.current)) }), [])
 
   const releaseKeys = useCallback(() => {
     for (const [key, code] of held.current) {
@@ -128,7 +147,10 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
     const handlers = {
       [FROM_FRAME.FOCUS]: data => setFocused(Boolean(data.value)),
       [FROM_FRAME.SNAP]: data => answer(data.id, cleanImage(data.url)),
-      [FROM_FRAME.STATE]: data => setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) }),
+      [FROM_FRAME.STATE]: data => {
+        paint()
+        setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) })
+      },
       [FROM_FRAME.MARKS]: data => setMarks(cleanMarks(data.marks)),
       [FROM_FRAME.TAKEN]: data => answer(data.id, { image: cleanImage(data.image), marks: cleanMarks(data.marks) }),
       [FROM_FRAME.NOTE]: data => void latest.current.onAnnotate?.(cleanNote(data)),
@@ -191,6 +213,19 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
       releaseKeys()
     }
   }, [visible])
+
+  // The app's colours whenever the app's theme changes (Hermes marks it on the root element).
+  useEffect(() => {
+    if (typeof MutationObserver !== 'function') {
+      return undefined
+    }
+
+    const observer = new MutationObserver(paint)
+
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+
+    return () => observer.disconnect()
+  }, [])
 
   // Leaving the page pauses the game and its sound; coming back resumes it (the frame stays loaded).
   const shown = useRef(visible)

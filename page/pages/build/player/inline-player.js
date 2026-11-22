@@ -69,8 +69,6 @@ function useFullScreen(ref) {
   return full
 }
 
-const accentOf = element => (element ? getComputedStyle(element).getPropertyValue('--ui-accent').trim() : '')
-
 export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const surface = `build:${game.id}`
   const owner = useValue(LIVE_PLAYER)
@@ -145,7 +143,6 @@ export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }
   const query = useMemo(() => `view=${prefs.view}&color=${prefs.finish}`, [frameId])
   const ready = Boolean(player.data?.url) && bridge.frame.ready
   const sync = () => {
-    bridge.send(CMD.THEME, { css: `:root{--hr-accent:${accentOf(rootRef.current) || '#3d7bff'}}` })
     bridge.send(CMD.VIEW, { view: prefs.view })
     bridge.send(CMD.FINISH, { id: prefs.finish })
   }

@@ -1,6 +1,6 @@
 # shared: what every page and the shell use
 
-**Holds:** `ui/` (small components: page head, buttons, text, links, glyphs, time and elapsed timers),
+**Holds:** `ui/` (small components: page head, buttons, text, links, glyphs, time and elapsed timers, the app background behind an element),
 `styles/` (the design tokens, the base and narrow-pane rules; `app/style.js` composes the stylesheet), `art/`
 (the PNGs, embedded as data URLs; `art/providers/` the official provider logos the model picker shows, PNG and SVG) and `player/` (the frame layer every player surface uses: the bridge, the
 protocol with the frame, values from the frame checked before use, the live-player lock).

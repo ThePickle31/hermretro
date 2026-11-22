@@ -10,7 +10,7 @@ export const CMD = Object.freeze({
   SNAP: 'snap', // { id }: answer FROM_FRAME.SNAP with the current frame as a PNG data URL
   HOLD: 'hold', // pause the game and its sound while the surface is hidden
   RELEASE: 'release', // undo HOLD
-  THEME: 'theme', // { css }: the app's colours for the frame's own UI
+  THEME: 'theme', // { css }: the app's colours: our overlay's accent, and the player page's background and text
   VIEW: 'view', // { view }: one of VIEWS (inline UI only)
   PRESS: 'press', // { action }: press one of the player's own buttons (PRESSABLE)
   FINISH: 'finish', // { id }: show the handheld in this finish (a DEVICE_COLORS id)
