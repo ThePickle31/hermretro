@@ -40,7 +40,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
 - Only the maintainer changes `engine/` (ModRetro's release with the maintainer's changes, listed in
-  `engine/CHANGES.md`); CI fails a pull request from anyone else that touches it. Need an engine change? Open an issue.
+  `engine/CHANGES.md`) and the CI workflows (`.github/workflows/`, `.github/actions/`); a check fails a pull request
+  from anyone else that touches them. Need a change there? Open an issue.
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.
@@ -50,8 +51,9 @@ The agent guide (`AGENTS.md`) lists them; in short:
 - One concern per pull request, against `dev`. The title is `type(scope): what it does` (`feat`, `fix`, `docs`,
   `chore`, `test`, `ci`; the scope optional): it becomes the squash commit and the release-note line.
 - Fill in the template: what changed and why, and how you verified it (on which systems).
-- CI must be green (**All checks pass**). The maintainer reviews and merges; first-time contributors' workflow
-  runs wait for approval.
+- CI must be green (**All checks pass** and **Engine and workflows come from the maintainer**). The maintainer
+  reviews and merges. Your first pull request's CI runs once the maintainer approves it; after your first merged
+  pull request, CI runs on every push by itself.
 - If your pull request conflicts in `desktop/plugin.js`, merge `origin/dev`, run `node tools/bundle/bundle.mjs` and commit
   the two built files.
 

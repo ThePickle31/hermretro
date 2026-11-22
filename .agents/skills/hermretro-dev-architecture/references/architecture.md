@@ -69,7 +69,7 @@ Every folder in the repository.
 | `tools/py/` | Pinned Python tools for development only (ruff), their settings, and check.py's helpers |
 | `.agents/skills/` | The development skills: how to work on hermretro (`.claude/skills` links here) |
 | `.github/` | CI workflows, templates and community files |
-| `.github/workflows/` | CI, integration and nightly workflows |
+| `.github/workflows/` | CI, integration, nightly and maintainer-paths workflows |
 | `.github/actions/` | Shared workflow steps |
 | `.github/ISSUE_TEMPLATE/` | Issue forms |
 

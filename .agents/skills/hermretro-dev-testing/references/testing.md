@@ -63,7 +63,10 @@ and `.dev/` are not linted.
   once that tag contains this workflow. It tests the dispatched SHA and upgrades it from the preceding published
   stable release, not from itself or from a moving `dev`. Read back the run ID and verify `headSha` against the tag.
 
-The single required check is **All checks pass**.
+The required checks are **All checks pass** and **Engine and workflows come from the maintainer**
+(`maintainer-paths.yml`: a pull request from anyone but the owner, or Dependabot for the workflows, may not touch
+`engine/`, `.github/workflows/` or `.github/actions/`). That one runs on `pull_request_target`, from the base
+branch's copy, so a pull request cannot change its own check; it reads only the API, never the pull request's code.
 
 ## The Hermes names check
 

@@ -1,7 +1,9 @@
-# hermretro's checks. The only required check is "All checks pass" (all-checks-pass), which sums up the
-# others, so jobs can be added, split or skipped without touching the repository rules. The integration tier
-# (real engine) runs for pull requests that touch the backend, engine, player or toolchain, and on every push to
-# dev, except a change of only plugin.yaml's version line (job `changes`). The same job picks whether job
+# hermretro's checks. The required check from here is "All checks pass" (all-checks-pass), which sums up the
+# others, so jobs can be added, split or skipped without touching the repository rules. (The other required
+# check, that only the maintainer changes engine/ and the workflows, is maintainer-paths.yml: this file runs from
+# the pull request, so the pull request could change it.)
+# The integration tier (real engine) runs for pull requests that touch the backend, engine, player or toolchain,
+# and on every push to dev, except a change of only plugin.yaml's version line (job `changes`). The same job picks whether job
 # update-dev runs; when it fails, so does this.
 # main is not built: it only ever fast-forwards to a dev commit whose push run is green already (tools/release.py
 # checks it), and the main rule reads that same commit's checks. Every check here is also
@@ -45,27 +47,6 @@ jobs:
         run: |
           echo "::error::This pull request targets ${BASE}. FIX: edit the pull request and change its base branch to dev."
           exit 1
-
-  engine-owner:
-    name: Engine changes come from the maintainer
-    # engine/ is ModRetro's release with the maintainer's changes (engine/CHANGES.md): a pull request from anyone
-    # else may not touch it. The checkout is the merge commit, so its first parent is the base.
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != github.repository_owner
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 2
-      - name: This pull request leaves engine/ alone
-        run: |
-          changed=$(git diff --name-only HEAD^1 HEAD -- engine/)
-          if [ -n "$changed" ]; then
-            echo "$changed"
-            echo "::error::Only the maintainer changes engine/. FIX: remove the changes under engine/ from this pull request and open an issue describing the engine change instead."
-            exit 1
-          fi
 
   unit:
     name: Unit tests (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -259,7 +240,7 @@ jobs:
   all-checks-pass:
     name: All checks pass
     if: always()
-    needs: [base, engine-owner, unit, page, scan, validate, update, update-dev, changes, integration]
+    needs: [base, unit, page, scan, validate, update, update-dev, changes, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

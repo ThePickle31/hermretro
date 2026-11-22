@@ -1,0 +1,59 @@
+# The maintainer's paths: engine/ (ModRetro's release with the maintainer's changes, engine/CHANGES.md) and the
+# workflows that check every pull request (.github/workflows/, .github/actions/). A pull request from anyone else
+# that touches them fails this check, and gets one comment saying why. Dependabot may change the workflows: it only
+# bumps pinned actions there, and opens nothing for the engine (.github/dependabot.yml).
+#
+# Safety: pull_request_target runs this file as it is on the base branch, so a pull request cannot change or skip
+# its own check. It never checks out or runs the pull request's code: it reads only the author and the list of
+# changed files from the API. The dev ruleset requires it beside "All checks pass".
+
+name: Maintainer paths
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maintainer-paths-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  maintainer-paths:
+    name: Engine and workflows come from the maintainer
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: This pull request leaves the maintainer's paths alone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          case "$AUTHOR" in
+            "$OWNER") echo "Opened by the maintainer."; exit 0 ;;
+            dependabot\[bot\]) protected='^engine/' ;;
+            *) protected='^(engine/|\.github/(workflows|actions)/)' ;;
+          esac
+          changed=$(gh api --paginate "repos/$GH_REPO/pulls/$NUMBER/files" --jq '.[].filename')
+          touched=$(printf '%s\n' "$changed" | grep -E "$protected" || true)
+          if [ -z "$touched" ]; then
+            echo "Leaves engine/ and the workflows alone."
+            exit 0
+          fi
+          printf '%s\n' "$touched"
+          marker='<!-- maintainer-paths -->'
+          if ! gh api --paginate "repos/$GH_REPO/issues/$NUMBER/comments" --jq '.[].body' | grep -qF "$marker"; then
+            gh pr comment "$NUMBER" --body "$marker
+          Only the maintainer changes \`engine/\`, \`.github/workflows/\` and \`.github/actions/\`. Please remove these changes from this pull request and open an issue describing the change instead:
+
+          $(printf '%s\n' "$touched" | sed 's/.*/- `&`/')"
+          fi
+          echo "::error::Only the maintainer changes engine/, .github/workflows/ and .github/actions/. FIX: remove the changes to those paths from this pull request and open an issue describing the change instead."
+          exit 1
