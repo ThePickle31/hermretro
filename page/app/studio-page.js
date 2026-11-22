@@ -22,7 +22,6 @@ import { forgetRoute, routing } from './routing.js'
 import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from './rpc.js'
 import {
   computeSteps,
-  latestGame,
   ONBOARD_STAGES,
   OnboardHeader,
   Onboarding,
@@ -46,6 +45,18 @@ import { NAV_PAGES, pageById } from './registry.js'
 import { UpdateChip } from './update/chip.js'
 import { ReloadBanner } from './update/reload-banner.js'
 import { usePluginUpdate } from './update/use-update.js'
+
+// The game the user last picked to play on the Emulator page (a library id, or the demo's).
+const EMULATOR_GAME = 'emulatorGame'
+
+function pickedGame(ctx) {
+  try {
+    const id = ctx.storage.get(EMULATOR_GAME, null)
+    return typeof id === 'string' && id ? id : null
+  } catch {
+    return null
+  }
+}
 
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
@@ -262,19 +273,32 @@ export function StudioPage({ ctx }) {
     retry: false
   })
   const gameList = Array.isArray(games.data?.games) ? games.data.games : []
-  const [emu, setEmu] = useState({ id: null, reload: 0 })
+  const [emu, setEmu] = useState(() => ({ id: pickedGame(ctx), reload: 0 }))
   const [emuOpened, setEmuOpened] = useState(false)
   const [dismissed, setDismissed] = useState(null)
   const [capturesOpen, setCapturesOpen] = useState(false)
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
-  // A game picked on the shelf plays even without a web build (its error says how to build it); left
-  // to itself the page plays the newest playable game, else the demo cartridge. While the library is
-  // still loading nothing is chosen, so the frame does not load the demo and then switch.
+  // The page plays only the game picked on the Games page (remembered across visits), even without a web build (its
+  // error says how to build it); with none picked the demo cartridge. A game a chat builds or presents never loads
+  // here by itself. Nothing is chosen until the library has answered (a picked game, until it answered
+  // successfully), so the frame does not load the demo and then switch.
+  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games))
   const libraryKnown = Boolean(games.data) || games.isError
-  const game =
-    emu.id === DEMO_ID
-      ? demo
-      : (gameList.find(item => item.id === emu.id) ?? (libraryKnown ? (latestGame(gameList.filter(item => item.webExport)) ?? demo) : null))
+  const picked = emu.id === DEMO_ID ? demo : gameList.find(item => item.id === emu.id)
+  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null)
+
+  // A picked game gone from the library is forgotten, so a different game made later in its folder (with the same
+  // id) is never played here without a new Play.
+  useEffect(() => {
+    if (libraryRead && emu.id && !picked) {
+      setEmu(current => ({ id: null, reload: current.reload }))
+      try {
+        ctx.storage.set(EMULATOR_GAME, null)
+      } catch {
+        // for this visit only
+      }
+    }
+  }, [libraryRead, emu.id, Boolean(picked)])
 
   useEffect(() => {
     if (onEmulator && game) {
@@ -349,6 +373,11 @@ export function StudioPage({ ctx }) {
 
   const play = id => {
     setEmu(current => ({ id, reload: current.reload }))
+    try {
+      ctx.storage.set(EMULATOR_GAME, id)
+    } catch {
+      // remembered for this visit only
+    }
     go('emulator')
   }
 

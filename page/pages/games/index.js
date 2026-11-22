@@ -4,7 +4,7 @@ import { GAMES_CSS } from './games.css.js'
 import { Games, InstallButton } from './games-page.js'
 
 export { Cartridge } from './cartridge.js'
-export { GAME_STATES, gameMeta, latestGame } from './model.js'
+export { GAME_STATES, gameMeta } from './model.js'
 export { StateTag } from './state-tag.js'
 
 export const GAMES_PAGE = {

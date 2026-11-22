@@ -8,8 +8,7 @@ import { EMULATOR_PAGE } from './emulator/index.js'
 export const PAGES = [BUILD_PAGE, SETUP_PAGE, GAMES_PAGE, EMULATOR_PAGE]
 
 // What the shell itself uses from a page beyond its descriptor, each from that page's front door:
-// first-run onboarding and the setup steps (every page shows their state), the newest game (the player's
-// default and where new games go).
+// first-run onboarding and the setup steps (every page shows their state).
 export {
   computeSteps,
   ONBOARD_STAGES,
@@ -20,4 +19,3 @@ export {
   useInstall,
   useSetupMemory
 } from './setup/index.js'
-export { latestGame } from './games/index.js'

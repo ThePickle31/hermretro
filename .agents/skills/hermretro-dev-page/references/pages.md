@@ -14,7 +14,7 @@ Build, or on the page the user last chose (a remembered page that no longer exis
 |---|---|
 | Setup | Atelier wizard with the flying Chromatic |
 | Games | **Shelf**, layout "A1 · split Play" |
-| Emulator | ModRetro's **real player**, always (the demo cartridge when nothing else plays) |
+| Emulator | ModRetro's **real player**, always: the game picked on the Games page, else the demo cartridge |
 
 Beside Refresh, the header shows an update chip (`page/app/update/`) only
 while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
@@ -74,7 +74,7 @@ adds both: a row naming its design, and a `### <Page>` subsection saying what it
 
 ### Emulator
 
-- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (`player.md`, the `player` RPC), always: with nothing playable of the user's it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install).
+- ModRetro's **real player** in a `SandboxedFrame`, served by the backend (`player.md`, the `player` RPC), always. It plays only the game picked with Play on the Games page (remembered across visits in `ctx.storage` `emulatorGame`, `page/app/studio-page.js`); a game a chat builds or presents never loads here by itself (presentations open in the tab beside the chat). A picked game waits for a successful library answer, and one no longer in the library is forgotten (a new game later made in its folder has the same id). With none picked it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install). Tests: `tests/page/page-emulator-pick.test.mjs`.
 - A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
 - Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf picks the game).
 - Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
