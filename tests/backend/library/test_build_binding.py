@@ -267,10 +267,13 @@ class Guards(unittest.TestCase):
         self.guard("plain-chat", "project_select", {"projectPath": str(self.comet)})
         self.guard("plain-chat", "project_create", {"name": "Y", "destinationPath": str(self.base / "y")})
 
-    def test_a_new_game_conversation_makes_a_project_but_cannot_take_a_bound_game(self):
+    def test_a_new_game_conversation_makes_a_project_but_opens_no_existing_game(self):
         self.registry.build_start("st-new", PROFILE)
         self.guard("st-new", "project_create", {"name": "Z", "destinationPath": str(self.base / "z")})
-        self.guard("st-new", "project_select", {"projectPath": str(self.comet)})  # unbound: it may adopt it
+        # Even a game without a conversation: it would stay selected once the new project claims this chat.
+        refused = self.denied("st-new", "project_select", {"projectPath": str(self.comet)})
+        self.assertEqual(refused.code, "NEW_GAME_ONLY")
+        self.assertIn("chromatic_project_create", str(refused))
         refused = self.denied("st-new", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
         self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
 

@@ -163,7 +163,7 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(["asset" in change for change in answer["report"]["changes"]], [False, False, False, True])
         self.assertEqual(len(answer["warnings"]), 3)
 
-    def test_without_a_project_only_absolute_assets_are_kept(self):
+    def test_without_a_project_no_asset_is_kept(self):
         with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
             answer = self.report(
                 {
@@ -176,8 +176,10 @@ class BuildReport(unittest.TestCase):
             )
         self.assertTrue(answer["ok"], answer)
         self.assertIsNone(answer["project"])
-        self.assertEqual(answer["report"]["changes"][0]["asset"], str(self.base / "elsewhere.png"))
+        # Without the chat's game there is no folder to check an image against: it could be another game's.
+        self.assertNotIn("asset", answer["report"]["changes"][0])
         self.assertNotIn("asset", answer["report"]["changes"][1])
+        self.assertEqual(len(answer["warnings"]), 2)
 
     def test_an_explicit_project_wins(self):
         other = self.base / "other"

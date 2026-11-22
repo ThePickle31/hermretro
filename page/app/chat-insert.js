@@ -87,34 +87,50 @@ export async function sendPromptToChat(ctx, prompt, { fresh = false } = {}) {
   )
 }
 
-/** Open the chat a game was made in (from the games registry). */
+/** The game's own conversation: its Build conversation when it has one in this profile, else the chat that last
+ *  worked on it (from the games registry); null without either. */
+function gameConversation(game) {
+  const session = game?.session
+
+  if (session?.storedId && session.thisProfile !== false && session.exists !== false) {
+    return { stored: session.storedId, profile: session.profileName ?? null }
+  }
+
+  return game?.chat?.sessionId ? { stored: game.chat.sessionId, profile: game.chat.profile ?? null } : null
+}
+
+/** Open the game's own chat (its Build conversation first); answers its stored session id, or null. */
 export async function openGameChat(game) {
-  const stored = game?.chat?.sessionId
+  const conversation = gameConversation(game)
   const target = studioTarget()
   // A chat made in another profile (before chats lived only in hermretro) is not opened there.
-  const inStudio = game?.chat?.profile ? game.chat.profile === STUDIO_PROFILE : true
+  const inStudio = conversation?.profile ? conversation.profile === STUDIO_PROFILE : true
+  const stored = conversation?.stored
 
   if (!stored || !target || !inStudio || typeof host.openSession !== 'function') {
-    return false
+    return null
   }
 
   try {
     await host.openSession(stored, target.profile ? { profile: target.profile } : {})
 
-    return true
+    return stored
   } catch {
-    return false
+    return null
   }
 }
 
-/** Text about one game goes into that game's own chat (opened, not sent); without one, into a
- *  hermretro chat the same way as any prompt. */
+/** Text about one game goes into that game's own chat (opened, not sent); without one, into a new hermretro chat,
+ *  never the chat the user happens to be in, which may be another game's. */
 export async function sendToGameChat(ctx, game, text) {
-  if ((await openGameChat(game)) && (await insertWhenMounted(ctx, null, text))) {
+  const stored = await openGameChat(game)
+
+  // Into that chat's own composer by its id: never the active one, which may by then be another game's.
+  if (stored && (await insertWhenMounted(ctx, stored, text))) {
     promptAdded()
 
     return
   }
 
-  await sendPromptToChat(ctx, text)
+  await sendPromptToChat(ctx, text, { fresh: true })
 }

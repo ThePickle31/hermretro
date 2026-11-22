@@ -122,7 +122,7 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
           why: !hardwareOn ? 'Needs your Chromatic' : !game.rom ? 'Build it first' : "Puts the flash prompt in its chat; Hermes asks before writing"
         })
       : null,
-    item('comment-discussion', 'Open its chat', () => openGameChat(game), { disabled: !game.chat, why: game.chat ? game.chat.title || undefined : 'No chat recorded' }),
+    item('comment-discussion', 'Open its chat', () => openGameChat(game), { disabled: !game.chat && !game.session, why: game.chat ? game.chat.title || undefined : game.session ? undefined : 'No chat recorded' }),
     !card?.complete && onMakeCover ? item('sparkle', game.cover ? 'Finish card' : 'Make cover art', () => onMakeCover(game)) : null,
     game.projectRoot ? item('folder-opened', 'Show in folder', () => revealGame(ctx, game)) : null,
     // What other pages add to this menu (games/index.js declares the slot).

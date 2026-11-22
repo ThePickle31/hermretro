@@ -122,6 +122,13 @@ def rpc_games(ctx):
                 p["storedId"] for p in pending
             }
             existing = _existing_sessions(stored_ids)
+            # Which game's Build conversation each session id is: a chat link to another game's is not this game's.
+            owned = {}
+            for entry in registry.load()["games"].values():
+                session = entry.get("session") if isinstance(entry, dict) else None
+                if isinstance(session, dict) and isinstance(session.get("storedId"), str):
+                    for value in (session["storedId"], *(session.get("aliases") or [])):
+                        owned[value] = entry.get("id")
             for item in pending:
                 item.pop("profile", None)
                 item["exists"] = None if existing is None else item["storedId"] in existing
@@ -135,6 +142,9 @@ def rpc_games(ctx):
                         None if existing is None or not session["thisProfile"] else session["storedId"] in existing
                     )
                 chat = game.get("chat")
+                others = {owned.get(chat.get("sessionId")), owned.get(chat.get("conversationId"))} if chat else set()
+                if others - {None, game["id"]}:
+                    chat = None  # an old link to the conversation that has since become another game's
                 if chat and chat.get("sessionId"):
                     owner = chat.get("profile")
                     game["chat"] = {
@@ -248,8 +258,11 @@ def rpc_presentations(ctx):
             since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) else None
             here = host._profile_identity()
             listed = []
-            for item in host._registry().presentations(since)[-20:]:
+            registry = host._registry()
+            for item in registry.presentations(since)[-20:]:
                 owner = item.get("profile")
+                ids = [value for value in (item.get("sessionId"), item.get("conversationId")) if value]
+                kind, bound = registry.binding_for(owner, ids) if ids else (None, None)
                 listed.append(
                     {
                         "gameId": item["gameId"],
@@ -260,6 +273,7 @@ def rpc_presentations(ctx):
                         "conversationId": item.get("conversationId"),
                         "profile": _profile_name(owner) if owner else None,
                         "thisProfile": owner == here if owner else None,
+                        "buildConversation": kind == "game" and bound.get("id") == item["gameId"],
                     }
                 )
             return {"ok": True, "now": time.time(), "presentations": listed}

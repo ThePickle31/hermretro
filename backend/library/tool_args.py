@@ -10,6 +10,7 @@ list and the code in step):
 - ``PROJECT_NOT_FOUND``: ``project`` (or the game's folder) is not an existing folder.
 - ``NO_PROJECT``: no ``project`` was given and this chat has none.
 - ``ONE_GAME_PER_CONVERSATION``: ``project`` names another game than the one this Build conversation belongs to.
+- ``NEW_GAME_ONLY``: a New Game conversation named an existing game's folder in ``project``.
 - ``PARENT_ONLY``: a delegated subagent called a tool only the main conversation may call.
 - ``BUILD_FIRST``: ``chromatic_present_game`` while the game's playable copy is missing, out of date or not the
   engine's own (``export_freshness``; ``nextStep`` says which fix).

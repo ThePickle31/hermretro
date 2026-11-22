@@ -86,7 +86,7 @@ export function watchBuilds(ctx) {
       const studio = presentedGame(payload)
 
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: isBuildSession(event.session_id) })
+        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id) })
       }
     }
   })
@@ -97,8 +97,6 @@ export function watchBuilds(ctx) {
     }
 
     pending?.()
-
-    const fromBuild = isBuildSession(event?.session_id)
 
     const run = async () => {
       BUILD_TICK.set(BUILD_TICK.get() + 1)
@@ -120,16 +118,20 @@ export function watchBuilds(ctx) {
       }
 
       const list = Array.isArray(answer.presentations) ? answer.presentations : []
-      // Only the newest presentation per game counts.
+      // Only the newest presentation per game counts, and only one made in this profile.
       const newest = new Map()
 
       for (const item of list) {
-        if (item && typeof item.gameId === 'string') {
+        if (item && typeof item.gameId === 'string' && item.thisProfile !== false) {
           newest.set(item.gameId, item)
         }
       }
 
       for (const item of newest.values()) {
+        // Whether the chat that presented it is the game's Build conversation: that presentation's own chat (as the
+        // backend records it, which outlasts a restart), not the chat whose turn just ended.
+        const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId)
+
         presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild })
       }
     }

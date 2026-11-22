@@ -26,6 +26,10 @@ def canonical_hash(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _same_folder(one: str | None, other: str | None) -> bool:
+    return bool(one and other) and os.path.realpath(one) == os.path.realpath(other)
+
+
 class Denied(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -144,15 +148,13 @@ class LaneMixin:
         return engine
 
     def view_lane(self, profile, ids) -> tuple[Lane | None, str | None]:
-        """The lane a desktop pane should show: the chat's own, else the most recently active."""
+        """The lane a desktop pane should show: the chat's own, or none. Never another chat's: its game, frame and
+        build belong to that chat."""
         ids = {value for value in ids or [] if isinstance(value, str) and value}
         with self.table_lock:
             mine = [lane for lane in self.lanes.values() if lane.owner[0] == profile]
         lane = next((l for l in mine if l.owner[1] in ids or ids.intersection(l.sessions_seen)), None)
-        if lane is not None:
-            return lane, "chat"
-        recent = max(mine, key=lambda l: l.last_activity, default=None)
-        return (recent, "recent") if recent is not None and recent.last_activity else (None, None)
+        return (lane, "chat") if lane is not None else (None, None)
 
     @staticmethod
     def _open_preview(engine: EngineProcess) -> tuple[dict | None, str | None]:
@@ -334,13 +336,38 @@ class LaneMixin:
         )
 
     # -- one game, one conversation (the Build page) --------------------------------
-    def _selection_target(self, tool: str, arguments: dict) -> str | None:
-        """The project root a selector would work on: the selected project, or the new folder."""
+    def _selection_target(self, lane: Lane, tool: str, arguments: dict) -> str | None:
+        """The project root a selector would work on: the selected project, or the new folder, resolved as the engine
+        resolves it (trimmed; a relative path against the project the conversation has open)."""
         path = arguments.get("projectPath") if tool == "project_select" else arguments.get("destinationPath")
         if not isinstance(path, str) or not path.strip():
             return None
-        real = os.path.realpath(os.path.expanduser(path))
+        path = os.path.expanduser(path.strip())
+        if not os.path.isabs(path):
+            if not lane.selected_root:
+                raise Denied(
+                    "INVALID_ARGUMENTS",
+                    f"{'projectPath' if tool == 'project_select' else 'destinationPath'} must be an absolute path "
+                    "here. Nothing was changed.",
+                )
+            path = os.path.join(lane.selected_root, path)
+        real = os.path.realpath(path)
         return os.path.dirname(real) if tool == "project_select" and os.path.isfile(real) else real
+
+    def _project_holding(self, target: str) -> str | None:
+        """The game folder ``target`` would be made inside: a library game's existing folder above it, or a folder
+        above it holding a GB Studio project (one another chat is making right now is not in the library yet).
+        ``target`` itself is the engine's to refuse: it only makes a project in a new folder."""
+        game = self.games.game_around(target)
+        if game is not None:
+            return os.path.realpath(game["projectRoot"])
+        for folder in Path(target).parents:
+            try:
+                if any(folder.glob("*.gbsproj")):
+                    return str(folder)
+            except OSError:
+                continue
+        return None
 
     def guard_selection(
         self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict, continue_here: bool
@@ -349,7 +376,7 @@ class LaneMixin:
         its own conversation is warned first (it may continue once the user confirms)."""
         profile, conversation = owner
         kind, bound = self.games.binding_for(profile, [conversation, *lane.sessions_seen])
-        target = self._selection_target(tool, arguments)
+        target = self._selection_target(lane, tool, arguments)
         if kind == "game":
             mine = os.path.realpath(bound["projectRoot"])
             title = bound.get("title") or os.path.basename(mine)
@@ -370,18 +397,37 @@ class LaneMixin:
                 "game, start one with New Game on the hermretro Build page; to work on another game, "
                 "open that game on the Build page. Nothing was changed.",
             )
+        if target and tool != "project_select":
+            holder = self._project_holding(target)
+            if holder is not None:
+                where = os.path.realpath(paths.games_dir())
+                inside = where == holder or where.startswith(holder.rstrip(os.sep) + os.sep)
+                raise Denied(
+                    "INSIDE_ANOTHER_GAME",
+                    f"{target} is inside the game folder {holder}. A new game gets a folder of its own. "
+                    + (
+                        "hermretro's games folder is itself inside that folder, so tell the user; do not make the "
+                        "game there."
+                        if inside
+                        else "Leave destinationPath out to make it in the hermretro games folder."
+                    )
+                    + " Nothing was changed.",
+                )
         entry = self.games.game_for_root(target) if target and tool == "project_select" else None
+        if kind == "pending" and isinstance(entry, dict):
+            # A new game's conversation makes its own project: an existing game it opened would stay selected
+            # after the new project claims the conversation, and its edits and builds would go there.
+            title = entry.get("title") or os.path.basename(target)
+            raise Denied(
+                "GAME_HAS_CONVERSATION" if isinstance(entry.get("session"), dict) else "NEW_GAME_ONLY",
+                f"This conversation is for a new game, so it does not open \"{title}\". Create the new game's "
+                "project with chromatic_project_create or chromatic_project_create_blank. To work on "
+                f"\"{title}\", tell the user to open it on the hermretro Build page. Nothing was changed.",
+            )
         session = entry.get("session") if isinstance(entry, dict) else None
         if not isinstance(session, dict):
             return
         title = entry.get("title") or os.path.basename(target)
-        if kind == "pending":
-            raise Denied(
-                "GAME_HAS_CONVERSATION",
-                f"\"{title}\" already has its own conversation on the hermretro Build page, so this new "
-                "game's conversation cannot take it over. Create a new project for the new game instead, "
-                "or tell the user to open that game on the Build page. Nothing was changed.",
-            )
         if continue_here:
             self.trace(event="continued_outside_game_conversation", owner_key=lane.key)
             return
@@ -395,14 +441,25 @@ class LaneMixin:
         )
 
     def select_bound_game(self, lane: Lane, engine: EngineProcess) -> None:
-        """A game's conversation starts with its game selected, so the agent never has to ask which."""
-        if lane.selected_root:
-            return
+        """A game's conversation works on its game: selected for it when nothing is, and again when another project
+        is (a New Game conversation whose new project claimed it after it had opened something else). When its worker
+        still has another project open, nothing runs for it."""
         kind, bound = self.games.binding_for(lane.owner[0], [lane.owner[1], *lane.sessions_seen])
         if kind != "game" or not os.path.isdir(bound.get("projectRoot") or ""):
             return
-        if getattr(lane, "auto_select_failed", None) == lane.generation:
-            return  # tried with this worker already; do not repeat a slow failure on every call
+        root = bound["projectRoot"]
+        if not _same_folder(lane.selected_root, root) and getattr(lane, "auto_select_failed", None) != lane.generation:
+            self._select_game(lane, engine, bound)  # a failure is not repeated on every call with this worker
+        if lane.selected_root and not _same_folder(lane.selected_root, root):
+            title = bound.get("title") or os.path.basename(root)
+            raise Denied(
+                "ONE_GAME_PER_CONVERSATION",
+                f"This conversation belongs to the game \"{title}\" ({root}), but its game worker has "
+                f"{lane.selected_root} open and could not switch, so nothing runs here. Tell the user; the worker is "
+                "replaced once this conversation has been idle for a while. Nothing was changed.",
+            )
+
+    def _select_game(self, lane: Lane, engine: EngineProcess, bound: dict) -> None:
         root = bound["projectRoot"]
         project = library.project_file(Path(root))
         try:

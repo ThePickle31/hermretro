@@ -84,6 +84,7 @@ class PresentationHistory(unittest.TestCase):
                 "conversationId": record["conversationId"],
                 "profile": "default" if record["profile"] == self.here else "studio",
                 "thisProfile": record["profile"] == self.here,
+                "buildConversation": False,  # none of these games has a Build conversation
             }
             for record in records[-RPC_LIMIT:]
         ]

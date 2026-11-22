@@ -31,7 +31,13 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
   Another chat selecting a game that has its own conversation is warned (`GAME_HAS_CONVERSATION`);
   it may continue once the user confirms, by selecting again with `continueInThisChat: true`
   (hermretro's own `project_select` argument, removed before the engine sees it). A New Game
-  conversation may create a project or look at an unbound game, never take a bound one. A game's
+  conversation creates its project and opens no existing game (`NEW_GAME_ONLY`, or `GAME_HAS_CONVERSATION` for a
+  bound one): what it opened would stay selected after its new project claims it; nor does it name one in the card,
+  present or report tools. No chat creates a project inside another game's folder, a library game's or any folder
+  holding a `.gbsproj` (`INSIDE_ANOTHER_GAME`; the same folder is the engine's `PROJECT_ALREADY_EXISTS`, so a
+  default name still moves to the next number). Selector paths are read as the engine reads them (trimmed; relative
+  only against an open project). A game's conversation that has another project open is moved back to its game, and
+  runs nothing while its worker cannot switch (`select_bound_game`). A game's
   conversation whose game folder is gone is told so (`GAME_FOLDER_MISSING`); the warning applies to
   chats in every profile, since the rule is about the game.
   Start fresh is out for now.

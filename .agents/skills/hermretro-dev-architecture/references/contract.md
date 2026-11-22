@@ -189,14 +189,14 @@ desktop halves and for the broker's own use. `chat` and `stored` are the focused
 match. Served from the broker's memory: no engine call, never starts the broker or a worker.
 
 ```
-{ ok, running, matched: "chat" | "recent" | null,
+{ ok, running, matched: "chat" | null,
   lane: { project_root, project_name, alive, busy, current_tool, preview_url } | null,
   frame: { t, tool, frame, src /* data URL */ } | null,
   build: { t, ok, seconds, rom, sha256, error } | null,
   events: [{ t, tool, kind, ok, seconds, error? }] }
 ```
 
-`matched: "recent"` means the chat has no worker and the most recently active one in the profile is shown.
+`matched: null` means the chat has no worker; another chat's is never shown.
 
 ## Studio pages (desktop) and their RPCs
 
@@ -212,7 +212,7 @@ instead of throwing.
 | `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
-| `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete` |
+| `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
@@ -226,14 +226,16 @@ Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbs
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
 web export the engine made of the current sources (else `BUILD_FIRST`) and a complete game card (else
 `GAME_INFO_INCOMPLETE` with `missing`, `problems` and `nextStep`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
-title, note, presentedAt } }`; the desktop then opens the emulator in a tab docked right of the chat. Builds
+title, note, presentedAt, buildConversation } }` (`buildConversation`: the game's own Build conversation presented
+it, so the Build page plays it); otherwise the desktop opens the emulator in a tab docked right of the chat. Builds
 open nothing. Setting `live_player` ("Keep the playable copy current", default on) makes every successful
 `rom_build` refresh that web export, so a presentation finds it fresh.
 
 Every plugin tool's failure is `{ ok: false, error, code, nextStep? }` (`tool_error(message, code, next_step)`):
 `nextStep` says what the agent does about it, and `ADAPTER_ERROR` always has one. `chromatic_game_info`,
 `chromatic_present_game` and `chromatic_build_report` act on the chat's own game: in a game's Build conversation a
-`project` naming another folder is refused with `ONE_GAME_PER_CONVERSATION`, and a game with a Build conversation
+`project` naming another folder is refused with `ONE_GAME_PER_CONVERSATION` (in a New Game conversation, one naming
+an existing game with `NEW_GAME_ONLY`), and a game with a Build conversation
 keeps it as its `chat` link whatever other chat touches it. An engine tool the broker cannot run answers
 `UNAVAILABLE` with a `nextStep`; when another copy of the plugin's broker still runs games, it says whether one is
 this chat's own (the plugin folder changed under it) or other chats'.
@@ -256,7 +258,7 @@ result { ok: true, report: { title, summary, changes[], tested[], untested[], no
 All or nothing: any invalid field (unknown keys included) refuses the whole report. Strings are trimmed and
 their whitespace collapsed. `asset` (absolute, or relative to the project) becomes an absolute path inside
 the project; one outside it or missing is left out of that change and listed in `warnings`. Without a
-resolvable project the report is still accepted (`project: null`) and only absolute assets are kept. Each
+resolvable project the report is still accepted (`project: null`) and no asset is kept (it could be another game's). Each
 kept asset's current version is saved like a delivered image, so the card keeps showing it after a rewrite.
 
 ## Build history (snapshots)

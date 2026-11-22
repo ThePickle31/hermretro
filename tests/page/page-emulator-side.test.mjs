@@ -178,6 +178,18 @@ await runScenario(async helpers => {
   shownByBackend = [{ gameId: 'ccc333ccc333', title: 'Star Farm', t: backendNow + 0.25, note: null }]
   await turnEnd('rt-star')
   check('nor one first heard through tool.complete', () => { assert.equal(scenario.workspaces.length, opened + 1) })
+  shownByBackend = [{ gameId: 'bbb222bbb222', title: 'Robo Run', t: backendNow + 0.75, note: null, sessionId: 'rt-other', thisProfile: false }]
+  await turnEnd('rt-owl')
+  check('a presentation made in another Hermes profile is not acted on here', () => {
+    assert.equal(scenario.workspaces.length, opened + 1); assert.ok(!scenario.workspaces.some(tab => /Robo Run/.test(tab.options.title)))
+  })
+  // After a restart the page no longer knows which chats are Build conversations; the backend still does.
+  shownByBackend = [{ gameId: 'ddd444ddd444', title: 'Ace Arena', t: backendNow + 0.8, note: null, sessionId: 'rt-ace', thisProfile: true, buildConversation: true }]
+  await turnEnd('rt-ace')
+  await finish('rt-ace2', 'chromatic_present_game', { ok: true, studio: { gameId: 'ddd444ddd444', title: 'Ace Arena', note: null, presentedAt: 202, buildConversation: true } })
+  check("a game's own Build conversation presenting it opens nothing beside the chat (the Build page plays it)", () => {
+    assert.equal(scenario.workspaces.length, opened + 1); assert.ok(!scenario.workspaces.some(tab => /Ace Arena/.test(tab.options.title)))
+  })
   await act(async () => { scenario.workspaces.at(-1).close() })
   delete scenario.byMethod['plugin.hermretro.presentations']
   await turnEnd('rt-old')

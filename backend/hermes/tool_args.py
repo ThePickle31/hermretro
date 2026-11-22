@@ -35,10 +35,23 @@ NEXT_STEPS = {
 
 
 def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id: str) -> str | None:
-    """The ``ONE_GAME_PER_CONVERSATION`` answer when this chat is a game's Build conversation and ``folder`` is not
-    that game; None when the chat may act on ``folder``."""
-    bound = host._bound_game(conversation_id, session_id)
-    if bound is None or os.path.realpath(folder) == os.path.realpath(bound["projectRoot"]):
+    """The refusal when this chat may not act on ``folder``: ``ONE_GAME_PER_CONVERSATION`` for a game's Build
+    conversation and another folder, ``NEW_GAME_ONLY`` for a New Game conversation and an existing library game; None
+    when the chat may act on it."""
+    kind, bound = host._chat_binding(conversation_id, session_id)
+    if kind == "pending":
+        other = host._registry().game_for_root(str(folder))
+        if other is None:
+            return None
+        title = other.get("title") or Path(other["projectRoot"]).name
+        return tool_error(
+            f"This conversation is for a new game, so {tool} cannot act on \"{title}\" ({other['projectRoot']}). "
+            "Nothing was changed.",
+            "NEW_GAME_ONLY",
+            "Create the new game's project first and leave out project. To work on that game, tell the user to open "
+            "it on the hermretro Build page.",
+        )
+    if kind != "game" or os.path.realpath(folder) == os.path.realpath(bound["projectRoot"]):
         return None
     title = bound.get("title") or Path(bound["projectRoot"]).name
     return tool_error(

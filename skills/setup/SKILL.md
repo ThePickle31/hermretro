@@ -122,6 +122,7 @@ Everything is installed in `~/.hermes/hermretro/.cache/`, which plugin updates a
 | `IDENTITY_REQUIRED` | The call came from inside `execute_code`. Call `chromatic_*` tools directly. |
 | `PARENT_ONLY`, `LEASE_REQUIRED` | A delegated subagent can only inspect; setup, project selection, edits, emulator and hardware run in the main conversation. |
 | `PATH_OUTSIDE_PROJECT` | This chat's engine worker is bound to another project folder: use a new chat. |
+| `NEW_GAME_ONLY`, `INSIDE_ANOTHER_GAME` | A New Game chat makes its own project and opens or names no other game; a new project never goes inside another game's folder. Leave `destinationPath` out and create the project. |
 | `PROJECT_WRITER_BUSY` | Another chat is editing or building this project right now: wait, or continue there. |
 | `HARDWARE_DISABLED` | Hardware tools are off: tell the user where to turn them on; do not retry. |
 | `ENGINE_NOT_VERIFIED` | The plugin's engine files were changed: tell the user to reinstall the plugin. |
