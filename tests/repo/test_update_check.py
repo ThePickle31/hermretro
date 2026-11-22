@@ -102,29 +102,34 @@ class OldBroker(unittest.TestCase):
                     self.assertEqual(accepted.recv(1), b"")  # closed
 
     def test_the_old_broker_is_held_through_the_new_drive_past_its_idle_deadline(self):
-        # Idle deadline reached after the liveness check, before the new client connects (Hermes starting, the
-        # plugin loading): with the hold released first, the old broker is gone and a fresh one looks replaced.
+        # The idle deadline has passed when the new client connects (Hermes starting, the plugin loading), but the
+        # held connection keeps the old broker up: released first, it is gone and a fresh one looks replaced. The
+        # broker judges idleness only when the test asks, and time moves only when the test says so: no sleep races.
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:  # short: a Unix socket path is at most 104 bytes
-            broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.3)
+            broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.1)
+            self.addCleanup(broker.stop)  # registered at once: a failed wait below still stops the broker
             held = update_check.hold_open(broker.path)
-            broker.wait_for_connections(1)
+            self.addCleanup(held.close)
+            broker.wait_for_connections(1)  # accepted, not just connected
+            broker.advance(1.0)  # long past the deadline: only the held connection keeps the broker up
 
             def drive():
-                time.sleep(1.0)  # well past the idle deadline
+                # The broker notices what became of the hold first, then time passes before the new client
+                # connects: a hold released too early exits on the idle judgement here, and the connect is refused.
+                broker.connections()
+                broker.advance(1.0)
+                self.assertFalse(broker.check_idle_once(), "the old broker idled out as soon as the hold was released")
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as new_client:
                     new_client.connect(broker.path)  # refused when the old broker idled out
                 return "driven"
 
-            try:
-                self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
-                self.assertFalse(broker.gone, "the old broker idled out during the new drive")
-                self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
-                broker.wait_for_connections(0)
-                time.sleep(0.6)
-                self.assertTrue(broker.gone, "released, the old broker idles out as before")
-            finally:
-                held.close()
-                broker.stop()
+            self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
+            self.assertFalse(broker.gone, "the old broker idled out during the new drive")
+            self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
+            broker.wait_for_connections(0)
+            broker.advance(1.0)  # released, it idles out as before, on the same judgement
+            self.assertTrue(broker.check_idle_once(), "released, the old broker idles out as before")
+            self.assertTrue(broker.gone)
 
     def test_a_gone_old_broker_stops_before_the_new_drive_and_releases_the_hold(self):
         held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -135,18 +140,30 @@ class OldBroker(unittest.TestCase):
 
 
 class IdleBroker:
-    """A stand-in for the broker's idle exit: it stops listening once no connection has been open for `idle`."""
+    """A stand-in for the broker's idle exit: it stops listening once no connection has been open for `idle`.
+
+    The deadline is judged only when the test runs `check_idle_once` (the real broker loops it), and the clock
+    moves only when the test advances it, so a test can put the broker past the deadline without sleeping.
+    """
 
     def __init__(self, path: str, idle: float):
         self.path, self.idle, self.gone = path, idle, False
-        self.open = 0
-        self.lock = threading.Condition()
+        self.conns: list[socket.socket] = []
+        self.skew = 0.0
+        self.last = time.monotonic()
+        self.lock = threading.RLock()
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.listener.bind(path)
         self.listener.listen(8)
-        self.last = time.monotonic()
         threading.Thread(target=self._accept, daemon=True).start()
-        threading.Thread(target=self._idle, daemon=True).start()
+
+    def now(self) -> float:
+        return time.monotonic() + self.skew
+
+    def advance(self, seconds: float):
+        """Move the broker's clock past the deadline, as waiting would."""
+        with self.lock:
+            self.skew += seconds
 
     def _accept(self):
         while True:
@@ -154,36 +171,54 @@ class IdleBroker:
                 conn, _ = self.listener.accept()
             except OSError:
                 return
+            conn.setblocking(False)  # a silent, open client: peek would block, not end
             with self.lock:
-                self.open += 1
-                self.lock.notify_all()
-            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
+                self.conns.append(conn)
 
-    def _serve(self, conn):
-        with conn:
-            while conn.recv(1024):
-                pass
+    def _reap(self):
+        """Drop the clients that have closed; a silent one that is still open stays (and counts)."""
+        for conn in list(self.conns):
+            try:
+                closed = conn.recv(1, socket.MSG_PEEK) == b""
+            except BlockingIOError:
+                continue
+            except OSError:
+                closed = True
+            if closed:
+                self.conns.remove(conn)
+                conn.close()
+                self.last = self.now()
+
+    def connections(self) -> int:
         with self.lock:
-            self.open -= 1
-            self.last = time.monotonic()
-            self.lock.notify_all()
+            self._reap()
+            return len(self.conns)
 
-    def _idle(self):
-        while not self.gone:
-            time.sleep(0.02)
-            with self.lock:
-                if self.open == 0 and time.monotonic() - self.last >= self.idle:
-                    self.stop()
+    def check_idle_once(self) -> bool:
+        """One pass of the broker's idle loop: exit (True) when nothing is open and the deadline has passed."""
+        with self.lock:
+            self._reap()
+            if not self.conns and self.now() - self.last >= self.idle:
+                self.stop()
+                return True
+            return False
 
     def wait_for_connections(self, count: int):
-        with self.lock:
-            self.lock.wait_for(lambda: self.open == count, timeout=5)
+        deadline = time.monotonic() + 5
+        while self.connections() != count:
+            if time.monotonic() > deadline:
+                raise AssertionError(f"the broker has {self.connections()} connection(s), not {count}")
+            time.sleep(0.005)
 
     def stop(self):
         if self.gone:
             return
         self.gone = True  # as the broker does on its way out: the socket file goes, so a connect is refused
         Path(self.path).unlink(missing_ok=True)
+        with self.lock:
+            for conn in self.conns:
+                conn.close()
+            self.conns.clear()
         try:
             self.listener.shutdown(socket.SHUT_RDWR)
         except OSError:

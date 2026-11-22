@@ -153,19 +153,58 @@ export function StudioPage({ ctx }) {
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
   const install = useInstall({ enabled: wantInstall })
   const installState = install.data?.install?.state ?? null
+  // A chat holds the setup lock (the broker says so): the only time the tools check repeats on its own.
+  const installElsewhere = Boolean(install.data?.install?.elsewhere)
   const pluginUpdate = usePluginUpdate({ ctx, installing: installState === 'running', running, status })
-  const lastInstall = useRef(installState)
+  const lastElsewhere = useRef(installElsewhere)
+  const finishedAt = install.data?.install?.finished_at ?? null
+  // One key per finished run, whether or not this page ever saw it running (a reload near its end).
+  const doneRun = installState === 'done' ? `${install.data?.install?.run_id ?? ''}@${finishedAt ?? ''}` : null
+  const verifiedRun = useRef(null)
+  // When the tools check in flight, and the one whose answer is on screen, were asked (this page's clock).
+  const doctorAsked = useRef({ fetching: false, at: 0, answerAt: 0 })
 
-  // The page's install finished: read the tools again so the step can verify.
   useEffect(() => {
-    const before = lastInstall.current
+    const asked = doctorAsked.current
 
-    lastInstall.current = installState
+    if (doctor.isFetching && !asked.fetching) {
+      asked.at = Date.now()
+    } else if (!doctor.isFetching && asked.fetching) {
+      asked.answerAt = asked.at
+    }
 
-    if (before === 'running' && installState === 'done') {
+    asked.fetching = Boolean(doctor.isFetching)
+  }, [doctor.isFetching])
+
+  // A chat's install ended: read the tools again, once.
+  useEffect(() => {
+    const wasElsewhere = lastElsewhere.current
+
+    lastElsewhere.current = installElsewhere
+
+    if (wasElsewhere && !installElsewhere) {
       void doctor.refetch?.()
     }
-  }, [installState])
+  }, [installElsewhere])
+
+  // The page's install finished: unless the tools check on screen (or in flight) was asked after it finished,
+  // check once more for that run, so the step verifies instead of waiting on a check from before the finish.
+  useEffect(() => {
+    if (!doneRun || verifiedRun.current === doneRun) {
+      return
+    }
+
+    const finishedMs = Number(finishedAt) * 1000 || 0
+    const asked = doctorAsked.current
+    const answeredAt = asked.answerAt || Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0)
+    const current = doctor.isFetching ? asked.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs
+
+    verifiedRun.current = doneRun
+
+    if (!finishedMs || !current) {
+      void doctor.refetch?.()
+    }
+  }, [doneRun, doctor.isFetching])
 
   const finishOnboarding = () => {
     update({ onboarded: true })
@@ -176,11 +215,13 @@ export function StudioPage({ ctx }) {
     const toolchainOpen = toolchainStep && toolchainStep.state !== 'done' && toolchainStep.state !== 'checking'
     const next = {
       fast: autoId !== 'ready',
-      pollDoctor: Boolean(toolchainOpen) && installState !== 'running' && (autoId === 'toolchain' || onboardScreen === 'install')
+      // Each check starts an engine worker: never while someone reads the review or waits on the page's own
+      // install (its end triggers one check above), only while a chat installs where this page cannot see it.
+      pollDoctor: Boolean(toolchainOpen) && installElsewhere
     }
 
     setPolling(current => (current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next))
-  }, [autoId, toolchainStep?.state, installState, onboardScreen])
+  }, [autoId, toolchainStep?.state, installElsewhere])
 
   const go = (id, selection = null) => {
     setNavigation(current => (id === current.page && selection === null
@@ -376,7 +417,7 @@ export function StudioPage({ ctx }) {
     body = [
       jsx(
         Onboarding,
-        { ctx, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
+        { ctx, doctor, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
         'onboarding'
       )
     ]

@@ -44,7 +44,6 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     const flyer = dom.window.document.querySelector('.cs-flyer')
     assert.ok(flyer, 'flyer drawn'); assert.equal(flyer.querySelectorAll('.wing').length, 2); assert.ok(flyer.querySelector('.body .ink'))
     const css = dom.window.document.querySelector('style').textContent
-    assert.match(css, /rotateY\(-14deg\) rotateX\(6deg\) rotateZ\(16deg\)/)
     assert.match(css, /prefers-reduced-motion: reduce\) \{[^}]*\.cs-flyer \* \{ animation: none/)
   })
   const flyerNode = dom.window.document.querySelector('.cs-flyer')

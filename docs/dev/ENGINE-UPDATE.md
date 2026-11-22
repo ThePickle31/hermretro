@@ -19,12 +19,8 @@ single pull request (`chore/engine-<version>`).
    and `THIRD_PARTY_NOTICES.md`. `python -m unittest tests/repo/test_lockstep.py` lists anything missed.
 6. **Compare the skills by hand**: diff `engine/modretro-chromatic/skills/` against the previous release and carry
    real changes into `skills/` (keep the Hermes edits and each `## In hermretro` section).
-7. **New or renamed tools**: `tests/repo/test_lockstep.py` names every place (step words, manifest, CONTRACT counts).
+7. **New or renamed tools**: `tests/repo/test_lockstep.py` names every place (step words, manifest).
 8. Run `python tools/check.py full` and the clean install; CI runs integration on Linux and macOS.
-
-`python tools/retrodev engine update <v> --owner-words "..."` walks these steps, judging from the tree which are done.
-Steps 6 and 8 cannot be seen in the tree: after doing one, record it with `--done 6` (or `--done 8`); the checklist
-finishes only when both are recorded.
 
 Every existing prepared engine (`~/.hermes/hermretro/.cache/engine-<old version>`) is ignored after the bump; the
 device CLI shows as missing until it is installed again for the new version.

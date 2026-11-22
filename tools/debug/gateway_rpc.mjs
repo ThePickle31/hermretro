@@ -8,7 +8,8 @@
 // Never prints the attach ticket.
 import { execFileSync } from 'node:child_process'
 const [profile, method, paramsJson] = process.argv.slice(2)
-const args = (profile === 'default' ? [] : ['-p', profile]).concat(['gateway', 'attach', '--json'])
+// Always -p, `default` included: without it Hermes would follow the sticky active profile.
+const args = ['-p', profile, 'gateway', 'attach', '--json']
 let attach
 try {
   attach = JSON.parse(execFileSync('hermes', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))

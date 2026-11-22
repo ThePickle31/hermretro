@@ -45,7 +45,9 @@ class StudioProfile(unittest.TestCase):
     def test_the_page_is_told_which_profile_answers_and_how_to_create_the_studio_one(self):
         told = sp.describe(self.home, self.target)
         self.assertEqual((told["name"], told["is_studio"]), ("work", False))
-        self.assertEqual(told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False})
+        self.assertEqual(
+            told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False, "conflict": False}
+        )
         self.assertEqual(
             told["create"],
             {
@@ -124,7 +126,7 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(json.loads((self.target / sp.MARKER).read_text())["from_profile"], "work")
         self.assertEqual(
             sp.describe(self.home, self.target)["studio"],
-            {"name": "hermretro", "exists": True, "installed": True, "ours": True},
+            {"name": "hermretro", "exists": True, "installed": True, "ours": True, "conflict": False},
         )
         # Nothing in the profile the plugin was installed into was touched.
         self.assertEqual(sorted(p.name for p in (self.home / "plugins").iterdir()), ["my-provider", "other"])

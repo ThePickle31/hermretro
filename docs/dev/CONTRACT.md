@@ -4,15 +4,14 @@
 
 - Plugin id: `hermretro`. Display name: `hermretro`.
 - Toolset: `chromatic`.
-- Where things register (`__init__.register`): the 85 tools, 6 skills, 6 hooks and the `hermretro.guide` prompt
+- Where things register (`__init__.register`): the tools, skills, hooks and the `hermretro.guide` prompt
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
-  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`;
-  every registration, in order, is pinned in `tests/repo/registration.json`.
+  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `ARCHITECTURE.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
   `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
   feature's `tools.py` (with its Build-page step words), `plugin.yaml` `provides_tools`, the page's
-  `step-words.js` and a line here. Then refresh the snapshot: `python tests/repo/test_registration_snapshot.py --write`.
+  `step-words.js` and a line here.
 
 ## Events between backend features
 
@@ -28,11 +27,11 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 | `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
 | `history.build_kept` | `game` (library id, str), `root` (the real project folder, `pathlib.Path`) | a successful build was kept as a snapshot | — |
 - Tool names: every original engine tool `X` is exposed as `chromatic_X`
-  (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). 81 tools, plus four
+  (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). Besides them, the
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
   `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
   `docs/dev/STUDIO-PAGES.md`), `chromatic_game_info` (the game card, below) and `chromatic_build_report`
-  (the Build page's build card, below). 85 in total.
+  (the Build page's build card, below).
 - Skills are loaded as `skill_view("hermretro:<skill>")`:
   `setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`.
 
@@ -41,8 +40,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 Called with `host.request('plugin.hermretro.<name>', params)`. RPC names are global and flat: one namespace,
 `plugin.hermretro.<name>`, for every feature, with no feature or page prefix and no dots in `<name>` (`builds`,
 not `history.builds`). One name is declared once across all features: the page-name generator
-(`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second, and `python tools/retrodev
-new rpc <feature> <name>` refuses a taken one.
+(`tools/bundle/rpc_names.py`) and `tests/backend/hermes/test_declare.py` fail on a second.
 A disabled or missing backend answers JSON-RPC error `-32601`.
 Which profile the page asks is chosen by what the handler reads, not by its feature: one reading the Build
 conversations or the plugin data folder (`host._data_dir()`, one per profile: history snapshots, asset versions) is
@@ -115,15 +113,30 @@ Finishes the dedicated `hermretro` profile after the page has created it with He
 `profiles.create` (parameters come from `status.profile.create`). Returns
 `{ ok, profile, plugin, providers[], disabled_toolsets[], soul_written, workspace }` or `{ ok: false, code, error }`
 with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`, `HERMES_COMMAND_FAILED`.
-Safe to call again. `status` reports `profile: { name, is_studio, studio: { name, exists, installed, ours },
-create? }`.
+Safe to call again, and single-flight: a call made while another runs in the same process waits for it and gets its
+answer (`shared: true`) or its error. `status` reports `profile: { name, is_studio, studio: { name, exists,
+installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
+refused with `NAME_TAKEN`), so the page names it before any download.
 
-### `install` — params `{ action: "status" | "start" }`
+### `install` — params `{ action: "status" | "start" | "cancel", run_id? }`
 
 The page's own toolchain install (first-run onboarding and the Setup page's toolchain step), with no chat.
 `start` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
-a background thread and returns at once; a second `start` joins the running install. `status` is passive and
-never starts the broker. Both return:
+a background thread and returns at once; a second `start` joins the running install, and `start` is refused with
+`NO_SPACE` when the disk cannot hold even the estimate, or `WORKER_STILL_RUNNING` while an earlier installer worker's
+exit is unconfirmed. Each run has a `run_id`; `cancel` acts only on the running install with that `run_id` (any
+other, such as a stale Cancel for a run that finished while a retry runs, returns the status and stops nothing).
+Cancelling takes three steps: the broker sends the engine MCP's own `notifications/cancelled` for the
+`toolchain_prepare` request; it waits up to 120 s for the engine to release its setup lock (the install keeps
+`state: "running"` with `cancelling: true` meanwhile); then it closes the worker, and that close falls back to
+SIGTERM and then SIGKILL for the worker's process group when the worker does not exit on its own. The result is
+`cancelled`, or `failed` with `SETUP_LOCK_KEPT` when this run's engine kept its lock (never removed by hermretro), or
+`WORKER_STILL_RUNNING` when even the close could not confirm the worker exited: then the user quits and reopens
+Hermes before trying again, and until that worker is gone the broker does not stop or retire, and a new install,
+a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker from before cancel answers
+`cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
+start the broker; with no broker running, `status` reports the last install from its journal
+(`<deps root>/page-install.json`), a `running` one as `interrupted`. All return:
 
 ```json
 {
@@ -132,8 +145,12 @@ never starts the broker. Both return:
                  "source": "github.com/gbdk-2020/gbdk-2020", "bytes": 6870728, "purpose": "...", "approx": false }],
                 "bytes": 708271425, "disk_bytes": 2300000000, "measured_on": "linux-x64", "exact": true },
   "root": "/abs/.hermes/hermretro/.cache/toolchain",
-  "install": { "state": "idle | running | done | failed", "started_at": 0, "finished_at": 0, "code": null,
-               "error": null, "seeded": false, "fraction": 0.4, "downloaded_bytes": 281000000, "current": "cli",
+  "space": { "free_bytes": 50000000000, "needed_bytes": 2300000000, "enough": true, "estimate": "fresh | reuse | unknown",
+             "warning": null },
+  "install": { "state": "idle | running | done | failed | cancelled | interrupted", "run_id": "9f2c…", "started_at": 0, "finished_at": 0,
+               "code": null, "error": null, "hint": null, "seeded": false, "fraction": 0.4,
+               "downloaded_bytes": 281000000, "current": "cli", "elapsed_seconds": 151, "quiet_seconds": 12,
+               "cancelling": false, "elsewhere": false,
                "run": { "components": { "gbdk": { "state": "done | running | failed | pending", "status": "prepared",
                         "version": "4.5.0", "reused": false, "error": null,
                         "checks": [{ "file": "gbdk-linux64.tar.gz", "sha256": "...", "reused": false }] } } } }
@@ -143,7 +160,17 @@ never starts the broker. Both return:
 `manifest` lists every download (pins from the engine's dependency catalog, sizes measured on `measured_on`).
 `run` is read from the engine's own `last-run.json`; `fraction` combines finished components with bytes arriving
 in the toolchain's `downloads/` and `cache/` folders. While it runs, a chat's `chromatic_toolchain_prepare` is
-refused with `OPERATION_IN_PROGRESS` (and the other way round), and the broker neither retires nor idles out.
+refused with `OPERATION_IN_PROGRESS` (and the other way round; `elsewhere` is true while a chat holds that lock), and
+the broker neither retires nor idles out. `code` names a known cause (`NETWORK`, `NO_SPACE`, `SETUP_LOCKED`,
+`SETUP_LOCK_KEPT`, `WORKER_STILL_RUNNING`, `STALLED`, `CANCELLED`, `INTERRUPTED`, or the engine's stage) and `hint` its
+next step, read from the engine's structured result (its error codes such as `DOWNLOAD_FAILED`, `ENOSPC`, and the
+tails of captured command output) before the message is shortened. `SETUP_LOCKED` is a lock this run never took (the
+engine's plan reported it, or another setup took it first): its hint says to check that the owner recorded in the
+lock's `owner.json` has stopped before moving it aside. `space.needed_bytes` is the full install unless the folder
+holds a ready component receipt or cached downloads; then it is a lower estimate, and `warning` says the fit is
+uncertain while less than the full size is free. The install
+is stopped (`STALLED`, through the same cancellation) only after 30 minutes with no change in the toolchain folder or
+the worker's output, not because bytes stopped growing; `quiet_seconds` is how long that has been.
 
 ### `remove_tools` — no params
 

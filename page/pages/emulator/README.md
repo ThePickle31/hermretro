@@ -27,8 +27,8 @@ presentation and refreshes open players after builds.
 tool results).
 
 **Tests:** `tests/page/page-emulator.test.mjs` (the Emulator page), `tests/page/page-emulator-side.test.mjs` (the tab beside the chat),
-`tests/page/registry.test.mjs` (also: an `emulator.barActions` contribution gets `go` on the page, not beside the
-chat).
+`tests/page/slots.test.mjs` (the slot's props: `go` on the Emulator page, not beside the chat),
+`tests/page/registry.test.mjs` (slot declarations and contribution wiring).
 
 ## When the player stays black
 

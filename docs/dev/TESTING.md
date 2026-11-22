@@ -1,50 +1,27 @@
 # Testing
 
-`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time; CI runs the same ones. Every failure ends with a `FIX:` line. This page gives no times: they depend on the machine and on how many agents check at once. Each check's budget, with the runs it was measured from (idle or loaded machine, alone or beside other checks), is in `tools/retrodev/policy.toml` `[checks.budgets]`; `retrodev check` prints each check's time against it.
+`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time; CI runs the same ones. Every failure ends with a `FIX:` line. This page gives no times: they depend on the machine.
 
 One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs` (each file's first lines say so); a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says). A scenario tests the built bundle, so after editing `page/` run `node tools/bundle/bundle.mjs` first: otherwise it stops with `desktop/plugin.js is stale (...)` and `Run: node tools/bundle/bundle.mjs`.
 
 | Check | Command | What it proves |
 |---|---|---|
-| unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR` |
+| unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR`. Several processes at once (`tools/py/unit_shards.py`): the modules dealt into up to four by their times from the last run (`.dev/unit-times.json`), each with its own home and `TMPDIR` |
 | bundle | `python tools/check.py bundle` | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
-| scaffold | `python tools/check.py scaffold` | `retrodev new` of every kind on a copy of the repository passes lint, the bundle, the structure tests and the page tests there (`tests/retrodev/test_scaffold_tree.py`; in `full`, `retrodev check --full`, CI's page job, and `retrodev check` when a branch changes the scaffolds) |
 | acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
 | clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
-While working on a branch, `python tools/retrodev check` runs only the checks whose inputs changed since their last
-pass there (`ok (cached)` for the rest; inputs per check in `tools/retrodev/policy.toml`), adds acceptance and the
-clean install when the branch touched what they cover, and prints each time against its budget (`[checks.budgets]` in
-`tools/retrodev/policy.toml`, whose comments say which runs each budget came from; only passing runs count; a check
-over its budget twice in a row on the branch gets a warning, never a failure). A time you measure yourself is only
-comparable with the same context: say the machine, whether it was idle, and what else ran beside it.
-`python tools/retrodev check --watch` reruns the affected checks on every save; `--again` ignores the cache. A pass
-on the current tree is what `python tools/retrodev ship` requires.
+Run the fast checks before opening a pull request; CI runs the slow ones its changes select
+(`tools/ci/changes.py`) on the exact head. Commit before `python tools/ci/clean_install_check.py`: the install checks
+install the committed tree. `python tools/check.py acceptance` needs the toolchain (`python tools/ci/prepare_toolchain.py`;
+without it the check is skipped and said as not proven here; PR CI runs it on Linux and macOS when the change touches
+what it covers). To use a toolchain somewhere else: `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
 
-**Rerunning one check.** `python tools/retrodev check unit --again` runs only unit, ignoring its cached pass (any
-name from `python tools/retrodev check --help` works, several too). What it does to ship's `checks passed on this
-tree` gate: after the run, when every check the branch needs has a pass on the current inputs (the named one now,
-the others from earlier runs on the same tree), the tree is recorded as passed, so an earlier pass is kept; when the
-named check fails, the recorded pass is taken back and ship refuses until it passes again; when another needed check
-still has no pass on these inputs, nothing is recorded and the gate still refuses (`no passing check run is recorded`
-or `the tree changed since`; a bare `python tools/retrodev check` runs what is missing). `python tools/retrodev ship
---dry-run` shows the gate without pushing. `tools/retrodev/REFERENCE.md` ("check") has the full rules.
-
-- Run `python tools/check.py fix` and commit before `python tools/retrodev check`: when the clean install is due it
-  installs the committed tree, so uncommitted edits are not what it tests (and `ship` needs a committed tree anyway).
-- A branch that changes `backend/` (or `engine/`, `player/`, the toolchain, `plugin.yaml`) makes `retrodev check`
-  add the real-engine acceptance run (its budget is in `policy.toml`); a branch whose only change is `plugin.yaml`'s `version:`
-  line (a release's version pull request) gets the clean install but not acceptance. Without the toolchain (`python
-  tools/ci/prepare_toolchain.py`) it is skipped, and CI runs it on Linux and macOS. `retrodev check` always uses the
-  toolchain that setup put in place: it clears `HERMRETRO_DEPS_ROOT` for the run. To use a toolchain somewhere else,
-  run the check directly: `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
-
-One-time setup: `python tools/py/setup.py` for the Python lint, and `npm ci --prefix tools/npm --ignore-scripts`
-for the page checks (Node 22 or newer). The checks never install anything themselves.
+One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
 
 ## Linting and formatting the Python
 
@@ -56,33 +33,35 @@ at once unless `requirements.txt` changed (then `lint` says so and names the com
 the few ignores it lists and why), quotes kept as written. The vendored engine and player, `skills/`, `tools/npm/`
 and `.dev/` are not linted.
 
-- `python tools/check.py lint` checks; `python tools/check.py fix` gives each bare `# noqa: E402` (in `.py` and
-  `.py.tmpl` files outside `engine/` and `tools/npm/`) the standard reason below (`tools/py/noqa_reasons.py`; it
-  says how many), applies ruff's safe fixes, `ruff format` and the
+- `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format` and the
   page lint's fixes, lists the files it changed, then lints again. `.dev/py/bin/ruff rule <CODE>` explains a rule.
 - A deliberate exception is ruff's own `# noqa: <CODE>` on the line, followed by its reason after ` - ` or ` — `:
   `lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits`; an import after the
-  `sys.path` line says `# noqa: E402 - the repository root goes on sys.path first`. Prefer changing the code;
-  `tests/repo/test_noqa.py` fails on any `noqa` comment without its reason (the file-wide `# ruff: noqa` and
-  `# flake8: noqa` too: `# ruff: noqa: F401 - this module only re-exports`) (outside `engine/` and `tools/npm/`). (The page's escape is `// retrodev: allow <rule> — <reason>`.)
+  `sys.path` line says `# noqa: E402 - the repository root goes on sys.path first`. Prefer changing the code. (The page's escape is `// hermretro: allow <rule> — <reason>`.)
 - Updating ruff: change the version in `requirements.txt`, replace the hash lines with the digests listed at
   `https://pypi.org/pypi/ruff/<version>/json`, run the setup and `python tools/check.py fix`, and commit any
   reformatting as its own commit.
-- Editors: the root `pyrightconfig.json` puts `tools/` on pyright's (and Pylance's) import path, so
-  `from retrodev import ...` in `tests/retrodev/` resolves as it does at run time, and leaves out the vendored and
-  installed folders.
+- Editors: the root `pyrightconfig.json` puts `tools/py/` and `tools/dev/` on pyright's (and Pylance's) import path,
+  as the tools put them at run time, and leaves out the vendored and installed folders.
 
 ## CI tiers
 
-- **Every pull request** (`.github/workflows/ci.yml`): unit on Linux (Python 3.11 and 3.14), Apple Silicon and
-  Intel macOS; bundle and page; scan; `plugins validate`, the clean install and the update from the newest release
-  with the oldest supported Hermes.
-  About 3 minutes.
+- **Every pull request** (`.github/workflows/ci.yml`): plugin and repository unit tests on Linux (Python 3.11 and
+  3.14), Apple Silicon and Intel macOS. CI also runs bundle and page, the install scan,
+  `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
   `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).
+- **Update scope** (`tools/ci/changes.py`, the same `changes` job): the `update-dev` job's update from the PR
+  checkout's `dev` parent (`HEAD^1`) runs on pull requests that delete or move files or change the install,
+  registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release (job `update`) runs
+  on every run, beside the validate job. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
-  and integration on Linux, Apple Silicon and Intel macOS.
+  integration on Linux, Apple Silicon and Intel macOS, and the unit, bundle, lint and page checks on Linux. The
+  schedule tests `dev`; the Sunday run checks all three toolchains without the cache, while
+  other nights can reuse it. To test a published release separately, dispatch `nightly.yml` on its version tag
+  once that tag contains this workflow. It tests the dispatched SHA and upgrades it from the preceding published
+  stable release, not from itself or from a moving `dev`. Read back the run ID and verify `headSha` against the tag.
 
 The single required check is **All checks pass**.
 
@@ -137,11 +116,7 @@ Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feat
 (`page-*.test.mjs`, the shared `harness.mjs` and the browser preview), `tests/repo/` for repository-wide checks
 (names in lock step, the version, the folder map and file sizes, only listed documents, no personal paths, the
 bundle, the install scan) and
-`tests/acceptance/` for the real-engine run, `tests/retrodev/` for the development CLI (temp git repositories with a
-bare origin and a fake `gh`; under discovery the whole package runs in one thread pool, about 1.3 s; a test there
-never patches a module's global, the environment, the working folder, sys.path or sys.stdout, since other threads
-use them: `tests/retrodev/pool.py`; a module that must is marked `load_tests = alone` and runs after the pool, and
-`tests/repo/test_pool_guard.py` names any that is not). The other packages run one test at a time on the main thread. Each folder is a package, so discovery runs from the root:
+`tests/acceptance/` for the real-engine run and `tests/dev/` for the development loop. Each folder is a package, so discovery runs from the root:
 `python -m unittest discover -s tests -t .`; one file: `python -m unittest tests/backend/broker/test_leases.py`;
 one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
 folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
@@ -210,8 +185,7 @@ python -c "import unittest; ids=lambda s: [i for t in s for i in (ids(t) if isin
 diff notes/ids-before.txt notes/ids-after.txt   # only the moved module paths may differ
 ```
 
-The listing walks nested suites, so it also lists `tests/retrodev`'s tests, which run on threads inside one
-`ParallelSuite` (`tests/retrodev/pool.py`). The total alone:
+The total alone:
 `python -c "import unittest; s=unittest.defaultTestLoader.discover('tests', top_level_dir='.'); print(s.countTestCases())"`.
 For a page scenario, compare its check names instead ("Splitting a page scenario", below).
 
@@ -231,7 +205,7 @@ A `page-<name>.test.mjs` near the size limit splits by section, without losing a
    lists must be equal (a check renamed on purpose is listed in the pull request).
 
 Docs and READMEs name test files by path (`tests/...`); `tests/repo/test_doc_pointers.py` fails on one that does not
-exist (and on a doc saying `retrodev new` lacks a kind it has), so a moved or split test updates the docs that name
+exist, so a moved or split test updates the docs that name
 it.
 
 ## Rules for tests
@@ -266,4 +240,5 @@ it.
 
 `node tests/page/preview/build.mjs <out>` builds a browser preview with a stand-in SDK (needs a Hermes
 Desktop checkout for its theme); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
-listed on the page. Screenshot with Playwright and a short `TMPDIR`.
+listed on the page. Screenshot with Playwright and a short `TMPDIR`. `python tools/dev watch` serves it, rebuilt on every save, with a live mode
+that answers from the real gateway (`docs/dev/DEBUGGING.md`, "The development loop").

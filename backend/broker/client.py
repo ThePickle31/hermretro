@@ -193,6 +193,15 @@ def try_connect(state_dir: Path, retire_broken: bool = False) -> tuple[BrokerCli
     return None, failure
 
 
+def _workers_cannot_start(hello: dict, node: str) -> bool:
+    """The broker's Node was removed (a versioned install replaced at another path), or its temporary folder
+    cannot work while the one a new broker would inherit (spawn_broker passes TMPDIR) can."""
+    theirs = hello.get("node")
+    if theirs and theirs != node and not paths.node_usable(theirs):
+        return True
+    return hello.get("temp_ok") is False and host_os.engine_temp_ready({"TMPDIR": os.environ.get("TMPDIR", "")})
+
+
 def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
@@ -228,11 +237,12 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             # Only loaded_fingerprint counts: brokers of builds without it named the files on disk, which after
             # an update are the new build's, so their code_fingerprint matched while they ran the old code.
             loaded = client.hello.get("loaded_fingerprint")
-            if loaded is not None and loaded == paths.code_fingerprint() and not other_install:
+            current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
+            if current and not _workers_cannot_start(client.hello, node["path"]):
                 return client
-            # A broker from another build of this backend. Replace it only when no conversation
-            # has a live worker; otherwise keep using it (same wire protocol) rather than kill
-            # someone's running game. It retires itself once it is idle.
+            # A broker from another build of this backend, or one whose new workers cannot start while a fresh
+            # one's could. Replace it only when no conversation has a live worker; otherwise keep using it (same
+            # wire protocol) rather than kill someone's running game. It retires itself once it is idle.
             answer = client.request({"op": "shutdown"})
             if not answer.get("ok"):
                 if other_install:

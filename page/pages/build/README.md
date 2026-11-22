@@ -82,8 +82,8 @@ readers, stops drawing while the window is hidden, and shows one still frame und
 
 ## Adding a tab here
 
-The page has no tabs yet, so the first is `python tools/retrodev new tab build main --from-page --label Chat` (its
-current content becomes that tab; the id `chat` is taken by the conversations folder `chat/`). After that, make a folder `page/pages/build/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,
+The page has no tabs yet, so its current content becomes the first: a tab `main` labelled Chat whose `Page` is the
+page's own (`build-entry.js`; the id `chat` is taken by the conversations folder `chat/`). After that, make a folder `page/pages/build/<tab>/` with an `index.js` exporting `{ id, label, Page }` (plus `events`,
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/build/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:
