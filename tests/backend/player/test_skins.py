@@ -17,10 +17,17 @@ WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 "
 class ShippedSkins(unittest.TestCase):
     def test_the_hermes_skins_ship_in_order_and_the_first_is_the_default(self):
         ids = [skin["id"] for skin in skins.skins()]
-        hermes = [skin_id for skin_id in ids if skin_id.startswith("hermes-")]
-        self.assertEqual(hermes, ["hermes-midnight", "hermes-blue", "hermes-white", "hermes-clear"])
+        self.assertEqual(
+            ids[:6], ["hermes-midnight", "hermes-blue", "hermes-white", "hermes-clear", "supply-co", "codex"]
+        )
         self.assertEqual(skins.default_skin(), ids[0])
         self.assertIn({"id": "hermes-midnight", "name": "Midnight", "swatch": "#15171c"}, skins.page_skins())
+
+    def test_modretro_finishes_ship_as_skins_with_the_engine_colours(self):
+        listed = {skin["id"]: skin for skin in skins.skins()}
+        self.assertEqual(len(listed), 17)
+        self.assertEqual((listed["midnight"]["name"], listed["midnight"]["background"]), ("Midnight", "#4e4f55"))
+        self.assertEqual(listed["supply-co"]["image"].name, "skin.png")
 
     def test_every_shipped_skin_image_is_a_webp_or_png(self):
         for skin in skins.skins():
@@ -85,18 +92,19 @@ class AFolderOfSkins(unittest.TestCase):
             self.assertEqual([skin["id"] for skin in skins.skins()], ["good"])
         self.assertEqual(len(logged.output), 3)
 
-    def test_an_engine_finish_id_is_left_out_everywhere(self):
-        self.assertIn("cloud", skins.engine_ids())
-        self.add("cloud", {"order": 1})
-        self.add("transparent-sunset", {"order": 1})
-        self.add("mine", {"name": "Mine", "edition": "Club", "background": "#112233", "ink": "#ffffff"})
-        with self.assertLogs(skins.logger, "WARNING") as logged:
-            self.assertEqual([skin["id"] for skin in skins.skins()], ["mine"])
-            self.assertEqual((skins.default_skin(), skins.image_for("cloud")), ("mine", None))
-            entries, order = skins.rail_entries()
-        self.assertTrue(all("the engine has a finish" in line for line in logged.output))
-        self.assertEqual(entries, '    { id: "mine", name: "Club · Mine", background: "#112233", ink: "#ffffff" },\n')
-        self.assertEqual(order, '.codex-game-view .cgv-color[data-device-color="mine"] { order: -4; }\n')
+    def test_engine_ids_are_skins_and_the_rail_lists_every_skin_in_order(self):
+        self.add("cloud", {"order": 2, "background": "#e5e6e3", "ink": "#27272b"})
+        self.add("transparent-green", {"order": 3})
+        self.add("mine", {"name": "Mine", "edition": "Club", "background": "#112233", "ink": "#ffffff", "order": 1})
+        self.assertEqual([skin["id"] for skin in skins.skins()], ["mine", "cloud", "transparent-green"])
+        self.assertEqual(skins.image_for("cloud"), self.folder / "cloud" / "skin.webp")
+        self.assertEqual(
+            skins.rail_entries().splitlines()[:2],
+            [
+                '    { id: "mine", name: "Club · Mine", background: "#112233", ink: "#ffffff" },',
+                '    { id: "cloud", name: "Cloud", background: "#e5e6e3", ink: "#27272b" },',
+            ],
+        )
 
     def test_links_and_text_the_player_cannot_serve_are_kept_out(self):
         outside = self.folder.parent / f"{self.folder.name}-outside"
@@ -115,7 +123,7 @@ class AFolderOfSkins(unittest.TestCase):
         skins.rail_entries()[0].encode("utf-8")
 
     def test_no_skins_or_no_folder_leaves_the_engine_default(self):
-        self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ("", "")))
+        self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ""))
         with mock.patch.object(skins, "SKINS_DIR", self.folder / "gone"):
             self.assertEqual((skins.skins(), skins.signature(), skins.page_skins()), ([], (), []))
 

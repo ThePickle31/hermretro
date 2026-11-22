@@ -148,10 +148,11 @@ class PlayerServer(unittest.TestCase):
         status, _headers, body = fetch(self.url("codex-annotations/view.js"))
         self.assertEqual(status, 200)
         text = body.decode()
-        self.assertLess(text.index('id: "hermes-midnight"'), text.index('id: "codex"'))
-        # first in the colour rail, before the engine's own ordered finishes
-        rule = '.codex-game-view .cgv-color[data-device-color="hermes-midnight"] { order: -4; }'
-        self.assertLess(text.index(rule), text.index('[data-device-color="supply-co"] { order: -2; }'))
+        # the skin folders are the finishes, in their order, and the rail keeps it over the engine's ordering rules
+        listed = text[text.index("DEVICE_COLORS = [") : text.index("];", text.index("DEVICE_COLORS = ["))]
+        self.assertEqual(re.findall(r'id: "([a-z0-9-]+)"', listed), [skin["id"] for skin in skins.skins()])
+        rule = '.codex-game-view .cgv-color[data-device-color] { order: 0; }'
+        self.assertLess(text.index('[data-device-color="codex"] { order: -1; }'), text.index(rule))
         for finish in (
             "Hermes Edition · Midnight",
             "Hermes Edition · Nous Blue",
@@ -161,6 +162,9 @@ class PlayerServer(unittest.TestCase):
             self.assertIn(finish, text)
         status, headers, body = fetch(self.url("codex-annotations/chromatic-hermes-midnight.webp"))
         self.assertEqual((status, headers["Content-Type"], body[:4], body[8:12]), (200, "image/webp", b"RIFF", b"WEBP"))
+        status, headers, body = fetch(self.url("codex-annotations/chromatic-supply-co.png"))
+        self.assertEqual((status, headers["Content-Type"], body[:4]), (200, "image/png", b"\x89PNG"))
+        self.assertEqual(fetch(self.url("codex-annotations/chromatic-no-such-skin.webp"))[0], 404)
         status, headers, body = fetch(self.url("js/binjgb.wasm"))
         self.assertEqual((status, headers["Content-Type"]), (200, "application/wasm"))
         self.assert_common_headers(headers)
