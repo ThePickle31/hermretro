@@ -1,5 +1,5 @@
 // The page's side of the player frame protocol (messages in ./protocol.js, contract in
-// docs/dev/STUDIO-PAGES.md "Page ↔ frame messages"). In: focus, snaps, the player's state, marks while
+// .agents/skills/hermretro-dev-page/references/player.md "Page ↔ frame messages"). In: focus, snaps, the player's state, marks while
 // annotating, notes from the in-frame note card, logs. Out: keys, snap requests, hold/release, the app's
 // colours, and the inline player's commands. Everything the frame sends is checked (./frame-values.js) before use.
 import { useCallback, useEffect, useRef, useState } from '#sdk'

@@ -3,7 +3,7 @@
 Everything lives in `.dev/sandbox/` of this checkout: `hermes/` is the sandbox's Hermes home (its default profile
 and a `hermretro` profile made by the plugin's own setup), with the toolchain reused from the real Hermes home
 through a link. Nothing in the real Hermes home is changed, no sign-in is copied and no window is opened: the
-processes get no display and the browser is headless. Docs: docs/dev/DEBUGGING.md, "The sandbox".
+processes get no display and the browser is headless. Docs: .agents/skills/hermretro-dev-sandbox/references/sandbox.md, "The sandbox".
 Standard library only; development only; Linux and macOS.
 """
 

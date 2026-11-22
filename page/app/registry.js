@@ -140,7 +140,7 @@ export function wirePages(pages, { events, slots }) {
   const problems = pageProblems(pages)
 
   if (problems.length) {
-    throw new Error(`the page registry has problems:\n  ${problems.join('\n  ')}\nFIX: see docs/dev/STUDIO-PAGES.md, "Adding to the page"`)
+    throw new Error(`the page registry has problems:\n  ${problems.join('\n  ')}\nFIX: see .agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"`)
   }
 
   const items = pages.flatMap(page => [{ owner: page.id, item: page }, ...(page.tabs ?? []).map(tab => ({ owner: page.id, item: tab }))])

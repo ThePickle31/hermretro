@@ -388,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
         except Skip as skip:
             state, detail = ("FAILED" if args.strict else "skipped"), str(skip)
             if args.strict and "\nFIX:" not in detail:  # a skip that names its own next step keeps it
-                detail += "\nFIX: install what is missing (see AGENTS.md, \"Checks\")"
+                detail += "\nFIX: install what is missing (see AGENTS.md, \"Commands\")"
         except AssertionError as error:
             state, detail = "FAILED", str(error)
         return name, state, time.monotonic() - start, detail

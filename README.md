@@ -94,7 +94,7 @@ popover names it) or the game tools are installing.
 | Real emulator frames reaching the model | Proven with a vision model |
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |
-| hermretro page: Build, Setup, Games, Emulator | Built; see below and `docs/dev/STUDIO-PAGES.md` |
+| hermretro page: Build, Setup, Games, Emulator | Built; see below and `.agents/skills/hermretro-dev-page/SKILL.md` |
 | Playing inside Hermes | The Emulator page runs ModRetro's own player (with a demo cartridge when you have no games yet). When a game is ready to try, the agent calls `chromatic_present_game` and the emulator opens in a tab beside the chat |
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
@@ -125,12 +125,12 @@ Tested so far on Linux x64 (including the Desktop install above); macOS (Apple S
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.
 
   The page talks to the backend through `plugin.hermretro.*` RPCs, each declared by its backend feature
-  (`backend/<feature>/rpcs.py`; every name and shape in `docs/dev/CONTRACT.md`). The plugin's own agent tool `chromatic_present_game` shows a
+  (`backend/<feature>/rpcs.py`; every name and shape in `.agents/skills/hermretro-dev-architecture/references/contract.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
 - `skills/` — agent skills.
 - `engine/pins/<version>/` — the engine's pinned tool contracts and file manifest.
 - `tests/` — mirrors the code (`backend/<feature>/`, `page/`, `repo/`, `acceptance/`); the full folder map is in
-  `docs/dev/ARCHITECTURE.md`.
+  `.agents/skills/hermretro-dev-architecture/references/architecture.md`.
 
 ## Supported systems
 
@@ -211,7 +211,7 @@ has the search order). The plugin itself has no npm dependencies, and users neve
 packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`) and none
 climbs a folder, no import cycles, no file over 400 lines (three large components are
 listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where code goes
-is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
+is described in `.agents/skills/hermretro-dev-page/references/source.md` ("The page's source").
 
 ## Contributing
 
@@ -228,7 +228,7 @@ the agent side from another profile, `HERMRETRO_EVERY_PROFILE=1` in the gateway'
 skills, hooks and prompt in every profile that has the plugin on; the Build page still uses only the `hermretro`
 profile.
 
-Start with `.github/CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
+Start with `.github/CONTRIBUTING.md`; the development skills are in `.agents/skills/` (AGENTS.md lists them). Report security
 problems privately (`.github/SECURITY.md`).
 
 ## Licence

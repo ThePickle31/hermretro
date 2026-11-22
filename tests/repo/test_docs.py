@@ -60,7 +60,7 @@ class Docs(unittest.TestCase):
         for stray in (
             "SUMMARY.md",
             "backend/library/PLAN.md",
-            "docs/dev/review-notes.md",
+            ".agents/skills/hermretro-dev-page/review-notes.md",
             "page/pages/build/run.log",
             "tests/report.txt",
             "skills/setup/NOTES.md",

@@ -19,7 +19,7 @@ sent), and `setup.demoRequested` `{}` when Try the demo is picked during the ins
 
 **Uses from other pages:** none.
 
-**Page state** (`shell.ctx.storage`, [STUDIO-PAGES.md, "Adding to the page"](../../../docs/dev/STUDIO-PAGES.md#adding-to-the-page)): `setup`.
+**Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `setup`.
 
 **Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-recovery.test.mjs` (the install's failure,
 cancel and recovery states), `tests/page/page-setup-handoff.test.mjs`, `tests/page/page-studio.test.mjs`.
@@ -31,4 +31,4 @@ labelled Setup, then add yours: make a folder `page/pages/setup/<tab>/` (`instal
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/setup/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:
-`docs/dev/STUDIO-PAGES.md`, "Adding to the page".
+`.agents/skills/hermretro-dev-page/references/adding.md`, "Adding to the page".

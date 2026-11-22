@@ -38,7 +38,7 @@ says what it is waiting for: "Starting the player for <game>…" while the `play
 start" with Refresh when that RPC failed, and with Build it in chat when the game has no web export. A frame that
 loads but stays black: compare the game's `webExport` and `web.sha256` (the `games` RPC) with the `player` RPC's
 `romSha256`; when they differ the bar offers "Load the new build" (`emulator-bar.js`). More in
-`docs/dev/DEBUGGING.md`, "Common symptoms".
+`.agents/skills/hermretro-dev-debugging/references/debugging.md`, "Common symptoms".
 
 ## Adding a tab here
 
@@ -46,4 +46,4 @@ Make a folder `page/pages/emulator/<tab>/` with an `index.js` exporting `{ id, l
 `listens`, `slots`, `contributes`, `css` as a page has), then list it in `tabs: [...]` of
 `page/pages/emulator/index.js`. The shell draws the tab bar and remembers the chosen tab
 (`app/page-view.js`); `Page({ shell })` gets the same `shell` as the page. Full steps:
-`docs/dev/STUDIO-PAGES.md`, "Adding to the page".
+`.agents/skills/hermretro-dev-page/references/adding.md`, "Adding to the page".

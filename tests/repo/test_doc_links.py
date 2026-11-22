@@ -2,7 +2,7 @@
 
 Two kinds are checked across the committed documents and source comments: markdown links to an anchor
 (``[x](#anchor)``, ``[x](other.md#anchor)``), whose anchor must be one of that file's heading slugs (GitHub's
-rule), and a quoted section name after a document's name (``the README, "Install"``, ``ARCHITECTURE.md "The agent
+rule), and a quoted section name after a document's name (``the README, "Install"``, ``.agents/skills/hermretro-dev-architecture/references/architecture.md "The agent
 half"``, ``the README's 'Install' section``), which must be one of that document's headings. A renamed heading
 otherwise leaves readers (and agents) looking for a section that is not there.
 

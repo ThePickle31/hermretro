@@ -2,7 +2,7 @@
 
     "$HERMES_RUNTIME_PY" -I tools/ci/hermes_api_check.py      # in CI, with Hermes's own Python
     <python> tools/ci/hermes_api_check.py                     # locally, with your Hermes install's Python
-                                                              # (docs/dev/TESTING.md, "The Hermes names check")
+                                                              # (.agents/skills/hermretro-dev-testing/references/testing.md, "The Hermes names check")
 
 CI runs it on every pull request against the oldest supported Hermes (ci.yml's HERMES_REF) and nightly against
 Hermes main, so a rename in Hermes is caught before users update. It first makes sure this Python imports Hermes
@@ -21,7 +21,7 @@ from backend.hermes import api as hermes_api  # noqa: E402 - the repository root
 
 IMPORT_FIX = (
     "FIX: run with a Python that imports Hermes and its dependencies (the Python of your Hermes install; "
-    "docs/dev/TESTING.md, \"The Hermes names check\")"
+    ".agents/skills/hermretro-dev-testing/references/testing.md, \"The Hermes names check\")"
 )
 
 

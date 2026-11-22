@@ -167,7 +167,7 @@ await runScenario(async helpers => {
   }
   {
     // A menu item's effect is checked here, in the host page's scenario: scenario.clipboard and scenario.notices
-    // record what it copied and said (docs/dev/STUDIO-PAGES.md, "A contribution to a slot").
+    // record what it copied and said (.agents/skills/hermretro-dev-page/references/adding.md, "A contribution to a slot").
     const reveal = ctx.os.revealPath
     ctx.os.revealPath = async () => false
     scenario.clipboard.length = 0; scenario.notices.length = 0

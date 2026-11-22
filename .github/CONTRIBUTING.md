@@ -20,8 +20,7 @@ request into `dev` and CI.
 2. Page changes (`page/`): keep `python tools/dev watch` running; it rebuilds on every save and the app reloads the
    page.
 3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: `python tools/dev reload` reloads the plugin in
-   the running gateway (tools and the prompt apply from the next chat). More: `docs/dev/DEBUGGING.md`, "The
-   development loop".
+   the running gateway (tools and the prompt apply from the next chat). More: `.agents/skills/hermretro-dev-contribute/references/dev-loop.md`.
    `profile/` is different: it holds templates that the page's setup copies into the `hermretro` profile when it
    makes it. A restart does not change a profile that already exists, and finishing setup again keeps its
    `SOUL.md` unless that file is an unedited older template (its hash is in `OLDER_SOULS` in
@@ -37,8 +36,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- Nothing under `engine/` changes outside an engine update (`docs/dev/ENGINE-UPDATE.md`).
-- `python tools/check.py scan` must say `safe` (`docs/dev/INSTALL-SCANNER.md` lists what trips it).
+- Nothing under `engine/` changes outside an engine update (`.agents/skills/hermretro-dev-engine-update/references/engine-update.md`).
+- `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
 - Tests never touch the real Hermes home and never run hardware tools.
 
@@ -54,5 +53,6 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 ## More
 
-`docs/dev/ARCHITECTURE.md` (how it fits together), `TESTING.md`, `DEBUGGING.md`, `CONTRACT.md` (names and RPC
-shapes), `STUDIO-PAGES.md` (the page). Security problems: see `.github/SECURITY.md`, never a public issue. Everyone here follows `.github/CODE_OF_CONDUCT.md`.
+The development skills in `.agents/skills/` (AGENTS.md lists them) hold how each kind of work is done, with their
+reference pages: architecture, the page, testing, the sandbox, debugging. Security problems: see `.github/SECURITY.md`,
+never a public issue. Everyone here follows `.github/CODE_OF_CONDUCT.md`.

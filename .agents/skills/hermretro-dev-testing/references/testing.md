@@ -144,7 +144,7 @@ it; a file without `runScenario(` needs only `// Run alone: node tests/page/<fil
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
 `app/page-view.js` for a page with `tabs`), so a nav entry and a tab with the same label cannot be mixed up.
 `currentTab()` names the studio nav's open page; `currentPageTab()` the selected tab of the mounted page's own tab
-bar (null when it has none; `docs/dev/STUDIO-PAGES.md`, "Testing a tab", is a runnable example). A Build
+bar (null when it has none; `.agents/skills/hermretro-dev-page/references/adding.md`, "Testing a tab", is a runnable example). A Build
 page scenario starts with `buildScenario({ selected })` (setup finished, the Build page open, `selected` as
 `storage.buildSelected`), then sets its own `scenario.games`. A unit
 test of one page module goes in `tests/page/<page>-<module>.test.mjs` with `node:test`, imports
@@ -241,6 +241,6 @@ it.
 `node tests/page/preview/build.mjs <out>` builds a browser preview with a stand-in SDK (needs a Hermes
 Desktop checkout for its theme); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
 listed on the page. Screenshot with Playwright and a short `TMPDIR`. `python tools/dev watch` serves it, rebuilt on every save, with a live mode
-that answers from the real gateway (`docs/dev/DEBUGGING.md`, "The development loop"). To see the page exactly as
+that answers from the real gateway (`.agents/skills/hermretro-dev-contribute/references/dev-loop.md`, "The development loop"). To see the page exactly as
 users do, inside Hermes with real games and turns, use the sandbox (`python tools/dev studio up`, then
-`python tools/dev ui shot`; `docs/dev/DEBUGGING.md`, "The sandbox").
+`python tools/dev ui shot`; `.agents/skills/hermretro-dev-sandbox/references/sandbox.md`, "The sandbox").

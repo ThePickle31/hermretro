@@ -54,12 +54,12 @@ TOKEN = uuid.uuid4().hex  # the throwaway serve's dashboard token, never shown i
 PREFIX = "hermretro-build-session-"
 FIX = (
     "FIX: the page's createBuildChat (page/pages/build/chat/actions.js) and this Hermes disagree on session.create; "
-    "follow the answer shape this Hermes gives (docs/dev/STUDIO-PAGES.md, the Build gateway calls) or raise "
+    "follow the answer shape this Hermes gives (.agents/skills/hermretro-dev-page/references/build-page.md, the Build gateway calls) or raise "
     "plugin.yaml requires_hermes"
 )
 IMPORT_FIX = (
     "FIX: run with a Python that imports Hermes and its dependencies (the Python of your Hermes install; "
-    'docs/dev/TESTING.md, "The Hermes names check")'
+    '.agents/skills/hermretro-dev-testing/references/testing.md, "The Hermes names check")'
 )
 
 
