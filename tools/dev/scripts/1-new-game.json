@@ -1,0 +1,34 @@
+{
+  "match": "a cozy workshop where a little robot fixes toys",
+  "steps": [
+    {
+      "say": "Starting from the workshop starter: it already has a room, a player and a bench to work at.",
+      "call": [{"tool": "chromatic_project_create", "args": {"name": "Tinker Shop", "destinationPath": "{GAMES}/Tinker Shop", "template": "starter", "select": true}}]
+    },
+    {
+      "call": [{"tool": "chromatic_game_info", "args": {
+        "title": "Tinker Shop",
+        "tagline": "Fix the toys before the shop opens.",
+        "description": "A little robot runs a toy repair shop. Walk the workshop, pick up broken toys and bring them to the bench before the morning bell.",
+        "genres": ["Adventure", "Simulation"],
+        "controls": {"D-pad": "walk", "A": "pick up or fix"},
+        "cover": "{ENGINE}/examples/starter/assets/backgrounds/workshop.png"}}]
+    },
+    {"call": [{"tool": "chromatic_rom_build", "args": {}}]},
+    {
+      "call": [
+        {"tool": "chromatic_build_report", "args": {
+          "title": "Tinker Shop",
+          "summary": "The workshop is playable: walk the robot around the room with the D-pad.",
+          "changes": [
+            {"kind": "added", "text": "The workshop room", "asset": "assets/backgrounds/workshop.png"},
+            {"kind": "added", "text": "The robot, with a walk cycle", "asset": "assets/sprites/workshop_player.png"}],
+          "tested": ["The robot walks in all four directions", "Walls stop the robot"],
+          "untested": ["A real Chromatic"],
+          "notes": ["There are no toys to fix yet"],
+          "suggestions": ["Add broken toys", "Make the robot brighter", "Add a morning bell"]}},
+        {"tool": "chromatic_present_game", "args": {"note": "Walk around the workshop with the D-pad."}}]
+    },
+    {"say": "**Tinker Shop** is ready to play. The robot can walk the workshop; next it needs toys to fix."}
+  ]
+}

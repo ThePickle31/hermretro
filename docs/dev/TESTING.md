@@ -241,4 +241,6 @@ it.
 `node tests/page/preview/build.mjs <out>` builds a browser preview with a stand-in SDK (needs a Hermes
 Desktop checkout for its theme); open `<out>/index.html?s=<scenario>&mode=dark&p=<page>`. Scenario links are
 listed on the page. Screenshot with Playwright and a short `TMPDIR`. `python tools/dev watch` serves it, rebuilt on every save, with a live mode
-that answers from the real gateway (`docs/dev/DEBUGGING.md`, "The development loop").
+that answers from the real gateway (`docs/dev/DEBUGGING.md`, "The development loop"). To see the page exactly as
+users do, inside Hermes with real games and turns, use the sandbox (`python tools/dev studio up`, then
+`python tools/dev ui shot`; `docs/dev/DEBUGGING.md`, "The sandbox").

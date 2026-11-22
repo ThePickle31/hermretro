@@ -1,0 +1,21 @@
+{
+  "match": "make the robot brighter",
+  "steps": [
+    {
+      "say": "Repainting the robot in a warm orange so it stands out from the floor.",
+      "call": [{"tool": "terminal", "args": {"command": "cp '{ART}/workshop_player.png' '{GAMES}/Tinker Shop/assets/sprites/workshop_player.png'"}}]
+    },
+    {"call": [{"tool": "chromatic_rom_build", "args": {}}]},
+    {
+      "call": [
+        {"tool": "chromatic_build_report", "args": {
+          "title": "A brighter robot",
+          "summary": "The robot is orange now, so it reads clearly against the workshop floor.",
+          "changes": [{"kind": "changed", "text": "workshop_player.png: orange body", "asset": "assets/sprites/workshop_player.png"}],
+          "tested": ["All three frames use the new colour"],
+          "suggestions": ["A bit darker", "Blue instead"]}},
+        {"tool": "chromatic_present_game", "args": {"note": "The robot is orange now."}}]
+    },
+    {"say": "Here it is."}
+  ]
+}
