@@ -29,6 +29,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .. import library
+from . import skins
 from ..system import paths
 
 logger = logging.getLogger(__name__)
@@ -61,14 +62,9 @@ MIME = {
     ".ogg": "audio/ogg",
     ".wav": "audio/wav",
 }
-HERMES_COLORS = (
-    '    { id: "hermes-midnight", name: "Hermes Edition · Midnight", background: "#15171c", ink: "#e6edf3" },\n'
-    '    { id: "hermes-blue", name: "Hermes Edition · Nous Blue", background: "#0053fd", ink: "#ffffff" },\n'
-    '    { id: "hermes-white", name: "Hermes Edition · White", background: "#f2f5fc", ink: "#1f2328" },\n'
-    '    { id: "hermes-clear", name: "Hermes Edition · Clear Blue", background: "#cfdcff", ink: "#1f2328" },\n'
-)
 VIEW_ANCHOR = "export const DEVICE_COLORS = [\n"
-DEFAULT_COLOR = "hermes-midnight"
+# The engine's first rule ordering its colour rail: the skins' rules go before it.
+RAIL_ANCHOR = '.codex-game-view .cgv-color[data-device-color="supply-co"]'
 COLOR_KEY = "codex-gb-studio:device-color:v1"
 
 # The built-in demo cartridge: GB Studio's own browser player bundled in ``player/web`` plus
@@ -91,27 +87,27 @@ def annotations_dir() -> Path:
 
 
 def device_dirs() -> list[Path]:
-    return [
-        paths.PLUGIN_ROOT / "player" / "devices",
-        paths.PREPARED_ENGINE / "assets" / "devices",
-        paths.ENGINE_ROOT / "assets" / "devices",
-    ]
+    return [paths.PREPARED_ENGINE / "assets" / "devices", paths.ENGINE_ROOT / "assets" / "devices"]
 
 
 _view_cache: dict[tuple, bytes] = {}
 
 
 def patched_view(source: Path) -> bytes:
-    """``view.js`` with the four Hermes Edition finishes listed first in the colour rail."""
+    """``view.js`` with the plugin's skins (``player/skins/``) listed first in the colour rail."""
     info = source.stat()
-    key = (str(source), info.st_size, info.st_mtime_ns)
+    key = (str(source), info.st_size, info.st_mtime_ns, skins.signature())
     if key in _view_cache:
         return _view_cache[key]
     text = source.read_text()
     if VIEW_ANCHOR in text:
-        text = text.replace(VIEW_ANCHOR, VIEW_ANCHOR + HERMES_COLORS, 1)
+        taken = set(re.findall(r'^\s*\{ id: "([a-z0-9-]+)"', text[text.index(VIEW_ANCHOR) :], re.M))
+        entries, order = skins.rail_entries(taken)
+        text = text.replace(VIEW_ANCHOR, VIEW_ANCHOR + entries, 1)
+        if RAIL_ANCHOR in text:
+            text = text.replace(RAIL_ANCHOR, order + RAIL_ANCHOR, 1)
     else:
-        logger.warning("hermretro: view.js has no DEVICE_COLORS anchor; serving it without Hermes finishes")
+        logger.warning("hermretro: view.js has no DEVICE_COLORS anchor; serving it without the plugin's skins")
     _view_cache.clear()
     _view_cache[key] = text.encode()
     return _view_cache[key]
@@ -130,11 +126,11 @@ def frame_shim() -> str:
     """The shim as an inline ``<script>`` body, read once per file version."""
     source = paths.PLUGIN_ROOT / "player" / "frame-shim.js"
     info = source.stat()
-    key = (info.st_size, info.st_mtime_ns)
+    key = (info.st_size, info.st_mtime_ns, skins.signature())
     if key not in _shim_cache:
         text = (
             source.read_text(encoding="utf-8")
-            .replace("__DEFAULT_COLOR__", DEFAULT_COLOR)
+            .replace("__DEFAULT_COLOR__", skins.default_skin())
             .replace("__COLOR_KEY__", COLOR_KEY)
             .replace("</script", "<\\/script")
         )
@@ -673,6 +669,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._file(wasm, "application/wasm")
             return self._text(404, "The game runtime changed.")
         if re.fullmatch(r"chromatic-[a-z0-9-]+\.(?:webp|png)", name):
+            skin = skins.image_for(name.removeprefix("chromatic-").rsplit(".", 1)[0])
+            if skin is not None:
+                return self._file(skin)
             for directory in device_dirs():
                 if (directory / name).is_file():
                     return self._file(directory / name)

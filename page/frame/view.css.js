@@ -1,6 +1,5 @@
 // Styles the frame adds to ModRetro's player page.
-//  - Always: the Hermes Edition finishes first in the colour rail, and in the full player the handheld
-//    fills the frame (sized by its height, capped by its width) instead of the engine's fixed 420 px.
+//  - Always: in the full player the handheld fills the frame (sized by its height, capped by its width) instead of the engine's fixed 420 px.
 //  - Inline UI (`html[data-hr-ui=inline]`): the page draws every control, so the player's header,
 //    colour rail, capture rail, source switch and key hints are hidden and the handheld (view
 //    `device`) or the bare screen (view `screen`) fills the frame exactly. The page sizes the frame to
@@ -8,7 +7,6 @@
 //  - The annotate overlay (`.hr-ann`): our own look, coloured by `--hr-accent` (set by the page).
 
 const FULL = `
-.codex-game-view .cgv-color[data-device-color^="hermes-"]{order:-4}
 html:not([data-hr-ui=inline]) .codex-game-view .cgv-player,
 html:not([data-hr-ui=inline]) .codex-game-view .cgv-mode-views{width:max(220px,min(calc((100svh - 136px)*850/1440),calc(100vw - 112px)));max-width:none}
 `

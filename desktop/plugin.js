@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e719731969fa0dbf06dbbbf8fa892ffe6a8ed587267d80090cb4a534701d4ab4
- * body: sha256 cf248e2d45afe30d3c8a5c04fd40f46a736ec649d7949d058c515bbdfa2ac311
+ * sources: sha256 5da2bbd0e41df37e4a4d3f94a3e4a137efa883b20d7eb79ebd8d8c36b228996a
+ * body: sha256 6c0d517935a78037061f7b51cff004d0287ec11e536b8dfb69a73dc2c3637c67
  */
 // page/sdk.js
 import {
@@ -4314,37 +4314,6 @@ function playerSize(view, scale, box) {
   return { ...sizeAt(step), step, fits: SCALES.filter((entry) => entry === "fit" || entry <= most) };
 }
 
-// page/pages/build/player/prefs.js
-var KEY = "inlinePlayer";
-var FINISHES = Object.freeze([
-  { id: "hermes-midnight", name: "Midnight", swatch: "#15171c" },
-  { id: "hermes-blue", name: "Nous Blue", swatch: "#0053fd" },
-  { id: "hermes-white", name: "White", swatch: "#f2f5fc" },
-  { id: "hermes-clear", name: "Clear Blue", swatch: "#cfdcff" }
-]);
-var DEFAULTS = { view: "screen", scale: "fit", finish: FINISHES[0].id, panel: true };
-function clean(saved) {
-  const value = { ...DEFAULTS, ...saved && typeof saved === "object" ? saved : {} };
-  return {
-    view: value.view === "device" ? "device" : "screen",
-    scale: SCALES.includes(value.scale) ? value.scale : "fit",
-    finish: FINISHES.some((finish) => finish.id === value.finish) ? value.finish : DEFAULTS.finish,
-    panel: value.panel !== false
-  };
-}
-function usePlayerPrefs(ctx) {
-  const [prefs, setPrefs] = useState(() => clean(ctx.storage.get(KEY, null)));
-  const update = useCallback(
-    (partial) => setPrefs((current) => {
-      const next = clean({ ...current, ...partial });
-      ctx.storage.set(KEY, next);
-      return next;
-    }),
-    []
-  );
-  return [prefs, update];
-}
-
 // page/pages/build/player/control-bar.js
 var scaleLabel = (scale) => scale === "fit" ? "Fit" : `${scale}×`;
 function BarButton({ icon, label, text: text2 = null, onClick, pressed, disabled = false, primary = false }) {
@@ -4390,8 +4359,8 @@ function ScalePicker({ scale, fits, onScale }) {
     )
   });
 }
-function ControlBar({ title, hint, prefs, setPrefs, fits, frame, ready, panelToggle, onAnnotate, onShot, onMore, onFull, onClose }) {
-  const finish = FINISHES.find((entry) => entry.id === prefs.finish) ?? FINISHES[0];
+function ControlBar({ title, hint, prefs, setPrefs, skins, finish, fits, frame, ready, panelToggle, onAnnotate, onShot, onMore, onFull, onClose }) {
+  const skin = skins.find((entry) => entry.id === finish);
   return jsxs("div", {
     className: "cs-ip-bar",
     children: [
@@ -4399,13 +4368,13 @@ function ControlBar({ title, hint, prefs, setPrefs, fits, frame, ready, panelTog
       jsx("b", { className: "cs-ip-title", children: `Playing ${title}` }),
       jsx("span", { className: "cs-faint cs-ip-hint", children: hint }),
       jsx("span", { className: "cs-grow" }),
-      prefs.view === "device" ? jsx(BarMenu, {
+      prefs.view === "device" ? skin ? jsx(BarMenu, {
         icon: "symbol-color",
-        items: FINISHES.map((entry) => ({ id: entry.id, label: entry.name, swatch: entry.swatch, checked: entry.id === finish.id })),
+        items: skins.map((entry) => ({ id: entry.id, label: entry.name, swatch: entry.swatch, checked: entry.id === skin.id })),
         label: "Chromatic finish",
         onPick: (id) => setPrefs({ finish: id }),
-        text: finish.name
-      }) : jsx(ScalePicker, { fits, onScale: (scale) => setPrefs({ scale }), scale: prefs.scale }),
+        text: skin.name
+      }) : null : jsx(ScalePicker, { fits, onScale: (scale) => setPrefs({ scale }), scale: prefs.scale }),
       jsx(BarButton, { icon: "device-mobile", label: "Show the Chromatic around the game", onClick: () => setPrefs({ view: prefs.view === "device" ? "screen" : "device" }), pressed: prefs.view === "device", text: "Chromatic" }),
       panelToggle,
       jsx("span", { className: "cs-ip-sep" }),
@@ -4692,6 +4661,31 @@ function FoldedPanel({ counts, onOpen }) {
   });
 }
 
+// page/pages/build/player/prefs.js
+var KEY = "inlinePlayer";
+var DEFAULTS = { view: "screen", scale: "fit", finish: "", panel: true };
+function clean(saved) {
+  const value = { ...DEFAULTS, ...saved && typeof saved === "object" ? saved : {} };
+  return {
+    view: value.view === "device" ? "device" : "screen",
+    scale: SCALES.includes(value.scale) ? value.scale : "fit",
+    finish: /^[a-z0-9-]{1,40}$/.test(String(value.finish)) ? value.finish : DEFAULTS.finish,
+    panel: value.panel !== false
+  };
+}
+function usePlayerPrefs(ctx) {
+  const [prefs, setPrefs] = useState(() => clean(ctx.storage.get(KEY, null)));
+  const update = useCallback(
+    (partial) => setPrefs((current) => {
+      const next = clean({ ...current, ...partial });
+      ctx.storage.set(KEY, next);
+      return next;
+    }),
+    []
+  );
+  return [prefs, update];
+}
+
 // page/pages/build/player/report-flow.js
 async function attachFrame({ game, stored, image, text: text2 }) {
   if (!stored) {
@@ -4891,17 +4885,19 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
   }, [annotate.active]);
-  const query = useMemo(() => `view=${prefs.view}&color=${prefs.finish}`, [frameId]);
+  const skins = player.data?.skins ?? [];
+  const finish = skins.some((skin) => skin.id === prefs.finish) ? prefs.finish : player.data?.skin ?? "";
+  const query = useMemo(() => `view=${prefs.view}&color=${finish}`, [frameId]);
   const ready = Boolean(player.data?.url) && bridge.frame.ready;
   const sync = () => {
     bridge.send(CMD.VIEW, { view: prefs.view });
-    bridge.send(CMD.FINISH, { id: prefs.finish });
+    bridge.send(CMD.FINISH, { id: finish });
   };
   useEffect(() => {
     if (ready) {
       sync();
     }
-  }, [ready, prefs.view, prefs.finish]);
+  }, [ready, prefs.view, finish]);
   const side = narrow ? 0 : showPanel ? PANEL_WIDTH : FOLD_WIDTH;
   const box = full ? { width: screen.width, height: screen.height } : { width: Math.max(160, room.width - side - 2 * STAGE_PAD), height: Math.max(144, Math.round(room.height * HEIGHT_SHARE)) };
   const size = playerSize(prefs.view, prefs.scale, box);
@@ -4934,6 +4930,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const bar = annotate.active ? jsx(AnnotateBar, { busy: sending, count: annotate.marks.length, onCancel: annotate.cancel, onDone: () => void done(), title: game.title }) : jsx(ControlBar, {
     ...actions,
     fits: size.fits,
+    finish,
     frame: bridge.frame,
     hint: bridge.focused ? "keys go to the game" : "click the game to play",
     onClose,
@@ -4944,6 +4941,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
     prefs,
     ready,
     setPrefs,
+    skins,
     title: game.title
   });
   const stage = live ? jsxs("div", {

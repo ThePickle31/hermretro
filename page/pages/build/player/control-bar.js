@@ -5,7 +5,6 @@ import { Codicon, jsx, jsxs } from '#sdk'
 import { AGENT } from '#app/ids.js'
 import { moveFocus } from './arrow-keys.js'
 import { BarMenu } from './menu.js'
-import { FINISHES } from './prefs.js'
 import { SCALES } from './scale.js'
 
 const scaleLabel = scale => (scale === 'fit' ? 'Fit' : `${scale}\u00d7`)
@@ -58,8 +57,8 @@ function ScalePicker({ scale, fits, onScale }) {
   })
 }
 
-export function ControlBar({ title, hint, prefs, setPrefs, fits, frame, ready, panelToggle, onAnnotate, onShot, onMore, onFull, onClose }) {
-  const finish = FINISHES.find(entry => entry.id === prefs.finish) ?? FINISHES[0]
+export function ControlBar({ title, hint, prefs, setPrefs, skins, finish, fits, frame, ready, panelToggle, onAnnotate, onShot, onMore, onFull, onClose }) {
+  const skin = skins.find(entry => entry.id === finish)
 
   return jsxs('div', {
     className: 'cs-ip-bar',
@@ -69,13 +68,15 @@ export function ControlBar({ title, hint, prefs, setPrefs, fits, frame, ready, p
       jsx('span', { className: 'cs-faint cs-ip-hint', children: hint }),
       jsx('span', { className: 'cs-grow' }),
       prefs.view === 'device'
-        ? jsx(BarMenu, {
-            icon: 'symbol-color',
-            items: FINISHES.map(entry => ({ id: entry.id, label: entry.name, swatch: entry.swatch, checked: entry.id === finish.id })),
-            label: 'Chromatic finish',
-            onPick: id => setPrefs({ finish: id }),
-            text: finish.name
-          })
+        ? skin
+          ? jsx(BarMenu, {
+              icon: 'symbol-color',
+              items: skins.map(entry => ({ id: entry.id, label: entry.name, swatch: entry.swatch, checked: entry.id === skin.id })),
+              label: 'Chromatic finish',
+              onPick: id => setPrefs({ finish: id }),
+              text: skin.name
+            })
+          : null
         : jsx(ScalePicker, { fits, onScale: scale => setPrefs({ scale }), scale: prefs.scale }),
       jsx(BarButton, { icon: 'device-mobile', label: 'Show the Chromatic around the game', onClick: () => setPrefs({ view: prefs.view === 'device' ? 'screen' : 'device' }), pressed: prefs.view === 'device', text: 'Chromatic' }),
       panelToggle,

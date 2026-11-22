@@ -80,4 +80,4 @@ adds both: a row naming its design, and a `### <Page>` subsection saying what it
 - Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
 - "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
 - Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (`player.md`, "The emulator beside the chat").
-- Default device finish **Hermes Edition · Midnight**.
+- Default device finish: the first skin in `player/skins/` (**Hermes Edition · Midnight**).

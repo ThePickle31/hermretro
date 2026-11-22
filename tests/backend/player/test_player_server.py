@@ -148,6 +148,9 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(status, 200)
         text = body.decode()
         self.assertLess(text.index('id: "hermes-midnight"'), text.index('id: "codex"'))
+        # first in the colour rail, before the engine's own ordered finishes
+        rule = '.codex-game-view .cgv-color[data-device-color="hermes-midnight"] { order: -4; }'
+        self.assertLess(text.index(rule), text.index('[data-device-color="supply-co"] { order: -2; }'))
         for finish in (
             "Hermes Edition · Midnight",
             "Hermes Edition · Nous Blue",
@@ -289,6 +292,9 @@ class PlayerRpcs(unittest.TestCase):
         self.assertEqual(fetch(answer["url"])[0], 200)
         rom = (self.root / "build/web/rom/test.gbc").read_bytes()
         self.assertEqual(answer["romSha256"], hashlib.sha256(rom).hexdigest())
+        # the device skins for the page's menu (player/skins/), Midnight the one it starts in
+        self.assertEqual(answer["skin"], "hermes-midnight")
+        self.assertEqual(answer["skins"][1], {"id": "hermes-blue", "name": "Nous Blue", "swatch": "#0053fd"})
 
     def test_player_rpc_explains_a_missing_web_build(self):
         (self.root / "build/web/js/binjgb.wasm").unlink()

@@ -140,18 +140,21 @@ export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }
 
   // Each frame loads in the view chosen when it loads; later changes go through commands, so the game
   // keeps running.
-  const query = useMemo(() => `view=${prefs.view}&color=${prefs.finish}`, [frameId])
+  // The device skin: the remembered one while the player still has it, else the player's default.
+  const skins = player.data?.skins ?? []
+  const finish = skins.some(skin => skin.id === prefs.finish) ? prefs.finish : (player.data?.skin ?? '')
+  const query = useMemo(() => `view=${prefs.view}&color=${finish}`, [frameId])
   const ready = Boolean(player.data?.url) && bridge.frame.ready
   const sync = () => {
     bridge.send(CMD.VIEW, { view: prefs.view })
-    bridge.send(CMD.FINISH, { id: prefs.finish })
+    bridge.send(CMD.FINISH, { id: finish })
   }
 
   useEffect(() => {
     if (ready) {
       sync()
     }
-  }, [ready, prefs.view, prefs.finish])
+  }, [ready, prefs.view, finish])
 
   const side = narrow ? 0 : showPanel ? PANEL_WIDTH : FOLD_WIDTH
   const box = full
@@ -198,6 +201,7 @@ export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }
     : jsx(ControlBar, {
         ...actions,
         fits: size.fits,
+        finish,
         frame: bridge.frame,
         hint: bridge.focused ? 'keys go to the game' : 'click the game to play',
         onClose,
@@ -207,6 +211,7 @@ export function InlinePlayer({ ctx, game, stored, note, report, build, onClose }
         prefs,
         ready,
         setPrefs,
+        skins,
         title: game.title
       })
 
