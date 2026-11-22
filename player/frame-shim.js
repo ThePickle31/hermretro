@@ -3,8 +3,8 @@
  * Source: page/frame/. Rebuild: node tools/bundle/bundle.mjs
  * Inlined first in the player frame page by the player backend (backend/player/); imports nothing.
  * build: esbuild 0.28.2
- * sources: sha256 dd8563c202de5ab3a715b41356976b0b7c1e8f3c995f1190c034e10115e809ce
- * body: sha256 95927e7c4af1969f6960a485bc1b138d8055abf5b36c8c9f6bc670d3bc852a0e
+ * sources: sha256 3e9c3b56a4aeb01c34c4e53a5e0972fe10b256cdc084a65971dd5c7bb5f5f82f
+ * body: sha256 03a4ed96d59e1ee36835b8c2eaa3bbc3327630e792ebcfb8c754b72246cc0be1
  */
 (() => {
   // page/shared/player/protocol.js
@@ -19,7 +19,7 @@
     RELEASE: "release",
     // undo HOLD
     THEME: "theme",
-    // { css }: the app's colours for the frame's own UI
+    // { css }: the app's colours: our overlay's accent, and the player page's background and text
     VIEW: "view",
     // { view }: one of VIEWS (inline UI only)
     PRESS: "press",

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 522f48e8001eb4262865304cf4ae10b92605771b0e9d9ae893e1401152dda752
- * body: sha256 19185404d1625553cbde86c41d6b25dc8f3d6db16ea31f4564f2aeda2af2758a
+ * sources: sha256 d21f2cbaeea33536e794bdedf75fc11aa69c81402409c1ff944e5df1725864fc
+ * body: sha256 5adb88e447096087fa4dae8e9734c67fbb64397edd04412eb66aa470220bf56a
  */
 // page/sdk.js
 import {
@@ -3510,6 +3510,16 @@ function useDraftPick(ctx, needed) {
   return [{ ...pick, model: route?.model, provider: route?.provider }, update, options];
 }
 
+// page/shared/ui/background.js
+function backgroundOf(el, getStyle) {
+  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    const css = getStyle(node).backgroundColor, nums = (css.match(/[\d.]+/g) || []).map(Number);
+    const unit = css.startsWith("color(") ? 255 : 1;
+    if (nums.length >= 3 && (nums.length < 4 || nums[3] > 0.5)) return { css, rgb: nums.slice(0, 3).map((v) => v * unit) };
+  }
+  return { css: "rgb(16 18 24)", rgb: [16, 18, 24] };
+}
+
 // page/shared/player/frame-values.js
 var PNG = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
 var COLOR = /^#[0-9a-f]{6}$/i;
@@ -3561,7 +3571,7 @@ var CMD = Object.freeze({
   RELEASE: "release",
   // undo HOLD
   THEME: "theme",
-  // { css }: the app's colours for the frame's own UI
+  // { css }: the app's colours: our overlay's accent, and the player page's background and text
   VIEW: "view",
   // { view }: one of VIEWS (inline UI only)
   PRESS: "press",
@@ -3607,6 +3617,13 @@ var CONTROL = "button, a[href], [role=button], [role=tab], [role=radio], [role=m
 var ARROW_GROUP = "[role=tab], [role=radio], [role=menuitem], [role=menuitemradio]";
 var IDLE = Object.freeze({ ready: false, paused: false, muted: false, annotating: false, recording: false });
 var REPLY_MS = 2500;
+function appColours(frame) {
+  const style = getComputedStyle(frame);
+  return { accent: style.getPropertyValue("--ui-accent").trim() || "#3d7bff", background: backgroundOf(frame.parentElement, getComputedStyle).css, ink: style.color };
+}
+function themeCss({ accent, background, ink }) {
+  return `:root{--hr-accent:${accent}}body.codex-game-view-mounted{--cgv-background:${background}!important;--cgv-ink:${ink}!important}`;
+}
 function keepsKey(event) {
   const target = event.target;
   if (typeof target?.closest !== "function") {
@@ -3634,6 +3651,14 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
     }
   }, []);
   const send = useCallback((type, payload = {}) => post({ cs: TO_FRAME, ...payload, type }), []);
+  const painted = useRef("");
+  const paint = useCallback((changedOnly) => {
+    const css = frameRef.current ? themeCss(appColours(frameRef.current)) : "";
+    if (css && !(changedOnly && css === painted.current)) {
+      painted.current = css;
+      send(CMD.THEME, { css });
+    }
+  }, []);
   const releaseKeys = useCallback(() => {
     for (const [key, code] of held.current) {
       send(CMD.KEY, { key, code, down: false });
@@ -3687,7 +3712,10 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
     const handlers = {
       [FROM_FRAME.FOCUS]: (data) => setFocused(Boolean(data.value)),
       [FROM_FRAME.SNAP]: (data) => answer(data.id, cleanImage(data.url)),
-      [FROM_FRAME.STATE]: (data) => setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) }),
+      [FROM_FRAME.STATE]: (data) => {
+        paint(false);
+        setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) });
+      },
       [FROM_FRAME.MARKS]: (data) => setMarks(cleanMarks(data.marks)),
       [FROM_FRAME.TAKEN]: (data) => answer(data.id, { image: cleanImage(data.image), marks: cleanMarks(data.marks) }),
       [FROM_FRAME.NOTE]: (data) => void latest.current.onAnnotate?.(cleanNote(data)),
@@ -3735,6 +3763,14 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
       releaseKeys();
     };
   }, [visible]);
+  useEffect(() => {
+    if (typeof MutationObserver !== "function") {
+      return void 0;
+    }
+    const observer = new MutationObserver(() => paint(true));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-hermes-mode", "data-hermes-theme"] });
+    return () => observer.disconnect();
+  }, []);
   const shown = useRef(visible);
   useEffect(() => {
     if (shown.current !== visible) {
@@ -4801,7 +4837,6 @@ function useFullScreen(ref) {
   }, []);
   return full;
 }
-var accentOf = (element) => element ? getComputedStyle(element).getPropertyValue("--ui-accent").trim() : "";
 function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const surface = `build:${game.id}`;
   const owner = useValue(LIVE_PLAYER);
@@ -4859,7 +4894,6 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
   const query = useMemo(() => `view=${prefs.view}&color=${prefs.finish}`, [frameId]);
   const ready = Boolean(player.data?.url) && bridge.frame.ready;
   const sync = () => {
-    bridge.send(CMD.THEME, { css: `:root{--hr-accent:${accentOf(rootRef.current) || "#3d7bff"}}` });
     bridge.send(CMD.VIEW, { view: prefs.view });
     bridge.send(CMD.FINISH, { id: prefs.finish });
   };
@@ -10444,14 +10478,6 @@ Object.assign(World.prototype, PILOT, ACTORS, DRAW);
 var SCALE = 2;
 var STEP = 1e3 / 60;
 var LOOK_EVERY = 30;
-function backgroundOf(el, getStyle) {
-  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
-    const css = getStyle(node).backgroundColor, nums = (css.match(/[\d.]+/g) || []).map(Number);
-    const unit = css.startsWith("color(") ? 255 : 1;
-    if (nums.length >= 3 && (nums.length < 4 || nums[3] > 0.5)) return { css, rgb: nums.slice(0, 3).map((v) => v * unit) };
-  }
-  return { css: "rgb(16 18 24)", rgb: [16, 18, 24] };
-}
 var skyFor = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? "day" : "night";
 function flatSpans(root, canvasEl) {
   const origin = canvasEl.getBoundingClientRect(), out = [];
