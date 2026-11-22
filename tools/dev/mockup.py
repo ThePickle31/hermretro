@@ -114,9 +114,9 @@ def shoot(folder: Path, desktop: Path, *, states: list[str], widths: list[int], 
         shutil.rmtree(staged, ignore_errors=True)
         staged.mkdir()
         entries = []
+        page = studio.SANDBOX / "mockup-plugin.js"
         try:
             for state in states:
-                page = studio.SANDBOX / "mockup-plugin.js"
                 studio_states.scenario(state, desktop, before_turn=lambda: install(page), sync=False)
                 for variant in variants:
                     studio.call("eval", js=SWITCH.format(id=json.dumps(variant)))
