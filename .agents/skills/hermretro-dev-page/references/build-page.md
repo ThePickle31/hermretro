@@ -92,7 +92,8 @@ sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE` (in no game), `
 `version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
 
 Versions: the plugin keeps a copy of a game image (up to 40 per file, named by modification time in
-ns, identical rewrites skipped, under `<plugin data>/asset-versions/`) when a reply delivers it
+ns, identical rewrites skipped, under `<plugin data>/asset-versions/`, filed under the game that owns the
+image: a folder that later becomes a game of its own starts with none) when a reply delivers it
 (`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), or the page shows
 it. So a file rewritten later (cover.png made again) still shows each reply what it delivered.
 
