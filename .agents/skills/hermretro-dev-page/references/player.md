@@ -9,14 +9,17 @@ when the agent is ready to present the game after making it, never for the whole
 
 - **Agent tool `chromatic_present_game`** (plugin-owned, toolset `chromatic`, registered next to
   `chromatic_studio_device_cli`; not an engine tool, not in the pinned manifest). Params
-  `{note?: string ≤300, project?: absolute folder}`. The project is `project` when given, else the chat's
-  lane selection (broker `activity` op, memory only, never starts the broker), else the library game whose
-  chat link is this conversation. It requires a fresh web export (`library.export_freshness`: `build/web`
-  exists and is not older than the last ROM build — the registry's `lastBuild.t`, else the newest native
-  ROM under `build/` — where the export's time is the later of its ROM file and `lastWebExport.t`, which the
-  broker records on every successful `web_preview` open, because the engine reuses an export whose sources
-  did not change without rewriting its files; a failed build after it also counts as stale); otherwise `{ok:false, code:"BUILD_FIRST", error, guidance}` telling the
-  agent to run `chromatic_rom_build`. On success it records the presentation in the games registry
+  `{note?: string ≤300, project?: absolute folder}`. The project is `project` when given (in a game's Build
+  conversation only that game: else `ONE_GAME_PER_CONVERSATION`), else the game whose Build conversation this
+  is, else the chat's lane selection (broker `activity` op, memory only, never starts the broker), else the
+  library game whose chat link is this conversation (`host._chat_project`). It requires a fresh web export
+  (`library.export_freshness`: `build/web` exists, is the engine's own (its `.codex-web-build.json` lists the ROM
+  and `index.html` with hashes that still match), is not older than the last ROM build — the registry's
+  `lastBuild.t`, else the newest native ROM under `build/` — and no game source changed after it, where the
+  export's time is the later of its ROM file and `lastWebExport.t`, which the broker records on every successful
+  `web_preview` open, because the engine reuses an export whose sources did not change without rewriting its
+  files; a failed build after it also counts as stale); otherwise `{ok:false, code:"BUILD_FIRST", error,
+  nextStep}`, the next step saying whether to build again or only to remake the copy with `chromatic_web_preview`. On success it records the presentation in the games registry
   (`games[id].chat`, `games[id].presented = {t, note}`, and the bounded `presentations` list) and returns
   `{ok:true, studio:{gameId, playerUrl, title, note, presentedAt}, message:"Shown to the user beside the chat."}`.
   It never calls an engine tool or a device; the approval hook lets it through; a delegated subagent is

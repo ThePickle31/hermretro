@@ -104,7 +104,7 @@ class ResultTests(unittest.TestCase):
         )
         self.assertEqual(out["code"], "OUTCOME_UNKNOWN")
         self.assertTrue(out["dispatched"])
-        self.assertIn("do not simply repeat", out["guidance"])
+        self.assertIn("do not simply repeat", out["nextStep"])
 
     def test_structured_content_and_engine_error_are_preserved(self):
         raw = {

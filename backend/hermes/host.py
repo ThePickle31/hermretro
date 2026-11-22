@@ -24,7 +24,7 @@ from ..system import paths
 from . import api as hermes_api, contracts, results
 
 # try_connect is used by the feature modules as host.try_connect, so a test's patch here reaches them.
-from ..broker import BrokerUnavailable, ensure_broker, try_connect  # noqa: F401 - used as host.try_connect (above)
+from ..broker import BrokerUnavailable, OtherCopyBusy, ensure_broker, try_connect  # noqa: F401 - used as host.try_connect (above)
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,7 @@ def _deliver(response: dict, name: str):
                     "error": f"hermretro could not report why this call did not run ({problem}).",
                     "code": "ADAPTER_ERROR",
                     "dispatched": False,
+                    "nextStep": results.ADAPTER_ERROR_NEXT_STEP,
                 }
             )
         return json.dumps(
@@ -105,10 +106,46 @@ def _deliver(response: dict, name: str):
                 "error": f"The tool ran, but hermretro could not deliver its result ({problem}).",
                 "code": "RESULT_NOT_DELIVERED",
                 "dispatched": True,
-                "guidance": "The operation was sent to the engine. Inspect current state before deciding what to "
+                "nextStep": "The operation was sent to the engine. Inspect current state before deciding what to "
                 "do; do not simply repeat it.",
             }
         )
+
+
+_STAY_IN_TOOLS = (
+    "Do not build, play or edit the game outside the chromatic tools while they are unavailable, and do not "
+    "save a workaround as a skill."
+)
+
+
+def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str) -> dict:
+    """The answer when another copy of the plugin's broker still runs games: whether one of them is this very
+    chat's (hermretro's folder changed while the chat was working) or another chat's."""
+    own = False
+    ids = [value for value in (conversation_id, session_id) if value]
+    client, _ = try_connect(paths.runtime_dir()) if ids else (None, None)
+    if client is not None:
+        with client:
+            try:
+                answer = client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
+            except (BrokerUnavailable, ValueError):
+                answer = {}
+        own = bool(answer.get("ok") and answer.get("matched") == "chat" and (answer.get("lane") or {}).get("alive"))
+    where = f" ({error.plugin_root})" if error.plugin_root else ""
+    if own:
+        message = (
+            f"This chat's game is still open in another copy of hermretro{where}: hermretro's plugin folder changed "
+            "while this chat was working, and that copy keeps the chat's game until it has been idle for about "
+            "half an hour. Nothing was run."
+        )
+        next_step = "Tell the user the game tools are paused for that reason, and stop. " + _STAY_IN_TOOLS
+    else:
+        message = str(error) + " Nothing was run."
+        next_step = (
+            "Tell the user another copy of hermretro is running games in other chats, and try again once those "
+            "chats are finished (it stops by itself when they are idle). " + _STAY_IN_TOOLS
+        )
+    return {"error": message, "code": "UNAVAILABLE", "dispatched": False, "nextStep": next_step}
 
 
 def make_tool_handler(ctx, tool: dict):
@@ -143,19 +180,25 @@ def make_tool_handler(ctx, tool: dict):
                 except Exception:
                     logger.debug("hermretro: could not record the session alias", exc_info=True)
             return _deliver(response, name)
+        except OtherCopyBusy as error:
+            return json.dumps(_other_copy_busy(error, conversation_id, session_id))
         except BrokerUnavailable as error:
             return json.dumps(
                 {
                     "error": str(error),
                     "code": "UNAVAILABLE",
                     "dispatched": False,
-                    "guidance": "Load the skill hermretro:setup for how to prepare this machine.",
+                    "nextStep": "Load the skill hermretro:setup for how to prepare this machine. " + _STAY_IN_TOOLS,
                 }
             )
         except Exception as error:  # a handler must never raise
             logger.exception("Chromatic tool %s failed in the host adapter", name)
             return json.dumps(
-                {"error": f"hermretro adapter error: {type(error).__name__}: {error}", "code": "ADAPTER_ERROR"}
+                {
+                    "error": f"hermretro adapter error: {type(error).__name__}: {error}",
+                    "code": "ADAPTER_ERROR",
+                    "nextStep": results.ADAPTER_ERROR_NEXT_STEP,
+                }
             )
 
     return handler
@@ -174,12 +217,25 @@ def _game_root(identifier) -> Path | None:
     return root if root is not None and root.is_dir() else None
 
 
-def _chat_project(conversation_id: str, session_id: str) -> str | None:
-    """The project this chat works on: its broker lane's selection (memory only, never starts the
-    broker or a worker), else the library game whose chat link is this conversation."""
+def _bound_game(conversation_id: str, session_id: str) -> dict | None:
+    """The library entry of the game whose Build conversation this chat is, or None (not a game's chat)."""
     ids = [value for value in (conversation_id, session_id) if value]
     if not ids:
         return None
+    kind, entry = _registry().binding_for(_profile_identity(), ids)
+    return entry if kind == "game" and isinstance(entry, dict) else None
+
+
+def _chat_project(conversation_id: str, session_id: str) -> str | None:
+    """The project this chat works on: the game whose Build conversation it is, else its broker lane's
+    selection (memory only, never starts the broker or a worker), else the library game whose chat link is
+    this conversation. A game's own chat always answers its game, so no other game can stand in for it."""
+    ids = [value for value in (conversation_id, session_id) if value]
+    if not ids:
+        return None
+    bound = _bound_game(conversation_id, session_id)
+    if bound is not None and isinstance(bound.get("projectRoot"), str):
+        return bound["projectRoot"]
     client, _error = try_connect(paths.runtime_dir())
     if client is not None:
         with client:

@@ -224,11 +224,19 @@ Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbs
 (`backend/library/README.md`, "Save states", has the fields).
 
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
-web export (else `BUILD_FIRST`) and a complete game card (else `GAME_INFO_INCOMPLETE` with `missing`,
-`problems` and `guidance`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
+web export the engine made of the current sources (else `BUILD_FIRST`) and a complete game card (else
+`GAME_INFO_INCOMPLETE` with `missing`, `problems` and `nextStep`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
 title, note, presentedAt } }`; the desktop then opens the emulator in a tab docked right of the chat. Builds
 open nothing. Setting `live_player` ("Keep the playable copy current", default on) makes every successful
 `rom_build` refresh that web export, so a presentation finds it fresh.
+
+Every plugin tool's failure is `{ ok: false, error, code, nextStep? }` (`tool_error(message, code, next_step)`):
+`nextStep` says what the agent does about it, and `ADAPTER_ERROR` always has one. `chromatic_game_info`,
+`chromatic_present_game` and `chromatic_build_report` act on the chat's own game: in a game's Build conversation a
+`project` naming another folder is refused with `ONE_GAME_PER_CONVERSATION`, and a game with a Build conversation
+keeps it as its `chat` link whatever other chat touches it. An engine tool the broker cannot run answers
+`UNAVAILABLE` with a `nextStep`; when another copy of the plugin's broker still runs games, it says whether one is
+this chat's own (the plugin folder changed under it) or other chats'.
 
 ## The build card (`chromatic_build_report`)
 

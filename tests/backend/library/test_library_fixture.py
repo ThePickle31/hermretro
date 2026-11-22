@@ -20,7 +20,7 @@ class LibraryGameFixture(unittest.TestCase):
         game, root = make_library_game(self.home, *args, **switches)
         self.assertTrue(games.valid_id(game), game)
         self.assertEqual(Path(host._game_root(game)), root)
-        fresh, _why = games.export_freshness(root)
+        fresh, _why, _next = games.export_freshness(root)
         return root, fresh, game_card.status(root, strict=True)["complete"], game
 
     def test_by_default_the_game_is_ready_to_present(self):

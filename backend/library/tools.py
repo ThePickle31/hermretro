@@ -12,7 +12,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import game_card, games as library
-from .tool_args import tool_error, tool_project
+from .tool_args import other_game_refusal, tool_error, tool_project
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -64,38 +64,16 @@ def present_game_handler(args: dict, **kwargs) -> str:
         note = args.get("note")
         if note is not None and not isinstance(note, str):
             return tool_error("note must be a string.", "INVALID_ARGUMENTS")
-        project = args.get("project")
-        if project is not None and (not isinstance(project, str) or not project.strip()):
-            return tool_error("project must be an absolute folder path.", "INVALID_ARGUMENTS")
-        if project:
-            candidate = Path(project).expanduser()
-            if not candidate.is_absolute() or not candidate.is_dir():
-                return tool_error(
-                    f"{project} is not an existing project folder (give an absolute path).", "PROJECT_NOT_FOUND"
-                )
-            root = str(candidate)
-        else:
-            root = host._chat_project(conversation_id, session_id)
-        if not root or not Path(root).is_dir():
-            return tool_error(
-                "This chat has no current project. Select or create the game's project, build it with "
-                "chromatic_rom_build, then call chromatic_present_game again (or pass project).",
-                "NO_PROJECT",
-            )
+        root, error = tool_project("chromatic_present_game", args, kwargs)
+        if error or root is None:  # narrows root to str for pyright: tool_project gives one or the other
+            return error or tool_error("chromatic_present_game: no project folder.", "NO_PROJECT")
         registry = host._registry()
         entry = registry.get(library.game_id(root))
-        fresh, why = library.export_freshness(
+        fresh, why, next_step = library.export_freshness(
             Path(root), entry.get("lastBuild") if entry else None, entry.get("lastWebExport") if entry else None
         )
         if not fresh:
-            return json.dumps(
-                {
-                    "ok": False,
-                    "error": why,
-                    "code": "BUILD_FIRST",
-                    "guidance": "Run chromatic_rom_build for this project, then call chromatic_present_game again.",
-                }
-            )
+            return tool_error(why or "The playable copy is not this build.", "BUILD_FIRST", next_step)
         # Every game reaches the user with its card: cover art, title, tagline, description, genres.
         try:
             game_card.scaffold(Path(root), library.project_title(Path(root)))
@@ -112,7 +90,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     + ".",
                     "missing": card["missing"],
                     "problems": card["problems"],
-                    "guidance": game_card.next_step(card["missing"]) + " Then call chromatic_present_game again.",
+                    "nextStep": game_card.next_step(card["missing"]) + " Then call chromatic_present_game again.",
                 }
             )
         chat = None
@@ -249,6 +227,8 @@ def game_info_handler(args: dict, **kwargs) -> str:
                         "code": "INVALID_GAME_INFO",
                         "problems": result["problems"],
                         "error": "Nothing was changed. " + " ".join(result["problems"]),
+                        "nextStep": "Fix every listed problem and call chromatic_game_info again with all the fields "
+                        "you meant to set: it stores all of them or none.",
                     }
                 )
             state = result["status"]
@@ -435,6 +415,14 @@ def build_report_handler(args: dict, **kwargs) -> str:
                 problems.append("project must be an absolute path of an existing project folder.")
             else:
                 root = Path(project).expanduser()
+                refused = other_game_refusal(
+                    "chromatic_build_report",
+                    root,
+                    str(kwargs.get("conversation_id") or ""),
+                    str(kwargs.get("session_id") or ""),
+                )
+                if refused:
+                    return refused
         else:
             try:
                 found = host._chat_project(
@@ -502,6 +490,7 @@ def build_report_handler(args: dict, **kwargs) -> str:
                     "code": "INVALID_REPORT",
                     "problems": problems,
                     "error": "The build report was not shown. " + " ".join(problems),
+                    "nextStep": "Fix every listed problem and call chromatic_build_report again with the whole report.",
                 }
             )
         # The card shows each image as it is now, even after a later turn rewrites it (assets listens).

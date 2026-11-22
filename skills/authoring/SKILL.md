@@ -66,7 +66,7 @@ Verify the change at the level the request needs: reread the native resources, b
 - With the plugin setting "Keep the playable copy current" on (the default), each successful
   `chromatic_rom_build` also refreshes the playable web copy; its result's `player` and `nextStep` say so.
   If `player.ready` is false, say the playable copy could not be updated and why. `chromatic_present_game`
-  returns `BUILD_FIRST` until the copy matches the last successful build. An emulator the user already has
+  returns `BUILD_FIRST` until the copy is the engine's own copy of the current build; its `nextStep` says what to do. An emulator the user already has
   open offers a newer build with a banner. You never see that player: do not claim what it shows.
 - In the player the user can mark part of the screen or press **Ask Hermes**: the frame is saved under
   `<project>/captures/` and a message with `Screenshot: <path>` is put into this game's chat. Open that file.
