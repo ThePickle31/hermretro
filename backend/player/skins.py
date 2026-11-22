@@ -21,7 +21,7 @@ from ..system import paths
 
 logger = logging.getLogger(__name__)
 
-SKINS_DIR = paths.PLUGIN_ROOT / "player" / "skins"
+SKINS_DIR = paths.SKINS_DIR
 IMAGE_TYPES = (".webp", ".png")
 SKIN_ID = re.compile(r"[a-z0-9-]{1,40}")
 COLOUR = re.compile(r"#[0-9a-fA-F]{6}")

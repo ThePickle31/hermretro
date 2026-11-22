@@ -19,7 +19,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from ..system import host as host_os
+from ..system import host as host_os, paths
 
 PROTOCOL_VERSION = "2024-11-05"
 
@@ -58,6 +58,7 @@ class EngineCancelled(EngineError):
 def sanitized_environment(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {k: os.environ[k] for k in _PASSTHROUGH if k in os.environ}
     env["GB_STUDIO_LOG_LEVEL"] = "info"
+    env["CHROMATIC_DEVICE_SKINS"] = str(paths.SKINS_DIR)  # the device art its preview and live-feed window show
     if extra:
         env.update(extra)
     return env

@@ -142,6 +142,7 @@ class ProxySettingsReachDownloads(unittest.TestCase):
         env = popen.call_args.kwargs["env"]
         self.assertEqual({k: env.get(k) for k in PROXY}, PROXY)
         self.assertNotIn("HERMES_GATEWAY_TOKEN", env)
+        self.assertEqual(env["CHROMATIC_DEVICE_SKINS"], str(paths.SKINS_DIR), "the engine's device art")
 
     def test_setup_scripts_get_them(self):
         node = {"found": True, "path": "/usr/bin/node", "version": "24.0.0", "required": "22", "ok": True}
