@@ -12,7 +12,8 @@ player does with them: an id starting with `transparent-` gets the lower screen 
 `supply-co` a logo swatch, and `supply-co` its own crop of its picture, so a new skin takes an id of its own. It holds
 only these files:
 
-- `skin.webp` (or `skin.png`): the handheld, square, **1946×1946**, transparent around the device. The player draws
+- `skin.webp` (or `skin.png`): the handheld, square, **1946×1946** for a new skin (ModRetro's own come in other
+  square sizes; the player scales them), transparent around the device. The player draws
   the game and its touch controls over it at fixed places, so keep the outline, screen, D-pad, A/B and Select/Start
   exactly where they are in the shipped skins: copy one of their folders (`hermes-white/` repaints easily) and
   change only the finish. When both are there, `skin.webp` wins: replacing a copied WebP with a PNG, delete the WebP.

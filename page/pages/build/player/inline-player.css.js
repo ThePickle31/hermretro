@@ -38,7 +38,7 @@ export const INLINE_PLAYER_CSS = `
 .cs-ip-seg button[aria-checked=true] { background: var(--ui-accent); color: white; }
 .cs-ip-seg button:disabled { cursor: default; opacity: .4; }
 .cs-ip-menu { flex: none; position: relative; }
-.cs-ip-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 9px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 35%, transparent); display: flex; flex-direction: column; min-width: 170px; padding: 4px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
+.cs-ip-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 9px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 35%, transparent); display: flex; flex-direction: column; max-height: 300px; min-width: 170px; overflow-y: auto; padding: 4px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
 .cs-ip-pop-row { align-items: center; background: none; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 8px; padding: 6px 8px; text-align: left; }
 .cs-ip-pop-row:hover { background: var(--ui-bg-tertiary); color: var(--ui-text-primary); }
 .cs-ip-pop-row > span { flex: 1; }

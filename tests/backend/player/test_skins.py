@@ -25,7 +25,9 @@ class ShippedSkins(unittest.TestCase):
 
     def test_modretro_finishes_ship_as_skins_with_the_engine_colours(self):
         listed = {skin["id"]: skin for skin in skins.skins()}
-        self.assertEqual(len(listed), 17)
+        modretro = {"supply-co", "codex", "cloud", "midnight", "wave", "leaf", "inferno", "volt", "bubblegum"}
+        modretro |= {f"transparent-{tint}" for tint in ("green", "red", "smoke", "purple")}
+        self.assertLessEqual(modretro, set(listed))
         self.assertEqual((listed["midnight"]["name"], listed["midnight"]["background"]), ("Midnight", "#4e4f55"))
         self.assertEqual(listed["supply-co"]["image"].name, "skin.png")
 
@@ -120,7 +122,7 @@ class AFolderOfSkins(unittest.TestCase):
         self.assertEqual([skin["id"] for skin in listed], ["odd-name"])
         self.assertEqual(listed[0]["name"], "Odd Name", "a name that cannot be served falls back to the folder's")
         self.assertEqual(len(logged.output), 2)
-        skins.rail_entries()[0].encode("utf-8")
+        skins.rail_entries().encode("utf-8")
 
     def test_no_skins_or_no_folder_leaves_the_engine_default(self):
         self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ""))

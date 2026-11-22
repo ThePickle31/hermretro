@@ -98,8 +98,8 @@ def patched_view(source: Path) -> bytes:
         return _view_cache[key]
     text = source.read_text()
     start = text.find(VIEW_ANCHOR)
-    end = text.find("];", start)
-    if start < 0 or end < 0:
+    end = text.find("\n];", start) + 1
+    if start < 0 or end < 1:
         logger.warning("hermretro: view.js has no DEVICE_COLORS list; serving it without the plugin's skins")
     elif entries := skins.rail_entries():
         text = text[: start + len(VIEW_ANCHOR)] + entries + text[end:]
