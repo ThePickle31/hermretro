@@ -10,48 +10,81 @@ not verified yet. See [what works](#what-works-today).
 
 ## Install
 
-From GitHub (installs the latest release on `main`). In Hermes Desktop: Capabilities → Plugins → **Install
-from Git**, enter `https://github.com/ThePickle31/hermretro`, press **Review repository**, then **Install**.
-The link `hermes://plugin/install?repo=ThePickle31/hermretro&enable=1` opens the same dialog.
+1. In Hermes Desktop: Capabilities → Plugins → **Install from Git**, enter `https://github.com/ThePickle31/hermretro`,
+   press **Review repository**, then **Install**. Or open the link `hermes://plugin/install?repo=ThePickle31/hermretro&enable=1`:
+   the dialog opens already reviewing the repository, so press **Install**. This installs the latest release (`main`).
+2. Open **HermRetro** from the sidebar (if it is not there, turn on **hermretro** under Capabilities → Plugins).
+3. Press **Get started** to review what the game tools will download (version, source, size, purpose). The tools aren't downloaded
+   until you press **Download and install**. The page then creates a dedicated **hermretro** profile and installs
+   the game tools (GB Studio CLI, GBDK, PyBoy) itself, with live progress and checksums. No chat, prompt or model is
+   needed for this.
+4. Choose **Start making games** to use the emulator, or **Set up my Chromatic** if you want to use a device now.
+   You can add a Chromatic later from Setup.
+5. After **Start making games**, type a first game idea and press **Continue in Build** or **Plan it first**. Build
+   opens with your idea in the New Game box, unsent. You can also choose **Skip, take me to the studio**. After
+   **Set up my Chromatic**, Setup walks through the device steps; then start your first game from Build's New Game.
 
-From a terminal:
+### What to expect
 
-```sh
-hermes plugins install ThePickle31/hermretro --enable
-```
+- **Size.** About 0.7 GB to download and about 2.3 GB on disk once installed (measured on Linux x64). Space used
+  while installing has not been measured: leave room beyond that. The tools live in `~/.hermes/hermretro/.cache/`
+  (see [where your downloads live](#where-your-games-and-downloads-live)).
+- **Time.** It varies a lot with the machine and the connection, so the page shows progress, not a countdown. Most
+  of the time goes into building GB Studio's command-line tool on your computer, and the percentage can stay on one
+  number for several minutes while that runs: it is still working. You can leave the page; the install keeps going.
+  Measured cold installs so far: about a minute and a half on a fast Linux desktop, and on CI's machines about 2.5
+  minutes (Linux), 6 minutes (Apple Silicon Mac) and 14 minutes (Intel Mac). A MacBook desktop install has not been
+  timed yet. Installing again with the tools already present takes seconds.
+- **Node.js.** The tools need Node.js 22 or newer. Hermes installs its own Node.js and hermretro uses it, so this is
+  normally already met; the download list says "Node.js not found" when it is not.
+- **Sign-in for the model.** Installing and playing games need no model. Build needs a provider available in the
+  **hermretro** profile; do not assume a provider set up elsewhere will carry over. Use **Open provider settings**
+  and check that **Applies to** is set to `hermretro`, or run `hermes -p hermretro model` in a terminal.
+- **Hardware is optional.** Device detection, streaming, flashing and capture stay off until you turn on
+  **Chromatic hardware tools** in the plugin settings, and writing a cartridge, streaming and driver setup ask for your approval first (unless Approvals are
+  turned off in Hermes). Firmware
+  and activation stay in ModRetro's own Firmware Updater (the Setup page links its guide). ModRetro publishes its
+  device software for macOS and for Linux on x64 and ARM64 (glibc 2.39 or newer). Capturing a real Chromatic's
+  video works on macOS only: Linux device capture says it is unavailable. The hardware tools have not been tested on
+  a device yet.
+
+### The studio profile
+
+The first setup step creates a dedicated **hermretro** profile: it has the plugin and its skills turned on and
+leaves the profile you installed into unchanged. Chromatic chats open in that profile and nowhere else: the
+plugin's tools, skills and system-prompt text exist only there, and Build and game chats never fall back to
+another profile (the Build page offers **Repair** instead). In the profile you installed
+into, only the page's own setup and library calls answer. Its personality is `profile/SOUL.md`. The profile links
+to the plugin you installed rather than copying it, so both profiles share one plugin folder; every profile shares
+hermretro's own folder (below).
+
+### Updating
 
 When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears beside Refresh in
-the hermretro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
+the HermRetro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
 copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
-that copy) and then refreshes itself, with no restart. Update waits while a game is being built: it is disabled while
-a hermretro chat is working (the popover names it) or the game tools are installing. The terminal way still works: `hermes plugins update
-hermretro` (or Capabilities → Plugins) in the profile you installed it into, then quit and reopen Hermes (Hermes
-refuses an update run from inside the hermretro profile).
+that copy) and then refreshes itself. Normally no restart is needed; if the chip says **Restart to finish**, quit
+and reopen Hermes. Update waits while a game is being built: it is disabled while a hermretro chat is working (the
+popover names it) or the game tools are installing.
 
-For development, link a checkout instead:
+### If something goes wrong
 
-```sh
-ln -s /path/to/hermretro "$HERMES_HOME/plugins/hermretro"   # ~/.hermes by default
-hermes plugins enable hermretro
-```
+- **The download list or tools check failed.** Use **Check again**. No new download starts without a list to review.
+- **The install stopped.** Reopen HermRetro to see its state. **Cancel** stops an install running from the page;
+  choose **Install again** after cancelling, or **Try again** after a failure. Finished parts are kept.
+- **The install finished but the tools check failed.** Use **Check again**; when required tools are still missing,
+  **Retry install**.
+- **Ask Hermes to fix it** puts the error into a chat in the **hermretro** profile, not sent. When that profile is
+  not set up yet, it copies the request to the clipboard instead and asks you to set the profile up first.
+- **A step broke later.** The other pages show a Repair banner; the Setup page has one step per part, with
+  **Check again** when the tools check fails, and Refresh in the page header checks everything again.
+- **Start the tools over.** Setup's **Remove downloaded tools**, then install again. Your games are not touched.
+- **From a terminal or a chat instead.** `hermes plugins install ThePickle31/hermretro --enable` installs the
+  plugin; `hermes plugins update hermretro` (in the profile you installed it into, never inside the hermretro
+  profile, which Hermes refuses) updates it, after which quit and reopen Hermes. The game tools can also be
+  installed by asking Hermes in a hermretro chat: *"Set up hermretro so I can create games, build ROMs, and run
+  automated playtests."*
 
-Then, in Hermes Desktop, turn on **hermretro** under Capabilities → Plugins and open **HermRetro**
-from the sidebar. The page checks your setup and offers chat help for toolchain and device software installation.
-
-The first step on that page creates a dedicated **hermretro** profile: it shares your sign-in, has the
-plugin and its skills turned on, and leaves the profile you installed into unchanged. Chromatic chats open
-in that profile and nowhere else: the plugin's tools, skills and system-prompt text exist only there, and the
-Build page, "Use in chat" prompts and game chats never fall back to another profile (the Build page offers
-Repair instead). In the profile you installed into, only the page's own setup and library calls answer.
-For plugin development, `HERMRETRO_EVERY_PROFILE=1` in the gateway's environment loads the agent side
-(tools, skills, hooks, prompt) in every profile that has the plugin on, so agents can test the tools there; the
-Build page still uses only the `hermretro` profile. Its personality is `profile/SOUL.md`. The profile links to the plugin you installed rather
-than copying it, so both profiles share one plugin folder; every profile shares hermretro's own folder
-(below).
-
-Requirements: Node.js 22 or newer. Hermes installs its own Node.js, which hermretro uses, so this is
-normally already met. Everything else (GB Studio CLI, GBDK, PyBoy) is prepared on request by asking
-Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated playtests."*
 
 ## What works today
 
@@ -66,7 +99,7 @@ Hermes: *"Set up hermretro so I can create games, build ROMs, and run automated 
 | Annotations from the player (Ask Hermes) | Built; not yet verified with a live agent |
 | Hardware (discover, stream, capture, flash) | Off by default, behind a setting and Hermes's approval prompt. Not tested on a device |
 
-Tested so far on Linux x64; macOS (Apple Silicon and Intel) runs the unit tests and a real broker in CI.
+Tested so far on Linux x64 (including the Desktop install above); macOS (Apple Silicon and Intel) runs the unit tests and a real broker in CI.
 
 ## How it is built
 
@@ -114,7 +147,7 @@ home, shared by every profile: `~/.hermes/hermretro/` (or `hermretro/` inside `$
 |---|---|
 | `games/` | The games you make. `chromatic_project_create` puts a new game here unless you name another folder |
 | `library/` | The Games shelf: which projects it lists, their thumbnails and chats |
-| `.cache/` | Downloaded tools (GB Studio, GBDK, the emulator, about 2.4 GB) and ModRetro's CLI (`engine-<version>/`); safe to delete, setup downloads them again |
+| `.cache/` | Downloaded tools (GB Studio, GBDK, the emulator, about 2.3 GB) and ModRetro's CLI (`engine-<version>/`); safe to delete, setup downloads them again |
 | `run/` | The background broker's socket, logs and lock |
 
 Removing or updating the plugin leaves this folder alone, so your games stay. A full `hermes uninstall`
@@ -181,6 +214,19 @@ listed as exceptions in `tools/bundle/lint.mjs` until they are split). Where cod
 is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 
 ## Contributing
+
+For development, link a checkout instead of installing the plugin:
+
+```sh
+mkdir -p "${HERMES_HOME:-$HOME/.hermes}/plugins"
+ln -s /path/to/hermretro "${HERMES_HOME:-$HOME/.hermes}/plugins/hermretro"
+hermes plugins enable hermretro
+```
+
+Then turn on **hermretro** under Capabilities → Plugins and open **HermRetro** from the sidebar, as above. To try
+the agent side from another profile, `HERMRETRO_EVERY_PROFILE=1` in the gateway's environment loads its tools,
+skills, hooks and prompt in every profile that has the plugin on; the Build page still uses only the `hermretro`
+profile.
 
 Start with `.github/CONTRIBUTING.md`; the developer docs are in `docs/dev/` (`ARCHITECTURE.md` first). Report security
 problems privately (`.github/SECURITY.md`).

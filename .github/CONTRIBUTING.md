@@ -15,8 +15,8 @@ request into `dev` and CI.
 
 ## Trying a change in Hermes Desktop
 
-1. Link your checkout as the plugin instead of installing it (the README, "Install": "For development, link a
-   checkout instead"), and enable it. `python tools/dev live` points a linked profile at another checkout or worktree.
+1. Link your checkout as the plugin instead of installing it (the README, "Contributing": "For development, link a
+   checkout instead of installing the plugin"), and enable it. `python tools/dev live` points a linked profile at another checkout or worktree.
 2. Page changes (`page/`): keep `python tools/dev watch` running; it rebuilds on every save and the app reloads the
    page.
 3. Changes to `backend/`, `__init__.py`, `plugin.yaml` or `skills/`: `python tools/dev reload` reloads the plugin in

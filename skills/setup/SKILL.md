@@ -94,8 +94,9 @@ Everything is installed in `~/.hermes/hermretro/.cache/`, which plugin updates a
   import the emulator) and stop there. Do not create a test project to prove it: every project you create
   or select appears on the user's Games shelf, and this chat would stay bound to it, so their first real
   game would need a new chat. Their first game build is the end-to-end check.
-- A first toolchain install downloads several hundred MB and takes about 2.4 GB on disk, usually one to
-  three minutes. If ModRetro's Codex plugin already downloaded the same files on this computer, the first
+- A first toolchain install downloads about 0.7 GB and takes about 2.3 GB on disk on Linux x64; space and time
+  vary by system. GB Studio's local build can keep progress on one step for several minutes. If another supported
+  installation already downloaded the same files on this computer, the first
   install starts from that download cache (hashes are checked again); the toolchain still goes into
   hermretro's own folder. Tell the user once that it is running and do not call it again meanwhile: a second
   setup or hardware call gets `OPERATION_IN_PROGRESS`.
