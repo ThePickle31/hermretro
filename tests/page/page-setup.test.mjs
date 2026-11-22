@@ -173,13 +173,14 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   await act(async () => { root.render(null) })
 
-  // After a plugin update the running Hermes still has the old code: the page asks for a restart.
+  // After a plugin update the running Hermes still has the old code: the page offers to reload it
+  // (page-update-reload.test.mjs covers the reload).
   scenario.storage = { setup: { onboarded: true } }
   scenario.status = answered({ ...status(), restart_needed: true }); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: 'idle' })
   await render()
-  check('after an update the page asks for a Hermes restart', () => {
+  check('after an update the page offers Reload', () => {
     const banners = [...dom.window.document.querySelectorAll('.cs-repair')].map(node => node.textContent).join(' ')
-    assert.match(banners, /hermretro was updated, but Hermes is still running the old version\. Quit and reopen Hermes to finish/)
+    assert.match(banners, /hermretro was updated, but Hermes is still running the old version\.Reload/)
   })
   await act(async () => { root.render(null) })
 

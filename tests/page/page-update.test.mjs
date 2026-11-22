@@ -104,9 +104,20 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: false, restart_required: true })
   await fresh()
   await openChip(); await click('Update now'); await settle(40)
-  check('when Hermes could not load it, the chip asks for a restart', () => {
-    assert.equal(chip().textContent, 'Restart to finish'); assert.match(popover(), /Quit and reopen Hermes/)
+  check('when Hermes could not load it, the chip asks for a restart of Hermes', () => {
+    assert.equal(chip().textContent, 'Restart to finish'); assert.match(popover(), /installed\. Restart Hermes to finish loading it/)
   })
+
+  // Only the page's copy is old (the app cannot refresh it): reopening the app loads it.
+  updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })
+  const reconcile = dom.window.hermesDesktop
+  dom.window.hermesDesktop = {}
+  await fresh()
+  await openChip(); await click('Update now'); await settle(40)
+  check('when only the page could not be refreshed, the chip asks to quit and reopen Hermes', () => {
+    assert.match(popover(), /installed\. Quit and reopen Hermes to finish loading it/)
+  })
+  dom.window.hermesDesktop = reconcile
 
   // The security check wants a yes first: shown with Hermes's findings, retried with force.
   updateAnswer = params => params.force

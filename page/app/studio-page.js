@@ -43,6 +43,7 @@ import { NotRunning } from './not-running.js'
 import { PageView } from './page-view.js'
 import { NAV_PAGES, pageById } from './registry.js'
 import { UpdateChip } from './update/chip.js'
+import { ReloadBanner } from './update/reload-banner.js'
 import { usePluginUpdate } from './update/use-update.js'
 
 export function StudioPage({ ctx }) {
@@ -481,20 +482,10 @@ export function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
-              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
-              running && status.data?.restart_needed && pluginUpdate.phase !== 'restart'
-                ? jsxs(
-                    'div',
-                    {
-                      className: 'cs-repair',
-                      role: 'status',
-                      children: [
-                        jsx(Codicon, { name: 'refresh', size: 14 }),
-                        jsx('span', { children: 'hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish.' })
-                      ]
-                    },
-                    'restart'
-                  )
+              // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
+              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
+              ((running && pluginUpdate.stale) || pluginUpdate.reload.phase !== 'idle') && pluginUpdate.phase !== 'restart'
+                ? jsx(ReloadBanner, { update: pluginUpdate }, 'restart')
                 : null,
               broken
                 ? jsxs(

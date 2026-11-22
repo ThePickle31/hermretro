@@ -95,7 +95,7 @@ function body(update) {
     case 'restart':
       return [
         'Almost done',
-        jsx('p', { children: 'The new version is installed. Quit and reopen Hermes to finish loading it; until then hermretro keeps working.' }, 'p'),
+        jsx('p', { children: `The new version is installed. ${update.restartAdvice} to finish loading it; until then hermretro keeps working.` }, 'p'),
         actions(jsx(Button, { onClick: () => update.setOpen(false), size: 'sm', variant: 'outline', children: 'Got it' }, 'ok'))
       ]
     case 'done':

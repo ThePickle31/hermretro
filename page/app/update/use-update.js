@@ -2,8 +2,9 @@
 // button's progress, and how the last update went (told by the page that loads after it).
 import { host, useEffect, useQuery, useQueryClient, useRef, useState } from '#sdk'
 import { LINKS } from '#shared/ui/links.js'
-import { ID, PLUGINS_HREF } from '#app/ids.js'
-import { busyChats, busySentence, installTarget, pluginRow, requestOn, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
+import { ID, PLUGINS_HREF, STUDIO_PROFILE } from '#app/ids.js'
+import { routing } from '#app/routing.js'
+import { busyChats, busySentence, installTarget, pluginRow, requestOn, runReload, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
 import { setUpdating } from './lock.js'
 
 // Hermes checks for plugin updates about once a day; reading its answer is cheap but not free (every plugin's row).
@@ -13,7 +14,7 @@ const MARKER_FRESH_MS = 15 * 60_000
 const DONE_SHOWN_MS = 10_000
 // While an update is ready, how often the hermretro profile's chats are checked for a build under way.
 const BUSY_EVERY_MS = 5_000
-const INSTALLING = 'The game tools are being installed. You can update when that finishes.'
+const installingSentence = verb => `The game tools are being installed. You can ${verb} when that finishes.`
 // Hermes installed the new version but the rest (the hermretro profile, the page) did not finish: { at, error }. Kept
 // until a run finishes, so Finish update resumes it even though Hermes now answers "unchanged".
 const PENDING = 'updatePending'
@@ -50,9 +51,16 @@ function remember(ctx, key, value) {
   }
 }
 
+/** What a 'restart' phase asks for: the Hermes gateway did not load the new code, or only the page's copy is old
+ *  (the app reloads it when reopened). */
+const RESTART_ADVICE = { hermes: 'Restart Hermes', app: 'Quit and reopen Hermes' }
+
 /** `phase`: idle (the chip shows only when an update is ready), updating, review (Hermes wants a yes first),
  *  failed (nothing changed), partial (installed, but the hermretro profile or the page is not done: Finish update
  *  runs the rest), restart (installed, but something only a restart loads), done (just updated), current.
+ *  `reload` is the banner's Reload, for files updated outside this page while Hermes runs the old code (status
+ *  `restart_needed`): its phase is idle, reloading, restart (only a restart of Hermes, or of the app for the page's
+ *  copy, loads it; `advice` says which) or failed.
  *  `installing`: the page's toolchain install is running. While it is, or while a chat in the hermretro profile is
  *  building (`blocked` says which), Update is refused: an update must never swap the plugin under a build. */
 export function usePluginUpdate({ ctx, status, running, installing = false }) {
@@ -76,7 +84,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     const marker = takeMarker(ctx)
 
     if (marker) {
-      return { phase: marker.restart ? 'restart' : 'done', step: 0, announce: true }
+      return { phase: marker.restart ? 'restart' : 'done', step: 0, announce: true, restartFor: 'hermes' }
     }
 
     const pending = pendingUpdate(ctx)
@@ -84,6 +92,8 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     return pending ? { phase: 'partial', step: 0, error: pending.error ?? null } : { phase: 'idle', step: 0 }
   })
   const [open, setOpen] = useState(false)
+  const [reloadState, setReloadState] = useState({ phase: 'idle', error: null })
+  const stale = Boolean(status.data?.restart_needed)
   const [dismissed, setDismissed] = useState(() => {
     try {
       return ctx.storage.get('updateLater', null)
@@ -107,7 +117,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
 
     host.notify(
       state.phase === 'restart'
-        ? { kind: 'warning', message: 'hermretro was updated. Quit and reopen Hermes to finish loading it.' }
+        ? { kind: 'warning', message: `hermretro was updated. ${RESTART_ADVICE.hermes} to finish loading it.` }
         : { kind: 'success', message: 'hermretro is up to date. Your games and chats are kept.' }
     )
 
@@ -128,7 +138,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
   const building = useQuery({
     queryKey: [ID, 'update-busy'],
     queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
-    enabled: running && ((ready && state.phase === 'idle') || state.phase === 'partial'),
+    enabled: running && ((ready && state.phase === 'idle') || state.phase === 'partial' || stale),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
   })
@@ -140,7 +150,8 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState(current => ({ ...current, raced: undefined, racedAt: undefined }))
     }
   }, [fresher])
-  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null
+  const blockedFor = verb => (installing ? installingSentence(verb) : chats.length ? busySentence(chats, verb) : null)
+  const blocked = blockedFor('update')
 
   const start = async (options = {}) => {
     if (busy.current || !target) {
@@ -200,7 +211,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState({ phase: 'partial', step: 0, error: outcome.error ?? null })
     } else if (outcome.kind === 'updated') {
       // The app reloads this page with its new copy; until then (or when it cannot), say where things stand.
-      setState({ phase: outcome.restart || !outcome.pageRefreshed ? 'restart' : 'done', step: 2 })
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? 'restart' : 'done', step: 2, restartFor: outcome.restart ? 'hermes' : 'app' })
     } else if (outcome.kind === 'current') {
       setState({ phase: 'idle', step: 0 })
       setOpen(false)
@@ -221,6 +232,57 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
   }
 
+  // The banner's Reload: what is on disk loaded into the profile that runs hermretro for the page (the hermretro
+  // profile, else the one that answered status), with the same lock and build checks as an update.
+  const reload = async () => {
+    if (busy.current || blockedFor('reload')) {
+      return
+    }
+
+    busy.current = true
+    setUpdating(true)
+    setReloadState({ phase: 'reloading', error: null })
+
+    let outcome
+
+    try {
+      let studio = null
+
+      try {
+        studio = (await studioReloadTarget(studioExists)) ?? { route: routing.route ?? null, profile: routing.profile ?? null }
+      } catch (error) {
+        outcome = { kind: 'failed', error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` }
+      }
+
+      const install = await installTarget(installedIn)
+
+      // Installed into another profile than hermretro: its settings come from there, so that profile must be reached.
+      if (!outcome && !install && profile && profile !== STUDIO_PROFILE) {
+        outcome = { kind: 'failed', error: `Could not reach the ${profile} profile, where hermretro is installed` }
+      }
+
+      outcome ??= await runReload({
+        install,
+        studio,
+        busy: () => (installingNow.current ? Promise.resolve(['the game tools install']) : busyChats(studio))
+      })
+    } finally {
+      busy.current = false
+      setUpdating(false)
+    }
+
+    setReloadState(
+      outcome.kind === 'failed'
+        ? { phase: 'failed', error: outcome.error }
+        : outcome.kind === 'restart'
+          ? { phase: 'restart', error: null, restartFor: 'hermes' }
+          : outcome.kind === 'reloaded' && !outcome.pageRefreshed
+            ? { phase: 'restart', error: null, restartFor: 'app' }
+            : { phase: 'idle', error: null }
+    )
+    void queryClient.invalidateQueries({ queryKey: [ID] })
+  }
+
   const phase = state.phase
   const visible = phase !== 'idle' || (ready && !later)
 
@@ -239,6 +301,11 @@ export function usePluginUpdate({ ctx, status, running, installing = false }) {
     error: state.error ?? null,
     review: state.review ?? null,
     version: status.data?.plugin?.version ?? null,
+    // what the 'restart' phase asks the user to do
+    restartAdvice: RESTART_ADVICE[state.restartFor] ?? RESTART_ADVICE.hermes,
+    // Hermes runs older code than is on disk (status restart_needed), and the banner's Reload
+    stale,
+    reload: { ...reloadState, advice: RESTART_ADVICE[reloadState.restartFor] ?? RESTART_ADVICE.hermes, blocked: blockedFor('reload'), start: () => void reload() },
     open,
     setOpen,
     start: () => void start(),

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 9f6ef58502e4bad7a5f44e1475205d4524ff6ddd422c1fc94bb742ddf6509692
- * body: sha256 ae7745a5fcaab8ee513c92f3d739072e32800c49566da6c590b2d94c9c8d8771
+ * sources: sha256 a92cca5f7fa3f372a64a2c9c586dc145e5684d53f89c9f7dedcb871c0e215d49
+ * body: sha256 d7552adb38e209708e93d02932b6ff3231f39da91659379462e521066584ec83
  */
 // page/sdk.js
 import {
@@ -12495,7 +12495,7 @@ function versionFact(data, update) {
   const standing = {
     failed: "the update did not go through: see the update in the header",
     review: "the update waits for your answer in the header",
-    restart: "updated: quit and reopen Hermes to finish"
+    restart: `updated: ${update.restartAdvice.toLowerCase()} to finish`
   }[update.phase];
   if (standing) {
     return `${version} · ${standing}`;
@@ -14834,6 +14834,9 @@ var UPDATE_CSS = `
 .cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
 .cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
 .cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
+.cs-repair.bad { background: color-mix(in srgb, var(--ui-red) 10%, transparent); box-shadow: inset 2px 0 0 var(--ui-red); }
+.cs-repair.bad > i { color: var(--ui-red); }
+.cs-repair-wait { align-items: center; color: var(--ui-text-secondary); display: flex; gap: 6px; }
 .cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 `;
 
@@ -16518,9 +16521,9 @@ async function busyChats(studio) {
   const sessions = Array.isArray(answer?.sessions) ? answer.sessions : [];
   return sessions.filter((session) => BUSY_STATUSES.has(session?.status)).map((session) => String(session.title || session.preview || "a chat").trim());
 }
-function busySentence(chats) {
+function busySentence(chats, verb = "update") {
   const names = chats.slice(0, 2).map((name) => `"${name}"`).join(" and ");
-  return chats.length === 1 ? `A game is being built in ${names}. You can update when it finishes.` : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? "…" : ""}). You can update when they finish.`;
+  return chats.length === 1 ? `A game is being built in ${names}. You can ${verb} when it finishes.` : `Games are being built in ${chats.length} chats (${names}${chats.length > 2 ? "…" : ""}). You can ${verb} when they finish.`;
 }
 function pluginRow(list) {
   const rows = Array.isArray(list?.plugins) ? list.plugins : [];
@@ -16549,6 +16552,46 @@ async function reloadStudio(studio) {
     throw new Error("hermretro could not be switched back on in the hermretro profile.");
   }
   return Boolean(answer.gateway_reloaded) && !answer.restart_required;
+}
+async function loadIntoStudio({ install, studio, busy, onWaiting = () => {
+}, waitMs = 2e3, checkTries = 5 }) {
+  if (install && studio.profile === STUDIO_PROFILE && install.profile !== STUDIO_PROFILE) {
+    let finished;
+    try {
+      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
+    } catch (error) {
+      finished = { ok: false, error: String(error?.message ?? error) };
+    }
+    if (!finished?.ok) {
+      return { ok: false, error: `the hermretro profile's settings were not updated (${finished?.error ?? "no answer"})` };
+    }
+  }
+  for (let failures = 0; ; ) {
+    let chats;
+    try {
+      chats = await busy();
+      failures = 0;
+    } catch (error) {
+      failures += 1;
+      if (failures >= checkTries) {
+        return { ok: false, error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+      }
+      chats = null;
+    }
+    if (chats && !chats.length) {
+      break;
+    }
+    if (chats) {
+      onWaiting(chats);
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+  }
+  onWaiting(null);
+  try {
+    return { ok: true, reloaded: await reloadStudio(studio) };
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error) };
+  }
 }
 async function runUpdate({
   install,
@@ -16618,45 +16661,31 @@ async function runUpdate({
   let restart = Boolean(result.restart_required);
   onStep(1);
   if (studio && studio.profile !== install.profile) {
-    let finished;
-    try {
-      finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
-    } catch (error) {
-      finished = { ok: false, error: String(error?.message ?? error) };
+    const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries });
+    if (!loaded.ok) {
+      return { kind: "partial", error: loaded.error };
     }
-    if (!finished?.ok) {
-      return { kind: "partial", error: `the hermretro profile's settings were not updated (${finished?.error ?? "no answer"})` };
-    }
-    for (let failures = 0; ; ) {
-      let chats;
-      try {
-        chats = await busy();
-        failures = 0;
-      } catch (error) {
-        failures += 1;
-        if (failures >= checkTries) {
-          return { kind: "partial", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
-        }
-        chats = null;
-      }
-      if (chats && !chats.length) {
-        break;
-      }
-      if (chats) {
-        onWaiting(chats);
-      }
-      await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
-    }
-    onWaiting(null);
-    try {
-      restart = !await reloadStudio(studio) || restart;
-    } catch (error) {
-      return { kind: "partial", error: String(error?.message ?? error) };
-    }
+    restart = !loaded.reloaded || restart;
   }
   onStep(2);
   remember3({ result: "updated", restart, at: Date.now() });
   return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
+}
+async function runReload({ install, studio, busy = async () => [], onWaiting, waitMs, checkTries }) {
+  let building;
+  try {
+    building = await busy();
+  } catch (error) {
+    return { kind: "failed", error: `Could not check whether a game is being built (${String(error?.message ?? error)})` };
+  }
+  if (building.length) {
+    return { kind: "busy", chats: building };
+  }
+  const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries });
+  if (!loaded.ok) {
+    return { kind: "failed", error: loaded.error };
+  }
+  return loaded.reloaded ? { kind: "reloaded", pageRefreshed: await refreshDesktopHalf() } : { kind: "restart" };
 }
 
 // page/app/update/chip.js
@@ -16740,7 +16769,7 @@ function body(update) {
     case "restart":
       return [
         "Almost done",
-        jsx("p", { children: "The new version is installed. Quit and reopen Hermes to finish loading it; until then hermretro keeps working." }, "p"),
+        jsx("p", { children: `The new version is installed. ${update.restartAdvice} to finish loading it; until then hermretro keeps working.` }, "p"),
         actions(jsx(Button, { onClick: () => update.setOpen(false), size: "sm", variant: "outline", children: "Got it" }, "ok"))
       ];
     case "done":
@@ -16986,12 +17015,53 @@ function PageView({ page, shell }) {
   return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
 }
 
+// page/app/update/reload-banner.js
+function banner(tone, icon, text2, ...actions) {
+  return jsxs("div", {
+    className: tone ? `cs-repair ${tone}` : "cs-repair",
+    role: "status",
+    children: [jsx(Codicon, { name: icon, size: 14 }), jsx("span", { children: text2 }), ...actions]
+  });
+}
+function ReloadBanner({ update }) {
+  const { reload } = update;
+  if (reload.phase === "failed") {
+    return banner(
+      "bad",
+      "warning",
+      `Reload did not finish: ${String(reload.error ?? "no answer").replace(/\.$/, "")}.`,
+      jsx(Button, { disabled: Boolean(reload.blocked), onClick: reload.start, size: "sm", variant: "outline", children: "Try again" }, "again")
+    );
+  }
+  if (reload.phase === "restart") {
+    return banner(null, "refresh", `hermretro was updated. ${reload.advice} to finish loading it.`);
+  }
+  const reloading = reload.phase === "reloading";
+  return banner(
+    null,
+    "refresh",
+    "hermretro was updated, but Hermes is still running the old version.",
+    reload.blocked && !reloading ? jsxs("span", { className: "cs-repair-wait", children: [jsx(Codicon, { name: "clock", size: 12 }), reload.blocked] }, "wait") : null,
+    jsxs(
+      Button,
+      {
+        disabled: reloading || Boolean(reload.blocked),
+        onClick: reload.start,
+        size: "sm",
+        variant: "outline",
+        children: [reloading ? jsx(Codicon, { name: "loading", size: 12, spinning: true }, "spin") : null, reloading ? "Reloading" : "Reload"]
+      },
+      "reload"
+    )
+  );
+}
+
 // page/app/update/use-update.js
 var CHECK_EVERY_MS = 30 * 6e4;
 var MARKER_FRESH_MS = 15 * 6e4;
 var DONE_SHOWN_MS = 1e4;
 var BUSY_EVERY_MS = 5e3;
-var INSTALLING = "The game tools are being installed. You can update when that finishes.";
+var installingSentence = (verb) => `The game tools are being installed. You can ${verb} when that finishes.`;
 var PENDING = "updatePending";
 function pendingUpdate(ctx) {
   try {
@@ -17018,6 +17088,7 @@ function remember2(ctx, key, value) {
   } catch {
   }
 }
+var RESTART_ADVICE = { hermes: "Restart Hermes", app: "Quit and reopen Hermes" };
 function usePluginUpdate({ ctx, status, running, installing = false }) {
   const queryClient = useQueryClient();
   const installedIn = status.data?.plugin?.installed_in ?? null;
@@ -17037,12 +17108,14 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
   const [state, setState] = useState(() => {
     const marker = takeMarker(ctx);
     if (marker) {
-      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true };
+      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true, restartFor: "hermes" };
     }
     const pending = pendingUpdate(ctx);
     return pending ? { phase: "partial", step: 0, error: pending.error ?? null } : { phase: "idle", step: 0 };
   });
   const [open, setOpen] = useState(false);
+  const [reloadState, setReloadState] = useState({ phase: "idle", error: null });
+  const stale = Boolean(status.data?.restart_needed);
   const [dismissed, setDismissed] = useState(() => {
     try {
       return ctx.storage.get("updateLater", null);
@@ -17059,7 +17132,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       return void 0;
     }
     host.notify(
-      state.phase === "restart" ? { kind: "warning", message: "hermretro was updated. Quit and reopen Hermes to finish loading it." } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
+      state.phase === "restart" ? { kind: "warning", message: `hermretro was updated. ${RESTART_ADVICE.hermes} to finish loading it.` } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
     );
     if (state.phase !== "done") {
       return void 0;
@@ -17074,7 +17147,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
   const building = useQuery({
     queryKey: [ID, "update-busy"],
     queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
-    enabled: running && (ready && state.phase === "idle" || state.phase === "partial"),
+    enabled: running && (ready && state.phase === "idle" || state.phase === "partial" || stale),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
   });
@@ -17085,7 +17158,8 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
     }
   }, [fresher]);
-  const blocked = installing ? INSTALLING : chats.length ? busySentence(chats) : null;
+  const blockedFor = (verb) => installing ? installingSentence(verb) : chats.length ? busySentence(chats, verb) : null;
+  const blocked = blockedFor("update");
   const start = async (options = {}) => {
     if (busy.current || !target) {
       return;
@@ -17132,7 +17206,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       remember2(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null });
       setState({ phase: "partial", step: 0, error: outcome.error ?? null });
     } else if (outcome.kind === "updated") {
-      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2 });
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2, restartFor: outcome.restart ? "hermes" : "app" });
     } else if (outcome.kind === "current") {
       setState({ phase: "idle", step: 0 });
       setOpen(false);
@@ -17151,6 +17225,39 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState({ phase: "failed", step: 0, error: outcome.error });
     }
   };
+  const reload = async () => {
+    if (busy.current || blockedFor("reload")) {
+      return;
+    }
+    busy.current = true;
+    setUpdating(true);
+    setReloadState({ phase: "reloading", error: null });
+    let outcome;
+    try {
+      let studio = null;
+      try {
+        studio = await studioReloadTarget(studioExists) ?? { route: routing.route ?? null, profile: routing.profile ?? null };
+      } catch (error) {
+        outcome = { kind: "failed", error: `Could not reach the hermretro profile (${String(error?.message ?? error)})` };
+      }
+      const install = await installTarget(installedIn);
+      if (!outcome && !install && profile && profile !== STUDIO_PROFILE) {
+        outcome = { kind: "failed", error: `Could not reach the ${profile} profile, where hermretro is installed` };
+      }
+      outcome ??= await runReload({
+        install,
+        studio,
+        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio)
+      });
+    } finally {
+      busy.current = false;
+      setUpdating(false);
+    }
+    setReloadState(
+      outcome.kind === "failed" ? { phase: "failed", error: outcome.error } : outcome.kind === "restart" ? { phase: "restart", error: null, restartFor: "hermes" } : outcome.kind === "reloaded" && !outcome.pageRefreshed ? { phase: "restart", error: null, restartFor: "app" } : { phase: "idle", error: null }
+    );
+    void queryClient.invalidateQueries({ queryKey: [ID] });
+  };
   const phase = state.phase;
   const visible = phase !== "idle" || ready && !later2;
   return {
@@ -17168,6 +17275,11 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     error: state.error ?? null,
     review: state.review ?? null,
     version: status.data?.plugin?.version ?? null,
+    // what the 'restart' phase asks the user to do
+    restartAdvice: RESTART_ADVICE[state.restartFor] ?? RESTART_ADVICE.hermes,
+    // Hermes runs older code than is on disk (status restart_needed), and the banner's Reload
+    stale,
+    reload: { ...reloadState, advice: RESTART_ADVICE[reloadState.restartFor] ?? RESTART_ADVICE.hermes, blocked: blockedFor("reload"), start: () => void reload() },
     open,
     setOpen,
     start: () => void start(),
@@ -17515,19 +17627,9 @@ function StudioPage({ ctx }) {
           {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
-              // Hermes kept running the old code after an update (the Update button reloads it; a terminal update does not).
-              running && status.data?.restart_needed && pluginUpdate.phase !== "restart" ? jsxs(
-                "div",
-                {
-                  className: "cs-repair",
-                  role: "status",
-                  children: [
-                    jsx(Codicon, { name: "refresh", size: 14 }),
-                    jsx("span", { children: "hermretro was updated, but Hermes is still running the old version. Quit and reopen Hermes to finish." })
-                  ]
-                },
-                "restart"
-              ) : null,
+              // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
+              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
+              (running && pluginUpdate.stale || pluginUpdate.reload.phase !== "idle") && pluginUpdate.phase !== "restart" ? jsx(ReloadBanner, { update: pluginUpdate }, "restart") : null,
               broken ? jsxs(
                 "div",
                 {
