@@ -1,7 +1,7 @@
 """The emulator's device skins: one folder each, ``player/skins/<id>/``, holding ``skin.webp`` (or ``skin.png``) and,
 optionally, ``skin.json``.
 
-The JSON names the skin and its colours: ``{"name": "Midnight", "edition": "Hermes Edition", "background":
+The JSON names the skin and its colours: ``{"name": "Nous Black", "edition": "Hermes Edition", "background":
 "#15171c", "ink": "#e6edf3", "order": 1}``, every field optional. ``background`` is the page behind the handheld
 and the swatch, ``ink`` the text on it, ``order`` its place in the lists (then the id); the first skin is the
 default. They are every finish the player has: its colour rail lists them in place of the engine's own list, and

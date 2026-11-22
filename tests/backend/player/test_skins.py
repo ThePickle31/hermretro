@@ -21,7 +21,7 @@ class ShippedSkins(unittest.TestCase):
             ids[:6], ["hermes-midnight", "hermes-blue", "hermes-white", "hermes-clear", "supply-co", "codex"]
         )
         self.assertEqual(skins.default_skin(), ids[0])
-        self.assertIn({"id": "hermes-midnight", "name": "Midnight", "swatch": "#15171c"}, skins.page_skins())
+        self.assertIn({"id": "hermes-midnight", "name": "Nous Black", "swatch": "#15171c"}, skins.page_skins())
 
     def test_modretro_finishes_ship_as_skins_with_the_engine_colours(self):
         listed = {skin["id"]: skin for skin in skins.skins()}
