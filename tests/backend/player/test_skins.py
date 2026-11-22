@@ -1,6 +1,7 @@
 """The device skins: player/skins/<id>/ with skin.webp|png and skin.json, the shipped ones and what a broken one does."""
 
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -30,6 +31,14 @@ class ShippedSkins(unittest.TestCase):
         self.assertLessEqual(modretro, set(listed))
         self.assertEqual((listed["midnight"]["name"], listed["midnight"]["background"]), ("Midnight", "#4e4f55"))
         self.assertEqual(listed["supply-co"]["image"].name, "skin.png")
+
+    def test_the_engine_finds_every_finish_it_lists_in_the_skin_folders(self):
+        # The engine's preview and live-feed window read chromatic-<id>.<ext> as player/skins/<id>/skin.<ext>.
+        bundle = (skins.paths.ENGINE_ROOT / "dist" / "server.js").read_text(encoding="utf-8")
+        listed = re.search(r"var DEVICE_IMAGES = \[([^\]]+)\]", bundle).group(1)
+        for skin_id in re.findall(r'"([a-z0-9-]+)"', listed):
+            image = "skin.png" if skin_id == "supply-co" else "skin.webp"
+            self.assertTrue((skins.SKINS_DIR / skin_id / image).is_file(), f"player/skins/{skin_id}/{image}")
 
     def test_every_shipped_skin_image_is_a_webp_or_png(self):
         for skin in skins.skins():

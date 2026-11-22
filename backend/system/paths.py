@@ -42,6 +42,8 @@ def _manifest_version(manifest: Path) -> str:
 
 PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
+# The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
+SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
 # What this plugin pinned for the engine version it ships: its tool contracts and the hash of every engine file.
 ENGINE_PINS = PLUGIN_ROOT / "engine" / "pins" / ENGINE_VERSION
 PINNED_TOOLS = ENGINE_PINS / "tools.json"
@@ -348,7 +350,7 @@ def prepared_package_json(target: str) -> bytes:
 
 def verify_prepared_engine() -> dict:
     """The per-user engine copy: the recorded engine, minus the packed vendor archives, plus exactly
-    the files its receipt lists (vendor CLI for one platform, unpacked device artwork, manifest)."""
+    the files its receipt lists (vendor CLI for one platform, manifest)."""
     try:
         receipt = json.loads(DEVICE_CLI_RECEIPT.read_text())
     except (OSError, ValueError):

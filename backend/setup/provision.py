@@ -48,25 +48,6 @@ _RUST_TARGETS = {
     "win32-arm64": "aarch64-pc-windows-msvc",
 }
 
-_UNPACK_ARTWORK = """
-import { readPackedDeviceArtwork, CHROMATIC_ARTWORK_MEMBERS } from %(runtime)s;
-import { writeFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import path from "node:path";
-const directory = process.argv[1];
-const written = {};
-for (const [name, bytes] of readPackedDeviceArtwork(directory)) {
-  const pin = CHROMATIC_ARTWORK_MEMBERS[name];
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  if (!pin || pin.size !== bytes.length || pin.sha256 !== sha256 || path.basename(name) !== name) {
-    throw new Error("Device artwork does not match the engine's pins: " + name);
-  }
-  writeFileSync(path.join(directory, name), bytes, { mode: 0o644, flag: "wx" });
-  written[name] = sha256;
-}
-process.stdout.write(JSON.stringify(written));
-"""
-
 _RESOLVE = """
 import { resolveChromaticRuntime } from %(runtime)s;
 const found = resolveChromaticRuntime();
@@ -354,9 +335,6 @@ def _prepare(
         os.chmod(stage / "package.json", 0o644)
 
         runtime = json.dumps((stage / "scripts" / "chromatic-runtime.mjs").as_uri())
-        artwork = _node(
-            _UNPACK_ARTWORK % {"runtime": runtime}, str(stage / "assets" / "devices"), cwd=stage, node_path=node_path
-        )
         _tighten(stage)
         _node(
             _RESOLVE % {"runtime": runtime}, cwd=stage, node_path=node_path
@@ -385,7 +363,6 @@ def _prepare(
         "added": {
             f"{CLI_DIR}/{exe_rel}": pins["executable"]["sha256"],
             f"{CLI_DIR}/{notice_rel}": pins["notice"]["sha256"],
-            **{f"assets/devices/{name}": digest for name, digest in artwork.items()},
         },
         "vendor_terms": VENDOR_TERMS_URL,
         "vendor_terms_accepted": True,

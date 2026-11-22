@@ -3,9 +3,9 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 512,
+ "file_count": 511,
  "symlink_count": 0,
- "total_bytes": 38734484,
+ "total_bytes": 35850911,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -17,9 +17,9 @@
   ".txt": 8,
   "(none)": 7,
   ".yaml": 4,
-  ".br": 3,
   ".mts": 3,
   ".sh": 3,
+  ".br": 2,
   ".gbsproj": 2,
   ".ps1": 2,
   ".py": 2,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "8237cdeb832219ff061dcc5e3495cdb0afb32c7c228c47ed537378fb9a8c1c36",
+ "aggregate_sha256": "8895607d5395cbab0f1f3cb41b1b661982090384193880a35a85ba7c15cb5438",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -99,13 +99,6 @@
    "size": 3288,
    "mode": "0o644",
    "sha256": "277f143a2bd5b97e802c51f6537033e760042f6294ce3d0a4408ec167d920895"
-  },
-  {
-   "path": "assets/devices/images.br",
-   "type": "file",
-   "size": 2882968,
-   "mode": "0o644",
-   "sha256": "31914bd053e6a121634f7935fa758e761d5cf694298eed356fdb09a9e17252d6"
   },
   {
    "path": "assets/devices/provenance.json",
@@ -1013,9 +1006,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2866709,
+   "size": 2866104,
    "mode": "0o644",
-   "sha256": "23562c571a1758033cffd02af96c6f86b234aee2456bacb3fc59e8879e34a43e"
+   "sha256": "79388e11250975faa2419d967516b2911ed7b397d04485011e4b6398f257c5b1"
   },
   {
    "path": "dist/server.js.map",

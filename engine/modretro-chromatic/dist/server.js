@@ -29864,7 +29864,6 @@ var StdioServerTransport = class {
 };
 
 // dist/server.js
-import { readChromaticPackageFormat } from "../scripts/chromatic-runtime.mjs";
 
 // dist/build.js
 import { execFile as execFile2, spawn } from "node:child_process";
@@ -59465,7 +59464,6 @@ import { constants as constants21 } from "node:fs";
 import { lstat as lstat23, open as open21, realpath as realpath24 } from "node:fs/promises";
 import { createServer } from "node:http";
 import path39 from "node:path";
-import { CHROMATIC_PACKED_V2, readPackedDeviceArtwork } from "../scripts/chromatic-runtime.mjs";
 import { pipeline } from "node:stream/promises";
 
 // dist/web-preview-states.js
@@ -61499,6 +61497,7 @@ var MAX_CAPTURE_METADATA_BYTES = 2 * 1024 * 1024;
 var MAX_CAPTURE_UPLOAD_BYTES = 128 * 1024 * 1024 + MAX_CAPTURE_METADATA_BYTES + 16 * 1024;
 var ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
 var DEVICE_IMAGES = ["codex", "cloud", "midnight", "wave", "leaf", "inferno", "volt", "bubblegum", "transparent-green", "transparent-red", "transparent-smoke", "transparent-purple", "supply-co"].map((color) => `chromatic-${color}.${color === "supply-co" ? "png" : "webp"}`);
+var deviceArtworkFile = (filename) => filename.replace(/^chromatic-([a-z0-9-]+)\.(webp|png)$/, "$1/skin.$2");
 var MAX_DEVICE_IMAGE_BYTES = 3 * 1024 * 1024;
 var MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -61743,9 +61742,8 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
   }
   if (options.deviceAssetsRoot !== void 0) {
     const deviceRoot = path39.resolve(options.deviceAssetsRoot);
-    const packed = options.deviceAssetsFormat === CHROMATIC_PACKED_V2.format ? readPackedDeviceArtwork(deviceRoot) : void 0;
     for (const filename of DEVICE_IMAGES) {
-      const bytes3 = packed ? packed.get(filename) : await readAnnotationFile(deviceRoot, filename, platform, MAX_DEVICE_IMAGE_BYTES);
+      const bytes3 = await readAnnotationFile(deviceRoot, deviceArtworkFile(filename), platform, MAX_DEVICE_IMAGE_BYTES);
       if (!bytes3 || bytes3.length > MAX_DEVICE_IMAGE_BYTES)
         throw new Error(`Missing or oversized device artwork: ${filename}`);
       if (filename.endsWith(".png") ? bytes3.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" : (bytes3.toString("ascii", 0, 4) !== "RIFF" || bytes3.toString("ascii", 8, 12) !== "WEBP")) {
@@ -62785,7 +62783,6 @@ import { createServer as createServer2 } from "node:http";
 import { readFile as readFile14 } from "node:fs/promises";
 import path44 from "node:path";
 import { pipeline as pipeline2 } from "node:stream/promises";
-import { CHROMATIC_PACKED_V2 as CHROMATIC_PACKED_V22, readPackedDeviceArtwork as readPackedDeviceArtwork2 } from "../scripts/chromatic-runtime.mjs";
 
 // dist/web-annotations/view.js
 var DEVICE_COLORS = [
@@ -65169,9 +65166,8 @@ var NativeDeviceCaptureService = class {
       for (const name3 of ASSETS)
         assets.set(name3, await readFile14(path44.join(this.options.assetsRoot, name3)));
       const artRoot = this.options.deviceAssetsRoot ?? path44.resolve(this.options.assetsRoot, "../assets/devices");
-      const packed = this.options.deviceAssetsFormat === CHROMATIC_PACKED_V22.format ? readPackedDeviceArtwork2(artRoot) : void 0;
       for (const name3 of DEVICE_CAPTURE_IMAGES) {
-        const data = packed ? packed.get(path44.basename(name3)) : await readBoundedCaptureAsset(path44.join(artRoot, path44.basename(name3)), 3 * 1024 * 1024);
+        const data = await readBoundedCaptureAsset(path44.join(artRoot, deviceArtworkFile(path44.basename(name3))), 3 * 1024 * 1024);
         if (!data || data.length > 3 * 1024 * 1024 || (data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" && (data.toString("ascii", 0, 4) !== "RIFF" || data.toString("ascii", 8, 12) !== "WEBP")))
           throw new Error("Device artwork is invalid.");
         assets.set(name3, data);
@@ -66306,7 +66302,7 @@ var NativeDeviceCaptureService = class {
 var SERVER_NAME = "modretro-chromatic";
 var SERVER_VERSION = "1.0.34";
 var WEB_ANNOTATION_ASSETS = fileURLToPath3(new URL("../dist/web-annotations/", import.meta.url));
-var DEVICE_ASSETS = fileURLToPath3(new URL("../assets/devices/", import.meta.url));
+var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path45.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath3(new URL("../../../player/skins/", import.meta.url));
 var readOnly3 = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -66588,7 +66584,6 @@ function createGbStudioServer(options = {}) {
     helperManifest: fileURLToPath3(new URL("../native/capture/macos/manifest.json", import.meta.url)),
     linuxHelperManifest: fileURLToPath3(new URL("../native/capture/linux/manifest.json", import.meta.url)),
     deviceAssetsRoot: DEVICE_ASSETS,
-    deviceAssetsFormat: readChromaticPackageFormat(path45.resolve(DEVICE_ASSETS, "../..")),
     assetsRoot: fileURLToPath3(new URL("../dist/", import.meta.url)),
     isSelected: (root, generation) => session.selectedProject?.projectRoot === root && session.selectionGeneration === generation
   });
@@ -67223,7 +67218,6 @@ function createGbStudioServer(options = {}) {
       preview = await webPreview.start(built.outputPath, {
         assetsRoot: WEB_ANNOTATION_ASSETS,
         deviceAssetsRoot: DEVICE_ASSETS,
-        deviceAssetsFormat: readChromaticPackageFormat(path45.resolve(DEVICE_ASSETS, "../..")),
         romPath: built.exportIdentity.rom.path,
         romSha256: built.exportIdentity.rom.sha256,
         romSizeBytes: built.exportIdentity.rom.sizeBytes,
