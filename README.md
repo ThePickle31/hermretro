@@ -11,8 +11,8 @@ not verified yet. See [what works](#what-works-today).
 ## Install
 
 1. In Hermes Desktop: Capabilities → Plugins → **Install from Git**, enter `https://github.com/ThePickle31/hermretro`,
-   press **Review repository**, then **Install**. The link `hermes://plugin/install?repo=ThePickle31/hermretro&enable=1`
-   opens the same dialog. This installs the latest release (`main`).
+   press **Review repository**, then **Install**. Or open the link `hermes://plugin/install?repo=ThePickle31/hermretro&enable=1`:
+   the dialog opens already reviewing the repository, so press **Install**. This installs the latest release (`main`).
 2. Open **HermRetro** from the sidebar (if it is not there, turn on **hermretro** under Capabilities → Plugins).
 3. Press **Get started** to review what the game tools will download (version, source, size, purpose). The tools aren't downloaded
    until you press **Download and install**. The page then creates a dedicated **hermretro** profile and installs
@@ -20,8 +20,9 @@ not verified yet. See [what works](#what-works-today).
    needed for this.
 4. Choose **Start making games** to use the emulator, or **Set up my Chromatic** if you want to use a device now.
    You can add a Chromatic later from Setup.
-5. Type a first game idea and press **Continue in Build** or **Plan it first**. Build opens with your idea in the
-   New Game box, unsent. You can also choose **Skip, take me to the studio**.
+5. After **Start making games**, type a first game idea and press **Continue in Build** or **Plan it first**. Build
+   opens with your idea in the New Game box, unsent. You can also choose **Skip, take me to the studio**. After
+   **Set up my Chromatic**, Setup walks through the device steps; then start your first game from Build's New Game.
 
 ### What to expect
 
@@ -43,7 +44,9 @@ not verified yet. See [what works](#what-works-today).
   **Chromatic hardware tools** in the plugin settings, and writing a cartridge, streaming and driver setup ask for your approval first (unless Approvals are
   turned off in Hermes). Firmware
   and activation stay in ModRetro's own Firmware Updater (the Setup page links its guide). ModRetro publishes its
-  device software for macOS and Linux x64 only. The hardware tools have not been tested on a device yet.
+  device software for macOS and for Linux on x64 and ARM64 (glibc 2.39 or newer). Capturing a real Chromatic's
+  video works on macOS only: Linux device capture says it is unavailable. The hardware tools have not been tested on
+  a device yet.
 
 ### The studio profile
 
@@ -69,7 +72,10 @@ popover names it) or the game tools are installing.
 - **The download list or tools check failed.** Use **Check again**. No new download starts without a list to review.
 - **The install stopped.** Reopen HermRetro to see its state. **Cancel** stops an install running from the page;
   choose **Install again** after cancelling, or **Try again** after a failure. Finished parts are kept.
-  **Ask Hermes to fix it** opens a chat with the error in it, not sent.
+- **The install finished but the tools check failed.** Use **Check again**; when required tools are still missing,
+  **Retry install**.
+- **Ask Hermes to fix it** puts the error into a chat in the **hermretro** profile, not sent. When that profile is
+  not set up yet, it copies the request to the clipboard instead and asks you to set the profile up first.
 - **A step broke later.** The other pages show a Repair banner; the Setup page has one step per part, with
   **Check again** when the tools check fails, and Refresh in the page header checks everything again.
 - **Start the tools over.** Setup's **Remove downloaded tools**, then install again. Your games are not touched.
@@ -212,7 +218,8 @@ is described in `docs/dev/STUDIO-PAGES.md` ("The page's source").
 For development, link a checkout instead of installing the plugin:
 
 ```sh
-ln -s /path/to/hermretro "$HERMES_HOME/plugins/hermretro"   # ~/.hermes by default
+mkdir -p "${HERMES_HOME:-$HOME/.hermes}/plugins"
+ln -s /path/to/hermretro "${HERMES_HOME:-$HOME/.hermes}/plugins/hermretro"
 hermes plugins enable hermretro
 ```
 
