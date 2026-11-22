@@ -8,14 +8,10 @@
 - Every backtick-quoted relative source name (`provision.py`, `transcript/transcript.css.js`) in a feature or page
   README (backend/*/README.md, page/pages/*/README.md) exists beside that README, or in the folder its section's
   heading names (`## The New Game level (`attract/`)`). The "Adding ..." sections are skipped (they name files a
-  scaffold would write), as are placeholders (`<tool>_tools.py`) and test files (`test_*.py`, `*.test.mjs`, tests/...).
-- None says `retrodev new` lacks a kind it has (`new <kind>`, read from the real parser): such a line sends the
-  reader to hand steps the scaffold now does.
+  new piece would add), as are placeholders (`<tool>_tools.py`) and test files (`test_*.py`, `*.test.mjs`, tests/...).
 """
 
 import re
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,31 +27,6 @@ MODULE = re.compile(r"`((?:backend|page)/[\w./-]+\.(?:py|js|mjs))`")
 # A relative source name in a code span: no folder root of the repository, no placeholder.
 LOCAL = re.compile(r"`([\w./-]+\.(?:py|js|mjs))`")
 HEADING = re.compile(r"^#{2,6}\s+(.*)")
-NO_KIND = re.compile(r"retrodev new`? (?:has|had) no (\w+) kind")
-
-
-def stale_lines(docs: list[Path], kinds: set[str]) -> list[str]:
-    """Each line of ``docs`` saying `retrodev new` has no kind that ``kinds`` holds."""
-    return [
-        f"{doc.relative_to(ROOT) if doc.is_relative_to(ROOT) else doc}:{number}: says `retrodev new` has no {kind} kind"
-        for doc in docs
-        for number, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1)
-        for kind in NO_KIND.findall(line)
-        if kind in kinds
-    ]
-
-
-def listed_kinds() -> set[str]:
-    """The kinds the real parser lists (what `python tools/retrodev new --help` shows)."""
-    code = (
-        "import sys; sys.path[0] = sys.argv[1]; import argparse; from retrodev.cli import parser\n"
-        "new = next(a for a in parser()._actions if isinstance(a, argparse._SubParsersAction)).choices['new']\n"
-        "print(' '.join(next(a for a in new._actions if isinstance(a, argparse._SubParsersAction)).choices))"
-    )
-    run = subprocess.run(
-        [sys.executable, "-c", code, str(ROOT / "tools")], capture_output=True, text=True, check=True, cwd=ROOT
-    )
-    return set(run.stdout.split())
 
 
 def documents() -> list[Path]:
@@ -201,32 +172,10 @@ class DocPathTests(unittest.TestCase):
             "or remove the reference",
         )
 
-    def test_no_doc_says_retrodev_new_lacks_a_kind_it_has(self):
-        stale = stale_lines(documents(), listed_kinds())
-        self.assertEqual(
-            stale,
-            [],
-            "\n  " + "\n  ".join(stale) + "\nFIX: give the command instead: python tools/retrodev new <kind> ... "
-            "(python tools/retrodev new --help lists the kinds and what each writes)",
-        )
-
-    def test_a_stale_line_about_any_kind_is_rejected(self):
-        kinds = listed_kinds()
-        with tempfile.TemporaryDirectory() as folder:
-            doc = Path(folder) / "README.md"
-            doc.write_text("Intro.\n`retrodev new` has no tool kind yet: copy one by hand.\n", encoding="utf-8")
-            self.assertEqual(stale_lines([doc], kinds), [f"{doc}:2: says `retrodev new` has no tool kind"])
-            for kind in sorted(kinds):
-                doc.write_text(f"retrodev new has no {kind} kind\n", encoding="utf-8")
-                self.assertEqual(len(stale_lines([doc], kinds)), 1, kind)
-            doc.write_text("retrodev new has no widget kind\n", encoding="utf-8")
-            self.assertEqual(stale_lines([doc], kinds), [])
-
     def test_a_missing_path_is_found_and_a_pattern_is_not(self):  # the scans' own behaviour, on a fixed text
         text = "See `tests/repo/test_doc_pointers.py`, `tests/repo/test_nope.py`. Pattern: tests/backend/<feature>/."
         self.assertEqual(named_paths(text), [(1, "tests/repo/test_doc_pointers.py"), (1, "tests/repo/test_nope.py")])
         self.assertFalse((ROOT / "tests/repo/test_nope.py").exists())
-        self.assertEqual(NO_KIND.findall("a listener: `retrodev new` has no listener kind yet."), ["listener"])
 
 
 if __name__ == "__main__":

@@ -41,9 +41,8 @@ widened plugin) is kept for the next try. An update Hermes installed whose later
 version and, when one is ready, Update.
 
 Each page has a short row here and its full design in its own subsection below, one bullet per area. A new page
-(`python tools/retrodev new page`) adds both: a row whose two design columns say `not designed yet` until the owner
-approves a mockup, and a `### <Page>` subsection saying what it shows. "The page's row" in `retrodev` next steps
-means both.
+adds both: a row whose two design columns say `not designed yet` until the owner approves a mockup, and a
+`### <Page>` subsection saying what it shows.
 
 ### Setup
 
@@ -516,7 +515,7 @@ Games shelf and Emulator bar **Install** = send the existing "Flash a cartridge"
 - `pages/index.js` is the registry: one import line per page, in nav order. `pages/<page>/`: one folder per page: `build/`, `setup/` (with `onboarding/` and `install/`), `games/`, `emulator/` (with `beside-chat/`, the tab beside the chat). Each has an `index.js`, its front door: the descriptor (`BUILD_PAGE`…) and what other pages may use from it, and a `README.md` (what it shows, tabs, events, slots, tests). A page's tabs and areas are subfolders of it: Build has `chat/` (conversation state, gateway events, actions), `transcript/`, `composer/`, `assets/`, `viewer/` and `player/` (the game inside the conversation).
 - `shared/`: the bottom layer every page and the shell use: `ui/` (components), `styles/`, `art/` (PNG and SVG art; `art/providers/` the provider logos and their index), `player/` (the frame layer every player surface uses). It never imports `#app/` or `#pages/`.
 - `frame/`: the code that runs inside the player frame; built separately into `player/frame-shim.js`; imports only `frame/` and `#shared/`.
-- Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// retrodev: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
+- Boundaries (ESLint, `tools/bundle/lint-rules.mjs`, run by `python tools/check.py lint`): a page imports another page only as `#pages/<page>/index.js`; pages never import the shell modules of `app/` or the registry; `app/` reaches pages only through `#pages/index.js`; `shared/` imports neither `app/` nor pages; the entry never imports pages. Every message says why the rule exists and the fix; `node tools/bundle/lint-page.mjs --fix` rewrites an import through a front door that already exports the names. A deliberate exception goes on its line with a reason: `// hermretro: allow hermretro/boundaries — <reason>`; the report lists every one. `eslint-disable` comments are ignored.
 - One main component per file, named after it in kebab-case (`BuildCard` in `build-card.js`), with its private helpers. Pure logic lives in noun-named files without components (`turns.js`, `reducer.js`). Named exports only, each name unique across the tree (a front door's `export { x } from './y.js'` passes a name on and does not count).
 - Imports: `./file.js` for the module's own folder, `./sub/file.js` for a folder inside it, and an alias for anything else: `#sdk` (`page/sdk.js`), `#app/`, `#pages/`, `#shared/`, `#frame/` (the folders of the same name; `ALIASES` in `tools/bundle/bundle.mjs`, used by esbuild, the lint and `tests/page/aliases.mjs`). No path climbs a folder (Hermes's install scanner notes relative paths that climb two). No import cycles (the build fails on one).
 - Module state (atoms, maps, caches, listener sets) is declared once, in the module that owns it, and changed only by that module's functions; a feature with more than a little keeps it in `store.js`/`state.js`/`cache.js`. Another page learns of a change through a page event, never by reading the state. Gateway listeners start from a page's `register(ctx)`; features export `watchX(ctx)`.
@@ -551,9 +550,8 @@ Optional fields: `Badge({ nav })`, `pad`, `BelowPlayer`, `css`, `register(ctx)`,
 `contributes` (all listed at the top of `app/registry.js`). Nothing in `app/` changes. The shell draws its one
 player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full width in the page's column, after
 `Page` and before `BelowPlayer`: a page puts its content above the player (`Page`) or below it (`BelowPlayer`,
-which needs `pad`); content beside the player needs a change to that shell. Or:
-`python tools/retrodev new page <page> [--label ...]` writes the folder, the registry line and the registry test's
-nav list (it goes last; move it in both).
+which needs `pad`); content beside the player needs a change to that shell. Add the page to the registry (`page/pages/index.js`) and to
+the registry test's nav list (`tests/page/registry.test.mjs`) in the same place.
 
 ### Reference content
 
@@ -566,8 +564,8 @@ the page outside it (arrows, Z, X, Enter, Shift, P: not all of the default map, 
 
 ### A tab
 
-On a page without tabs, first make a tab whose `Page` is the page's old `Page` component:
-`python tools/retrodev new tab <page> <id> --from-page` (the page then looks the same, with a tab bar of one).
+On a page without tabs, first make a tab whose `Page` is the page's old `Page` component (the page then looks the
+same, with a tab bar of one).
 Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, Page }` (and, like a page,
 `css`, `events`, `listens`, `slots`, `contributes`), and add it to `tabs: [...]` in `page/pages/<page>/index.js`.
 `app/page-view.js` draws the tab bar and remembers the choice per page; a page with a single tab still shows a
@@ -580,8 +578,7 @@ drawn by `app/studio-page.js` after the page view, so they stay under every tab 
 page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator
 (`onEmulator`) and `BelowPlayer` whenever the page has `pad`, whichever tab is chosen (`page-view.js` draws only
 the tab bar and the tab's body, and the shell does not know the chosen tab, which `page-view.js` keeps in
-`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). `--from-page` needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. Or:
-`python tools/retrodev new tab <page> <tab>` (the folder, the `tabs` entry and the README line). A tab imports
+`ctx.storage` as `tab:<page>`). A tab that must hide the player needs a shell change in `app/studio-page.js`. Tests that render a page's own `Page` directly (`tests/page/slots.test.mjs` `HOSTS`, any helper like it) must render the first tab's `Page` once the page has tabs: draw `page.Page ?? page.tabs[0].Page` (`ownPage` in `tests/page/shells.mjs`). That needs the page's `Page` in its own file, imported by name in `index.js` (a tab importing `index.js` would be a cycle; `tests/page/registry.test.mjs` checks every page keeps it in its own file). Mention the tab in the page's `README.md`. A tab imports
 its page's own files as `#pages/<page>/<file>.js` (a path with `../` is refused: no import climbs a folder).
 
 Testing a tab: a scenario file `tests/page/page-<page>-<tab>.test.mjs` on the real harness (`tests/page/harness.mjs`),
@@ -627,8 +624,7 @@ emitter. An undeclared name throws. List it in both READMEs.
 The host page declares it: `slots: { '<page>.<name>': 'where it is; the props it passes' }` in
 `page/pages/<page>/index.js`, and renders `jsx(Slot, { name: '<page>.<name>', props: { ... } })` (from
 `#app/slots.js`) where the contributions go. Empty, it renders nothing, so declaring one changes nothing on
-screen. Or: `python tools/retrodev new slot <page> <name> --doc '...'` declares it (and lists it in the registry
-test); rendering the `Slot` stays yours. Write the props in the doc string as `Props: { a, b, ... }` (a prop
+screen. List it in the registry test too. Write the props in the doc string as `Props: { a, b, ... }` (a prop
 passed only in one place: `plus x(...) on the <where> only`): `tests/page/slots.test.mjs` renders each host with a
 probe contribution and fails when the props passed differ from those, so give its `HOSTS` the new slot's host.
 
@@ -650,8 +646,6 @@ Every place to edit for a new contribution: `contributes` in the contributing pa
 fills it with Install"); the "Events and slots today" line below; the `filled`
 assertion in `tests/page/registry.test.mjs` (its `expected`); and, when the host renders the slot in a new place,
 its recipe in `HOSTS` in `tests/page/slots.test.mjs`.
-Or: `python tools/retrodev new contribution <page> <slot> <Component>` writes the stub, `contributes` with its import,
-the README Slots line and the registry `filled` assertion; the docs and HOSTS stay yours.
 
 Test what the item does in the host page's scenario test, where the slot is drawn with the real page around it: for
 `games.cardMenu`, `tests/page/page-games.test.mjs` (`openGameMenu(card)` opens a card's arrow menu, then

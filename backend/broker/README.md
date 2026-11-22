@@ -19,10 +19,10 @@ watch, journal), `server.py`, `engine.py`, `leases.py`), and the client the gate
 ## Adding here
 
 The broker declares no RPCs, tools, hooks, events or listeners (it stays standard library only, outside Hermes);
-the gateway's features reach it only through this front door. `retrodev new` refuses an rpc, tool or event here.
+the gateway's features reach it only through this front door.
 
 - an RPC, a tool or an event that needs the broker: declare it in a gateway-side feature (`backend/setup/`,
-  `backend/library/`, or the one it belongs to) with `python tools/retrodev new rpc|tool|event <that feature> ...`,
+  `backend/library/`, or the one it belongs to),
   and have its handler call the broker through `backend.broker` (`ensure_broker`, `try_connect`).
 - a new broker operation: add it on the broker side and a client function in `client.py`, export that from this
   front door, and cover it in `tests/backend/broker/` (read `test_broker_socket.py` first).

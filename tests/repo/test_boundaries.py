@@ -13,7 +13,7 @@ inside one feature cannot quietly break another:
   emitted only by the owner, listened to only from a feature's listeners.py, and always a literal.
 - backend/features.py lists every feature folder once.
 
-A line may break a rule on purpose with ``# retrodev: allow <rule> — <reason>`` (tests/repo/allowances.py).
+A line may break a rule on purpose with ``# hermretro: allow <rule> — <reason>`` (tests/repo/allowances.py).
 Run alone: python -m unittest tests.repo.test_boundaries
 """
 
@@ -298,7 +298,7 @@ def report(problems, allowed) -> str:
         + "\n  ".join(lines)
         + "\n"
         + "\n".join(f"FIX ({rule}): {FIXES[rule]}" for rule in rules)
-        + "\n(A deliberate exception: end the line with '# retrodev: allow <rule> — <reason>'.)"
+        + "\n(A deliberate exception: end the line with '# hermretro: allow <rule> — <reason>'.)"
     )
 
 
@@ -324,7 +324,7 @@ class Boundaries(unittest.TestCase):
             copy = Path(tmp)
             shutil.copytree(ROOT / "backend", copy / "backend", ignore=shutil.ignore_patterns("__pycache__"))
             assets = copy / "backend" / "assets" / "planted.py"
-            reason = "# retrodev" + ": allow front-door — "
+            reason = "# hermretro" + ": allow front-door — "
             assets.write_text(
                 "from ..library.games import _json\n"
                 "from .. import player\n"

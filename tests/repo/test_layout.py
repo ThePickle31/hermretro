@@ -3,7 +3,7 @@
 tools/layout.toml maps every top-level folder and its areas with a one-line purpose; docs/dev/ARCHITECTURE.md
 ("Map") lists the same folders. These tests keep the tree, the map and the docs in agreement, so a newcomer
 (person or agent) can trust the map to say where a change belongs. Warnings (printed, never failing) mark
-what should be fixed soon: files over the warning size and every deliberate exception (``retrodev: allow``
+what should be fixed soon: files over the warning size and every deliberate exception (``hermretro: allow``
 comments, tests/repo/allowances.py). The README rules for backend features and pages are in
 tests/repo/test_readmes.py, so work on one area never shares a test file with the map's rules.
 
@@ -137,7 +137,7 @@ class Layout(unittest.TestCase):
             [],
             "\nAn exception to a structure rule needs its reason, so the next person "
             "knows whether it still holds:\n  " + "\n  ".join(problems) + "\nFIX: write it as "
-            "'# retrodev: allow <rule> — <reason>' (rules: " + ", ".join(sorted(allowances.RULES)) + ")",
+            "'# hermretro: allow <rule> — <reason>' (rules: " + ", ".join(sorted(allowances.RULES)) + ")",
         )
 
 

@@ -68,7 +68,7 @@ def collect():
 
 def contract_tool_list(text):
     """The count word and the tools named by CONTRACT.md's '<N> tools, plus <count> ... <M> in total.' sentence
-    (`retrodev new tool` names a new tool at its end); nothing after the sentence counts."""
+    (a new tool goes at its end); nothing after the sentence counts."""
     sentence = re.search(r"\d+ tools, plus\s+(\w+)(.*?)\d+ in total\.", text, re.S)
     assert sentence is not None, "CONTRACT.md: the '<N> tools, plus <count> ... <M> in total.' sentence"
     return sentence.group(1), re.findall(r"`(chromatic_\w+)`", sentence.group(2))
@@ -104,17 +104,51 @@ def set_literal(source: str, name: str) -> set[str]:
     return set(re.findall(r"'(\w+)'", match.group(1)))
 
 
-def count_words():
-    """tools/retrodev/count_words.py, the count policy the `new tool` scaffold writes with (loaded by path)."""
-    spec = importlib.util.spec_from_file_location("count_words", ROOT / "tools" / "retrodev" / "count_words.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+# How CONTRACT.md writes the plugin-owned tools' count: a word through twenty, digits past it.
+NUMBER_WORDS = dict(
+    enumerate(
+        [
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+            "twenty",
+        ],
+        start=1,
+    )
+)
+
+
+def count_text(number: int) -> str:
+    """The count as CONTRACT.md writes it: 'seven' for 7, '21' for 21."""
+    return NUMBER_WORDS.get(number, str(number))
+
+
+def count_value(text: str) -> int | None:
+    """The number a written count stands for ('seven' or '7' -> 7); None when it is neither."""
+    return next(
+        (number for number, word in NUMBER_WORDS.items() if word == text), int(text) if text.isdigit() else None
+    )
 
 
 def contract_count(engine: int, owned: int) -> str:
     """The phrase CONTRACT.md must hold for these counts: '81 tools, plus seven'."""
-    return f"{engine} tools, plus {count_words().count_text(owned)}"
+    return f"{engine} tools, plus {count_text(owned)}"
 
 
 def read(rel: str) -> str:
@@ -208,15 +242,15 @@ class LockStep(unittest.TestCase):
         )
 
     def test_the_contract_lists_exactly_the_plugin_owned_tools_it_counts(self):
-        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once (`retrodev new
-        tool` adds the new name at its end); a line after the sentence does not count."""
+        """'N tools, plus <count> plugin-owned tools ...: `a`, `b` ... M in total.' names each one once (a new
+        tool goes at its end); a line after the sentence does not count."""
         count, listed = contract_tool_list(read("docs/dev/CONTRACT.md"))
         owned = plugin_owned_tools(self.tools)
         fix = (
             "\nFIX: in docs/dev/CONTRACT.md's 'plus <count> plugin-owned tools' sentence, name each tool in "
-            f"{sorted(owned)} once and write the count as {count_words().count_text(len(owned))!r}"
+            f"{sorted(owned)} once and write the count as {count_text(len(owned))!r}"
         )
-        problems = tool_list_problems(count_words().count_value(count), listed, owned)
+        problems = tool_list_problems(count_value(count), listed, owned)
         self.assertEqual(problems, [], "\n".join(problems) + fix)
 
     def test_a_tool_reference_in_a_description_is_named_as_the_duplicate(self):  # round 21

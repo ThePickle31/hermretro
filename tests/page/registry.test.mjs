@@ -88,7 +88,7 @@ function pagesDefiningPage(sources) {
   })
 }
 
-// A page's Page lives in its own file, so \`retrodev new tab <page> <id> --from-page\` can make it the first tab
+// A page's Page lives in its own file, so a tab can take it over as the first tab
 // (a tab importing the page's index.js would be a cycle).
 test("each page's own Page is imported into index.js from its own file, not defined there", () => {
   assert.equal(pagesDefiningPage([['probe', "function Probe() {}\nexport const PROBE_PAGE = {\n  id: 'probe',\n  Page: Probe,\n}"]]).length, 1)

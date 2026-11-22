@@ -9,7 +9,7 @@ The file-wide ``# ruff: noqa`` and ``# flake8: noqa`` (with or without codes) ne
     # ruff: noqa: F401 - this module only re-exports
 
 A bare ``# noqa``, or codes with nothing after them (or a reason in brackets), fails. The vendored engine and the
-pinned npm tools are not ours and are skipped; retrodev's Python templates are checked too.
+pinned npm tools are not ours and are skipped.
 
 Run alone: python -m unittest tests.repo.test_noqa
 """
@@ -84,7 +84,7 @@ class Noqa(unittest.TestCase):
     def test_every_noqa_has_a_reason(self):
         problems = []
         for name in files():
-            if name.endswith((".py", ".py.tmpl")) and not name.startswith(SKIPPED):
+            if name.endswith(".py") and not name.startswith(SKIPPED):
                 problems += unreasoned((ROOT / name).read_text(encoding="utf-8", errors="replace"), name)
         self.assertEqual(
             problems,

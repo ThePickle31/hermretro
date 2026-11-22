@@ -1,17 +1,12 @@
-<!-- Base branch: dev. Title: one plain sentence, it becomes the commit and the release-note line. -->
+<!-- Base branch: dev. Title: `type(scope): what it does`; it becomes the squash commit and the release-note line. -->
+
+## Summary
 
 ## Why
 
-## What changed
+## Change
 
-## How verified
-<!-- Commands and their results (python tools/check.py ...). Tick each system you tried it on; leave a system unchecked and say why when it was not tried. -->
-- [ ] Linux
-- [ ] macOS (Apple Silicon / Intel)
+## Verification
+<!-- The commands and what they showed; which systems it ran on (Linux, macOS Apple Silicon, Intel). -->
 
-## Risk and rollback
-
-## Not done
-
-## Made by
-<!-- A person: your name or handle. An agent: which one and for whom, e.g. "Made by an agent (Hermes, <model>) for @<who asked>." -->
+## Review

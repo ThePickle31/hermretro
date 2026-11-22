@@ -1,10 +1,9 @@
 """check.py unit's processes: the suite split into shards that run at the same time.
 
-One `unittest` process ran every test module one after another (tests.retrodev on its own thread pool, the rest
-on the main thread), so most of a machine's cores waited. Now tests.retrodev keeps its own process (its package
-load_tests puts its modules on one pool) and every other test module goes to one of a few product shards, each its
-own process with its own empty home and temp folder. A module never runs in two shards, so a module that patches
-process-wide state is as alone in its shard as it was in the single process.
+One `unittest` process ran every test module one after another, so most of a machine's cores waited. Now every
+test module goes to one of a few shards, each its own process with its own empty home and temp folder. A module
+never runs in two shards, so a module that patches process-wide state is as alone in its shard as it was in the
+single process.
 
 Shards are filled largest first by each module's recorded time (TIMES: the per-test durations of the last local
 run, summed per module; written only from a real run), or by its file size where no time is recorded (a fresh
@@ -26,16 +25,14 @@ from pathlib import Path
 
 import unit_home
 
-RETRODEV = "tests.retrodev"
 TIMES = ".dev/unit-times.json"  # git-ignored, per checkout
-MAX_PRODUCT_SHARDS = 4
+MAX_SHARDS = 4
 DURATION = re.compile(r"^(\d+(?:\.\d+)?)s\s+\S+ \((tests\.[\w.]+)\)$")  # unittest --durations: "0.5s  test (id)"
 
 
-def product_shards(cpus: int | None, dev_cli: bool) -> int:
-    """How many product processes: one core is the dev CLI's when it runs; at least one, at most four."""
-    spare = (cpus or 2) - (1 if dev_cli else 0)
-    return max(1, min(MAX_PRODUCT_SHARDS, spare))
+def shard_count(cpus: int | None) -> int:
+    """How many processes: one per core, at least one, at most four."""
+    return max(1, min(MAX_SHARDS, cpus or 2))
 
 
 def deal(weights: dict[str, float], count: int) -> list[list[str]]:
@@ -56,21 +53,9 @@ def weights(root: Path, modules: list[str], times: dict[str, float]) -> dict[str
     return {name: times[name] if name in times else size[name] * rate for name in modules}
 
 
-def groups(root: Path, modules: list[str], *, product_only: bool, times: dict[str, float], cpus: int | None):
-    """The `unittest` arguments of each process: the product shards' module names, then the dev CLI's discovery."""
-    product = [name for name in modules if not name.startswith(RETRODEV + ".")]
-    dev_cli = not product_only and len(product) < len(modules)
-    found = deal(weights(root, product, times), product_shards(cpus, dev_cli)) if product else []
-    if dev_cli:
-        found.append(["discover", "-s", "tests/retrodev", "-t", "."])
-    return found
-
-
-def members(group: list[str], modules: list[str]) -> list[str]:
-    """The test modules one process runs: its named modules, or the dev CLI's for its discovery."""
-    if group and group[0] == "discover":
-        return [name for name in modules if name.startswith(RETRODEV + ".")]
-    return list(group)
+def groups(root: Path, modules: list[str], *, times: dict[str, float], cpus: int | None) -> list[list[str]]:
+    """The test modules of each process."""
+    return deal(weights(root, modules, times), shard_count(cpus)) if modules else []
 
 
 def without_durations(stderr: str) -> str:
@@ -121,13 +106,11 @@ def save(path: Path, times: dict[str, float]) -> None:
         pass
 
 
-def run_suite(root: Path, run: Callable, temp_base: str, product_only: bool) -> tuple[str, str]:
+def run_suite(root: Path, run: Callable, temp_base: str) -> tuple[str, str]:
     """Every shard at once, each in its own empty home, TMPDIR and bytecode folder: (check.py's unit row, "") or
     ("", the failure with its FIX line). ``run(cmd, env=...)`` runs a command from the repository root."""
     times = root / TIMES
-    shards = groups(
-        root, unit_home.test_modules(root), product_only=product_only, times=load(times), cpus=os.cpu_count()
-    )
+    shards = groups(root, unit_home.test_modules(root), times=load(times), cpus=os.cpu_count())
     durations = ["--durations", "0"] if sys.version_info >= (3, 12) else []
     started = time.monotonic()
     with contextlib.ExitStack() as stack:
@@ -140,8 +123,6 @@ def run_suite(root: Path, run: Callable, temp_base: str, product_only: bool) -> 
         def one(index: int):
             home, tmp, bytecode = folders[index]
             env = unit_home.unit_env(home, bytecode, tmp)
-            if product_only:
-                env["HERMRETRO_UNIT_PRODUCT_ONLY"] = "1"
             return run([sys.executable, "-B", "-m", "unittest", *shards[index], *durations], env=env)
 
         with ThreadPoolExecutor(max_workers=max(1, len(shards))) as pool:
@@ -156,24 +137,16 @@ def run_suite(root: Path, run: Callable, temp_base: str, product_only: bool) -> 
                 "\nFIX: read the failures above; run one file with "
                 "PYTHONPYCACHEPREFIX=$(mktemp -d) python -B -m unittest tests/<area>/<feature>/test_<name>.py"
             )
-        modules = unit_home.test_modules(root)
         dirty = [(i, h, t) for i, (h, t, _) in enumerate(folders) if unit_home.written(h) or unit_home.left(t)]
         if dirty:  # each process's leftovers, and the modules among its own that leave them
             rerun = lambda cmd, env: run(cmd, env=env)  # noqa: E731 - unit_home's runner takes env positionally
-            return "", "\n".join(
-                unit_home.leaks(
-                    h, t, root, temp_base, rerun, product_only=product_only, modules=members(shards[i], modules)
-                )
-                for i, h, t in dirty
-            )
+            return "", "\n".join(unit_home.leaks(h, t, root, temp_base, rerun, modules=shards[i]) for i, h, t in dirty)
     stderr = "\n".join(result.stderr for result in results)
-    if not (root / ".dev").is_symlink():  # retrodev mac links the clone's .dev: its times are that checkout's
-        save(times, {**load(times), **module_times(stderr)})
+    save(times, {**load(times), **module_times(stderr)})
     counts = [int(found) for found in re.findall(r"^Ran (\d+) tests? in ", stderr, re.M)]
     ran = f"Ran {sum(counts)} tests in {wall:.3f}s ({len(shards)} processes)" if counts else "ok"
     timed = slowest(stderr)
     slow = "; slowest: " + ", ".join(f"{name} {seconds:.3f}s" for seconds, name in timed) if timed else ""
     # tests/repo/test_layout.py prints what should be fixed soon (big files, allowances) without failing.
     changed = unit_home.branch_files(run) if "layout warning: " in stderr else []
-    scope = "plugin and repository only; " if product_only else ""
-    return f"{scope}{ran}{unit_home.layout_note(stderr.splitlines(), changed)}{slow}", ""
+    return f"{ran}{unit_home.layout_note(stderr.splitlines(), changed)}{slow}", ""
