@@ -13,7 +13,7 @@
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
 
-Docs: .agents/skills/hermretro-dev-contribute/references/dev-loop.md, "The development loop". Standard library only; Linux and macOS.
+Standard library only; Linux and macOS.
 """
 
 from __future__ import annotations
@@ -283,10 +283,7 @@ def listed(value: str | None) -> list[str]:
 def cmd_mockup(args) -> int:
     folder = Path(args.folder).expanduser().resolve()
     if not (folder / "round.json").is_file():
-        print(
-            f"{folder} has no round.json (.agents/skills/hermretro-dev-sandbox/references/sandbox.md, \"Mockups\")",
-            file=sys.stderr,
-        )
+        print(f"{folder} has no round.json", file=sys.stderr)
         return 1
     settings = json.loads((folder / "round.json").read_text(encoding="utf-8"))
     mockup.shoot(

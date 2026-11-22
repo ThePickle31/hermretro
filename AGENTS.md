@@ -27,33 +27,25 @@ Python and page source files warn above 400 lines and fail above 600 (`tools/lay
 ## Commands
 
 ```sh
-python tools/dev setup           # once per checkout or worktree: ruff and the npm tools (Node 22 or newer)
-python tools/dev live            # Hermes loads this checkout (every linked profile); `live main` puts it back
-python tools/dev reload          # after a backend change: re-import the plugin in the running gateway
-python tools/dev watch           # rebuild the page on save; serves the live browser preview (prints its address)
-python tools/dev rpc status      # one gateway RPC (plugin.hermretro.status)
-python tools/dev studio up       # the sandbox: a private Hermes on this checkout (kept on current dev), headless
-python tools/dev studio scenario builds   # a saved state (new-game, first-build, builds, working, question)
-python tools/dev ui shot NAME    # a screenshot of the sandbox's page; `ui go|click|say|text` drive it
-python tools/dev mockup FOLDER   # shoot a round of mockups in the sandbox; writes FOLDER/shots and FOLDER/gallery.html
+python tools/dev setup           # once per checkout: ruff and the npm tools the checks use (Node 22 or newer)
 python tools/check.py            # fast checks: unit, bundle, lint, page, scan
 python tools/check.py fix        # automatic lint fixes and the Python formatting
 python tools/check.py full       # plus the real-engine run (python tools/ci/prepare_toolchain.py first)
 python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest, not pytest)
 node tests/page/<name>.test.mjs  # one page test (rebuild the bundle first after editing page/)
+node tools/bundle/bundle.mjs     # rebuild the page and the generated files after editing page/ or an RPC
 ```
 
-The development loop in full: `.agents/skills/hermretro-dev-contribute/references/dev-loop.md`, "The development loop". CI runs the same checks plus a clean
-install, the update from the newest release and, when a change touches `backend/`, `engine/` or the toolchain, the
-real-engine run on Linux and macOS. Every failure ends with a `FIX:` line. Read CI with `gh pr checks <n>` and
-`gh run view <run> --log-failed`.
+CI runs the same checks plus a clean install, the update from the newest release and, when a change touches
+`backend/`, `engine/` or the toolchain, the real-engine run on Linux and macOS. Every failure ends with a `FIX:` line.
+Read CI with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 
 ## Rules that protect users
 
 1. **Generated files.** Never edit `desktop/plugin.js`, `player/frame-shim.js` or `page/app/rpc-names.js` by hand.
    Change `page/` or the backend, run `node tools/bundle/bundle.mjs`, and commit the generated files with the sources.
 2. **The engine is untouched.** Nothing under `engine/` changes outside a deliberate engine update
-   (`.agents/skills/hermretro-dev-engine-update/references/engine-update.md`).
+   (`engine/pins/<version>/manifest.json` records its files and one local patch).
 3. **Install scanner.** `python tools/check.py scan` must say `safe`: one line rated high makes every install ask,
    one rated critical blocks installs. What trips it: `.agents/skills/hermretro-dev-testing/references/install-scanner.md` (instruction verbs aimed at
    agent configuration file names: write "this guide" instead).
@@ -75,23 +67,15 @@ front doors and events (`.agents/skills/hermretro-dev-architecture/references/ar
 
 ## Development skills
 
-Each is a folder in `.agents/skills/` with a `SKILL.md` and its reference pages. Read the one for the work at hand.
+Each is a folder in `.agents/skills/` with a `SKILL.md` and its reference pages: how the plugin is built and how to
+add to it. Read the one for the work at hand.
 
-| Skill | For | Read it when |
-|---|---|---|
-| `hermretro-dev-contribute` | everyone | starting any change: branch, try it, check, open the pull request |
-| `hermretro-dev-architecture` | everyone | changing the backend: features, RPCs, tools, hooks, events, names and shapes |
-| `hermretro-dev-page` | everyone | changing the Hermes Desktop page or the player frame |
-| `hermretro-dev-testing` | everyone | writing or running tests, reading CI, the install scanner |
-| `hermretro-dev-sandbox` | everyone | looking at the page as users see it: the sandbox, screenshots, mockups |
-| `hermretro-dev-debugging` | everyone | something is broken: logs, the broker, symptoms, environment variables |
-| `hermretro-dev-maintain` | maintainer | agreeing work, reviewing and merging pull requests |
-| `hermretro-dev-release` | maintainer | a release, only when the owner asks |
-| `hermretro-dev-engine-update` | maintainer | updating the vendored engine |
+| Skill | Read it when |
+|---|---|
+| `hermretro-dev-architecture` | changing the backend: features, RPCs, tools, hooks, events, names and shapes |
+| `hermretro-dev-page` | changing the Hermes Desktop page or the player frame |
+| `hermretro-dev-testing` | writing or running tests, reading CI, the install scanner |
+| `hermretro-dev-debugging` | something is broken: logs, the broker, symptoms, environment variables |
 
-**Maintainer or contributor.** `gh repo view ThePickle31/hermretro --json viewerPermission -q .viewerPermission`:
-`ADMIN` is the maintainer; anything else (or no `gh`) is a contributor, whose work ends at an open pull request. Only
-the maintainer merges, releases and moves `main`; GitHub enforces it.
-
-A failure that also fails `main` (an advisory, a broken dependency, flaky infrastructure) is fixed at once in its own
-pull request. This guide and the skills change in the same pull request as any command or rule they describe.
+Pull requests go into `dev` (`.github/CONTRIBUTING.md`). This guide and the skills change in the same pull request as
+any command or rule they describe.
