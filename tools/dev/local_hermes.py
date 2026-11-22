@@ -19,9 +19,17 @@ class GatewayError(Exception):
     """The gateway is not running, or refused or failed a control request."""
 
 
-def hermes_root(given: str | None = None) -> Path:
-    """The Hermes home that holds every profile (`~/.hermes` unless named)."""
-    return Path(given).expanduser() if given else Path.home() / ".hermes"
+def hermes_root() -> Path:
+    """The Hermes home that holds every profile."""
+    return Path.home() / ".hermes"
+
+
+def is_checkout(folder: Path) -> bool:
+    """Whether ``folder`` holds hermretro with what Hermes loads: the manifest, the entry point and the page bundle."""
+    manifest = folder / "plugin.yaml"
+    if not (manifest.is_file() and (folder / "__init__.py").is_file() and (folder / "desktop" / "plugin.js").is_file()):
+        return False
+    return f"name: {PLUGIN}" in manifest.read_text(encoding="utf-8").splitlines()
 
 
 def profile_homes(root: Path) -> dict[str, Path]:
@@ -59,7 +67,7 @@ def point(link: Path, target: Path) -> bool:
     """Point the symlink at ``target`` in one rename; False when it already does."""
     if link.resolve() == target.resolve():
         return False
-    temporary = link.with_name(f".{link.name}.dev-link")
+    temporary = link.with_name(f".{link.name}.dev-link-{os.getpid()}")
     temporary.unlink(missing_ok=True)
     temporary.symlink_to(target)
     os.replace(temporary, link)
@@ -128,14 +136,21 @@ def refresh_desktop(root: Path, checkout: Path) -> bool:
     is no copy (the page is not installed) or it is already current. Desktop re-copies a linked plugin by itself when
     its source changes, but only from the folder it was watching at start, so after `live` points the link elsewhere
     this keeps the app on the new checkout."""
-    copy = root / "desktop-plugins" / PLUGIN / "plugin.js"
-    source = checkout / "desktop" / "plugin.js"
-    if not copy.parent.is_dir() or not source.is_file():
+    folder = root / "desktop-plugins" / PLUGIN
+    copy, source = folder / "plugin.js", checkout / "desktop" / "plugin.js"
+    # Only the copy Desktop made of a linked hermretro (its marker says so), never a folder of another kind.
+    if folder.is_symlink() or not folder.is_dir() or copy.is_symlink() or not source.is_file():
+        return False
+    try:
+        marker = json.loads((folder / ".hermes-package.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(marker, dict) or marker.get("package") != PLUGIN or marker.get("linked") is not True:
         return False
     data = source.read_bytes()
     if copy.is_file() and copy.read_bytes() == data:
         return False
-    temporary = copy.with_name(".plugin.js.dev-copy")
+    temporary = copy.with_name(f".plugin.js.dev-copy-{os.getpid()}")
     temporary.write_bytes(data)
     os.replace(temporary, copy)
     return True

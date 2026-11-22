@@ -68,15 +68,46 @@ class HermesHomeTest(unittest.TestCase):
         self.assertFalse(local_hermes.point(link, self.worktree))
         self.assertEqual(sorted(path.name for path in link.parent.iterdir()), ["hermretro"])
 
-    def test_refresh_desktop_copies_only_a_changed_bundle_into_an_installed_page(self):
-        self.assertFalse(local_hermes.refresh_desktop(self.root, self.worktree), "no Desktop copy to refresh")
+    def test_is_checkout_wants_hermretro_with_its_entry_point_and_page(self):
+        self.assertFalse(local_hermes.is_checkout(self.main))
+        (self.main / "__init__.py").write_text("")
+        (self.main / "plugin.yaml").write_text("name: other-plugin\n")
+        self.assertFalse(local_hermes.is_checkout(self.main))
+        (self.main / "plugin.yaml").write_text("name: hermretro\nversion: 0.0.1\n")
+        self.assertTrue(local_hermes.is_checkout(self.main))
+
+    def desktop_copy(self, marker: dict | None) -> Path:
         copy = self.root / "desktop-plugins" / "hermretro" / "plugin.js"
         copy.parent.mkdir(parents=True)
         copy.write_text("// main\n")
+        if marker is not None:
+            (copy.parent / ".hermes-package.json").write_text(json.dumps(marker))
+        return copy
+
+    def test_refresh_desktop_copies_only_a_changed_bundle_into_desktops_linked_copy(self):
+        self.assertFalse(local_hermes.refresh_desktop(self.root, self.worktree), "no Desktop copy to refresh")
+        copy = self.desktop_copy({"package": "hermretro", "source": str(self.main / "desktop"), "linked": True})
         self.assertTrue(local_hermes.refresh_desktop(self.root, self.worktree))
         self.assertEqual(copy.read_text(), "// worktree\n")
         self.assertFalse(local_hermes.refresh_desktop(self.root, self.worktree))
-        self.assertEqual(sorted(path.name for path in copy.parent.iterdir()), ["plugin.js"])
+        self.assertEqual(sorted(path.name for path in copy.parent.iterdir()), [".hermes-package.json", "plugin.js"])
+
+    def test_refresh_desktop_leaves_a_page_desktop_did_not_link_alone(self):
+        for marker in (None, {"package": "hermretro", "linked": False}, {"package": "other", "linked": True}):
+            with self.subTest(marker=marker):
+                copy = self.desktop_copy(marker)
+                self.assertFalse(local_hermes.refresh_desktop(self.root, self.worktree))
+                self.assertEqual(copy.read_text(), "// main\n")
+                shutil.rmtree(copy.parent)
+
+    def test_refresh_desktop_never_writes_through_a_linked_folder(self):
+        (self.root / "desktop-plugins").mkdir(parents=True)
+        (self.main / "desktop" / ".hermes-package.json").write_text(
+            json.dumps({"package": "hermretro", "linked": True})
+        )
+        (self.root / "desktop-plugins" / "hermretro").symlink_to(self.main / "desktop")
+        self.assertFalse(local_hermes.refresh_desktop(self.root, self.worktree))
+        self.assertEqual((self.main / "desktop" / "plugin.js").read_text(), "// main\n")
 
 
 class ReloadTest(HermesHomeTest):

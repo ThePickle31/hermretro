@@ -66,7 +66,7 @@ def cmd_setup(args) -> int:
 
 
 def cmd_status(args) -> int:
-    root = hermes.hermes_root(args.hermes_home)
+    root = hermes.hermes_root()
     links = hermes.plugin_links(root)
     for profile in hermes.loading_profiles(root):
         print(f"{profile}: {links[profile].resolve() if profile in links else 'an installed copy'}")
@@ -75,21 +75,31 @@ def cmd_status(args) -> int:
 
 
 def cmd_live(args) -> int:
-    root = hermes.hermes_root(args.hermes_home)
+    root = hermes.hermes_root()
     target = main_checkout() if args.path == "main" else Path(args.path).expanduser().resolve() if args.path else TOP
-    if not (target / "plugin.yaml").is_file():
-        print(f"{target} is not a hermretro checkout", file=sys.stderr)
+    if not hermes.is_checkout(target):
+        print(f"{target} is not a hermretro checkout (plugin.yaml, __init__.py and desktop/plugin.js)", file=sys.stderr)
         return 1
     links = hermes.plugin_links(root)
     if hermes.STUDIO not in links:
         print(f"the {hermes.STUDIO} profile does not load hermretro through a link: nothing to point", file=sys.stderr)
         return 1
-    # Every linked profile moves together: two backends in one gateway would fight over the one broker.
-    changed = [profile for profile, link in links.items() if hermes.point(link, target)]
-    print(f"live: {target}" + (f" (moved {', '.join(changed)})" if changed else " (already)"))
+    # Every linked profile moves together (two backends in one gateway would fight over the one broker), or none does.
+    before = {profile: link.resolve() for profile, link in links.items()}
+    try:
+        for link in links.values():
+            hermes.point(link, target)
+    except OSError as error:
+        for profile, link in links.items():
+            hermes.point(link, before[profile])
+        print(f"could not move the links, so none moved: {error}", file=sys.stderr)
+        return 1
+    print(f"live: {target}")
+    # Every linked profile reloads, also when it was already linked here: a reload an earlier run missed is redone.
+    failed = reload_profiles(root, list(links))
     if hermes.refresh_desktop(root, target):
         print("Hermes Desktop: page updated")
-    return reload_profiles(root, changed) if changed else 0
+    return failed
 
 
 def reload_profiles(root: Path, profiles: list[str]) -> int:
@@ -102,7 +112,11 @@ def reload_profiles(root: Path, profiles: list[str]) -> int:
             failed = 1
             continue
         if hermes.PLUGIN not in result.get("plugins", []):
-            print(f"{profile}: reloaded, but hermretro is not enabled there")
+            print(
+                f"{profile}: reloaded, but hermretro did not load there (enabled? hermes -p {profile} plugins list)",
+                file=sys.stderr,
+            )
+            failed = 1
             continue
         # The gateway's summary of what applies now and what waits for the next chat (tools and the prompt).
         ours = next((item for item in result.get("activations", []) if item.get("name") == hermes.PLUGIN), {})
@@ -113,7 +127,7 @@ def reload_profiles(root: Path, profiles: list[str]) -> int:
 
 
 def cmd_reload(args) -> int:
-    root = hermes.hermes_root(args.hermes_home)
+    root = hermes.hermes_root()
     return reload_profiles(root, args.profile or hermes.loading_profiles(root))
 
 
@@ -142,25 +156,23 @@ def settled_mtime(path: Path) -> float:
 
 
 def cmd_watch(args) -> int:
-    root = hermes.hermes_root(args.hermes_home)
+    root = hermes.hermes_root()
     desktop = desktop_source(args.desktop)
     if not (desktop / "dist" / "assets").is_dir():
         print(f"{desktop} is not a built Hermes Desktop source (pass --desktop or set HERMES_SOURCE)", file=sys.stderr)
         return 1
     out = TOP / ".dev" / "preview"
     subprocess.run(["node", "tools/bundle/bundle.mjs"], cwd=TOP, check=True)
-    build_preview(out, desktop)
-    children = [
-        subprocess.Popen(["node", "tools/bundle/bundle.mjs", "--watch"], cwd=TOP),
-        subprocess.Popen(
-            ["node", "tools/dev/preview_server.mjs", str(out), str(desktop / "dist" / "assets"), str(args.port)],
-            cwd=TOP,
-        ),
-    ]
-    seen = BUNDLE.stat().st_mtime
+    if not build_preview(out, desktop):
+        return 1
     # Stopped with SIGTERM too (a background job's stop), the children go with it.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    children: list[subprocess.Popen] = []
     try:
+        children.append(subprocess.Popen(["node", "tools/bundle/bundle.mjs", "--watch"], cwd=TOP))
+        server = ["node", "tools/dev/preview_server.mjs", str(out), str(desktop / "dist" / "assets"), str(args.port)]
+        children.append(subprocess.Popen(server, cwd=TOP))
+        seen = BUNDLE.stat().st_mtime
         while all(child.poll() is None for child in children):
             time.sleep(0.5)
             if BUNDLE.stat().st_mtime == seen:
@@ -172,19 +184,24 @@ def cmd_watch(args) -> int:
                 f"rebuilt: {'preview' if built else 'preview failed'}{', Hermes Desktop updated' if live else ''}",
                 flush=True,
             )
+        print(
+            "a child stopped: " + ", ".join(f"{' '.join(child.args[:2])} exited {child.poll()}" for child in children),
+            file=sys.stderr,
+        )
+        return 1
     except (KeyboardInterrupt, SystemExit):
-        pass
+        return 0
     finally:
         for child in children:
             child.terminate()
-    return 0
+        for child in children:
+            child.wait(10)
 
 
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
         prog="python tools/dev", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    top.add_argument("--hermes-home", help="the Hermes home that holds the profiles (default ~/.hermes)")
     commands = top.add_subparsers(dest="command", required=True)
     commands.add_parser("setup").set_defaults(run=cmd_setup)
     commands.add_parser("status").set_defaults(run=cmd_status)
@@ -202,7 +219,7 @@ def parser() -> argparse.ArgumentParser:
     rpc.add_argument("--profile", default=hermes.STUDIO)
     rpc.set_defaults(run=cmd_rpc)
     watch = commands.add_parser("watch")
-    watch.add_argument("--port", type=int, default=8790)
+    watch.add_argument("--port", type=int, default=0, help="the preview's port (default: a free one)")
     watch.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     watch.set_defaults(run=cmd_watch)
     return top

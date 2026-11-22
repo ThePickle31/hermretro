@@ -83,15 +83,25 @@ export const host = {
 if (liveToken) {
   const routeProfile = route => (typeof route === 'string' ? route : route?.profile)
 
+  // The studio gateway's connection state, as the bridge reports it (the app's host.state.gateway is reactive too).
+  let gatewayState = 'connecting'
+  const gatewayListeners = new Set()
+  const gateway = { get: () => gatewayState, listen: fn => (gatewayListeners.add(fn), () => gatewayListeners.delete(fn)) }
+  const events = new EventSource(`/events?token=${encodeURIComponent(liveToken)}`)
+
+  events.onmessage = message => preview.emit(JSON.parse(message.data))
+  events.addEventListener('gateway', message => {
+    gatewayState = JSON.parse(message.data).state
+    gatewayListeners.forEach(fn => fn(gatewayState))
+  })
   Object.assign(host, {
-    state: { ...host.state, profile: readable(LIVE_PROFILE) },
+    state: { ...host.state, gateway, profile: readable(LIVE_PROFILE) },
     request: (method, params, timeoutMs) => bridge(LIVE_PROFILE, method, params, timeoutMs),
     requestProfile: (route, method, params, timeoutMs) => bridge(routeProfile(route), method, params, timeoutMs),
     profileRoutes: async () => (await fetch('/routes', { headers: { 'x-preview-token': liveToken } })).json(),
     retainProfile: async () => () => {},
     retainProfileSocket: () => () => {}
   })
-  new EventSource(`/events?token=${encodeURIComponent(liveToken)}`).onmessage = message => preview.emit(JSON.parse(message.data))
 }
 
 // The served preview reloads itself when the page is rebuilt.

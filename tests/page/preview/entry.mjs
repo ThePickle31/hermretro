@@ -374,7 +374,10 @@ preview.scenario.models = answered(MODEL_OPTIONS)
 if (chosen.rpc) preview.scenario.rpc = { 'plugin.hermretro.games': chosen.games?.data, ...chosen.rpc }
 
 const registrations = []
-const storage = liveToken ? { page: params.get('p') ?? undefined } : { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
+// Live, the page's saved state outlives the reload after each rebuild, as the app's plugin storage does.
+const LIVE_STORAGE = 'hermretro.preview.storage'
+const saved = liveToken ? JSON.parse(sessionStorage.getItem(LIVE_STORAGE) ?? 'null') : null
+const storage = liveToken ? (saved ?? { page: params.get('p') ?? undefined }) : { ...chosen.extra, setup: { ...chosen.storage }, page: params.get('p') ?? undefined }
 // Live, the page's queries need the client the app wraps every plugin in.
 const queryClient = new QueryClient()
 const render = (holder, element) => createRoot(holder).render(liveToken ? jsx(QueryClientProvider, { client: queryClient, children: element }) : element)
@@ -388,7 +391,10 @@ const ctx = {
   os: { writeClipboard: async () => true, openExternal: async url => console.log('open', url) },
   storage: {
     get: (key, fallback) => storage[key] ?? fallback,
-    set: (key, value) => { storage[key] = value }
+    set: (key, value) => {
+      storage[key] = value
+      if (liveToken) sessionStorage.setItem(LIVE_STORAGE, JSON.stringify(storage))
+    }
   }
 }
 
