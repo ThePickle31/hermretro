@@ -34,6 +34,7 @@ python tools/dev rpc status      # one gateway RPC (plugin.hermretro.status)
 python tools/dev studio up       # the sandbox: a private Hermes on this checkout (kept on current dev), headless
 python tools/dev studio scenario builds   # a saved state (new-game, first-build, builds, working, question)
 python tools/dev ui shot NAME    # a screenshot of the sandbox's page; `ui go|click|say|text` drive it
+python tools/dev mockup FOLDER   # shoot a round of mockups in the sandbox; writes FOLDER/shots and FOLDER/gallery.html
 python tools/check.py            # fast checks: unit, bundle, lint, page, scan
 python tools/check.py fix        # automatic lint fixes and the Python formatting
 python tools/check.py full       # plus the real-engine run (python tools/ci/prepare_toolchain.py first)

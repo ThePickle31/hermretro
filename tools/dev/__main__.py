@@ -10,6 +10,8 @@
   studio VERB       the sandbox: a private Hermes on this checkout with a scripted model and a headless
                     browser (up, down, reset, status, reload, seed, save, load, scenario, release)
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
+  mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
+                    FOLDER/gallery.html
 
 Docs: docs/dev/DEBUGGING.md, "The development loop". Standard library only; Linux and macOS.
 """
@@ -29,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_hermes as hermes  # noqa: E402 - this folder, put on the path just above
+import mockup  # noqa: E402
 import studio  # noqa: E402
 import studio_states  # noqa: E402
 
@@ -272,6 +275,28 @@ def cmd_ui(args) -> int:
     return 0
 
 
+def listed(value: str | None) -> list[str]:
+    """A comma-separated option as a list (empty when not given)."""
+    return [item for item in (value or "").split(",") if item]
+
+
+def cmd_mockup(args) -> int:
+    folder = Path(args.folder).expanduser().resolve()
+    if not (folder / "round.json").is_file():
+        print(f"{folder} has no round.json (docs/dev/DEBUGGING.md, \"Mockups\")", file=sys.stderr)
+        return 1
+    settings = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+    mockup.shoot(
+        folder,
+        desktop_source(args.desktop),
+        states=listed(args.states) or settings.get("states") or ["builds"],
+        widths=[int(width) for width in listed(args.widths) or settings.get("widths") or [1440]],
+        themes=listed(args.themes) or settings.get("themes") or ["dark"],
+        only=listed(args.only),
+    )
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
         prog="python tools/dev", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -317,12 +342,20 @@ def parser() -> argparse.ArgumentParser:
     ui.add_argument("--no-wait", action="store_true", help="say: return once sent, not when the turn ends")
     ui.add_argument("--ms", type=int, help="wait: this many milliseconds")
     ui.set_defaults(run=cmd_ui)
+    round_ = commands.add_parser("mockup")
+    round_.add_argument("folder", help="a round: round.json and mockups/*.jsx")
+    round_.add_argument("--states", help="scenarios, comma-separated (default: round.json's, else builds)")
+    round_.add_argument("--widths", help="page widths, comma-separated (default: round.json's, else 1440)")
+    round_.add_argument("--themes", help="dark, light or both (default: round.json's, else dark)")
+    round_.add_argument("--only", help="these mockups only (ids, comma-separated); today's page is always shot")
+    round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
+    round_.set_defaults(run=cmd_mockup)
     return top
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    if shutil.which("node") is None and args.command in {"rpc", "watch", "setup", "studio", "ui"}:
+    if shutil.which("node") is None and args.command in {"rpc", "watch", "setup", "studio", "ui", "mockup"}:
         print("needs Node.js 22 or newer on PATH", file=sys.stderr)
         return 1
     try:

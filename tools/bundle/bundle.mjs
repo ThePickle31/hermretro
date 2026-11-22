@@ -43,7 +43,7 @@ export const ALIASES = {
   '#shared': `${SOURCE}/shared`,
   '#frame': `${SOURCE}/frame`
 }
-const EXTERNAL = ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime']
+export const EXTERNAL = ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime']
 const MAX_LINE = 2_000
 const ART_ROW = 96
 // The characters the install scanner treats as hidden text.
@@ -132,7 +132,7 @@ function toolchain() {
  *  needs it (smaller than base64, so the provider logos fit the bundle's size budget). */
 const svgText = text => text.replace(/[%#\n\r\t]|[^\x20-\x7e]/gu, encodeURIComponent)
 const artRows = text => text.match(new RegExp(`[^]{1,${ART_ROW}}`, 'g')) ?? []
-const artDataUrl = {
+export const artDataUrl = {
   name: 'art-data-url',
   setup(build) {
     build.onLoad({ filter: /\.(png|svg)$/ }, async ({ path: file }) => {

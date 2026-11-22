@@ -225,12 +225,15 @@ def answers(url: str) -> bool:
     return True
 
 
-def up(desktop: Path) -> None:
+def up(desktop: Path, sync: bool = True) -> None:
     """Start what is not running, on current code: this checkout brought up to dev when it is the dev branch, Hermes's
     Webapp rebuilt when Hermes changed, and the gateway restarted when the backend or Hermes changed since it started."""
-    moved = studio_sync.sync_checkout()
+    moved = studio_sync.sync_checkout() if sync else False
     if not CONFIG.is_file():
         create(desktop)
+    link = HOME / "plugins" / hermes.PLUGIN
+    if link.is_symlink() and link.resolve() != TOP.resolve():
+        hermes.point(link, TOP)  # a mockup round that stopped early left its overlay linked
     ports = settings()["ports"]
     # A no-op (about a second) when the Webapp matches the Hermes on disk; the first build takes a few minutes.
     run_hermes("webapp", "--build-only", timeout=1800)
