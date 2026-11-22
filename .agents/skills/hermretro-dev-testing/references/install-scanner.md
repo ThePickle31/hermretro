@@ -10,8 +10,8 @@ verdict is `safe`; CI runs it on every pull request, and nightly against the new
 - A download piped straight into a shell (download to a file, then run it).
 - A line in a guide or contributor doc that opens with a modify verb and names an agent configuration file
   (inside such a guide, say "this guide" or "this file" instead of its name).
-- `sudo`, `0.0.0.0` binds, or reading environment variables inside inline workflow scripts (put scripts in
-  `tools/` and call them).
+- Running a command as the superuser, binding to every network address, or reading environment variables inside
+  inline workflow scripts (put scripts in `tools/` and call them).
 - Asking to switch on a model's developer mode, or to keep something from the user (phrased either way).
 - A per-process path under the proc filesystem written out literally.
 - Zero-width or other invisible characters.

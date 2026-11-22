@@ -12,7 +12,7 @@ from backend.library import game_card  # noqa: E402 - the repository root goes o
 from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
-CONTRACT = ROOT / "docs" / "dev" / ".agents/skills/hermretro-dev-architecture/references/contract.md"
+CONTRACT = ROOT / ".agents/skills/hermretro-dev-architecture/references/contract.md"
 
 
 def card_section() -> str:

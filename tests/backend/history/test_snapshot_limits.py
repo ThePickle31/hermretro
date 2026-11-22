@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.history import snapshots  # noqa: E402 - the repository root goes on sys.path first
 
-CONTRACT = ROOT / "docs" / "dev" / ".agents/skills/hermretro-dev-architecture/references/contract.md"
+CONTRACT = ROOT / ".agents/skills/hermretro-dev-architecture/references/contract.md"
 
 
 def history_section() -> str:
