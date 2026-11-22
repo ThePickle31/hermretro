@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 1b623804606a9352f9f057ea3857f998190e5bf7baa9c31bee579e9b6560bb19
- * body: sha256 e9001dd8eee9a6e27307ea6050acc653c6f2393880436a9e4a6a9ac83881be17
+ * sources: sha256 d21f2cbaeea33536e794bdedf75fc11aa69c81402409c1ff944e5df1725864fc
+ * body: sha256 5adb88e447096087fa4dae8e9734c67fbb64397edd04412eb66aa470220bf56a
  */
 // page/sdk.js
 import {
@@ -3651,7 +3651,14 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
     }
   }, []);
   const send = useCallback((type, payload = {}) => post({ cs: TO_FRAME, ...payload, type }), []);
-  const paint = useCallback(() => frameRef.current && send(CMD.THEME, { css: themeCss(appColours(frameRef.current)) }), []);
+  const painted = useRef("");
+  const paint = useCallback((changedOnly) => {
+    const css = frameRef.current ? themeCss(appColours(frameRef.current)) : "";
+    if (css && !(changedOnly && css === painted.current)) {
+      painted.current = css;
+      send(CMD.THEME, { css });
+    }
+  }, []);
   const releaseKeys = useCallback(() => {
     for (const [key, code] of held.current) {
       send(CMD.KEY, { key, code, down: false });
@@ -3706,7 +3713,7 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
       [FROM_FRAME.FOCUS]: (data) => setFocused(Boolean(data.value)),
       [FROM_FRAME.SNAP]: (data) => answer(data.id, cleanImage(data.url)),
       [FROM_FRAME.STATE]: (data) => {
-        paint();
+        paint(false);
         setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) });
       },
       [FROM_FRAME.MARKS]: (data) => setMarks(cleanMarks(data.marks)),
@@ -3760,8 +3767,8 @@ function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, scopeRef =
     if (typeof MutationObserver !== "function") {
       return void 0;
     }
-    const observer = new MutationObserver(paint);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+    const observer = new MutationObserver(() => paint(true));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-hermes-mode", "data-hermes-theme"] });
     return () => observer.disconnect();
   }, []);
   const shown = useRef(visible);

@@ -77,8 +77,17 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
   const send = useCallback((type, payload = {}) => post({ cs: TO_FRAME, ...payload, type }), [])
 
   // The app's colours. Sent with every report of the player's state, so a frame that just loaded (its
-  // first report) gets them too.
-  const paint = useCallback(() => frameRef.current && send(CMD.THEME, { css: themeCss(appColours(frameRef.current)) }), [])
+  // first report) gets them too; a theme repaint sends them only when they changed (Hermes also rewrites the
+  // root's style while a pane divider is dragged).
+  const painted = useRef('')
+  const paint = useCallback(changedOnly => {
+    const css = frameRef.current ? themeCss(appColours(frameRef.current)) : ''
+
+    if (css && !(changedOnly && css === painted.current)) {
+      painted.current = css
+      send(CMD.THEME, { css })
+    }
+  }, [])
 
   const releaseKeys = useCallback(() => {
     for (const [key, code] of held.current) {
@@ -148,7 +157,7 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
       [FROM_FRAME.FOCUS]: data => setFocused(Boolean(data.value)),
       [FROM_FRAME.SNAP]: data => answer(data.id, cleanImage(data.url)),
       [FROM_FRAME.STATE]: data => {
-        paint()
+        paint(false)
         setState({ ready: true, paused: Boolean(data.paused), muted: Boolean(data.muted), annotating: Boolean(data.annotating), recording: Boolean(data.recording) })
       },
       [FROM_FRAME.MARKS]: data => setMarks(cleanMarks(data.marks)),
@@ -220,9 +229,9 @@ export function usePlayerBridge({ ctx, frameRef, visible, onAnnotate = null, sco
       return undefined
     }
 
-    const observer = new MutationObserver(paint)
+    const observer = new MutationObserver(() => paint(true))
 
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-hermes-mode', 'data-hermes-theme'] })
 
     return () => observer.disconnect()
   }, [])
