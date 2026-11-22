@@ -63,8 +63,9 @@ MIME = {
     ".wav": "audio/wav",
 }
 VIEW_ANCHOR = "export const DEVICE_COLORS = [\n"
-# The engine's first rule ordering its colour rail: the skins' rules go before it.
-RAIL_ANCHOR = '.codex-game-view .cgv-color[data-device-color="supply-co"]'
+# The engine's last rule ordering its colour rail (it puts two of its finishes first): the rail keeps the skins' order.
+RAIL_ANCHOR = '.codex-game-view .cgv-color[data-device-color="codex"] { order: -1; }\n'
+RAIL_ORDER = ".codex-game-view .cgv-color[data-device-color] { order: 0; }\n"
 COLOR_KEY = "codex-gb-studio:device-color:v1"
 
 # The built-in demo cartridge: GB Studio's own browser player bundled in ``player/web`` plus
@@ -86,27 +87,23 @@ def annotations_dir() -> Path:
     return paths.ENGINE_ROOT / "dist" / "web-annotations"
 
 
-def device_dirs() -> list[Path]:
-    return [paths.PREPARED_ENGINE / "assets" / "devices", paths.ENGINE_ROOT / "assets" / "devices"]
-
-
 _view_cache: dict[tuple, bytes] = {}
 
 
 def patched_view(source: Path) -> bytes:
-    """``view.js`` with the plugin's skins (``player/skins/``) listed first in the colour rail."""
+    """``view.js`` with the plugin's skins (``player/skins/``) as its finishes, in their order."""
     info = source.stat()
     key = (str(source), info.st_size, info.st_mtime_ns, skins.signature())
     if key in _view_cache:
         return _view_cache[key]
     text = source.read_text()
-    if VIEW_ANCHOR in text:
-        entries, order = skins.rail_entries()
-        text = text.replace(VIEW_ANCHOR, VIEW_ANCHOR + entries, 1)
-        if RAIL_ANCHOR in text:
-            text = text.replace(RAIL_ANCHOR, order + RAIL_ANCHOR, 1)
-    else:
-        logger.warning("hermretro: view.js has no DEVICE_COLORS anchor; serving it without the plugin's skins")
+    start = text.find(VIEW_ANCHOR)
+    end = text.find("\n];", start) + 1
+    if start < 0 or end < 1:
+        logger.warning("hermretro: view.js has no DEVICE_COLORS list; serving it without the plugin's skins")
+    elif entries := skins.rail_entries():
+        text = text[: start + len(VIEW_ANCHOR)] + entries + text[end:]
+        text = text.replace(RAIL_ANCHOR, RAIL_ANCHOR + RAIL_ORDER, 1)
     _view_cache.clear()
     _view_cache[key] = text.encode()
     return _view_cache[key]
@@ -669,13 +666,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._text(404, "The game runtime changed.")
         if re.fullmatch(r"chromatic-[a-z0-9-]+\.(?:webp|png)", name):
             skin = skins.image_for(name.removeprefix("chromatic-").rsplit(".", 1)[0])
-            if skin is not None:
-                return self._file(skin)
-            for directory in device_dirs():
-                if (directory / name).is_file():
-                    return self._file(directory / name)
-            logger.info("hermretro player: device artwork %s is not unpacked (run setup)", name)
-            return self._text(404, "Device artwork is not installed.")
+            return self._file(skin) if skin is not None else self._text(404, "Not found.")
         if re.fullmatch(r"[a-z0-9-]+\.js(?:\.map)?", name):
             source = annotations_dir() / name
             if not source.is_file():

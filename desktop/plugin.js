@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 161f3d187b781d10be88df857c72888dbe8df2146b0d93456b4a4c8b293467fb
- * body: sha256 e249d829d7eaf050d15d96059c77d8a89cae3be4a6185e33e0c0c492fcafc332
+ * sources: sha256 2991f6f895e3c277605716f1285d4c646d66bf964d2df539494fcfdfc73b2f45
+ * body: sha256 0e18d5b1b025271b1abcf886251b6febdf2ec9b0fa8793e649c8f5119e6f012c
  */
 // page/sdk.js
 import {
@@ -11414,7 +11414,7 @@ var INLINE_PLAYER_CSS = `
 .cs-ip-seg button[aria-checked=true] { background: var(--ui-accent); color: white; }
 .cs-ip-seg button:disabled { cursor: default; opacity: .4; }
 .cs-ip-menu { flex: none; position: relative; }
-.cs-ip-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 9px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 35%, transparent); display: flex; flex-direction: column; min-width: 170px; padding: 4px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
+.cs-ip-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 9px; box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 12px 30px color-mix(in srgb, black 35%, transparent); display: flex; flex-direction: column; max-height: 300px; min-width: 170px; overflow-y: auto; padding: 4px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
 .cs-ip-pop-row { align-items: center; background: none; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; font-size: 12.5px; gap: 8px; padding: 6px 8px; text-align: left; }
 .cs-ip-pop-row:hover { background: var(--ui-bg-tertiary); color: var(--ui-text-primary); }
 .cs-ip-pop-row > span { flex: 1; }

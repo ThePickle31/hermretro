@@ -4,8 +4,10 @@ optionally, ``skin.json``.
 The JSON names the skin and its colours: ``{"name": "Midnight", "edition": "Hermes Edition", "background":
 "#15171c", "ink": "#e6edf3", "order": 1}``, every field optional. ``background`` is the page behind the handheld
 and the swatch, ``ink`` the text on it, ``order`` its place in the lists (then the id); the first skin is the
-default. The player's colour rail lists them before the engine's own finishes, and the Build page's player menu
-from the ``player`` RPC. Standard library only.
+default. They are every finish the player has: its colour rail lists them in place of the engine's own list, and
+the Build page's player menu from the ``player`` RPC. A skin may take one of the engine's ids (``cloud``,
+``supply-co``): the engine's player keys a few things on them, such as the lower screen of a ``transparent-`` shell.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -24,25 +26,6 @@ IMAGE_TYPES = (".webp", ".png")
 SKIN_ID = re.compile(r"[a-z0-9-]{1,40}")
 COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
 DEFAULTS = {"edition": "", "background": "#15171c", "ink": "#e6edf3", "order": 100}
-# The engine's own finishes (its view.js ``DEVICE_COLORS``) and the id prefix its stylesheet treats specially.
-ENGINE_VIEW = paths.ENGINE_ROOT / "dist" / "web-annotations" / "view.js"
-ENGINE_PREFIX = "transparent-"
-_engine_cache: dict[tuple, frozenset] = {}
-
-
-def engine_ids() -> frozenset:
-    """The ids of the engine's own finishes: a skin may not take one."""
-    try:
-        info = ENGINE_VIEW.stat()
-    except OSError:
-        return frozenset()
-    key = (info.st_size, info.st_mtime_ns)
-    if key not in _engine_cache:
-        text = ENGINE_VIEW.read_text(encoding="utf-8")
-        block = text[text.find("DEVICE_COLORS = [") : text.find("];", text.find("DEVICE_COLORS = ["))]
-        _engine_cache.clear()
-        _engine_cache[key] = frozenset(re.findall(r'\{ id: "([a-z0-9-]+)"', block))
-    return _engine_cache[key]
 
 
 def _text(value) -> str | None:
@@ -62,8 +45,6 @@ def _read(folder: Path) -> dict | None:
     problem = (
         "a skin's folder is lower-case letters, digits and dashes (at most 40)"
         if not SKIN_ID.fullmatch(skin_id)
-        else "the engine has a finish with that id"
-        if skin_id in engine_ids() or skin_id.startswith(ENGINE_PREFIX)
         else "a skin is a folder, not a link"
         if folder.is_symlink()
         else None
@@ -108,7 +89,7 @@ def skins() -> list[dict]:
 
 
 def default_skin() -> str:
-    """The first skin's id (the one a player starts in), or the engine's first finish when there is none."""
+    """The first skin's id (the one a player starts in), or "" when there is none."""
     listed = skins()
     return listed[0]["id"] if listed else ""
 
@@ -128,8 +109,8 @@ def signature() -> tuple:
     return tuple((str(path), path.lstat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
 
 
-def rail_entries() -> tuple[str, str]:
-    """The engine's ``DEVICE_COLORS`` lines for the skins, and the CSS that puts them first in its colour rail."""
+def rail_entries() -> str:
+    """The skins as the lines of the engine's ``DEVICE_COLORS`` list, in order."""
 
     def entry(skin: dict) -> str:
         label = f"{skin['edition']} · {skin['name']}" if skin["edition"] else skin["name"]
@@ -138,9 +119,4 @@ def rail_entries() -> tuple[str, str]:
         ]
         return "    {{ id: {}, name: {}, background: {}, ink: {} }},\n".format(*quoted)
 
-    listed = skins()
-    lines = "".join(entry(skin) for skin in listed)
-    css = "".join(
-        f'.codex-game-view .cgv-color[data-device-color="{skin["id"]}"] {{ order: -4; }}\n' for skin in listed
-    )
-    return lines, css
+    return "".join(entry(skin) for skin in skins())
