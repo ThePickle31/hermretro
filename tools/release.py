@@ -75,120 +75,132 @@ def next_patch(version: str) -> str:
 
 
 def last_stable(tags: list[str]) -> str | None:
-    """The highest vX.Y.Z tag, without its v."""
+    """The highest vX.Y.Z of ``tags``, without its v."""
     stable = [tuple(int(part) for part in match.groups()) for tag in tags if (match := STABLE_TAG.match(tag))]
     return ".".join(map(str, max(stable))) if stable else None
 
 
+def last_rc(tags: list[str], version: str) -> str | None:
+    """The newest release candidate tag of ``version``."""
+    numbers = [int(match.group(2)) for tag in tags if (match := RC_TAG.match(tag)) and match.group(1) == version]
+    return f"v{version}-rc.{max(numbers)}" if numbers else None
+
+
 def next_rc(tags: list[str], version: str) -> str:
     """The tag of the next release candidate of ``version``."""
-    numbers = [int(match.group(2)) for tag in tags if (match := RC_TAG.match(tag)) and match.group(1) == version]
-    return f"v{version}-rc.{max(numbers, default=0) + 1}"
+    latest = last_rc(tags, version)
+    return f"v{version}-rc.{int(latest.rsplit('.', 1)[1]) + 1 if latest else 1}"
+
+
+def remote_tags() -> dict[str, str]:
+    """The tags on the remote, each with its commit: a tag only made here (its push failed) does not count."""
+    found: dict[str, str] = {}
+    for line in run("git", "ls-remote", "--tags", REMOTE, "v*").splitlines():
+        sha, ref = line.split("\t")
+        name = ref.removeprefix("refs/tags/")
+        if name.endswith("^{}"):
+            found[name[:-3]] = sha  # an annotated tag's commit
+        else:
+            found.setdefault(name, sha)
+    return found
+
+
+def github_releases() -> dict[str, bool]:
+    """GitHub's releases by tag: True once published, False while a draft."""
+    listed = json.loads(run("gh", "release", "list", "--limit", "200", "--json", "tagName,isDraft"))
+    return {item["tagName"]: not item["isDraft"] for item in listed}
 
 
 def version_pull_request(version: str) -> None:
-    """Open (or find) the pull request that changes only the version line, from a throwaway worktree."""
+    """Find, or open, the pull request that changes only the version line; always stops (the owner's CI to wait on)."""
     branch = f"chore/release-{version}"
-    found = json.loads(run("gh", "pr", "list", "--head", branch, "--state", "all", "--json", "number,state,url"))
-    if found:
+    prs = json.loads(run("gh", "pr", "list", "--head", branch, "--base", BASE, "--state", "all", "--json", "state,url"))
+    if live := [pr for pr in prs if pr["state"] == "OPEN"]:
+        raise Stop(f"the version pull request is {live[0]['url']}: merge it when CI is green, then run again", WAITING)
+    if closed := [pr for pr in prs if pr["state"] == "CLOSED"]:
         raise Stop(
-            f"the version pull request is {found[0]['url']} ({found[0]['state'].lower()}): merge it when CI is "
-            "green, then run this again",
-            WAITING,
+            f"{closed[0]['url']} was closed without merging: reopen it, or delete the branch {branch} on "
+            f"{REMOTE}, then run again"
         )
-    with tempfile.TemporaryDirectory(prefix="hermretro-release-") as folder:
-        tree = Path(folder) / "tree"
-        run("git", "worktree", "add", "-q", "-b", branch, str(tree), f"{REMOTE}/{BASE}")
-        try:
-            manifest = tree / "plugin.yaml"
-            manifest.write_text(with_version(manifest.read_text(encoding="utf-8"), version), encoding="utf-8")
-            run("git", "-C", str(tree), "commit", "-q", "-am", f"chore(release): version {version}")
-            run("git", "-C", str(tree), "push", "-q", "-u", REMOTE, branch)
-        finally:
-            run("git", "worktree", "remove", "--force", str(tree))
-    url = run(
-        "gh",
-        "pr",
-        "create",
-        "--base",
-        BASE,
-        "--head",
-        branch,
-        "--title",
+    if run("git", "ls-remote", "--heads", REMOTE, branch):
+        # An earlier run pushed the branch, then stopped before the pull request: open it if it is only the version.
+        run("git", "fetch", "-q", REMOTE, branch)
+        changed = run("git", "diff", "--name-only", f"{REMOTE}/{BASE}...{REMOTE}/{branch}").split()
+        said = manifest_version(run("git", "show", f"{REMOTE}/{branch}:plugin.yaml"))
+        if changed != ["plugin.yaml"] or said != version:
+            raise Stop(
+                f"{REMOTE}/{branch} changes {changed} to version {said}, not only the version line to {version}: "
+                "delete that branch, then run again"
+            )
+    else:
+        with tempfile.TemporaryDirectory(prefix="hermretro-release-") as folder:
+            tree = Path(folder) / "tree"
+            run("git", "worktree", "add", "-q", "-B", branch, str(tree), f"{REMOTE}/{BASE}")
+            try:
+                manifest = tree / "plugin.yaml"
+                manifest.write_text(with_version(manifest.read_text(encoding="utf-8"), version), encoding="utf-8")
+                run("git", "-C", str(tree), "commit", "-q", "-am", f"chore(release): version {version}")
+                run("git", "-C", str(tree), "push", "-q", "-u", REMOTE, branch)
+            finally:
+                run("git", "worktree", "remove", "--force", str(tree))
+    title, body = (
         f"chore(release): version {version}",
-        "--body",
         f"## Summary\n\nVersion {version}: only plugin.yaml's `version:` line.\n",
     )
-    raise Stop(f"opened {url}: merge it when CI is green, then run this again", WAITING)
+    url = run("gh", "pr", "create", "--base", BASE, "--head", branch, "--title", title, "--body", body)
+    raise Stop(f"opened {url}: merge it when CI is green, then run again", WAITING)
 
 
 def ci_state(sha: str) -> str:
     """CI's push run on ``sha``: success, failure, or pending."""
-    runs = json.loads(
-        run(
-            "gh",
-            "run",
-            "list",
-            "--commit",
-            sha,
-            "--workflow",
-            "ci.yml",
-            "--event",
-            "push",
-            "--json",
-            "status,conclusion,url",
-        )
-    )
-    if not runs:
+    fields = ["--workflow", "ci.yml", "--event", "push", "--json", "status,conclusion"]
+    runs = json.loads(run("gh", "run", "list", "--commit", sha, *fields))
+    if not runs or runs[0]["status"] != "completed":
         return "pending"
-    latest = runs[0]
-    if latest["status"] != "completed":
-        return "pending"
-    return "success" if latest["conclusion"] == "success" else "failure"
+    return "success" if runs[0]["conclusion"] == "success" else "failure"
 
 
 def release(rc: bool) -> int:
-    run("git", "fetch", "-q", "--tags", REMOTE, BASE, MAIN)
-    tags = run("git", "tag", "--list", "v*").split()
-    stable = last_stable(tags)
-    sha = run("git", "rev-parse", f"{REMOTE}/{BASE}")
-    version = manifest_version(run("git", "show", f"{sha}:plugin.yaml"))
-    if stable and parse(version) <= parse(stable):
-        version_pull_request(next_patch(stable))
-    state = ci_state(sha)
-    if state != "success":
-        raise Stop(f"CI on {BASE} {sha[:12]} is {state}", WAITING if state == "pending" else 1)
-    tag = next_rc(tags, version) if rc else f"v{version}"
-    if not rc and f"v{version}" not in tags:
-        main = run("git", "rev-parse", f"{REMOTE}/{MAIN}")
-        if run("git", "merge-base", main, sha) != main:
-            raise Stop(f"{MAIN} is not an ancestor of {BASE}: it can only fast-forward")
-        # The release is the one push to main (the git hooks some agents run under allow it only here).
-        run("git", "push", "-q", REMOTE, f"{sha}:refs/heads/{MAIN}", env={**os.environ, "HERMES_RELEASE": "1"})
-        print(f"{MAIN} -> {sha[:12]}")
-    if tag not in tags:
-        run("git", "tag", tag, sha)
-        run("git", "push", "-q", REMOTE, tag, env={**os.environ, "HERMES_RELEASE": "1"})
-        print(f"tagged {tag}")
-    existing = subprocess.run(
-        ["gh", "release", "view", tag, "--json", "url,isDraft"], cwd=ROOT, capture_output=True, text=True
-    )
-    if existing.returncode == 0:
-        print(f"release {tag}: {json.loads(existing.stdout)['url']}")
+    """Each run reads where the release stands (the tags on the remote, GitHub's releases, main) and does what is left."""
+    run("git", "fetch", "-q", REMOTE, BASE, MAIN)
+    tags, made = remote_tags(), github_releases()
+    published = last_stable([tag for tag, done in made.items() if done])
+    dev, main = run("git", "rev-parse", f"{REMOTE}/{BASE}"), run("git", "rev-parse", f"{REMOTE}/{MAIN}")
+    version = manifest_version(run("git", "show", f"{dev}:plugin.yaml"))
+    if published and parse(version) <= parse(published):
+        version_pull_request(next_patch(published))
+    if rc:
+        # An unpublished candidate is finished, not replaced by a new number.
+        latest = last_rc(list(tags), version)
+        tag = latest if latest and not made.get(latest) else next_rc(list(tags), version)
+    else:
+        tag = f"v{version}"
+    sha = tags.get(tag)
+    if sha is None:
+        # main moves only at a release: when it already says this version, an earlier run moved it and stopped.
+        sha = main if not rc and manifest_version(run("git", "show", f"{main}:plugin.yaml")) == version else dev
+        state = ci_state(sha)
+        if state != "success":
+            raise Stop(f"CI on {sha[:12]} is {state}", WAITING if state == "pending" else 1)
+        if not rc and main != sha:
+            if run("git", "merge-base", main, sha) != main:
+                raise Stop(f"{MAIN} is not an ancestor of {sha[:12]}: it can only fast-forward")
+            # The release is the one push to main (the git hooks some agents run under allow it only here).
+            run("git", "push", "-q", REMOTE, f"{sha}:refs/heads/{MAIN}", env={**os.environ, "HERMES_RELEASE": "1"})
+            print(f"{MAIN} -> {sha[:12]}")
+        run("git", "tag", "-f", tag, sha)  # replaces a tag an earlier run made here but could not push
+        run("git", "push", "-q", REMOTE, f"refs/tags/{tag}", env={**os.environ, "HERMES_RELEASE": "1"})
+        print(f"tagged {tag} at {sha[:12]}")
+    if tag in made:
+        state = "published" if made[tag] else f"a draft: read it, then python tools/release.py --publish {tag}"
+        print(f"release {tag} is {state}")
         return 0
-    notes = ["--notes-start-tag", f"v{stable}"] if stable else []
-    url = run(
-        "gh",
-        "release",
-        "create",
-        tag,
-        "--verify-tag",
-        "--generate-notes",
-        *notes,
-        "--draft",
-        *(["--prerelease"] if rc else []),
+    notes = ["--notes-start-tag", f"v{published}"] if published else []
+    kind = ["--prerelease"] if rc else []
+    url = run("gh", "release", "create", tag, "--verify-tag", "--generate-notes", *notes, "--draft", *kind)
+    print(
+        f"draft {tag}: {url}\nput the checklist's result in its notes, read it, then: python tools/release.py --publish {tag}"
     )
-    print(f"draft {tag}: {url}\nread it, then: python tools/release.py --publish {tag}")
     return 0
 
 

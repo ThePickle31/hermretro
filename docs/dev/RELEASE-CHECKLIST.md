@@ -24,7 +24,7 @@ broker or `backend/system/host.py`), run this on a MacBook and on a Linux deskto
 9. Remove downloaded tools (Setup), then install again: it works, and the game is untouched.
 10. With a Chromatic (optional, hardware tools turned on): device status, then play on the device.
 
-Write the result (system, Hermes version, pass or what failed) in the release pull request.
+Write the result (system, Hermes version, pass or what failed) in the draft release's notes before publishing it.
 
 ## Updating from the last release
 

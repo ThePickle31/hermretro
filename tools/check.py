@@ -371,6 +371,11 @@ def main(argv: list[str] | None = None) -> int:
     names = args.checks or ["fast"]
     if names == ["fix"]:
         return fix(args)
+    # The nightly workflow on main (it moves only at a release) still asks for the removed scaffold check: nothing to
+    # run. Drop this once a release has put the current .github/workflows/nightly.yml on main.
+    if "scaffold" in names:
+        print("scaffold: removed (the nightly workflow on main still names it); not run")
+        names = [name for name in names if name != "scaffold"]
     wanted = [c for name in names for c in (FAST if name == "fast" else ALL if name == "full" else [name])]
     unknown = [name for name in wanted if name not in CHECKS]
     if unknown:

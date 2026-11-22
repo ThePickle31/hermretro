@@ -58,7 +58,8 @@ real-engine run on Linux and macOS. Every failure ends with a `FIX:` line. Read 
 5. **One studio profile.** The plugin's tools, skills, hooks and prompt register only in the Hermes profile named
    `hermretro`; the page's chats go only there (`HERMRETRO_EVERY_PROFILE=1` in the gateway's environment lifts it
    while developing).
-6. **Hardware.** Tests and CI never run the hardware tools (`flash`, `play`, `setup`, capture).
+6. **Hardware.** The hardware tools (`flash`, `play`, `setup`, capture) stay behind the user's `hardware_enabled`
+   setting and Hermes's approval prompt (`pre_tool_call` in `backend/hermes/hooks.py`); tests and CI never run them.
 7. **Never the real Hermes home in tests.** A test that touches state calls `isolated_home(self)` from
    `tests/support.py` in `setUp`; `python tools/check.py unit` runs with an empty home and `TMPDIR` and fails on
    anything written there. The unit tests pass on a machine without Hermes.
@@ -89,8 +90,8 @@ front doors and events (`docs/dev/ARCHITECTURE.md`, "Adding things" lists every 
 6. **Merge** when CI is green on the exact head (**All checks pass**): squash. GitHub auto-merge stays off. Then
    remove the worktree and its branch, and tell the owner what landed.
 
-A failure that also fails `dev` (an advisory, a broken dependency, flaky infrastructure) is fixed at once in its own
-pull request. This guide changes in the same pull request as any command or rule it describes.
+A failure that also fails `main` (an advisory, a broken dependency, flaky infrastructure) needs no approval: it is
+fixed at once in its own pull request. This guide changes in the same pull request as any command or rule it describes.
 
 ## Releases (only when the owner asks)
 
@@ -99,4 +100,4 @@ when `dev` still says the last released version, CI on `dev`'s head, `main` fast
 release with generated notes. Read the draft, then `python tools/release.py --publish vX.Y.Z` (published releases
 cannot change). `--rc` makes a release candidate and leaves `main` alone. Versions are patch-only (`0.0.N`); the
 version lives only in `plugin.yaml`. Before a release, run `docs/dev/RELEASE-CHECKLIST.md` on a real machine (a
-MacBook at least), or say in the notes that it was not run.
+MacBook at least) and put its result in the draft's notes before publishing, or say there that it was not run.
