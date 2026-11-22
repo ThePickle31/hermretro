@@ -57,7 +57,9 @@ short local `C:` paths. When `GB_STUDIO_MCP_PATH_VISIBILITY=workspace-only` is
 configured, external runtime/toolchain paths are intentionally redacted in MCP
 responses; that does not expand project authorization.
 
-The official upstream CLI documents:
+The official upstream CLI documents the commands below. In hermretro, never run
+them yourself: `chromatic_rom_build` and `chromatic_web_preview` run them, and
+`chromatic_present_game` shows only a playable copy those tools made.
 
 ```text
 gb-studio-cli make:rom path/to/project.gbsproj out/game.gb
@@ -69,7 +71,8 @@ gb-studio-cli export -d path/to/project.gbsproj out/
 
 `export` produces a GBDK source project; `export -d` exports generated project data. `make:rom` is the appropriate genuine Game Boy/Game Boy Color build path. `make:pocket` and `make:web` are separate exports, not proof that a native GB/GBC cartridge was built.
 
-For a quick scene-local check, the official desktop editor's **Run Scene**
+The official desktop editor's **Run Scene** is the user's own quick check in
+GB Studio, never yours: you playtest with the `chromatic_emulator_*` tools. It
 uses a temporary starting scene and coordinates. When the project's Run Scene
 selection-only option is enabled, that preview can compile the selected scene
 set. This is a desktop preview, not a full-game regression from the authored

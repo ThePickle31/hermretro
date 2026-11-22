@@ -21,6 +21,8 @@ from pathlib import Path
 from .game_cover import COVER_FILE, COVER_HEIGHT, COVER_WIDTH, _copy_problem, _cover, check_cover
 from .game_cover import copied_asset, cover_path
 from .game_cover import MAX_COVER_COLOURS as MAX_COVER_COLOURS  # public to tools.py's schema text
+from .game_cover import MAX_COVER_BYTES as MAX_COVER_BYTES  # public to tools.py's schema text
+from .game_cover import MIN_COVER_COLOURS as MIN_COVER_COLOURS  # public to tools.py's schema text
 from .game_cover import cover_data_url as cover_data_url  # public to games.py's thumbnails
 from .game_cover import cover_problem as cover_problem  # public: backend/library/README.md
 

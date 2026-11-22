@@ -61,8 +61,8 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
 - Call `chromatic_*` tools directly, never from `execute_code`. One chat works on one project folder
   (`PATH_OUTSIDE_PROJECT` otherwise: use a new chat); `PROJECT_WRITER_BUSY` means another chat is editing
   or building this project right now.
-- To show art in the running game, build with `chromatic_rom_build`, then call `chromatic_present_game`
-  with a `note` on what to look at.
+- To show art in the running game, build with `chromatic_rom_build`, playtest it, make sure the game card
+  is complete (`chromatic_game_info`), then call `chromatic_present_game` with a `note` on what to look at.
 - To show the user existing art, deliver the real file on its own line (`MEDIA:<project>/assets/sprites/<name>.png`).
   The hermretro Build page draws it in the game's colours, animates a sprite, and opens it in its viewer;
   a preview or contact sheet you draw instead is just a flat image there.
