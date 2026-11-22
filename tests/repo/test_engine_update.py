@@ -47,7 +47,9 @@ def files(folder: Path, contents: dict[str, str]) -> Path:
 
 class EngineUpdateTests(unittest.TestCase):
     def setUp(self):
-        identity = mock.patch.dict(os.environ, IDENTITY)
+        # No inherited GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE may point the fixture at another repository.
+        clean = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        identity = mock.patch.dict(os.environ, {**clean, **IDENTITY}, clear=True)
         identity.start()
         self.addCleanup(identity.stop)
         tmp = tempfile.TemporaryDirectory()
@@ -57,7 +59,7 @@ class EngineUpdateTests(unittest.TestCase):
         self.repo.mkdir()
         self.git("init", "-q", "-b", "dev")
         # The first release, tagged the way update.py tags every later one (that one has a parent).
-        first = self.release("1.0.0", {"dist/server.js": SERVER})
+        first = self.release("1.0.0", {"dist/server.js": SERVER, "dist/other.js": "var other = 1;\n"})
         index = {"GIT_INDEX_FILE": str(self.base / "index")}
         stage = self.base / "stage"
         shutil.copytree(first, stage / ENGINE, dirs_exist_ok=True)
@@ -70,7 +72,7 @@ class EngineUpdateTests(unittest.TestCase):
             {
                 "backend/system/paths.py": 'ENGINE_VERSION = "1.0.0"\n',
                 "skills/setup/SKILL.md": "---\nname: setup\nversion: 1.0.0\n---\n",
-                "THIRD_PARTY_NOTICES.md": "engine/pins/1.0.0/ and ModRetro's 1.0.0; CLI 11.0.0\n",
+                "THIRD_PARTY_NOTICES.md": "engine/pins/1.0.0/, engine-upstream-1.0.0, ModRetro's 1.0.0. CLI 11.0.0\n",
                 "engine/pins/1.0.0/tools.json": "{}",
             },
         )
@@ -98,8 +100,9 @@ class EngineUpdateTests(unittest.TestCase):
         (self.repo / ENGINE / "dist/server.js").write_text(server)
         self.git("commit", "-q", "-am", "our change")
 
-    def run_update(self, server: str) -> list[str]:
-        release = self.release("1.1.0", {"dist/server.js": server, ARCHIVE: "packed again"})
+    def run_update(self, server: str, other: str | None = "var other = 1;\n") -> list[str]:
+        contents = {"dist/server.js": server, ARCHIVE: "packed again"}
+        release = self.release("1.1.0", {**contents, **({"dist/other.js": other} if other is not None else {})})
         update.check_start(self.repo, "1.0.0", "1.1.0")
         tag = update.tag_release(self.repo, release, "1.0.0", "1.1.0")
         return update.merge(self.repo, "engine-upstream-1.0.0", tag)
@@ -107,7 +110,7 @@ class EngineUpdateTests(unittest.TestCase):
     def test_the_release_is_tagged_without_left_out_files_on_the_old_release(self):
         self.run_update(SERVER)
         listed = self.git("ls-tree", "-r", "--name-only", "engine-upstream-1.1.0").split()
-        self.assertEqual(listed, [f"{ENGINE}/dist/server.js", f"{ENGINE}/package.json"])
+        self.assertEqual(listed, [f"{ENGINE}/dist/other.js", f"{ENGINE}/dist/server.js", f"{ENGINE}/package.json"])
         parent = self.git("rev-parse", "engine-upstream-1.1.0^{commit}^").strip()
         self.assertEqual(parent, self.git("rev-parse", "engine-upstream-1.0.0^{commit}").strip())
 
@@ -119,6 +122,27 @@ class EngineUpdateTests(unittest.TestCase):
         self.assertIn("var one = 10;", merged)
         self.assertIn("var five = 50;", merged)
         self.assertIn('"1.1.0"', (self.repo / ENGINE / "package.json").read_text())
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "", "nothing is staged")
+
+    def test_a_file_they_deleted_and_we_changed_is_a_conflict_that_keeps_ours(self):
+        (self.repo / ENGINE / "dist/other.js").write_text("var other = 2;\n")
+        self.git("commit", "-q", "-am", "our change")
+        conflicts = self.run_update(SERVER.replace("var five = 5;", "var five = 50;"), other=None)
+        self.assertEqual(conflicts, ["dist/other.js"])
+        self.assertEqual((self.repo / ENGINE / "dist/other.js").read_text(), "var other = 2;\n")
+        self.assertIn("var five = 50;", (self.repo / ENGINE / "dist/server.js").read_text())
+
+    def test_a_file_they_deleted_that_we_left_alone_goes(self):
+        self.assertEqual(self.run_update(SERVER, other=None), [])
+        self.assertFalse((self.repo / ENGINE / "dist/other.js").exists())
+
+    def test_a_rerun_keeps_the_tag_of_the_same_release_and_refuses_another(self):
+        release = self.release("1.1.0", {"dist/server.js": SERVER})
+        first = update.tag_release(self.repo, release, "1.0.0", "1.1.0")
+        self.assertEqual(update.tag_release(self.repo, release, "1.0.0", "1.1.0"), first)
+        (release / "dist/server.js").write_text("something else")
+        with self.assertRaisesRegex(update.UpdateError, "different release"):
+            update.tag_release(self.repo, release, "1.0.0", "1.1.0")
 
     def test_both_sides_changing_one_line_leaves_conflict_markers(self):
         self.ours(SERVER.replace("var three = 3;", "var three = 30;"))
@@ -126,16 +150,16 @@ class EngineUpdateTests(unittest.TestCase):
         self.assertEqual(conflicts, ["dist/server.js"])
         self.assertIn("<<<<<<<", (self.repo / ENGINE / "dist/server.js").read_text())
 
-    def test_it_refuses_uncommitted_engine_changes_and_a_known_version(self):
+    def test_it_refuses_uncommitted_changes_and_a_known_version(self):
         with self.assertRaisesRegex(update.UpdateError, "already 1.0.0"):
             update.check_start(self.repo, "1.0.0", "1.0.0")
-        (self.repo / ENGINE / "dist/server.js").write_text("edited")
+        (self.repo / "backend/system/paths.py").write_text("edited")
         with self.assertRaisesRegex(update.UpdateError, "uncommitted"):
             update.check_start(self.repo, "1.0.0", "1.1.0")
 
     def test_the_version_moves_everywhere_and_the_pins_move(self):
         release = self.release("1.1.0", {"dist/server.js": SERVER, ARCHIVE: "packed again"})
-        folder = update.move_pins(self.repo, release, "1.0.0", "1.1.0")
+        folder = update.move_pins(self.repo, release, "1.0.0", "1.1.0", [])
         update.bump(self.repo, "1.0.0", "1.1.0")
         self.assertFalse((self.repo / "engine/pins/1.0.0").exists())
         entries = {e["path"] for e in json.loads((folder / "manifest.json").read_text())["entries"]}
@@ -143,7 +167,13 @@ class EngineUpdateTests(unittest.TestCase):
         self.assertIn('"1.1.0"', (self.repo / "backend/system/paths.py").read_text())
         self.assertIn("version: 1.1.0", (self.repo / "skills/setup/SKILL.md").read_text())
         notices = (self.repo / "THIRD_PARTY_NOTICES.md").read_text()
-        self.assertEqual(notices, "engine/pins/1.1.0/ and ModRetro's 1.1.0; CLI 11.0.0\n")
+        self.assertEqual(notices, "engine/pins/1.1.0/, engine-upstream-1.1.0, ModRetro's 1.1.0. CLI 11.0.0\n")
+
+    def test_with_conflicts_the_pins_hold_the_releases_own_manifest(self):
+        release = self.release("1.1.0", {"dist/server.js": SERVER, ARCHIVE: "packed again"})
+        (self.repo / ENGINE / "package.json").write_text("<<<<<<< not json")
+        folder = update.move_pins(self.repo, release, "1.0.0", "1.1.0", ["package.json"])
+        self.assertEqual(json.loads((folder / "manifest.json").read_text())["package_version"], "1.1.0")
 
     def test_the_report_names_changed_modules_and_our_overlap(self):
         self.ours(SERVER.replace("var one = 1;", "var one = 10;"))
@@ -164,8 +194,12 @@ class BundleModuleTests(unittest.TestCase):
         new = "// dist/a.js\nvar process3 = 1;\n// node_modules/zod/index.js\nvar z = 2;\n"
         self.assertEqual(
             report.compare_modules(old, new),
-            {"added": [], "removed": [], "changed": ["node_modules/zod/index.js"], "renamed": ["dist/a.js"]},
+            {"added": [], "removed": [], "changed": ["node_modules/zod/index.js"], "renumbered": ["dist/a.js"]},
         )
+
+    def test_a_number_inside_a_string_is_a_change(self):
+        old, new = '// dist/a.js\nvar id = "merkle-v2";\n', '// dist/a.js\nvar id = "merkle-v3";\n'
+        self.assertEqual(report.compare_modules(old, new)["changed"], ["dist/a.js"])
 
     def test_a_module_written_twice_keeps_both_parts(self):
         found = report.modules("head\n// dist/a.js\nx\n// dist/b.js\ny\n// dist/a.js\nz\n")

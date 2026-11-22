@@ -1,8 +1,9 @@
 """What an engine update changed, written for the maintainer: tools/engine/update.py calls it.
 
 The report is notes/engine-update-<version>/report.md, with the diffs it names beside it. dist/server.js is one
-bundle, so its diff is split into the modules the bundler marks (`// dist/<module>.js`); a module whose only change
-is the bundler renumbering its names (`process3` for `process2`) is listed as renamed, not changed.
+bundle, so its diff is split into the modules the bundler marks (`// dist/<module>.js`). A module whose only change
+is in numbered names outside strings (`process3` for `process2`, usually the bundler renumbering) is listed as
+renumbered; its diff is kept like every other.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ ENGINE = "engine/modretro-chromatic"
 BUNDLE = "dist/server.js"
 LOCK = "scripts/runtime-package-lock.json"
 MODULE = re.compile(r"^// ((?:\.\./)*(?:dist|node_modules|scripts|src)/\S+)$", re.M)
-NUMBERED = re.compile(r"\b([A-Za-z_$][\w$]*?)\d+\b")
+# A string literal (kept as it is) or a name ending in digits (the digits dropped).
+NUMBERED = re.compile(r"\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`|\b([A-Za-z_$][\w$]*?)\d+\b")
 AREAS = ("dist/", "scripts/", "skills/", "docs/", "examples/", "assets/", "native/", "third-party/")
 
 
@@ -44,18 +46,21 @@ def modules(bundle: str) -> dict[str, str]:
     return found
 
 
+def unnumbered(code: str) -> str:
+    return NUMBERED.sub(lambda m: m.group(1) if m.group(1) is not None else m.group(0), code)
+
+
 def compare_modules(old: str, new: str) -> dict[str, list[str]]:
-    """Module names by what happened to them: added, removed, changed, renamed (renumbered names only)."""
+    """Module names by what happened to them: added, removed, changed, renumbered (numbered names only)."""
     before, after = modules(old), modules(new)
-    result: dict[str, list[str]] = {"added": [], "removed": [], "changed": [], "renamed": []}
+    result: dict[str, list[str]] = {"added": [], "removed": [], "changed": [], "renumbered": []}
     for name in sorted(set(before) | set(after)):
         if name not in before:
             result["added"].append(name)
         elif name not in after:
             result["removed"].append(name)
         elif before[name] != after[name]:
-            same = NUMBERED.sub(r"\1", before[name]) == NUMBERED.sub(r"\1", after[name])
-            result["renamed" if same else "changed"].append(name)
+            result["renumbered" if unnumbered(before[name]) == unnumbered(after[name]) else "changed"].append(name)
     return result
 
 
@@ -63,12 +68,21 @@ def unified(old: str, new: str, name: str) -> str:
     return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{name}", f"b/{name}", n=3))
 
 
-def lock_versions(text: str) -> dict[str, str]:
-    """Each package the runtime lock file installs, by its path in node_modules."""
+def lock_versions(text: str) -> dict[str, tuple[str, str, str]]:
+    """Each package the runtime lock file installs, by its path in node_modules: (version, source, checksum)."""
     if not text:
         return {}
     packages = json.loads(text).get("packages", {})
-    return {path.removeprefix("node_modules/"): p.get("version", "") for path, p in packages.items() if path}
+    return {
+        path.removeprefix("node_modules/"): (p.get("version", ""), p.get("resolved", ""), p.get("integrity", ""))
+        for path, p in packages.items()
+        if path
+    }
+
+
+def names(root: Path, *args: str) -> list[str]:
+    """Paths from git diff, NUL-separated so any name survives; a rename counts as a delete and an add."""
+    return [p for p in git(root, "diff", "-z", "--no-renames", *args).split("\0") if p]
 
 
 def area(rel: str) -> str:
@@ -80,20 +94,18 @@ def write(
 ) -> Path:
     """Write the report and its diffs into out; returns report.md. ours_before is the commit the merge started from."""
     out.mkdir(parents=True, exist_ok=True)
-    upstream = [
-        line.split("\t") for line in git(root, "diff", "--name-status", old_tag, new_tag, "--", ENGINE).splitlines()
-    ]
-    changed = {fields[-1].removeprefix(ENGINE + "/"): fields[0] for fields in upstream}
-    ours = {
-        p.removeprefix(ENGINE + "/")
-        for p in git(root, "diff", "--name-only", old_tag, ours_before, "--", ENGINE).split()
-    }
+    status = names(root, "--name-status", old_tag, new_tag, "--", ENGINE)  # status, path, status, path ...
+    changed = {path.removeprefix(ENGINE + "/"): code for code, path in zip(status[::2], status[1::2], strict=True)}
+    ours = {p.removeprefix(ENGINE + "/") for p in names(root, "--name-only", old_tag, ours_before, "--", ENGINE)}
     lines = [f"# Engine update: {old_tag} to {new_tag}", ""]
 
     lines += ["## Our changes", ""]
     both = sorted(ours & set(changed))
     lines.append(f"- Files we changed that ModRetro also changed: {', '.join(both) or 'none'}")
-    lines.append(f"- Left with conflict markers (resolve them): {', '.join(conflicts) or 'none'}")
+    lines.append(
+        "- Conflicts (markers in text files; a binary file or a file one side deleted keeps ours): "
+        f"{', '.join(conflicts) or 'none'}"
+    )
     lines.append(f"- Files we changed: {len(ours)} (`git diff {old_tag} HEAD -- {ENGINE}`)")
     lines.append("")
 
@@ -116,20 +128,20 @@ def write(
         before, after = modules(old_bundle), modules(new_bundle)
         folder = out / "modules"
         folder.mkdir(exist_ok=True)
-        for name in split["changed"] + split["added"] + split["removed"]:
+        for name in split["changed"] + split["added"] + split["removed"] + split["renumbered"]:
             safe = re.sub(r"[^\w.-]+", "_", name)
             (folder / f"{safe}.diff").write_text(unified(before.get(name, ""), after.get(name, ""), name))
-        for kind in ("changed", "added", "removed", "renamed"):
+        for kind in ("changed", "added", "removed", "renumbered"):
             own = [n for n in split[kind] if "node_modules/" not in n]
             dependencies = len(split[kind]) - len(own)
             text = ", ".join(f"`{n}`" for n in own) or "none"
             lines.append(f"- **{kind}**: {text}" + (f" (and {dependencies} in node_modules)" if dependencies else ""))
-        lines += ["", "Each changed, added or removed module's diff: `modules/<module>.diff`.", ""]
+        lines += ["", "Each module's diff: `modules/<module>.diff`.", ""]
 
     lines += ["## Tool contracts", ""]
     if tools is None:
         lines += [
-            "Not compared (a conflict, or no Node): run `python tools/engine/reconcile_schemas.py` (update.py's last lines).",
+            "Not compared (a conflict, no Node, or the engine did not start): update.py's last lines say what to run.",
             "",
         ]
     else:
@@ -149,11 +161,15 @@ def write(
         lines += ["Unchanged.", ""]
 
     old_lock, new_lock = lock_versions(show(root, old_tag, LOCK)), lock_versions(show(root, new_tag, LOCK))
-    moved = [
-        f"{name} {old_lock.get(name, '(new)')} to {new_lock.get(name, '(removed)')}"
-        for name in sorted(set(old_lock) | set(new_lock))
-        if old_lock.get(name) != new_lock.get(name)
-    ]
+    moved = []
+    for name in sorted(set(old_lock) | set(new_lock)):
+        before, after = old_lock.get(name), new_lock.get(name)
+        if before == after:
+            continue
+        line = f"{name} {before[0] if before else '(new)'} to {after[0] if after else '(removed)'}"
+        if before and after and before[0] == after[0]:
+            line += " (same version, new source or checksum)"
+        moved.append(line)
     lines += ["## Runtime dependencies", ""]
     lines += [f"- {m}" for m in moved] or ["Unchanged."]
     lines += ["", "Check `.github/SECURITY.md`'s accepted advisories against these.", ""]
