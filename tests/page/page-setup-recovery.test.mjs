@@ -8,9 +8,8 @@ import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ act, dom, scenario, root, render, shows, hides, heading, click, settle, button, check, answered, status, doctor, manifest, installAnswer }) => {
   const doc = dom.window.document
-  const createParams = { name: 'hermretro', description: 'hermretro', no_skills: true, share_auth: true, no_alias: true }
   const firstRun = (studio = {}) =>
-    status({ profile: { name: 'default', is_studio: false, create: createParams, studio: { name: 'hermretro', exists: false, installed: false, ours: false, ...studio } } })
+    status({ profile: { name: 'default', is_studio: false, studio: { name: 'hermretro', exists: false, installed: false, ours: false, ...studio } } })
   const onInstallScreen = async ({ statusData = firstRun(), install, doctorData = doctor(['cli']), doctorQuery }) => {
     await act(async () => { root.render(null) })
     scenario.storage = { setup: { onboardStarted: true } }
@@ -29,7 +28,7 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   await click('Check again'); await settle()
   check('Check again reads the list again and installs nothing', () => {
     assert.ok(!scenario.paramsByMethod['plugin.hermretro.install'] || scenario.paramsByMethod['plugin.hermretro.install'].action !== 'start')
-    assert.ok(!requests().includes('profiles.create'))
+    assert.ok(!requests().includes('plugin.hermretro.studio_profile'))
   })
 
   // 2. A profile named hermretro that someone else made: named before any download.
@@ -41,7 +40,7 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   })
   await act(async () => { button('Download and install').click() }); await settle()
   check('pressing the disabled start sends nothing', () => {
-    assert.ok(!requests().includes('plugin.hermretro.install') && !requests().includes('profiles.create'))
+    assert.ok(!requests().includes('plugin.hermretro.install') && !requests().includes('plugin.hermretro.studio_profile'))
   })
 
   // 3. Not enough disk space where the tools go.
@@ -114,7 +113,8 @@ await runScenario(async ({ act, dom, scenario, root, render, shows, hides, headi
   scenario.calls.length = 0
   await click('Repair the profile'); await settle()
   check('Repair finishes the existing profile again, without creating a second one', () => {
-    assert.ok(requests().includes('plugin.hermretro.studio_profile')); assert.ok(!requests().includes('profiles.create'))
+    assert.ok(requests().includes('plugin.hermretro.studio_profile'))
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.studio_profile'], { create: false })
   })
   delete scenario.byMethod['plugin.hermretro.studio_profile']
 

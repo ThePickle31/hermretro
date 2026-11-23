@@ -74,6 +74,11 @@ PLAN_CONTINUE = (
     "If its project does not exist yet, create it once the user is ready. Author nothing until the "
     "user has approved the game brief (hermretro:game-planning). " + BUILD_THE_BRIEF
 )
+PLAN_BOUND = (
+    "Before authoring or building, check docs/game/GAME-BRIEF.md. If the brief is missing or still awaiting "
+    "approval, use hermretro:game-planning to finish or revise it and wait for the user's explicit approval. "
+    "Record that approval in the brief before starting the build. " + BUILD_THE_BRIEF
+)
 BUILD_CONTINUE = (
     "Until the user approves the list of what you will make, create nothing and change the list as "
     "they ask. " + BUILD_THE_LIST

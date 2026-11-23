@@ -99,11 +99,7 @@ def create(desktop: Path) -> None:
     print("creating the sandbox (once)…", flush=True)
     HOME.mkdir(parents=True, exist_ok=True)
     ports = {"model": free_port(), "webapp": free_port()}
-    run_hermes(
-        "profile", "create", hermes.STUDIO, "--no-alias", "--no-skills", "--no-credentials", "--description",
-        "hermretro: Game Boy Color development for the ModRetro Chromatic",
-    )  # fmt: skip
-    # Profile setup uses Hermes's config reader, so run it in the Hermes Python environment.
+    # Create the profile through the studio setup in Hermes's Python environment.
     run_hermes("--run-module", "cProfile", "-o", os.devnull, str(Path(__file__).resolve()), "--finish-profile")
     # Installed in the default profile too, as a user's is: the page asks the profile the app is on first.
     (HOME / "plugins").mkdir(exist_ok=True)
@@ -377,4 +373,4 @@ if __name__ == "__main__":
     sys.path.insert(0, str(TOP))
     from backend.setup import studio_profile
 
-    studio_profile.finish(HOME, target=PROFILE, enabled=[])
+    studio_profile.finish(HOME, target=PROFILE, enabled=[], create=True)

@@ -222,11 +222,11 @@ def rpc_activity(ctx):
 
 @rpc("studio_profile")
 def rpc_studio_profile(ctx):
-    """Finish the dedicated profile after the page has created it with Hermes's profiles.create."""
+    """Create or repair the dedicated studio profile."""
 
     def finish(params, **_kwargs):
         try:
-            finished = studio_profile.finish(host._data_dir().parents[1])
+            finished = studio_profile.finish(host._data_dir().parents[1], create=(params or {}).get("create") is True)
             if finished.get("ok"):
                 emit("setup.studio_profile_ready", profile=finished.get("profile"))
             return finished

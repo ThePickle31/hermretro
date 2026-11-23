@@ -42,7 +42,7 @@ calls made through `backend.hermes.host`; code that imports `backend.broker` or 
   - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
   - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `games.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
-  - `session`: the game's Build conversation, `{storedId, profile, createdAt, aliases}` (`aliases`: up to 16 later session ids of it, since compression rotates them). Absent when the game has none.
+  - `session`: the game's Build conversation, `{storedId, profile, createdAt, aliases, plan?}` (`aliases`: up to 16 later session ids of it, since compression rotates them, `plan`: true when the conversation began with Plan first). Absent when the game has none.
 - `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest `games.MAX_PENDING` are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 

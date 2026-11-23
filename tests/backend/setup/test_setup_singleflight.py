@@ -4,7 +4,6 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from backend.setup import studio_profile as sp
 
@@ -18,9 +17,6 @@ class SingleFlight(unittest.TestCase):
         self.home.mkdir(parents=True)
         self.target.mkdir(parents=True)
         (self.target / "profile.yaml").write_text(f"description: '{sp.DESCRIPTION}'\n")
-        config = mock.patch.object(sp.hermes_api, "profile_config", return_value={})
-        config.start()
-        self.addCleanup(config.stop)
 
     def test_a_second_finish_waits_for_the_first_and_shares_its_answer(self):
         gate, started, commands = threading.Event(), threading.Event(), []
@@ -45,7 +41,7 @@ class SingleFlight(unittest.TestCase):
         gate.set()
         first.join(5)
         second.join(5)
-        self.assertEqual(len(commands), 8, "the hermes commands ran once")
+        self.assertEqual(len(commands), 7, "the hermes commands ran once")
         self.assertEqual(sorted(bool(answer.get("shared")) for answer in answers), [False, True])
 
     def test_a_failure_is_shared_and_the_next_call_runs_again(self):

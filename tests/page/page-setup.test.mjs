@@ -25,8 +25,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
 
 
   // 1b. First run: a new user sees only the guided setup, and the page installs the tools itself.
-  const createParams0 = { name: 'hermretro', description: 'hermretro', no_skills: true, share_auth: true, no_alias: true }
-  const firstRun = status({ profile: { name: 'default', is_studio: false, create: createParams0,
+  const firstRun = status({ profile: { name: 'default', is_studio: false,
     studio: { name: 'hermretro', exists: false, installed: false, ours: false } } })
   scenario.storage = {}
   scenario.status = answered(firstRun); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
@@ -54,17 +53,17 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   scenario.calls.length = 0
   scenario.byMethod['plugin.hermretro.install'] = params => ({ ok: true, manifest, install: { state: params.action === 'start' ? 'running' : 'idle' } })
-  scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: true, profile: 'hermretro' }
   await click('Download and install')
   await settle()
   check('Download and install starts the backend install and makes the studio profile alongside, no chat', () => {
     const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
     assert.ok(requests.includes('plugin.hermretro.install')); assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.install'], { action: 'start' })
-    assert.ok(requests.includes('profiles.create') && requests.includes('plugin.hermretro.studio_profile'))
+    assert.ok(requests.includes('plugin.hermretro.studio_profile'))
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.studio_profile'], { create: true })
     assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
   })
-  delete scenario.byMethod['plugin.hermretro.install']; delete scenario.byMethod['profiles.create']; delete scenario.byMethod['plugin.hermretro.studio_profile']
+  delete scenario.byMethod['plugin.hermretro.install']; delete scenario.byMethod['plugin.hermretro.studio_profile']
   scenario.install = installAnswer({ state: 'running', started_at: 1, fraction: 0.4, downloaded_bytes: 281_000_000, current: 'cli', run: { components: {
     gbdk: { state: 'done', version: '4.5.0', checks: [{ file: 'gbdk-linux64.tar.gz', sha256: 'd7857a5f6d135ee4', reused: false }] },
     cli: { state: 'running', checks: [] } } } })
@@ -356,7 +355,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
 
   // 8a. The Build page runs only in the hermretro profile: no fallback to the profile the app is on.
-  scenario.status = answered(status({ profile: { name: 'default', is_studio: false, create: { name: 'hermretro' },
+  scenario.status = answered(status({ profile: { name: 'default', is_studio: false,
     studio: { name: 'hermretro', exists: true, installed: false, ours: true } } }))
   scenario.calls.length = 0
   await render(); await tab('Build')
@@ -370,9 +369,10 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   await act(async () => { dom.window.document.querySelector('.cs-studio-needed button').click() }); await settle()
   check('Repair finishes the existing profile again (no second profile is created)', () => {
     const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
-    assert.ok(requests.includes('plugin.hermretro.studio_profile')); assert.ok(!requests.includes('profiles.create'))
+    assert.ok(requests.includes('plugin.hermretro.studio_profile'))
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.studio_profile'], { create: false })
   })
-  scenario.status = answered(status({ profile: { name: 'default', is_studio: false, create: { name: 'hermretro' },
+  scenario.status = answered(status({ profile: { name: 'default', is_studio: false,
     studio: { name: 'hermretro', exists: true, installed: true, ours: true } } }))
   await render()
   check('a finished profile that never answers still offers Repair while it waits', () => {

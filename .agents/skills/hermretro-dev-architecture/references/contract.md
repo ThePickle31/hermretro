@@ -109,15 +109,15 @@ A page read that needs the engine is a broker control op (`backend/broker/contro
 RPC through `host.ensure_broker()`; `doctor` reads no hardware, so a device read must also refuse unless the RPC's
 `ctx.get_config("hardware_enabled")` is on (the gate `Broker.call` applies to the hardware tools).
 
-### `studio_profile` — no params
+### `studio_profile` — params `{ create? }`
 
-Finishes the dedicated `hermretro` profile after the page has created it with Hermes's own
-`profiles.create` (parameters come from `status.profile.create`). Returns
+Finishes an existing `hermretro` profile, or with `create: true` prepares a new one and publishes it after its
+initial preferences and finish marker have been written. Returns
 `{ ok, profile, plugin, providers[], disabled_toolsets[], soul_written, workspace }` or `{ ok: false, code, error }`
 with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`, `HERMES_COMMAND_FAILED`.
 Safe to call again, and single-flight: a call made while another runs in the same process waits for it and gets its
 answer (`shared: true`) or its error. `status` reports `profile: { name, is_studio, studio: { name, exists,
-installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
+installed, ours, conflict } }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download.
 
 ### `install` — params `{ action: "status" | "start" | "cancel", run_id? }`

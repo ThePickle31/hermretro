@@ -19,7 +19,13 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
     except Exception:
         return None
     if kind == "game":
-        title = bound.get("title") or Path(bound.get("projectRoot") or "").name
+        root = bound.get("projectRoot")
+        title = bound.get("title") or Path(root or "").name
+        # Older bindings lost the New Game mode, but an established brief still identifies a planned game.
+        planned = (bound.get("session") or {}).get("plan") is True or (
+            root and Path(root, "docs", "game", "GAME-BRIEF.md").is_file()
+        )
+        guidance = workflow.PLAN_BOUND + " " if planned else ""
         return {
             "context": (
                 f"[hermretro] This is the Build conversation of the game \"{title}\" "
@@ -29,6 +35,7 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
                 "hermretro Build page. "
                 + workflow.SHOW_ART_CONTEXT
                 + " "
+                + guidance
                 + "For changes to this game, "
                 + workflow.AUTHOR_AND_DELIVER
                 + " "

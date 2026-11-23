@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 6f53153c7436f0d8e831e4bb1d39c63f5c2a952c5b54cdd4693ffc8cf7b4bf93
- * body: sha256 ae6c68f5be325f7306cf20eca18055000aee7db2b2c1b6f0789621a49fe6a379
+ * sources: sha256 70e03f3bb8dd3c5735deaf5908f7c3d949b3296049e72e39cbf848d02c1d40e6
+ * body: sha256 4d4c2e1539f3ab0f3f8848f0578f01a10ead0455f95ff70d5d4001a6fceb5140
  */
 // page/sdk.js
 import {
@@ -9842,10 +9842,7 @@ async function createStudioProfile(profile) {
   if (isUpdating()) {
     throw new Error(UPDATING_MESSAGE);
   }
-  if (!profile.studio?.exists) {
-    await host.request("profiles.create", profile.create);
-  }
-  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
+  const { data } = await callBackend(RPC_STUDIO_PROFILE, { create: !profile.studio?.exists }, 24e4);
   if (!data?.ok) {
     throw new Error(data?.error || "The profile could not be set up.");
   }

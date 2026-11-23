@@ -1,15 +1,8 @@
 """The dedicated hermretro profile.
 
-The plugin is installed into whatever profile the user was on. The page then offers one step,
-"Create the hermretro profile": the desktop creates the profile with Hermes's own
-``profiles.create`` (which shares the user's sign-in and keys), and ``finish`` below makes that
-profile a Chromatic one: the plugin linked in and switched on, the user's model-provider plugins
-carried over, the unwanted toolsets off, no Hermes default skills except hermes-agent, and the
-studio's SOUL in place.
-
-Config is only ever changed through the ``hermes`` command with HERMES_HOME pointing at the new
-profile, never by editing its config.yaml here. The profile the plugin was installed into is not
-modified at all.
+The studio profile is prepared in a private directory, with its initial settings and SOUL in
+place, before Hermes or the user can see it. Existing profiles keep their own turn limit and SOUL
+edits. Only Hermes config commands write the studio's config.
 """
 
 from __future__ import annotations
@@ -83,15 +76,6 @@ def _shipped_before(soul: Path) -> bool:
     return data is not None and hashlib.sha256(data).hexdigest() in OLDER_SOULS
 
 
-def _initial_soul(soul: Path) -> bool:
-    try:
-        soul.lstat()
-    except FileNotFoundError:
-        return True
-    data = _read_soul(soul)
-    return data is not None and data == hermes_api.default_soul()
-
-
 def _replace_soul(soul: Path, can_replace: Callable[[Path], bool]) -> bool:
     """Replace a matching SOUL atomically, keeping its mode and rechecking before the swap."""
     if not can_replace(soul):
@@ -145,11 +129,6 @@ def studio_dir() -> Path:
     return hermes_api.profile_dir(STUDIO_PROFILE)
 
 
-def create_params() -> dict:
-    """What the page passes to Hermes's ``profiles.create``."""
-    return {"name": STUDIO_PROFILE, "description": DESCRIPTION, "no_skills": True, "share_auth": True, "no_alias": True}
-
-
 def _exists(target: Path) -> bool:
     return target.is_dir() and any((target / name).exists() for name in ("config.yaml", "profile.yaml", "SOUL.md"))
 
@@ -197,7 +176,6 @@ def describe(home: Path, target: Path | None = None) -> dict:
             # before it downloads anything.
             "conflict": exists and not ours and not _has_plugin(target),
         },
-        "create": create_params(),
     }
 
 
@@ -298,40 +276,69 @@ def finish(home: Path, **options) -> dict:
         flight["done"].set()
 
 
-def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes) -> dict:
+def _finish(
+    home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes, create: bool = False
+) -> dict:
     if profile_name(home) == STUDIO_PROFILE:
         return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
     target = target or studio_dir()
     if not _exists(target):
-        raise StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
-    ours = _ours(target)
-    if not (ours or _has_plugin(target)):
-        raise StudioProfileError(
-            "NAME_TAKEN",
-            f"A profile named {STUDIO_PROFILE} already exists and was not made by Chromatic "
-            "Studio. Rename or remove it, then try again.",
-        )
+        if not create:
+            raise StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
+        return _create(home, target, enabled, run)
+    if create and _ready(target):
+        return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
+    if not (_ours(target) or _has_plugin(target)):
+        raise _name_taken()
 
     marker = target / MARKER
     marker.parent.mkdir(parents=True, exist_ok=True)
-    # The lock also covers Hermes commands from a different gateway or plugin host finishing this profile.
+    # Cover repairs from different gateways or plugin hosts.
     with marker.with_suffix(".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        return _configure(home, target, enabled, run, seed_defaults=ours and not marker.is_file())
+        return _configure(home, target, enabled, run, workspace=target / WORKSPACE)
 
 
-def _seed_turn_limit(target: Path, run) -> None:
-    receipt = (target / MARKER).with_name("turn-limit-seeded")
-    if receipt.is_file():
-        return
-    config = hermes_api.profile_config(target)
-    agent = config.get("agent", {})
-    if isinstance(agent, dict) and "max_turns" not in agent and "max_turns" not in config:
-        run(target, "config", "set", "agent.max_turns", str(TURN_LIMIT))
-    receipt.touch()
+def _name_taken() -> StudioProfileError:
+    return StudioProfileError(
+        "NAME_TAKEN",
+        f"A profile named {STUDIO_PROFILE} already exists and was not made by Chromatic "
+        "Studio. Rename or remove it, then try again.",
+    )
 
 
-def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, seed_defaults: bool) -> dict:
+def _create(home: Path, target: Path, enabled: list[str] | None, run) -> dict:
+    if _ready(target):
+        return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
+    if target.exists() or target.is_symlink():
+        raise _name_taken()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    workspace = target / WORKSPACE
+    # Hermes ignores dot-prefixed profile directories. The finish marker and initial preferences
+    # are published together, so a retry can never confuse a cleared setting with an unseeded one.
+    with tempfile.TemporaryDirectory(dir=target.parent, prefix=f".{target.name}-") as directory:
+        staging = Path(directory)
+        hermes_api.prepare_profile(staging, description=DESCRIPTION, soul=SOUL_FILE.read_text(encoding="utf-8"))
+        run(staging, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+        answer = _configure(home, staging, enabled, run, workspace=workspace)
+        if _ready(target):
+            return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
+        if target.exists() or target.is_symlink():
+            raise _name_taken()
+        hermes_api.clear_profile_tombstone(target)
+        try:
+            staging.rename(target)
+        except OSError:
+            if _ready(target):
+                return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
+            if target.exists() or target.is_symlink():
+                raise _name_taken() from None
+            raise
+    hermes_api.notify_profile_created(target)
+    return {**answer, "soul_written": True}
+
+
+def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, workspace: Path) -> dict:
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
     providers = []
     for folder in _provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
@@ -352,17 +359,15 @@ def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, seed
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
     run(target, "config", "set", "approvals.mode", "smart")
-    if seed_defaults:
-        _seed_turn_limit(target, run)
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.
-    workspace = target / WORKSPACE
-    workspace.mkdir(parents=True, exist_ok=True)
+    (target / WORKSPACE).mkdir(parents=True, exist_ok=True)
     run(target, "config", "set", "terminal.cwd", str(workspace.resolve()))
 
-    write_soul = seed_defaults and _replace_soul(target / "SOUL.md", _initial_soul)
-    write_soul = write_soul or refresh_soul(target)
-    (target / MARKER).write_text(
+    write_soul = refresh_soul(target)
+    marker = target / MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
         json.dumps(
             {
                 "made_by": paths.PLUGIN_ID,

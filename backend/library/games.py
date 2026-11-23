@@ -513,7 +513,7 @@ class Registry:
         return "data:image/png;base64," + base64.b64encode(raw).decode()
 
     # -- Build: one game, one conversation --------------------------------------------
-    # ``games[id].session = {storedId, profile, createdAt, aliases}`` names the one Hermes session that
+    # ``games[id].session = {storedId, profile, createdAt, aliases, plan?}`` names the one Hermes session that
     # works on a game (the Build page's conversation for it). ``pending[storedId]`` is a New Game
     # conversation whose project does not exist yet; the first project it creates or selects becomes
     # its game. Sessions are keyed per profile identity: session ids are per profile store.
@@ -603,6 +603,8 @@ class Registry:
             elif replace is not None:
                 raise BindingError("STALE", "This game no longer has the conversation being replaced.")
             entry["session"] = {"storedId": stored, "profile": profile, "createdAt": time.time(), "aliases": []}
+            if kind == "pending" and other.get("plan") is True:
+                entry["session"]["plan"] = True
             _chat_follows_session(entry)
             data["pending"].pop(stored, None)
             self._save(data)
@@ -640,8 +642,10 @@ class Registry:
                 "storedId": record["storedId"],
                 "profile": record.get("profile"),
                 "createdAt": time.time(),
-                "aliases": [],
+                "aliases": record.get("aliases", []),
             }
+            if record.get("plan") is True:
+                entry["session"]["plan"] = True
             _chat_follows_session(entry)
             data["pending"].pop(record["storedId"], None)
             self._save(data)

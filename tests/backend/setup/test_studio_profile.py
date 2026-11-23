@@ -26,19 +26,27 @@ class StudioProfile(unittest.TestCase):
         (self.home / "plugins" / "other").mkdir()
         (self.home / "plugins" / "other" / "plugin.yaml").write_text("name: other\nkind: tool\n")
         self.commands = []
-        for name, options in (
-            ("profile_config", {"side_effect": self.read_config}),
-            ("default_soul", {"return_value": b"default soul"}),
+        self.notifications = []
+        for name, effect in (
+            ("prepare_profile", self.prepare_profile),
+            ("clear_profile_tombstone", lambda _target: None),
+            ("notify_profile_created", self.notifications.append),
         ):
-            patch = unittest.mock.patch.object(sp.hermes_api, name, **options)
+            patch = unittest.mock.patch.object(sp.hermes_api, name, side_effect=effect)
             patch.start()
             self.addCleanup(patch.stop)
+
+    @staticmethod
+    def prepare_profile(staging, *, description, soul):
+        (staging / "profile.yaml").write_text(f"description: '{description}'\n")
+        (staging / "SOUL.md").write_text(soul)
+        (staging / "config.yaml").write_text('{"model": {"provider": "example"}}')
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def created(self, description=sp.DESCRIPTION):
-        """What Hermes's profiles.create leaves behind."""
+        """An existing profile created before setup staged its preferences."""
         self.target.mkdir(parents=True)
         (self.target / "profile.yaml").write_text(f"description: '{description}'\n")
         (self.target / "SOUL.md").write_text("default soul")
@@ -51,31 +59,24 @@ class StudioProfile(unittest.TestCase):
     def run_command(self, target, *args):
         self.commands.append((target, args))
         if args[:3] == ("config", "set", "agent.max_turns"):
-            (target / "config.yaml").write_text(json.dumps({"agent": {"max_turns": int(args[3])}}))
+            config = self.read_config(target)
+            config.setdefault("agent", {})["max_turns"] = int(args[3])
+            (target / "config.yaml").write_text(json.dumps(config))
 
-    def finish(self):
+    def finish(self, *, create=False, run=None):
         return sp.finish(
             self.home,
             target=self.target,
             enabled=["my-provider", "other", "gone"],
-            run=self.run_command,
+            run=run or self.run_command,
+            create=create,
         )
 
-    def test_the_page_is_told_which_profile_answers_and_how_to_create_the_studio_one(self):
+    def test_the_page_is_told_which_profile_answers_and_whether_the_studio_exists(self):
         told = sp.describe(self.home, self.target)
         self.assertEqual((told["name"], told["is_studio"]), ("work", False))
         self.assertEqual(
             told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False, "conflict": False}
-        )
-        self.assertEqual(
-            told["create"],
-            {
-                "name": "hermretro",
-                "description": sp.DESCRIPTION,
-                "no_skills": True,
-                "share_auth": True,
-                "no_alias": True,
-            },
         )
         self.assertTrue(sp.describe(self.target)["is_studio"])
         self.assertEqual(sp.profile_name(Path(self.tmp.name)), "default")
@@ -109,9 +110,8 @@ class StudioProfile(unittest.TestCase):
         self.assertFalse((self.target / "plugins").exists())
         self.assertEqual(self.commands, [])
 
-    def test_finishing_links_the_plugin_carries_model_providers_and_sets_the_tools(self):
-        self.created()
-        result = self.finish()
+    def test_creation_links_the_plugin_carries_model_providers_and_sets_the_tools(self):
+        result = self.finish(create=True)
         self.assertEqual(
             (result["ok"], result["providers"], result["disabled_toolsets"]),
             (True, ["my-provider"], ["tts", "connections", "computer_use", "cronjob"]),
@@ -122,23 +122,31 @@ class StudioProfile(unittest.TestCase):
         )
         self.assertFalse((self.target / "plugins" / "other").exists())  # not a model provider
         # Config is changed only through the hermes command, in the new profile.
+        staging = self.commands[0][0]
+        self.assertEqual(staging.parent, self.target.parent)
+        self.assertTrue(staging.name.startswith(".hermretro-"))
+        self.assertFalse(staging.exists())
         self.assertEqual(
             self.commands,
             [
-                (self.target, ("plugins", "enable", paths.PLUGIN_ID)),
-                (self.target, ("plugins", "enable", "my-provider")),
+                (staging, ("config", "set", "agent.max_turns", "1000")),
+                (staging, ("plugins", "enable", paths.PLUGIN_ID)),
+                (staging, ("plugins", "enable", "my-provider")),
                 (
-                    self.target,
+                    staging,
                     ("config", "set", "agent.disabled_toolsets", '["tts", "connections", "computer_use", "cronjob"]'),
                 ),
-                (self.target, ("skills", "opt-out")),
-                (self.target, ("config", "set", "auxiliary.background_review.enabled", "false")),
-                (self.target, ("config", "set", "curator.enabled", "false")),
-                (self.target, ("config", "set", "approvals.mode", "smart")),
-                (self.target, ("config", "set", "agent.max_turns", "1000")),
-                (self.target, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
+                (staging, ("skills", "opt-out")),
+                (staging, ("config", "set", "auxiliary.background_review.enabled", "false")),
+                (staging, ("config", "set", "curator.enabled", "false")),
+                (staging, ("config", "set", "approvals.mode", "smart")),
+                (staging, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
             ],
         )
+        self.assertEqual(
+            self.read_config(self.target), {"model": {"provider": "example"}, "agent": {"max_turns": 1000}}
+        )
+        self.assertEqual(self.notifications, [self.target])
         self.assertTrue((self.target / "workspace").is_dir())
         self.assertEqual(list((self.target / "workspace").iterdir()), [])
         self.assertEqual(result["workspace"], str((self.target / "workspace").resolve()))
@@ -273,44 +281,59 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(self.finish()["ok"], True)
         self.assertEqual(sp.describe(self.home, self.target)["studio"]["installed"], True)
 
-    def test_retry_preserves_each_edited_preference_even_before_setup_seeds_it(self):
-        root = self.target.parent
-        for failure in (("plugins", "enable"), ("config", "set", "terminal.cwd")):
-            edits = ["turn limit", "SOUL"]
-            if failure[-1] == "terminal.cwd":
-                edits.append("remove limit")
-            for edit in edits:
-                with self.subTest(failure=failure, edit=edit):
-                    self.target = root / f"{failure[-1]}-{edit}"
-                    self.created()
+    def test_interruption_after_seeding_leaves_no_editable_profile_until_retry(self):
+        def interrupted(staging, *args):
+            self.run_command(staging, *args)
+            if args[:3] == ("config", "set", "agent.max_turns"):
+                self.assertEqual(self.read_config(staging)["agent"]["max_turns"], 1000)
+                self.assertFalse(self.target.exists())
+                raise sp.StudioProfileError("HERMES_COMMAND_FAILED", "interrupted after persist")
 
-                    def fail(target, *args, failure=failure):
-                        if args[: len(failure)] == failure:
-                            raise sp.StudioProfileError("HERMES_COMMAND_FAILED", "interrupted")
-                        self.run_command(target, *args)
+        with self.assertRaises(sp.StudioProfileError):
+            self.finish(create=True, run=interrupted)
+        self.assertFalse(self.target.exists())
+        self.assertEqual(list(self.target.parent.iterdir()), [self.home])
+        self.assertEqual(self.notifications, [])
+        self.assertTrue(self.finish(create=True)["ok"])
+        self.assertEqual(self.read_config(self.target)["agent"]["max_turns"], 1000)
 
-                    with self.assertRaises(sp.StudioProfileError):
-                        sp.finish(self.home, target=self.target, enabled=[], run=fail)
-                    self.assertFalse((self.target / sp.MARKER).exists())
+    def test_retry_after_publication_keeps_a_cleared_limit_and_an_edited_soul(self):
+        with unittest.mock.patch.object(sp.hermes_api, "notify_profile_created", side_effect=OSError("lost reply")):
+            with self.assertRaises(OSError):
+                self.finish(create=True)
+        self.assertTrue((self.target / sp.MARKER).is_file())
+        config = {"agent": {"other_setting": 61}}
+        (self.target / "config.yaml").write_text(json.dumps(config))
+        soul = self.target / "SOUL.md"
+        soul.write_text("edited by the user")
+        self.commands.clear()
+        self.assertTrue(self.finish(create=True)["ok"])
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.read_config(self.target), config)
+        self.assertEqual(soul.read_text(), "edited by the user")
 
-                    soul = self.target / "SOUL.md"
-                    if edit == "turn limit":
-                        (self.target / "config.yaml").write_text('{"agent": {"max_turns": 61}}')
-                    elif edit == "remove limit":
-                        (self.target / "config.yaml").write_text('{"agent": {}}')
-                    else:
-                        soul.write_text("edited in the unfinished profile")
+    def test_an_interrupted_old_setup_does_not_reseed_a_cleared_limit_or_soul(self):
+        self.created()
+        (self.target / "config.yaml").write_text('{"agent": {}}')
+        (self.target / "SOUL.md").unlink()
+        self.assertTrue(self.finish()["ok"])
+        self.assertFalse(any("agent.max_turns" in args for _target, args in self.commands))
+        self.assertNotIn("max_turns", self.read_config(self.target)["agent"])
+        self.assertFalse((self.target / "SOUL.md").exists())
 
-                    self.assertTrue(self.finish()["ok"])
-                    self.assertEqual(
-                        self.read_config(self.target)["agent"].get("max_turns"),
-                        {"turn limit": 61, "SOUL": 1000, "remove limit": None}[edit],
-                    )
-                    self.assertEqual(
-                        soul.read_text(),
-                        "edited in the unfinished profile" if edit == "SOUL" else sp.SOUL_FILE.read_text(),
-                    )
-                    self.assertTrue((self.target / sp.MARKER).is_file())
+    def test_a_profile_published_by_someone_else_during_setup_is_preserved(self):
+        def race(staging, *args):
+            self.run_command(staging, *args)
+            if args[:3] == ("config", "set", "agent.max_turns"):
+                self.created(description="my own profile")
+                (self.target / "config.yaml").write_text('{"agent": {"max_turns": 61}}')
+
+        with self.assertRaises(sp.StudioProfileError) as raised:
+            self.finish(create=True, run=race)
+        self.assertEqual(raised.exception.code, "NAME_TAKEN")
+        self.assertEqual(self.notifications, [])
+        self.assertEqual(self.read_config(self.target), {"agent": {"max_turns": 61}})
+        self.assertEqual((self.target / "SOUL.md").read_text(), "default soul")
 
     def test_a_hermes_command_that_cannot_start_or_hangs_is_a_plain_error(self):
         import subprocess
