@@ -12,6 +12,7 @@ export const INLINE_PLAYER_CSS = `
 .cs-b-pc-img { aspect-ratio: 160 / 144; border-radius: 3px; display: block; image-rendering: pixelated; object-fit: cover; width: 100%; }
 .cs-b-pc-go { align-items: center; appearance: none; backdrop-filter: blur(6px); background: color-mix(in srgb, white 14%, transparent); border: 0; border-radius: 999px; bottom: 12px; color: white; cursor: pointer; display: inline-flex; font: inherit; font-size: 12.5px; gap: 6px; padding: 6px 13px; position: absolute; right: 12px; transition: background .12s ease; }
 .cs-b-pc-go:hover { background: color-mix(in srgb, white 24%, transparent); }
+.cs-b-pc.compact .cs-b-pc-go { align-self: flex-start; background: var(--ui-bg-secondary); color: var(--ui-text-secondary); position: static; }
 .cs-b-pc-wait { bottom: 12px; color: var(--ui-text-tertiary); font-size: 12px; position: absolute; right: 14px; }
 .cs-b-pc-note { border-left: 2px solid var(--ui-stroke-secondary); color: var(--ui-text-secondary); font-size: 12.5px; line-height: 1.45; margin: 0; padding-left: 10px; }
 .cs-b-old { color: var(--ui-text-quaternary); font-size: 11.5px; margin: 0; }
@@ -92,7 +93,10 @@ export const INLINE_PLAYER_CSS = `
 .cs-ip-swatch-in input { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
 .cs-ip-mark-note { background: var(--ui-bg-editor); border: 1px solid var(--ui-stroke-secondary); border-radius: 7px; color: var(--ui-text-primary); font: inherit; font-size: 12.5px; padding: 6px 8px; resize: vertical; }
 .cs-ip-mark-note:focus { border-color: var(--ui-accent); outline: none; }
-.cs-b-bc > .cs-ip, .cs-b-bc > .cs-b-pc { margin: 0 12px 12px; }
+.cs-b-bc > .cs-b-pc .cs-b-pc-stage { background: transparent; border-radius: 0; box-shadow: none; flex-wrap: wrap; gap: 16px; justify-content: flex-start; padding: 0; }
+.cs-b-bc > .cs-b-pc .cs-b-pc-screen { width: min(160px, 100%); }
+.cs-b-bc > .cs-b-pc .cs-b-pc-go { background: var(--ui-bg-quaternary); color: var(--ui-text-primary); position: static; }
+.cs-b-bc > .cs-b-pc .cs-b-pc-wait { position: static; }
 @container (max-width: 640px) { .cs-ip-lbl, .cs-ip-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .cs-ip, .cs-b-pc, .cs-b-live.on { animation: none; } }
 `

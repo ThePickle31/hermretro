@@ -45,12 +45,16 @@ export function replyAssets(items, root) {
  *  viewer show pictures big): a click opens the asset viewer. Another game's picture stays an inert line (the app
  *  would read the file itself); anything else the backend will not give (outside the games) stays the app's own
  *  MEDIA rendering. */
-function ReplyImage({ asset, line, onOpen }) {
+function ReplyImage({ asset, line, onOpen, featured }) {
   const id = useId()
   const { state, code, asset: loaded } = useAssetPreview(asset.path, asset.version)
 
   if (state === 'none') {
     return MessageTextContent ? jsx(MessageTextContent, code === 'OTHER_GAME' ? { media: false, previewOnly: true, text: line } : { text: line }) : null
+  }
+
+  if (featured) {
+    return null
   }
 
   if (state === 'loading') {
@@ -81,7 +85,7 @@ function ReplyImage({ asset, line, onOpen }) {
 
 // Markdown is rendered once per text: only the block still streaming re-renders as tokens arrive.
 export const AgentText = memo(
-  ({ item, root, onOpenAsset }) => {
+  ({ item, root, onOpenAsset, featuredPaths }) => {
     const segments = replySegments(item.text, root)
     const media = replyAssets([item], root)
 
@@ -91,7 +95,7 @@ export const AgentText = memo(
     segments.forEach((segment, index) => {
       if (segment.type === 'image') {
         const asset = media.find(entry => entry.path === segment.path)
-        const chip = jsx(ReplyImage, { asset, line: segment.line, onOpen: onOpenAsset }, `m${index}`)
+        const chip = jsx(ReplyImage, { asset, featured: featuredPaths.includes(asset.path), line: segment.line, onOpen: onOpenAsset }, `m${index}`)
         const last = blocks[blocks.length - 1]
 
         if (last?.images) {
@@ -109,5 +113,6 @@ export const AgentText = memo(
       children: blocks.map(block => (block?.images ? jsx('div', { className: 'cs-b-rimgs', children: block.images }, block.key) : block))
     })
   },
-  (previous, next) => previous.item.text === next.item.text && previous.root === next.root && previous.onOpenAsset === next.onOpenAsset
+  (previous, next) => previous.item.text === next.item.text && previous.root === next.root && previous.onOpenAsset === next.onOpenAsset &&
+    previous.featuredPaths.length === next.featuredPaths.length && previous.featuredPaths.every((path, index) => path === next.featuredPaths[index])
 )

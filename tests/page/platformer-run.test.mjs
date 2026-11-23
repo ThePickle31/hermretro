@@ -2,7 +2,6 @@
 // New Game form, with a fake world and a fake clock, in jsdom: it is built for the area alone (the form takes no
 // part), keeps its world while the area keeps its size, follows the theme even under reduced motion, cleans up, and
 // the header (with the game switcher's menu) stays above the form.
-// Run alone: node tests/page/platformer-run.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { registerAliases } from './aliases.mjs'

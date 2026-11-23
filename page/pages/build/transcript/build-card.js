@@ -31,24 +31,29 @@ export function buildCardArt(parts, root) {
     ...made.map(asset => asset.path)
   ])].slice(0, 2)
 
-  return { changes, edited }
+  const primary = reported?.length
+    ? changes.find(change => change.kind !== 'removed' && /\.(png|gif|jpe?g|webp)$/i.test(change.image?.path ?? ''))?.image.path
+    : null
+
+  return { changes, edited, primary: primary ?? parts.assets.find(asset => !asset.looked && asset.kind !== 'Playtest frame')?.path ?? null }
 }
 
 /** An edited picture as it was before the turn and as it is after, with Keep and Undo (Undo puts the
  *  earlier version back through the kept versions; the one there now is kept too, so it can be redone).
- *  Shows nothing when the file is new this turn (nothing earlier was kept). */
+ *  A new image shows its current version. */
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
-  const beforeVersion = `reply:${from}`
+  const beforeVersion = from ? `reply:${from}` : null
   const afterVersion = to ? `reply:${to}` : null
-  const before = useAssetPreview(path, beforeVersion)
+  const before = useAssetPreview(from ? path : null, beforeVersion)
   const after = useAssetPreview(path, afterVersion)
   const root = useContext(AssetGame)
   const [state, setState] = useState(null)
 
-  if (before.state !== 'ok' || !before.asset.earlier || after.state !== 'ok') {
+  if (after.state !== 'ok') {
     return null
   }
 
+  const compare = before.state === 'ok' && before.asset.earlier
   const name = after.asset.sprite?.name || after.asset.name
   const undo = async () => {
     setState('busy')
@@ -69,7 +74,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   }
   const side = (loaded, label, now) =>
     jsxs('button', {
-      'aria-label': `Look closer at ${label.toLowerCase()} version of ${name}`,
+      'aria-label': compare ? `Look closer at ${label.toLowerCase()} version of ${name}` : `Look closer at ${name}`,
       className: now ? 'cs-b-ba-side now' : 'cs-b-ba-side',
       onClick: event => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
       type: 'button',
@@ -81,9 +86,13 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     children: [
       jsxs('div', {
         className: 'cs-b-ba-pair',
-        children: [side(before.asset, 'Before', false), jsx('span', { 'aria-hidden': true, className: 'cs-b-ba-arrow', children: '\u2192' }), side(after.asset, 'After', true)]
+        children: [
+          compare ? side(before.asset, 'Before', false) : null,
+          compare ? jsx('span', { 'aria-hidden': true, className: 'cs-b-ba-arrow', children: '\u2192' }) : null,
+          side(after.asset, compare ? 'After' : name, true)
+        ]
       }),
-      actions && state !== 'kept'
+      compare && actions && state !== 'kept'
         ? jsxs('div', {
             className: 'cs-row cs-b-ba-acts',
             children:
@@ -122,16 +131,25 @@ function ChangeList({ changes, onOpen }) {
   })
 }
 
-export function BuildCard({ art, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+export function BuildCard({ art, primary, replay, play, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false)
   const failed = build?.state === 'failed'
   const { changes, edited } = art
   const tested = report?.tested ?? []
   const untested = report?.untested ?? []
   const notes = report?.notes ?? []
-  const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? 'Done')
-  const summary = report?.summary ?? (failed ? parts.buildFailed : null)
-  const hasFoot = tested.length || untested.length || notes.length || failed
+  const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? (primary ? baseName(primary) : 'Done'))
+  const summary = (failed && parts.buildFailed) || report?.summary
+  const extraArt = edited.filter(path => path !== primary)
+  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed
+  const compareArt = path => jsx(BeforeAfter, {
+    actions: isLast && !chatBusy,
+    from: parts.startedAt,
+    onOpen: onOpenAsset,
+    onSend,
+    path,
+    to: parts.endedAt
+  }, path)
 
   return jsxs('div', {
     className: `cs-b-bc${failed ? ' bad' : ''}${live ? ' live' : ''}`,
@@ -148,8 +166,8 @@ export function BuildCard({ art, build, parts, report, took, at, live, isLast, c
         ]
       }),
       summary ? jsx('p', { className: 'cs-b-bc-sum', children: summary }) : null,
-      ...edited.map(path => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
-      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
+      primary ? compareArt(primary) : replay,
+      play,
       hasFoot
         ? jsxs('div', {
             className: 'cs-b-bc-foot',
@@ -173,6 +191,8 @@ export function BuildCard({ art, build, parts, report, took, at, live, isLast, c
         ? jsxs('div', {
             className: 'cs-b-bc-details',
             children: [
+              changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
+              ...extraArt.map(compareArt),
               tested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Play-tested' }), ...tested.map((line, index) => jsxs('p', { children: [jsx('span', { className: 'cs-b-ok', children: '\u2713 ' }), line] }, index))] }) : null,
               untested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Not tested' }), ...untested.map((line, index) => jsx('p', { className: 'cs-faint', children: `\u25CB ${line}` }, index))] }) : null,
               notes.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'You might notice' }), ...notes.map((line, index) => jsx('p', { children: line }, index))] }) : null,

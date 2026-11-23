@@ -53,6 +53,11 @@ export function BuildStatus({ chat, onStop }) {
     }
   }
 
+  // The live transcript already names the working step. Reserve the composer for conditions needing attention.
+  if (!tone && quietFor < 45_000 && chat.items.length) {
+    return null
+  }
+
   return jsxs('div', {
     'aria-live': 'polite',
     className: `cs-b-status ${tone}`,

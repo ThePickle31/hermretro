@@ -2,7 +2,6 @@
 // page's toolchain install, refuses Update; a build that starts after the last check is caught right before anything
 // changes; one that starts while Hermes updates is waited for before the hermretro profile reloads; and nothing new is
 // sent from the Build page while an update runs.
-// Run alone: node tests/page/page-update-busy.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

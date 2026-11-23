@@ -1,6 +1,5 @@
 // The Build page's New Game shelf: the games being worked on stand as cartridges under the form, newest first, each
 // opening its own chat; All games opens the games menu. (Order and fit rules: cart-shelf.test.mjs.)
-// Run alone: node tests/page/page-build-shelf.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
