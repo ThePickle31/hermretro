@@ -26,7 +26,14 @@ def build_succeeded(result, status=None) -> bool:
 
 @hook("post_tool_call")
 def snapshot_after_build(
-    tool_name=None, args=None, result=None, status=None, conversation_id=None, session_id=None, **_kwargs
+    tool_name=None,
+    args=None,
+    result=None,
+    status=None,
+    conversation_id=None,
+    session_id=None,
+    tool_call_id=None,
+    **_kwargs,
 ):
     """``post_tool_call``: after a successful build of a library game, keep a snapshot of its files for
     the Build page's history (Restore). Never raises."""
@@ -36,7 +43,8 @@ def snapshot_after_build(
         args = args if isinstance(args, dict) else {}
         if args.get("sourcePath"):
             return  # a standalone C experiment, not the game's build
-        structured = (host.tool_result_payload(result) or {}).get("structuredContent") or {}
+        payload = host.tool_result_payload(result) or {}
+        structured = payload["structuredContent"]
         candidates = [structured.get("projectRoot"), args.get("projectPath")]
         try:
             candidates.append(host._chat_project(str(conversation_id or ""), str(session_id or "")))
@@ -47,7 +55,15 @@ def snapshot_after_build(
         if found is None:
             return
         game, root = found
-        taken = snapshots.take(_snapshots_dir(), game, root, "build")
+        build_ref = payload.get("buildRef")
+        build_call = None
+        if build_ref and isinstance(tool_call_id, str) and tool_call_id and not host._is_child(session_id):
+            # Hermes gives a single deferred local tool its outer call ID. Its resume projection
+            # retains that ID and the timestamp, which the builds RPC confirms against the stored result.
+            bound = host._bound_game(conversation_id, session_id)
+            if bound and bound["id"] == game and (stored := bound["session"].get("storedId")):
+                build_call = (stored, tool_call_id)
+        taken = snapshots.take(_snapshots_dir(), game, root, "build", build_ref=build_ref, build_call=build_call)
         if taken.get("skipped"):
             logger.debug("hermretro: build snapshot of %s skipped: %s", root, taken["skipped"])
         else:

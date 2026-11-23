@@ -142,7 +142,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 
 - **Studio Conversation** keeps a 46-rem message column aligned with the composer. The current request is a
   right-aligned bubble, followed by the agent's words, its work disclosure and the game result. Earlier numbered
-  builds fold into rows with their number, title and failure state. Opening one mounts its messages and media.
+  builds fold into rows with their number, title and any failure or unknown outcome. Opening one mounts its
+  messages and media. A live correction stays in the request's turn, including work that started before it.
   Other conversation turns remain in place. A folded playable build offers Play while the game is idle.
 - **Agent steps** start folded while working and after completion. The row names the running tool and the step
   count. Opening it shows live updates and keeps it open when the turn finishes. A small asset stack opens its first
@@ -159,7 +160,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   id, or no tool at all as the gateway resumes it); a result with `ok: false`, `isError`, an `error`, or the engine's `structuredContent.success: false` (a build that ran and stopped; its first error diagnostic is the reason) marks its step failed, live and in history. Plumbing
   (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
   lead the reply, words between steps are notes inside, words after the last step close it. Steps
-  keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).
+  keep only small args (`stepArgs`). A report keeps its whole (`normalizeReport`).
+  A compact ROM result without an outcome starts as unknown. It is shown as built only if a saved snapshot
+  confirms the exact stored result occurrence.
 - **Build results.** Each turn that finishes a ROM or web compile gets a build number in conversation order.
   Its result shows the report title and summary, test counts, and a diagnostic and retry action for failure.
   Details opens the change list, checks and notes. A result can feature a versioned sprite or background,
@@ -169,10 +172,16 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
   first, with Show (expands the build and scrolls to it) and Restore (on built ones, except the one already playing
-  when nothing changed since). Restore matches the build to a snapshot from the `builds` RPC by time,
-  confirms in place, calls `build_restore` (which saves the game as it is first) and sends the agent
-  "I restored the game to build #n … Please build it again", so the restored files become the newest
-  build. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
+  when nothing changed since). Restore matches a snapshot from the `builds` RPC using the build's
+  reference. Compact result rows instead use the call ID and exact result timestamp confirmed for
+  that reference. Legacy snapshots without an exact match and before-restore backups appear by date
+  and time, including for games without a conversation. Backup rows also show the ID.
+  Each selection confirms in place and calls `build_restore`
+  to save the current project and put the earlier files back. A complete restore submits a rebuild,
+  opening a conversation through the usual first-message flow when needed. An incomplete restore
+  shows the backup ID and file problem. Reopen Builds to select that backup. A failed rebuild
+  submission reports that the files were already restored. There is no Assets panel and no Full chat
+  button (Open in full chat stays in the switcher's
   right-click menu and the stuck status).
 - **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and

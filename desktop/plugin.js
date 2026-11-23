@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 bc011309d85cd444611083e0b3f427cbc75310120886ce39b5dea1e7dd8e0fdc
- * body: sha256 02a118bedd03a0335bf3a5015f88fc10894ece35d17318b275f86edb28c41a55
+ * sources: sha256 5e60f9637f2b8f089317f7b383712e54aeedacd7f967b8d0103b31325478f6ce
+ * body: sha256 0d61108f5d92b3f5c5a3157c600b43f1007432edada444faf781483766891346
  */
 // page/sdk.js
 import {
@@ -432,6 +432,12 @@ function studioError(error, what) {
   return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in.` : message || "Unknown error";
 }
 
+// page/app/tools.js
+var PRESENT_TOOL = "chromatic_present_game";
+var ROM_BUILD_TOOL = "chromatic_rom_build";
+var BUILD_TOOLS = /* @__PURE__ */ new Set([ROM_BUILD_TOOL, "chromatic_web_preview"]);
+var REPORT_TOOL = "chromatic_build_report";
+
 // page/app/update/lock.js
 var UPDATE_LOCK = atom(false);
 function isUpdating() {
@@ -445,6 +451,24 @@ function setUpdating(active) {
 }
 var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
 
+// page/pages/build/build-snapshots.js
+async function requestBuildSnapshots(game, stored) {
+  const answer = await callStudioOnly(RPC_BUILDS, { game, stored }, 2e4);
+  return answer?.ok && Array.isArray(answer.builds) ? answer.builds : false;
+}
+function snapshotFor(build, snapshots) {
+  if (!Array.isArray(snapshots)) {
+    return null;
+  }
+  const matches = snapshots.flatMap((snap) => {
+    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : [];
+    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : [];
+    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map((call) => call.ref);
+    return candidates.filter((ref) => refs.includes(ref)).map((buildRef) => ({ id: String(snap.id), buildRef }));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
 function mergeAttachments(current, more) {
@@ -452,11 +476,6 @@ function mergeAttachments(current, more) {
   return [...current, ...more.filter((item) => !known.has(attachmentKey(item)))];
 }
 var attachmentLine = (item) => item.detail ?? `About ${item.path}:`;
-
-// page/app/tools.js
-var PRESENT_TOOL = "chromatic_present_game";
-var BUILD_TOOLS = /* @__PURE__ */ new Set(["chromatic_rom_build", "chromatic_web_preview"]);
-var REPORT_TOOL = "chromatic_build_report";
 
 // page/pages/build/chat/report.js
 var REPORT_KINDS = /* @__PURE__ */ new Set(["added", "changed", "removed"]);
@@ -502,36 +521,49 @@ function toolResultObject(value) {
   }
   return null;
 }
-function unwrapCalls(id, name, args) {
-  let parsed = args;
-  if (typeof parsed === "string") {
+function toolBuildRef(value, parsed) {
+  if (typeof parsed?.buildRef === "string" && parsed.buildRef) {
+    return parsed.buildRef;
+  }
+  const output = parsed?.truncated === true ? parsed.output : value;
+  const body2 = typeof output === "string" && output.startsWith("<persisted-output>\n") ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1] : parsed?.truncated === true ? output : null;
+  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body2 ?? "")?.[1] ?? null;
+}
+function jsonValue(value) {
+  if (typeof value === "string") {
     try {
-      parsed = JSON.parse(parsed);
+      return JSON.parse(value);
     } catch {
-      parsed = null;
+      return null;
     }
   }
-  if (name === "tool_call" && Array.isArray(parsed?.calls) && parsed.calls.length) {
-    return parsed.calls.map((call, index) => {
-      let inner = call?.arguments ?? null;
-      if (typeof inner === "string") {
-        try {
-          inner = JSON.parse(inner);
-        } catch {
-          inner = null;
-        }
-      }
-      return { id: id == null ? null : `${id}:${index}`, name: String(call?.name ?? "tool"), args: inner && typeof inner === "object" ? inner : null };
-    });
+  return value;
+}
+function callArgs(value) {
+  const parsed = jsonValue(value);
+  return parsed && typeof parsed === "object" ? parsed : null;
+}
+function unwrapCalls(id, name, args) {
+  const parsed = callArgs(args);
+  if (name === "tool_call") {
+    const entries = jsonValue(parsed?.calls ?? (parsed?.name ? [parsed] : null));
+    const calls = Array.isArray(entries) ? entries : entries && typeof entries === "object" ? [entries] : [];
+    if (calls.length) {
+      return calls.map((call, index) => ({
+        id: id == null || calls.length === 1 ? id : `${id}:${index}`,
+        name: String(call?.name ?? "tool").trim(),
+        args: callArgs(call?.arguments)
+      }));
+    }
   }
-  return [{ id, name: String(name ?? "tool"), args: parsed && typeof parsed === "object" ? parsed : null }];
+  return [{ id, name: String(name ?? "tool"), args: parsed }];
 }
 
 // page/pages/build/chat/steps.js
 function toolFailed(payload) {
   const result = toolResultObject(payload?.result);
   return Boolean(
-    payload?.error || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
+    payload?.error || payload?.is_error === true || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
   );
 }
 function engineError(parsed, content) {
@@ -542,7 +574,7 @@ function engineError(parsed, content) {
   const error = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string");
   return error?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
-var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
+var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "sourcePath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
 function stepArgs(args) {
   if (!args || typeof args !== "object") {
     return null;
@@ -558,19 +590,22 @@ function stepArgs(args) {
   }
   return Object.keys(kept).length ? kept : null;
 }
-function stepInfo(name, result) {
-  const parsed = toolResultObject(result);
-  if (!parsed || typeof parsed !== "object") {
+function stepInfo(name, result, exactCall = true) {
+  const value = toolResultObject(result);
+  const buildRef = exactCall && name === ROM_BUILD_TOOL ? toolBuildRef(result, value) : null;
+  if (!value && !buildRef) {
     return null;
   }
+  const parsed = value ?? {};
   const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
-  const text2 = (value) => typeof value === "string" && value ? value : null;
+  const text2 = (value2) => typeof value2 === "string" && value2 ? value2 : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean);
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
+    buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
     report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
@@ -758,74 +793,112 @@ function messageText(message) {
   }
   return Array.isArray(message.content) ? message.content.map((part) => part?.type === "text" && typeof part.text === "string" ? part.text : "").join("") : "";
 }
+function matchingStep(occurrence, call, index, count) {
+  if (!occurrence) {
+    return null;
+  }
+  const { steps, finished } = occurrence;
+  if (count === steps.length) {
+    const step = steps[index];
+    return !finished.has(step) && (step.name === call.name || call.name === "tool") ? step : null;
+  }
+  const unmatched = steps.filter((step) => step.name === call.name && !finished.has(step));
+  return unmatched.length === 1 ? unmatched[0] : null;
+}
 function historyItems(messages, running = false) {
   const items = [];
   const tools = /* @__PURE__ */ new Map();
   let agentSinceUser = false;
   let lastAt = null;
+  let stepCount = 0;
   const closeTurn = () => {
     if (agentSinceUser) {
-      const startedAt = [...items].reverse().find((item) => item.kind === "user")?.at ?? null;
+      const startedAt = items.findLast((item) => item.kind === "user" && !item.followup)?.at ?? null;
       items.push({ kind: "end", status: "complete", at: lastAt, startedAt, history: true });
     }
     agentSinceUser = false;
+    tools.clear();
   };
   const addTool = (call, at) => {
-    if (call.id && tools.has(call.id)) {
-      return;
-    }
-    const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: "done", startedAt: at };
+    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: call.name === ROM_BUILD_TOOL ? "unknown" : "done", startedAt: at };
     const last = items[items.length - 1];
-    if (call.id) {
-      tools.set(call.id, tool);
-    }
     if (last?.kind === "tools") {
       last.tools.push(tool);
     } else {
       items.push({ kind: "tools", tools: [tool] });
     }
+    return tool;
   };
   for (const message of Array.isArray(messages) ? messages : []) {
     if (!message || message.display_kind === "hidden") {
       continue;
     }
     const text2 = messageText(message);
-    const at = typeof message.timestamp === "number" && message.timestamp > 0 ? message.timestamp * 1e3 : null;
+    const timestamp = Number.isFinite(message.timestamp) && message.timestamp > 0 ? message.timestamp : null;
+    const at = timestamp === null ? null : timestamp * 1e3;
     if (message.role === "user") {
       if (!text2.trim()) {
         continue;
       }
-      closeTurn();
-      items.push({ kind: "user", text: text2, at });
+      const followup = message.display_kind === "steer";
+      if (!followup) {
+        closeTurn();
+      }
+      items.push({ kind: "user", text: text2, at, followup });
     } else if (message.role === "assistant") {
       agentSinceUser = true;
       if (text2.trim()) {
         items.push({ kind: "assistant", open: false, text: text2, at });
       }
       for (const call of Array.isArray(message.tool_calls) ? message.tool_calls : []) {
-        for (const inner of unwrapCalls(call?.id ?? null, call?.function?.name ?? call?.name, call?.function?.arguments ?? call?.args)) {
-          addTool(inner, at);
+        const id = call?.id ?? null;
+        const name = call?.function?.name ?? call?.name;
+        const steps = unwrapCalls(id, name, call?.function?.arguments ?? call?.args).map((inner) => addTool(inner, at));
+        if (id) {
+          tools.set(id, { name, steps, finished: /* @__PURE__ */ new Set() });
         }
       }
     } else if (message.role === "tool") {
       agentSinceUser = true;
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
-        if (known) {
-          if (at && known.startedAt) {
-            known.duration = Math.max(0, (at - known.startedAt) / 1e3);
-          }
-          known.args = known.args ?? stepArgs(inner.args);
-          const result = text2.trim().startsWith("{") ? text2 : null;
-          if (result) {
-            known.info = stepInfo(known.name, result);
-            if (toolFailed({ result })) {
-              known.state = "failed";
-            }
-          }
-        } else {
-          addTool(inner, at);
+      const id = message.tool_call_id ?? null;
+      const name = message.name ?? message.tool_name;
+      const pending = tools.get(id);
+      const calls = unwrapCalls(id, name, message.args);
+      const result = toolResultObject(text2);
+      const failed = toolFailed({ result });
+      const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1);
+      const outerResult = pending?.name === "tool_call" && calls.length === 1 && ["tool_call", "tool"].includes(calls[0].name);
+      let steps;
+      if (outerResult && (exactCall || failed)) {
+        steps = pending.steps.filter((step) => !pending.finished.has(step));
+      } else {
+        steps = calls.map((inner, index) => {
+          const step = matchingStep(pending, inner, index, calls.length) ?? addTool(inner, at);
+          step.args = step.args ?? stepArgs(inner.args);
+          return step;
+        });
+      }
+      for (const step of steps) {
+        if (at && step.startedAt) {
+          step.duration = Math.max(0, (at - step.startedAt) / 1e3);
         }
+        if (exactCall && typeof id === "string" && timestamp !== null) {
+          step.resultCall = { id, timestamp };
+        }
+        if (text2) {
+          step.info = stepInfo(step.name, text2, exactCall);
+          if (failed) {
+            step.state = "failed";
+          } else if (step.state === "unknown" && (step.info?.buildRef || result?.ok === true || result?.structuredContent?.success === true)) {
+            step.state = "done";
+          }
+        }
+        if (pending?.steps.includes(step)) {
+          pending.finished.add(step);
+        }
+      }
+      if (pending && (outerResult || pending.finished.size === pending.steps.length)) {
+        tools.delete(id);
       }
     }
     if (at) {
@@ -852,19 +925,22 @@ function appendText(chat, text2) {
   return { ...chat, items: [...chat.items, { kind: "assistant", open: true, text: text2 }] };
 }
 function updateTool(chat, id, change) {
-  if (id == null) {
+  if (!id) {
     return chat;
   }
-  const key = String(id);
-  let hit = false;
-  const items = chat.items.map((item) => {
-    if (item.kind !== "tools" || !item.tools.some((tool) => tool.id === key || String(tool.id).startsWith(`${key}:`))) {
-      return item;
+  const matches = (tool) => tool.callId === id && tool.state === "running" && tool.turn === (chat.turn ?? null);
+  for (let index = chat.items.length - 1; index >= 0; index--) {
+    const item = chat.items[index];
+    if (item.kind === "user" && !item.followup || item.kind === "end") {
+      break;
     }
-    hit = true;
-    return { ...item, tools: item.tools.map((tool) => tool.id === key || String(tool.id).startsWith(`${key}:`) ? change(tool) : tool) };
-  });
-  return hit ? { ...chat, items } : chat;
+    if (item.kind === "tools" && item.tools.some(matches)) {
+      const items = [...chat.items];
+      items[index] = { ...item, tools: item.tools.map((tool) => matches(tool) ? change(tool) : tool) };
+      return { ...chat, items };
+    }
+  }
+  return chat;
 }
 function touched(chat, now = Date.now()) {
   return now - (chat.lastEventAt ?? 0) > 500 ? { ...chat, lastEventAt: now } : chat;
@@ -904,6 +980,9 @@ function reduceChat(chat, event) {
     chat = { ...chat, seq: event.seq };
   }
   const now = Date.now();
+  if (event.type?.startsWith("tool.") && payload.turn_id && chat.turn && (payload.turn_id !== chat.turn || !chat.busy && lastItem(chat)?.kind === "end")) {
+    return chat;
+  }
   switch (event.type) {
     case "message.start": {
       const [next, ...rest] = !chat.busy || lastItem(chat)?.kind === "end" ? chat.queued ?? [] : [];
@@ -958,6 +1037,8 @@ function reduceChat(chat, event) {
       const sealed = sealText(chat);
       const tools = unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ""), payload.args).map((call) => ({
         id: call.id,
+        callId: payload.tool_id,
+        turn: chat.turn ?? null,
         name: call.name,
         args: stepArgs(call.args),
         report: reportOf(call.name, call.args),
@@ -974,15 +1055,16 @@ function reduceChat(chat, event) {
       return touched(updateTool(chat, payload.tool_id, (tool) => ({ ...tool, progress: progress2 })), now);
     }
     case "tool.complete": {
+      const calls = unwrapCalls(payload.tool_id || `t${now}`, String(payload.name ?? ""), payload.args);
       const done = (tool) => ({
         ...tool,
         args: tool.args ?? stepArgs(payload.args),
-        report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ""), payload.args)[0]?.args),
+        report: tool.report ?? reportOf(tool.name, calls[0]?.args),
         state: toolFailed(payload) ? "failed" : "done",
         summary: payload.summary ?? null,
         duration: typeof payload.duration_s === "number" ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1e3 : null,
         image: typeof payload.image_path === "string" ? payload.image_path : null,
-        info: stepInfo(tool.name, payload.result),
+        info: stepInfo(tool.name, payload.result, tool.id === payload.tool_id || !payload.tool_id && calls.length === 1),
         progress: null
       });
       const updated = updateTool(chat, payload.tool_id, done);
@@ -990,7 +1072,7 @@ function reduceChat(chat, event) {
         ...sealText(chat),
         items: [
           ...sealText(chat).items,
-          { kind: "tools", tools: unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ""), payload.args).map((call) => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
+          { kind: "tools", tools: calls.map((call) => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
         ]
       };
       return { ...next, activity: chat.busy ? "thinking" : chat.activity, lastEventAt: now };
@@ -1099,12 +1181,13 @@ function schedulePromptCheck(stored, delay = 1200) {
 var APPROVAL_LABELS = { once: "Allow once", session: "Allow for this chat", always: "Always allow", deny: "Deny" };
 
 // page/pages/build/chat/actions.js
-async function openBuildChat(stored) {
+async function openBuildChat(stored, game) {
   const known = BUILD_CHATS.get()[stored];
   if (known?.runtime || known?.opening) {
     return;
   }
-  patchChat(stored, (chat) => ({ ...chat, opening: true, failure: null }));
+  game ??= known?.game;
+  patchChat(stored, (chat) => ({ ...chat, game, opening: true, failure: null }));
   await retainChatRoute();
   try {
     const result = await chatRequest("session.resume", { session_id: stored }, 6e4);
@@ -1115,11 +1198,12 @@ async function openBuildChat(stored) {
     const running = typeof result?.running === "boolean" ? result.running : Boolean(BUILD_CHATS.get()[stored]?.busy);
     const pending = result?.pending ?? result?.info?.pending_submissions;
     const at = Date.now();
+    const items = historyItems(result?.messages, running);
     patchChat(stored, (chat) => ({
       ...withInfo(chat, result?.info),
       runtime,
       opening: false,
-      items: historyItems(result?.messages, running),
+      items,
       // Messages Hermes holds for later (behind a running or lost turn) wait under the conversation.
       queued: (Array.isArray(pending) ? pending : []).filter((row) => row?.status === "queued" && typeof row.text === "string" && row.text).map((row) => ({ kind: "user", text: row.text, at })),
       lost: lostTurns(pending),
@@ -1131,10 +1215,28 @@ async function openBuildChat(stored) {
       lastEventAt: Date.now(),
       unreachable: 0
     }));
+    if (game) {
+      void confirmStoredBuilds(stored, game, items);
+    }
   } catch (error) {
     const { message } = describeRequestError(error);
     const missing = error?.code === 4007 || /^session not found$/i.test(message.trim());
     patchChat(stored, (chat) => ({ ...chat, opening: false, failure: message, missing }));
+  }
+}
+async function confirmStoredBuilds(stored, game, items) {
+  const unresolved = items.flatMap((item) => item.kind === "tools" ? item.tools : []).filter((tool) => tool.name === ROM_BUILD_TOOL && tool.state === "unknown" && tool.resultCall && !tool.args?.sourcePath);
+  if (!unresolved.length) {
+    return;
+  }
+  const snapshots = await requestBuildSnapshots(game, stored).catch(() => false);
+  const confirmed = new Set(unresolved.filter((tool) => snapshotFor(tool, snapshots)));
+  if (confirmed.size) {
+    patchChat(stored, (chat) => ({
+      ...chat,
+      // These are the exact tool objects from this resume, even if live events appended more work.
+      items: chat.items.map((item) => item.kind === "tools" && item.tools.some((tool) => confirmed.has(tool)) ? { ...item, tools: item.tools.map((tool) => confirmed.has(tool) ? { ...tool, state: "done" } : tool) } : item)
+    }));
   }
 }
 async function reopenBuildChat(stored) {
@@ -1197,6 +1299,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   const live = Boolean(chat?.runtime);
   const paused = Boolean(chat?.lost?.length);
   const behindTurn = Boolean(chat?.busy) || paused;
+  const submission = newId();
   patchChat(stored, (current) => ({
     ...current,
     busy: live && !paused,
@@ -1205,7 +1308,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: "user", text: shown, at: now, ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
+      { kind: "user", text: shown, at: now, submission, followup: Boolean(current.busy), ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
     ]
   }));
   if (!chat?.runtime) {
@@ -1220,15 +1323,21 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   try {
     const named = attachments.length ? `${attachments.map(attachmentLine).join("\n")}
 ${text2}` : text2;
-    const reply = await chatRequest("prompt.submit", { session_id: chat.runtime, submission_id: newId(), text: named });
-    if (reply?.status === "queued" && behindTurn) {
+    const reply = await chatRequest("prompt.submit", { session_id: chat.runtime, submission_id: submission, text: named });
+    if (behindTurn && (reply?.status === "queued" || reply?.status === "streaming")) {
       patchChat(stored, (current) => {
-        const index = current.items.findLastIndex((item2) => item2.kind === "user" && item2.at === now);
+        const index = current.items.findIndex((item2) => item2.submission === submission);
         if (index === -1) {
           return current;
         }
-        const item = current.items[index];
-        return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...current.queued ?? [], item] };
+        const item = { ...current.items[index], followup: false };
+        const items = current.items.filter((entry) => entry.submission !== submission);
+        if (reply.status === "queued") {
+          return { ...current, items, queued: [...current.queued ?? [], item] };
+        }
+        const end = items.findIndex((entry, position) => position >= index && entry.kind === "end");
+        const start = end === -1 ? index : end + 1;
+        return { ...current, items: [...items.slice(0, start), item, ...items.slice(start)] };
       });
     }
   } catch (error) {
@@ -5228,6 +5337,9 @@ function stepWords(tool) {
   const short = shortTool(tool.name);
   const words = STEP_WORDS[short];
   const pair2 = typeof words === "function" ? words(tool.args ?? {}) : words;
+  if (tool.state === "unknown") {
+    return [pair2?.[0] ?? "Building", "Build outcome unknown"];
+  }
   if (pair2) {
     return pair2;
   }
@@ -5511,7 +5623,7 @@ function deriveTurns(items) {
   const turns = [];
   let current = null;
   items.forEach((item, index) => {
-    if (item.kind === "user" || !current || current.ended && item.kind !== "end") {
+    if (item.kind === "user" && !item.followup || !current || current.ended && item.kind !== "end") {
       current = { key: `t${index}`, user: item.kind === "user" ? item : null, items: item.kind === "user" ? [] : [item], ended: false };
       turns.push(current);
     } else {
@@ -5598,30 +5710,37 @@ function turnParts(turn, root) {
     frames,
     built: builds.some((tool) => tool.state === "done"),
     buildFailed: lastBuild?.state === "failed" ? lastBuild.info?.error ?? "The build failed." : null,
-    buildState: turnBuildState(turn),
+    buildState: compileState(lastCompile(turn)),
     report,
     note: presented?.info?.note ?? null,
     running: steps.find((tool) => tool.state === "running") ?? null
   };
 }
 var COMPILE_STEPS = /* @__PURE__ */ new Set(["rom_build", "web_build"]);
-function turnBuildState(turn) {
-  let state = null;
+function lastCompile(turn) {
+  let compile = null;
   for (const item of turn.items) {
     if (item.kind === "tools") {
       for (const tool of item.tools) {
-        if (COMPILE_STEPS.has(shortTool(tool.name)) && (tool.state === "done" || tool.state === "failed")) {
-          state = tool.state === "done" ? "built" : "failed";
+        if (COMPILE_STEPS.has(shortTool(tool.name)) && ["done", "failed", "unknown"].includes(tool.state)) {
+          compile = tool;
         }
       }
     }
   }
-  return state;
+  return compile;
+}
+function compileState(compile) {
+  return compile ? compile.state === "done" ? "built" : compile.state : null;
+}
+function isGameBuild(tool) {
+  return shortTool(tool.name) === "rom_build" && tool.state !== "failed" && !tool.args?.sourcePath;
 }
 function buildHistory(turns) {
   const builds = [];
   turns.forEach((turn, index) => {
-    const state = turnBuildState(turn);
+    const compile = lastCompile(turn);
+    const state = compileState(compile);
     if (!state) {
       return;
     }
@@ -5656,13 +5775,16 @@ function buildHistory(turns) {
       title: report?.title ?? (asked2 ? asked2.length > 48 ? `${asked2.slice(0, 47)}…` : asked2 : `Build ${builds.length + 1}`),
       startAt,
       endAt,
+      buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
+      resultCall: isGameBuild(compile) ? compile.resultCall ?? null : null,
       thumb
     });
   });
   return builds;
 }
 function turnBuilt(turn) {
-  return turnBuildState(turn) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
+  const state = compileState(lastCompile(turn));
+  return (state === null || state === "built") && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
 function madeAssets(parts, root) {
@@ -6656,6 +6778,7 @@ function BuildCard({ art, replay, play, build, parts, report, root, took, at, li
           jsx("b", { className: "cs-b-bc-title", children: title }),
           jsx("span", { className: "cs-faint cs-b-bc-meta", children: [took, at ? timeOfDay(at) : null].filter(Boolean).join(" · ") }),
           jsx("span", { className: "cs-grow" }),
+          build?.state === "unknown" ? jsx("span", { className: "cs-faint cs-small", children: "Outcome unknown" }) : null,
           playLabel
         ]
       }),
@@ -6903,6 +7026,7 @@ function BuildPromptCard({ stored, item }) {
 }
 
 // page/pages/build/transcript/worked.js
+var stepIcon = { failed: "error", stopped: "debug-stop", unknown: "question" };
 function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
   const [running, done] = stepWords(tool);
   const live = tool.state === "running";
@@ -6917,7 +7041,7 @@ function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
         children: [
           jsx("span", {
             className: "cs-b-ico",
-            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : tool.state === "stopped" ? "debug-stop" : "check", size: 12 })
+            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: stepIcon[tool.state] ?? "check", size: 12 })
           }),
           jsx("span", { className: live ? "cs-b-tool-name cs-b-shimmer" : "cs-b-tool-name", children: live ? running : tool.state === "failed" ? `${running} failed` : done }),
           detail ? jsx("span", { className: "cs-b-tool-detail", title: detail, children: detail }) : null,
@@ -6978,7 +7102,7 @@ function SimpleStep({ tool, assets, onOpenAsset, freshFrom }) {
         children: [
           jsx("span", {
             className: "cs-b-ico",
-            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : tool.state === "stopped" ? "debug-stop" : "check", size: 12 })
+            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: stepIcon[tool.state] ?? "check", size: 12 })
           }),
           jsx("span", { className: live ? "cs-b-tool-name cs-b-shimmer" : "cs-b-tool-name", children: live ? `${running}…` : failed ? `${running} failed` : done }),
           failed && tool.info?.error ? jsx("span", { className: "cs-b-tool-detail", title: tool.info.error, children: tool.info.error }) : null
@@ -6992,15 +7116,16 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
   const steps = group.entries.filter((entry) => entry.type === "step").map((entry) => entry.tool);
   const running = steps.some((tool) => tool.state === "running");
   const failed = !running && steps.length > 0 && steps[steps.length - 1].state === "failed";
+  const unknown = !running && !failed && steps.findLast((tool) => /^(rom_build|web_build)$/.test(shortTool(tool.name)))?.state === "unknown";
   const made = steps.flatMap((tool) => (assetsByStep.get(tool.id) ?? []).filter((asset) => !asset.looked && asset.kind !== "Playtest frame"));
   const seconds = steps.reduce((sum, tool) => sum + (typeof tool.duration === "number" ? tool.duration : 0), 0);
   const shown = group.entries.filter((entry) => !(entry.type === "step" && entry.tool.state === "done" && MINOR_STEPS.test(shortTool(entry.tool.name)) && !assetsByStep.get(entry.tool.id)?.length));
-  const icon = running ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : "check", size: 12 });
+  const icon = running ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : unknown ? "question" : "check", size: 12 });
   return jsxs("div", {
     className: "cs-b-ph",
     "data-group": group.kind,
     "data-open": open ? "true" : "false",
-    "data-state": running ? "running" : failed ? "failed" : "done",
+    "data-state": running ? "running" : failed ? "failed" : unknown ? "unknown" : "done",
     children: [
       jsxs("button", {
         "aria-expanded": open,
@@ -7009,7 +7134,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
         type: "button",
         children: [
           jsx("span", { className: "cs-b-ico", children: icon }),
-          jsx("span", { className: running && live ? "cs-b-ph-name cs-b-shimmer" : "cs-b-ph-name", children: groupTitle(group, running && live, made.length > 0) }),
+          jsx("span", { className: running && live ? "cs-b-ph-name cs-b-shimmer" : "cs-b-ph-name", children: unknown ? "Build outcome unknown" : groupTitle(group, running && live, made.length > 0) }),
           jsx("span", { className: "cs-grow" }),
           made.length && !open ? jsx(AssetStack, { assets: made, max: 3 }) : null,
           jsx("span", { className: "cs-b-ph-meta", children: `${steps.length} ${steps.length === 1 ? "step" : "steps"}${seconds >= 1 ? ` · ${spanWords(seconds * 1e3)}` : ""}` }),
@@ -7123,6 +7248,15 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
 }
 
 // page/pages/build/transcript/turn-view.js
+function UserMessage({ user }) {
+  return jsxs("div", {
+    className: "cs-b-user",
+    children: [
+      user.attachments?.length ? jsx("div", { className: "cs-b-chips", children: user.attachments.map((item) => jsx(AttachmentChip, { item }, attachmentKey(item))) }) : null,
+      jsx("span", { children: user.text })
+    ]
+  });
+}
 function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
   const parts = turnParts(turn, root);
   const user = turn.user;
@@ -7197,13 +7331,10 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   return jsxs("div", {
     className: "cs-b-turn-body",
     children: [
-      user ? jsxs("div", {
-        className: "cs-b-user",
-        children: [
-          user.attachments?.length ? jsx("div", { className: "cs-b-chips", children: user.attachments.map((item) => jsx(AttachmentChip, { item }, attachmentKey(item))) }) : null,
-          jsx("span", { children: user.text })
-        ]
-      }) : null,
+      user ? jsx(UserMessage, { user }) : null,
+      ...turn.items.filter((item) => item.kind === "user" && item.followup).map(
+        (item, index) => jsx(UserMessage, { user: item }, item.submission ?? `followup${index}`)
+      ),
       hasAgent ? jsxs("div", {
         className: "cs-b-her",
         children: [
@@ -7280,6 +7411,7 @@ function TurnView(props) {
               jsx("span", { className: "cs-b-history-number", children: `#${build.n}` }),
               jsx("span", { className: "cs-b-history-title", children: build.title }),
               build.state === "failed" ? jsx("span", { className: "cs-b-history-failed", children: "Failed" }) : null,
+              build.state === "unknown" ? jsx("span", { className: "cs-faint", children: "Outcome unknown" }) : null,
               jsx(Codicon, { name: open ? "chevron-down" : "chevron-right", size: 12 })
             ]
           }),
@@ -7607,6 +7739,8 @@ function BuildPill({ builds, chat, game }) {
   } else if (last?.state === "failed") {
     tone = "bad";
     label = `Build #${last.n} didn’t finish`;
+  } else if (last?.state === "unknown") {
+    label = `Build #${last.n} · outcome unknown`;
   } else if (game.state === "changed") {
     tone = "warn";
     label = good ? `Edited since build #${good.n}` : "Edited since the last build";
@@ -7624,24 +7758,8 @@ function BuildPill({ builds, chat, game }) {
   }
   return jsxs("span", { className: `cs-b-pill ${tone}`, children: [tone === "quiet" ? null : jsx("i", { className: "cs-b-pill-dot" }), label] });
 }
-function snapshotFor(build, snapshots) {
-  if (!build.endAt || !Array.isArray(snapshots)) {
-    return null;
-  }
-  const from = (build.startAt ?? build.endAt - 36e5) - 2e3;
-  const to = build.endAt + 5e3;
-  let found = null;
-  for (const snap of snapshots) {
-    const times = [snap.at, ...Array.isArray(snap.builds) ? snap.builds : []].filter((value) => typeof value === "number");
-    for (const time of times) {
-      if (time >= from && time <= to && (!found || time > found.time)) {
-        found = { id: String(snap.id), time };
-      }
-    }
-  }
-  return found?.id ?? null;
-}
-function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
+var snapshotDate = new Intl.DateTimeFormat(void 0, { dateStyle: "medium", timeStyle: "medium" });
+function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   const [open, setOpen] = useState(false);
   const [snapshots, setSnapshots] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -7653,7 +7771,8 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       return void 0;
     }
     let live = true;
-    callStudioOnly(RPC_BUILDS, { game: game.id }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
+    setSnapshots(null);
+    requestBuildSnapshots(game.id, stored).then((answer) => live && setSnapshots(answer)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
         setOpen(false);
@@ -7671,10 +7790,23 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, game.id]);
+  }, [open, game.id, stored, builds]);
   const newest = builds[builds.length - 1] ?? null;
-  const playingBuild = [...builds].reverse().find((build) => build.state === "built") ?? null;
-  const rows = [...builds].reverse();
+  const rows = [...builds].reverse().map((build) => ({ build, snapshot: snapshotFor(build, snapshots), key: build.key }));
+  const playingBuild = rows.find(({ build, snapshot }) => build.state === "built" || build.state === "unknown" && snapshot)?.build ?? null;
+  const represented = new Set(rows.map((row) => row.snapshot?.id));
+  const manual = [];
+  for (const saved of Array.isArray(snapshots) ? snapshots : []) {
+    const id = String(saved.id);
+    const legacy = saved.builds?.length || saved.reason === "build" && !saved.buildRefs?.length;
+    const backup = saved.reason === "before-restore" || Number.isFinite(saved.backup?.at);
+    const at = Number.isFinite(saved.backup?.at) ? saved.backup.at : saved.at;
+    const date = new Date(at);
+    if ((backup || legacy && !represented.has(id)) && Number.isFinite(at) && Number.isFinite(date.getTime())) {
+      manual.push({ key: `snapshot:${id}`, snapshot: { id }, at, savedAt: snapshotDate.format(date), backup });
+    }
+  }
+  rows.push(...manual.sort((a, b) => b.at - a.at));
   return jsxs("div", {
     className: "cs-b-swwrap",
     ref: wrap,
@@ -7694,79 +7826,125 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
           jsx("span", { className: "cs-eyebrow", children: "Builds" }),
           rows.length ? jsx("div", {
             className: "cs-b-sw-list",
-            children: rows.map((build) => {
+            children: rows.map(({ build, snapshot, key, savedAt, backup }) => {
               const current = build === newest;
               const playing = build === playingBuild;
-              const snapshot = snapshotFor(build, snapshots);
-              const restorable = build.state === "built" && !(playing && current && game.state !== "changed");
+              const restorable = !build || build.state !== "failed" && !(playing && current && game.state !== "changed");
+              const sameSnapshot = snapshot?.id === confirm?.snapshot.id && snapshot?.buildRef === confirm?.snapshot.buildRef;
+              const title = build?.title ?? (backup ? "Before-restore backup" : "Saved snapshot");
+              const target = build ? `build #${build.n}` : `${title.toLowerCase()} from ${savedAt}`;
+              const subtitle = build ? [
+                build.endAt ? timeOfDay(build.endAt) : null,
+                build.state === "failed" ? "didn’t finish" : build.state === "unknown" && !snapshot ? "outcome unknown" : playing ? game.state === "changed" ? "playing now · edited since" : "playing now" : null
+              ].filter(Boolean).join(" · ") : backup ? `${savedAt} · ${snapshot.id}` : savedAt;
               return jsxs(
                 "div",
                 {
                   className: current ? "cs-b-brow on" : "cs-b-brow",
                   children: [
-                    jsx("span", { className: `cs-b-bn${build.state === "failed" ? " bad" : current ? "" : " old"}`, children: `#${build.n}` }),
-                    jsxs("span", {
-                      className: "cs-col cs-grow",
-                      children: [
-                        jsx("b", { children: build.title }),
-                        jsx("small", {
-                          children: [build.endAt ? timeOfDay(build.endAt) : null, build.state === "failed" ? "didn’t finish" : playing ? game.state === "changed" ? "playing now · edited since" : "playing now" : null].filter(Boolean).join(" · ")
-                        })
-                      ]
-                    }),
-                    confirm === build.key ? jsxs("span", {
+                    build ? jsx("span", { className: `cs-b-bn${build.state === "failed" ? " bad" : current ? "" : " old"}`, children: `#${build.n}` }) : jsx(Codicon, { name: "history", size: 16 }),
+                    jsxs("span", { className: "cs-col cs-grow", children: [jsx("b", { children: title }), jsx("small", { children: subtitle })] }),
+                    confirm?.key === key ? jsxs("span", {
                       className: "cs-b-brow-acts",
                       children: [
                         jsx(Button, {
-                          disabled: working,
+                          "aria-label": working ? "Restoring…" : `Restore ${target}`,
+                          disabled: working || busy || !sameSnapshot || !restorable,
                           onClick: async () => {
                             setWorking(true);
-                            const done = await onRestore(build, snapshot);
-                            setWorking(false);
-                            if (done) {
-                              setOpen(false);
+                            try {
+                              if (await onRestore(snapshot, target, build?.title)) {
+                                setOpen(false);
+                              }
+                            } finally {
+                              setWorking(false);
                             }
                           },
                           size: "sm",
-                          children: working ? "Restoring…" : `Restore #${build.n}`
+                          children: working ? "Restoring…" : build ? `Restore #${build.n}` : "Restore snapshot"
                         }),
                         jsx(Button, { disabled: working, onClick: () => setConfirm(null), size: "sm", variant: "ghost", children: "Cancel" })
                       ]
                     }) : jsxs("span", {
                       className: "cs-b-brow-acts",
                       children: [
-                        jsx(Button, {
+                        build ? jsx(Button, {
                           onClick: () => {
                             setOpen(false);
-                            onShow(build.key);
+                            onShow(key);
                           },
                           size: "sm",
                           variant: "ghost",
                           children: "Show"
-                        }),
+                        }) : null,
                         restorable ? jsx(Tip, {
-                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to build #${build.n}` : snapshots === null ? "Looking for this build’s files…" : "This build’s files were not kept",
+                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to ${target}` : snapshots === null ? "Looking for this build’s files…" : snapshots === false ? "Could not load saved builds" : "No saved files match this build",
                           children: jsx("span", {
                             style: { display: "inline-flex" },
-                            children: jsx(Button, { disabled: busy || !snapshot, onClick: () => setConfirm(build.key), size: "sm", variant: "outline", children: "Restore" })
+                            children: jsx(Button, { disabled: busy || working || !snapshot, onClick: () => setConfirm({ key, snapshot }), size: "sm", variant: "outline", children: "Restore" })
                           })
                         }) : null
                       ]
                     })
                   ]
                 },
-                build.key
+                key
               );
             })
-          }) : jsx("p", { className: "cs-b-sw-empty cs-small cs-faint", children: `No builds in this conversation yet. ${AGENT} builds the game after each change.` }),
+          }) : snapshots === null ? null : jsx("p", { className: "cs-b-sw-empty cs-small cs-faint", children: snapshots === false ? "Could not load saved builds" : "No builds yet." }),
           jsx("p", {
             className: "cs-b-sw-foot",
-            children: confirm ? "The game as it is now is saved first, then HermRetro builds the restored files as a new build." : "Restore makes a new build from an earlier one. Nothing is deleted."
+            children: confirm ? "The game as it is now is saved first, then HermRetro builds the restored files as a new build." : "Restore puts back the files from an earlier build."
           })
         ]
       }) : null
     ]
   });
+}
+
+// page/pages/build/build-restore.js
+async function restoreProjectBuild(game, snapshot, target, title, rebuild, onLibraryChanged) {
+  const label = target[0].toUpperCase() + target.slice(1);
+  let answer;
+  try {
+    answer = await callStudioOnly(RPC_BUILD_RESTORE, { game, ...snapshot }, 6e4);
+  } catch (error) {
+    onLibraryChanged();
+    host.notify({ kind: "error", message: `Could not confirm restore of ${target}: ${describeRequestError(error).message}` });
+    return true;
+  }
+  if (answer?.code === "PARTIAL" || answer?.problems?.length) {
+    onLibraryChanged();
+    const detail = answer.problems?.[0];
+    const backup = answer.backup ? ` (snapshot ${answer.backup})` : "";
+    host.notify({ kind: "error", message: `Restore of ${target} was incomplete. The previous files were saved${backup}.${detail ? ` ${detail}` : ""}` });
+    return true;
+  }
+  if (!answer || answer.code === "ERROR") {
+    onLibraryChanged();
+    host.notify({ kind: "error", message: `Could not confirm restore of ${target}: ${answer?.error ?? "No restore result was returned."}` });
+    return true;
+  }
+  if (!answer.ok) {
+    host.notify({ kind: "error", message: `Could not restore ${target}: ${answer.error ?? "Restore failed."}` });
+    return false;
+  }
+  onLibraryChanged();
+  try {
+    const description = title ? `${target} ("${title}")` : `${target} (snapshot ${snapshot.id})`;
+    const sent = await rebuild(
+      `I restored the game to ${description} from the hermretro Builds menu. The previous files are saved. Please build it again and check that it still works.`,
+      title ? `Restore ${target} · ${title}` : `Restore ${target}`
+    );
+    if (sent) {
+      return true;
+    }
+  } catch (error) {
+    host.notify({ kind: "error", message: `${label} was restored, but the rebuild request failed: ${describeRequestError(error).message}` });
+    return true;
+  }
+  host.notify({ kind: "error", message: `${label} was restored. The rebuild request could not be confirmed.` });
+  return true;
 }
 
 // page/pages/build/composer/provider-notice.js
@@ -9148,7 +9326,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     if (game?.session?.storedId === stored && game.session.exists === false) {
       patchChat(stored, (current) => current.missing ? current : { ...current, missing: true });
     } else {
-      void openBuildChat(stored);
+      void openBuildChat(stored, game?.id);
     }
   }, [stored, chat?.runtime]);
   useEffect(() => {
@@ -9237,12 +9415,12 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     settledItems.current = shownItems;
   }
   const builds = useMemo(() => buildHistory(deriveTurns(settledItems.current ?? [])), [settledItems.current]);
-  const send = async (text2, attachments = [], shown = text2) => {
+  const send = async (text2, attachments = [], shown = text2, options) => {
     if (refuseWhileUpdating()) {
       return false;
     }
     if (!fresh) {
-      return stored ? sendBuildChat(stored, text2, shown, attachments) : false;
+      return stored ? sendBuildChat(stored, text2, shown, attachments, options) : false;
     }
     const { id, title: title2, projectRoot } = game;
     if (BUILD_STARTING.get().has(id)) {
@@ -9261,7 +9439,8 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
         target,
         recorded ? text2 : `Work on my existing hermretro game "${title2}" at ${projectRoot} (select that project first). ${text2}`,
         shown,
-        attachments
+        attachments,
+        options
       );
     } catch (error) {
       host.notify({ kind: "error", message: `Could not start the conversation: ${describeRequestError(error).message}` });
@@ -9298,27 +9477,6 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       select("new");
     }
     onLibraryChanged();
-  };
-  const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored || refuseWhileUpdating()) {
-      return false;
-    }
-    try {
-      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 6e4);
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? "The build could not be restored.");
-      }
-    } catch (error) {
-      host.notify({ kind: "error", message: `Could not restore build #${build.n}: ${describeRequestError(error).message}` });
-      return false;
-    }
-    onLibraryChanged();
-    await send(
-      `I restored the game to build #${build.n} ("${build.title}") from the hermretro Builds menu: its files are back as they were then (the version before this is saved). Please build it again and check that it still works.`,
-      [],
-      `Restore build #${build.n} · ${build.title}`
-    );
-    return true;
   };
   const statesRef = useRef({ key: "", value: {} });
   const states = useMemo(() => {
@@ -9371,13 +9529,21 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       switcher,
       jsx(BuildPill, { builds, chat: shownChat, game }),
       jsx("span", { className: "cs-grow" }),
-      game && (builds.length || shownStored) ? jsx(BuildsMenu, {
+      game && !elsewhere ? jsx(BuildsMenu, {
         builds,
-        busy: Boolean(shownChat?.busy || updating),
+        busy: Boolean(shownChat?.busy || shownChat?.opening || shownChat?.missing || shownChat?.failure || startingGame || updating),
         game,
-        onRestore: restoreBuild,
+        stored: shownStored,
+        onRestore: (snapshot, target, title2) => !refuseWhileUpdating() && restoreProjectBuild(
+          game.id,
+          snapshot,
+          target,
+          title2,
+          (text2, shown) => send(text2, [], shown, { mustLand: true }),
+          onLibraryChanged
+        ),
         onShow: (key) => setFocusTurn({ key, stored: shownStored })
-      }) : null,
+      }, game.id) : null,
       pendingItem && !shownChat?.busy ? jsx(Button, { onClick: () => void discard(pendingItem), size: "sm", variant: "ghost", children: "Discard" }) : null
     ]
   });

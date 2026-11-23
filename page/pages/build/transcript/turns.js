@@ -2,14 +2,14 @@
 import { replyAssets } from './reply.js'
 import { assetKind, capturedFrames, BUILD_STEPS, HIDDEN_STEPS, shortTool, stepImages, stepWords } from './step-words.js'
 
-/** The flat transcript as turns: each user message and everything until the next one. */
+/** The flat transcript as turns, keeping mid-turn user corrections with the work they redirected. */
 export function deriveTurns(items) {
   const turns = []
   let current = null
 
   items.forEach((item, index) => {
     // A turn nobody typed here (started in the full chat, or an automation) follows the last one's end.
-    if (item.kind === 'user' || !current || (current.ended && item.kind !== 'end')) {
+    if ((item.kind === 'user' && !item.followup) || !current || (current.ended && item.kind !== 'end')) {
       current = { key: `t${index}`, user: item.kind === 'user' ? item : null, items: item.kind === 'user' ? [] : [item], ended: false }
       turns.push(current)
     } else {
@@ -113,7 +113,7 @@ export function turnParts(turn, root) {
     frames,
     built: builds.some(tool => tool.state === 'done'),
     buildFailed: lastBuild?.state === 'failed' ? (lastBuild.info?.error ?? 'The build failed.') : null,
-    buildState: turnBuildState(turn),
+    buildState: compileState(lastCompile(turn)),
     report,
     note: presented?.info?.note ?? null,
     running: steps.find(tool => tool.state === 'running') ?? null
@@ -123,21 +123,29 @@ export function turnParts(turn, root) {
 // The steps that make a numbered build (a present or a player refresh alone does not).
 const COMPILE_STEPS = new Set(['rom_build', 'web_build'])
 
-/** How a turn's builds went, cheaply: null (it did not build), 'built' or 'failed' (its last compile). */
-function turnBuildState(turn) {
-  let state = null
+/** The last finished compile in the turn, if any. */
+function lastCompile(turn) {
+  let compile = null
 
   for (const item of turn.items) {
     if (item.kind === 'tools') {
       for (const tool of item.tools) {
-        if (COMPILE_STEPS.has(shortTool(tool.name)) && (tool.state === 'done' || tool.state === 'failed')) {
-          state = tool.state === 'done' ? 'built' : 'failed'
+        if (COMPILE_STEPS.has(shortTool(tool.name)) && ['done', 'failed', 'unknown'].includes(tool.state)) {
+          compile = tool
         }
       }
     }
   }
 
-  return state
+  return compile
+}
+
+function compileState(compile) {
+  return compile ? (compile.state === 'done' ? 'built' : compile.state) : null
+}
+
+function isGameBuild(tool) {
+  return shortTool(tool.name) === 'rom_build' && tool.state !== 'failed' && !tool.args?.sourcePath
 }
 
 /** The conversation's builds in order, numbered from 1: one per turn that compiled the game, with the
@@ -146,7 +154,8 @@ export function buildHistory(turns) {
   const builds = []
 
   turns.forEach((turn, index) => {
-    const state = turnBuildState(turn)
+    const compile = lastCompile(turn)
+    const state = compileState(compile)
 
     if (!state) {
       return
@@ -188,6 +197,8 @@ export function buildHistory(turns) {
       title: report?.title ?? (asked ? (asked.length > 48 ? `${asked.slice(0, 47)}…` : asked) : `Build ${builds.length + 1}`),
       startAt,
       endAt,
+      buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
+      resultCall: isGameBuild(compile) ? compile.resultCall ?? null : null,
       thumb
     })
   })
@@ -198,8 +209,10 @@ export function buildHistory(turns) {
 /** Whether a turn built the game (cheap: the transcript asks it of every turn): a build step finished, and its
  *  last compile did not fail (a retry that stopped leaves the earlier turn's build the one that plays). */
 export function turnBuilt(turn) {
+  const state = compileState(lastCompile(turn))
+
   return (
-    turnBuildState(turn) !== 'failed' &&
+    (state === null || state === 'built') &&
     turn.items.some(item => item.kind === 'tools' && item.tools.some(tool => tool.state === 'done' && BUILD_STEPS.has(shortTool(tool.name))))
   )
 }

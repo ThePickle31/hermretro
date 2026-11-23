@@ -57,6 +57,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
       { id: 'w1', function: { name: 'tool_call', arguments: JSON.stringify({ calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png', kind: 'sprite' } }, { name: 'chromatic_rom_build', arguments: {} }] }) } }] },
     { role: 'tool', tool_call_id: 'v1', name: 'vision_analyze', timestamp: 1004 },
     { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png' } }] }, timestamp: 1020 },
+    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] },
+      content: JSON.stringify({ structuredContent: { success: true } }), timestamp: 1050 },
     { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
     { role: 'user', text: 'secret', display_kind: 'hidden' }] })
   scenario.assetCalls = []
@@ -113,7 +115,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
       callOf('a1', 'chromatic_asset_import', { assetPath: 'assets/sprites/bird.png' }), callOf('a2', 'chromatic_sprite_edit'), callOf('a3', 'terminal', { command: 'python draw.py' }),
       callOf('w1', 'chromatic_scene_update'), callOf('w2', 'chromatic_actor_update'),
       callOf('b1', 'chromatic_rom_build'), callOf('b2', 'chromatic_emulator_step'), callOf('r1', 'chromatic_build_report', report14)] },
-    ...['p1', 'p2', 'p3', 'p4', 'a1', 'a2', 'a3', 'w1', 'w2', 'b1', 'b2', 'r1'].map((id, index) => ({ role: 'tool', tool_call_id: id, timestamp: 2002 + index })),
+    ...['p1', 'p2', 'p3', 'p4', 'a1', 'a2', 'a3', 'w1', 'w2', 'b1', 'b2', 'r1'].map((id, index) => ({
+      role: 'tool', tool_call_id: id, timestamp: 2002 + index,
+      ...(id === 'b1' ? { content: JSON.stringify({ structuredContent: { success: true } }) } : {})
+    })),
     { role: 'assistant', content: 'Here they are:\n\nMEDIA:/home/u/games/FrogPost/assets/sprites/bird.png\nMEDIA:/home/u/games/FrogPost/cover.png\nMEDIA:/home/u/games/Lamplight/cover.png\n\nWant it to flap all the time?', timestamp: 2100 },
     { role: 'user', content: 'add music', timestamp: 3000 },
     // As the gateway resumes it: the build went through Hermes's tool_call door, and its result row has no name.
