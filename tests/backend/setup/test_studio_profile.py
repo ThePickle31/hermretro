@@ -1,6 +1,8 @@
 """The dedicated hermretro profile: what the page is told, and what finishing it does."""
 
 import json
+import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -152,6 +154,87 @@ class StudioProfile(unittest.TestCase):
         soul = (self.target / "SOUL.md").read_text()
         self.assertIn("chromatic_present_game", soul)
         self.assertIn("games folder", soul)
+
+    def test_an_older_shipped_soul_is_replaced_and_any_other_kept(self):
+        import hashlib
+
+        self.target.mkdir(parents=True)
+        soul = self.target / "SOUL.md"
+        older = b"an older shipped soul"
+        with unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
+            self.assertFalse(sp.refresh_soul(self.target), "no SOUL: nothing is written")
+            self.assertFalse(soul.exists())
+            soul.write_bytes(older)
+            self.assertTrue(sp.refresh_soul(self.target))
+            self.assertEqual(soul.read_bytes(), sp.SOUL_FILE.read_bytes())
+            self.assertFalse(sp.refresh_soul(self.target), "the current SOUL is left alone")
+            soul.write_text("edited by the user")
+            self.assertFalse(sp.refresh_soul(self.target))
+            self.assertEqual(soul.read_text(), "edited by the user")
+            mine = self.target / "my-soul.md"
+            mine.write_bytes(older)
+            soul.unlink()
+            soul.symlink_to(mine)
+            self.assertFalse(sp.refresh_soul(self.target), "a link is the user's own arrangement")
+            self.assertTrue(soul.is_symlink())
+            soul.unlink()
+            os.mkfifo(soul)
+            self.assertFalse(sp.refresh_soul(self.target), "a pipe is never read (it would wait for a writer)")
+            soul.unlink()
+        self.assertEqual([path.name for path in self.target.iterdir() if path.name.endswith(".tmp")], [])
+
+    def test_a_refreshed_soul_keeps_its_permissions(self):
+        import hashlib
+
+        self.target.mkdir(parents=True)
+        soul = self.target / "SOUL.md"
+        older = b"an older shipped soul"
+        soul.write_bytes(older)
+        soul.chmod(0o640)
+        with unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
+            self.assertTrue(sp.refresh_soul(self.target))
+        self.assertEqual(stat.S_IMODE(soul.stat().st_mode), 0o640)
+
+    def test_an_edit_made_while_the_soul_is_being_refreshed_is_kept(self):
+        import hashlib
+
+        self.target.mkdir(parents=True)
+        soul = self.target / "SOUL.md"
+        older = b"an older shipped soul"
+        soul.write_bytes(older)
+        checks = []
+        real = sp._shipped_before
+
+        def edited_after_the_first_check(path):
+            answer = real(path)
+            checks.append(answer)
+            if len(checks) == 1:
+                soul.write_text("edited by the user")
+            return answer
+
+        with (
+            unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})),
+            unittest.mock.patch.object(sp, "_shipped_before", edited_after_the_first_check),
+        ):
+            self.assertFalse(sp.refresh_soul(self.target))
+        self.assertEqual(soul.read_text(), "edited by the user")
+        self.assertEqual([path.name for path in self.target.iterdir()], ["SOUL.md"])
+
+    def test_finishing_again_reports_a_soul_it_could_not_update(self):
+        import hashlib
+
+        self.created()
+        self.finish()
+        older = b"an older shipped soul"
+        (self.target / "SOUL.md").write_bytes(older)
+        with (
+            unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})),
+            unittest.mock.patch.object(sp.os, "replace", side_effect=PermissionError("read-only")),
+        ):
+            with self.assertRaises(PermissionError):
+                self.finish()
+        self.assertEqual((self.target / "SOUL.md").read_bytes(), older)
+        self.assertEqual([path.name for path in self.target.iterdir() if path.name.endswith(".tmp")], [])
 
     def test_the_shipped_soul_uses_the_present_tool_and_the_games_folder(self):
         soul = sp.SOUL_FILE.read_text()

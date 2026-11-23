@@ -19,6 +19,7 @@ import importlib.util
 import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -28,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 from backend.features import FEATURES  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import contracts, declare  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.hermes.test_registration import Recorder, load_plugin  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.hermes.test_registration import Recorder, load_plugin, plugin_storage  # noqa: E402 - the repository root goes on sys.path first
 
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
 HERMES_TOOLS_WITH_WORDS = {
@@ -93,7 +94,9 @@ class LockStep(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         ctx = Recorder("hermretro")
-        load_plugin().register(ctx)
+        plugin = load_plugin()
+        with tempfile.TemporaryDirectory() as base, plugin_storage(plugin, Path(base)):
+            plugin.register(ctx)
         cls.calls = ctx.calls
         cls.tools = set(ctx.calls["tool"])
         cls.rpcs = set(ctx.calls["rpc"])

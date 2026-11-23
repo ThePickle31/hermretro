@@ -1,10 +1,12 @@
 """The plugin's tools, skills, hooks and prompt exist only in the hermretro profile; the page's RPCs answer
 in every profile the plugin is on (the profile it was installed into sets the studio profile up)."""
 
+import hashlib
 import importlib.util
 import os
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -22,6 +24,12 @@ def load_plugin():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def plugin_storage(plugin, base: Path):
+    """Patch the loaded copy's view of Hermes storage into ``base`` (its profile home): tests.support's isolated_home
+    patches the repository's own host module, not this copy's. Use it around every register()."""
+    return mock.patch.object(plugin.hermes_host, "_data_dir", lambda: base / "plugin-data" / "hermretro")
 
 
 class Recorder:
@@ -59,6 +67,14 @@ class Registration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.plugin = load_plugin()
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.profile_home = Path(tmp.name)
+        patch = plugin_storage(self.plugin, self.profile_home)
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def recorded(self, profile, env=None):
         ctx = Recorder(profile)
@@ -108,6 +124,29 @@ class Registration(unittest.TestCase):
             self.assertEqual(
                 (calls["tool"], calls["skill"], calls["hook"], calls["section"]), ([], [], [], []), profile
             )
+
+    def test_the_studio_profile_gets_this_releases_soul_in_place_of_an_older_one(self):
+        soul = self.profile_home / "SOUL.md"
+        older = b"the SOUL an earlier release shipped"
+        studio = self.plugin.studio_profile
+        with mock.patch.object(studio, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
+            soul.write_bytes(older)
+            self.register("default")
+            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+            self.assertEqual(soul.read_bytes(), older, "only the hermretro profile's own SOUL, even when opted in")
+            self.register("hermretro")
+            self.assertEqual(soul.read_bytes(), studio.SOUL_FILE.read_bytes())
+            soul.write_text("edited by the user")
+            self.register("hermretro")
+            self.assertEqual(soul.read_text(), "edited by the user")
+
+    def test_registration_goes_on_when_hermes_storage_cannot_be_asked(self):
+        def no_storage():
+            raise ImportError("no plugins.plugin_storage")
+
+        with mock.patch.object(self.plugin.hermes_host, "_data_dir", no_storage):
+            calls = self.register("hermretro")
+        self.assertEqual(len(calls["tool"]), len(DECLARED_TOOLS))
 
     def test_plugin_development_can_opt_every_profile_in(self):
         calls = self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})

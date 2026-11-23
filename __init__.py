@@ -1,7 +1,8 @@
 """hermretro for Hermes: plugin registration.
 
 Registration is fast and offline. It starts no process, downloads nothing and touches no USB:
-the broker and engine workers start lazily on the first tool call.
+the broker and engine workers start lazily on the first tool call. In the hermretro profile it also puts this
+release's SOUL in place of an unedited older one.
 
 Every backend feature declares what it adds (backend/<feature>/rpcs.py, tools.py, hooks.py, prompt.py; see
 backend/hermes/declare.py); this file registers them in the order of backend/features.py.
@@ -43,8 +44,11 @@ def register(ctx):
     # prompt section) exists only in the hermretro profile.
     for name, factory in declared.rpcs:
         ctx.register_rpc(name, factory(ctx))
-    if studio_profile.is_studio(_profile(ctx)):
+    profile = _profile(ctx)
+    if studio_profile.is_studio(profile):
         _register_agent(ctx, declared)
+    if profile == studio_profile.STUDIO_PROFILE:  # never another profile, even one opted in for development
+        _refresh_soul()
 
 
 def _register_agent(ctx, declared):
@@ -65,3 +69,14 @@ def _register_agent(ctx, declared):
     if callable(register_section):
         for name, text, options in declared.sections:
             register_section(name, text, **options)
+
+
+def _refresh_soul():
+    """New chats read SOUL.md, so one an earlier release shipped is replaced however the plugin was updated. It never
+    stops registration."""
+    try:
+        studio_profile.refresh_soul(hermes_host._data_dir().parents[1])
+    except OSError:
+        logger.warning("hermretro could not update the hermretro profile's SOUL.md", exc_info=True)
+    except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the SOUL stays as it is
+        logger.debug("hermretro could not find the hermretro profile's SOUL.md", exc_info=True)

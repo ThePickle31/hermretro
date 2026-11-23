@@ -6,7 +6,9 @@
 - Toolset: `chromatic`.
 - Where things register (`__init__.register`): the tools, skills, hooks and the `hermretro.guide` prompt
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
-  plugin development); the page's RPCs in every profile the plugin is on. Checked by `tests/backend/hermes/test_registration.py`.
+  plugin development); the page's RPCs in every profile the plugin is on. Registering in the `hermretro` profile also
+  replaces a `SOUL.md` an earlier release shipped (`studio_profile.refresh_soul`: its hash is in `OLDER_SOULS`; an
+  edited one or a link is kept). Checked by `tests/backend/hermes/test_registration.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `.agents/skills/hermretro-dev-architecture/references/architecture.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
   `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the

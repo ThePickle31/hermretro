@@ -19,8 +19,10 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -34,7 +36,7 @@ DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
 DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob")
 SOUL_FILE = paths.PLUGIN_ROOT / "profile" / "SOUL.md"
 # SHA-256 of every SOUL.md this plugin shipped before the current one. A profile whose SOUL is still
-# exactly one of these was never edited by the user, so finishing the profile again updates it.
+# exactly one of these was never edited by the user, so it is updated (refresh_soul).
 OLDER_SOULS = frozenset(
     {
         "27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
@@ -45,6 +47,56 @@ OLDER_SOULS = frozenset(
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
 WORKSPACE = "workspace"
+
+
+def refresh_soul(profile_home: Path) -> bool:
+    """Put the shipped SOUL in place of one an earlier release shipped (never one the user has edited, nor a link),
+    so the studio profile gets each release's SOUL however the plugin was updated: through the page, with
+    ``hermes plugins update`` or as a linked checkout. Answers whether it was written; a failed write raises
+    OSError."""
+    soul = profile_home / "SOUL.md"
+    return _shipped_before(soul) and _write_soul(soul, only_over_older=True)
+
+
+def _shipped_before(soul: Path) -> bool:
+    """Whether ``soul`` is a plain file (not a link, nor anything a read could wait on) holding a SOUL an earlier
+    release shipped."""
+    try:
+        handle = os.open(soul, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except OSError:
+        return False
+    with os.fdopen(handle, "rb") as reader:
+        try:
+            if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
+                return False
+            data = reader.read()
+        except OSError:
+            return False
+    return hashlib.sha256(data).hexdigest() in OLDER_SOULS
+
+
+def _write_soul(soul: Path, *, only_over_older: bool = False) -> bool:
+    """The shipped SOUL at ``soul``, whole or not at all (Hermes may be reading it for a new chat), with the
+    permissions the file had. ``only_over_older``: only while ``soul`` still holds a SOUL an earlier release shipped,
+    checked again just before the swap, so an edit made meanwhile is kept and of several processes refreshing at once
+    only one writes. Answers whether it was written."""
+    try:
+        mode = stat.S_IMODE(soul.stat().st_mode)
+    except OSError:
+        mode = 0o644  # a new file, readable as one written the usual way
+    handle, partial = tempfile.mkstemp(dir=soul.parent, prefix=".SOUL.md.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as writer:
+            writer.write(SOUL_FILE.read_bytes())
+        os.chmod(partial, mode)
+        if only_over_older and not _shipped_before(soul):
+            Path(partial).unlink()
+            return False
+        os.replace(partial, soul)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
+    return True
 
 
 class StudioProfileError(Exception):
@@ -271,14 +323,9 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
 
     marker = target / MARKER
     first_time = not marker.is_file()
-    soul = target / "SOUL.md"
-    try:
-        unedited = hashlib.sha256(soul.read_bytes()).hexdigest() in OLDER_SOULS
-    except OSError:
-        unedited = False
-    write_soul = first_time or unedited  # never overwrite a SOUL the user has since edited
-    if write_soul:
-        soul.write_text(SOUL_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    if first_time:
+        _write_soul(target / "SOUL.md")
+    write_soul = first_time or refresh_soul(target)
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
         json.dumps(
