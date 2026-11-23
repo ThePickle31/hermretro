@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 eb94102e9b20641325e43cdbd42be4baf216a790a45770ce6fb653cf36882f5b
- * body: sha256 3ec5dabda92774b83c83afd3cb80e8ead6a8d7143f26a41ebc17625c42ee1507
+ * sources: sha256 d7038b4576abc9f98f12103e2b2c5fbaddbba1b6a518cfc471f4e30b4ca15bbe
+ * body: sha256 818b75f9f355ef585e4fceee2a8f062377e0fa5c70b56d30b2a5e349eaa1c79f
  */
 // page/sdk.js
 import {
@@ -630,8 +630,8 @@ function withInfo(chat, info) {
 // page/pages/build/chat/store.js
 var BUILD_VIEWING = atom(null);
 var BUILD_PRESENTED = atom({});
-function notePresented({ gameId, seq, note, t }) {
-  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
+function notePresented({ gameId, ...presentation }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: presentation });
 }
 var buildShowing = () => BUILD_VIEWING.get();
 var BUILD_INJECT = atom({});
@@ -5201,8 +5201,11 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
+function playerSelection() {
+  return { openFor: null, selectedAt: performance.now(), seen: BUILD_PRESENTED.get() };
+}
 function createBuildPlayerVisit() {
-  return atom({ openFor: null, seen: BUILD_PRESENTED.get() });
+  return atom(playerSelection());
 }
 function useInlinePlayer(visit, gameId, chat) {
   const { openFor } = useValue(visit);
@@ -5211,13 +5214,13 @@ function useInlinePlayer(visit, gameId, chat) {
     if (!gameId || chat?.busy || chat?.opening) {
       return;
     }
-    if ((presentations[gameId]?.seq ?? 0) > (visit.get().seen[gameId]?.seq ?? 0)) {
-      visit.set({ openFor: gameId, seen: presentations });
+    const current = visit.get();
+    const event = presentations[gameId];
+    if (event && event.seq > (current.seen[gameId]?.seq ?? 0) && (event.knownBy == null || event.knownBy > current.selectedAt)) {
+      visit.set({ ...current, openFor: gameId, seen: presentations });
     }
   }, [visit, gameId, presentations, chat?.busy, chat?.opening]);
   return {
-    // Take a new baseline on navigation. Attaching a conversation or its project stays in the same visit.
-    markPresentationsSeen: () => visit.set({ ...visit.get(), seen: BUILD_PRESENTED.get() }),
     playerOpen: Boolean(gameId && openFor === gameId),
     onPlay: () => gameId && visit.set({ ...visit.get(), openFor: gameId }),
     onClosePlayer: () => visit.set({ ...visit.get(), openFor: null })
@@ -9534,10 +9537,10 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat);
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat);
   const select = (key) => {
     if (key !== selected) {
-      markPresentationsSeen();
+      playerVisit.set(playerSelection());
       onSelect(key);
     }
   };
@@ -9552,7 +9555,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     if (refuseWhileUpdating()) {
       return false;
     }
-    markPresentationsSeen();
+    const firstTurn = playerSelection();
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
@@ -9568,6 +9571,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
       changePending((current) => [...current, created]);
+      playerVisit.set(firstTurn);
       onSelect(`pending:${id}`);
       onLibraryChanged();
       return true;
@@ -15956,17 +15960,20 @@ function presentedGame(payload) {
   }
   return studio;
 }
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, knownBy = null } = {}) {
   const mark = `${gameId}:${presentedAt ?? ""}`;
   if (presentedAt != null && presentationsSeen.has(mark)) {
     return false;
   }
   presentationsSeen.add(mark);
   const shown = PRESENTED.get();
+  if (knownBy !== null && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+    return false;
+  }
   const seq = (shown[gameId]?.seq ?? 0) + 1;
   const presentation = { seq, note: typeof note === "string" && note.trim() ? note.trim() : null, t: presentedAt ?? null };
   PRESENTED.set({ ...shown, [gameId]: presentation });
-  emit("emulator.presented", { gameId, ...presentation });
+  emit("emulator.presented", { gameId, ...presentation, knownBy });
   BUILD_TICK.set(BUILD_TICK.get() + 1);
   if (fromBuild || buildShowing() === gameId) {
     return false;
@@ -15980,6 +15987,7 @@ function watchBuilds(ctx) {
   }
   let since = Date.now() / 1e3 - 5;
   let pending = null;
+  let turnEnds = /* @__PURE__ */ new Map();
   listen("tool.complete", (event) => {
     const payload = event?.payload;
     if (!payload || event.replayed) {
@@ -16001,7 +16009,14 @@ function watchBuilds(ctx) {
       return;
     }
     pending?.();
+    const completedAt = performance.now();
+    if (event?.session_id) {
+      turnEnds.set(event.session_id, completedAt);
+    }
     const run = async () => {
+      const finished = turnEnds;
+      turnEnds = /* @__PURE__ */ new Map();
+      const requestedAt = performance.now();
       BUILD_TICK.set(BUILD_TICK.get() + 1);
       let answer;
       try {
@@ -16024,7 +16039,12 @@ function watchBuilds(ctx) {
       }
       for (const item of newest.values()) {
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId);
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild });
+        const age = typeof answer.now === "number" && typeof item.t === "number" ? Math.max(0, answer.now - item.t) : null;
+        const reportedBy = age === null ? requestedAt : performance.now() - age * 1e3;
+        const ended = finished.get(item.sessionId) ?? finished.get(item.conversationId);
+        const turnBound = ended ?? (item.sessionId || item.conversationId ? reportedBy : completedAt);
+        const knownBy = Math.min(turnBound, reportedBy);
+        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, knownBy });
       }
     };
     const cancel = ctx.setTimeout?.(() => void run(), 600);
@@ -16129,7 +16149,7 @@ var EMULATOR_PAGE = {
     "setup.demoRequested": (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
   },
   events: {
-    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation."
+    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, knownBy }. A fallback includes its latest possible occurrence on the Desktop clock so Build can skip presentations from before selection."
   },
   slots: {
     "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."

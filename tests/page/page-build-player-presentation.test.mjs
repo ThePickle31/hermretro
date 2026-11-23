@@ -92,6 +92,11 @@ async function switchAfterPresentation({ act, answered, buildScenario, check, cl
     build.assertClosed()
     assert.ok(view.node.querySelector('.cs-b-pc-go'))
   })
+  await build.selectGame(frog)
+  await settle()
+  check('returning directly to Frog Post leaves its previously open frame closed', build.assertClosed)
+  await build.selectGame(comet)
+  await settle()
   await build.play()
   check('Play still opens Comet Drift by request', () => build.assertPlaying(comet))
   await build.closePlayer()
@@ -111,6 +116,43 @@ async function switchAfterPresentation({ act, answered, buildScenario, check, cl
     build.assertClosed()
     assert.equal(scenario.workspaces.length, 0)
   })
+
+  await build.selectGame(comet)
+  await settle()
+  const method = 'plugin.hermretro.presentations'
+  let reply
+  scenario.byMethod[method] = () => new Promise(resolve => { reply = resolve })
+  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Ready again.' } }) })
+  await settle()
+  assert.equal(typeof reply, 'function', 'the background turn requested presentations')
+  await build.selectGame(frog)
+  await settle()
+  build.assertClosed()
+  // The backend clock is independent of Desktop's. Its answer arrives after the switch.
+  const record = { gameId: frog.id, title: frog.title, sessionId: runtime, buildConversation: true, t: 200 }
+  await act(async () => { reply({ ok: true, now: 200, presentations: [record] }) })
+  check('a delayed fallback for a turn finished before the switch leaves the player closed', build.assertClosed)
+  scenario.byMethod[method] = { ok: true, now: 201, presentations: [{ ...record, t: 201 }] }
+  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'New presentation.' } }) })
+  await settle()
+  check('the next presentation found by the fallback opens the selected game', () => build.assertPlaying(frog))
+  await build.closePlayer()
+  // A different turn can discover an older record for the first time, even after the switch has finished.
+  scenario.byMethod[method] = { ok: true, now: 600, presentations: [{ ...record, t: 202 }] }
+  await act(async () => { emit({ type: 'message.complete', session_id: 'rt-elsewhere', payload: {} }) })
+  await settle()
+  check('a later lookup skips a presentation whose backend age predates the selection', build.assertClosed)
+  await build.selectGame(comet)
+  reply = null
+  scenario.byMethod[method] = () => new Promise(resolve => { reply = resolve })
+  await act(async () => { emit({ type: 'message.complete', session_id: 'rt-elsewhere', payload: {} }) })
+  await settle()
+  assert.equal(typeof reply, 'function')
+  await build.selectGame(frog)
+  await settle()
+  await act(async () => { reply({ ok: true, now: 601, presentations: [{ ...record, t: 601 }] }) })
+  check('another session’s pending lookup can deliver a fresh presentation after selection', () => build.assertPlaying(frog))
+  scenario.byMethod[method] = { ok: true, presentations: [] }
   await view.close()
 }
 
@@ -125,11 +167,12 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
   scenario.games = answered({ games: [otherGame], pending: [], device })
   scenario.byMethod['session.create'] = { session_id: runtime, stored_session_id: stored, messages: [] }
   scenario.byMethod['plugin.hermretro.build'] = { ok: true }
+  let acknowledge
   scenario.byMethod['prompt.submit'] = () => {
     emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'first-turn' } })
     emit({ type: 'tool.complete', session_id: runtime, payload: { tool_id: 'first-build', name: 'chromatic_rom_build', args: {}, result: { result: 'Completed.' } } })
     emit(presentation(newGame, runtime, 101))
-    return { ok: true }
+    return new Promise(resolve => { acknowledge = resolve })
   }
   const view = await mount(page)
   const build = buildView(view.node, act, scenario)
@@ -138,6 +181,14 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
   await typeInto(view.node.querySelector('textarea[aria-label="Your game idea"]'), idea)
   await act(async () => { view.node.querySelector('button[aria-label="Start building"]').click() })
   await settle()
+  assert.equal(typeof acknowledge, 'function', 'the first Send is awaiting acknowledgement')
+  await build.selectGame(otherGame)
+  await settle()
+  check('another game can be selected while New Game waits for its first Send acknowledgement', () => {
+    build.assertSelected(otherGame.id, otherGame.title)
+    build.assertClosed()
+  })
+  await act(async () => { acknowledge({ ok: true }) })
   scenario.games = answered({ games: [otherGame], pending: [{ storedId: stored, name: null }], device })
   await view.rerender()
   check('New Game starts a hidden pending conversation and sends the first turn', () => {

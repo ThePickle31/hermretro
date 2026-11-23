@@ -29,7 +29,7 @@ function presentedGame(payload) {
 /** The agent presented a game: note it for the tab (which then loads the newest build) and open or
  *  front the tab beside the chat. Each presentation is acted on once. A game's Build conversation
  *  (or the game the Build page is showing) plays in the Build page's own pane instead. */
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, knownBy = null } = {}) {
   const mark = `${gameId}:${presentedAt ?? ''}`
 
   if (presentedAt != null && presentationsSeen.has(mark)) {
@@ -39,12 +39,15 @@ function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = fa
   presentationsSeen.add(mark)
 
   const shown = PRESENTED.get()
+  if (knownBy !== null && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+    return false
+  }
   const seq = (shown[gameId]?.seq ?? 0) + 1
 
   const presentation = { seq, note: typeof note === 'string' && note.trim() ? note.trim() : null, t: presentedAt ?? null }
 
   PRESENTED.set({ ...shown, [gameId]: presentation })
-  emit('emulator.presented', { gameId, ...presentation })
+  emit('emulator.presented', { gameId, ...presentation, knownBy })
   BUILD_TICK.set(BUILD_TICK.get() + 1)
 
   if (fromBuild || buildShowing() === gameId) {
@@ -68,6 +71,7 @@ export function watchBuilds(ctx) {
   // Backend clock (seconds) of the last `presentations` answer; until then, this plugin's start.
   let since = Date.now() / 1000 - 5
   let pending = null
+  let turnEnds = new Map()
 
   listen('tool.complete', event => {
     const payload = event?.payload
@@ -97,8 +101,15 @@ export function watchBuilds(ctx) {
     }
 
     pending?.()
+    const completedAt = performance.now()
+    if (event?.session_id) {
+      turnEnds.set(event.session_id, completedAt)
+    }
 
     const run = async () => {
+      const finished = turnEnds
+      turnEnds = new Map()
+      const requestedAt = performance.now()
       BUILD_TICK.set(BUILD_TICK.get() + 1)
 
       let answer
@@ -131,8 +142,16 @@ export function watchBuilds(ctx) {
         // Whether the chat that presented it is the game's Build conversation: that presentation's own chat (as the
         // backend records it, which outlasts a restart), not the chat whose turn just ended.
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId)
+        // Date the fallback on Desktop's monotonic clock. A reply can arrive after the user switches games.
+        // The presenting turn and the age measured by the backend both bound when the presentation happened.
+        const age = typeof answer.now === 'number' && typeof item.t === 'number' ? Math.max(0, answer.now - item.t) : null
+        const reportedBy = age === null ? requestedAt : performance.now() - age * 1000
+        const ended = finished.get(item.sessionId) ?? finished.get(item.conversationId)
+        // Another session can present a new game while this lookup is in flight.
+        const turnBound = ended ?? (item.sessionId || item.conversationId ? reportedBy : completedAt)
+        const knownBy = Math.min(turnBound, reportedBy)
 
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild })
+        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, knownBy })
       }
     }
 

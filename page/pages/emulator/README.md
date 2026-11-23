@@ -12,8 +12,10 @@ Padding `flush`, no footer.
 
 **Tabs:** none.
 
-**Events:** emits `emulator.presented` `{ gameId, seq, note, t }` each time the agent presents a game
-(`beside-chat/present.js`). Listens to `setup.demoRequested` (opens the bundled demo in the tab beside the chat).
+**Events:** emits `emulator.presented` `{ gameId, seq, note, t, knownBy }` each time the agent presents a game
+(`beside-chat/present.js`). A fallback lookup includes `knownBy` on Desktop's monotonic clock so Build can
+skip a delayed presentation after switching games. Live tool events use `null`. Listens to `setup.demoRequested`
+(opens the bundled demo in the tab beside the chat).
 
 **Slots:** declares `emulator.barActions`: buttons in the bar after the keyboard light, for the user's own game
 (not the demo), rendered both on the Emulator page and in the emulator tab beside the chat

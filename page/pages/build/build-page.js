@@ -13,7 +13,7 @@ import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
 import { PlayCard } from './player/play-card.js'
-import { useInlinePlayer } from './player/use-inline-player.js'
+import { playerSelection, useInlinePlayer } from './player/use-inline-player.js'
 import { BuildStatus } from './transcript/status.js'
 import { rootOf } from './transcript/groups.js'
 import { AssetGame } from './assets/cache.js'
@@ -140,10 +140,10 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat)
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat)
   const select = key => {
     if (key !== selected) {
-      markPresentationsSeen()
+      playerVisit.set(playerSelection())
       onSelect(key)
     }
   }
@@ -165,7 +165,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       return false
     }
 
-    markPresentationsSeen()
+    const firstTurn = playerSelection()
     let id = null
 
     try {
@@ -190,6 +190,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }
 
       changePending(current => [...current, created])
+      playerVisit.set(firstTurn)
       onSelect(`pending:${id}`)
       onLibraryChanged()
 
