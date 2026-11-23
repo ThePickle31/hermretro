@@ -1,10 +1,15 @@
 # backend/library
 
-The games library: the user's games (`games.py`, `games.json` under the hermretro home), each game's card (`game_card.py` for `game.json`, `game_cover.py` for reading and validating `cover.png`), the Build page's game ↔ conversation binding, the Games/Build/Emulator page RPCs (`rpcs.py`), the plugin's game tools (`tools.py`) and the helpers every tool shares (`tool_args.py`).
+- `games.py` owns the registry file, Build conversation bindings and broker observations.
+- `thumbnails.py` reads title-screen thumbnails and decodes PNG uploads.
+- `project.py` reads project titles, build files and sources, and checks playable-copy freshness.
+- `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
+- `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
+- `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
 
-- RPCs (`rpcs.py`): `games`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`.
+- RPCs (`rpcs.py`): `games`, `game_build_status`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`.
 - Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report`.
 - Hooks (`hooks.py`): `pre_llm_call` — tells a game's Build conversation which game it works on.
 - Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`. Listens to: none.
@@ -17,21 +22,12 @@ The games library: the user's games (`games.py`, `games.json` under the hermretr
 
 `tests/backend/library/`.
 
-A tool that only reads (no broker start, no engine call) is tested through the two broker seams the library really
-uses; there is no `host._broker_call`. `host.try_connect(paths.runtime_dir())` finds a running broker without
-starting one (`host._chat_project`, which `tool_project` calls for "this chat's project"; the `games` RPC's
-`_seed_library`), and `host.ensure_broker()` starts one (on the library's paths only the engine tool handler,
-`host.make_tool_handler`; the setup RPCs call it too).
-Answer the first with `FakeBrokerClient` (`tests/support.py`) and make the second fail, as
-`test_present_never_reaches_the_engine_or_a_device` (`tests/backend/library/test_games.py`) does:
-`mock.patch.object(hermes_host, "try_connect", lambda _dir: (client, None))` and
-`mock.patch.object(hermes_host, "ensure_broker", forbidden)`, then assert on `client.asked`. These patches see only
-calls made through `backend.hermes.host`; code that imports `backend.broker` or its `client` itself is not covered
-(`tests/backend/broker/test_broker_stats_tool.py` patches `backend.broker.client` for that).
+Read-only paths use `host.try_connect` to reach an already running broker. The tests use
+`FakeBrokerClient` from `tests/support.py` and guard against starting the broker or invoking the engine.
 
 ## games.json
 
-`<hermretro home>/library/games.json` (`paths.library_dir()`, `HERMRETRO_LIBRARY_DIR` overrides; `Registry`), written under `games.lock` and replaced atomically. Unknown top-level keys are kept. Times are Unix seconds (floats).
+`<hermretro home>/library/games.json` (`paths.library_dir()`, `HERMRETRO_LIBRARY_DIR` overrides; `Registry`), written under `games.lock` and replaced atomically. Unknown top-level keys are kept. Times are Unix seconds (floats). An absent file starts an empty registry. A read or parse failure prevents replacement.
 
 - `version`: `1`.
 - `games`: game id (`game_id(root)`: the first 12 hex digits of SHA-1 over the real project path; `valid_id` accepts exactly that) → entry:
@@ -40,7 +36,7 @@ calls made through `backend.hermes.host`; code that imports `backend.broker` or 
   - `updatedAt`: the last time the library recorded something about the game: the broker saw it created or selected (`project_create`, `project_create_blank`, `project_select`), built (`rom_build`) or exported (`web_preview` open), or `chromatic_present_game` showed it (`Registry.upsert` and `Registry.present`; each `games` RPC also adds projects the running broker has selected that the library lacks, setting it only for those). Binding a conversation, editing the game card or a thumbnail does not change it. The Games page lists games newest `updatedAt` first: this is what "recent" means. Nothing records when the user opened a game.
   - `chat`: `{conversationId, sessionId, profile}` of the chat that last selected, created (with `select`), built, exported or presented it (the seeded entries carry only `sessionId`).
   - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
-  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `games.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
+  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `project.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
   - `initialPlan`: the mode recorded when New Game first bound the project. True for Plan first, false for Build it.
     Kept across conversation changes. An older entry can still carry the mode in its session. For an older
@@ -52,11 +48,21 @@ calls made through `backend.hermes.host`; code that imports `backend.broker` or 
 - `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest `games.MAX_PENDING` are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
-Reading it: `Registry.load()["games"]` is the raw entries above (game id → entry), including games whose folder is gone; `Registry.library()` answers the page's game objects (`Registry.describe` of each entry, newest `updatedAt` first), only games whose folder exists, and is slower: it hashes each ROM and web export and reads each card.
+`Registry.load()["games"]` holds raw entries, including games whose folders are gone. The registry key determines
+the game id used by the shelf, chat bindings, and thumbnails. The `games` RPC reads one snapshot for seeding,
+the games, pending conversations, and chat ownership. It skips registered broker lane roots and rereads the
+snapshot after attempting to register a missing root under lock. `Registry.library_listing()` returns the games
+described through `shelf.describe` in descending `updatedAt` order and the IDs of unreadable entries.
+The emulator checks one game through `game_build_status`, including whether its project is unavailable or gone.
+That RPC reads the build files and chat link, while shelf descriptions also inspect source timestamps and card
+files. A recorded native ROM path that cannot be read does not invalidate a healthy web ROM. The shelf keeps a
+game whose web ROM cannot be read, with `web: null`, and `game_build_status` reports `UNAVAILABLE` if the export
+exists but its ROM cannot be read. Card display validation and image encoding share a cache based on the cover file's identity. Presentation
+validates the current cover and checks for copies from `assets/` on every call.
 
-Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
+Automatic capture fills a missing thumbnail once. Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
-Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`games.project_title`: the `.gbsproj` name, else the web export's, else the folder name).
+Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`project.project_title`: the `.gbsproj` name, else the web export's, else the stored title or folder name).
 
 ## Captures
 
@@ -66,7 +72,7 @@ Screenshots and videos saved from the player live in `<project>/captures/` (the 
 
 The player's save states live in `<project>/save-states/<build digest>/<id>.gbstate.json`, written by the engine's
 web preview (`engine/modretro-chromatic/dist/web-preview-states.js`, `PreviewStateStore`); the plugin only keeps them
-out of source checks and snapshots (`games.NOT_SOURCE`, `backend/history/snapshots.py`). `<build digest>` is the
+out of source checks and snapshots (`project.NOT_SOURCE`, `backend/history/snapshots.py`). `<build digest>` is the
 SHA-256 of the JSON `{romSha256, runtimeSha256, sourceRevision, cartridgeType}` (so each build has its own folder) and
 `<id>` the SHA-256 of the file's canonical text. Each file is one JSON object (`engine/modretro-chromatic/dist/web-annotations/save-state.js`):
 `format` (`codex-gb-studio-save-state`), `version` (`1`), `identity` (that build identity), `frame`, `createdAt` (an
@@ -100,7 +106,6 @@ Every place each piece touches is in `.agents/skills/hermretro-dev-architecture/
   (`built=False` drops only the native ROM), and it answers `(game id, root)` either way
   (`tests/backend/library/test_library_fixture.py`). Pictures for the Assets panel: `add_images(root, count)` writes
   real PNGs into `<root>/assets/sprites/` (`folder="backgrounds"` etc.), as `tests/backend/assets/test_asset_list_limit.py` does.
-- a game's `lastBuild` in a test: get the game from `make_library_game(isolated_home(self))` (`tests/support.py`), then record the build the way the broker does, `host._registry().upsert(str(root), build={"t": time.time(), "ok": True, "rom": None, "sha256": None, "error": None})` (`from backend.hermes import host`; `"ok": False` with an `"error"` message for a failed one; `games.Registry(paths.library_dir())` is the same file). `registry.get(game_id)["lastBuild"]` reads it back (`tests/backend/library/test_games.py` writes and reads builds this way with `games.Registry`).
 - splitting `tools.py` past 400 lines: each `<name>_tools.py` holds its schemas, handlers and its own `TOOLS = (Tool(...), ...)`, and `tools.py` takes them in with `from . import game_tools`. The `TOOLS` order is the order Hermes registers them in: existing tools moved out keep their places (put `*game_tools.TOOLS` where the moved `Tool(...)` entries were: moving `chromatic_game_info` gives `TOOLS = (Tool(PRESENT_TOOL, ...), *game_tools.TOOLS, Tool(BUILD_REPORT_TOOL, ...))`), and a new tool goes last. A tool module imports `tool_error` and `tool_project` from `tool_args.py`; a name a handler still uses is imported in the module that uses it. Patch dependencies in the module that defines the handler (for example, `mock.patch.object(game_tools, "emit")`).
 - an event: declare `"library.<what happened>"` in `EVENTS` (`__init__.py`) with a function in `emits.py` that emits it, and call `emits.<what happened>(...)` (`from . import emits`) where it happens.
 - changing an event's payload: edit the `emit("library.<name>", ...)` call in `tools.py` (or `emits.py`'s function, when it has one), the `EVENTS` description in `__init__.py` (each key with what it holds and its type, e.g. `root=<the project folder, str>`), the `.agents/skills/hermretro-dev-architecture/references/contract.md` events row and its test (`tests/backend/library/test_build_report.py` for `library.build_reported`; `tests/backend/library/test_event_<name>.py` for one `new event` wrote), and every listener that reads the key (`backend/assets/listeners.py` hears `library.build_reported`).

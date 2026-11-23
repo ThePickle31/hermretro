@@ -4,7 +4,7 @@ import { ID } from '#app/ids.js'
 
 export const ALWAYS_VISIBLE = atom(true)
 
-// Bumped after every finished build or turn, so an open emulator asks for the library at once.
+// Bumped after every finished build or turn, so an open emulator checks its ROM at once.
 export const BUILD_TICK = atom(0)
 // Game id → the latest presentation the tab should show: { seq, note, t }.
 export const PRESENTED = atom({})
