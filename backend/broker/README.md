@@ -16,7 +16,7 @@ After Node discovery, the client bounds broker startup, including replacement. I
 
 ## Tests
 
-`tests/backend/broker/`; the real-engine run: `tests/acceptance/`.
+`tests/backend/broker/test_game_selection.py` covers which projects a conversation may open and how its bound game is selected. The real-engine checks live in `tests/acceptance/`.
 
 ## Adding here
 

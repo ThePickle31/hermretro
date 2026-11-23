@@ -1,10 +1,8 @@
-"""Build: one game, one conversation. The registry binding, the broker's guards and auto-select, the
-desktop RPC and the per-turn context hook."""
+"""Game conversation bindings, their Build RPC and per-turn context."""
 
 import json
 import os
 import sys
-import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -12,28 +10,21 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
-from backend.broker.broker import Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, make_project  # noqa: E402 - the repository root goes on sys.path first
-from backend.assets import rpcs as assets_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_project  # noqa: E402 - the repository root goes on sys.path first
 
 PROFILE = "/profiles/studio"
 
 
 class Binding(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
+        self.base = isolated_home(self).base
         self.registry = games.Registry(self.base / "lib")
         self.root = make_project(self.base, "Frog Post")
         self.game = self.registry.upsert(str(self.root))["id"]
-
-    def tearDown(self):
-        self.tmp.cleanup()
 
     def test_a_game_gets_one_conversation_and_keeps_it(self):
         self.registry.bind(self.game, "st-1", PROFILE)
@@ -56,6 +47,12 @@ class Binding(unittest.TestCase):
     def test_bindings_are_per_profile(self):
         self.registry.bind(self.game, "st-1", PROFILE)
         self.assertEqual(self.registry.binding_for("/profiles/other", ["st-1"]), (None, None))
+
+    def test_new_game_keeps_the_configured_number_of_pending_conversations(self):
+        with mock.patch.object(games, "MAX_PENDING", 1):
+            self.registry.build_start("st-first", PROFILE)
+            self.registry.build_start("st-second", PROFILE)
+        self.assertEqual([entry["storedId"] for entry in self.registry.pending(PROFILE)], ["st-second"])
 
     def test_a_new_game_conversation_claims_the_first_project_it_makes(self):
         self.registry.build_start("st-new", PROFILE, "Lamplight")
@@ -239,8 +236,6 @@ class Binding(unittest.TestCase):
         self.assertEqual(refused.exception.code, "OTHER_PROFILE")
 
     def test_unknown_top_level_keys_survive_a_write(self):
-        import json
-
         path = self.registry.path
         data = json.loads(path.read_text())
         data["futureThing"] = {"keep": True}
@@ -255,150 +250,6 @@ class Binding(unittest.TestCase):
         self.registry.present(str(self.root), note="hi")
         self.assertEqual(self.registry.get(self.game)["session"]["storedId"], "st-1")
         self.assertEqual(len(self.registry.pending()), 1)
-
-
-def guard_broker(registry):
-    return bare_broker(games=registry)
-
-
-class Guards(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
-        self.registry = games.Registry(self.base / "lib")
-        self.frog = make_project(self.base, "Frog Post")
-        self.comet = make_project(self.base, "Comet Drift")
-        self.registry.upsert(str(self.frog))
-        self.registry.upsert(str(self.comet))
-        self.registry.bind(games.game_id(self.frog), "st-frog", PROFILE)
-        self.broker = guard_broker(self.registry)
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def guard(self, conversation, tool, arguments, continue_here=False):
-        lane = Lane((PROFILE, conversation))
-        self.broker.guard_selection(lane.owner, lane, tool, arguments, continue_here)
-
-    def denied(self, *args, **kwargs):
-        with self.assertRaises(Denied) as refused:
-            self.guard(*args, **kwargs)
-        return refused.exception
-
-    def test_a_games_conversation_may_open_its_own_game(self):
-        self.guard("st-frog", "project_select", {"projectPath": str(self.frog / "frog-post.gbsproj")})
-        self.guard("st-frog", "project_select", {"projectPath": str(self.frog)})
-
-    def test_a_games_conversation_cannot_open_or_make_another_project(self):
-        refused = self.denied("st-frog", "project_select", {"projectPath": str(self.comet)})
-        self.assertEqual(refused.code, "ONE_GAME_PER_CONVERSATION")
-        self.assertIn("New Game", str(refused))
-        refused = self.denied("st-frog", "project_create", {"name": "X", "destinationPath": str(self.base / "x")})
-        self.assertEqual(refused.code, "ONE_GAME_PER_CONVERSATION")
-        self.assertIn("create another project", str(refused))
-        # continueInThisChat never lifts the hard block
-        self.denied("st-frog", "project_select", {"projectPath": str(self.comet)}, continue_here=True)
-
-    def test_another_chat_is_warned_and_may_continue_once_the_user_confirms(self):
-        refused = self.denied("plain-chat", "project_select", {"projectPath": str(self.frog)})
-        self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
-        self.assertIn("continueInThisChat", str(refused))
-        self.guard("plain-chat", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
-        self.assertEqual(self.broker.events[-1]["event"], "continued_outside_game_conversation")
-
-    def test_a_chat_in_another_profile_is_warned_too(self):
-        lane = Lane(("/profiles/other", "plain-chat"))
-        with self.assertRaises(Denied) as refused:
-            self.broker.guard_selection(lane.owner, lane, "project_select", {"projectPath": str(self.frog)}, False)
-        self.assertEqual(refused.exception.code, "GAME_HAS_CONVERSATION")
-
-    def test_a_conversation_whose_game_folder_is_gone_is_told_so(self):
-        import shutil
-
-        shutil.rmtree(self.frog)
-        refused = self.denied("st-frog", "project_select", {"projectPath": str(self.comet)})
-        self.assertEqual(refused.code, "GAME_FOLDER_MISSING")
-
-    def test_games_without_a_conversation_and_new_projects_are_open_to_any_chat(self):
-        self.guard("plain-chat", "project_select", {"projectPath": str(self.comet)})
-        self.guard("plain-chat", "project_create", {"name": "Y", "destinationPath": str(self.base / "y")})
-
-    def test_a_new_game_conversation_makes_a_project_but_opens_no_existing_game(self):
-        self.registry.build_start("st-new", PROFILE)
-        self.guard("st-new", "project_create", {"name": "Z", "destinationPath": str(self.base / "z")})
-        # Even a game without a conversation: it would stay selected once the new project claims this chat.
-        refused = self.denied("st-new", "project_select", {"projectPath": str(self.comet)})
-        self.assertEqual(refused.code, "NEW_GAME_ONLY")
-        self.assertIn("chromatic_project_create", str(refused))
-        refused = self.denied("st-new", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
-        self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
-
-
-class EngineStub:
-    def __init__(self, root):
-        self.root, self.calls = root, []
-
-    def call_tool(self, tool, arguments, timeout=None):
-        self.calls.append((tool, arguments))
-        if tool == "session_status":
-            return {"structuredContent": {"projectRoot": str(self.root), "projectPath": arguments}}
-        return {"content": [], "structuredContent": {"success": True, "projectRoot": str(self.root)}}
-
-
-class AutoSelect(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name).resolve()  # macOS: /var is a link to /private/var
-        self.registry = games.Registry(self.base / "lib")
-        self.frog = make_project(self.base, "Frog Post")
-        self.registry.upsert(str(self.frog))
-        self.registry.bind(games.game_id(self.frog), "st-frog", PROFILE)
-        self.broker = guard_broker(self.registry)
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def test_a_games_conversation_starts_with_its_game_selected_and_is_told(self):
-        lane = Lane((PROFILE, "st-frog"))
-        engine = lane.engine = EngineStub(self.frog)
-        self.broker.select_bound_game(lane, engine)
-        self.assertEqual(engine.calls[0], ("project_select", {"projectPath": str(self.frog / "frog-post.gbsproj")}))
-        self.assertEqual(lane.selected_root, os.path.realpath(self.frog))
-        self.assertIn("Frog Post", lane.pending_notice)
-        engine.calls.clear()
-        self.broker.select_bound_game(lane, engine)  # already selected: nothing more
-        self.assertEqual(engine.calls, [])
-
-    def test_a_failed_sync_after_a_good_select_still_records_the_game(self):
-        lane = Lane((PROFILE, "st-frog"))
-        engine = lane.engine = EngineStub(self.frog)
-
-        def broken(_lane):
-            raise RuntimeError("status timed out")
-
-        self.broker._sync_selection = broken
-        self.broker.select_bound_game(lane, engine)
-        self.assertEqual(lane.selected_root, os.path.realpath(self.frog))
-
-    def test_a_failed_select_is_not_retried_on_every_call(self):
-        lane = Lane((PROFILE, "st-frog"))
-        engine = lane.engine = EngineStub(self.frog)
-
-        def refuse(tool, arguments, timeout=None):
-            engine.calls.append(tool)
-            return {"isError": True}
-
-        engine.call_tool = refuse
-        self.broker.select_bound_game(lane, engine)
-        self.broker.select_bound_game(lane, engine)
-        self.assertEqual(engine.calls, ["project_select"])
-
-    def test_other_conversations_are_left_alone(self):
-        lane = Lane((PROFILE, "plain-chat"))
-        engine = EngineStub(self.frog)
-        self.broker.select_bound_game(lane, engine)
-        self.assertEqual(engine.calls, [])
-        self.assertIsNone(lane.selected_root)
 
 
 class RpcAndContext(unittest.TestCase):
@@ -457,122 +308,6 @@ class RpcAndContext(unittest.TestCase):
         )
         self.assertIsNone(library_hooks.build_context(session_id="plain-chat"))
         self.assertIsNone(library_hooks.build_context())
-
-
-PNG_1x1 = bytes.fromhex(
-    "89504e470d0a1a0a0000000d4948445200000020000000100806000000"
-    "1f15c4890000000d49444154789c636001000000050001a5f645400000000049454e44ae426082"
-)
-
-
-class AssetRpc(unittest.TestCase):
-    def setUp(self):
-        isolated = isolated_home(self)
-        self.base, self.home = isolated.base, isolated.data  # self.home: the plugin data folder
-        (self.home / "frames").mkdir(parents=True)
-        self.frog = make_project(self.base, "Frog Post")
-        hermes_host._registry().upsert(str(self.frog))
-        rpc_asset = assets_rpcs.rpc_asset(mock.Mock())
-        self.asset = lambda params: rpc_asset({"root": str(self.frog), **params})  # Frog Post's own Build page
-
-    def test_a_sprite_in_a_game_comes_with_its_size_and_frames(self):
-        sprite = self.frog / "assets" / "sprites" / "frog.png"
-        sprite.parent.mkdir(parents=True, exist_ok=True)
-        sprite.write_bytes(PNG_1x1)
-        (sprite.parent / "frog.png.gbsres").write_text(
-            json.dumps({"name": "Frog", "canvasWidth": 16, "canvasHeight": 16, "animSpeed": 15})
-        )
-        answer = self.asset({"path": str(sprite)})
-        self.assertTrue(answer["ok"], answer)
-        self.assertEqual(
-            (answer["width"], answer["height"], answer["kind"], answer["relative"]),
-            (32, 16, "sprite", "assets/sprites/frog.png"),
-        )
-        self.assertEqual(answer["sprite"], {"name": "Frog", "frameWidth": 16, "frameHeight": 16, "animSpeed": 15})
-        self.assertTrue(answer["dataUrl"].startswith("data:image/png;base64,"))
-
-    def test_saved_frames_are_served_and_everything_else_is_refused(self):
-        frame = self.home / "frames" / "f.png"
-        frame.write_bytes(PNG_1x1)
-        self.assertEqual(self.asset({"path": "file://" + str(frame)})["kind"], "frame")
-        outside = self.base / "secret.png"
-        outside.write_bytes(PNG_1x1)
-        self.assertEqual(self.asset({"path": str(outside)})["code"], "OUTSIDE")
-        link = self.frog / "escape.png"
-        link.symlink_to(outside)
-        self.assertEqual(
-            self.asset({"path": str(link)})["code"], "OUTSIDE", "a link out of the game is followed, then refused"
-        )
-        text = self.frog / "notes.txt"
-        text.write_text("hi")
-        self.assertEqual(self.asset({"path": str(text)})["code"], "NOT_IMAGE")
-        self.assertEqual(self.asset({"path": "assets/frog.png"})["code"], "INVALID")
-        self.assertEqual(self.asset({"path": str(self.frog / "gone.png")})["code"], "MISSING")
-
-    def test_another_games_images_are_never_shown_on_this_games_page(self):
-        cat = make_project(self.base, "Cat Field")
-        hermes_host._registry().upsert(str(cat))
-        theirs = cat / "cover.png"
-        theirs.write_bytes(PNG_1x1)
-        refused = self.asset({"path": str(theirs)})
-        self.assertEqual(refused["code"], "OTHER_GAME", "Frog Post's page asked for Cat Field's cover")
-        self.assertEqual(self.asset({"root": str(cat), "path": str(theirs)})["kind"], "image")  # on its own page
-        for params in ({}, {"root": ""}, {"root": "Cat Field"}, {"root": str(self.base)}):
-            answer = assets_rpcs.rpc_asset(mock.Mock())({**params, "path": str(theirs)})
-            self.assertEqual(answer["code"], "OTHER_GAME", f"no game's page, or not a library game: {params}")
-        info = assets_rpcs.rpc_asset_info(mock.Mock())({"root": str(self.frog), "path": str(theirs)})
-        self.assertEqual(info["code"], "OUTSIDE")
-        restore = assets_rpcs.rpc_asset_restore(mock.Mock())(
-            {"root": str(self.frog), "path": str(theirs), "version": "1"}
-        )
-        self.assertEqual(restore["code"], "INVALID")
-        frame = self.home / "frames" / "f.png"
-        frame.write_bytes(PNG_1x1)
-        self.assertEqual(assets_rpcs.rpc_asset(mock.Mock())({"path": str(frame)})["kind"], "frame")  # any page
-
-    def test_a_game_inside_another_games_folder_keeps_its_own_images(self):
-        inner = self.frog / "Pond"
-        (inner / "assets" / "sprites").mkdir(parents=True)
-        (inner / "Pond.gbsproj").write_text("{}")
-        hermes_host._registry().upsert(str(inner))
-        sprite = inner / "assets" / "sprites" / "lily.png"
-        sprite.write_bytes(PNG_1x1)
-        self.assertEqual(self.asset({"path": str(sprite)})["code"], "OTHER_GAME", "Pond's sprite on Frog Post's page")
-        answer = self.asset({"root": str(inner), "path": str(sprite)})
-        self.assertEqual((answer["kind"], answer["relative"]), ("sprite", "assets/sprites/lily.png"))
-
-    def test_a_game_whose_details_cannot_be_read_still_owns_its_images(self):
-        inner = self.frog / "Pond"
-        inner.mkdir()
-        hermes_host._registry().upsert(str(inner))
-        sprite = inner / "lily.png"
-        sprite.write_bytes(PNG_1x1)
-        with mock.patch.object(type(hermes_host._registry()), "library", return_value=[]):
-            self.assertEqual(self.asset({"path": str(sprite)})["code"], "OTHER_GAME")
-
-    def test_a_nested_games_pictures_are_not_in_the_outer_games_list(self):
-        sprites = self.frog / "assets" / "sprites"
-        (sprites / "Pond").mkdir(parents=True)
-        (sprites / "frog.png").write_bytes(PNG_1x1)
-        (sprites / "Pond" / "lily.png").write_bytes(PNG_1x1)
-        hermes_host._registry().upsert(str(sprites / "Pond"))
-        listed = assets_rpcs.rpc_assets(mock.Mock())({"root": str(self.frog)})
-        self.assertEqual([item["file"] for item in listed["assets"]], ["cover.png", "frog.png"])
-
-    def test_a_restore_never_writes_through_a_temporary_file_already_there(self):
-        cover = self.frog / "cover.png"
-        cover.write_bytes(PNG_1x1)
-        os.utime(cover, ns=(10**18, 10**18))
-        version = assets_rpcs.rpc_asset_info(mock.Mock())({"root": str(self.frog), "path": str(cover)})["versions"][0]
-        cover.write_bytes(PNG_1x1 + b"later")
-        outside = self.base / "outside.png"
-        outside.write_bytes(b"theirs")
-        (self.frog / ".cover.png.restore").symlink_to(outside)
-        restored = assets_rpcs.rpc_asset_restore(mock.Mock())(
-            {"root": str(self.frog), "path": str(cover), "version": version["id"]}
-        )
-        self.assertTrue(restored["ok"], restored)
-        self.assertEqual((cover.read_bytes(), outside.read_bytes()), (PNG_1x1, b"theirs"))
 
 
 if __name__ == "__main__":

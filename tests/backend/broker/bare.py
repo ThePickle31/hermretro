@@ -23,3 +23,14 @@ def bare_broker(**fields):
     for name, value in fields.items():
         setattr(broker, name, value)
     return broker
+
+
+class EngineStub:
+    def __init__(self, root):
+        self.root, self.calls = root, []
+
+    def call_tool(self, tool, arguments, timeout=None):
+        self.calls.append((tool, arguments))
+        if tool == "session_status":
+            return {"structuredContent": {"projectRoot": str(self.root), "projectPath": arguments}}
+        return {"content": [], "structuredContent": {"success": True, "projectRoot": str(self.root)}}

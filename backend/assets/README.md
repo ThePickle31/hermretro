@@ -38,8 +38,9 @@ file is not counted).
 
 ## Tests
 
-`tests/backend/assets/`, including `tests/backend/assets/test_asset_restore.py` (failed backups, the file lock and
-historical reads after a restore) and `tests/backend/assets/test_asset_list_limit.py` (ownership, order and the cap).
+`tests/backend/assets/test_asset_rpc.py` covers Build page previews, saved frames and nested-game ownership.
+`tests/backend/assets/test_asset_restore.py` covers failed backups, the file lock and historical reads after a restore.
+`tests/backend/assets/test_asset_list_limit.py` covers ownership, order and the listing cap.
 
 ## Adding here
 
