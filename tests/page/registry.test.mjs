@@ -28,7 +28,6 @@ const { createEvents, emit, on, PAGE_EVENTS } = await import('../../page/app/eve
 const { createSlots, PAGE_SLOTS, Slot } = await import('../../page/app/slots.js')
 const { PageView } = await import('../../page/app/page-view.js')
 const { composeStyles } = await import('../../page/app/style.js')
-const { RESPONSIVE_CSS } = await import('../../page/shared/styles/responsive.css.js')
 const { InstallButton } = await import('../../page/pages/games/games-page.js')
 const { BUILD_INJECT, BUILD_PRESENTED } = await import('../../page/pages/build/chat/store.js')
 
@@ -260,7 +259,7 @@ test('every class a shared component sets (and the default of Screen) has a rule
   assert.deepEqual([...used].filter(name => !new RegExp(`\\.${name}(?![\\w-])`).test(css)), [], 'FIX: style the class in page/shared/styles/ or page/app/shell.css.js')
 })
 
-test('the stylesheet holds every page rule once; Build after the narrow-pane rules', () => {
+test('the stylesheet holds each page rule once and sizes the inline player within its frame', () => {
   const css = composeStyles(PAGES)
 
   for (const page of PAGES) {
@@ -269,7 +268,12 @@ test('the stylesheet holds every page rule once; Build after the narrow-pane rul
     }
   }
 
-  const build = PAGES.find(page => page.id === 'build')
+  const fixture = new JSDOM('<div class="cs-pad flush"><div class="cs-ip-fit"><div class="cs-rp-stage"></div></div></div>')
+  const doc = fixture.window.document
+  const style = doc.createElement('style')
 
-  assert.ok(css.indexOf(build.css[0]) > css.indexOf(RESPONSIVE_CSS))
+  style.textContent = css
+  doc.head.appendChild(style)
+  assert.equal(fixture.window.getComputedStyle(doc.querySelector('.cs-rp-stage')).height, '100%')
+  fixture.window.close()
 })
