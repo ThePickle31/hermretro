@@ -52,9 +52,15 @@ class BrokerRun:
     def live_brokers(self) -> set[int]:
         """Find this run's exact launch commands, including the broker inside a Linux systemd scope."""
         known_pids = self.brokers | {process.pid for process in self.launches}
-        if not known_pids:
+        if not self.launches:
             return set()
-        arguments = f" -m backend.broker --state-dir {self.state} --node {self.node}"
+        # Each start discovers Node again. A systemd scope can prefix the Python command.
+        suffixes = []
+        for process in self.launches:
+            interpreter = process.args.index(sys.executable)
+            suffixes.append(" " + " ".join(process.args[interpreter + 1 :]))
+        arguments = tuple(suffixes)
+        commands = {sys.executable + args for args in arguments}
         listing = subprocess.run(
             ["ps", "-A", "-ww", "-o", "pid=,command="], check=True, capture_output=True, text=True, errors="replace"
         )
@@ -63,7 +69,7 @@ class BrokerRun:
             fields = row.split(maxsplit=1)
             if len(fields) == 2:
                 pid, command = int(fields[0]), fields[1]
-                if command == sys.executable + arguments or (pid in known_pids and command.endswith(arguments)):
+                if command in commands or (pid in known_pids and command.endswith(arguments)):
                     found.add(pid)
         return found
 
