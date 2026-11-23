@@ -342,6 +342,12 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     hides('not switched on')
     assert.ok([...dom.window.document.querySelectorAll('.cs-stage button')].some(node => node.textContent === 'Refresh'))
   })
+  scenario.status = answered({ ok: false, error: 'the studio profile could not be read' })
+  await render()
+  check('a status that answers with an error says so, with its own Refresh', () => {
+    assert.equal(heading(), 'hermretro reported a problem'); shows(/the studio profile could not be read/)
+    assert.ok([...dom.window.document.querySelectorAll('.cs-stage button')].some(node => node.textContent === 'Refresh'))
+  })
 
   scenario.status = answered(complete)
   await render()

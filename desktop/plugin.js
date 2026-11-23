@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 82b1c115f9a66011172e726049d4adeb3e6ba151b37fdbee379ff5895c4ae382
- * body: sha256 d2bfd0ff67ea5b96134367bc670d46fe867a1f2ad2eca00de055f2c9fc9a2c5f
+ * sources: sha256 3e1343b0b79ee602e6cd2a6132d076e4f8e2c53986ebf4230a11eacaa3b9e21d
+ * body: sha256 8dd724407428169222faded84e985fcfda54d55cd1f3d99a3cee7f1ebd94c34a
  */
 // page/sdk.js
 import {
@@ -17006,6 +17006,16 @@ function StudioNav({ pages, nav, onGo, viaProfile = null, update = null }) {
 
 // page/app/not-running.js
 function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
+  const refresh = jsx("div", {
+    className: "cs-actions",
+    children: jsxs(Button, {
+      disabled: refreshing,
+      onClick: onRefresh,
+      size: "sm",
+      variant: "default",
+      children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), "Refresh"]
+    })
+  });
   let title = "Checking hermretro…";
   let body2 = jsx(Working, { children: "Asking the plugin for its status." });
   if (backend === "offline") {
@@ -17013,7 +17023,10 @@ function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
     body2 = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
   } else if (backend === "error") {
     title = "hermretro reported a problem";
-    body2 = jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" });
+    body2 = jsxs("div", {
+      className: "cs-content",
+      children: [jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" }), refresh]
+    });
   } else if (backend === "failed") {
     title = "Could not read hermretro's status";
     body2 = jsxs("div", {
@@ -17021,16 +17034,7 @@ function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
       children: [
         jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
         jsx("pre", { className: "cs-error", children: describeRequestError(status.error).message || "Unknown error" }),
-        jsx("div", {
-          className: "cs-actions",
-          children: jsxs(Button, {
-            disabled: refreshing,
-            onClick: onRefresh,
-            size: "sm",
-            variant: "default",
-            children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), "Refresh"]
-          })
-        })
+        refresh
       ]
     });
   } else if (backend === "unavailable") {

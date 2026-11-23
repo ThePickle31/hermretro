@@ -43,7 +43,8 @@ export async function callBackend(method, params = {}, timeoutMs) {
       throw error
     }
 
-    // Asking every profile is not free: do it on open and on Refresh, then only now and again.
+    // Asking every profile is not free: do it on open and on Refresh (Setup's Check everything again,
+    // the not-running panel), then only now and again.
     if (!routing.route && Date.now() - routing.scannedAt >= ROUTE_SCAN_EVERY_MS) {
       routing.scannedAt = Date.now()
 
@@ -113,7 +114,7 @@ export function useBackend({ fast, pollDoctor }) {
 
   const statusOk = Boolean(status.data?.ok)
 
-  // Doctor reads tool metadata on disk: run it when the page mounts and on Refresh, and
+  // Doctor reads tool metadata on disk: run it when the page mounts and on Refresh (Setup's Check everything again), and
   // repeat it only while the toolchain step is the one waiting to complete.
   const doctor = useQuery({
     queryKey: [ID, 'doctor', status.data?.via_profile ?? null],
