@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
- * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
+ * sources: sha256 8a6f0564b5ee0a2787286f2d2de6eab84a408f26f7a7c664f2d5c0fe5b907eba
+ * body: sha256 31f04385f8fd07c3257936592ce7803818b360662262103f9952638fa2fd5887
  */
 // page/sdk.js
 import {
@@ -11433,7 +11433,7 @@ var INLINE_PLAYER_CSS = `
 .cs-ip-screen[data-view=screen] { border-radius: 4px; box-shadow: 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 20px 50px color-mix(in srgb, black 55%, transparent); overflow: hidden; }
 .cs-ip-screen:fullscreen { align-items: center; background: black; border-radius: 0; display: flex; height: 100%; justify-content: center; width: 100%; }
 .cs-ip-fit { flex: none; max-width: 100%; }
-.cs-ip-fit .cs-rp-stage, .cs-ip-fit .cs-rp-stage:not(.off) { height: 100%; width: 100%; }
+.cs-ip-fit > .cs-rp-stage { height: 100%; width: 100%; }
 .cs-ip-panel { background: var(--ui-bg-secondary); border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 4px; font-size: 12.5px; overflow-y: auto; padding: 12px 14px; width: 300px; }
 .cs-ip-panel.tabs { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); padding-top: 0; width: auto; }
 .cs-ip-sec { display: flex; flex-direction: column; gap: 6px; }
@@ -11816,8 +11816,6 @@ var BUILD_PAGE = {
     CART_SHELF_CSS,
     BUILD_RESPONSIVE_CSS
   ],
-  // After every other page's rules: the inline player overrides the Emulator page's stage rules.
-  cssLast: true,
   register: (ctx) => {
     watchBuildChats(ctx);
     restoreNewGameDraft(ctx);
@@ -14958,9 +14956,8 @@ function composeStyles(pages) {
     UPDATE_CSS,
     FLYER_CSS,
     ...BACKGROUNDS.flatMap((background) => background.css ?? []),
-    ...pages.filter((page) => !page.cssLast).flatMap(chunks),
-    RESPONSIVE_CSS,
-    ...pages.filter((page) => page.cssLast).flatMap(chunks)
+    ...pages.flatMap(chunks),
+    RESPONSIVE_CSS
   ].join("");
 }
 function installPageStyles(pages) {
@@ -15280,7 +15277,7 @@ var EMULATOR_CSS = `
 .cs-rp-note b { color: var(--ui-text-primary); font-size: 13px; }
 .cs-rp-note span { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.45; }
 .cs-rp-void { background: var(--ui-bg-quaternary); height: 100%; opacity: .5; }
-.cs-pad.flush .cs-rp-stage:not(.off) { height: max(500px, calc(100svh - 230px)); }
+.cs-pad.flush > .cs-rp-stage:not(.off) { height: max(500px, calc(100svh - 230px)); }
 .cs-rp-foot { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 6px clamp(12px, 2cqi, 32px); }
 .cs-rp-hint { color: var(--ui-text-tertiary); font-size: 12px; }
 .cs-side-note { align-items: center; background: var(--ui-bg-secondary); border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-secondary); display: flex; font-size: 12px; gap: 8px; line-height: 1.4; padding: 5px clamp(10px, 2cqi, 20px); }
@@ -15329,7 +15326,7 @@ var EMULATOR_PAGE = {
 var PAGES = [BUILD_PAGE, SETUP_PAGE, GAMES_PAGE, EMULATOR_PAGE];
 
 // page/app/registry.js
-var PAGE_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "tabs", "Badge", "pad", "BelowPlayer", "css", "cssLast", "events", "listens", "slots", "contributes", "register"]);
+var PAGE_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "tabs", "Badge", "pad", "BelowPlayer", "css", "events", "listens", "slots", "contributes", "register"]);
 var TAB_FIELDS = /* @__PURE__ */ new Set(["id", "label", "Page", "css", "events", "listens", "slots", "contributes"]);
 var ID2 = /^[a-z][a-z0-9-]*$/;
 var NAME = /^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/;
