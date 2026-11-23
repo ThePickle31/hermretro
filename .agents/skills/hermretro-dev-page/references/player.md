@@ -31,7 +31,7 @@ when the agent is ready to present the game after making it, never for the whole
   `chromatic_present_game` (`result.ok` and `result.studio.gameId`) opens or fronts
   `host.openWorkspace('hermretro.emulator.<game id>', {dock: {pane: 'workspace', pos: 'right'},
   minWidth: '22rem', title: 'Emulator · <studio.title>'})`. `chromatic_rom_build` / `chromatic_web_preview`
-  completions only bump a counter so open players re-read `games` at once.
+  completions bump a counter so open beside-chat tabs check their game at once.
 - **Fallback.** The gateway sends `tool.complete` only while the chat's tool progress is not `off`, so every
   `message.complete` (600 ms later) calls RPC `presentations` with `since` = the backend's `now` from the
   previous answer minus 1 s (first call: plugin start minus 5 s) and presents the newest one per game.
@@ -52,8 +52,10 @@ when the agent is ready to present the game after making it, never for the whole
 - **Tab content.** Same `EmulatorBar`, `PlayerNotice`, `PlayerStage` and annotate / Ask Hermes code as
   the page, in `.cs-page.cs-side` (stage fills the tab; the player inside scales by height and width).
   Page keys reach the game only after the user last clicked inside the tab, so the chat keeps its keys.
-- **Rebuilt check.** Both surfaces compare the player's `romSha256` with `game.web.sha256` (the web
-  export's own ROM; the native build's bytes differ), falling back to `rom.sha256` on older backends.
+- **Rebuilt check.** Both surfaces poll `game_build_status` every 5 s while visible for a player's own
+  game. They compare the player's `romSha256` with the web export's `web.sha256`, falling back to the
+  available ROM hash. The Studio shelf keeps its 30 s refresh for edits outside the page. A remembered
+  pick is cleared only when the per-game check confirms it is gone.
 - **Agent side.** `rom_build` / `web_preview` results no longer carry any Studio address
   (`studio`/`studioPlayerUrl`/`studioGameId` are gone) and the engine's own preview address is not offered
   after a build. Their `nextStep`, the system prompt section and the skills say: when the game is ready for
@@ -93,6 +95,11 @@ Params: none. Result:
 ```
 `demo` is the built-in demo cartridge. It is never part of `games[]`, so the Games shelf stays the user's library.
 The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM inside that export (named by its `gbstudio.json`): the player loads that file, which is its own compilation and not byte-identical to `rom`, so the rebuilt banner compares against `web.sha256`.
+
+### `game_build_status` → check one game's build
+Params `{ "id": "…" }`. Result `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session },
+device: { hardwareEnabled } }`. The result omits shelf images, card data and source state. Errors include
+`NO_GAME` for confirmed removal and `UNAVAILABLE` when the library or project cannot be read.
 
 ### `game_thumb` → store a title screen
 Params `{ "id": "…", "png": "data:image/png;base64,…" }` (≤ 64 KB). Saves `state_dir/thumbs/<id>.png`; `games` returns it from then on. Result `{ "ok": true }`.

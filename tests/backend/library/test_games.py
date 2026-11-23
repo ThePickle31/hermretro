@@ -262,7 +262,7 @@ class GamesRpc(unittest.TestCase):
                 "card",
                 "displayTitle",
             },
-            "the games RPC's keys changed: change Registry.describe (backend/library/games.py), this set, the "
+            "the games RPC's keys changed: change describe (backend/library/shelf.py), this set, the "
             ".agents/skills/hermretro-dev-architecture/references/contract.md games row and the .agents/skills/hermretro-dev-page/references/player.md games JSON together "
             "(backend/library/README.md, 'Adding here')",
         )

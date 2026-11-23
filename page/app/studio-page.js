@@ -32,6 +32,7 @@ import {
 } from '#pages/index.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from './player/capture.js'
+import { readGameBuildStatus } from './player/build-status.js'
 import { shrinkFrame } from '#shared/player/frame-image.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
 import { playableSha, PlayerAway, PlayerStage } from './player/stage.js'
@@ -267,8 +268,7 @@ export function StudioPage({ ctx }) {
     queryKey: [ID, 'games', viaProfile],
     queryFn: () => callStudio(RPC_GAMES),
     enabled: running,
-    // While the player is on screen, a rebuild in chat is noticed within seconds.
-    refetchInterval: onEmulator ? 5_000 : 30_000,
+    refetchInterval: 30_000,
     staleTime: 2_000,
     retry: false
   })
@@ -277,20 +277,29 @@ export function StudioPage({ ctx }) {
   const [emuOpened, setEmuOpened] = useState(false)
   const [dismissed, setDismissed] = useState(null)
   const [capturesOpen, setCapturesOpen] = useState(false)
+  const checkPicked = running && Boolean(emu.id && emu.id !== DEMO_ID)
+  const buildStatus = useQuery({
+    queryKey: [ID, 'gameBuildStatus', viaProfile, emu.id],
+    queryFn: () => readGameBuildStatus(callStudio, emu.id),
+    enabled: checkPicked,
+    refetchInterval: checkPicked && onEmulator ? 5_000 : false,
+    retry: false
+  })
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
-  // The page plays only the game picked on the Games page (remembered across visits), even without a web build (its
-  // error says how to build it); with none picked the demo cartridge. A game a chat builds or presents never loads
-  // here by itself. Nothing is chosen until the library has answered (a picked game, until it answered
-  // successfully), so the frame does not load the demo and then switch.
-  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games))
+  // The page plays the game picked on the Games page, or the demo when there is no pick.
+  // Only a successful lookup confirming removal can clear a remembered pick.
   const libraryKnown = Boolean(games.data) || games.isError
-  const picked = emu.id === DEMO_ID ? demo : gameList.find(item => item.id === emu.id)
-  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null)
+  const removed = checkPicked && buildStatus.data?.code === 'NO_GAME' && !buildStatus.isFetching && !buildStatus.isError
+  const picked = gameList.find(item => item.id === emu.id)
+  const current = buildStatus.data?.game
+  const game = removed || emu.id === DEMO_ID || (!emu.id && libraryKnown)
+    ? demo
+    : current ? { ...picked, ...current } : picked ?? null
 
   // A picked game gone from the library is forgotten, so a different game made later in its folder (with the same
   // id) is never played here without a new Play.
   useEffect(() => {
-    if (libraryRead && emu.id && !picked) {
+    if (removed) {
       setEmu(current => ({ id: null, reload: current.reload }))
       try {
         ctx.storage.set(EMULATOR_GAME, null)
@@ -298,7 +307,7 @@ export function StudioPage({ ctx }) {
         // for this visit only
       }
     }
-  }, [libraryRead, emu.id, Boolean(picked)])
+  }, [removed, emu.id])
 
   useEffect(() => {
     if (onEmulator && game) {

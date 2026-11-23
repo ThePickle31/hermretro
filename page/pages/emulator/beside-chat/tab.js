@@ -2,7 +2,8 @@
 import { Codicon, host, jsx, jsxs, useEffect, useQuery, useRef, useState, useValue } from '#sdk'
 import { callBackend } from '#app/backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from '#app/ids.js'
-import { RPC_GAMES, RPC_PLAYER } from '#app/rpc.js'
+import { RPC_PLAYER } from '#app/rpc.js'
+import { readGameBuildStatus } from '#app/player/build-status.js'
 import { EmulatorBar } from '#pages/emulator/emulator-bar.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from '#app/player/capture.js'
@@ -27,7 +28,7 @@ export function openSideEmulator(ctx, game) {
       dock: { pane: 'workspace', pos: 'right' },
       minWidth: '22rem',
       title: `Emulator · ${game.title}`,
-      render: () => jsx(SideEmulator, { ctx, gameId: game.id, paneId: `plugin-workspace:${key}`, title: game.title }),
+      render: () => jsx(SideEmulator, { ctx, initialGame: game, paneId: `plugin-workspace:${key}` }),
       onClose: () => {
         sideTabs.delete(game.id)
         releaseLive(surface)
@@ -46,7 +47,9 @@ export function openSideEmulator(ctx, game) {
 }
 
 /** The emulator tab beside the chat: the Emulator page's bar and player, sized to the tab. */
-function SideEmulator({ ctx, gameId, title, paneId }) {
+function SideEmulator({ ctx, initialGame, paneId }) {
+  const gameId = initialGame.id
+  const demo = gameId === DEMO_ID
   const surface = sideSurface(gameId)
   const owner = useValue(LIVE_PLAYER)
   const tick = useValue(BUILD_TICK)
@@ -63,24 +66,26 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
 
   useEffect(() => () => releaseLive(surface), [])
 
-  const games = useQuery({
-    queryKey: [ID, 'games', 'side', gameId],
-    queryFn: async () => (await callBackend(RPC_GAMES)).data,
-    refetchInterval: shown ? 5_000 : 30_000,
+  const buildStatus = useQuery({
+    queryKey: [ID, 'gameBuildStatus', 'side', gameId],
+    queryFn: () => readGameBuildStatus(async (method, params) => (await callBackend(method, params)).data, gameId),
+    enabled: !demo,
+    refetchInterval: demo ? false : shown ? 5_000 : 30_000,
     staleTime: 2_000,
     retry: false
   })
-  const firstTick = useRef(tick)
+  const lastTick = useRef(tick)
 
   useEffect(() => {
-    if (tick !== firstTick.current) {
-      void games.refetch?.()
+    if (!demo && tick !== lastTick.current) {
+      lastTick.current = tick
+      void buildStatus.refetch?.()
     }
   }, [tick])
 
-  const list = Array.isArray(games.data?.games) ? games.data.games : []
-  const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
-  const game = gameId === DEMO_ID ? demo : (list.find(item => item.id === gameId) ?? { id: gameId, title, rom: null, web: null, chat: null })
+  const game = demo
+    ? DEMO_GAME
+    : buildStatus.data?.game ?? (buildStatus.data?.code === 'NO_GAME' ? { id: gameId, title: initialGame.title } : initialGame)
   const [reload, setReload] = useState(0)
   const [dismissed, setDismissed] = useState(null)
   const [capturesOpen, setCapturesOpen] = useState(false)
@@ -97,7 +102,6 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
       seenSeq.current = seq
       setDismissed(null)
       setReload(value => value + 1)
-      void games.refetch?.()
     }
   }, [presentation?.seq])
 
@@ -118,7 +122,7 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
   const currentSha = playableSha(game)
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), scopeRef, visible: live && shown })
-  const hardwareOn = Boolean(games.data?.device?.hardwareEnabled)
+  const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled)
 
   return jsxs('div', {
     className: 'cs-page cs-side',

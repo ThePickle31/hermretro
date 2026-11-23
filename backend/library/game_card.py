@@ -23,7 +23,7 @@ from .game_cover import copied_asset, cover_path
 from .game_cover import MAX_COVER_COLOURS as MAX_COVER_COLOURS  # public to tools.py's schema text
 from .game_cover import MAX_COVER_BYTES as MAX_COVER_BYTES  # public to tools.py's schema text
 from .game_cover import MIN_COVER_COLOURS as MIN_COVER_COLOURS  # public to tools.py's schema text
-from .game_cover import cover_data_url as cover_data_url  # public to games.py's thumbnails
+from .game_cover import cover_data_url as cover_data_url  # public to the shelf
 from .game_cover import cover_problem as cover_problem  # public: backend/library/README.md
 
 CARD_FILE = "game.json"
@@ -80,7 +80,7 @@ def load(root: Path) -> dict:
         if path.stat().st_size > MAX_CARD_BYTES:
             return {}
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -311,13 +311,17 @@ def public(root: Path) -> dict | None:
         value = data.get(key)
         return value.strip() if isinstance(value, str) else ""
 
+    def strings(key: str, limit: int) -> list[str]:
+        values = data.get(key)
+        return [value for value in values if isinstance(value, str)][:limit] if isinstance(values, list) else []
+
     return {
         "title": text("title") or None,
         "tagline": text("tagline") or None,
         "description": text("description") or None,
         "about": text("about") or None,
-        "genres": [g for g in data.get("genres") or [] if isinstance(g, str)][:MAX_GENRES],
-        "tags": [t for t in data.get("tags") or [] if isinstance(t, str)][:MAX_TAGS],
+        "genres": strings("genres", MAX_GENRES),
+        "tags": strings("tags", MAX_TAGS),
         "controls": {k: v for k, v in (data.get("controls") or {}).items() if isinstance(k, str) and isinstance(v, str)}
         if isinstance(data.get("controls"), dict)
         else {},

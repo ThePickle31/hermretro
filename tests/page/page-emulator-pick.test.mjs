@@ -69,8 +69,15 @@ await runScenario(async helpers => {
   await failing.close()
 
   scenario.storage.emulatorGame = 'fff999fff999' // a game since removed from the library
+  scenario.gameBuildStatus = { isError: true, isFetching: false, error: new Error('Project is unavailable') }
   const later = await mount(page)
   await tab('Emulator')
+  check('a successful shelf refresh that omits an unavailable project keeps the remembered pick', () => {
+    assert.equal(playing(), null)
+    assert.equal(scenario.storage.emulatorGame, 'fff999fff999')
+  })
+  scenario.gameBuildStatus = answered({ ok: false, code: 'NO_GAME' })
+  await later.rerender()
   check('a remembered game no longer in the library falls back to the demo cartridge and is forgotten', () => {
     assert.equal(playing(), 'demo')
     assert.equal(scenario.storage.emulatorGame, null, 'a new game later made in its folder is not played without Play')

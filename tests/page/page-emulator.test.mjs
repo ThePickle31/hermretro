@@ -122,11 +122,17 @@ await runScenario(async helpers => {
   })
   await settle()
   check('messages that do not come from the player frame are ignored', () => { assert.ok(!scenario.inserted.some(([, value]) => /spoof/.test(value))) })
-  scenario.games = answered({ games: [{ ...games[0], rom: { ...games[0].rom, sha256: 'sha-two' } }, games[1]], device: { hardwareEnabled: true, skipped: false } })
+  const rebuilt = { ok: true, game: { id: games[0].id, title: games[0].title, web: { sha256: 'sha-two' } } }
+  scenario.gameBuildStatus = answered(rebuilt)
+  scenario.byMethod['plugin.hermretro.game_build_status'] = rebuilt
   await studio.rerender()
   check('a rebuild in chat (new ROM hash) shows the banner', () => { assert.match(text(), /Hermes rebuilt Comet Drift/); assert.match(text(), /Load the new build/) })
-  check('the games list polls every 5 s while the Emulator is shown', () => {
-    assert.equal(scenario.queries.filter(query => query.key === 'games').at(-1).refetchInterval, 5000)
+  const status = await scenario.fns.gameBuildStatus()
+  check('the Emulator polls this game every 5 s and leaves the shelf on its slower interval', () => {
+    assert.equal(scenario.queries.filter(query => query.key === 'games').at(-1).refetchInterval, 30_000)
+    assert.equal(scenario.queries.filter(query => query.key === 'gameBuildStatus').at(-1).refetchInterval, 5_000)
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: games[0].id })
+    assert.deepEqual(status, rebuilt)
   })
   await click('Later')
   check('Later hides the banner for that build', () => { assert.ok(!text().includes('Hermes rebuilt')) })

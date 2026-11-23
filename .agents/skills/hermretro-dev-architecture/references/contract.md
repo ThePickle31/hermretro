@@ -213,7 +213,8 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
+| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
+| `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
@@ -314,7 +315,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 
 ## The game object
 
-One entry of the `games` RPC's `games[]` (`Registry.describe` in `backend/library/games.py`, then `rpc_games` in
+One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.py`, then `rpc_games` in
 `backend/library/rpcs.py`, which reshapes `chat` and `session` and drops `updatedAt`):
 
 | Field | What it holds |

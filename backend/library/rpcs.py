@@ -4,6 +4,7 @@ and captures. Declared with @rpc; registered in this order (backend/hermes/decla
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from .. import player as player_server
@@ -11,11 +12,9 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import paths
 from . import games as library
+from . import project, shelf
 
-logger = host.logger  # one logger for the Hermes side of the backend
-
-# Shared helpers (the data folder, the profile, the library, the broker client) stay in backend.hermes.host and are
-# looked up there at call time, so one patch of host.<name> reaches every module.
+logger = host.logger
 
 
 def _games_dir_made():
@@ -97,6 +96,49 @@ def _demo_entry() -> dict:
     return dict(player_server.DEMO)
 
 
+def _route_games(
+    listed: list[dict], entries: dict, pending: Sequence[dict] = (), *, lookup_titles: bool = False
+) -> None:
+    """Resolve the page's chat links and Build conversations in the answering profile."""
+    here = host._profile_identity()
+    links = [shelf.chat_link(game["chat"]) for game in listed]
+    wanted = {value for link in links if link for key in ("sessionId", "conversationId") if (value := link.get(key))}
+    titles = _chat_titles(wanted) if lookup_titles else {}
+    sessions = [game["session"] for game in listed if game["session"]]
+    existing = _existing_sessions({item["storedId"] for item in [*sessions, *pending]})
+    owned = {}
+    if wanted:
+        for identifier, entry in entries.items():
+            session = entry.get("session") if isinstance(entry, dict) else None
+            if isinstance(session, dict) and isinstance(session.get("storedId"), str):
+                for value in (session["storedId"], *library.session_aliases(session)):
+                    if value in wanted:
+                        owned[value] = identifier
+    for item in pending:
+        item.pop("profile", None)
+        item["exists"] = None if existing is None else item["storedId"] in existing
+    for game, chat in zip(listed, links, strict=True):
+        session = game["session"]
+        if session:
+            owner = session.pop("profile")
+            session["thisProfile"] = owner in (None, here)
+            session["profileName"] = _profile_name(owner) if owner else None
+            session["exists"] = (
+                None if existing is None or not session["thisProfile"] else session["storedId"] in existing
+            )
+        game["chat"] = None
+        if chat and all(owned.get(chat.get(key)) in (None, game["id"]) for key in ("sessionId", "conversationId")):
+            owner = chat.get("profile")
+            conversation = chat.get("conversationId")
+            game["chat"] = {
+                "sessionId": chat["sessionId"],
+                "title": titles.get(chat["sessionId"]) or titles.get(conversation),
+                "conversationId": conversation,
+                "profile": _profile_name(owner) if owner else None,
+                "thisProfile": owner == here if owner else None,
+            }
+
+
 @rpc("games")
 def rpc_games(ctx):
     def games(params, **_kwargs):
@@ -107,55 +149,9 @@ def rpc_games(ctx):
             except Exception:
                 logger.debug("hermretro: seeding the library from the broker failed", exc_info=True)
             listed = registry.library()
-            here = host._profile_identity()
-            wanted = {
-                value
-                for g in listed
-                if g.get("chat")
-                for value in (g["chat"].get("sessionId"), g["chat"].get("conversationId"))
-                if isinstance(value, str) and value
-            }
-            titles = _chat_titles(wanted)
-            pending = registry.pending(here)
-            # Whether each Build conversation still exists in this profile's session store (None: unknown).
-            stored_ids = {g["session"]["storedId"] for g in listed if g.get("session")} | {
-                p["storedId"] for p in pending
-            }
-            existing = _existing_sessions(stored_ids)
-            # Which game's Build conversation each session id is: a chat link to another game's is not this game's.
-            owned = {}
-            for entry in registry.load()["games"].values():
-                session = entry.get("session") if isinstance(entry, dict) else None
-                if isinstance(session, dict) and isinstance(session.get("storedId"), str):
-                    for value in (session["storedId"], *(session.get("aliases") or [])):
-                        owned[value] = entry.get("id")
-            for item in pending:
-                item.pop("profile", None)
-                item["exists"] = None if existing is None else item["storedId"] in existing
+            pending = registry.pending(host._profile_identity())
+            _route_games(listed, registry.load()["games"], pending, lookup_titles=True)
             for game in listed:
-                session = game.get("session")
-                if session:
-                    owner = session.pop("profile", None)
-                    session["thisProfile"] = owner in (None, here)
-                    session["profileName"] = _profile_name(owner) if owner else None
-                    session["exists"] = (
-                        None if existing is None or not session["thisProfile"] else session["storedId"] in existing
-                    )
-                chat = game.get("chat")
-                others = {owned.get(chat.get("sessionId")), owned.get(chat.get("conversationId"))} if chat else set()
-                if others - {None, game["id"]}:
-                    chat = None  # an old link to the conversation that has since become another game's
-                if chat and chat.get("sessionId"):
-                    owner = chat.get("profile")
-                    game["chat"] = {
-                        "sessionId": chat["sessionId"],
-                        "title": titles.get(chat["sessionId"]) or titles.get(chat.get("conversationId")),
-                        "conversationId": chat.get("conversationId"),
-                        "profile": _profile_name(owner) if owner else None,
-                        "thisProfile": owner == here if owner else None,
-                    }
-                else:
-                    game["chat"] = None
                 game.pop("updatedAt", None)
             # The built-in demo cartridge is not part of the library (the Games shelf stays the user's own
             # games); the Emulator page plays it when there is nothing else to play.
@@ -172,6 +168,37 @@ def rpc_games(ctx):
             return {"ok": False, "error": f"{type(error).__name__}: {error}", "games": [], "demo": _demo_entry()}
 
     return games
+
+
+@rpc("game_build_status")
+def rpc_game_build_status(ctx):
+    """Read one game's build artifacts and chat link for an emulator."""
+
+    def game_build_status(params, **_kwargs):
+        identifier = params.get("id") if isinstance(params, dict) else None
+        if not library.valid_id(identifier):
+            return {"ok": False, "code": "INVALID", "error": "A game id is required."}
+        missing = {"ok": False, "code": "NO_GAME", "error": "Unknown game."}
+        try:
+            entries = host._registry().load()["games"]
+            if identifier not in entries:
+                return missing
+            entry = entries[identifier]
+            root = shelf.registered_root(entry)
+            if root is None:
+                return missing
+            artifacts, _ = project.build_artifacts(root, shelf.last_build(entry))
+            game = shelf.game_details(entry, identifier, root, artifacts)
+            _route_games([game], entries)
+            return {
+                "ok": True,
+                "game": game,
+                "device": {"hardwareEnabled": bool(ctx.get_config("hardware_enabled", False))},
+            }
+        except OSError as error:
+            return {"ok": False, "code": "UNAVAILABLE", "error": str(error)}
+
+    return game_build_status
 
 
 @rpc("game_thumb")

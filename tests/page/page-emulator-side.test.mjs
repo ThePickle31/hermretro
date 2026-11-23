@@ -25,6 +25,13 @@ await runScenario(async helpers => {
       webExport: true, thumb: null, chat: { sessionId: 'stored-star', title: 'Star Farm' }, error: null }
   ]
   scenario.byMethod['plugin.hermretro.games'] = () => ({ ok: true, games: library13, device: { hardwareEnabled: true, skipped: false } })
+  const buildStatus = id => ({ ok: true, game: library13.find(game => game.id === id), device: { hardwareEnabled: true } })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = params => buildStatus(params.id)
+  let buildRefetches = 0
+  scenario.gameBuildStatus = queryKey => ({
+    ...answered(buildStatus(queryKey[3])),
+    refetch: () => { buildRefetches += 1 }
+  })
   // The backend answers with its own clock (here ahead of this one) and only presentations after `since`.
   const backendNow = Date.now() / 1000 + 50
   let shownByBackend = []
@@ -84,6 +91,13 @@ await runScenario(async helpers => {
     assert.ok(order.indexOf(note) < order.indexOf(side.node.querySelector('.cs-rp-stage')), 'above the player')
   })
   check("the tab compares the web export's own ROM: a fresh build is not reported as rebuilt", () => { assert.ok(!side.node.textContent.includes('Hermes rebuilt')) })
+  await side.rerender()
+  await scenario.fns.gameBuildStatus()
+  check('the tab polls only its own game', () => {
+    assert.equal(scenario.queries.filter(query => query.key === 'gameBuildStatus' && query.queryKey[2] === 'side').at(-1).refetchInterval, 5_000)
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: 'aaa111aaa111' })
+    assert.ok(!scenario.queries.some(query => query.key === 'games' && query.queryKey[2] === 'side'))
+  })
   await click('Bring it here', studio.node)
   check('Bring it here moves the game back to the page and the tab shows a placeholder', () => {
     assert.ok(pageFrame()); assert.ok(!sideFrame()); assert.match(side.node.textContent, /Playing in hermretro/)
@@ -105,14 +119,15 @@ await runScenario(async helpers => {
   check('the note can be dismissed', () => { assert.ok(!side.node.querySelector('.cs-side-note')) })
   const reloadBefore = sideReload()
   const frameBefore = sideFrame()
+  const refetchBefore = buildRefetches
   library13[0] = { ...library13[0], web: { sha256: 'sha-two', builtAt: now2 } }
-  scenario.games = answered({ games: library13, device: { hardwareEnabled: true, skipped: false } })
   await finish('rt-comet', 'chromatic_rom_build', built)
   await side.rerender()
   check('a rebuild without a presentation opens nothing and shows the rebuilt banner in the open tab, without reloading', () => {
     assert.equal(scenario.workspaces.length, 1); assert.equal(scenario.workspaces[0].fronted ?? 0, 0)
     assert.match(side.node.textContent, /Hermes rebuilt Comet Drift/); assert.match(side.node.textContent, /Load the new build/)
     assert.equal(sideReload(), reloadBefore); assert.ok(sideFrame() === frameBefore, 'the player frame is retained')
+    assert.equal(buildRefetches, refetchBefore + 1)
   })
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
   await finish('rt-comet', 'chromatic_present_game', presented('aaa111aaa111', 'Comet Drift', 'Now the ledge is lower: try it again.', 102))
