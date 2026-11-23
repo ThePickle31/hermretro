@@ -1,6 +1,5 @@
 // The New Game draft (page/pages/build/new-game-draft.js) and the provider check under it
 // (page/pages/build/composer/provider-notice.js), from the sources: what onboarding's handoff keeps and merges.
-// Run alone: node tests/page/new-game-draft.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 

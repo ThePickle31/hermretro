@@ -2,8 +2,7 @@
 import { atom, Codicon, jsx, jsxs, useState, useValue } from '#sdk'
 import { AssetImage, AssetStrip, LatestAsset } from '#pages/build/assets/images.js'
 import { spanWords } from '#shared/ui/time.js'
-import { Elapsed } from '#shared/ui/elapsed.js'
-import { GIST_WORDS, GROUP_MIN_STEPS, groupTitle, MINOR_STEPS, workGroups } from './groups.js'
+import { GROUP_MIN_STEPS, groupTitle, MINOR_STEPS, workGroups } from './groups.js'
 import { SUGGESTED } from './questions.js'
 import { shortTool, stepDetail, stepWords } from './step-words.js'
 import { madeAssets } from './turns.js'
@@ -160,10 +159,9 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
 const WORKED_MODE = atom('simple')
 
 export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) {
-  const [open, setOpen] = useState(null)
+  const [shown, setOpen] = useState(false)
   const [openGroups, setOpenGroups] = useState({})
   const mode = useValue(WORKED_MODE)
-  const shown = open ?? live
   const count = parts.steps.length
   const freshFrom = live ? Date.now() - 4_000 : null
   const icon = live
@@ -173,13 +171,8 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
   // Short turns stay one plain list; longer ones fold into the fixed groups.
   const { groups: allGroups, last } = workGroups(parts.entries)
   const groups = count >= GROUP_MIN_STEPS ? allGroups : []
-  const headline = live
-    ? jsxs('span', { className: 'cs-b-shimmer', children: ['Working for ', jsx(Elapsed, { since: startedAt ?? Date.now() })] })
-    : status === 'interrupted'
-      ? `Stopped${took ? ` after ${took}` : ''}`
-      : took
-        ? `Worked for ${took}`
-        : 'Worked on it'
+  const headline = live ? (parts.running ? stepWords(parts.running)[0] : 'Working…') : status === 'interrupted' ? 'Stopped' : null
+  const stepCount = count ? `${count} ${count === 1 ? 'step' : 'steps'}` : 'Activity'
   const assetsByStep = new Map()
 
   for (const asset of parts.assets) {
@@ -191,8 +184,6 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
 
   const made = madeAssets(parts, root)
   const latest = live ? parts.assets[parts.assets.length - 1] : null
-  // In words, what it did: "drew the art, set up the level, built it".
-  const gist = !live && allGroups.length > 1 ? allGroups.filter(group => GIST_WORDS[group.kind]).map(group => GIST_WORDS[group.kind]) : []
   const groupOpen = (group, index) => openGroups[group.kind] ?? (live && group.kind === last)
 
   return jsxs('div', {
@@ -204,13 +195,15 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
         children: [
           jsxs('button', {
             'aria-expanded': shown,
+            title: shown ? 'Hide steps' : 'Show steps',
             className: 'cs-b-wk-head',
             onClick: () => setOpen(!shown),
             type: 'button',
             children: [
               jsx('span', { className: `cs-b-ico ${status ?? ''}`, children: icon }),
-              jsx('b', { children: headline }),
-              gist.length ? jsx('span', { className: 'cs-faint cs-b-gist', children: `· ${gist.join(', ')}` }) : count ? jsx('span', { className: 'cs-faint', children: `· ${count} ${count === 1 ? 'step' : 'steps'}` }) : null,
+              headline ? jsx('b', { children: headline }) : null,
+              jsx('span', { children: stepCount }),
+              took && !live ? jsx('span', { className: 'cs-b-dur', children: took }) : null,
               jsx(Codicon, { name: shown ? 'chevron-down' : 'chevron-right', size: 12 })
             ]
           }),
@@ -225,7 +218,7 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
             : null
         ]
       }),
-      jsx('div', {
+      shown ? jsx('div', {
         className: 'cs-b-wk-body',
         children: jsxs('div', {
           className: `cs-b-wk-inner${mode === 'simple' && groups.length > 1 ? ' phased' : ''}`,
@@ -273,7 +266,7 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
             latest ? jsx(LatestAsset, { asset: latest, onOpen: onOpenAsset }, 'latest') : null
           ]
         })
-      })
+      }) : null
     ]
   })
 }

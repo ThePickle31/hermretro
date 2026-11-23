@@ -15,17 +15,18 @@ const CHANGE_MARK = { added: '+', changed: '~', removed: '\u2212' }
 
 /** An edited picture as it was before the turn and as it is after, with Keep and Undo (Undo puts the
  *  earlier version back through the kept versions; the one there now is kept too, so it can be redone).
- *  Shows nothing when the file is new this turn (nothing earlier was kept). */
+ *  A new image shows its current version. */
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
-  const before = useAsset(path, `reply:${from}`)
+  const before = useAsset(from ? path : null, `reply:${from}`)
   const after = useAsset(path, to ? `reply:${to}` : null)
   const root = useContext(AssetGame)
   const [state, setState] = useState(null)
 
-  if (before.state !== 'ok' || !before.asset.earlier || after.state !== 'ok') {
+  if (after.state !== 'ok') {
     return null
   }
 
+  const compare = before.state === 'ok' && before.asset.earlier
   const name = after.asset.sprite?.name || after.asset.name
   const undo = async () => {
     setState('busy')
@@ -46,7 +47,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   }
   const side = (loaded, label, now) =>
     jsxs('button', {
-      'aria-label': `Look closer at ${label.toLowerCase()} version of ${name}`,
+      'aria-label': compare ? `Look closer at ${label.toLowerCase()} version of ${name}` : `Look closer at ${name}`,
       className: now ? 'cs-b-ba-side now' : 'cs-b-ba-side',
       onClick: () => onOpen?.({ path, version: now ? (to ? `reply:${to}` : null) : `reply:${from}`, kind: assetKind(path), step: label }),
       type: 'button',
@@ -58,9 +59,13 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     children: [
       jsxs('div', {
         className: 'cs-b-ba-pair',
-        children: [side(before.asset, 'Before', false), jsx('span', { 'aria-hidden': true, className: 'cs-b-ba-arrow', children: '\u2192' }), side(after.asset, 'After', true)]
+        children: [
+          compare ? side(before.asset, 'Before', false) : null,
+          compare ? jsx('span', { 'aria-hidden': true, className: 'cs-b-ba-arrow', children: '\u2192' }) : null,
+          side(after.asset, compare ? 'After' : name, true)
+        ]
       }),
-      actions && state !== 'kept'
+      compare && actions && state !== 'kept'
         ? jsxs('div', {
             className: 'cs-row cs-b-ba-acts',
             children:
@@ -103,20 +108,28 @@ function ChangeList({ changes, root, onOpen }) {
   })
 }
 
-export function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+// Prefer the image named in the change report, then the game's art that the tools produced.
+export function primaryArt(parts, root) {
+  const reported = parts.report?.changes.find(change => change.kind !== 'removed' && /\.(png|gif|jpe?g|webp)$/i.test(change.asset ?? ''))
+
+  if (reported) {
+    return isAbsolute(reported.asset) ? reported.asset.replace(/^file:\/\//, '') : joinPath(root, reported.asset)
+  }
+
+  return parts.assets.find(asset => !asset.looked && asset.kind !== 'Playtest frame')?.path ?? null
+}
+
+export function BuildCard({ art, replay, play, build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false)
   const failed = build?.state === 'failed'
   const made = madeAssets(parts, root).filter(asset => asset.kind !== 'Image' || /cover\.png$/i.test(asset.path))
   const changes = report?.changes?.length ? report.changes : made.slice(0, 6).map(asset => ({ kind: 'changed', text: baseName(asset.path), asset: asset.path, made: true }))
-  const edited = [...new Set([...(report?.changes ?? []).filter(change => change.kind === 'changed' && change.asset).map(change => (isAbsolute(change.asset) ? change.asset : joinPath(root, change.asset))), ...made.map(asset => asset.path)])]
-    .filter(Boolean)
-    .slice(0, 2)
   const tested = report?.tested ?? []
   const untested = report?.untested ?? []
   const notes = report?.notes ?? []
-  const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? 'Done')
-  const summary = report?.summary ?? (failed ? parts.buildFailed : null)
-  const hasFoot = tested.length || untested.length || notes.length || failed
+  const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? (art ? baseName(art) : 'Done'))
+  const summary = (failed && parts.buildFailed) || report?.summary
+  const hasFoot = changes.length || tested.length || untested.length || notes.length || failed
 
   return jsxs('div', {
     className: `cs-b-bc${failed ? ' bad' : ''}${live ? ' live' : ''}`,
@@ -133,8 +146,8 @@ export function BuildCard({ build, parts, report, root, took, at, live, isLast, 
         ]
       }),
       summary ? jsx('p', { className: 'cs-b-bc-sum', children: summary }) : null,
-      ...edited.map(path => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
-      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
+      art ? jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path: art, to: parts.endedAt }, art) : replay,
+      play,
       hasFoot
         ? jsxs('div', {
             className: 'cs-b-bc-foot',
@@ -158,6 +171,7 @@ export function BuildCard({ build, parts, report, root, took, at, live, isLast, 
         ? jsxs('div', {
             className: 'cs-b-bc-details',
             children: [
+              changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
               tested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Play-tested' }), ...tested.map((line, index) => jsxs('p', { children: [jsx('span', { className: 'cs-b-ok', children: '\u2713 ' }), line] }, index))] }) : null,
               untested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Not tested' }), ...untested.map((line, index) => jsx('p', { className: 'cs-faint', children: `\u25CB ${line}` }, index))] }) : null,
               notes.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'You might notice' }), ...notes.map((line, index) => jsx('p', { children: line }, index))] }) : null,

@@ -1,6 +1,5 @@
 // The page before the studio is ready: the header nav, first-run onboarding and the setup wizard (one step per
 // page, automatic advance when a step verifies), repairs, profile routing and the Build page's profile guard.
-// Run alone: node tests/page/page-setup.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

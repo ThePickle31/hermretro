@@ -1,7 +1,6 @@
 // The shell's background layer (page/app/background-layer.js) and the backgrounds' registry: a page that asks for a
 // background gets it before it paints; another page asking for the same one keeps it running; a page without one
 // hides it, paused, and going back shows the same one again rather than starting it over.
-// Run alone: node tests/page/background-layer.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { registerAliases } from './aliases.mjs'
