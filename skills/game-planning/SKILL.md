@@ -30,8 +30,9 @@ approved by the user, that the build and test work follows.
   `TEST-PLAN.md` fails, keep the original wording and the failing evidence.
   Fix the game, or propose a written, approved scope change that supersedes the
   check (and keep the old one marked superseded, not edited away).
-- **Keep the first playable small.** One or two rooms, one core mechanic, one
-  win or exit condition. Everything else goes in the backlog.
+- **The first build is the whole brief.** Its in-scope list is what the first
+  build delivers, complete and playable, so keep it to what the user asked for
+  and fits a Game Boy game. Ideas beyond it go in the backlog.
 - **Label assumptions.** Hardware budgets in the brief are assumptions until
   graphics analysis, a real build and emulator runs confirm them. Hardware
   qualification needs a human observing the flashed cartridge.
@@ -55,7 +56,7 @@ approved by the user, that the build and test work follows.
      characters, art direction and palette intent, audio intent, scope and
      explicit out-of-scope, hardware budget assumptions, milestones, approval.
    - `docs/game/BACKLOG.md`: small ordered items, each linked to brief sections
-     and test IDs; first-playable items first.
+     and test IDs; first-build items first.
    - `docs/game/TEST-PLAN.md`: observable acceptance checks in
      Given/When/Then form with the evidence each needs. Example: "Given 2 of 3
      seeds collected, when the player walks into the gate, then the locked
@@ -68,10 +69,11 @@ approved by the user, that the build and test work follows.
    questions, and ask for approval. Do not author scenes, art or scripts, or
    build, on silence: until approval the project holds only its starter and
    these documents.
-5. **Hand off.** Once approved, load `hermretro:authoring` and build the
-   first-playable backlog items. Run `TEST-PLAN.md` checks with
-   `hermretro:rom-debugging` and record results against the exact ROM
-   SHA-256; use `hermretro:pixel-art` for art and palettes.
+5. **Hand off.** Once approved, load `hermretro:authoring` and build every
+   in-scope item in one go: a build along the way is a checkpoint, not a
+   hand-off. Run `TEST-PLAN.md` checks with `hermretro:rom-debugging` and
+   record results against the exact ROM SHA-256; use `hermretro:pixel-art` for
+   art and palettes. Present the game only when all of it is in.
 
 ## Hardware budget pointers
 
@@ -94,4 +96,4 @@ Copy and fill these; keep their revision and status fields.
 Open them with
 `skill_view("hermretro:game-planning", file_path="templates/<file>")`.
 
-Next: load `hermretro:authoring` to build the approved first playable.
+Next: load `hermretro:authoring` to build the approved first build.

@@ -19,6 +19,7 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
+    ("hermes_cli.config", "read_user_config_raw"),
 )
 
 
@@ -76,3 +77,15 @@ def enabled_plugins() -> list[str]:
         return [str(name) for name in enabled]
     except Exception:  # noqa: BLE001 - an unreadable config means no plugins are on
         return []
+
+
+def profile_config(profile_home: Path) -> dict | None:
+    """A profile's config.yaml exactly as written, for checking a value the plugin pins there (None when it cannot be
+    read)."""
+    try:
+        from hermes_cli.config import read_user_config_raw
+
+        config = read_user_config_raw(profile_home / "config.yaml")
+        return config if isinstance(config, dict) else None
+    except Exception:  # noqa: BLE001 - no Hermes here, or an unreadable config: nothing is known
+        return None

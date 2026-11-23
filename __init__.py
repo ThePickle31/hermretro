@@ -49,6 +49,7 @@ def register(ctx):
         _register_agent(ctx, declared)
     if profile == studio_profile.STUDIO_PROFILE:  # never another profile, even one opted in for development
         _refresh_soul()
+        _pin_turn_limit()
 
 
 def _register_agent(ctx, declared):
@@ -80,3 +81,13 @@ def _refresh_soul():
         logger.warning("hermretro could not update the hermretro profile's SOUL.md", exc_info=True)
     except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the SOUL stays as it is
         logger.debug("hermretro could not find the hermretro profile's SOUL.md", exc_info=True)
+
+
+def _pin_turn_limit():
+    """The studio profile keeps its fixed turn limit however it was changed. It never stops registration."""
+    try:
+        studio_profile.pin_turn_limit(hermes_host._data_dir().parents[1])
+    except studio_profile.StudioProfileError:
+        logger.warning("hermretro could not set the hermretro profile's turn limit", exc_info=True)
+    except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the config stays as it is
+        logger.debug("hermretro could not find the hermretro profile's config", exc_info=True)

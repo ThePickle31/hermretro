@@ -42,9 +42,15 @@ OLDER_SOULS = frozenset(
         "27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
         "5f6b61c41f1be0c5c691243dbd176dd5ff13da82fdf6be432c37ddde3ac67cb3",
         "0d723cea8a6bb62e7819d0a371a802a4481895b1c9de751f8e32ff859ce01218",
+        "fc761b6efa1d664e24b9e444be7732b7a42a4b6e985f9b43a48984e25d494749",
     }
 )
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
+# The studio profile's tool-calling budget per turn (agent.max_turns), enough to build a whole game in one turn. Fixed:
+# every load of the plugin in the studio profile puts it back (pin_turn_limit).
+TURN_LIMIT = 1000
+# Set on the hermes commands this module runs, so the plugin loading inside them leaves the profile's config alone.
+CONFIGURING = "HERMRETRO_CONFIGURING"
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
 WORKSPACE = "workspace"
 
@@ -56,6 +62,22 @@ def refresh_soul(profile_home: Path) -> bool:
     OSError."""
     soul = profile_home / "SOUL.md"
     return _shipped_before(soul) and _write_soul(soul, only_over_older=True)
+
+
+def pin_turn_limit(profile_home: Path, run=None) -> bool:
+    """Put the studio profile's ``agent.max_turns`` back to TURN_LIMIT, through the hermes command, when it says
+    anything else. Nothing without a config.yaml (not a Hermes profile) or inside a hermes command this module runs.
+    An unreadable config is left as it is. Answers whether it set it; a failed command raises StudioProfileError."""
+    if os.environ.get(CONFIGURING) == "1" or not (profile_home / "config.yaml").is_file():
+        return False
+    config = hermes_api.profile_config(profile_home)
+    if config is None:
+        return False
+    agent = config.get("agent")
+    if isinstance(agent, dict) and agent.get("max_turns") == TURN_LIMIT:
+        return False
+    (run or _run_hermes)(profile_home, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+    return True
 
 
 def _shipped_before(soul: Path) -> bool:
@@ -229,7 +251,7 @@ def _hermes_command() -> list[str]:
 
 
 def _run_hermes(target: Path, *arguments: str) -> None:
-    environment = {**os.environ, "HERMES_HOME": str(target)}
+    environment = {**os.environ, "HERMES_HOME": str(target), CONFIGURING: "1"}
     try:
         done = subprocess.run(
             [*_hermes_command(), *arguments],
@@ -315,6 +337,7 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
     run(target, "config", "set", "approvals.mode", "smart")
+    run(target, "config", "set", "agent.max_turns", str(TURN_LIMIT))
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.
     workspace = target / WORKSPACE

@@ -140,6 +140,19 @@ class Registration(unittest.TestCase):
             self.register("hermretro")
             self.assertEqual(soul.read_text(), "edited by the user")
 
+    def test_only_the_studio_profile_gets_its_turn_limit_pinned(self):
+        studio = self.plugin.studio_profile
+        with mock.patch.object(studio, "pin_turn_limit") as pin:
+            self.register("default")
+            self.register("work")
+            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+            pin.assert_not_called()
+            self.register("hermretro")
+            pin.assert_called_once_with(self.profile_home)
+            pin.side_effect = studio.StudioProfileError("HERMES_COMMAND_FAILED", "config set failed")
+            calls = self.register("hermretro")
+        self.assertEqual(len(calls["tool"]), len(DECLARED_TOOLS), "a failed pin never stops registration")
+
     def test_registration_goes_on_when_hermes_storage_cannot_be_asked(self):
         def no_storage():
             raise ImportError("no plugins.plugin_storage")
