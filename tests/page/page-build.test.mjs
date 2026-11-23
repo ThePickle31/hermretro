@@ -112,8 +112,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(build14.node.querySelector('.cs-b-sw h2').textContent, 'New game')
     assert.equal(build14.node.querySelector('.cs-b-user').textContent, 'a lighthouse keeper in a storm')
   })
-  check('while the agent works, the status line above the message box says so, and Stop is there', () => {
-    assert.match(build14.node.querySelector('.cs-b-status').textContent, /HermRetro is thinking/)
+  check('the current turn shows activity and the composer offers Stop', () => {
+    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Working/)
     assert.ok(button('Stop'))
   })
   // Text streams in batches (one render per frame); everything else lands at once.
@@ -125,15 +125,21 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   await ev('tool.start', { tool_id: 'c0', name: 'tool_describe', args: {} }, { seq: 4 })
   await ev('tool.start', { tool_id: 'c1', name: 'chromatic_project_create', args: { name: 'Lamplight', content: 'x'.repeat(5000) } }, { seq: 5 })
   await act(async () => { emit({ type: 'message.delta', session_id: 'rt-other', payload: { text: 'not ours' } }) })
+  check('live work starts folded with its current step visible', () => {
+    assert.equal(build14.node.querySelector('.cs-b-wk-head').getAttribute('aria-expanded'), 'false')
+    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Creating the project.*1 step/)
+    assert.ok(!build14.node.querySelector('.cs-b-tool'))
+  })
+  await click('Creating the project', build14.node)
   check('the stream lands in this conversation only, re-sent chunks are dropped, and steps read in plain words', () => {
     assert.equal(build14.node.querySelector('.cs-b-agent').textContent, 'Making the project')
     assert.ok(!build14.node.textContent.includes('not ours')); assert.ok(!build14.node.textContent.includes('ignored'))
     const rows = build14.node.querySelectorAll('.cs-b-tool')
     assert.equal(rows.length, 1, 'plumbing such as tool_describe is not a step')
     assert.equal(rows[0].dataset.state, 'running'); assert.match(rows[0].textContent, /Creating the project/)
-    assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'true', 'the steps are open while it works')
-    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Working for/)
-    assert.match(build14.node.querySelector('.cs-b-status').textContent, /HermRetro is creating the project/)
+    assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'true', 'the steps stay open after the reader asks')
+    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Creating the project/)
+    assert.ok(!build14.node.querySelector('.cs-b-status'))
     assert.ok(!build14.node.querySelector('.cs-b-who'), 'no name over the reply, as in a chat thread')
   })
   // Questions reach the app as server requests: while the turn runs the page reads the open ones.
@@ -176,22 +182,23 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.ok(card?.classList.contains('bad')); assert.match(card.textContent, /didn’t finish.*Bank 3 is full/)
     assert.ok(![...card.querySelectorAll('button')].some(node => /^\s*Play\b/.test(node.textContent)), 'nothing to play from a build that stopped')
   })
-  check('a failed step says why; the turn end folds the steps into "Worked for", ends the status, and keeps one reply', () => {
+  check('a failed step says why; the turn end preserves the open work log, ends the status, and keeps one reply', () => {
     const row = build14.node.querySelector('.cs-b-tool')
     assert.equal(row.dataset.state, 'failed'); assert.match(row.textContent, /Creating the project failed.*folder exists/)
-    assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'false')
-    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /Worked for \d+s/)
+    assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'true')
+    assert.match(build14.node.querySelector('.cs-b-wk-head').textContent, /2 steps\d+s/)
     assert.equal(build14.node.querySelectorAll('.cs-b-agent').length, 1); assert.ok(!button('Stop'))
     assert.ok(!build14.node.querySelector('.cs-b-status'))
   })
-  await click('Worked for', build14.node)
-  check('the folded steps open again on a click', () => { assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'true') })
+  await click('2 steps', build14.node)
+  check('the reader can fold the finished work log', () => { assert.equal(build14.node.querySelector('.cs-b-wk').dataset.open, 'false') })
   // The gateway restarted: a new replay epoch counts from 1 again and must not be dropped as seen.
   await ev('message.start', { turn_id: 'T2' }, { seq: 1, replay_epoch: 'E2' })
   await ev('message.delta', { text: 'After restart', turn_id: 'T2', segment: 0, offset: 0 }, { seq: 2, replay_epoch: 'E2' })
   check('after a gateway restart (new replay epoch) the stream is shown again, as a new reply', () => {
     assert.match([...build14.node.querySelectorAll('.cs-b-agent')].at(-1).textContent, /After restart/)
-    assert.equal(build14.node.querySelectorAll('.cs-b-her').length, 2)
+    assert.equal(build14.node.querySelectorAll('.cs-b-turn').length, 2)
+    assert.equal(build14.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
   })
   // A question announced as an event and then seen again by the poll is one card; settling it answers it.
   await ev('approval.request', { request_id: 'ap-1', command: 'flash', description: 'Flash the cart' }, { seq: 3, replay_epoch: 'E2' })
@@ -231,7 +238,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.equal(menu14.textContent.match(/Lamplight/g).length, 1)
     assert.ok(!/Setting up/.test(menu14.textContent))
     assert.equal(build14.node.querySelector('.cs-b-head h2').textContent, 'Lamplight')
-    assert.equal(build14.node.querySelector('.cs-b-agent').textContent, 'Making the project')
+    assert.equal(build14.node.querySelector('.cs-b-agent').textContent, 'After restart')
+    assert.ok(build14.node.querySelector('.cs-b-history-row'))
     assert.equal(build14.node.querySelector('textarea[aria-label="Message Hermes"]').value, replyDraft)
   })
   const shelfLamp = await libraryMenu(build14)
@@ -336,15 +344,17 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     usedIn: [], scenes: [] })
   const build14b = await mount(page)
   await settle(100)
+  await click('3 steps', build14b.node)
   check('a bound game resumes its stored session: history, plain-word steps from inside tool_call, and how long it took', () => {
     assert.match(build14b.node.textContent, /make the frog jump/); assert.match(build14b.node.textContent, /Added a jump\./)
     assert.ok(!build14b.node.textContent.includes('secret'))
     const steps = [...build14b.node.querySelectorAll('.cs-b-tool')].map(node => node.textContent)
     assert.equal(steps.length, 3, 'a call and its result row are one step; tool_call is its calls')
     assert.match(steps[0], /Looked at frog\.png/); assert.match(steps[1], /Added art to the game/); assert.match(steps[2], /Built the game/)
-    assert.match(build14b.node.querySelector('.cs-b-wk-head').textContent, /Worked for 2m 47s· drew the art, built it/)
+    assert.match(build14b.node.querySelector('.cs-b-wk-head').textContent, /3 steps2m 47s/)
     assert.equal(build14b.node.querySelector('.cs-b-agent').textContent, 'On it.', 'the words before the first step come first')
   })
+  await click('3 steps', build14b.node)
   check('the folded line shows what the turn made as a small stack and an \u201cN assets\u201d link (not pictures it only looked at)', () => {
     assert.deepEqual([...new Set(scenario.assetCalls)].sort(), ['/home/u/games/FrogPost/assets/sprites/frog.png', '/home/u/games/FrogPost/docs/art/frog.png'], 'each picture is fetched once')
     const link = build14b.node.querySelector('.cs-b-wk-row .cs-b-wk-assets')
@@ -357,7 +367,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     assert.ok(card); assert.equal(card.dataset.build, '1')
     assert.match(card.querySelector('.cs-b-bc-head').textContent, /#1make the frog jump/)
     const frame = build14b.node.querySelector('.cs-b-pc.unplayable')
-    assert.ok(frame && !card.contains(frame), 'the frame is under the build line, not in it'); assert.match(frame.textContent, /The playable copy is not ready yet/)
+    assert.ok(frame && card.contains(frame), 'the play status belongs to the result'); assert.match(frame.textContent, /The playable copy is not ready yet/)
     assert.ok(!build14b.node.querySelector('.cs-ip'))
   })
   check('the header shows the build pill and a Builds menu; the Assets panel and Full chat button are gone', () => {

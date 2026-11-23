@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mount, check, answered }) => {
+await runScenario(async ({ buildScenario, holdTimers, scenario, page, click, settle, key, mount, check, answered }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
@@ -20,12 +20,28 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
     { role: 'user', content: 'make it jump higher', timestamp: 2000 },
     { role: 'assistant', content: '', timestamp: 2001, tool_calls: [callOf('b2', 'chromatic_rom_build')] },
     { role: 'tool', tool_call_id: 'b2', content: JSON.stringify({ ok: true }), timestamp: 2020 },
+    { role: 'assistant', content: '', timestamp: 2021, tool_calls: [callOf('frames', 'chromatic_emulator_step')] },
+    { role: 'tool', tool_call_id: 'frames', content: JSON.stringify({ images: [
+      { file: 'MEDIA:/home/u/games/FrogPost/playtests/start.png' }, { file: 'MEDIA:/home/u/games/FrogPost/playtests/end.png' }
+    ] }), timestamp: 2022 },
     { role: 'assistant', content: 'Higher now.', timestamp: 2030 }] })
   const asked = []
   let snapshots = []
   scenario.byMethod['plugin.hermretro.builds'] = params => { asked.push(params); return { ok: true, builds: snapshots } }
   const view = await mount(page)
   await settle(100)
+  check('a captured frame sequence is a result with the work log folded', () => {
+    assert.equal(view.node.querySelector('.cs-b-wk-head').getAttribute('aria-expanded'), 'false')
+    assert.equal(view.node.querySelector('input[aria-label="Playtest frame"]').max, '2')
+    assert.match(view.node.querySelector('.cs-b-replay').textContent, /Frame 1 of 2/)
+  })
+  const clock = holdTimers(350)
+  await click('Replay frames', view.node.querySelector('.cs-b-replay'))
+  await clock.fire()
+  await clock.fire()
+  check('replaying the actual captures stops on the last frame', () => {
+    assert.match(view.node.querySelector('.cs-b-replay').textContent, /Frame 2 of 2.*Replay frames/)
+  })
   const openMenu = async () => {
     await click('Builds', view.node.querySelector('.cs-b-head'))
     await settle(30)

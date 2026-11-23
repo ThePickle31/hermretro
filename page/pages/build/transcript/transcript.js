@@ -50,6 +50,21 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
   const [behind, setBehind] = useState(false)
   const [limit, setLimit] = useState(TURN_PAGE)
   const [viewer, setViewer] = useState(null)
+  const [openBuilds, setOpenBuilds] = useState(() => new Set())
+  const toggleBuild = useCallback(key => {
+    stuck.current = false
+    setOpenBuilds(current => {
+      const next = new Set(current)
+
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+
+      return next
+    })
+  }, [])
   const busy = Boolean(chat?.busy)
 
   // A new conversation starts at its end, with the page size reset.
@@ -79,7 +94,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     } else {
       setBehind(true)
     }
-  })
+  }, [items, chat?.queued, limit])
 
   // Pictures and cards that load after a render (a before/after, a thumbnail) grow the conversation:
   // keep the newest message in view while the user is at the bottom.
@@ -147,6 +162,13 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
       return undefined
     }
 
+    if (builds.has(index) && index < turns.length - 1 && !openBuilds.has(focusTurn.key)) {
+      stuck.current = false
+      setOpenBuilds(current => new Set(current).add(focusTurn.key))
+
+      return undefined
+    }
+
     const node = scroller.current?.querySelector?.(`[data-turn="${focusTurn.key}"]`)
 
     if (!node) {
@@ -161,7 +183,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     const id = setTimeout(() => node.removeAttribute('data-flash'), 1600)
 
     return () => clearTimeout(id)
-  }, [focusTurn?.seq, limit])
+  }, [focusTurn?.seq, limit, openBuilds, builds, turns])
 
   // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
   const openAsset = useCallback(
@@ -231,6 +253,8 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
                   ctx,
                   game: index === latestBuild ? game : null,
                   isLast: index === lastIndex,
+                  expanded: openBuilds.has(turn.key),
+                  onToggleBuild: toggleBuild,
                   latestBuild: index === latestBuild,
                   live: busy && index === lastIndex,
                   turnStartedAt: busy && index === lastIndex ? (chat?.turnStartedAt ?? null) : null,
