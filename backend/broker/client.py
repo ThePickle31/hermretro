@@ -28,16 +28,23 @@ class OtherCopyBusy(BrokerUnavailable):
         self.plugin_root = plugin_root
 
 
+CONTROL_TIMEOUT = 3.0
+QUICK_OPS = frozenset({"hello", "stats", "activity", "install_status", "shutdown"})
+
+
 class BrokerClient:
-    def __init__(self, state_dir: Path, token: str | None = None):
+    control_timeout = CONTROL_TIMEOUT
+
+    def __init__(self, state_dir: Path, token: str | None = None, *, deadline: float | None = None):
         self.state_dir = Path(state_dir)
+        self.startup_deadline = deadline
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
+            self.sock.settimeout(self._remaining(deadline, CONTROL_TIMEOUT))
             self.sock.connect(str(self.state_dir / "broker.sock"))
         except OSError as error:
             self.sock.close()
             raise BrokerUnavailable(str(error)) from error
-        self.reader = self.sock.makefile("rb")
         try:
             if token is None:
                 token = (self.state_dir / "broker.token").read_text()
@@ -46,14 +53,38 @@ class BrokerClient:
             self.close()
             raise
 
+    @staticmethod
+    def _remaining(deadline: float | None, maximum: float) -> float:
+        if deadline is None:
+            return maximum
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Broker request timed out")
+        return min(maximum, remaining)
+
     def request(self, obj: dict) -> dict:
+        deadline = None
+        op = obj.get("op")
+        if op in QUICK_OPS or op == "lane_status":
+            # lane_status may spend up to 15 seconds asking an idle engine about its emulator.
+            budget = 20.0 if op == "lane_status" else self.control_timeout
+            deadline = time.monotonic() + budget
+            if self.startup_deadline is not None:
+                deadline = min(deadline, self.startup_deadline)
         try:
+            self.sock.settimeout(self._remaining(deadline, budget) if deadline is not None else None)
             self.sock.sendall((json.dumps(obj, separators=(",", ":")) + "\n").encode())
-            line = self.reader.readline()
+            line = bytearray()
+            while not line.endswith(b"\n"):
+                if deadline is not None:
+                    self.sock.settimeout(self._remaining(deadline, budget))
+                part = self.sock.recv(65536)
+                if not part:
+                    raise BrokerUnavailable("Broker closed the connection")
+                line.extend(part)
         except OSError as error:
+            self.close()
             raise BrokerUnavailable(str(error)) from error
-        if not line:
-            raise BrokerUnavailable("Broker closed the connection")
         return json.loads(line)
 
     def call(
@@ -77,12 +108,7 @@ class BrokerClient:
         return self.request(request)
 
     def close(self) -> None:
-        for closer in (getattr(self, "reader", None), self.sock):
-            try:
-                if closer is not None:
-                    closer.close()
-            except OSError:
-                pass
+        self.sock.close()
 
     def __enter__(self) -> BrokerClient:
         return self
@@ -181,9 +207,11 @@ class BrokenBroker(BrokerUnavailable):
         self.stopping = stopping
 
 
-def try_connect(state_dir: Path, retire_broken: bool = False) -> tuple[BrokerClient | None, Exception | None]:
+def try_connect(
+    state_dir: Path, retire_broken: bool = False, *, deadline: float | None = None
+) -> tuple[BrokerClient | None, Exception | None]:
     try:
-        client = BrokerClient(state_dir)
+        client = BrokerClient(state_dir, deadline=deadline)
     except (BrokerUnavailable, FileNotFoundError, json.JSONDecodeError) as error:
         return None, error
     if client.hello.get("ok"):
@@ -228,7 +256,7 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
     last: Exception | None = None
     spawned: subprocess.Popen | None = None
     while time.monotonic() < deadline:
-        client, last = try_connect(state_dir, retire_broken=True)
+        client, last = try_connect(state_dir, retire_broken=True, deadline=deadline)
         if isinstance(last, BrokenBroker):
             if not last.stopping:
                 raise OtherCopyBusy(
@@ -249,6 +277,7 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             loaded = client.hello.get("loaded_fingerprint")
             current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
             if current and not _workers_cannot_start(client.hello, node["path"]):
+                client.startup_deadline = None
                 return client
             # A broker from another build of this backend, or one whose new workers cannot start while a fresh
             # one's could. Replace it only when no conversation has a live worker; otherwise keep using it (same
@@ -264,6 +293,7 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
                         "close those chats, then try again.",
                         theirs,
                     )
+                client.startup_deadline = None
                 return client
             client.close()
             time.sleep(0.4)

@@ -76,6 +76,18 @@ class BrokerAfterUpdate(unittest.TestCase):
         self.addCleanup(broker.close)
         return broker
 
+    def test_a_broker_that_never_answers_hello_obeys_the_startup_deadline(self):
+        import time
+
+        self.state.mkdir()
+        (self.state / "broker.token").write_text("token")
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+            listener.bind(str(self.state / "broker.sock"))
+            listener.listen()
+            found, error = client.try_connect(self.state, deadline=time.monotonic() + 0.05)
+        self.assertIsNone(found)
+        self.assertIsInstance(error, client.BrokerUnavailable)
+
     def test_a_plain_connect_never_stops_it(self):
         broker = self.old()
         found, error = client.try_connect(self.state)
@@ -123,8 +135,8 @@ class BrokerAfterUpdate(unittest.TestCase):
         )
         real = client.try_connect
 
-        def connect(state, retire_broken=False):  # the real socket until the new broker has been started
-            return (new, None) if started else real(state, retire_broken)
+        def connect(state, retire_broken=False, **kwargs):  # the real socket until the new broker has been started
+            return (new, None) if started else real(state, retire_broken, **kwargs)
 
         with (
             mock.patch.object(client.paths, "find_node", lambda: node),
