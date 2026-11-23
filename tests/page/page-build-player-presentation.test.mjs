@@ -179,6 +179,36 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
   await view.close()
 }
 
+async function presentOnFirstEdit({ act, answered, buildScenario, check, click, emit, mount, page, scenario, settle, typeInto }) {
+  const game = playable(frogPost())
+  const stored = 'st-first-edit'
+  const runtime = `rt-of-${stored}`
+  buildScenario({ selected: game.id })
+  scenario.games = answered({ games: [game] })
+  scenario.byMethod['session.create'] = { session_id: runtime, stored_session_id: stored, messages: [] }
+  scenario.byMethod['plugin.hermretro.build'] = { ok: true }
+  scenario.byMethod['prompt.submit'] = () => {
+    emit(presentation(game, runtime, 102))
+    return { ok: true }
+  }
+  const view = await mount(page)
+  const build = buildView(view.node, act, scenario)
+  await settle()
+  build.assertClosed()
+  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'show me how it plays')
+  await click('Send', view.node.querySelector('.cs-b-comp'))
+  await settle()
+  check('a presentation delivered during the first edit waits for the new conversation', () => {
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.build'], { action: 'bind', game: game.id, stored })
+    build.assertBusy(true)
+    build.assertClosed()
+  })
+  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Ready.' } }) })
+  await settle()
+  check('the existing game plays its first presentation after its conversation is attached', () => build.assertPlaying(game))
+  await view.close()
+}
+
 await runScenario(async env => {
   env.holdTimers()
   env.scenario.byMethod['session.resume'] = resumeConversation()
@@ -189,4 +219,5 @@ await runScenario(async env => {
 
   await switchAfterPresentation(env)
   await presentPendingGame(env)
+  await presentOnFirstEdit(env)
 })

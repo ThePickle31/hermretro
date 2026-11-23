@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a16f5ef7f58a03cd57f5bf44934db009970c6019505060c9bc01d72695975878
- * body: sha256 aa8335ef209d1a4824bb1fba97c184694c2a948ec077645069a2627b89741cb4
+ * sources: sha256 5d0c9553c6da26059651300257e9ea10547eb46990246b357a430b001a8becb3
+ * body: sha256 e7cca3ca91cacdb617418066acde126851c3eeaffb017f2085b35cbc69a2a784
  */
 // page/sdk.js
 import {
@@ -5204,21 +5204,23 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 function useInlinePlayer(gameId, stored, chat) {
   const [playerFor, setPlayerFor] = useState(null);
   const presentations = useValue(BUILD_PRESENTED);
-  const view = stored ? `chat:${stored}` : `game:${gameId}`;
-  const seen = useRef({ view, presentations });
+  const previous = useRef({ gameId, stored });
+  const seen = useRef(presentations);
   useEffect(() => {
-    if (seen.current.view !== view) {
-      seen.current = { view, presentations };
-      return;
+    const last = previous.current;
+    const sameView = gameId && last.gameId ? gameId === last.gameId : stored && stored === last.stored;
+    previous.current = { gameId, stored };
+    if (!sameView) {
+      seen.current = presentations;
     }
     if (!gameId || chat?.busy || chat?.opening) {
       return;
     }
-    if ((presentations[gameId]?.seq ?? 0) > (seen.current.presentations[gameId]?.seq ?? 0)) {
-      seen.current = { view, presentations };
+    if ((presentations[gameId]?.seq ?? 0) > (seen.current[gameId]?.seq ?? 0)) {
+      seen.current = presentations;
       setPlayerFor(gameId);
     }
-  }, [view, gameId, presentations, chat?.busy, chat?.opening]);
+  }, [gameId, stored, presentations, chat?.busy, chat?.opening]);
   return {
     playerOpen: Boolean(gameId && playerFor === gameId),
     onPlay: () => gameId && setPlayerFor(gameId),
