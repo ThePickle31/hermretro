@@ -44,12 +44,14 @@ def register(ctx):
     # prompt section) exists only in the hermretro profile.
     for name, factory in declared.rpcs:
         ctx.register_rpc(name, factory(ctx))
-    if studio_profile.is_studio(_profile(ctx)):
+    profile = _profile(ctx)
+    if studio_profile.is_studio(profile):
         _register_agent(ctx, declared)
+    if profile == studio_profile.STUDIO_PROFILE:  # never another profile, even one opted in for development
+        _refresh_soul()
 
 
 def _register_agent(ctx, declared):
-    _refresh_soul()
     for tool in declared.tools:
         ctx.register_tool(
             name=tool.name,
@@ -74,5 +76,7 @@ def _refresh_soul():
     stops registration."""
     try:
         studio_profile.refresh_soul(hermes_host._data_dir().parents[1])
+    except OSError:
+        logger.warning("hermretro could not update the hermretro profile's SOUL.md", exc_info=True)
     except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the SOUL stays as it is
-        logger.debug("hermretro could not check the studio profile's SOUL", exc_info=True)
+        logger.debug("hermretro could not find the hermretro profile's SOUL.md", exc_info=True)

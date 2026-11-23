@@ -26,6 +26,12 @@ def load_plugin():
     return module
 
 
+def plugin_storage(plugin, base: Path):
+    """Patch the loaded copy's view of Hermes storage into ``base`` (its profile home): tests.support's isolated_home
+    patches the repository's own host module, not this copy's. Use it around every register()."""
+    return mock.patch.object(plugin.hermes_host, "_data_dir", lambda: base / "plugin-data" / "hermretro")
+
+
 class Recorder:
     """A fake plugin ctx: ``calls``, the names registered by kind, and ``given``, what each call handed Hermes."""
 
@@ -63,12 +69,10 @@ class Registration(unittest.TestCase):
         cls.plugin = load_plugin()
 
     def setUp(self):
-        # The loaded copy's own host module: tests.support's isolated_home patches the repository's, not this one.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.profile_home = Path(tmp.name)
-        data = self.profile_home / "plugin-data" / "hermretro"
-        patch = mock.patch.object(self.plugin.hermes_host, "_data_dir", lambda: data)
+        patch = plugin_storage(self.plugin, self.profile_home)
         patch.start()
         self.addCleanup(patch.stop)
 
@@ -128,7 +132,8 @@ class Registration(unittest.TestCase):
         with mock.patch.object(studio, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
             soul.write_bytes(older)
             self.register("default")
-            self.assertEqual(soul.read_bytes(), older, "only the hermretro profile's own SOUL")
+            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+            self.assertEqual(soul.read_bytes(), older, "only the hermretro profile's own SOUL, even when opted in")
             self.register("hermretro")
             self.assertEqual(soul.read_bytes(), studio.SOUL_FILE.read_bytes())
             soul.write_text("edited by the user")
