@@ -121,6 +121,11 @@ bundle, the install scan) and
 one feature's tests: `python -m unittest discover -s tests/backend/<feature> -t .`. These run with your own home
 folder; only `python tools/check.py unit` gives the suite an empty one (and fails on anything written there), so
 run that before committing.
+
+The real-engine run starts in `tests/acceptance/broker_acceptance.py`. Under `tests/acceptance/`,
+`projects.py` covers builds and emulation, `ownership.py` covers leases and the Desktop view, and
+`recovery.py` covers worker and broker restarts. Each stage uses the same two games.
+
 Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
 helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the
 repository root): `tests/backend` would then shadow the real `backend` package, and two test modules run together
