@@ -39,6 +39,7 @@ profile).
 **Tests:** `tests/page/page-build.test.mjs` (New Game and the streamed conversation),
 `tests/page/page-build-transcript-media.test.mjs` (steps, build results, pictures, suggestions and mentions),
 `tests/page/page-build-inline-player.test.mjs` (playing builds, the play-test checklist and keyboard focus),
+`tests/page/page-build-player-presentation.test.mjs` (switching games and the first New Game presentation),
 `tests/page/page-build-interrupted-conversations.test.mjs` (removed conversations and lost turns),
 `tests/page/page-build-model-picker.test.mjs` (model and effort picks, plus questions in other games),
 `tests/page/page-build-builds.test.mjs` (the Builds menu),
