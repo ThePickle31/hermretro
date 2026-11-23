@@ -156,15 +156,28 @@ export function stepDetail(tool) {
   return typeof text === 'string' ? text : ''
 }
 
-/** The images a step made or looked at, as absolute paths (relative project paths need the root). */
+function imagePath(value, root) {
+  if (typeof value !== 'string' || !/\.(png|gif|jpe?g|webp)$/i.test(value)) {
+    return null
+  }
+
+  return isAbsolute(value) ? value.replace(/^file:\/\//, '') : joinPath(root, value)
+}
+
+/** Paths in the order the emulator returned them. Identical screenshots can occur more than once. */
+export function capturedFrames(tool, root) {
+  if (tool.state !== 'done' || !shortTool(tool.name).startsWith('emulator_')) {
+    return []
+  }
+
+  return (tool.info?.images ?? []).map(value => imagePath(value, root)).filter(path => path && assetKind(path) === 'Playtest frame')
+}
+
+/** The unique images a step made or looked at, for the asset viewer. */
 export function stepImages(tool, root) {
   const found = []
   const add = value => {
-    if (typeof value !== 'string' || !/\.(png|gif|jpe?g|webp)$/i.test(value)) {
-      return
-    }
-
-    const path = isAbsolute(value) ? value.replace(/^file:\/\//, '') : joinPath(root, value)
+    const path = imagePath(value, root)
 
     if (path && !found.includes(path)) {
       found.push(path)

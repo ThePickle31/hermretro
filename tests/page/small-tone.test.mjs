@@ -7,7 +7,6 @@
 // because a guard that let unknown values through would pass exactly the tone it exists to stop; the one exception is
 // a name bound in the same file by a top-level `const NAME = <a value it can prove>` and bound nowhere else in it
 // (no other variable, parameter, function, class, catch parameter or import of that name, at any depth).
-// Run alone: node tests/page/small-tone.test.mjs
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'

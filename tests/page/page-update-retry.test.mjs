@@ -2,7 +2,6 @@
 // a check that fails after Hermes installed the new version is never read as "nothing is building", and an update that
 // installed but did not finish is shown as such (never "nothing was changed") and finishes with Finish update even
 // though Hermes then answers "unchanged".
-// Run alone: node tests/page/page-update-retry.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

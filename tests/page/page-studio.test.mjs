@@ -1,6 +1,5 @@
 // The studio around the wizard: no panes, a fresh user without a Chromatic, the page's stylesheet and artwork,
 // and the dedicated hermretro profile the first step creates.
-// Run alone: node tests/page/page-studio.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

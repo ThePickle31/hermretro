@@ -1,6 +1,5 @@
 // The New Game shelf's order and fit (page/pages/build/cart-shelf.js), and the flat ground the level keeps under it
 // (page/backgrounds/platformer/level.js), without a browser.
-// Run alone: node tests/page/cart-shelf.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { registerAliases } from './aliases.mjs'

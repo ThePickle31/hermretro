@@ -1,7 +1,6 @@
 // From setup to the first game: onboarding's last screen hands the idea to Build's New Game box (unsent, with Build it
 // or Plan first kept), the box keeps it across pages, a missing model provider is said with where to fix it, the
 // opt-in demo during the install, and the hardware settings link aimed at the hermretro profile.
-// Run alone: node tests/page/page-setup-handoff.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

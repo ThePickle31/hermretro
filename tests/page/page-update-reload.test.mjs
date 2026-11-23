@@ -2,7 +2,6 @@
 // outside the page), and Reload loads it without a restart: the hermretro profile's settings refreshed, the plugin
 // switched off and on there once nothing is being built, the page refreshed. A build refuses it; Hermes asking for a
 // restart and a failed reload are both said in the banner.
-// Run alone: node tests/page/page-update-reload.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
