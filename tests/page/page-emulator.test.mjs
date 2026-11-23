@@ -1,6 +1,5 @@
 // The Emulator page fed by the games / player RPCs: the demo cartridge, the player's notices, Play from the shelf,
 // keys, annotations and the rebuilt banner (starting state: games-fixture.mjs).
-// Run alone: node tests/page/page-emulator.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { gamesStudio } from './games-fixture.mjs'

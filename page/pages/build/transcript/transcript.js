@@ -25,7 +25,7 @@ import { buildHistory, deriveTurns, turnBuilt } from './turns.js'
 
 const TURN_PAGE = 40
 
-export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null }) {
+export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null, onFocusHandled }) {
   const items = chat?.items ?? []
   const turns = useMemo(() => deriveTurns(items), [items])
   // Each turn's build (#n), the same object while it is unchanged so finished turns do not re-render.
@@ -50,6 +50,21 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
   const [behind, setBehind] = useState(false)
   const [limit, setLimit] = useState(TURN_PAGE)
   const [viewer, setViewer] = useState(null)
+  const [openBuilds, setOpenBuilds] = useState(() => new Set())
+  const toggleBuild = useCallback(key => {
+    stuck.current = false
+    setOpenBuilds(current => {
+      const next = new Set(current)
+
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+
+      return next
+    })
+  }, [])
   const busy = Boolean(chat?.busy)
 
   // A new conversation starts at its end, with the page size reset.
@@ -79,7 +94,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     } else {
       setBehind(true)
     }
-  })
+  }, [items, chat?.queued, limit])
 
   // Pictures and cards that load after a render (a before/after, a thumbnail) grow the conversation:
   // keep the newest message in view while the user is at the bottom.
@@ -128,10 +143,10 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
 
   // The Assets panel's "Made in" link: show that turn (loading earlier messages when it is above the
   // page), scroll to it and mark it for a moment.
-  const focused = useRef(null)
+  const [highlight, setHighlight] = useState(null)
 
   useEffect(() => {
-    if (!focusTurn || focused.current === focusTurn.seq) {
+    if (!focusTurn) {
       return undefined
     }
 
@@ -147,21 +162,41 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
       return undefined
     }
 
+    if (builds.has(index) && index < turns.length - 1 && !openBuilds.has(focusTurn.key)) {
+      stuck.current = false
+      setOpenBuilds(current => new Set(current).add(focusTurn.key))
+
+      return undefined
+    }
+
     const node = scroller.current?.querySelector?.(`[data-turn="${focusTurn.key}"]`)
 
     if (!node) {
       return undefined
     }
 
-    focused.current = focusTurn.seq
+    onFocusHandled(null)
     stuck.current = false
     node.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    setHighlight({ node })
+
+    return undefined
+  }, [focusTurn, limit, openBuilds, builds, turns, onFocusHandled])
+
+  useEffect(() => {
+    if (!highlight) {
+      return undefined
+    }
+    const { node } = highlight
     node.setAttribute('data-flash', 'true')
 
     const id = setTimeout(() => node.removeAttribute('data-flash'), 1600)
 
-    return () => clearTimeout(id)
-  }, [focusTurn?.seq, limit])
+    return () => {
+      clearTimeout(id)
+      node.removeAttribute('data-flash')
+    }
+  }, [highlight])
 
   // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
   const openAsset = useCallback(
@@ -231,6 +266,8 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
                   ctx,
                   game: index === latestBuild ? game : null,
                   isLast: index === lastIndex,
+                  expanded: openBuilds.has(turn.key),
+                  onToggleBuild: toggleBuild,
                   latestBuild: index === latestBuild,
                   live: busy && index === lastIndex,
                   turnStartedAt: busy && index === lastIndex ? (chat?.turnStartedAt ?? null) : null,

@@ -1,6 +1,5 @@
 // The emulator beside the chat, which opens only when the agent presents a game (chromatic_present_game), and the
 // presentations fallback (starting state: games-fixture.mjs; Play on the shelf loads Comet Drift first).
-// Run alone: node tests/page/page-emulator-side.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { gamesStudio } from './games-fixture.mjs'

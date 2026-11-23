@@ -1,7 +1,6 @@
 // Updating hermretro from its own page (app/update/): the header chip when Hermes found a newer version, the Update
 // button's steps (Hermes's update where the plugin was installed, the hermretro profile reloaded, the page refreshed),
 // what the reloaded page says, the security-check review, a failure, Later, and the Setup page's version row.
-// Run alone: node tests/page/page-update.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

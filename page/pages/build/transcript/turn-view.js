@@ -6,21 +6,22 @@ import { effortLabel, modelName } from '#pages/build/composer/model-names.js'
 import { InlinePlayer } from '#pages/build/player/inline-player.js'
 import { PlayCard, playsBuild } from '#pages/build/player/play-card.js'
 import { AGENT } from '#app/ids.js'
-import { spanWords, timeOfDay } from '#shared/ui/time.js'
+import { spanWords } from '#shared/ui/time.js'
 import { playableSha } from '#app/player/stage.js'
-import { BuildCard, NextSteps } from './build-card.js'
+import { BuildCard, NextSteps, primaryArt } from './build-card.js'
+import { FrameReplay } from './frame-replay.js'
 import { AgentText, replyAssets } from './reply.js'
 import { turnParts } from './turns.js'
 import { Worked } from './worked.js'
 
-function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
+function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
   const parts = turnParts(turn, root)
   const user = turn.user
   const end = parts.end
   const agentAt = end?.at ?? null
   const hasAgent = live || turn.items.length > 0
   const startedAt = user?.at ?? end?.startedAt ?? null
-  const showWorked = parts.entries.length > 0 || (live && !parts.intro.length)
+  const showWorked = parts.entries.length > 0 || live
   // The viewer steps through the turn's images: the steps' first, then the ones its replies delivered.
   const viewerAssets = [...parts.assets]
 
@@ -42,12 +43,25 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   viewerRef.current = viewerAssets
 
   // Stable, so the memoised replies do not re-render their markdown on every turn update.
-  const openAsset = useCallback(asset => onOpenAsset(viewerRef.current, asset), [onOpenAsset])
+  const openAsset = useCallback(asset => {
+    const assets = viewerRef.current
+    const matched = assets.some(entry => entry.path === asset.path && entry.version === asset.version)
+
+    onOpenAsset(matched ? assets : [...assets, { ...asset, ask: user?.text }], asset)
+  }, [onOpenAsset, user?.text])
   const playable = Boolean(game && game.webExport && playableSha(game))
-  const frame = [...parts.assets].reverse().find(asset => asset.kind === 'Playtest frame') ?? null
+  const inlinePlaying = playable && playerOpen && !chatBusy
+  const frames = parts.frames
+  const frame = frames.at(-1) ?? null
   const report = parts.report
   // A finished turn that built the game, or reported what it did, ends in its build card.
   const carded = !live && (build || report)
+  const hasReplyMedia = [...parts.intro, ...parts.outro].some(item => /^\s*MEDIA:/im.test(item.text))
+  const showResult = !live && build?.state !== 'failed'
+  const art = showResult ? primaryArt(parts, root) : null
+  const replay = showResult && !art && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null
+  const featuredPaths = art ? [art] : replay ? frames.map(asset => asset.path) : []
+  const compactPlayer = Boolean(art || replay || hasReplyMedia)
 
   // The newest build plays in a frame under its line; while the agent works, only its line says so.
   let play = null
@@ -57,19 +71,22 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     if (chatBusy) {
       playLabel = carded ? jsx('span', { className: 'cs-faint cs-small', children: `Playable again when ${AGENT} finishes` }) : null
     } else if (!playable) {
-      play = jsx(PlayCard, { frame, game, state: 'unplayable' })
+      play = jsx(PlayCard, { compact: compactPlayer, frame, game, state: 'unplayable' })
     } else if (playerOpen) {
       play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`)
     } else {
-      play = jsx(PlayCard, { build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: 'ready' })
+      play = jsx(PlayCard, { compact: compactPlayer, build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: 'ready' })
     }
   } else if (build?.state === 'built' && !live) {
     playLabel = jsx('span', { className: 'cs-faint cs-small', children: 'Earlier build' })
   }
 
   const took = startedAt && end?.at ? spanWords(end.at - startedAt) : null
-  const card = carded
+  const card = carded || art
     ? jsx(BuildCard, {
+        art,
+        replay,
+        play: inlinePlaying ? null : play,
         at: agentAt,
         build,
         chatBusy,
@@ -82,13 +99,11 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
         root,
         took
       })
-    : null
-  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `o${index}`))
+    : replay
+  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`))
 
-  return jsxs('section', {
-    className: 'cs-b-turn',
-    'data-live': live ? 'true' : undefined,
-    'data-turn': turn.key,
+  return jsxs('div', {
+    className: 'cs-b-turn-body',
     children: [
       user
         ? jsxs('div', {
@@ -109,14 +124,13 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
               user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? '') !== (previousModel.effort ?? ''))
                 ? jsx('div', { className: 'cs-b-who', children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ''}` })
                 : null,
-              ...parts.intro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `i${index}`)),
+              ...parts.intro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `i${index}`)),
+              ...outro,
               showWorked
                 ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? (turnStartedAt ?? startedAt ?? Date.now()) : startedAt, status: end?.status ?? null }, 'worked')
                 : null,
-              // With a report the card says it all and the reply is a line after it; without one the reply
-              // is the words, and the card (a build) follows them.
-              // Questions and approvals are asked in the message box, not here.
-              ...(report ? [card, carded ? play : null, ...outro] : [...outro, card, carded ? play : null]),
+              card,
+              inlinePlaying || (!carded && !art) ? play : null,
               ...parts.errors.map((item, index) =>
                 jsxs(
                   'div',
@@ -154,11 +168,57 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
                     ]
                   })
                 : null,
-              carded ? null : play,
               isLast && !chatBusy && !live ? jsx(NextSteps, { stored, suggestions: report?.suggestions }) : null
             ]
           })
         : null
+    ]
+  })
+}
+
+// Only mount a past build's transcript and media when someone opens it.
+function TurnView(props) {
+  const { turn, build, isLast, live, expanded, onToggleBuild, playerOpen, chatBusy, game, onPlay } = props
+  const historical = Boolean(build && !isLast)
+  const playing = playerOpen && !chatBusy
+  const open = !historical || expanded || playing
+  const toggle = () => {
+    if (playing) {
+      props.onClosePlayer()
+    }
+
+    if (!playing || expanded) {
+      onToggleBuild(turn.key)
+    }
+  }
+
+  return jsxs('section', {
+    className: 'cs-b-turn',
+    'data-history': historical || undefined,
+    'data-live': live || undefined,
+    'data-turn': turn.key,
+    children: [
+      historical ? jsxs('div', {
+        className: 'cs-b-history',
+        children: [
+          jsxs('button', {
+            'aria-expanded': open,
+            className: 'cs-b-history-row',
+            onClick: toggle,
+            type: 'button',
+            children: [
+              jsx('span', { className: 'cs-b-history-number', children: `#${build.n}` }),
+              jsx('span', { className: 'cs-b-history-title', children: build.title }),
+              build.state === 'failed' ? jsx('span', { className: 'cs-b-history-failed', children: 'Failed' }) : null,
+              jsx(Codicon, { name: open ? 'chevron-down' : 'chevron-right', size: 12 })
+            ]
+          }),
+          !open && !chatBusy && game?.webExport && playableSha(game)
+            ? jsx('button', { className: 'cs-b-link cs-b-history-play', onClick: onPlay, type: 'button', children: playsBuild(game, build) ? `Play build #${build.n}` : 'Play' })
+            : null
+        ]
+      }) : null,
+      open ? jsx(TurnBody, { ...props }) : null
     ]
   })
 }
@@ -178,6 +238,7 @@ export const TurnMemo = memo(
     previous.latestBuild === next.latestBuild &&
     previous.build === next.build &&
     previous.isLast === next.isLast &&
+    previous.expanded === next.expanded &&
     previous.playerOpen === next.playerOpen &&
     previous.root === next.root &&
     previous.stored === next.stored &&
