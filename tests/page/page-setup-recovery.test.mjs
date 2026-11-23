@@ -1,7 +1,6 @@
 // The page's toolchain install when something goes wrong: every state ends in an action (no download list, a
 // profile name someone else owns, no space, a failed verification, a profile that never answers, cancel, an
 // install interrupted by a restart), and the progress says its stage and time in words a screen reader gets.
-// Run alone: node tests/page/page-setup-recovery.test.mjs [path to a node_modules folder]
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

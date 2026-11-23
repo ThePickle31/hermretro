@@ -2,7 +2,6 @@
 // the backend kept its files (plugin.hermretro.builds). A build's startAt/endAt are page times in milliseconds
 // (a message's `timestamp`, Unix seconds, × 1000), and so is a snapshot's `at`/`builds`: a snapshot matches a build
 // when one of its times falls from 2 s before the turn started to 5 s after it ended.
-// Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

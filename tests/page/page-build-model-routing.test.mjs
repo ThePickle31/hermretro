@@ -1,5 +1,4 @@
 // New Game starts a fresh thread for each idea and sends only on the selected route.
-// Run alone: node tests/page/page-build-model-routing.test.mjs [path to a node_modules folder]
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
