@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 76280f559e38336e8bb74db1909308180e2a1daa36000868ee1a66ac84d9b61f
- * body: sha256 0e09ba6b72bde9341d5bbc510de917780a192acff8bb07ccb42b68653cd01da1
+ * sources: sha256 0716589b909db6a603c21ae7adce0109315ab62bcce2be6cd3e2dd63b85bf6ba
+ * body: sha256 4068a75efc1b113201b769891e90291da0715bc857e29d814b174c3daea69707
  */
 // page/sdk.js
 import {
@@ -1510,6 +1510,7 @@ function canvasImage(canvas2, image) {
 
 // page/pages/build/assets/images.js
 function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
+  const id = useId();
   const { state, asset: loaded } = useAsset(asset.path, asset.version);
   if (state === "none") {
     return null;
@@ -1520,6 +1521,7 @@ function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
   return jsx("button", {
     "aria-label": `Look closer at ${loaded.name}`,
     className: `cs-b-th ${size}${fresh ? " fresh" : ""}`,
+    id,
     onClick: (event) => {
       event.stopPropagation();
       onOpen?.(asset, event.currentTarget);
@@ -5422,6 +5424,7 @@ function replyAssets(items, root) {
   );
 }
 function ReplyImage({ asset, line, onOpen }) {
+  const id = useId();
   const { state, code, asset: loaded } = useAsset(asset.path, asset.version);
   if (state === "none") {
     return MessageTextContent ? jsx(MessageTextContent, code === "OTHER_GAME" ? { media: false, previewOnly: true, text: line } : { text: line }) : null;
@@ -5433,6 +5436,7 @@ function ReplyImage({ asset, line, onOpen }) {
   return jsxs("button", {
     "aria-label": `Look closer at ${loaded.name}`,
     className: "cs-b-rchip",
+    id,
     onClick: (event) => {
       event.stopPropagation();
       onOpen?.(asset, event.currentTarget);
@@ -6356,9 +6360,8 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     const previous = opener ?? document.activeElement;
     dialog.current?.focus({ preventScroll: true });
     return () => {
-      if (previous?.isConnected) {
-        previous.focus?.({ preventScroll: true });
-      }
+      const target = previous?.isConnected ? previous : previous?.ownerDocument.getElementById(previous.id);
+      target?.focus?.({ preventScroll: true });
     };
   }, [opener]);
   const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
@@ -6396,7 +6399,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
         event.preventDefault();
         setPlaying(false);
         setFrame((value) => (value + (event.key === "." ? 1 : frames.length - 1)) % frames.length);
-      } else if (event.key === " " && shownView === "Animation") {
+      } else if (event.key === " " && shownView === "Animation" && !event.target?.closest?.("button")) {
         event.preventDefault();
         setPlaying((value) => !value);
       } else if (event.key === "+" || event.key === "=") {
@@ -6592,6 +6595,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
 // page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
+  const id = useId();
   const before = useAsset(path, `reply:${from}`);
   const after = useAsset(path, to ? `reply:${to}` : null);
   const root = useContext(AssetGame);
@@ -6617,6 +6621,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const side = (loaded, label, now) => jsxs("button", {
     "aria-label": `Look closer at ${label.toLowerCase()} version of ${name}`,
     className: now ? "cs-b-ba-side now" : "cs-b-ba-side",
+    id: `${id}-${label}`,
     onClick: (event) => onOpen?.({ path, version: now ? to ? `reply:${to}` : null : `reply:${from}`, kind: assetKind(path), step: label }, event.currentTarget),
     type: "button",
     children: [jsx("span", { className: "cs-b-ba-img", children: jsx(SheetFrame, { loaded }) }), jsx("span", { className: "cs-b-ba-cap", children: label })]
@@ -6993,6 +6998,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
 }
 var WORKED_MODE = atom("simple");
 function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) {
+  const id = useId();
   const [open, setOpen] = useState(null);
   const [openGroups, setOpenGroups] = useState({});
   const mode = useValue(WORKED_MODE);
@@ -7036,6 +7042,7 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
           made.length && !shown ? jsxs("button", {
             "aria-label": `See the ${made.length === 1 ? "picture" : `${made.length} pictures`} this made`,
             className: "cs-b-wk-assets",
+            id,
             onClick: (event) => onOpenAsset?.(made[0], event.currentTarget),
             type: "button",
             children: [jsx(AssetStack, { assets: made }), jsx("span", { children: `${made.length} ${made.length === 1 ? "asset" : "assets"}` })]

@@ -1,5 +1,5 @@
 // A reply's text and the images it delivered.
-import { jsx, jsxs, memo, MessageTextContent } from '#sdk'
+import { jsx, jsxs, memo, MessageTextContent, useId } from '#sdk'
 import { useAsset } from '#pages/build/assets/cache.js'
 import { SheetFrame } from '#pages/build/assets/images.js'
 import { isAbsolute, joinPath } from '#app/paths.js'
@@ -46,6 +46,7 @@ export function replyAssets(items, root) {
  *  would read the file itself); anything else the backend will not give (outside the games) stays the app's own
  *  MEDIA rendering. */
 function ReplyImage({ asset, line, onOpen }) {
+  const id = useId()
   const { state, code, asset: loaded } = useAsset(asset.path, asset.version)
 
   if (state === 'none') {
@@ -61,6 +62,7 @@ function ReplyImage({ asset, line, onOpen }) {
   return jsxs('button', {
     'aria-label': `Look closer at ${loaded.name}`,
     className: 'cs-b-rchip',
+    id,
     onClick: event => {
       event.stopPropagation()
       onOpen?.(asset, event.currentTarget)

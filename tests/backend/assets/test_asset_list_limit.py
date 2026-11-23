@@ -4,7 +4,6 @@
 Run alone: python -m unittest tests.backend.assets.test_asset_list_limit
 """
 
-import os
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -58,7 +57,7 @@ class AssetListLimit(unittest.TestCase):
         with (
             mock.patch.object(assets_rpcs, "ASSET_LIST_LIMIT", 2),
             mock.patch.object(Registry, "load", autospec=True, side_effect=Registry.load) as load,
-            mock.patch.object(os, "scandir", wraps=os.scandir) as scan,
+            mock.patch.object(Path, "iterdir", autospec=True, side_effect=Path.iterdir) as iterdir,
         ):
             answer = assets_rpcs.rpc_assets(None)({"game": self.game})
         self.assertTrue(answer["ok"], answer)
@@ -67,7 +66,9 @@ class AssetListLimit(unittest.TestCase):
         )
         self.assertIs(answer["truncated"], True)
         load.assert_called_once()
-        self.assertNotIn(later, [Path(call.args[0]) for call in scan.call_args_list])
+        walked = [call.args[0] for call in iterdir.call_args_list]
+        self.assertIn(first, walked)
+        self.assertNotIn(later, walked)
 
     def test_a_nested_games_art_cannot_fill_or_truncate_the_outer_list(self):
         add_images(self.root, 1)

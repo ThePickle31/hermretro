@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, buildScenario, dom, scenario, page, click, settle, mount, check, answered }) => {
+await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, settle, mount, check, answered }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
@@ -17,7 +17,7 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, settl
     { role: 'tool', tool_call_id: 'i1', content: JSON.stringify({ ok: true }), timestamp: 1010 },
     { role: 'assistant', content: '', timestamp: 1011, tool_calls: [{ id: 'i2', function: { name: 'chromatic_asset_import', arguments: JSON.stringify({ assetPath: 'assets/ui/../ui/frame.png', kind: 'ui' }) } }] },
     { role: 'tool', tool_call_id: 'i2', content: JSON.stringify({ ok: true }), timestamp: 1012 },
-    { role: 'assistant', content: 'Drawn.', timestamp: 1020 }] })
+    { role: 'assistant', content: `Drawn.\nMEDIA:${art}\nMEDIA:${art}`, timestamp: 1020 }] })
   // The file on disk is v2 until v1 is put back.
   const look = { v1: 'data:image/png;base64,djE=', v2: 'data:image/png;base64,djI=' }
   let onDisk = 'v2'
@@ -35,7 +35,10 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, settl
   await settle(100)
   const stacked = () => [...view.node.querySelectorAll('.cs-b-wk-row .cs-b-stack-i img')].map(node => node.getAttribute('src'))
   check('the turn shows both spellings of the picture it made as the file is now', () => { assert.deepEqual(stacked(), [look.v2, look.v2]) })
-  await act(async () => { view.node.querySelector('.cs-b-wk-assets').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  const openers = () => [...view.node.querySelectorAll('.cs-b-rchip[aria-label="Look closer at frame.png"]')]
+  const [, opener] = openers()
+  assert.ok(opener)
+  await act(async () => opener.click())
   await settle(50)
   await act(async () => { view.node.querySelector('.cs-v button[aria-label="Version 1"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle(30)
@@ -43,5 +46,14 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, settl
   await settle(80)
   check('Restore puts v1 back for this game', () => { assert.deepEqual(restores, [{ path: art, root: '/home/u/games/FrogPost', version: '1' }]) })
   check('the pictures already in the conversation redraw as v1, whichever path they asked for', () => { assert.deepEqual(stacked(), [look.v1, look.v1]) })
+  const [, remounted] = openers()
+  check('restore remounts the original reply image button', () => {
+    assert.equal(opener.isConnected, false)
+    assert.ok(remounted)
+  })
+  await key('keydown', 'Escape', view.node.querySelector('[role="dialog"]'))
+  check('closing after restore focuses the same reply image', () => {
+    assert.ok(dom.window.document.activeElement === remounted)
+  })
   await view.close()
 })

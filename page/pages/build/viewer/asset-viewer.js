@@ -117,9 +117,10 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
     dialog.current?.focus({ preventScroll: true })
 
     return () => {
-      if (previous?.isConnected) {
-        previous.focus?.({ preventScroll: true })
-      }
+      // Restore reloads the image, so its opener may have been replaced by a new button.
+      const target = previous?.isConnected ? previous : previous?.ownerDocument.getElementById(previous.id)
+
+      target?.focus?.({ preventScroll: true })
     }
   }, [opener])
 
@@ -164,7 +165,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
         event.preventDefault()
         setPlaying(false)
         setFrame(value => (value + (event.key === '.' ? 1 : frames.length - 1)) % frames.length)
-      } else if (event.key === ' ' && shownView === 'Animation') {
+      } else if (event.key === ' ' && shownView === 'Animation' && !event.target?.closest?.('button')) {
         event.preventDefault()
         setPlaying(value => !value)
       } else if (event.key === '+' || event.key === '=') {

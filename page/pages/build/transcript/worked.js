@@ -1,5 +1,5 @@
 // "Worked for…": a turn's steps, collapsed, Simple or Technical.
-import { atom, Codicon, jsx, jsxs, useState, useValue } from '#sdk'
+import { atom, Codicon, jsx, jsxs, useId, useState, useValue } from '#sdk'
 import { AssetImage, AssetStrip, LatestAsset } from '#pages/build/assets/images.js'
 import { spanWords } from '#shared/ui/time.js'
 import { Elapsed } from '#shared/ui/elapsed.js'
@@ -160,6 +160,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
 const WORKED_MODE = atom('simple')
 
 export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) {
+  const id = useId()
   const [open, setOpen] = useState(null)
   const [openGroups, setOpenGroups] = useState({})
   const mode = useValue(WORKED_MODE)
@@ -218,6 +219,7 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
             ? jsxs('button', {
                 'aria-label': `See the ${made.length === 1 ? 'picture' : `${made.length} pictures`} this made`,
                 className: 'cs-b-wk-assets',
+                id,
                 onClick: event => onOpenAsset?.(made[0], event.currentTarget),
                 type: 'button',
                 children: [jsx(AssetStack, { assets: made }), jsx('span', { children: `${made.length} ${made.length === 1 ? 'asset' : 'assets'}` })]

@@ -1,10 +1,11 @@
 // Asset pictures in the conversation: thumbs, sprites, strips.
-import { jsx, jsxs, useEffect, useLayoutEffect, useRef, useState } from '#sdk'
+import { jsx, jsxs, useEffect, useId, useLayoutEffect, useRef, useState } from '#sdk'
 import { baseName } from '#app/paths.js'
 import { useAsset } from './cache.js'
 import { drawSpriteFrame, paintSheet, spriteFrameMs } from './sprite.js'
 
 export function AssetThumb({ asset, onOpen, size = 'sm', fresh = false }) {
+  const id = useId()
   const { state, asset: loaded } = useAsset(asset.path, asset.version)
 
   if (state === 'none') {
@@ -18,6 +19,7 @@ export function AssetThumb({ asset, onOpen, size = 'sm', fresh = false }) {
   return jsx('button', {
     'aria-label': `Look closer at ${loaded.name}`,
     className: `cs-b-th ${size}${fresh ? ' fresh' : ''}`,
+    id,
     onClick: event => {
       event.stopPropagation()
       onOpen?.(asset, event.currentTarget)

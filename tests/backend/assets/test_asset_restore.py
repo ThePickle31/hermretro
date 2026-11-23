@@ -54,6 +54,50 @@ class AssetRestore(unittest.TestCase):
         self.assertEqual([item.name for item in folder.iterdir()], [f"{old_id}.png"])
         emit.assert_not_called()
 
+    @mock.patch.object(assets_versions, "ASSET_KEEP_VERSIONS", 2)
+    def test_failed_live_replacement_preserves_history_at_the_cap(self):
+        self.write(PNG_A, 1000)
+        selected = self.asset(self.params)["versionId"]
+        self.write(PNG_A + b"newer", 2000)
+        self.assertTrue(self.asset(self.params)["ok"])
+        self.write(PNG_B, 3000)
+        folder = assets_versions._versions_dir(self.cover, self.game)
+        history = {item.name: item.read_bytes() for item in folder.iterdir()}
+        original_replace = os.replace
+
+        def fail_live_replace(source, destination):
+            if Path(destination) == self.cover:
+                raise OSError("live replacement failed")
+            return original_replace(source, destination)
+
+        with (
+            mock.patch.object(os, "replace", side_effect=fail_live_replace),
+            mock.patch.object(assets_rpcs, "emit") as emit,
+            mock.patch.object(assets_rpcs.logger, "exception"),
+        ):
+            answer = self.restore({**self.params, "version": selected})
+        self.assertFalse(answer["ok"], answer)
+        self.assertIn("live replacement failed", answer["error"])
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+        self.assertEqual({item.name: item.read_bytes() for item in folder.iterdir()}, history)
+        emit.assert_not_called()
+
+    @mock.patch.object(assets_versions, "ASSET_KEEP_VERSIONS", 2)
+    def test_capture_keeps_the_live_version_with_an_older_mtime(self):
+        self.write(PNG_A, 2000)
+        evicted = self.asset(self.params)["versionId"]
+        self.write(PNG_A + b"newer", 3000)
+        latest = self.asset(self.params)["versionId"]
+        self.write(PNG_B, 1000)
+        captured = self.asset(self.params)
+        self.assertTrue(captured["ok"], captured)
+
+        folder = assets_versions._versions_dir(self.cover, self.game)
+        self.assertEqual({item.stem for item in folder.iterdir()}, {captured["versionId"], latest})
+        self.write(PNG_A, 4000)
+        self.assertEqual(self.asset({**self.params, "version": captured["versionId"]})["dataUrl"], captured["dataUrl"])
+        self.assertEqual(self.asset({**self.params, "version": evicted})["code"], "MISSING")
+
     def test_restore_keeps_an_exclusive_lock_until_the_live_file_is_replaced(self):
         self.write(PNG_A, 1000)
         old_id = self.asset(self.params)["versionId"]

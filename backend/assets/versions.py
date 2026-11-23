@@ -281,19 +281,23 @@ def _save_image_bytes(folder: Path, target: Path, data: bytes) -> tuple[Path, bo
 
 
 def _prune_versions(folder: Path, protect=()) -> None:
-    kept = _kept_versions(folder)
-    excess = max(0, len(kept) - ASSET_KEEP_VERSIONS)
-    for old in [item for item in kept if item not in protect][:excess]:
-        old.unlink(missing_ok=True)
-
-
-def _try_keep_version(real: Path, folder: Path, *, protect=()) -> None:
     try:
-        _saved, added = _save_version(real, folder)
-        if added:
-            _prune_versions(folder, protect)
+        kept = _kept_versions(folder)
+        excess = max(0, len(kept) - ASSET_KEEP_VERSIONS)
+        for old in [item for item in kept if item not in protect][:excess]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        logger.debug("hermretro could not prune image history", exc_info=True)
+
+
+def _try_keep_version(real: Path, folder: Path, *, protect=(), prune=False) -> None:
+    saved, added = None, False
+    try:
+        saved, added = _save_version(real, folder)
     except OSError:
         logger.debug("hermretro could not keep an image version", exc_info=True)
+    if added or prune:
+        _prune_versions(folder, (*protect, saved))
 
 
 def _keep_version(real: Path, root: Path) -> None:
@@ -313,11 +317,17 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
             data = selected.read_bytes()
         except FileNotFoundError:
             return None
-        backup, _added = _save_version(real, folder, required=True)
-        protect = (selected, backup)
-        _prune_versions(folder, protect)
-        _write_image(real, data, ".restore")
-        _try_keep_version(real, folder, protect=protect)
+        backup, added = _save_version(real, folder, required=True)
+        try:
+            _write_image(real, data, ".restore")
+        except OSError:
+            if added:
+                try:
+                    backup.unlink(missing_ok=True)
+                except OSError:
+                    logger.debug("hermretro could not remove an unused image backup", exc_info=True)
+            raise
+        _try_keep_version(real, folder, protect=(selected, backup), prune=True)
         return _versions(real, folder)
 
 

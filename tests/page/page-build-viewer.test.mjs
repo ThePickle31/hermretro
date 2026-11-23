@@ -64,6 +64,27 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, key,
     const selectedFrame = () => dialog.querySelector('.cs-v-frame[aria-pressed="true"]')?.getAttribute('aria-label')
     check('the dialog takes focus when it opens', () => assert.ok(active() === dialog))
 
+    const controls = [
+      dialog.querySelector('[aria-label="Close"]'),
+      [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Change'),
+      dialog.querySelector('[aria-label="Frame 2"]')
+    ]
+    for (const button of controls) {
+      await act(async () => button.focus())
+      const space = new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+
+      await act(async () => button.dispatchEvent(space))
+      check(`Space preserves native activation on ${button.getAttribute('aria-label') ?? button.textContent}`, () => {
+        assert.equal(space.defaultPrevented, false)
+        assert.ok(dialog.querySelector('[aria-label="Pause"]'))
+      })
+    }
+
+    await act(async () => dialog.focus())
+    await key('keydown', ' ', dialog)
+    check('Space on the dialog pauses the animation', () => assert.ok(dialog.querySelector('[aria-label="Play"]')))
+    await key('keydown', ' ', dialog)
+
     await click('Change', dialog)
     const input = dialog.querySelector('textarea')
     check('Change focuses its text box', () => assert.ok(active() === input))
