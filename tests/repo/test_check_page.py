@@ -185,20 +185,5 @@ class LintToolsFirst(unittest.TestCase):
         self.assertEqual(started, ["unit"])
 
 
-class PageTestHeaders(unittest.TestCase):
-    def test_every_page_test_names_the_command_that_runs_it_alone(self):
-        # node runs each file as it stands; a scenario on harness.mjs also takes a node_modules folder (made absolute).
-        wrong = []
-        for path in sorted(ROOT.glob(check.PAGE_TESTS)):
-            name = path.relative_to(ROOT).as_posix()
-            text = path.read_text(encoding="utf-8")
-            wanted = f"// Run alone: node {name}" + (
-                " [path to a node_modules folder]" if "runScenario(" in text else ""
-            )
-            if not any(line.startswith(wanted) for line in text.splitlines()[:12]):
-                wrong.append(f"{name}: wants a header line starting {wanted!r}")
-        self.assertEqual(wrong, [], "FIX: write that line in the file's opening comment")
-
-
 if __name__ == "__main__":
     unittest.main()

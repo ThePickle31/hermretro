@@ -1,5 +1,4 @@
 // The Games shelf fed by the games RPC (the shared starting state is games-fixture.mjs).
-// Run alone: node tests/page/page-games.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { gamesStudio } from './games-fixture.mjs'

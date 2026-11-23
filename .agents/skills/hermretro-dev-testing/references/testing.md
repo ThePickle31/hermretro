@@ -136,9 +136,7 @@ A test that needs a running broker patches in a `FakeBrokerClient(answer)` from 
 `python tools/check.py page` runs every `tests/page/**/*test*.mjs` with `node --test`. A scenario over the built
 page is a `page-<name>.test.mjs` on `harness.mjs`, with exactly one `runScenario(...)` call: it ends the process when
 its body finishes (the page's polling would keep it alive), so a second call in the same file never reports, and
-nothing says so; put another scenario in its own file. Its opening comment needs, within its first 12 lines, the line
-`// Run alone: node tests/page/<file> [path to a node_modules folder]` (`tests/repo/test_check_page.py` fails without
-it; a file without `runScenario(` needs only `// Run alone: node tests/page/<file>`). Check the page's text with its
+nothing says so; put another scenario in its own file. Run one with `node tests/page/<file>`; a harness scenario also accepts a node_modules folder as its last argument. Check the page's text with its
 `shows(expected, message)` and
 `hides(...)` (a string or a RegExp), which fail with about 300 characters around the closest match instead of the
 whole page. `tab(name)` clicks the studio nav; `pageTab(label)` clicks a page's own tab bar (`.cs-tabs`, drawn by
