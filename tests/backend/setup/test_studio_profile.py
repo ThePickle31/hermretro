@@ -29,7 +29,6 @@ class StudioProfile(unittest.TestCase):
         self.notifications = []
         for name, effect in (
             ("prepare_profile", self.prepare_profile),
-            ("clear_profile_tombstone", lambda _target: None),
             ("notify_profile_created", self.notifications.append),
         ):
             patch = unittest.mock.patch.object(sp.hermes_api, name, side_effect=effect)
@@ -321,6 +320,20 @@ class StudioProfile(unittest.TestCase):
         self.assertNotIn("max_turns", self.read_config(self.target)["agent"])
         self.assertFalse((self.target / "SOUL.md").exists())
 
+    def test_repair_keeps_a_missing_soul_even_when_the_cli_seeds_its_own_default(self):
+        self.created()
+        soul = self.target / "SOUL.md"
+        soul.unlink()
+
+        def run(target, *args):
+            self.run_command(target, *args)
+            if not soul.exists():
+                soul.write_bytes(b"Hermes default")
+
+        with unittest.mock.patch.object(sp.hermes_api, "default_soul", return_value=b"Hermes default"):
+            self.assertTrue(self.finish(run=run)["ok"])
+        self.assertFalse(soul.exists())
+
     def test_a_profile_published_by_someone_else_during_setup_is_preserved(self):
         def race(staging, *args):
             self.run_command(staging, *args)
@@ -334,6 +347,24 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(self.notifications, [])
         self.assertEqual(self.read_config(self.target), {"agent": {"max_turns": 61}})
         self.assertEqual((self.target / "SOUL.md").read_text(), "default soul")
+
+    def test_a_deleted_leftover_keeps_its_files_and_the_new_studio_gets_fresh_defaults(self):
+        (self.target / "logs").mkdir(parents=True)
+        (self.target / "logs" / "old.log").write_text("old runtime data")
+        (self.target / "workspace").symlink_to(self.home)
+        marker = sp.hermes_api.profile_tombstone(self.target)
+        marker.parent.mkdir()
+        marker.write_text("deleted")
+
+        created = self.finish(create=True)
+
+        self.assertTrue(created["ok"])
+        self.assertEqual(created["workspace"], str((self.target / "workspace").resolve()))
+        self.assertFalse(marker.exists())
+        [archive] = self.target.parent.glob(".hermretro-deleted-*")
+        self.assertEqual((archive / self.target.name / "logs" / "old.log").read_text(), "old runtime data")
+        self.assertEqual(self.read_config(self.target)["agent"]["max_turns"], 1000)
+        self.assertEqual(self.notifications, [self.target])
 
     def test_a_hermes_command_that_cannot_start_or_hangs_is_a_plain_error(self):
         import subprocess

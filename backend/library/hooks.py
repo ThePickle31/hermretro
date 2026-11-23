@@ -21,11 +21,7 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
     if kind == "game":
         root = bound.get("projectRoot")
         title = bound.get("title") or Path(root or "").name
-        # Older bindings lost the New Game mode, but an established brief still identifies a planned game.
-        planned = (bound.get("session") or {}).get("plan") is True or (
-            root and Path(root, "docs", "game", "GAME-BRIEF.md").is_file()
-        )
-        guidance = workflow.PLAN_BOUND + " " if planned else ""
+        guidance = _game_guidance(bound, root)
         return {
             "context": (
                 f"[hermretro] This is the Build conversation of the game \"{title}\" "
@@ -36,8 +32,6 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
                 + workflow.SHOW_ART_CONTEXT
                 + " "
                 + guidance
-                + "For changes to this game, "
-                + workflow.AUTHOR_AND_DELIVER
                 + " "
                 + workflow.BUILD_REPORT_GUIDANCE
                 + " "
@@ -58,7 +52,28 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
                 f"[hermretro] The user started a new Game Boy Color game{called} with New Game on the "
                 "hermretro Build page" + start + " Create exactly one new "
                 "project (chromatic_project_create or chromatic_project_create_blank): it becomes this "
-                "conversation's game. " + workflow.GAME_STEPS + " " + workflow.GAME_RULES
+                "conversation's game. " + workflow.GAME_RULES
             )
         }
     return None
+
+
+def _game_guidance(game: dict, root: str | None) -> str:
+    presented = game.get("presented")
+    if isinstance(presented, dict) and isinstance(presented.get("t"), (int, float)):
+        return workflow.EDIT_GAME
+
+    plan = game.get("initialPlan", (game.get("session") or {}).get("plan"))
+    if plan is True:
+        return workflow.PLAN_BOUND
+    if plan is False:
+        return workflow.BUILD_BOUND
+    if root:
+        # Older bindings did not keep the mode. Their plan files still say what
+        # remains in scope. ROMs and web exports can be intermediate checkpoints.
+        docs = Path(root, "docs", "game")
+        if (docs / "GAME-BRIEF.md").is_file():
+            return workflow.PLAN_BOUND
+        if (docs / "FIRST-BUILD.md").is_file():
+            return workflow.BUILD_BOUND
+    return workflow.EDIT_GAME

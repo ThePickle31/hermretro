@@ -6,6 +6,7 @@ Run alone: python -m unittest tests.backend.hermes.test_game_workflow
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -67,12 +68,13 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_planned_new_game_waits_for_the_users_approval(self):
         context = self.context("pending", {"name": "Robin", "plan": True})
-        self.assertIn("wait for the user to approve the brief before authoring anything", context)
-        self.assertIn(workflow.GAME_STEPS, context)
+        self.assertLess(context.index("create the project"), context.index("wait for the user to approve the brief"))
+        self.assertIn("before authoring or building", context)
+        self.assertNotIn(workflow.BUILD_THE_LIST, context)
 
     def test_a_quick_new_game_still_playtests_before_presenting(self):
         context = self.context("pending", {"name": "Robin", "plan": False})
-        self.assertIn(workflow.GAME_STEPS, context)
+        self.assertIn(workflow.DELIVER, context)
         self.assertIn(workflow.GAME_RULES, context)
 
     def test_a_quick_new_game_agrees_a_list_and_builds_all_of_it(self):
@@ -104,14 +106,33 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
         context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})
-        self.assertIn(workflow.AUTHOR_AND_DELIVER, context)
+        self.assertIn(workflow.EDIT_GAME, context)
         self.assertNotIn("create the project", context)
         self.assertIn(workflow.GAME_RULES, context)
 
     def test_a_planned_game_keeps_waiting_for_approval_on_later_turns(self):
         context = self.context("pending", {"name": "Robin", "plan": True}, first=False)
-        self.assertIn("Author nothing until the user has approved the game brief", context)
-        self.assertNotIn("Author nothing", self.context("pending", {"name": "Robin"}, first=False))
+        self.assertIn("Wait for explicit brief approval before authoring or building", context)
+        self.assertNotIn("brief approval", self.context("pending", {"name": "Robin"}, first=False))
+
+    def test_a_checkpoint_does_not_clear_plan_first_guidance_but_a_presentation_does(self):
+        game = {"projectRoot": "/g/robin", "initialPlan": True, "lastBuild": {"ok": True}, "lastWebExport": {"t": 1}}
+        self.assertIn(workflow.PLAN_BOUND, self.context("game", game))
+        self.assertNotIn(workflow.EDIT_GAME, self.context("game", game))
+
+        after = self.context("game", {**game, "presented": {"t": 2}})
+        self.assertIn(workflow.EDIT_GAME, after)
+        self.assertNotIn("brief", after)
+
+    def test_an_old_binding_recovers_plan_first_from_its_brief_until_presentation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            brief = Path(directory, "docs", "game", "GAME-BRIEF.md")
+            brief.parent.mkdir(parents=True)
+            brief.write_text("Awaiting approval")
+            game = {"projectRoot": directory, "lastBuild": {"ok": True}}
+            self.assertIn(workflow.PLAN_BOUND, self.context("game", game))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", {**game, "presented": {"t": 2}}))
+            self.assertIn(workflow.BUILD_BOUND, self.context("game", {**game, "initialPlan": False}))
 
     def test_drawing_art_and_importing_it_stays_allowed(self):
         self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", workflow.GAME_RULES)

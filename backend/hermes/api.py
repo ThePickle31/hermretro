@@ -20,11 +20,14 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
+    ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
     ("hermes_cli.profiles", "_bootstrap_profile_dir"),
     ("hermes_cli.profiles", "seed_profile_skills"),
     ("hermes_cli.profiles_initialization", "finish_profile_layout"),
     ("hermes_cli.config_backend", "supports_file_tooling"),
-    ("hermes_constants", "clear_named_profile_deleted"),
+    ("hermes_constants", "named_profile_has_identity"),
+    ("hermes_constants", "named_profile_is_deleted"),
+    ("hermes_constants", "profile_tombstone_path"),
     ("hermes_cli.gateway_multiplex_served", "notify_multiplexer_profiles_changed"),
 )
 
@@ -114,10 +117,39 @@ def prepare_profile(staging: Path, *, description: str, soul: str) -> None:
         inherit_launch_model(staging)
 
 
-def clear_profile_tombstone(profile_home: Path) -> None:
-    from hermes_constants import clear_named_profile_deleted
+def default_soul() -> bytes | None:
+    """The template Hermes CLI commands seed on first use of a home."""
+    try:
+        from hermes_cli.default_soul import DEFAULT_SOUL_MD
+    except ImportError:
+        return None
+    return DEFAULT_SOUL_MD.encode("utf-8")
 
-    clear_named_profile_deleted(profile_home)
+
+def profile_has_identity(profile_home: Path) -> bool:
+    try:
+        from hermes_constants import named_profile_has_identity
+    except ImportError:
+        # Older Hermes and callers outside the host use the same identity checks.
+        markers = ("config.yaml", ".env", "SOUL.md", "profile.yaml", "auth.json", "state.db")
+        return any((profile_home / name).is_file() or (profile_home / name).is_symlink() for name in markers)
+    return named_profile_has_identity(profile_home)
+
+
+def profile_is_deleted(profile_home: Path) -> bool:
+    try:
+        from hermes_constants import named_profile_is_deleted
+    except ImportError:
+        return profile_tombstone(profile_home).exists()
+    return named_profile_is_deleted(profile_home)
+
+
+def profile_tombstone(profile_home: Path) -> Path:
+    try:
+        from hermes_constants import profile_tombstone_path
+    except ImportError:
+        return profile_home.parent / ".deleted" / profile_home.name
+    return profile_tombstone_path(profile_home)
 
 
 def notify_profile_created(profile_home: Path) -> None:

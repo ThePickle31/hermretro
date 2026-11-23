@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 70e03f3bb8dd3c5735deaf5908f7c3d949b3296049e72e39cbf848d02c1d40e6
- * body: sha256 4d4c2e1539f3ab0f3f8848f0578f01a10ead0455f95ff70d5d4001a6fceb5140
+ * sources: sha256 faa9484e525b8d9c807616a3fde70ba50bc11bd8fef12a7b79fd5625029218c3
+ * body: sha256 ab5fadb702667a3daf35161c901af0883642f87b83253044f298bd6a7138e8d2
  */
 // page/sdk.js
 import {
@@ -7358,8 +7358,8 @@ function LostTurnCard({ chat, stored }) {
 }
 
 // page/pages/build/workflow.js
-var BUILD_START = "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, and create nothing until they approve it. Once the user approves the list, create the project, save the approved list in it as docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: keep building while any is missing, and name in the build report only an item no tool can make. Then show it with chromatic_present_game in the hermretro emulator.";
-var PLAN_START = "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write the game brief, backlog and test plan into it, and wait for the user to approve the brief before authoring anything. Once the user approves the brief, build everything in its scope in one go, then check the test plan against the build before presenting.";
+var BUILD_START = "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, and create nothing until they approve it. Once the user approves the list, create the project, save the approved list in it as docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: keep building while any is missing, and name in the build report only an item no tool can make. Then playtest it yourself using chromatic_emulator_run and chromatic_emulator_step; fill in its game card with chromatic_game_info; show it with chromatic_present_game in the hermretro emulator; end the turn with chromatic_build_report.";
+var PLAN_START = "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write the game brief, backlog and test plan into it, and wait for the user to approve the brief before authoring or building. Record the approval in the brief. Once the user approves the brief, build everything in its scope in one go, then check the test plan against the build before presenting. Then playtest it yourself using chromatic_emulator_run and chromatic_emulator_step; fill in its game card with chromatic_game_info; show it with chromatic_present_game in the hermretro emulator; end the turn with chromatic_build_report.";
 
 // page/pages/build/binding.js
 async function buildRpc(params) {
@@ -7664,8 +7664,8 @@ ${words}` : words;
 
 // page/pages/build/new-game.js
 var NEW_GAME_MODES = [
-  { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
-  { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
+  { id: "build", title: "Build it", text: "Approve a short list before the project is created.", ends: "Ends with a game you can play" },
+  { id: "plan", title: "Plan first", text: "Start a project for the brief, backlog and test plan. Approve the brief before authoring begins.", ends: "Ends with a plan to review" }
 ];
 var focusedSeq = 0;
 function BuildNewGame({ onStart, picker = null, updating = false }) {

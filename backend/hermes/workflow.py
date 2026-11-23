@@ -2,13 +2,13 @@
 
 # A build is a checkpoint: the agent keeps authoring until everything agreed with the user is in the game.
 CHECKPOINT = (
-    "A build is a checkpoint, not a hand-off: keep authoring until everything agreed with the user is in the game; "
+    "A build is a checkpoint, not a hand-off: keep authoring until everything agreed for this build is in the game; "
     "only then "
 )
 # Handing the game to the user, in order, once everything agreed is built; the prompt section's steps end with it too.
 PRESENT = "show it with chromatic_present_game in the hermretro emulator"
 DELIVER = (
-    "playtest it yourself with the chromatic_emulator_* tools; fill in its game card with chromatic_game_info; "
+    "playtest it yourself using chromatic_emulator_run and chromatic_emulator_step; fill in its game card with chromatic_game_info; "
     + PRESENT
     + "; end the turn with chromatic_build_report."
 )
@@ -18,9 +18,16 @@ AUTHOR_AND_DELIVER = (
     "(a build is a checkpoint, not a hand-off); once all of it is in, " + DELIVER
 )
 GAME_STEPS = (
-    "Make a game in this order: agree what to make with the user (a few quick questions, then a short list of what "
-    "you will make that they change until they approve it; or with hermretro:game-planning a brief, kept in the new "
-    "project, that they approve); create the project; " + AUTHOR_AND_DELIVER
+    "For a new game, use the chosen mode. Build it: ask a few questions, get approval of a short scope list, "
+    "then create the project. Plan first: use hermretro:game-planning to interview the user, create the project "
+    "to hold the draft, and wait for explicit brief approval before authoring or building. For either mode, "
+    + AUTHOR_AND_DELIVER
+)
+EDIT_GAME = (
+    "For a game brought in for editing or a game already presented, make the requested changes. "
+    "Build and playtest the changes, update the game card as needed, then "
+    + PRESENT
+    + " and call chromatic_build_report."
 )
 # What keeps the game the user's real, buildable project.
 GAME_RULES = (
@@ -64,38 +71,43 @@ BUILD_THE_BRIEF = (
     "the build before presenting."
 )
 
-BUILD_START = AGREE_A_LIST + " " + BUILD_THE_LIST + " Then " + PRESENT + "."
+BUILD_START = AGREE_A_LIST + " " + BUILD_THE_LIST + " Then " + DELIVER
 PLAN_START = (
     "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write "
     "the game brief, backlog and test plan into it, and wait for the user to approve the brief before "
-    "authoring anything. " + BUILD_THE_BRIEF
+    "authoring or building. Record the approval in the brief. " + BUILD_THE_BRIEF + " Then " + DELIVER
 )
 PLAN_CONTINUE = (
-    "If its project does not exist yet, create it once the user is ready. Author nothing until the "
-    "user has approved the game brief (hermretro:game-planning). " + BUILD_THE_BRIEF
+    "Finish the short interview, then create the project to hold the draft brief, backlog and test plan "
+    "(hermretro:game-planning). Wait for explicit brief approval before authoring or building and record "
+    "the approval in the brief. " + BUILD_THE_BRIEF + " Then " + DELIVER
 )
 PLAN_BOUND = (
     "Before authoring or building, check docs/game/GAME-BRIEF.md. If the brief is missing or still awaiting "
     "approval, use hermretro:game-planning to finish or revise it and wait for the user's explicit approval. "
-    "Record that approval in the brief before starting the build. " + BUILD_THE_BRIEF
+    "Record that approval in the brief before starting the build. " + BUILD_THE_BRIEF + " Then " + DELIVER
 )
 BUILD_CONTINUE = (
     "Until the user approves the list of what you will make, create nothing and change the list as "
-    "they ask. " + BUILD_THE_LIST
+    "they ask. " + BUILD_THE_LIST + " Then " + DELIVER
+)
+
+BUILD_BOUND = (
+    "Use the approved scope list in docs/game/FIRST-BUILD.md to finish the first build. If the list is missing, "
+    "recover the approved list from the conversation or ask for approval, then save it. Build every agreed item "
+    "and check it against the list before presenting. Then " + DELIVER
 )
 
 SYSTEM_PROMPT_SECTION = (
-    "hermretro is installed: tools named chromatic_* build real Game Boy / Game Boy Color games "
-    "(native GB Studio projects) for the ModRetro Chromatic. For any work on such a game, first load the matching "
-    "skill with skill_view: "
-    "hermretro:setup (any setup or repair), hermretro:game-planning, hermretro:authoring, "
-    "hermretro:pixel-art, hermretro:rom-debugging (build and emulator testing), "
-    "hermretro:deployment (physical Chromatic). Call chromatic_* tools directly, never from execute_code. "
-    "One conversation works on one project folder; use a new chat for a different project. "
-    "New games go in the hermretro games folder: leave out destinationPath unless the user names another "
-    "folder. " + GAME_STEPS + " "
-    "Nothing opens for the user after a build; chromatic_present_game shows the game in the hermretro emulator. "
-    "After chromatic_build_report, keep the written reply to one or two short sentences. "
+    "hermretro's chromatic_* tools make native GB Studio games for the ModRetro Chromatic. Call them directly. "
+    "Load the relevant skill with skill_view: hermretro:setup, hermretro:game-planning, hermretro:authoring, "
+    "hermretro:pixel-art, hermretro:rom-debugging or hermretro:deployment. "
+    "Use one project per chat. Omit destinationPath unless the user names another folder. "
+    + GAME_STEPS
+    + " "
+    + EDIT_GAME
+    + " "
+    "Nothing opens for the user after a build. After chromatic_build_report, reply in one or two short sentences. "
     + GAME_RULES
     + " Hardware tools stay off until the user enables them in Settings > Plugins > hermretro."
 )

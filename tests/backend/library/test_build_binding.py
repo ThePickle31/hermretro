@@ -82,7 +82,7 @@ class Binding(unittest.TestCase):
             mock.patch.object(hermes_host, "_profile_identity", return_value=PROFILE),
         ):
             pending = library_hooks.build_context(session_id="st-plan", is_first_turn=True)["context"]
-            self.assertIn("wait for the user to approve the brief before authoring anything", pending)
+            self.assertIn("wait for the user to approve the brief before authoring or building", pending)
             self.registry.observe(
                 "project_create_blank",
                 {"select": True},
@@ -104,6 +104,15 @@ class Binding(unittest.TestCase):
             self.assertIn("Record that approval in the brief before starting the build", bound)
             self.assertNotIn("create the project", bound)
             self.assertEqual(library_hooks.build_context(session_id="st-live")["context"], bound)
+            self.registry.upsert(str(self.root), build={"ok": True})
+            self.assertEqual(library_hooks.build_context(session_id="st-plan")["context"], bound)
+            self.registry.unbind(self.game, "st-plan", PROFILE)
+            self.registry.bind(self.game, "st-reopened", PROFILE)
+            self.assertEqual(library_hooks.build_context(session_id="st-reopened")["context"], bound)
+            self.registry.present(str(self.root))
+            delivered = library_hooks.build_context(session_id="st-reopened")["context"]
+            self.assertIn("make the requested changes", delivered)
+            self.assertNotIn("brief", delivered)
 
     def test_a_game_that_already_has_a_conversation_is_never_claimed(self):
         self.registry.bind(self.game, "st-1", PROFILE)

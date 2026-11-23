@@ -603,7 +603,11 @@ class Registry:
             elif replace is not None:
                 raise BindingError("STALE", "This game no longer has the conversation being replaced.")
             entry["session"] = {"storedId": stored, "profile": profile, "createdAt": time.time(), "aliases": []}
-            if kind == "pending" and other.get("plan") is True:
+            if kind == "pending":
+                entry.setdefault("initialPlan", other.get("plan") is True)
+            elif isinstance(current, dict) and current.get("plan") is True:
+                entry.setdefault("initialPlan", True)
+            if entry.get("initialPlan") is True:
                 entry["session"]["plan"] = True
             _chat_follows_session(entry)
             data["pending"].pop(stored, None)
@@ -625,6 +629,8 @@ class Registry:
                 raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
             if not _session_matches(current, profile, {stored}):
                 return False
+            if current.get("plan") is True:
+                entry.setdefault("initialPlan", True)
             del entry["session"]
             self._save(data)
             return True
@@ -644,7 +650,8 @@ class Registry:
                 "createdAt": time.time(),
                 "aliases": record.get("aliases", []),
             }
-            if record.get("plan") is True:
+            entry.setdefault("initialPlan", record.get("plan") is True)
+            if entry["initialPlan"] is True:
                 entry["session"]["plan"] = True
             _chat_follows_session(entry)
             data["pending"].pop(record["storedId"], None)

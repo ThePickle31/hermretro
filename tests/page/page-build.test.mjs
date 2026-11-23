@@ -69,8 +69,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     const opts = [...page.querySelectorAll('[role="radiogroup"] [role="radio"]')]
     assert.deepEqual(opts.map(o => o.querySelector('b').textContent), ['Build it', 'Plan first'])
     assert.deepEqual(opts.map(o => o.getAttribute('aria-checked')), ['true', 'false'], 'Build it is the default')
-    assert.match(opts[0].textContent, /quick questions.*shows it to you in the emulator/)
-    assert.match(opts[1].textContent, /brief, backlog and test plan\. Nothing is built until you say so/)
+    assert.match(opts[0].textContent, /Approve a short list before the project is created/)
+    assert.match(opts[1].textContent, /brief, backlog and test plan\. Approve the brief before authoring begins/)
     assert.ok(!/Game Boy\b(?! Color)/.test(page.textContent.replace('Game Boy Color', '')), 'no hardware choice')
     assert.equal(build14.node.querySelector('.cs-b-sw h2').textContent, 'New game')
   })
