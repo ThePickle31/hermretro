@@ -336,10 +336,11 @@ def library_game_for(candidates) -> tuple[str, Path] | None:
 # How a game is made, in order: the one statement the prompt section and the Build-page context share (SOUL.md
 # says the same in its own words).
 GAME_STEPS = (
-    "Make a game in this order: agree what to make with the user (a few quick questions, or with "
-    "hermretro:game-planning a brief, kept in the new project, that the user approves before you author anything); "
-    "create the project; author it with the chromatic_* tools; build with chromatic_rom_build after each "
-    "meaningful change; then " + results.AFTER_BUILD
+    "Make a game in this order: agree what to make with the user (a few quick questions, then a short list of what "
+    "you will make that they change until they approve it; or with hermretro:game-planning a brief, kept in the new "
+    "project, that they approve); create the project; author everything agreed with the chromatic_* tools, building "
+    "with chromatic_rom_build as you go (a build is a checkpoint, not a hand-off); once all of it is in, "
+    + results.DELIVER
 )
 # What keeps the game the user's real, buildable project.
 GAME_RULES = (
@@ -401,11 +402,10 @@ SYSTEM_PROMPT_SECTION = (
     "hermretro:pixel-art, hermretro:rom-debugging (build and emulator testing), "
     "hermretro:deployment (physical Chromatic). Call chromatic_* tools directly, never from execute_code. "
     "One conversation works on one project folder; use a new chat for a different project. "
-    "New games go in the hermretro games folder: leave destinationPath out of chromatic_project_create "
-    "and chromatic_project_create_blank unless the user names another folder. " + GAME_STEPS + " "
-    "Nothing opens for the user after a build; chromatic_present_game shows the game in the hermretro emulator "
-    "beside the chat: call it again after later changes the user should test. After chromatic_build_report, "
-    "keep the written reply to one or two short sentences. "
+    "New games go in the hermretro games folder: leave out destinationPath unless the user names another "
+    "folder. " + GAME_STEPS + " "
+    "Nothing opens for the user after a build; chromatic_present_game shows the game in the hermretro emulator. "
+    "After chromatic_build_report, keep the written reply to one or two short sentences. "
     + GAME_RULES
     + " Hardware tools stay off until the user enables them in Settings > Plugins > hermretro."
 )

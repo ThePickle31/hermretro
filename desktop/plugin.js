@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 3e1343b0b79ee602e6cd2a6132d076e4f8e2c53986ebf4230a11eacaa3b9e21d
- * body: sha256 8dd724407428169222faded84e985fcfda54d55cd1f3d99a3cee7f1ebd94c34a
+ * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
+ * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
  */
 // page/sdk.js
 import {
@@ -7375,7 +7375,7 @@ async function buildRpc(params) {
 function newGamePrompt({ name, idea, plan }) {
   const what = idea.trim() || "a small game";
   const title = name.trim();
-  return plan ? `Use hermretro to help me plan a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Interview me briefly, then create the project, and write the game brief, backlog and test plan into it before building anything.` : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.`;
+  return plan ? `Use hermretro to help me plan a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Interview me briefly, then create the project, and write the game brief, backlog and test plan into it before building anything.` : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Ask me a few quick questions first, then show me a list of what you will make and wait for my approval. Once I approve it, create the project, save the list in it as docs/game/FIRST-BUILD.md, build the whole game and show it to me in the emulator.`;
 }
 
 // page/pages/build/builds-menu.js

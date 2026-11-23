@@ -28,5 +28,5 @@ export function newGamePrompt({ name, idea, plan }) {
 
   return plan
     ? `Use hermretro to help me plan a new Game Boy Color game${title ? ` called "${title}"` : ''}: ${what}. Interview me briefly, then create the project, and write the game brief, backlog and test plan into it before building anything.`
-    : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ''}: ${what}. Ask me a few quick questions first, then create the project, build it and show it to me in the emulator.`
+    : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ''}: ${what}. Ask me a few quick questions first, then show me a list of what you will make and wait for my approval. Once I approve it, create the project, save the list in it as docs/game/FIRST-BUILD.md, build the whole game and show it to me in the emulator.`
 }

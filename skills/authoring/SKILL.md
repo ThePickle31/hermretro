@@ -17,7 +17,7 @@ If the plugin needs setup or its tools cannot start, use the [setup skill](../se
 
 ## Browser previews
 
-Show the game to the user in the **hermretro emulator** beside the chat: when it is ready to try (after your own testing), call `chromatic_present_game`, optionally with a short `note` on what to try. Do not open `chromatic_web_preview` URLs, including screenshot Open links, yourself, and do not reload the player with `drive_preview`. Only if the user says they cannot see the emulator, open `studio.playerUrl` from that result with `desktop_preview` (`action: "open"`); without desktop tools, give the user that URL. Give `chromatic_device_capture` URLs to the user without claiming they opened (not yet verified inside Hermes). Never launch an external browser yourself.
+Show the game to the user in the **hermretro emulator** beside the chat: once everything agreed with the user is in it and you have tested it, call `chromatic_present_game`, optionally with a short `note` on what to try. Do not open `chromatic_web_preview` URLs, including screenshot Open links, yourself, and do not reload the player with `drive_preview`. Only if the user says they cannot see the emulator, open `studio.playerUrl` from that result with `desktop_preview` (`action: "open"`); without desktop tools, give the user that URL. Give `chromatic_device_capture` URLs to the user without claiming they opened (not yet verified inside Hermes). Never launch an external browser yourself.
 
 A missing, locked or unreachable browser does not block gameplay checks. Retain
 its state and continue with public PyBoy `chromatic_emulator_run`, `chromatic_emulator_step` and
@@ -26,8 +26,10 @@ for setup, retained evidence and the separate browser/physical acceptance limits
 
 For new or iterated projects, build with `chromatic_rom_build` early and after each
 meaningful change, and follow its `nextStep`; nothing opens for the user after a
-build. Present it with `chromatic_present_game` when it is ready to try, and again
-after meaningful successful builds the user should test, at a safe point: do not interrupt human play, saves or recordings, and resolve
+build. A build is a checkpoint for you, not a hand-off: keep authoring until
+everything agreed with the user is in the game. For a new game that is the whole
+approved list (`docs/game/FIRST-BUILD.md`) or brief, built in one go. Only then
+playtest it and present it with `chromatic_present_game`, at a safe point: do not interrupt human play, saves or recordings, and resolve
 unknown outcomes first. Do not arbitrarily reload or autoplay.
 
 ## Select the intended project
@@ -70,8 +72,9 @@ Verify the change at the level the request needs: reread the native resources, b
   open offers a newer build with a banner. You never see that player: do not claim what it shows.
 - In the player the user can mark part of the screen or press **Ask Hermes**: the frame is saved under
   `<project>/captures/` and a message with `Screenshot: <path>` is put into this game's chat. Open that file.
-- For a new game, `hermretro:game-planning` writes the brief and `docs/game/TEST-PLAN.md` first;
-  check the relevant acceptance items against the exact ROM.
+- For a new game, the approved list (`docs/game/FIRST-BUILD.md`) or, with `hermretro:game-planning`,
+  the brief and `docs/game/TEST-PLAN.md` say what the first build holds; check every item against the
+  exact ROM before presenting, and name anything missing in the build report.
 - Before presenting, fill in the game card with `chromatic_game_info` (cover art, title, tagline,
   description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).

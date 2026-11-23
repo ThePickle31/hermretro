@@ -6,12 +6,12 @@
 - Status: proposed / approved / superseded
 - Approved by / date:
 - Native project (`.gbsproj` path):
-- Current milestone: first playable
+- Current milestone: first build
 
 ## Concept
 - One-sentence pitch:
 - Intended player / session length:
-- What makes the first playable satisfying:
+- What makes the first build satisfying:
 
 ## Controls
 - Color intent: mono / mixed / color
@@ -47,7 +47,7 @@
 - How audio will be accepted (human listening on the target):
 
 ## Scope
-- In scope for the first playable:
+- In scope for the first build:
 - Later milestones:
 - **Explicitly out of scope:**
 
@@ -62,7 +62,7 @@ Assumptions until confirmed by graphics analysis, a real build and emulator runs
 ## Milestones
 | Milestone | Included | Excluded | Exit checks (TEST-PLAN IDs) |
 |---|---|---|---|
-| First playable | | | |
+| First build | | | |
 | Vertical slice | | | |
 | Content complete | | | |
 | Release candidate | | | |

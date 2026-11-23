@@ -11,6 +11,7 @@ backend/hermes/declare.py); this file registers them in the order of backend/fea
 from __future__ import annotations
 
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def register(ctx):
         _register_agent(ctx, declared)
     if profile == studio_profile.STUDIO_PROFILE:  # never another profile, even one opted in for development
         _refresh_soul()
+        _pin_turn_limit_in_background()
 
 
 def _register_agent(ctx, declared):
@@ -80,3 +82,22 @@ def _refresh_soul():
         logger.warning("hermretro could not update the hermretro profile's SOUL.md", exc_info=True)
     except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the SOUL stays as it is
         logger.debug("hermretro could not find the hermretro profile's SOUL.md", exc_info=True)
+
+
+def _pin_turn_limit_in_background():
+    """The studio profile keeps its fixed turn limit however it was changed. The hermes command it may run takes
+    longer than Hermes lets registration take, so it runs on its own thread; the profile folder is found here, where
+    Hermes's profile is known. It never stops registration."""
+    try:
+        profile_home = hermes_host._data_dir().parents[1]
+    except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the config stays as it is
+        logger.debug("hermretro could not find the hermretro profile's folder", exc_info=True)
+        return
+    threading.Thread(target=_pin_turn_limit, args=(profile_home,), name="hermretro-turn-limit", daemon=True).start()
+
+
+def _pin_turn_limit(profile_home):
+    try:
+        studio_profile.pin_turn_limit(profile_home)
+    except Exception:  # noqa: BLE001 - a failed command or an unreadable config: the next load tries again
+        logger.warning("hermretro could not set the hermretro profile's turn limit", exc_info=True)

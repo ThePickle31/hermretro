@@ -22,8 +22,13 @@ ADAPTER_ERROR_NEXT_STEP = (
     "and do not work around it outside the chromatic tools."
 )
 
-# What follows a successful build, in order; the prompt section's steps end with it too.
-AFTER_BUILD = (
+# A build is a checkpoint: the agent keeps authoring until everything agreed with the user is in the game.
+CHECKPOINT = (
+    "A build is a checkpoint, not a hand-off: keep authoring until everything agreed with the user is in the game; "
+    "only then "
+)
+# Handing the game to the user, in order, once everything agreed is built; the prompt section's steps end with it too.
+DELIVER = (
     "playtest it yourself with the chromatic_emulator_* tools; fill in its game card with chromatic_game_info; "
     "show it with chromatic_present_game; end the turn with "
     "chromatic_build_report."
@@ -110,10 +115,10 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
         payload["unrenderedContentTypes"] = other
     if response.get("notice"):
         payload["notice"] = response["notice"]
-    # Builds open nothing for the user: the agent shows the game with chromatic_present_game when it is
-    # ready to try. The engine's own preview address is not offered; the user plays in the Studio emulator.
+    # Builds open nothing for the user: the agent shows the game with chromatic_present_game once everything
+    # agreed is in it. The engine's own preview address is not offered; the user plays in the Studio emulator.
     present = (
-        "Next, " + AFTER_BUILD + " chromatic_present_game takes an optional short note on what to try and "
+        CHECKPOINT + DELIVER + " chromatic_present_game takes an optional short note on what to try and "
         "shows the game in the hermretro emulator beside the chat. Do not use desktop_preview or drive_preview for the game. Only if the user says they cannot see "
         "the emulator, open studio.playerUrl from chromatic_present_game with desktop_preview (action \"open\"); "
         "without desktop tools, give the user that url. Never press \"Install on Chromatic\" in a player for the "
@@ -134,8 +139,9 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
             payload["nextStep"] = (
                 "The build succeeded, but the engine's preview could NOT be updated and still belongs to an older "
                 "build, so \"Install on Chromatic\" from it would be refused. Do not claim the new build is in a "
-                "player. To recover, call chromatic_web_preview_close followed by chromatic_web_preview, then "
-                + AFTER_BUILD
+                "player. To recover, call chromatic_web_preview_close followed by chromatic_web_preview, then carry on. "
+                + CHECKPOINT
+                + DELIVER
                 + " If closing fails again, say so and stop; a new chat starts a fresh player."
             )
     elif (
@@ -145,6 +151,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
         and isinstance(structured.get("url"), str)
     ):
         payload["nextStep"] = "The playable copy is ready. " + present
+    if (
+        tool == "chromatic_rom_build"
+        and "nextStep" not in payload
+        and not result.get("isError")
+        and (structured or {}).get("success") is not False
+    ):
+        # No playable copy was refreshed (the setting is off, or the export failed): still a checkpoint.
+        payload["nextStep"] = "Continue with your work. " + CHECKPOINT + DELIVER
 
     images = save_images(result, image_dir) if image_dir is not None else []
     if images:

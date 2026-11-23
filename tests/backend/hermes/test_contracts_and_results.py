@@ -193,7 +193,7 @@ class ResultTests(unittest.TestCase):
         }
         payload = json.loads(results.encode(response, "chromatic_rom_build", None, False))
         self.assertEqual(payload["player"], {"ready": False, "error": "export failed"})
-        self.assertNotIn("nextStep", payload)
+        self.assertIn("keep authoring until everything agreed", payload["nextStep"])  # still only a checkpoint
 
     def test_images_fall_back_to_files_when_the_route_takes_no_images(self):
         raw = {"content": [{"type": "image", "mimeType": "image/png", "data": PNG}]}

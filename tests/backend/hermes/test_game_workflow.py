@@ -72,6 +72,34 @@ class OneWorkflow(unittest.TestCase):
         self.assertIn(hermes_host.GAME_STEPS, context)
         self.assertIn(hermes_host.GAME_RULES, context)
 
+    def test_a_quick_new_game_agrees_a_list_and_builds_all_of_it(self):
+        first = self.context("pending", {"name": "Robin", "plan": False})
+        self.assertLess(first.index("a few quick questions"), first.index("a short list of what you will make"))
+        self.assertIn("create nothing until they approve it", first)
+        self.assertIn("docs/game/FIRST-BUILD.md and build all of it in one go", first)
+        later = self.context("pending", {"name": "Robin", "plan": False}, first=False)
+        self.assertIn("Until the user approves the list of what you will make, create nothing", later)
+        self.assertIn(library_hooks.BUILD_THE_LIST, later)
+
+    def test_a_planned_game_builds_its_whole_brief(self):
+        for first in (True, False):
+            self.assertIn(library_hooks.BUILD_THE_BRIEF, self.context("pending", {"plan": True}, first=first))
+
+    def test_a_build_is_a_checkpoint_until_everything_agreed_is_in(self):
+        self.assertIn("a build is a checkpoint, not a hand-off", hermes_host.GAME_STEPS)
+        self.assertIn("A build is a checkpoint for you, not a hand-off", studio_profile.SOUL_FILE.read_text())
+        built = {
+            "ok": True,
+            "result": {"content": [], "structuredContent": {"success": True}},
+            "player": {"ready": True},
+        }
+        for player in ({"ready": True}, {"ready": False, "error": "export failed"}, None):
+            response = {**built, "player": player} if player else {k: v for k, v in built.items() if k != "player"}
+            step = json.loads(results.encode(response, "chromatic_rom_build", None, False))["nextStep"]
+            self.assertLess(step.index("keep authoring until everything agreed"), step.index("chromatic_emulator_"))
+        failed = {"ok": True, "result": {"content": [], "isError": True, "structuredContent": {"success": False}}}
+        self.assertNotIn("keep authoring", results.encode(failed, "chromatic_rom_build", None, False))
+
     def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
         context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})
         self.assertIn(hermes_host.GAME_STEPS, context)
@@ -126,7 +154,7 @@ class CardRulesUpFront(unittest.TestCase):
 
 class StudioSoul(unittest.TestCase):
     def test_profiles_with_the_last_shipped_soul_get_this_one(self):
-        self.assertIn("0d723cea8a6bb62e7819d0a371a802a4481895b1c9de751f8e32ff859ce01218", studio_profile.OLDER_SOULS)
+        self.assertIn("fc761b6efa1d664e24b9e444be7732b7a42a4b6e985f9b43a48984e25d494749", studio_profile.OLDER_SOULS)
 
 
 if __name__ == "__main__":

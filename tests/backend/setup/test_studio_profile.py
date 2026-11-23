@@ -118,6 +118,7 @@ class StudioProfile(unittest.TestCase):
                 (self.target, ("config", "set", "auxiliary.background_review.enabled", "false")),
                 (self.target, ("config", "set", "curator.enabled", "false")),
                 (self.target, ("config", "set", "approvals.mode", "smart")),
+                (self.target, ("config", "set", "agent.max_turns", "1000")),
                 (self.target, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
             ],
         )
@@ -269,6 +270,46 @@ class StudioProfile(unittest.TestCase):
                 with self.assertRaises(sp.StudioProfileError) as raised:
                     sp._run_hermes(self.target, "plugins", "enable", "x")
             self.assertEqual(raised.exception.code, "HERMES_COMMAND_FAILED")
+
+    def test_a_hermes_command_tells_the_plugin_inside_it_to_leave_the_config_alone(self):
+        from unittest import mock
+
+        done = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(sp.subprocess, "run", return_value=done) as ran:
+            sp._run_hermes(self.target, "config", "set", "agent.max_turns", "1000")
+        environment = ran.call_args.kwargs["env"]
+        self.assertEqual((environment["HERMES_HOME"], environment[sp.CONFIGURING]), (str(self.target), "1"))
+
+    def pinned(self, config, environment=None):
+        """What pin_turn_limit runs in the studio profile whose config.yaml reads as ``config`` (None: unreadable)."""
+        from unittest import mock
+
+        self.commands = []
+        self.target.mkdir(parents=True, exist_ok=True)
+        (self.target / "config.yaml").write_text("agent: {}\n")
+        clean = {k: v for k, v in os.environ.items() if k != sp.CONFIGURING}
+        with (
+            mock.patch.object(sp.hermes_api, "profile_config", return_value=config),
+            mock.patch.dict(os.environ, {**clean, **(environment or {})}, clear=True),
+        ):
+            sp.pin_turn_limit(self.target, run=lambda target, *args: self.commands.append((target, args)))
+        return self.commands
+
+    def test_the_turn_limit_is_put_back_whatever_the_profile_says(self):
+        for config in ({}, {"agent": {"max_turns": 150}}, {"agent": {"max_turns": "unlimited"}}, {"agent": None}):
+            self.assertEqual(self.pinned(config), [(self.target, ("config", "set", "agent.max_turns", "1000"))], config)
+
+    def test_the_turn_limit_is_left_alone_when_it_is_already_set_or_cannot_be_read(self):
+        self.assertEqual(self.pinned({"agent": {"max_turns": 1000}}), [])
+        self.assertEqual(self.pinned(None), [])
+
+    def test_the_turn_limit_is_not_set_inside_a_hermes_command_this_plugin_runs(self):
+        self.assertEqual(self.pinned({}, {sp.CONFIGURING: "1"}), [])
+
+    def test_a_folder_without_a_config_is_not_a_profile_to_pin(self):
+        self.target.mkdir(parents=True)
+        sp.pin_turn_limit(self.target, run=lambda target, *args: self.commands.append((target, args)))
+        self.assertEqual(self.commands, [])
 
     def test_a_profile_that_only_resembles_ours_keeps_its_soul(self):
         self.created(description="hermretro: my own notes")

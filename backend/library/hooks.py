@@ -17,6 +17,25 @@ SHOW_ART_CONTEXT = (
     "does not exist yet."
 )
 
+# Build it: what the first build holds is agreed as a list the user approves, then all of it is built before the game
+# is presented.
+AGREE_A_LIST = (
+    "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, "
+    "reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how "
+    "to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, "
+    "and create nothing until they approve it."
+)
+BUILD_THE_LIST = (
+    "Once the user approves the list, create the project, save the approved list in it as "
+    "docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: "
+    "keep building while any is missing, and name in the build report only an item no tool can make."
+)
+# Plan first: once the brief is approved, the same one full build.
+BUILD_THE_BRIEF = (
+    "Once the user approves the brief, build everything in its scope in one go, then check the test plan against "
+    "the build before presenting."
+)
+
 
 @hook("pre_llm_call")
 def build_context(session_id=None, is_first_turn=False, **_kwargs):
@@ -48,18 +67,22 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
     if kind == "pending":
         name = bound.get("name")
         called = f" called \"{name}\"" if name else ""
-        how = (
-            "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write "
-            "the game brief, backlog and test plan into it, and wait for the user to approve the brief before "
-            "authoring anything."
-            if bound.get("plan")
-            else "Ask the user a few quick questions first."
-        )
-        later = ". If its project does not exist yet, create it once the user is ready." + (
-            " Author nothing until the user has approved the game brief (hermretro:game-planning)."
-            if bound.get("plan")
-            else ""
-        )
+        if bound.get("plan"):
+            how = (
+                "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write "
+                "the game brief, backlog and test plan into it, and wait for the user to approve the brief before "
+                "authoring anything. " + BUILD_THE_BRIEF
+            )
+            later = (
+                ". If its project does not exist yet, create it once the user is ready. Author nothing until the "
+                "user has approved the game brief (hermretro:game-planning). " + BUILD_THE_BRIEF
+            )
+        else:
+            how = AGREE_A_LIST + " " + BUILD_THE_LIST
+            later = (
+                ". Until the user approves the list of what you will make, create nothing and change the list as "
+                "they ask. " + BUILD_THE_LIST
+            )
         start = ("; their message is the idea. " + how) if is_first_turn else later
         return {
             "context": (
