@@ -27,6 +27,8 @@ only these files:
 `background` is the page behind the handheld and the menu swatch, `ink` the text on it (both `#rrggbb`); `order`
 places it (lower first, then the id; default 100). The first skin is the one every player starts in.
 
+Personal finishes use the same `<id>/skin.webp` or `skin.png` and optional `skin.json` under `<hermretro home>/skins/`. A valid personal skin with the same ID overrides the bundled finish and survives plugin updates.
+
 That is all: the backend (`backend/player/skins.py`) reads the folders, the full player lists them in its colour rail
 in order, and the `player` RPC hands them to the Build page's menu. No code or page rebuild. The engine reads
 ModRetro's 13 folders too, for its hardware live-feed window (its own list; a new skin shows in the player only), so

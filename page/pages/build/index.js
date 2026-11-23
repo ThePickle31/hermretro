@@ -56,8 +56,6 @@ export const BUILD_PAGE = {
     CART_SHELF_CSS,
     BUILD_RESPONSIVE_CSS
   ],
-  // After every other page's rules: the inline player overrides the Emulator page's stage rules.
-  cssLast: true,
   register: ctx => {
     watchBuildChats(ctx)
     restoreNewGameDraft(ctx)
