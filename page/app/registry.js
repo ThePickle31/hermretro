@@ -7,7 +7,7 @@
 //                       nav = { page, setupPending, playing }
 //   pad                 'flush' or 'build': its own padding, without the footer
 //   BelowPlayer({ shell }) what follows the shell's one player on this page (needs pad)
-//   css, cssLast        its stylesheet chunks (app/style.js has the cascade order)
+//   css                 its stylesheet chunks (app/style.js has the cascade order)
 //   events              { 'page.name': 'what happened, the payload' }: the events it emits (app/events.js)
 //   listens             { 'other.event': (payload, ctx) => ... }: listeners for the plugin's whole life
 //   slots               { 'page.name': 'where, the props' }: places others may fill (app/slots.js)
@@ -20,7 +20,7 @@ import { PAGE_EVENTS } from './events.js'
 import { PAGE_SLOTS } from './slots.js'
 import { installPageStyles } from './style.js'
 
-const PAGE_FIELDS = new Set(['id', 'label', 'Page', 'tabs', 'Badge', 'pad', 'BelowPlayer', 'css', 'cssLast', 'events', 'listens', 'slots', 'contributes', 'register'])
+const PAGE_FIELDS = new Set(['id', 'label', 'Page', 'tabs', 'Badge', 'pad', 'BelowPlayer', 'css', 'events', 'listens', 'slots', 'contributes', 'register'])
 const TAB_FIELDS = new Set(['id', 'label', 'Page', 'css', 'events', 'listens', 'slots', 'contributes'])
 const ID = /^[a-z][a-z0-9-]*$/
 const NAME = /^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/

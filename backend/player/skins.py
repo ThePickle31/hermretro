@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 
 from ..system import paths
+from . import skin_image
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def _text(value) -> str | None:
     return value.strip()
 
 
-def _read(folder: Path) -> dict | None:
+def _read(folder: Path, *, personal: bool) -> dict | None:
     """One skin from its folder, or None (logged) when it cannot be used."""
     skin_id = folder.name
     problem = (
@@ -56,15 +57,16 @@ def _read(folder: Path) -> dict | None:
     if any(path.is_symlink() for path in files.values()):
         logger.warning("hermretro: skin %s skipped: its files must be files, not links", skin_id)
         return None
-    image = next((files[kind] for kind in IMAGE_TYPES if files[kind].is_file()), None)
+    usable = skin_image.usable if personal else Path.is_file
+    image = next((files[kind] for kind in IMAGE_TYPES if usable(files[kind])), None)
     if image is None:
-        logger.warning("hermretro: skin %s skipped: its folder has no skin.webp or skin.png", skin_id)
+        logger.warning("hermretro: skin %s skipped: its folder has no usable skin.webp or skin.png", skin_id)
         return None
     data = {}
     if files[".json"].is_file():
         try:
             data = json.loads((folder / "skin.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, RecursionError) as error:
             logger.warning("hermretro: skin %s skipped: its skin.json does not read: %s", skin_id, error)
             return None
     data = data if isinstance(data, dict) else {}
@@ -80,12 +82,26 @@ def _read(folder: Path) -> dict | None:
     return skin
 
 
+def _roots() -> tuple[Path, Path]:
+    return SKINS_DIR, paths.hermretro_home() / "skins"
+
+
 def skins() -> list[dict]:
     """Every usable skin, in order: ``{id, name, edition, background, ink, order, image}``."""
-    if not SKINS_DIR.is_dir():
-        return []
-    found = [skin for folder in sorted(SKINS_DIR.iterdir()) if folder.is_dir() and (skin := _read(folder))]
-    return sorted(found, key=lambda skin: (skin["order"], skin["id"]))
+    found = {}
+    for root in _roots():
+        try:
+            for folder in root.iterdir():
+                try:
+                    if folder.is_dir() and (skin := _read(folder, personal=root != SKINS_DIR)):
+                        found[skin["id"]] = skin
+                except OSError as error:
+                    logger.warning("hermretro: cannot read skin %s: %s", folder.name, error)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            logger.warning("hermretro: cannot read skins in %s: %s", root, error)
+    return sorted(found.values(), key=lambda skin: (skin["order"], skin["id"]))
 
 
 def default_skin() -> str:
@@ -102,11 +118,6 @@ def image_for(skin_id: str) -> Path | None:
 def page_skins() -> list[dict]:
     """The skins as the page's player menu shows them: ``{id, name, swatch}``."""
     return [{"id": skin["id"], "name": skin["name"], "swatch": skin["background"]} for skin in skins()]
-
-
-def signature() -> tuple:
-    """What changes when a skin is added, removed or edited (for caches built from them)."""
-    return tuple((str(path), path.lstat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
 
 
 def rail_entries() -> str:

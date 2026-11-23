@@ -14,31 +14,38 @@ from __future__ import annotations
 
 import email.parser
 import email.policy
-import hashlib
 import json
 import logging
 import mimetypes
+import os
 import re
 import secrets
 import socketserver
 import threading
-import uuid
-from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .. import library
 from . import skins
-from ..system import paths
+from .captures import MEDIA_EXTENSIONS, capture_root, find_capture, save_capture
+from .frame import (
+    ANNOTATION_MOUNT,
+    DEMO_ROM_PATH,
+    PlayerError,
+    annotations_dir,
+    build_for,
+    demo_rom,
+    demo_web_dir,
+    frame_document,
+    is_demo,
+    patched_view,
+)
 
 logger = logging.getLogger(__name__)
 
-ANNOTATION_MOUNT = "codex-annotations"
-CAPTURE_NAMESPACE = uuid.UUID("5d0c7f39-3b8e-4f4f-9a43-2f6c3c7d1a11")
 MAX_CAPTURE_BYTES = 132 * 1024 * 1024  # the engine's 128 MiB video limit plus form overhead
 MAX_JSON_BYTES = 64 * 1024
-MEDIA_EXTENSIONS = {".png": "image/png", ".webm": "video/webm", ".mp4": "video/mp4"}
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -62,344 +69,6 @@ MIME = {
     ".ogg": "audio/ogg",
     ".wav": "audio/wav",
 }
-VIEW_ANCHOR = "export const DEVICE_COLORS = [\n"
-# The engine's last rule ordering its colour rail (it puts two of its finishes first): the rail keeps the skins' order.
-RAIL_ANCHOR = '.codex-game-view .cgv-color[data-device-color="codex"] { order: -1; }\n'
-RAIL_ORDER = ".codex-game-view .cgv-color[data-device-color] { order: 0; }\n"
-COLOR_KEY = "codex-gb-studio:device-color:v1"
-
-# The built-in demo cartridge: GB Studio's own browser player bundled in ``player/web`` plus
-# ModRetro's ``hello-color`` example ROM, read from the bundled engine. It needs no project, so the
-# Emulator page can always show the real player, even before the user has made a game.
-DEMO_ID = "demo"
-DEMO = {"id": DEMO_ID, "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example"}
-DEMO_ROM_PATH = "rom/hello-color.gbc"
-
-
-# -- where the engine's player files are ---------------------------------------------
-
-
-def annotations_dir() -> Path:
-    for root in (paths.PREPARED_ENGINE, paths.ENGINE_ROOT):
-        candidate = root / "dist" / "web-annotations"
-        if (candidate / "bridge.js").is_file():
-            return candidate
-    return paths.ENGINE_ROOT / "dist" / "web-annotations"
-
-
-_view_cache: dict[tuple, bytes] = {}
-
-
-def patched_view(source: Path) -> bytes:
-    """``view.js`` with the plugin's skins (``player/skins/``) as its finishes, in their order."""
-    info = source.stat()
-    key = (str(source), info.st_size, info.st_mtime_ns, skins.signature())
-    if key in _view_cache:
-        return _view_cache[key]
-    text = source.read_text()
-    start = text.find(VIEW_ANCHOR)
-    end = text.find("\n];", start) + 1
-    if start < 0 or end < 1:
-        logger.warning("hermretro: view.js has no DEVICE_COLORS list; serving it without the plugin's skins")
-    elif entries := skins.rail_entries():
-        text = text[: start + len(VIEW_ANCHOR)] + entries + text[end:]
-        text = text.replace(RAIL_ANCHOR, RAIL_ANCHOR + RAIL_ORDER, 1)
-    _view_cache.clear()
-    _view_cache[key] = text.encode()
-    return _view_cache[key]
-
-
-# -- the frame page ------------------------------------------------------------------
-
-# Runs first in the frame (``player/frame-shim.js``). The frame is sandboxed (allow-scripts, opaque
-# origin), so: storage lives in memory, the player's same-origin fetches are sent as CORS requests to
-# this server, and the host annotation API plus page commands talk to the Studio page through
-# postMessage. ``__DEFAULT_COLOR__`` and ``__COLOR_KEY__`` are filled in here.
-_shim_cache: dict[tuple, str] = {}
-
-
-def frame_shim() -> str:
-    """The shim as an inline ``<script>`` body, read once per file version."""
-    source = paths.PLUGIN_ROOT / "player" / "frame-shim.js"
-    info = source.stat()
-    key = (info.st_size, info.st_mtime_ns, skins.signature())
-    if key not in _shim_cache:
-        text = (
-            source.read_text(encoding="utf-8")
-            .replace("__DEFAULT_COLOR__", skins.default_skin())
-            .replace("__COLOR_KEY__", COLOR_KEY)
-            .replace("</script", "<\\/script")
-        )
-        _shim_cache.clear()
-        _shim_cache[key] = text
-    return _shim_cache[key]
-
-
-def engine_bootstrap(runtime_sha256: str) -> str:
-    """The engine's own bootstrap (``dist/server.js`` ``prepareAnnotations``), unchanged: binjgb gets
-    its verified wasm bytes, the runtime hash and the input owner before ``script.js`` starts it."""
-    runtime_name = f"binjgb-{runtime_sha256}.wasm"
-    return (
-        "<script>(function(){const expected="
-        + json.dumps(runtime_sha256)
-        + ";const factory=Binjgb;const bytes=fetch("
-        + json.dumps(f"./{ANNOTATION_MOUNT}/{runtime_name}")
-        + ").then(async response=>{if(!response.ok)throw new Error(\"The game runtime is unavailable.\");const bytes=new "
-        "Uint8Array(await response.arrayBuffer());const hash=Array.from(new Uint8Array(await crypto.subtle.digest(\"SHA-256\","
-        "bytes)),v=>v.toString(16).padStart(2,\"0\")).join(\"\");if(hash!==expected)throw new Error(\"The game runtime "
-        "changed.\");return bytes;});Binjgb=options=>Promise.all([bytes,import("
-        + json.dumps(f"./{ANNOTATION_MOUNT}/input-owner.js")
-        + ")]).then(([wasmBinary,input])=>factory({...options,wasmBinary}).then(module=>{module.codexRuntimeSha256=expected;"
-        "input.installInputOwner(module);return module;}));})();</script>\n"
-    )
-
-
-def demo_web_dir() -> Path:
-    return paths.PLUGIN_ROOT / "player" / "web"
-
-
-def demo_rom() -> Path | None:
-    """The ModRetro example ROM, read in place from the engine (never copied into ``engine/``)."""
-    for root in (paths.ENGINE_ROOT, paths.PREPARED_ENGINE):
-        candidate = root / "examples" / "hello-color" / "hello-color.gbc"
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def demo_captures_root() -> Path:
-    """Where the demo's captures go (``<library>/captures/demo``): the demo has no project folder."""
-    return paths.library_dir()
-
-
-def is_demo(identifier) -> bool:
-    return identifier == DEMO_ID
-
-
-def _script_json(value) -> str:
-    return json.dumps(value).replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-
-
-class PlayerError(Exception):
-    pass
-
-
-def game_build(root: Path) -> dict:
-    """What the frame needs to know about a game's web export, verified like the engine does."""
-    web = library.web_dir(root)
-    if not library.has_web_export(root):
-        raise PlayerError("This game has no playable web build yet.")
-    rom = library.web_rom(root)
-    if rom is None:
-        raise PlayerError("The web build names no ROM inside it.")
-    rom_path = rom.relative_to(web).as_posix()
-    if not re.fullmatch(r"(?:[^./\\:%?#][^/\\:%?#]*/)*[^./\\:%?#][^/\\:%?#]*\.gbc?", rom_path, re.I):
-        raise PlayerError("The web build's ROM path is not a plain relative .gb or .gbc file.")
-    rom_sha = library.file_sha256(rom)
-    runtime_sha = library.file_sha256(web / "js" / "binjgb.wasm")
-    record = library.read_json(web / ".codex-web-build.json")  # noqa: SLF001 - shared helper
-    revision = record.get("sourceRevision") if isinstance(record.get("sourceRevision"), str) else None
-    if not revision or not (0 < len(revision) <= 1024):
-        revision = "hermes-" + rom_sha[:16]
-    return {
-        "web": web,
-        "rom": rom,
-        "romPath": rom_path,
-        "romSha256": rom_sha,
-        "runtimeSha256": runtime_sha,
-        "sourceRevision": revision,
-    }
-
-
-def demo_build() -> dict:
-    """``game_build`` for the demo cartridge: the bundled player and the engine's example ROM."""
-    web = demo_web_dir()
-    if not ((web / "index.html").is_file() and (web / "js" / "binjgb.wasm").is_file()):
-        raise PlayerError("The bundled demo player is missing from the plugin folder.")
-    rom = demo_rom()
-    if rom is None:
-        raise PlayerError("The demo ROM (the engine's hello-color example) is missing.")
-    rom_sha = library.file_sha256(rom)
-    return {
-        "web": web,
-        "rom": rom,
-        "romPath": DEMO_ROM_PATH,
-        "romSha256": rom_sha,
-        "runtimeSha256": library.file_sha256(web / "js" / "binjgb.wasm"),
-        "sourceRevision": "hermes-demo-" + rom_sha[:16],
-    }
-
-
-def build_for(identifier: str, root: Path) -> dict:
-    return demo_build() if is_demo(identifier) else game_build(root)
-
-
-def frame_document(root: Path, build: dict, capture_generation: str) -> bytes:
-    """The game's own ``index.html`` with the shim, the engine bootstrap and the player modules."""
-    html = (build["web"] / "index.html").read_text(encoding="utf-8")
-    shim = "<script>" + frame_shim() + "</script>\n"
-    head = re.search(r"<head\b[^>]*>", html, re.I)
-    html = html[: head.end()] + "\n" + shim + html[head.end() :] if head else shim + html
-    player = re.search(r"<script\b[^>]*\bsrc=([\"'])(?:\./)?js/script\.js\1[^>]*>\s*</script>", html, re.I)
-    if not player:
-        raise PlayerError("This web build does not use the official GB Studio browser player.")
-    html = html[: player.start()] + engine_bootstrap(build["runtimeSha256"]) + html[player.start() :]
-    context = {
-        "romSha256": build["romSha256"],
-        "romPath": build["romPath"],
-        "sourceRevision": build["sourceRevision"],
-        "runtimeSha256": build["runtimeSha256"],
-        "captures": {"generation": capture_generation},
-    }
-    injection = (
-        "\n<script type=\"application/json\" id=\"codex-web-annotations-context\">"
-        + _script_json(context)
-        + "</script>\n<script type=\"module\" src=\"./"
-        + ANNOTATION_MOUNT
-        + "/bridge.js\"></script>\n"
-    )
-    closing = [m.start() for m in re.finditer(r"</body\s*>", html, re.I)]
-    at = closing[-1] if closing else len(html)
-    return (html[:at] + injection + html[at:]).encode("utf-8")
-
-
-# -- captures ----------------------------------------------------------------------------
-
-
-def capture_root(identifier, game_root) -> Path | None:
-    """Where a game's captures live (the folder ``list_captures``/``save_capture`` take as ``root``): the library
-    folder for the demo cartridge (its captures go in ``<library>/captures/demo``), else ``game_root(identifier)``,
-    the project folder (``host._game_root`` on the Hermes side); None for an unknown game."""
-    if is_demo(identifier):
-        return demo_captures_root()
-    return game_root(identifier) if library.valid_id(identifier) else None
-
-
-def captures_dir(root: Path, identifier: str | None = None) -> Path:
-    return root / "captures" / DEMO_ID if is_demo(identifier) else root / "captures"
-
-
-def capture_id(identifier: str, filename: str) -> str:
-    """Stable per file, so a capture keeps its URL across restarts without an index."""
-    return str(uuid.uuid5(CAPTURE_NAMESPACE, f"{identifier}/{filename}"))
-
-
-def _stamp(now: datetime | None = None) -> str:
-    now = now or datetime.now(UTC)
-    return now.strftime("%Y-%m-%dT%H-%M-%S-") + f"{now.microsecond // 1000:03d}Z"
-
-
-def _free_name(directory: Path, stem: str, extension: str) -> Path:
-    candidate = directory / f"{stem}.{extension}"
-    counter = 2
-    while candidate.exists():
-        candidate = directory / f"{stem}-{counter}.{extension}"
-        counter += 1
-    return candidate
-
-
-def save_capture(
-    root: Path, identifier: str, kind: str, media: bytes, media_type: str, metadata, extra: dict | None = None
-) -> dict:
-    """Write ``<project>/captures/<iso>-<kind>.<ext>`` and its ``.json`` sidecar; return the receipt the
-    player checks (``id``, ``kind``, ``bytes``, ``path``, ``metadataPath``, ``sha256``, ``createdAt``, urls)."""
-    if not re.fullmatch(r"[a-z][a-z0-9-]{0,31}", kind or ""):
-        raise PlayerError("Unknown capture kind.")
-    if not media:
-        raise PlayerError("Capture media is empty.")
-    if kind == "screenshot" or media.startswith(library.PNG_MAGIC):
-        if not media.startswith(library.PNG_MAGIC):
-            raise PlayerError("A screenshot must be a PNG image.")
-        extension = "png"
-    elif "mp4" in (media_type or "").lower():
-        extension = "mp4"
-    else:
-        extension = "webm"
-    directory = captures_dir(root, identifier)
-    directory.mkdir(parents=True, exist_ok=True)
-    created = datetime.now(UTC)
-    target = _free_name(directory, f"{_stamp(created)}-{kind}", extension)
-    target.write_bytes(media)
-    sha = hashlib.sha256(media).hexdigest()
-    identifier_value = capture_id(identifier, target.name)
-    created_at = created.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    sidecar = target.with_name(target.name + ".json")
-    sidecar.write_text(
-        json.dumps(
-            {
-                "id": identifier_value,
-                "kind": kind,
-                "media": target.name,
-                "mimeType": MEDIA_EXTENSIONS["." + extension],
-                "bytes": len(media),
-                "sha256": sha,
-                "createdAt": created_at,
-                "game": identifier,
-                **(extra or {}),
-                "metadata": metadata,
-            },
-            indent=1,
-        )
-    )
-    return {
-        "id": identifier_value,
-        "kind": kind,
-        "bytes": len(media),
-        "path": str(target),
-        "metadataPath": str(sidecar),
-        "sha256": sha,
-        "createdAt": created_at,
-        "url": f"./codex-captures/{identifier_value}/media",
-        "metadataUrl": f"./codex-captures/{identifier_value}/metadata",
-    }
-
-
-def list_captures(root: Path, identifier: str) -> list[dict]:
-    """Media files directly in ``<project>/captures/``, newest first."""
-    directory = captures_dir(root, identifier)
-    found = []
-    try:
-        entries = list(directory.iterdir())
-    except OSError:
-        return []
-    for path in entries:
-        if path.suffix.lower() not in MEDIA_EXTENSIONS or path.name.startswith(".") or not path.is_file():
-            continue
-        sidecar = library.read_json(path.with_name(path.name + ".json"))  # noqa: SLF001 - the library's shared JSON reader
-        kind = (
-            sidecar.get("kind")
-            if isinstance(sidecar.get("kind"), str)
-            else ("screenshot" if path.suffix.lower() == ".png" else "video")
-        )
-        created = (
-            sidecar.get("createdAt")
-            if isinstance(sidecar.get("createdAt"), str)
-            else datetime.fromtimestamp(path.stat().st_mtime, UTC)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
-        )
-        found.append(
-            {
-                "id": capture_id(identifier, path.name),
-                "path": str(path),
-                "kind": kind,
-                "createdAt": created,
-                "file": path.name,
-            }
-        )
-    found.sort(key=lambda c: c["createdAt"], reverse=True)
-    return found
-
-
-def find_capture(root: Path, identifier: str, cid: str) -> Path | None:
-    directory = captures_dir(root, identifier)
-    try:
-        for path in directory.iterdir():
-            if path.suffix.lower() in MEDIA_EXTENSIONS and capture_id(identifier, path.name) == cid and path.is_file():
-                return path
-    except OSError:
-        pass
-    return None
 
 
 def parse_multipart(content_type: str, body: bytes) -> dict:
@@ -521,18 +190,33 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(status, text.encode(), "text/plain; charset=utf-8")
 
     def _file(self, path: Path, content_type: str | None = None) -> None:
-        try:
-            data = path.read_bytes()
-        except OSError:
-            return self._text(404, "Not found.")
-        self._send(
-            200,
-            data,
+        mime = (
             content_type
             or MIME.get(path.suffix.lower())
             or mimetypes.guess_type(path.name)[0]
-            or "application/octet-stream",
+            or "application/octet-stream"
         )
+        try:
+            stream = path.open("rb")
+        except OSError:
+            return self._text(404, "Not found.")
+        with stream:
+            remaining = os.fstat(stream.fileno()).st_size
+            self._headers(200, mime, remaining)
+            if self.command == "HEAD":
+                return
+            while remaining:
+                try:
+                    chunk = stream.read(min(remaining, 256 * 1024))
+                    if chunk:
+                        self.wfile.write(chunk)
+                except OSError:
+                    self.close_connection = True
+                    return
+                if not chunk:
+                    self.close_connection = True
+                    return
+                remaining -= len(chunk)
 
     # -- routing -----------------------------------------------------------------
     def _route(self):
@@ -580,9 +264,9 @@ class _Handler(BaseHTTPRequestHandler):
             player, identifier, root, rel = routed
             if rel in ("", "index.html"):
                 build = build_for(identifier, root)
-                return self._send(
-                    200, frame_document(root, build, player.issue_generation(identifier)), "text/html; charset=utf-8"
-                )
+                # A HEAD response needs the document length without issuing a capture token.
+                generation = "0" * 32 if self.command == "HEAD" else player.issue_generation(identifier)
+                return self._send(200, frame_document(root, build, generation), "text/html; charset=utf-8")
             if rel.startswith(ANNOTATION_MOUNT + "/"):
                 return self._annotation(root, rel[len(ANNOTATION_MOUNT) + 1 :], identifier)
             if rel == "codex-states":

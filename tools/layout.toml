@@ -39,5 +39,4 @@ exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-
 # Files allowed above the size limit, each with its reason. Split the file instead when you can.
 "tests/page/page-build-turns.test.mjs" = "One scenario script over the Build transcript; split by turn kind later"
 # Over the limit once ruff format put one item per line in their long literals and calls; split by concern later.
-"backend/player/server.py" = "The player server, its routes and captures in one module; split routes from captures"
 "tests/acceptance/broker_acceptance.py" = "One end-to-end script over the real engine, run in order; split by stage"
