@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
- * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
+ * sources: sha256 76280f559e38336e8bb74db1909308180e2a1daa36000868ee1a66ac84d9b61f
+ * body: sha256 0e09ba6b72bde9341d5bbc510de917780a192acff8bb07ccb42b68653cd01da1
  */
 // page/sdk.js
 import {
@@ -1522,7 +1522,7 @@ function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
     className: `cs-b-th ${size}${fresh ? " fresh" : ""}`,
     onClick: (event) => {
       event.stopPropagation();
-      onOpen?.(asset);
+      onOpen?.(asset, event.currentTarget);
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: "button",
@@ -5435,7 +5435,7 @@ function ReplyImage({ asset, line, onOpen }) {
     className: "cs-b-rchip",
     onClick: (event) => {
       event.stopPropagation();
-      onOpen?.(asset);
+      onOpen?.(asset, event.currentTarget);
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: "button",
@@ -5632,6 +5632,230 @@ function madeAssets(parts, root) {
   return made;
 }
 
+// page/pages/build/viewer/version-history.js
+function useVersionHistory({ path, original, info, refresh, onRefresh, root }) {
+  const [picked, setPicked] = useState(null);
+  const [restoring, setRestoring] = useState(false);
+  const { state, asset: loaded } = useAsset(path, picked ? `kept:${picked}` : original);
+  const versions = info?.versions ?? [];
+  const currentId = versions.find((entry) => entry.current)?.id ?? null;
+  const shownId = picked ?? loaded?.versionId ?? null;
+  const shownEntry = versions.find((entry) => entry.id === shownId) ?? null;
+  const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
+  const older = Boolean(shownEntry && currentId && shownEntry.id !== currentId);
+  useEffect(() => setPicked(null), [path, original]);
+  useEffect(() => {
+    if (refresh && currentId) {
+      setPicked(currentId);
+    }
+  }, [refresh, currentId]);
+  const restore = async () => {
+    if (!shownEntry || restoring) {
+      return;
+    }
+    setRestoring(true);
+    try {
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 2e4);
+      if (!answer?.ok) {
+        throw new Error(answer?.error ?? "It could not be restored.");
+      }
+      forgetAsset(path, answer.path);
+      host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
+      onRefresh();
+    } catch (error) {
+      host.notify({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setRestoring(false);
+    }
+  };
+  return { currentId, loaded, older, restore, restoring, setPicked, shownEntry, shownId, shownNumber, state, versions };
+}
+function versionTime(entry) {
+  return entry?.at ? timeOfDay(entry.at) : "";
+}
+function VersionThumb({ path, entry, number, selected, onPick }) {
+  const { state, asset: loaded } = useAsset(path, `kept:${entry.id}`);
+  return jsxs("button", {
+    "aria-label": `Version ${number}${entry.current ? ", in the game now" : ""}`,
+    "aria-pressed": selected,
+    className: `cs-v-ver${selected ? " on" : ""}`,
+    onClick: () => onPick(entry.id),
+    title: `v${number} · ${versionTime(entry)}${entry.current ? " · in the game now" : ""}`,
+    type: "button",
+    children: [
+      state === "ok" ? jsx(SheetFrame, { loaded }) : jsx("span", { className: "cs-v-ver-ph" }),
+      jsx("b", { children: `v${number}` }),
+      entry.current ? jsx("i", { "aria-hidden": true, className: "cs-v-now" }) : null
+    ]
+  });
+}
+function VersionHistory({ path, version, working }) {
+  const { versions, shownId, setPicked } = version;
+  return versions.length ? jsxs("div", {
+    className: "cs-v-vers",
+    children: [
+      jsx("span", { className: "cs-eyebrow", children: "Versions" }),
+      ...versions.map((entry, position) => jsx(VersionThumb, { entry, number: position + 1, onPick: setPicked, path, selected: entry.id === shownId }, entry.id)),
+      working ? jsxs("span", { className: "cs-v-ver pending", title: "Being made now", children: [jsx("span", { className: "cs-b-spin" }), jsx("b", { children: `v${versions.length + 1}` })] }) : null
+    ]
+  }) : null;
+}
+
+// page/pages/build/viewer/asset-details.js
+function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) {
+  const { currentId, older, restore, restoring, setPicked, shownEntry, shownNumber, versions } = version;
+  const madeBy = asset.step || asset.at ? jsxs("div", {
+    className: "cs-col cs-v-sec",
+    children: [
+      jsx("span", { className: "cs-eyebrow", children: asset.step === "In the reply" ? `Shown by ${AGENT}` : `Made by ${AGENT}` }),
+      asset.ask ? jsx("span", { className: "cs-v-quote", children: `“${asset.ask.length > 140 ? `${asset.ask.slice(0, 140)}…` : asset.ask}”` }) : null,
+      jsx("span", { className: "cs-faint", children: [asset.at ? timeOfDay(asset.at) : "", asset.step && asset.step !== "In the reply" ? asset.step : ""].filter(Boolean).join(" · ") })
+    ]
+  }) : null;
+  return [
+    older ? jsxs("div", {
+      className: "cs-v-note",
+      children: [
+        jsx("span", { children: `This is v${shownNumber} from ${versionTime(shownEntry)}. The game uses v${versions.findIndex((entry) => entry.current) + 1}.` }),
+        jsxs("div", {
+          className: "cs-row",
+          style: { gap: 6 },
+          children: [
+            jsx(Button, { disabled: restoring || working, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
+            jsx(Button, { onClick: () => setPicked(currentId), size: "sm", variant: "ghost", children: "Show the current one" })
+          ]
+        })
+      ]
+    }, "older") : null,
+    madeBy ? jsx("div", { children: madeBy }, "made") : null,
+    kind === "sprite" && info?.palette ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "In-game palette" }),
+        jsxs("div", {
+          className: "cs-row",
+          style: { gap: 8 },
+          children: [
+            jsx("div", { className: "cs-v-pal", children: info.palette.colors.map((color, position) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color}${position === 2 ? " (not used by sprites)" : ""}`, type: "button" }, position)) }),
+            info.palette.name ? jsx("span", { className: "cs-tag", children: info.palette.name }) : null
+          ]
+        }),
+        jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: gameColours, onChange: (event) => setGameColours(event.target.checked), type: "checkbox" }), "Show it in these colours"] })
+      ]
+    }, "palette") : null,
+    palette.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: `Colours in the file · ${palette.length}${palette.length >= 32 ? "+" : ""}` }),
+        jsx("div", { className: "cs-v-sw", children: palette.map((color) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color} · click to copy`, type: "button" }, color)) })
+      ]
+    }, "colours") : null,
+    checks.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Checks" }),
+        ...checks.map((check, position) => jsxs("span", { className: `cs-v-check${check.ok ? "" : " bad"}`, children: [jsx(Codicon, { name: check.ok ? "check" : "warning", size: 12 }), check.text] }, position))
+      ]
+    }, "checks") : null,
+    kind === "cover" ? jsxs("div", { className: "cs-col cs-v-sec", children: [jsx("span", { className: "cs-eyebrow", children: "Shown on" }), jsx("span", { className: "cs-v-text", children: "Its Games page card and the Build page" })] }, "shown") : info?.usedIn ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Used in" }),
+        ...info.usedIn.length ? info.usedIn.map((use) => jsxs("span", { className: "cs-v-text", children: [jsx("b", { children: use.scene }), ` · ${use.count > 1 ? `${use.count}: ` : ""}${use.as.join(", ")}`] }, use.sceneId)) : [jsx("span", { className: "cs-faint", children: "Not placed in any scene yet" }, "none")]
+      ]
+    }, "used") : null
+  ];
+}
+
+// page/pages/build/viewer/change-form.js
+function ChangeForm({ active, area, asks, chat, image, kind, loaded, name, onArea, onSend, onSent, path, progress: progress2, showProgress, shownView, version }) {
+  const [request, setRequest] = useState("");
+  const [rebuild, setRebuild] = useState(true);
+  const input = useRef(null);
+  const { older, shownEntry, shownNumber } = version;
+  const showForm = active && !showProgress;
+  useEffect(() => {
+    if (showForm) {
+      input.current?.focus();
+    }
+  }, [showForm]);
+  if (!active) {
+    return null;
+  }
+  const send = () => {
+    const words = request.trim();
+    if (!words || !onSend) {
+      return;
+    }
+    const notes = [];
+    if (area && image) {
+      notes.push(`Only change the area from (${area.x}, ${area.y}) to (${area.x + area.w - 1}, ${area.y + area.h - 1}), in pixels of the ${image.naturalWidth}×${image.naturalHeight} image. Keep everything outside it exactly as it is.`);
+    }
+    if (older && shownEntry) {
+      notes.push(`Start from version ${shownNumber} (from ${versionTime(shownEntry)}), kept at ${shownEntry.file}. The file in the game is a newer version.`);
+    }
+    if (rebuild && (kind === "sprite" || kind === "background")) {
+      notes.push("When it is done, build the game and show it to me with chromatic_present_game.");
+    }
+    const text2 = notes.length ? `${words}
+
+${notes.map((note) => `- ${note}`).join("\n")}` : words;
+    onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }]);
+    setRequest("");
+    onSent();
+  };
+  return showProgress ? [
+    jsxs("div", {
+      className: "cs-v-card",
+      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: chat?.items?.findLast?.((item) => item.kind === "user")?.text ?? "" })]
+    }, "asked"),
+    jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Progress" }),
+        ...(progress2.length ? progress2 : []).map(
+          (tool) => jsxs("span", {
+            className: `cs-v-step ${tool.state}`,
+            children: [tool.state === "running" ? jsx("span", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : "check", size: 12 }), stepWords(tool)[tool.state === "running" ? 0 : 1]]
+          }, tool.id)
+        ),
+        !progress2.length ? jsx("span", { className: "cs-faint", children: "Starting…" }) : null
+      ]
+    }, "progress"),
+    jsx("span", { className: "cs-grow" }, "grow"),
+    jsx("span", { className: "cs-faint", children: "You can close this. The new version shows up here and in the chat." }, "close")
+  ] : [
+    jsx("textarea", {
+      className: "cs-v-input",
+      disabled: !onSend,
+      onChange: (event) => setRequest(event.target.value),
+      onKeyDown: (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
+          event.preventDefault();
+          send();
+        }
+      },
+      placeholder: onSend ? `What should ${AGENT} change in ${name}?` : "Open this game’s conversation to ask for changes.",
+      ref: input,
+      rows: 4,
+      value: request
+    }, "input"),
+    area ? jsxs("div", {
+      className: "cs-row cs-v-sec",
+      style: { gap: 6 },
+      children: [jsx("span", { className: "cs-v-text", children: `Only the marked area · ${area.w}×${area.h}` }), jsx("span", { className: "cs-grow" }), jsx(Button, { onClick: () => onArea(null), size: "sm", variant: "ghost", children: "Clear" })]
+    }, "area") : shownView === "Image" || shownView === "Sheet" ? jsx("span", { className: "cs-faint", children: "Drag on the picture to change just one area." }, "area") : null,
+    older ? jsx("span", { className: "cs-faint", children: `It starts from v${shownNumber}, the version shown.` }, "from") : null,
+    kind === "sprite" || kind === "background" ? jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: rebuild, onChange: (event) => setRebuild(event.target.checked), type: "checkbox" }), "Build and show the game after"] }, "rebuild") : null,
+    jsxs(Button, { disabled: !onSend || !request.trim(), onClick: send, size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
+    jsx("span", { className: "cs-grow" }, "grow"),
+    asks.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [jsx("span", { className: "cs-eyebrow", children: "Asked before" }), ...asks.slice(-4).map((ask, position) => jsx("span", { className: "cs-faint", title: ask, children: `“${ask.length > 80 ? `${ask.slice(0, 80)}…` : ask}”` }, position))]
+    }, "asks") : null
+  ];
+}
+
 // page/pages/build/viewer/checks.js
 function artChecks(image, kind, info) {
   if (!image) {
@@ -5715,8 +5939,53 @@ function artChecks(image, kind, info) {
   return checks;
 }
 
+// page/pages/build/viewer/info.js
+var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
+function useAssetInfo(path, refresh) {
+  const root = useContext(AssetGame);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    if (!path) {
+      setResult(null);
+      return void 0;
+    }
+    let live = true;
+    callStudioOnly(RPC_ASSET_INFO, { path, root }, 2e4).then((answer) => live && setResult(answer?.ok ? { path, root, answer } : null)).catch(() => live && setResult(null));
+    return () => {
+      live = false;
+    };
+  }, [path, root, refresh]);
+  return result && result.path === path && result.root === root ? result.answer : null;
+}
+function useImages(paths, version) {
+  const root = useContext(AssetGame);
+  const putBack = usePutBack();
+  const [images, setImages] = useState({});
+  const key = paths.join("\n");
+  useEffect(() => {
+    let live = true;
+    setImages({});
+    for (const path of paths) {
+      void assetEntry(path, version, root).promise.then((answer) => {
+        if (!live || !answer?.dataUrl) {
+          return;
+        }
+        const element = document.createElement("img");
+        element.onload = () => live && setImages((current) => ({ ...current, [path]: element }));
+        element.src = answer.dataUrl;
+      });
+    }
+    return () => {
+      live = false;
+    };
+  }, [key, version, root, putBack]);
+  return images;
+}
+
 // page/pages/build/viewer/in-game.js
-function SceneCanvas({ scene, images, scale, highlight, refresh }) {
+function SceneCanvas({ scene, scale, highlight, refresh }) {
+  const paths = [...new Set([scene.background, ...(scene.actors ?? []).map((actor) => actor.sprite)].filter(Boolean))];
+  const images = useImages(paths, `scene:${refresh}`);
   const ref = useRef(null);
   const width = (Number(scene.width) || 20) * 8;
   const height = (Number(scene.height) || 18) * 8;
@@ -5806,49 +6075,6 @@ function CoverInGame({ image, game }) {
   });
 }
 
-// page/pages/build/viewer/info.js
-var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
-function useAssetInfo(path, refresh) {
-  const root = useContext(AssetGame);
-  const [info, setInfo] = useState(null);
-  useEffect(() => {
-    if (!path) {
-      setInfo(null);
-      return void 0;
-    }
-    let live = true;
-    callStudioOnly(RPC_ASSET_INFO, { path, root }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
-    return () => {
-      live = false;
-    };
-  }, [path, root, refresh]);
-  return info;
-}
-function useImages(paths, version) {
-  const root = useContext(AssetGame);
-  const putBack = usePutBack();
-  const [images, setImages] = useState({});
-  const key = paths.join("\n");
-  useEffect(() => {
-    let live = true;
-    setImages({});
-    for (const path of paths) {
-      void assetEntry(path, version, root).promise.then((answer) => {
-        if (!live || !answer?.dataUrl) {
-          return;
-        }
-        const element = document.createElement("img");
-        element.onload = () => live && setImages((current) => ({ ...current, [path]: element }));
-        element.src = answer.dataUrl;
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [key, version, root, putBack]);
-  return images;
-}
-
 // page/pages/build/viewer/sprite-canvas.js
 function SpriteFrameCanvas({ image, sprite: sprite2, tiles, flip, scale, colors, under = null }) {
   const ref = useRef(null);
@@ -5877,25 +6103,6 @@ function SpriteFrameCanvas({ image, sprite: sprite2, tiles, flip, scale, colors,
 
 // page/pages/build/viewer/stage.js
 var ZOOM_STEPS = [1, 2, 3, 4, 6, 8, 12, 16];
-function versionTime(entry) {
-  return entry?.at ? timeOfDay(entry.at) : "";
-}
-function VersionThumb({ path, entry, number, selected, onPick }) {
-  const { state, asset: loaded } = useAsset(path, `kept:${entry.id}`);
-  return jsxs("button", {
-    "aria-label": `Version ${number}${entry.current ? ", in the game now" : ""}`,
-    "aria-pressed": selected,
-    className: `cs-v-ver${selected ? " on" : ""}`,
-    onClick: () => onPick(entry.id),
-    title: `v${number} · ${versionTime(entry)}${entry.current ? " · in the game now" : ""}`,
-    type: "button",
-    children: [
-      state === "ok" ? jsx(SheetFrame, { loaded }) : jsx("span", { className: "cs-v-ver-ph" }),
-      jsx("b", { children: `v${number}` }),
-      entry.current ? jsx("i", { "aria-hidden": true, className: "cs-v-now" }) : null
-    ]
-  });
-}
 function useBoxSize(ref) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
@@ -5964,271 +6171,11 @@ function ImageStage({ image, scale, grid, gridSize = [8, 8], area, onArea, picki
   });
 }
 
-// page/pages/build/viewer/asset-viewer.js
-function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root, game }) {
-  const asset = assets[index];
-  const path = asset?.path ?? null;
-  const [refresh, setRefresh] = useState(0);
-  const info = useAssetInfo(path, refresh);
-  const opened = useAsset(path, asset?.version);
-  const [picked, setPicked] = useState(null);
-  const shownVersion = picked ? `kept:${picked}` : asset?.version;
-  const { state, asset: loaded } = useAsset(path, shownVersion);
-  const image = useImage(loaded?.dataUrl);
-  const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
-  const sprite2 = info?.sprite ?? null;
-  const animations = useMemo(() => spriteAnimations(sprite2), [sprite2]);
-  const scenes = info?.scenes ?? [];
-  const views = kind === "cover" ? ["Image", "In game"] : kind === "sprite" ? [...animations.length ? ["Animation"] : [], "Sheet", ...scenes.length ? ["In game"] : []] : kind === "background" && scenes.length ? ["Image", "In game"] : ["Image"];
-  const [view, setView] = useState(null);
-  const shownView = views.includes(view) ? view : views[0];
-  const [side, setSide] = useState("Details");
-  const [zoom, setZoom] = useState("fit");
-  const [grid, setGrid] = useState(false);
-  const [area, setArea] = useState(null);
-  const [request, setRequest] = useState("");
-  const [rebuild, setRebuild] = useState(true);
-  const [gameColours, setGameColours] = useState(true);
-  const [animationIndex, setAnimationIndex] = useState(0);
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [onion, setOnion] = useState(false);
-  const [sceneIndex, setSceneIndex] = useState(0);
-  const [sentAt, setSentAt] = useState(null);
-  const [restoring, setRestoring] = useState(false);
-  const stageRef = useRef(null);
-  const box = useBoxSize(stageRef);
-  const dialog = useRef(null);
-  const input = useRef(null);
-  const palette = useMemo(() => image ? imagePalette(image, 32) : [], [image]);
-  const checks = useMemo(() => artChecks(image, kind, info), [image, kind, info]);
-  const sceneImages = useImages(
-    useMemo(() => [...new Set(scenes.flatMap((scene2) => [scene2.background, ...(scene2.actors ?? []).map((actor) => actor.sprite)]).filter(Boolean))], [scenes]),
-    `scene:${refresh}`
-  );
-  const versions = info?.versions ?? [];
-  const currentId = versions.find((entry) => entry.current)?.id ?? null;
-  const shownId = picked ?? loaded?.versionId ?? null;
-  const shownEntry = versions.find((entry) => entry.id === shownId) ?? null;
-  const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
-  const older = Boolean(shownEntry && currentId && shownEntry.id !== currentId);
-  const name = sprite2?.name || loaded?.sprite?.name || loaded?.name || baseName(path ?? "");
-  const animation = animations[Math.min(animationIndex, Math.max(0, animations.length - 1))] ?? null;
-  const frames = animation?.frames ?? [];
-  const frameMs = spriteFrameMs(sprite2?.animSpeed);
-  const colors = gameColours ? info?.palette?.colors : null;
-  const working = Boolean(sentAt && chat?.busy);
-  const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
-  useEffect(() => {
-    setPicked(null);
-    setView(null);
-    setArea(null);
-    setFrame(0);
-    setAnimationIndex(0);
-    setSceneIndex(0);
-    setZoom("fit");
-  }, [path, asset?.version]);
-  useEffect(() => setFrame(0), [animationIndex]);
-  useEffect(() => {
-    if (!animations.length) {
-      return;
-    }
-    const walking = animations.findIndex((entry) => /walk|run|moving/i.test(entry.name) && entry.frames.length > 1);
-    setAnimationIndex(walking === -1 ? Math.max(0, animations.findIndex((entry) => entry.frames.length > 1)) : walking);
-  }, [animations]);
-  useEffect(() => {
-    if (shownView !== "Animation" || !playing || frames.length < 2) {
-      return void 0;
-    }
-    const id = setInterval(() => setFrame((value) => (value + 1) % frames.length), frameMs);
-    return () => clearInterval(id);
-  }, [shownView, playing, frames.length, frameMs]);
-  const wasWorking = useRef(false);
-  useEffect(() => {
-    if (working) {
-      wasWorking.current = true;
-    } else if (sentAt && wasWorking.current) {
-      wasWorking.current = false;
-      setSentAt(null);
-      setPicked(null);
-      setRefresh((value) => value + 1);
-    }
-  }, [working, sentAt]);
-  useEffect(() => {
-    if (refresh && currentId) {
-      setPicked(currentId);
-    }
-  }, [refresh, currentId]);
-  useEffect(() => {
-    if (side === "Change") {
-      input.current?.focus?.();
-    } else {
-      setArea(null);
-    }
-  }, [side]);
-  useEffect(() => {
-    dialog.current?.focus?.();
-    const onKey = (event) => {
-      const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(event.target?.tagName ?? "");
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (area) {
-          setArea(null);
-        } else {
-          onClose();
-        }
-      } else if (typing) {
-        return;
-      } else if (event.key === "ArrowRight" && assets.length > 1) {
-        event.preventDefault();
-        onIndex((index + 1) % assets.length);
-      } else if (event.key === "ArrowLeft" && assets.length > 1) {
-        event.preventDefault();
-        onIndex((index - 1 + assets.length) % assets.length);
-      } else if ((event.key === "," || event.key === ".") && shownView === "Animation" && frames.length > 1) {
-        event.preventDefault();
-        setPlaying(false);
-        setFrame((value) => (value + (event.key === "." ? 1 : frames.length - 1)) % frames.length);
-      } else if (event.key === " " && shownView === "Animation") {
-        event.preventDefault();
-        setPlaying((value) => !value);
-      } else if (event.key === "+" || event.key === "=") {
-        setZoom((value) => ZOOM_STEPS.find((step) => step > (value === "fit" ? currentScale : value)) ?? 16);
-      } else if (event.key === "-") {
-        setZoom((value) => [...ZOOM_STEPS].reverse().find((step) => step < (value === "fit" ? currentScale : value)) ?? 1);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-  const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
-  let contentWidth = image?.naturalWidth ?? 0;
-  let contentHeight = image?.naturalHeight ?? 0;
-  if (shownView === "Animation" && sprite2) {
-    contentWidth = sprite2.canvasWidth;
-    contentHeight = sprite2.canvasHeight;
-  } else if (shownView === "In game" && scene) {
-    contentWidth = (Number(scene.width) || 20) * 8;
-    contentHeight = (Number(scene.height) || 18) * 8;
-  }
-  const fit = fitScale(box, contentWidth, contentHeight, shownView === "Animation" ? 140 : 48);
-  const currentScale = zoom === "fit" ? fit : zoom;
-  const zoomable = shownView !== "In game" || kind !== "cover";
-  useEffect(() => {
-    const element = stageRef.current;
-    if (!element || !zoomable) {
-      return void 0;
-    }
-    const onWheel = (event) => {
-      event.preventDefault();
-      setZoom((value) => {
-        const now = value === "fit" ? currentScale : value;
-        return event.deltaY < 0 ? ZOOM_STEPS.find((step) => step > now) ?? 16 : [...ZOOM_STEPS].reverse().find((step) => step < now) ?? 1;
-      });
-    };
-    element.addEventListener("wheel", onWheel, { passive: false });
-    return () => element.removeEventListener("wheel", onWheel);
-  }, [zoomable, currentScale]);
+// page/pages/build/viewer/stage-viewport.js
+function StageViewport({ area, children, kind, picking, running, shownView, stageRef, working, playback, scenePicker }) {
   const pan = useRef(null);
-  if (!asset) {
-    return null;
-  }
-  const reveal = async () => {
-    const shown = await ctx.os?.revealPath?.(path).catch(() => false);
-    if (!shown) {
-      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-      host.notify({ kind: "info", message: copied ? "The file is on the computer running Hermes. Its path is copied." : path });
-    }
-  };
-  const copyImage = async () => {
-    try {
-      const blob = await (await fetch(loaded.dataUrl)).blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-      host.notify({ kind: "success", message: "Image copied" });
-    } catch {
-      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-      host.notify({ kind: "info", message: copied ? "The image could not be copied, so its path was." : "The image could not be copied." });
-    }
-  };
-  const copyColour = async (color) => {
-    const copied = await ctx.os?.writeClipboard?.(color).catch(() => false);
-    host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
-  };
-  const restore = async () => {
-    if (!shownEntry || restoring) {
-      return;
-    }
-    setRestoring(true);
-    try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 2e4);
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? "It could not be restored.");
-      }
-      forgetAsset(path, answer.path);
-      host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
-      setRefresh((value) => value + 1);
-    } catch (error) {
-      host.notify({ kind: "error", message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setRestoring(false);
-    }
-  };
-  const send = () => {
-    const words = request.trim();
-    if (!words || !onSend || working) {
-      return;
-    }
-    const notes = [];
-    if (area && image) {
-      notes.push(`Only change the area from (${area.x}, ${area.y}) to (${area.x + area.w - 1}, ${area.y + area.h - 1}), in pixels of the ${image.naturalWidth}×${image.naturalHeight} image. Keep everything outside it exactly as it is.`);
-    }
-    if (older && shownEntry) {
-      notes.push(`Start from version ${shownNumber} (from ${versionTime(shownEntry)}), kept at ${shownEntry.file}. The file in the game is a newer version.`);
-    }
-    if (rebuild && (kind === "sprite" || kind === "background")) {
-      notes.push("When it is done, build the game and show it to me with chromatic_present_game.");
-    }
-    const text2 = notes.length ? `${words}
-
-${notes.map((note) => `- ${note}`).join("\n")}` : words;
-    onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }]);
-    setRequest("");
-    setArea(null);
-    setSentAt(Date.now());
-  };
-  let progress2 = [];
-  if (sentAt && chat?.items?.length) {
-    const turns = deriveTurns(chat.items);
-    const last = turns[turns.length - 1];
-    progress2 = last ? turnParts(last, root).steps.slice(-6) : [];
-  }
-  const running = progress2.find((tool) => tool.state === "running") ?? null;
-  const picking = side === "Change" && (shownView === "Image" || shownView === "Sheet") && !working;
-  let stage;
-  if (state === "loading" || !image && state !== "none") {
-    stage = jsx("span", { className: "cs-b-th lg loading" });
-  } else if (!image) {
-    stage = jsx("p", { className: "cs-small", children: "This picture could not be loaded." });
-  } else if (shownView === "Animation" && animation) {
-    const tiles = frames[Math.min(frame, frames.length - 1)] ?? [];
-    const before = onion && frames.length > 1 ? frames[(frame + frames.length - 1) % frames.length] : null;
-    stage = jsx(SpriteFrameCanvas, { colors, flip: animation.flip, image, scale: currentScale, sprite: sprite2, tiles, under: before });
-  } else if (shownView === "In game" && kind === "cover") {
-    stage = jsx(CoverInGame, { game, image });
-  } else if (shownView === "In game" && scene) {
-    stage = jsx(SceneCanvas, { highlight: kind === "sprite" ? sprite2?.id : null, images: sceneImages, refresh, scale: currentScale, scene });
-  } else {
-    const sheetColours = kind === "sprite" && colors ? paintSheet(image, colors) : null;
-    stage = jsx(ImageStage, {
-      area,
-      grid,
-      gridSize: kind === "sprite" ? [8, 16] : [8, 8],
-      image: sheetColours && sheetColours !== image ? canvasImage(sheetColours, image) : image,
-      onArea: setArea,
-      picking,
-      scale: currentScale
-    });
-  }
+  const { animation, animations, colors, frame, frames, image, onion, playing, setAnimationIndex, setFrame, setOnion, setPlaying, sprite: sprite2 } = playback;
+  const { scene, scenes, setSceneIndex } = scenePicker;
   const chips = [];
   if (shownView === "Animation" && animations.length) {
     chips.push(
@@ -6288,117 +6235,251 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
       }, "working")
     );
   }
-  const madeBy = asset.step || asset.at ? jsxs("div", {
-    className: "cs-col cs-v-sec",
+  return jsxs("div", {
+    className: `cs-v-stage${kind === "sprite" && shownView !== "In game" ? " checker" : ""}`,
     children: [
-      jsx("span", { className: "cs-eyebrow", children: asset.step === "In the reply" ? `Shown by ${AGENT}` : `Made by ${AGENT}` }),
-      asset.ask ? jsx("span", { className: "cs-v-quote", children: `“${asset.ask.length > 140 ? `${asset.ask.slice(0, 140)}…` : asset.ask}”` }) : null,
-      jsx("span", { className: "cs-faint", children: [asset.at ? timeOfDay(asset.at) : "", asset.step && asset.step !== "In the reply" ? asset.step : ""].filter(Boolean).join(" · ") })
+      jsx("div", {
+        className: `cs-v-scroll${picking ? "" : " pannable"}`,
+        onPointerDown: (event) => {
+          const element = stageRef.current;
+          if (picking || event.button !== 0 || !element || element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight) {
+            return;
+          }
+          pan.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
+          element.setPointerCapture?.(event.pointerId);
+        },
+        onPointerMove: (event) => {
+          const element = stageRef.current;
+          if (pan.current && element) {
+            element.scrollLeft = pan.current.left - (event.clientX - pan.current.x);
+            element.scrollTop = pan.current.top - (event.clientY - pan.current.y);
+          }
+        },
+        onPointerUp: () => {
+          pan.current = null;
+        },
+        ref: stageRef,
+        children: jsx("div", { className: "cs-v-stage-in", children })
+      }),
+      ...chips
     ]
-  }) : null;
-  const details = [
-    older ? jsxs("div", {
-      className: "cs-v-note",
-      children: [
-        jsx("span", { children: `This is v${shownNumber} from ${versionTime(shownEntry)}. The game uses v${versions.findIndex((entry) => entry.current) + 1}.` }),
-        jsxs("div", {
-          className: "cs-row",
-          style: { gap: 6 },
-          children: [
-            jsx(Button, { disabled: restoring || working, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
-            jsx(Button, { onClick: () => setPicked(currentId), size: "sm", variant: "ghost", children: "Show the current one" })
-          ]
-        })
-      ]
-    }, "older") : null,
-    madeBy ? jsx("div", { children: madeBy }, "made") : null,
-    kind === "sprite" && info?.palette ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "In-game palette" }),
-        jsxs("div", {
-          className: "cs-row",
-          style: { gap: 8 },
-          children: [
-            jsx("div", { className: "cs-v-pal", children: info.palette.colors.map((color, position) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color}${position === 2 ? " (not used by sprites)" : ""}`, type: "button" }, position)) }),
-            info.palette.name ? jsx("span", { className: "cs-tag", children: info.palette.name }) : null
-          ]
-        }),
-        jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: gameColours, onChange: (event) => setGameColours(event.target.checked), type: "checkbox" }), "Show it in these colours"] })
-      ]
-    }, "palette") : null,
-    palette.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: `Colours in the file · ${palette.length}${palette.length >= 32 ? "+" : ""}` }),
-        jsx("div", { className: "cs-v-sw", children: palette.map((color) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color} · click to copy`, type: "button" }, color)) })
-      ]
-    }, "colours") : null,
-    checks.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Checks" }),
-        ...checks.map((check, position) => jsxs("span", { className: `cs-v-check${check.ok ? "" : " bad"}`, children: [jsx(Codicon, { name: check.ok ? "check" : "warning", size: 12 }), check.text] }, position))
-      ]
-    }, "checks") : null,
-    kind === "cover" ? jsxs("div", { className: "cs-col cs-v-sec", children: [jsx("span", { className: "cs-eyebrow", children: "Shown on" }), jsx("span", { className: "cs-v-text", children: "Its Games page card and the Build page" })] }, "shown") : info?.usedIn ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Used in" }),
-        ...info.usedIn.length ? info.usedIn.map((use) => jsxs("span", { className: "cs-v-text", children: [jsx("b", { children: use.scene }), ` · ${use.count > 1 ? `${use.count}: ` : ""}${use.as.join(", ")}`] }, use.sceneId)) : [jsx("span", { className: "cs-faint", children: "Not placed in any scene yet" }, "none")]
-      ]
-    }, "used") : null
-  ];
-  const change = working || sentAt && progress2.length ? [
-    jsxs("div", {
-      className: "cs-v-card",
-      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: chat?.items?.findLast?.((item) => item.kind === "user")?.text ?? "" })]
-    }, "asked"),
-    jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Progress" }),
-        ...(progress2.length ? progress2 : []).map(
-          (tool) => jsxs("span", {
-            className: `cs-v-step ${tool.state}`,
-            children: [tool.state === "running" ? jsx("span", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : "check", size: 12 }), stepWords(tool)[tool.state === "running" ? 0 : 1]]
-          }, tool.id)
-        ),
-        !progress2.length ? jsx("span", { className: "cs-faint", children: "Starting…" }) : null
-      ]
-    }, "progress"),
-    jsx("span", { className: "cs-grow" }, "grow"),
-    jsx("span", { className: "cs-faint", children: "You can close this. The new version shows up here and in the chat." }, "close")
-  ] : [
-    jsx("textarea", {
-      className: "cs-v-input",
-      disabled: !onSend,
-      onChange: (event) => setRequest(event.target.value),
-      onKeyDown: (event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
-          event.preventDefault();
-          send();
+  });
+}
+
+// page/pages/build/viewer/asset-viewer.js
+function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game }) {
+  const asset = assets[index];
+  const path = asset?.path ?? null;
+  const [refresh, setRefresh] = useState(0);
+  const info = useAssetInfo(path, refresh);
+  const opened = useAsset(path, asset?.version);
+  const version = useVersionHistory({
+    path,
+    original: asset?.version,
+    info,
+    refresh,
+    root,
+    onRefresh: () => setRefresh((value) => value + 1)
+  });
+  const { state, loaded, shownNumber, setPicked } = version;
+  const image = useImage(loaded?.dataUrl);
+  const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
+  const sprite2 = info?.sprite ?? null;
+  const animations = useMemo(() => spriteAnimations(sprite2), [sprite2]);
+  const scenes = info?.scenes ?? [];
+  const views = kind === "cover" ? ["Image", "In game"] : kind === "sprite" ? [...animations.length ? ["Animation"] : [], "Sheet", ...scenes.length ? ["In game"] : []] : kind === "background" && scenes.length ? ["Image", "In game"] : ["Image"];
+  const [view, setView] = useState(null);
+  const shownView = views.includes(view) ? view : views[0];
+  const [side, setSide] = useState("Details");
+  const [zoom, setZoom] = useState("fit");
+  const [grid, setGrid] = useState(false);
+  const [area, setArea] = useState(null);
+  const [gameColours, setGameColours] = useState(true);
+  const [animationIndex, setAnimationIndex] = useState(0);
+  const [frame, setFrame] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [onion, setOnion] = useState(false);
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const [sentAt, setSentAt] = useState(null);
+  const stageRef = useRef(null);
+  const box = useBoxSize(stageRef);
+  const dialog = useRef(null);
+  const palette = useMemo(() => image ? imagePalette(image, 32) : [], [image]);
+  const checks = useMemo(() => artChecks(image, kind, info), [image, kind, info]);
+  const name = sprite2?.name || loaded?.sprite?.name || loaded?.name || baseName(path ?? "");
+  const animation = animations[Math.min(animationIndex, Math.max(0, animations.length - 1))] ?? null;
+  const frames = animation?.frames ?? [];
+  const frameMs = spriteFrameMs(sprite2?.animSpeed);
+  const colors = gameColours ? info?.palette?.colors : null;
+  const working = Boolean(sentAt && chat?.busy);
+  const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
+  useEffect(() => {
+    setView(null);
+    setArea(null);
+    setFrame(0);
+    setAnimationIndex(0);
+    setSceneIndex(0);
+    setZoom("fit");
+  }, [path, asset?.version]);
+  useEffect(() => setFrame(0), [animationIndex]);
+  useEffect(() => {
+    if (!animations.length) {
+      return;
+    }
+    const walking = animations.findIndex((entry) => /walk|run|moving/i.test(entry.name) && entry.frames.length > 1);
+    setAnimationIndex(walking === -1 ? Math.max(0, animations.findIndex((entry) => entry.frames.length > 1)) : walking);
+  }, [animations]);
+  useEffect(() => {
+    if (shownView !== "Animation" || !playing || frames.length < 2) {
+      return void 0;
+    }
+    const id = setInterval(() => setFrame((value) => (value + 1) % frames.length), frameMs);
+    return () => clearInterval(id);
+  }, [shownView, playing, frames.length, frameMs]);
+  const wasWorking = useRef(false);
+  useEffect(() => {
+    if (working) {
+      wasWorking.current = true;
+    } else if (sentAt && wasWorking.current) {
+      wasWorking.current = false;
+      setSentAt(null);
+      setPicked(null);
+      setRefresh((value) => value + 1);
+    }
+  }, [working, sentAt, setPicked]);
+  useEffect(() => {
+    if (side !== "Change") {
+      setArea(null);
+    }
+  }, [side]);
+  useLayoutEffect(() => {
+    const previous = opener ?? document.activeElement;
+    dialog.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous?.isConnected) {
+        previous.focus?.({ preventScroll: true });
+      }
+    };
+  }, [opener]);
+  const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
+  let contentWidth = image?.naturalWidth ?? 0;
+  let contentHeight = image?.naturalHeight ?? 0;
+  if (shownView === "Animation" && sprite2) {
+    contentWidth = sprite2.canvasWidth;
+    contentHeight = sprite2.canvasHeight;
+  } else if (shownView === "In game" && scene) {
+    contentWidth = (Number(scene.width) || 20) * 8;
+    contentHeight = (Number(scene.height) || 18) * 8;
+  }
+  const fit = fitScale(box, contentWidth, contentHeight, shownView === "Animation" ? 140 : 48);
+  const currentScale = zoom === "fit" ? fit : zoom;
+  const zoomable = shownView !== "In game" || kind !== "cover";
+  useEffect(() => {
+    const onKey = (event) => {
+      const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(event.target?.tagName ?? "");
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (area) {
+          setArea(null);
+        } else {
+          onClose();
         }
-      },
-      placeholder: onSend ? `What should ${AGENT} change in ${name}?` : "Open this game’s conversation to ask for changes.",
-      ref: input,
-      rows: 4,
-      value: request
-    }, "input"),
-    area ? jsxs("div", {
-      className: "cs-row cs-v-sec",
-      style: { gap: 6 },
-      children: [jsx("span", { className: "cs-v-text", children: `Only the marked area · ${area.w}×${area.h}` }), jsx("span", { className: "cs-grow" }), jsx(Button, { onClick: () => setArea(null), size: "sm", variant: "ghost", children: "Clear" })]
-    }, "area") : shownView === "Image" || shownView === "Sheet" ? jsx("span", { className: "cs-faint", children: "Drag on the picture to change just one area." }, "area") : null,
-    older ? jsx("span", { className: "cs-faint", children: `It starts from v${shownNumber}, the version shown.` }, "from") : null,
-    kind === "sprite" || kind === "background" ? jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: rebuild, onChange: (event) => setRebuild(event.target.checked), type: "checkbox" }), "Build and show the game after"] }, "rebuild") : null,
-    jsxs(Button, { disabled: !onSend || !request.trim(), onClick: send, size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
-    jsx("span", { className: "cs-grow" }, "grow"),
-    asks.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [jsx("span", { className: "cs-eyebrow", children: "Asked before" }), ...asks.slice(-4).map((ask, position) => jsx("span", { className: "cs-faint", title: ask, children: `“${ask.length > 80 ? `${ask.slice(0, 80)}…` : ask}”` }, position))]
-    }, "asks") : null
-  ];
+      } else if (typing) {
+        return;
+      } else if (event.key === "ArrowRight" && assets.length > 1) {
+        event.preventDefault();
+        onIndex((index + 1) % assets.length);
+      } else if (event.key === "ArrowLeft" && assets.length > 1) {
+        event.preventDefault();
+        onIndex((index - 1 + assets.length) % assets.length);
+      } else if ((event.key === "," || event.key === ".") && shownView === "Animation" && frames.length > 1) {
+        event.preventDefault();
+        setPlaying(false);
+        setFrame((value) => (value + (event.key === "." ? 1 : frames.length - 1)) % frames.length);
+      } else if (event.key === " " && shownView === "Animation") {
+        event.preventDefault();
+        setPlaying((value) => !value);
+      } else if (event.key === "+" || event.key === "=") {
+        setZoom((value) => ZOOM_STEPS.find((step) => step > (value === "fit" ? currentScale : value)) ?? 16);
+      } else if (event.key === "-") {
+        setZoom((value) => [...ZOOM_STEPS].reverse().find((step) => step < (value === "fit" ? currentScale : value)) ?? 1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [area, assets.length, currentScale, frames.length, index, onClose, onIndex, shownView]);
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element || !zoomable) {
+      return void 0;
+    }
+    const onWheel = (event) => {
+      event.preventDefault();
+      setZoom((value) => {
+        const now = value === "fit" ? currentScale : value;
+        return event.deltaY < 0 ? ZOOM_STEPS.find((step) => step > now) ?? 16 : [...ZOOM_STEPS].reverse().find((step) => step < now) ?? 1;
+      });
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [zoomable, currentScale]);
+  if (!asset) {
+    return null;
+  }
+  const reveal = async () => {
+    const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+    if (!shown) {
+      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+      host.notify({ kind: "info", message: copied ? "The file is on the computer running Hermes. Its path is copied." : path });
+    }
+  };
+  const copyImage = async () => {
+    try {
+      const blob = await (await fetch(loaded.dataUrl)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      host.notify({ kind: "success", message: "Image copied" });
+    } catch {
+      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+      host.notify({ kind: "info", message: copied ? "The image could not be copied, so its path was." : "The image could not be copied." });
+    }
+  };
+  const copyColour = async (color) => {
+    const copied = await ctx.os?.writeClipboard?.(color).catch(() => false);
+    host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
+  };
+  let progress2 = [];
+  if (sentAt && chat?.items?.length) {
+    const turns = deriveTurns(chat.items);
+    const last = turns[turns.length - 1];
+    progress2 = last ? turnParts(last, root).steps.slice(-6) : [];
+  }
+  const running = progress2.find((tool) => tool.state === "running") ?? null;
+  const picking = side === "Change" && (shownView === "Image" || shownView === "Sheet") && !working;
+  let stage;
+  if (state === "loading" || !image && state !== "none") {
+    stage = jsx("span", { className: "cs-b-th lg loading" });
+  } else if (!image) {
+    stage = jsx("p", { className: "cs-small", children: "This picture could not be loaded." });
+  } else if (shownView === "Animation" && animation) {
+    const tiles = frames[Math.min(frame, frames.length - 1)] ?? [];
+    const before = onion && frames.length > 1 ? frames[(frame + frames.length - 1) % frames.length] : null;
+    stage = jsx(SpriteFrameCanvas, { colors, flip: animation.flip, image, scale: currentScale, sprite: sprite2, tiles, under: before });
+  } else if (shownView === "In game" && kind === "cover") {
+    stage = jsx(CoverInGame, { game, image });
+  } else if (shownView === "In game" && scene) {
+    stage = jsx(SceneCanvas, { highlight: kind === "sprite" ? sprite2?.id : null, refresh, scale: currentScale, scene });
+  } else {
+    const sheetColours = kind === "sprite" && colors ? paintSheet(image, colors) : null;
+    stage = jsx(ImageStage, {
+      area,
+      grid,
+      gridSize: kind === "sprite" ? [8, 16] : [8, 8],
+      image: sheetColours && sheetColours !== image ? canvasImage(sheetColours, image) : image,
+      onArea: setArea,
+      picking,
+      scale: currentScale
+    });
+  }
   return jsx("div", {
     className: "cs-b-dim",
     onClick: onClose,
@@ -6442,34 +6523,17 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
         jsxs("div", {
           className: "cs-v-body",
           children: [
-            jsxs("div", {
-              className: `cs-v-stage${kind === "sprite" && shownView !== "In game" ? " checker" : ""}`,
-              children: [
-                jsx("div", {
-                  className: `cs-v-scroll${picking ? "" : " pannable"}`,
-                  onPointerDown: (event) => {
-                    const element = stageRef.current;
-                    if (picking || event.button !== 0 || !element || element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight) {
-                      return;
-                    }
-                    pan.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
-                    element.setPointerCapture?.(event.pointerId);
-                  },
-                  onPointerMove: (event) => {
-                    const element = stageRef.current;
-                    if (pan.current && element) {
-                      element.scrollLeft = pan.current.left - (event.clientX - pan.current.x);
-                      element.scrollTop = pan.current.top - (event.clientY - pan.current.y);
-                    }
-                  },
-                  onPointerUp: () => {
-                    pan.current = null;
-                  },
-                  ref: stageRef,
-                  children: jsx("div", { className: "cs-v-stage-in", children: stage })
-                }),
-                ...chips
-              ]
+            jsx(StageViewport, {
+              area,
+              kind,
+              picking,
+              running,
+              shownView,
+              stageRef,
+              working,
+              playback: { animation, animations, colors, frame, frames, image, onion, playing, setAnimationIndex, setFrame, setOnion, setPlaying, sprite: sprite2 },
+              scenePicker: { scene, scenes, setSceneIndex },
+              children: stage
             }),
             jsxs("div", {
               className: "cs-v-side",
@@ -6479,7 +6543,33 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
                   role: "tablist",
                   children: ["Details", "Change"].map((entry) => jsxs("button", { "aria-selected": side === entry, className: side === entry ? "on" : "", onClick: () => setSide(entry), role: "tab", type: "button", children: [entry, entry === "Change" && working ? jsx("span", { className: "cs-b-spin" }) : null] }, entry))
                 }),
-                jsx("div", { className: "cs-v-pane", children: side === "Details" ? details : change })
+                jsxs("div", {
+                  className: "cs-v-pane",
+                  children: [
+                    side === "Details" ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) : null,
+                    jsx(ChangeForm, {
+                      active: side === "Change",
+                      area,
+                      asks,
+                      chat,
+                      image,
+                      kind,
+                      loaded,
+                      name,
+                      onArea: setArea,
+                      onSend,
+                      onSent: () => {
+                        setArea(null);
+                        setSentAt(Date.now());
+                      },
+                      path,
+                      progress: progress2,
+                      showProgress: Boolean(working || sentAt && progress2.length),
+                      shownView,
+                      version
+                    })
+                  ]
+                })
               ]
             })
           ]
@@ -6487,14 +6577,7 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
         jsxs("div", {
           className: "cs-v-foot",
           children: [
-            versions.length ? jsxs("div", {
-              className: "cs-v-vers",
-              children: [
-                jsx("span", { className: "cs-eyebrow", children: "Versions" }),
-                ...versions.map((entry, position) => jsx(VersionThumb, { entry, number: position + 1, onPick: setPicked, path, selected: entry.id === shownId }, entry.id)),
-                working ? jsxs("span", { className: "cs-v-ver pending", title: "Being made now", children: [jsx("span", { className: "cs-b-spin" }), jsx("b", { children: `v${versions.length + 1}` })] }) : null
-              ]
-            }) : null,
+            jsx(VersionHistory, { path, version, working }),
             jsx("span", { className: "cs-grow" }),
             assets.length > 1 ? jsx("span", { className: "cs-faint cs-v-nav", children: `← → other pictures · ${index + 1} of ${assets.length}` }) : null,
             jsxs(Button, { onClick: () => void reveal(), size: "sm", variant: "ghost", children: [jsx(Codicon, { name: "folder-opened", size: 13 }), "Show in folder"] }),
@@ -6534,7 +6617,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const side = (loaded, label, now) => jsxs("button", {
     "aria-label": `Look closer at ${label.toLowerCase()} version of ${name}`,
     className: now ? "cs-b-ba-side now" : "cs-b-ba-side",
-    onClick: () => onOpen?.({ path, version: now ? to ? `reply:${to}` : null : `reply:${from}`, kind: assetKind(path), step: label }),
+    onClick: (event) => onOpen?.({ path, version: now ? to ? `reply:${to}` : null : `reply:${from}`, kind: assetKind(path), step: label }, event.currentTarget),
     type: "button",
     children: [jsx("span", { className: "cs-b-ba-img", children: jsx(SheetFrame, { loaded }) }), jsx("span", { className: "cs-b-ba-cap", children: label })]
   });
@@ -6953,7 +7036,7 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
           made.length && !shown ? jsxs("button", {
             "aria-label": `See the ${made.length === 1 ? "picture" : `${made.length} pictures`} this made`,
             className: "cs-b-wk-assets",
-            onClick: () => onOpenAsset?.(made[0]),
+            onClick: (event) => onOpenAsset?.(made[0], event.currentTarget),
             type: "button",
             children: [jsx(AssetStack, { assets: made }), jsx("span", { children: `${made.length} ${made.length === 1 ? "asset" : "assets"}` })]
           }) : null
@@ -7026,7 +7109,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   }
   const viewerRef = useRef(viewerAssets);
   viewerRef.current = viewerAssets;
-  const openAsset = useCallback((asset) => onOpenAsset(viewerRef.current, asset), [onOpenAsset]);
+  const openAsset = useCallback((asset, opener) => onOpenAsset(viewerRef.current, asset, opener), [onOpenAsset]);
   const playable = Boolean(game && game.webExport && playableSha(game));
   const frame = [...parts.assets].reverse().find((asset) => asset.kind === "Playtest frame") ?? null;
   const report = parts.report;
@@ -7227,7 +7310,11 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     return () => clearTimeout(id);
   }, [focusTurn?.seq, limit]);
   const openAsset = useCallback(
-    (assets, asset) => setViewer({ assets, index: Math.max(0, assets.findIndex((entry) => entry === asset || entry.path === asset.path && entry.version === asset.version)) }),
+    (assets, asset, opener) => setViewer({
+      assets,
+      opener,
+      index: Math.max(0, assets.findIndex((entry) => entry === asset || entry.path === asset.path && entry.version === asset.version))
+    }),
     []
   );
   const latestBuild = useMemo(() => {
@@ -7332,6 +7419,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
         onClose: () => setViewer(null),
         onIndex: (index) => setViewer((current) => ({ ...current, index })),
         onSend: stored ? onSend : null,
+        opener: viewer.opener,
         root
       }) : null
     ]
