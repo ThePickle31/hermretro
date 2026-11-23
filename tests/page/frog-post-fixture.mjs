@@ -27,3 +27,30 @@ export const reportedRobinBuild = (reply, report = robinBuildReport()) => [
   { role: 'tool', tool_call_id: 'r1', content: JSON.stringify({ ok: true, report }), timestamp: 2011 },
   { role: 'assistant', content: reply, timestamp: 2012 }
 ]
+
+export const frogSprite = path => ({
+  ok: true, path, name: path.split('/').pop(), relative: 'assets/sprites/frog.png',
+  kind: 'sprite', width: 32, height: 16, bytes: 90, dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+  sprite: { name: 'Frog', frameWidth: 16, frameHeight: 16, animSpeed: 15 }
+})
+
+export function frogJumpMessages() {
+  const image = { assetPath: 'assets/sprites/frog.png' }
+  const importCall = { name: 'chromatic_asset_import', arguments: image }
+  const romCall = { name: 'chromatic_rom_build', arguments: {} }
+  return [
+    { role: 'user', content: 'make the frog jump', timestamp: 1000 },
+    { role: 'assistant', content: [{ type: 'text', text: 'On it.' }], timestamp: 1001, tool_calls: [
+      toolCall('v1', 'vision_analyze', { image_url: '/home/u/games/FrogPost/docs/art/frog.png', question: 'ok?' }),
+      toolCall('w1', 'tool_call', { calls: [
+        { ...importCall, arguments: { ...image, kind: 'sprite' } }, romCall
+      ] })
+    ] },
+    { role: 'tool', tool_call_id: 'v1', name: 'vision_analyze', timestamp: 1004 },
+    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [importCall] }, timestamp: 1020 },
+    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [romCall] },
+      content: JSON.stringify({ structuredContent: { success: true } }), timestamp: 1050 },
+    { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
+    { role: 'user', text: 'secret', display_kind: 'hidden' }
+  ]
+}

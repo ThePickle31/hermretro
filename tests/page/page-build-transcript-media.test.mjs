@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
-import { frogPost, lamplight, reportedRobinBuild, robinBuildReport, toolCall } from './frog-post-fixture.mjs'
+import { frogPost, frogSprite, lamplight, reportedRobinBuild, robinBuildReport, toolCall } from './frog-post-fixture.mjs'
 
 await runScenario(async ({ answered, buildScenario, button, check, click, key, mount, page, scenario, settle, typeInto }) => {
   const frog = frogPost()
@@ -21,8 +21,7 @@ await runScenario(async ({ answered, buildScenario, button, check, click, key, m
     if (params.path.startsWith(otherGame.projectRoot + '/')) {
       return { ok: false, code: 'OTHER_GAME', error: 'That image belongs to another game.' }
     }
-    return { ok: true, path: params.path, name: params.path.split('/').pop(), relative: 'assets/sprites/frog.png', kind: 'sprite', width: 32, height: 16, bytes: 90,
-      dataUrl: 'data:image/png;base64,iVBORw0KGgo=', sprite: { name: 'Frog', frameWidth: 16, frameHeight: 16, animSpeed: 15 } }
+    return frogSprite(params.path)
   }
   // A long turn: Simple shows five plain groups, Technical every step, and reply pictures are small cards.
   const report = robinBuildReport()

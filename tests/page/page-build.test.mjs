@@ -2,16 +2,15 @@
 // binding a game to its conversation, an older backend, and a resumed conversation with its art and build card.
 import assert from 'node:assert/strict'
 
+import { frogJumpMessages, frogPost, frogSprite, lamplight } from './frog-post-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click, tab, settle, holdTimers, button, typeInto, key, mount, check, answered, installAnswer, complete }) => {
-  // Where the Emulator scenarios leave the app: a game loaded in the player.
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
   scenario.install = installAnswer({ state: 'idle' })
   // The open-request poll (a 1.2 to 4 s timer) runs when clock.fire() says, not when a real clock gets there.
   const clock = holdTimers()
 
-  // 14. Build: one game, one conversation, driven through the gateway and the event stream.
   // The games are a menu on the title: open it, take a copy, close it again.
   const gamesMenu = async view => {
     await act(async () => { view.node.querySelector('.cs-b-sw').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
@@ -38,8 +37,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
     await settle()
   }
   buildScenario()
-  const lib14 = [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio', state: 'ready',
-    rom: null, webExport: true, thumb: null, chat: null, error: null }]
+  const lib14 = [frogPost()]
   scenario.games = answered({ games: lib14, device: { hardwareEnabled: false, skipped: true } })
   const submits = []
   let created = 0
@@ -228,8 +226,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   })
   const replyDraft = 'Give the keeper a raincoat.'
   await typeInto(build14.node.querySelector('textarea[aria-label="Message Hermes"]'), replyDraft)
-  lib14.push({ id: 'aaa000aaa000', title: 'Lamplight', projectRoot: '/home/u/games/Lamplight', kind: 'gbstudio', state: 'unbuilt',
-    rom: null, webExport: false, thumb: null, chat: null, session: { storedId: 'st-new-1' }, error: null })
+  lib14.push(lamplight())
   scenario.games = answered({ games: [...lib14], pending: [], device: { hardwareEnabled: false, skipped: true } })
   await build14.rerender(); await settle()
   menu14 = await gamesMenu(build14)
@@ -320,22 +317,11 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   lib14[0] = { ...lib14[0], session: { storedId: 'st-old' } }
   scenario.games = answered({ games: [...lib14], device: { hardwareEnabled: false, skipped: true } })
   scenario.storage.buildSelected = 'fff666fff666'
-  scenario.byMethod['session.resume'] = params => (params.omit_messages ? plainResume(params) : { session_id: `rt-of-${params.session_id}`, running: false, messages: [
-    { role: 'user', content: 'make the frog jump', timestamp: 1000 },
-    { role: 'assistant', content: [{ type: 'text', text: 'On it.' }], timestamp: 1001, tool_calls: [
-      { id: 'v1', function: { name: 'vision_analyze', arguments: JSON.stringify({ image_url: '/home/u/games/FrogPost/docs/art/frog.png', question: 'ok?' }) } },
-      { id: 'w1', function: { name: 'tool_call', arguments: JSON.stringify({ calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png', kind: 'sprite' } }, { name: 'chromatic_rom_build', arguments: {} }] }) } }] },
-    { role: 'tool', tool_call_id: 'v1', name: 'vision_analyze', timestamp: 1004 },
-    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png' } }] }, timestamp: 1020 },
-    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] },
-      content: JSON.stringify({ structuredContent: { success: true } }), timestamp: 1050 },
-    { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
-    { role: 'user', text: 'secret', display_kind: 'hidden' }] })
+  scenario.byMethod['session.resume'] = params => (params.omit_messages ? plainResume(params) : { session_id: `rt-of-${params.session_id}`, running: false, messages: frogJumpMessages() })
   scenario.assetCalls = []
   scenario.byMethod['plugin.hermretro.asset'] = params => {
     scenario.assetCalls.push(params.path)
-    return { ok: true, path: params.path, name: params.path.split('/').pop(), relative: 'assets/sprites/frog.png', kind: 'sprite', width: 32, height: 16, bytes: 90,
-      dataUrl: 'data:image/png;base64,iVBORw0KGgo=', sprite: { name: 'Frog', frameWidth: 16, frameHeight: 16, animSpeed: 15 } }
+    return frogSprite(params.path)
   }
   // What the viewer shows beside a sprite: its animations (from the sidecar) and kept versions.
   scenario.byMethod['plugin.hermretro.asset_info'] = params => ({ ok: true, path: params.path, relative: 'assets/sprites/frog.png', kind: 'sprite',

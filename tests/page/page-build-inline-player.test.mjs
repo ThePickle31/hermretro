@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
-import { frogPost, reportedRobinBuild } from './frog-post-fixture.mjs'
+import { frogJumpMessages, frogPost, reportedRobinBuild } from './frog-post-fixture.mjs'
 
 await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, mount, page, scenario, settle, typeInto }) => {
   const frog = frogPost({ web: { sha256: 'w1', builtAt: 2100 } })
@@ -16,17 +16,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post', skins, skin: 'hermes-midnight'
   })
   scenario.byMethod['prompt.submit'] = () => ({ ok: true })
-  scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
-    { role: 'user', content: 'make the frog jump', timestamp: 1000 },
-    { role: 'assistant', content: [{ type: 'text', text: 'On it.' }], timestamp: 1001, tool_calls: [
-      { id: 'v1', function: { name: 'vision_analyze', arguments: JSON.stringify({ image_url: '/home/u/games/FrogPost/docs/art/frog.png', question: 'ok?' }) } },
-      { id: 'w1', function: { name: 'tool_call', arguments: JSON.stringify({ calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png', kind: 'sprite' } }, { name: 'chromatic_rom_build', arguments: {} }] }) } }] },
-    { role: 'tool', tool_call_id: 'v1', name: 'vision_analyze', timestamp: 1004 },
-    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png' } }] }, timestamp: 1020 },
-    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] },
-      content: JSON.stringify({ structuredContent: { success: true } }), timestamp: 1050 },
-    { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
-    { role: 'user', text: 'secret', display_kind: 'hidden' }] })
+  scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : frogJumpMessages() })
   // Leave a newer live reply after the resumed build so the build has a folded row to play from.
   const firstVisit = await mount(page)
   await settle(100)
