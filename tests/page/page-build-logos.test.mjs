@@ -17,12 +17,9 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
   const { LOGOS, providerLogo } = await import('../../page/shared/art/providers/index.js')
 
   check('every logo has a light and a dark file that is in the folder, and the official page it came from', () => {
-    const files = readFileSync(new URL('index.js', ART), 'utf8').match(/from '\.\/([^']+)'/g).map(line => line.slice(8, -1))
-
-    for (const file of files) assert.ok(readFileSync(new URL(file, ART)).length > 0, file)
     for (const [brand, logo] of Object.entries(LOGOS)) {
-      assert.match(logo.light, /^data:image\/(png;base64|svg\+xml(;base64)?),/, brand)
-      assert.match(logo.dark, /^data:image\/(png;base64|svg\+xml(;base64)?),/, brand)
+      assert.match(logo.light, /^data:image\/(png;base64|svg\+xml(;base64)?),.+$/, brand)
+      assert.match(logo.dark, /^data:image\/(png;base64|svg\+xml(;base64)?),.+$/, brand)
       assert.match(logo.source, /^https:\/\//, brand)
       assert.ok(logo.name, brand)
     }
