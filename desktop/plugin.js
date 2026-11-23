@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 ded5e4ed9eae2c8a4885baa5dab8078d37d49098a02d52c8650428905d1e7c01
- * body: sha256 f09c0e134700a607a5e32c0065562a47a8e8a40287ffac4d6760c79b8647dccc
+ * sources: sha256 b3e23c4cfe2982201c46a56695d32d0729905e39ff5fbdb4d7c276c5a7caad9c
+ * body: sha256 9f1c7b524b8b37e14c8f79360b1d5663b50734e27d509290d2e4f3775924d5e5
  */
 // page/sdk.js
 import {
@@ -5200,6 +5200,35 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
   });
 }
 
+// page/pages/build/player/use-inline-player.js
+function useInlinePlayer(gameId, chat) {
+  const [playerFor, setPlayerFor] = useState(null);
+  const presentationSeq = useValue(BUILD_PRESENTED)[gameId ?? ""]?.seq;
+  const seenPresentation = useRef(presentationSeq ?? 0);
+  const openWhenDone = useRef(false);
+  useEffect(() => {
+    const seq = presentationSeq ?? 0;
+    if (seq !== seenPresentation.current) {
+      seenPresentation.current = seq;
+      openWhenDone.current = true;
+    }
+  }, [presentationSeq]);
+  useEffect(() => {
+    if (gameId && openWhenDone.current && !chat?.busy && !chat?.opening) {
+      openWhenDone.current = false;
+      setPlayerFor(gameId);
+    }
+  }, [chat?.busy, chat?.opening, presentationSeq, gameId]);
+  useEffect(() => {
+    openWhenDone.current = false;
+  }, [gameId]);
+  return {
+    playerOpen: Boolean(gameId && playerFor === gameId),
+    onPlay: () => gameId && setPlayerFor(gameId),
+    onClosePlayer: () => setPlayerFor(null)
+  };
+}
+
 // page/shared/ui/time.js
 function ago(seconds, now) {
   const elapsed = Math.max(0, Math.round(now / 1e3 - seconds));
@@ -9510,26 +9539,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const [playerFor, setPlayerFor] = useState(null);
-  const presented = useValue(BUILD_PRESENTED)[game?.id ?? ""] ?? null;
-  const seenPresent = useRef(presented?.seq ?? 0);
-  const openWhenDone = useRef(false);
-  useEffect(() => {
-    const seq = presented?.seq ?? 0;
-    if (seq !== seenPresent.current) {
-      seenPresent.current = seq;
-      openWhenDone.current = true;
-    }
-  }, [presented?.seq]);
-  useEffect(() => {
-    if (game && openWhenDone.current && !chat?.busy && !chat?.opening) {
-      openWhenDone.current = false;
-      setPlayerFor(game.id);
-    }
-  }, [chat?.busy, chat?.opening, presented?.seq, game?.id]);
-  useEffect(() => {
-    openWhenDone.current = false;
-  }, [game?.id]);
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat);
   const refuseWhileUpdating = () => {
     if (!isUpdating()) {
       return false;
@@ -9776,7 +9786,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
           emptyState,
           playable && !chat?.opening ? jsx("div", {
             className: "cs-b-her",
-            children: playerFor === game.id ? jsx(InlinePlayer, { ctx, game, note: null, onClose: () => setPlayerFor(null), stored: shownStored }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay: () => setPlayerFor(game.id), state: "ready" })
+            children: playerOpen ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored: shownStored }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay, state: "ready" })
           }) : null
         ]
       })
@@ -9787,12 +9797,12 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       ctx,
       empty: emptyState,
       game,
-      onClosePlayer: () => setPlayerFor(null),
-      onPlay: () => game && setPlayerFor(game.id),
+      onClosePlayer,
+      onPlay,
       onSend: (text2, shown, attachments) => void send(text2, attachments ?? [], shown ?? text2),
       focusTurn: focusTurn?.stored === shownStored ? focusTurn : null,
       onFocusHandled: setFocusTurn,
-      playerOpen: Boolean(game && playerFor === game.id),
+      playerOpen,
       stored: shownStored
     }, shownStored ?? "none");
   }

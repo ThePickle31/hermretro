@@ -8,11 +8,12 @@ import {
   sendBuildChat,
   stopBuildChat
 } from './chat/actions.js'
-import { BUILD_CHATS, BUILD_PRESENTED, BUILD_STARTING, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
+import { BUILD_CHATS, BUILD_STARTING, BUILD_VIEWING, chatRequest, patchChat } from './chat/store.js'
 import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
 import { PlayCard } from './player/play-card.js'
+import { useInlinePlayer } from './player/use-inline-player.js'
 import { BuildStatus } from './transcript/status.js'
 import { rootOf } from './transcript/groups.js'
 import { AssetGame } from './assets/cache.js'
@@ -139,32 +140,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  // The game plays in the conversation once the agent is done: it opens by itself when the agent handed it
-  // over this turn (chromatic_present_game), and stays open until the user closes it.
-  const [playerFor, setPlayerFor] = useState(null)
-  const presented = useValue(BUILD_PRESENTED)[game?.id ?? ''] ?? null
-  const seenPresent = useRef(presented?.seq ?? 0)
-  const openWhenDone = useRef(false)
-
-  useEffect(() => {
-    const seq = presented?.seq ?? 0
-
-    if (seq !== seenPresent.current) {
-      seenPresent.current = seq
-      openWhenDone.current = true
-    }
-  }, [presented?.seq])
-
-  useEffect(() => {
-    if (game && openWhenDone.current && !chat?.busy && !chat?.opening) {
-      openWhenDone.current = false
-      setPlayerFor(game.id)
-    }
-  }, [chat?.busy, chat?.opening, presented?.seq, game?.id])
-
-  useEffect(() => {
-    openWhenDone.current = false
-  }, [game?.id])
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat)
 
   // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
   const refuseWhileUpdating = () => {
@@ -488,9 +464,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           playable && !chat?.opening
             ? jsx('div', {
                 className: 'cs-b-her',
-                children: playerFor === game.id
-                  ? jsx(InlinePlayer, { ctx, game, note: null, onClose: () => setPlayerFor(null), stored: shownStored }, `player:${game.id}`)
-                  : jsx(PlayCard, { game, onPlay: () => setPlayerFor(game.id), state: 'ready' })
+                children: playerOpen
+                  ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored: shownStored }, `player:${game.id}`)
+                  : jsx(PlayCard, { game, onPlay, state: 'ready' })
               })
             : null
         ]
@@ -502,12 +478,12 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       ctx,
       empty: emptyState,
       game,
-      onClosePlayer: () => setPlayerFor(null),
-      onPlay: () => game && setPlayerFor(game.id),
+      onClosePlayer,
+      onPlay,
       onSend: (text, shown, attachments) => void send(text, attachments ?? [], shown ?? text),
       focusTurn: focusTurn?.stored === shownStored ? focusTurn : null,
       onFocusHandled: setFocusTurn,
-      playerOpen: Boolean(game && playerFor === game.id),
+      playerOpen,
       stored: shownStored
     }, shownStored ?? 'none')
   }

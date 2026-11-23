@@ -35,6 +35,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   await settle(100)
   const inlineFrame = () => conversation.node.querySelector('.cs-ip iframe')
   const framePlay = () => conversation.node.querySelector('.cs-b-pc-go, .cs-b-history-play')
+  const closeGame = () => act(async () => { conversation.node.querySelector('.cs-ip button[aria-label="Close the game"]').click() })
   check('the newest build rests in a game frame under its line, with Play build #1; nothing plays until asked', () => {
     assert.match(framePlay()?.textContent ?? '', /Play build #1/); assert.ok(!inlineFrame())
     assert.ok(conversation.node.querySelector('.cs-b-history-play'), 'the last playable build can start from its folded row')
@@ -45,10 +46,12 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     assert.match(inlineFrame()?.getAttribute('src') ?? '', /tok\/fff666fff666\/index\.html/)
     assert.ok(conversation.node.querySelector('.cs-b-turn .cs-ip') && !conversation.node.querySelector('.cs-b-bc .cs-ip'), 'it plays under the build line'); assert.ok(!framePlay())
   })
+  await closeGame()
+  assert.ok(!inlineFrame(), 'the presentation starts with the player closed')
   await typeInto(conversation.node.querySelector('textarea[aria-label="Message Hermes"]'), 'make it rain')
   await click('Send', conversation.node.querySelector('.cs-b-comp'))
   await settle()
-  check('starting a turn folds the previous build and rests its player', () => {
+  check('starting a turn folds the previous build and hides its Play button', () => {
     assert.ok(!inlineFrame())
     assert.equal(conversation.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
     assert.ok(!conversation.node.querySelector('.cs-b-pc-go'))
@@ -92,7 +95,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Snowing.' } }) })
   await settle()
   check('a game the user had open comes back when the agent is done', () => { assert.ok(inlineFrame()) })
-  await act(async () => { conversation.node.querySelector('.cs-ip button[aria-label="Close the game"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await closeGame()
   check('closing the game puts the frame and its Play back', () => { assert.ok(!inlineFrame()); assert.ok(framePlay()) })
   await conversation.close()
   // The inline player itself: one bar, whole-number sizes, and the play-test panel from the build report.
