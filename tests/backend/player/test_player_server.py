@@ -212,6 +212,18 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(fetch(self.url(f"codex-annotations/binjgb-{wasm_sha}.wasm"))[0], 200)
         self.assertEqual(fetch(self.url(f"codex-annotations/binjgb-{'0' * 64}.wasm"))[0], 404)
 
+    def test_a_damaged_personal_png_serves_the_bundled_finish(self):
+        personal = paths.hermretro_home() / "skins/supply-co"
+        personal.mkdir(parents=True)
+        bundled = (skins.SKINS_DIR / "supply-co/skin.png").read_bytes()
+        damaged = bytearray(bundled)
+        damaged[29] ^= 1  # first byte of the IHDR checksum
+        (personal / "skin.png").write_bytes(damaged)
+        with self.assertLogs(skins.logger, "WARNING"):
+            status, headers, body = fetch(self.url("codex-annotations/chromatic-supply-co.png"))
+        self.assertEqual((status, headers["Content-Type"]), (200, "image/png"))
+        self.assertTrue(body == bundled)
+
     def test_paths_stay_inside_the_export(self):
         for rel in (
             "../../../etc/passwd",

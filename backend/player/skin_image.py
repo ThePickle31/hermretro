@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import struct
+from binascii import crc32
 from functools import lru_cache
 from pathlib import Path
 from stat import S_ISREG
 
 
+_PNG_BIT_DEPTHS = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}
+
+
 def _png(stream, size: int) -> bool:
     if stream.read(16) != b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR":
         return False
-    dimensions = stream.read(8)
-    if len(dimensions) != 8 or not all(struct.unpack(">II", dimensions)):
+    header = stream.read(13)
+    if len(header) != 13 or stream.read(4) != struct.pack(">I", crc32(b"IHDR" + header)):
         return False
-    stream.seek(33)  # signature, IHDR and its CRC
+    width, height, depth, color, compression, filtering, interlace = struct.unpack(">II5B", header)
+    if not (0 < width < 2**31 and 0 < height < 2**31 and depth in _PNG_BIT_DEPTHS.get(color, ())):
+        return False
+    if compression != 0 or filtering != 0 or interlace not in (0, 1):
+        return False
     pixels = False
     while stream.tell() + 12 <= size:
         length, kind = struct.unpack(">I4s", stream.read(8))
