@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -49,52 +48,27 @@ class BrokerRun:
         self.launches.append(process)
         return process
 
-    def live_brokers(self) -> set[int]:
-        """Find this run's exact launch commands, including the broker inside a Linux systemd scope."""
-        known_pids = self.brokers | {process.pid for process in self.launches}
-        if not self.launches:
-            return set()
-        # Each start discovers Node again. A systemd scope can prefix the Python command.
-        suffixes = []
-        for process in self.launches:
-            interpreter = process.args.index(sys.executable)
-            suffixes.append(" " + " ".join(process.args[interpreter + 1 :]))
-        arguments = tuple(suffixes)
-        commands = {sys.executable + args for args in arguments}
-        listing = subprocess.run(
-            ["ps", "-A", "-ww", "-o", "pid=,command="], check=True, capture_output=True, text=True, errors="replace"
-        )
-        found = set()
-        for row in listing.stdout.splitlines():
-            fields = row.split(maxsplit=1)
-            if len(fields) == 2:
-                pid, command = int(fields[0]), fields[1]
-                if command in commands or (pid in known_pids and command.endswith(arguments)):
-                    found.add(pid)
-        return found
-
     def stop_brokers(self) -> None:
-        """Prefer normal shutdown. A failed handshake can leave a live broker without a reported PID."""
+        """Ask for a clean shutdown, then stop and reap any remaining children this run launched."""
+        stopping_pid = None
         try:
             with BrokerClient(self.state) as last:
-                last.request({"op": "shutdown", "force": True})
+                if last.request({"op": "shutdown", "force": True}).get("ok"):
+                    stopping_pid = last.hello["pid"]
         except Exception:  # noqa: BLE001 - no broker running is the usual case
             pass
-        else:
-            wait_gone(self.brokers, 10)
-        for sig, timeout in ((signal.SIGTERM, 10), (signal.SIGKILL, 5)):
-            remaining = self.live_brokers()
-            if not remaining:
-                break
-            self.brokers.update(remaining)
-            for pid in remaining:
-                try:
-                    os.kill(pid, sig)
-                except ProcessLookupError:
-                    pass
-            wait_gone(remaining, timeout)
+        # systemd-run --scope execs the broker in the same child as a direct launch.
         for process in self.launches:
-            process.poll()
+            if process.poll() is not None:
+                continue
+            self.brokers.add(process.pid)
+            if process.pid != stopping_pid:
+                process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
         for pid in self.brokers:
             for path in fallback_dirs(pid):
                 shutil.rmtree(path, ignore_errors=True)
