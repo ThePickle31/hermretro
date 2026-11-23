@@ -23,8 +23,8 @@ Contributes `InstallButton` to `emulator.barActions` (Install on Chromatic in th
 **Uses from other pages:** none.
 
 **Tests:** the Games card is covered in two files: `tests/page/page-games.test.mjs` (the cards' states, the split
-Play/Fix button, the arrow menu with its contributed items, and New Game navigation) and `tests/page/page-build-turns.test.mjs` (the card's
-cover art, display title, tagline and genres, and Make cover art for a game without a card);
+Play/Fix button, the arrow menu with its contributed items, and New Game navigation) and
+`tests/page/page-games-cover-art.test.mjs` (the card's cover art, display title, tagline and genres, and Make cover art for a game without a card);
 `tests/page/registry.test.mjs` (its events and slots).
 
 ## Adding a tab here

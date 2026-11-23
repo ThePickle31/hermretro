@@ -31,7 +31,12 @@ profile).
 
 **Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `buildSelected`, `buildModel`, `buildModelStars`, `buildNewGame` (the New Game draft), `inlinePlayer` and `playtest`.
 
-**Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
+**Tests:** `tests/page/page-build.test.mjs` (New Game and the streamed conversation),
+`tests/page/page-build-transcript-media.test.mjs` (steps, build results, pictures, suggestions and mentions),
+`tests/page/page-build-inline-player.test.mjs` (playing builds, the play-test checklist and keyboard focus),
+`tests/page/page-build-interrupted-conversations.test.mjs` (removed conversations and lost turns),
+`tests/page/page-build-model-picker.test.mjs` (model and effort picks, plus questions in other games),
+`tests/page/page-build-builds.test.mjs` (the Builds menu),
 `tests/page/page-build-history-restore.test.mjs` (exact and dated restores), `tests/page/page-build-saved-snapshot.test.mjs` (legacy snapshots for an unbound game),
 `tests/page/page-build-restore.test.mjs` (the viewer's Restore redraws the file's pictures),
 `tests/page/page-build-viewer.test.mjs` (focus while a sprite animates and scene image loading),

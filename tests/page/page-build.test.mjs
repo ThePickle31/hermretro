@@ -1,6 +1,5 @@
-// The Build page, part one: New Game, the streamed conversation, questions and approvals, the games menu,
+// The Build page: New Game, the streamed conversation, questions and approvals, the games menu,
 // binding a game to its conversation, an older backend, and a resumed conversation with its art and build card.
-// Part two is page-build-turns.test.mjs.
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
