@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 5e60f9637f2b8f089317f7b383712e54aeedacd7f967b8d0103b31325478f6ce
- * body: sha256 0d61108f5d92b3f5c5a3157c600b43f1007432edada444faf781483766891346
+ * sources: sha256 c9e3947f3b24016cd93b730d53bd3b52ba72d04b03eed8e0d3b497c2d5615ac9
+ * body: sha256 48d82e33a75155e3959fe5d9bfa3cfb8ce07583efd8a75aa1e4aeea88352e721
  */
 // page/sdk.js
 import {
@@ -600,6 +600,7 @@ function stepInfo(name, result, exactCall = true) {
   const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
   const text2 = (value2) => typeof value2 === "string" && value2 ? value2 : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean);
+  const report = String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null;
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
@@ -608,7 +609,8 @@ function stepInfo(name, result, exactCall = true) {
     buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
-    report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
+    report,
+    reportedAt: report && Number.isFinite(parsed.reportedAt) && parsed.reportedAt > 0 ? parsed.reportedAt : null
   };
 }
 function withInfo(chat, info) {
@@ -638,6 +640,7 @@ function injectBuildDraft(stored, text2) {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
 }
 var BUILD_CHATS = atom({});
+var buildChatIdle = (chat) => Boolean(chat?.runtime && !chat.busy && !chat.opening && !chat.queued?.length && !chat.lost?.length);
 var BUILD_STARTING = atom(/* @__PURE__ */ new Set());
 var buildRuntime = /* @__PURE__ */ new Map();
 var isBuildSession = (runtime) => buildRuntime.has(runtime);
@@ -864,7 +867,8 @@ function historyItems(messages, running = false) {
       const name = message.name ?? message.tool_name;
       const pending = tools.get(id);
       const calls = unwrapCalls(id, name, message.args);
-      const result = toolResultObject(text2);
+      const payload = text2 || message.content;
+      const result = toolResultObject(payload);
       const failed = toolFailed({ result });
       const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1);
       const outerResult = pending?.name === "tool_call" && calls.length === 1 && ["tool_call", "tool"].includes(calls[0].name);
@@ -879,14 +883,15 @@ function historyItems(messages, running = false) {
         });
       }
       for (const step of steps) {
+        step.finishedAt = at;
         if (at && step.startedAt) {
           step.duration = Math.max(0, (at - step.startedAt) / 1e3);
         }
         if (exactCall && typeof id === "string" && timestamp !== null) {
           step.resultCall = { id, timestamp };
         }
-        if (text2) {
-          step.info = stepInfo(step.name, text2, exactCall);
+        if (payload) {
+          step.info = stepInfo(step.name, payload, exactCall) ?? step.info;
           if (failed) {
             step.state = "failed";
           } else if (step.state === "unknown" && (step.info?.buildRef || result?.ok === true || result?.structuredContent?.success === true)) {
@@ -1062,6 +1067,7 @@ function reduceChat(chat, event) {
         report: tool.report ?? reportOf(tool.name, calls[0]?.args),
         state: toolFailed(payload) ? "failed" : "done",
         summary: payload.summary ?? null,
+        finishedAt: now,
         duration: typeof payload.duration_s === "number" ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1e3 : null,
         image: typeof payload.image_path === "string" ? payload.image_path : null,
         info: stepInfo(tool.name, payload.result, tool.id === payload.tool_id || !payload.tool_id && calls.length === 1),
@@ -1280,7 +1286,7 @@ async function createBuildChat(title, pick = null) {
   patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
-async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false } = {}) {
+async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false, assetChange = null } = {}) {
   if (isUpdating()) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return false;
@@ -1295,6 +1301,9 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   const before = BUILD_CHATS.get()[stored];
   const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true };
   const chat = BUILD_CHATS.get()[stored];
+  if (assetChange && (chat?.assetChange !== assetChange || !buildChatIdle(chat))) {
+    return false;
+  }
   const now = Date.now();
   const live = Boolean(chat?.runtime);
   const paused = Boolean(chat?.lost?.length);
@@ -1308,7 +1317,16 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: "user", text: shown, at: now, submission, followup: Boolean(current.busy), ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
+      {
+        kind: "user",
+        text: shown,
+        at: now,
+        submission,
+        followup: Boolean(current.busy),
+        ...assetChange ? { assetChange } : {},
+        ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {},
+        ...attachments.length ? { attachments } : {}
+      }
     ]
   }));
   if (!chat?.runtime) {
@@ -1543,6 +1561,19 @@ function useAsset(path, version) {
   }
   return entry.done ? entry.value ? { state: "ok", asset: entry.value } : { state: "none", code: entry.code } : { state: "loading" };
 }
+function useAssetPreview(path, version) {
+  const root = useContext(AssetGame);
+  const result = useAsset(path, version);
+  const { state, asset } = result;
+  const previous = useRef(null);
+  useLayoutEffect(() => {
+    if (state !== "loading") {
+      previous.current = state === "ok" ? { path, version, root, asset } : null;
+    }
+  }, [path, version, root, state, asset]);
+  const kept = previous.current;
+  return state === "loading" && kept?.path === path && kept.version === version && kept.root === root ? { state: "ok", asset: kept.asset } : result;
+}
 
 // page/pages/build/assets/sprite.js
 var SPRITE_SHADES = /* @__PURE__ */ new Map([[14743759, 0], [8831084, 1], [3172432, 2], [464929, 3]]);
@@ -1626,7 +1657,7 @@ function canvasImage(canvas2, image) {
 
 // page/pages/build/assets/images.js
 function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
-  const { state, asset: loaded } = useAsset(asset.path, asset.version);
+  const { state, asset: loaded } = useAssetPreview(asset.path, asset.version);
   if (state === "none") {
     return null;
   }
@@ -1638,7 +1669,7 @@ function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
     className: `cs-b-th ${size}${fresh ? " fresh" : ""}`,
     onClick: (event) => {
       event.stopPropagation();
-      onOpen?.(asset);
+      onOpen?.(asset, event.currentTarget);
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: "button",
@@ -5538,6 +5569,41 @@ function rootOf(game, items) {
   return null;
 }
 
+// page/pages/build/assets/changes.js
+var canSendAssetChange = (chat) => buildChatIdle(chat) && !chat.assetChange;
+var assetRestoreBlocked = (chat) => Boolean(chat?.busy || chat?.assetChange);
+async function sendAssetChange(stored, text2, shown, attachments) {
+  if (!canSendAssetChange(BUILD_CHATS.get()[stored])) {
+    return false;
+  }
+  const change = { path: attachments[0].path, text: shown };
+  patchChat(stored, (chat) => ({ ...chat, assetChange: change }));
+  let started2 = false;
+  let completed = false;
+  let accepted = null;
+  const finish = () => {
+    const chat = BUILD_CHATS.get()[stored];
+    started2 ||= chat.items.at(-1)?.assetChange === change;
+    completed ||= started2 && !chat.busy && !chat.opening;
+    if (accepted === null || accepted && !completed) {
+      return;
+    }
+    stop();
+    if (accepted) {
+      forgetAsset(change.path);
+    }
+    patchChat(stored, (current) => ({ ...current, assetChange: null, ...accepted ? { lastAssetChange: change } : {} }));
+  };
+  const stop = BUILD_CHATS.listen(finish);
+  try {
+    accepted = await sendBuildChat(stored, text2, shown, attachments, { assetChange: change, mustLand: true });
+    return accepted;
+  } finally {
+    accepted ??= false;
+    finish();
+  }
+}
+
 // page/pages/build/transcript/reply.js
 var MEDIA_IMAGE_LINE = /^[ \t]*MEDIA:[ \t]*([`"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$/gim;
 function replySegments(text2, root) {
@@ -5562,7 +5628,8 @@ function replyAssets(items, root) {
   );
 }
 function ReplyImage({ asset, line, onOpen, featured }) {
-  const { state, code, asset: loaded } = useAsset(asset.path, asset.version);
+  const id = useId();
+  const { state, code, asset: loaded } = useAssetPreview(asset.path, asset.version);
   if (state === "none") {
     return MessageTextContent ? jsx(MessageTextContent, code === "OTHER_GAME" ? { media: false, previewOnly: true, text: line } : { text: line }) : null;
   }
@@ -5576,9 +5643,10 @@ function ReplyImage({ asset, line, onOpen, featured }) {
   return jsxs("button", {
     "aria-label": `Look closer at ${loaded.name}`,
     className: "cs-b-rchip",
+    id,
     onClick: (event) => {
       event.stopPropagation();
-      onOpen?.(asset);
+      onOpen?.(asset, event.currentTarget);
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: "button",
@@ -5641,6 +5709,7 @@ function turnParts(turn, root) {
   const errors = [];
   let end = null;
   let report = null;
+  let reportAt = null;
   const hasCard = turn.items.some((item) => item.kind === "clarify");
   for (const item of turn.items) {
     if (item.kind === "assistant" && item.text.trim()) {
@@ -5648,8 +5717,10 @@ function turnParts(turn, root) {
     } else if (item.kind === "tools") {
       for (const tool of item.tools) {
         const short = shortTool(tool.name);
-        if (short === "build_report" && tool.state !== "failed") {
-          report = tool.info?.report ?? tool.report ?? report;
+        const reported = short === "build_report" && tool.state !== "failed" ? tool.info?.report ?? tool.report : null;
+        if (reported) {
+          report = reported;
+          reportAt = tool.info?.reportedAt ?? tool.finishedAt ?? tool.startedAt ?? null;
         }
         if (!HIDDEN_STEPS.has(short) && !(short === "clarify" && hasCard)) {
           tokens.push({ type: "step", tool });
@@ -5712,6 +5783,7 @@ function turnParts(turn, root) {
     buildFailed: lastBuild?.state === "failed" ? lastBuild.info?.error ?? "The build failed." : null,
     buildState: compileState(lastCompile(turn)),
     report,
+    reportAt,
     note: presented?.info?.note ?? null,
     running: steps.find((tool) => tool.state === "running") ?? null
   };
@@ -5797,6 +5869,235 @@ function madeAssets(parts, root) {
   return made;
 }
 
+// page/pages/build/viewer/version-history.js
+var LIVE = /* @__PURE__ */ Symbol("live image");
+function useVersionHistory({ path, original, edit, info, onRefresh, root, canRestore }) {
+  const scope = useMemo(() => ({}), [root, path, original, edit]);
+  const [selection, setSelection] = useState({ scope, picked: null });
+  const [restoring, setRestoring] = useState(false);
+  if (selection.scope !== scope) {
+    setSelection({ scope, picked: null });
+  }
+  const setPicked = useCallback((picked2) => {
+    setSelection((current) => current.scope === scope ? { scope, picked: picked2 } : current);
+  }, [scope]);
+  const showLive = useCallback(() => setPicked(LIVE), [setPicked]);
+  const picked = (selection.scope === scope ? selection.picked : null) ?? (edit ? LIVE : null);
+  const { state, asset: loaded } = useAsset(path, picked === LIVE ? null : picked ? `kept:${picked}` : original);
+  const versions = info?.versions ?? [];
+  const currentId = versions.find((entry) => entry.current)?.id ?? null;
+  const shownId = (picked === LIVE ? null : picked) ?? loaded?.versionId ?? null;
+  const shownEntry = versions.find((entry) => entry.id === shownId) ?? null;
+  const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
+  const older = picked !== LIVE && Boolean(shownEntry && currentId && shownEntry.id !== currentId);
+  const restore = async () => {
+    if (!shownEntry || restoring || !canRestore()) {
+      return;
+    }
+    setRestoring(true);
+    try {
+      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 2e4);
+      if (!answer?.ok) {
+        throw new Error(answer?.error ?? "It could not be restored.");
+      }
+      forgetAsset(path, answer.path);
+      showLive();
+      host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
+      onRefresh();
+    } catch (error) {
+      host.notify({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setRestoring(false);
+    }
+  };
+  return { currentId, loaded, older, restore, restoring, setPicked, showLive, shownEntry, shownId, shownNumber, state, versions };
+}
+function versionTime(entry) {
+  return entry?.at ? timeOfDay(entry.at) : "";
+}
+function VersionThumb({ path, entry, number, selected, onPick }) {
+  const { state, asset: loaded } = useAsset(path, `kept:${entry.id}`);
+  return jsxs("button", {
+    "aria-label": `Version ${number}${entry.current ? ", in the game now" : ""}`,
+    "aria-pressed": selected,
+    className: `cs-v-ver${selected ? " on" : ""}`,
+    onClick: () => onPick(entry.id),
+    title: `v${number} · ${versionTime(entry)}${entry.current ? " · in the game now" : ""}`,
+    type: "button",
+    children: [
+      state === "ok" ? jsx(SheetFrame, { loaded }) : jsx("span", { className: "cs-v-ver-ph" }),
+      jsx("b", { children: `v${number}` }),
+      entry.current ? jsx("i", { "aria-hidden": true, className: "cs-v-now" }) : null
+    ]
+  });
+}
+function VersionHistory({ path, version, working }) {
+  const { versions, shownId, setPicked } = version;
+  return versions.length ? jsxs("div", {
+    className: "cs-v-vers",
+    children: [
+      jsx("span", { className: "cs-eyebrow", children: "Versions" }),
+      ...versions.map((entry, position) => jsx(VersionThumb, { entry, number: position + 1, onPick: setPicked, path, selected: entry.id === shownId }, entry.id)),
+      working ? jsxs("span", { className: "cs-v-ver pending", title: "Being made now", children: [jsx("span", { className: "cs-b-spin" }), jsx("b", { children: `v${versions.length + 1}` })] }) : null
+    ]
+  }) : null;
+}
+
+// page/pages/build/viewer/asset-details.js
+function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked }) {
+  const { currentId, older, restore, restoring, setPicked, shownEntry, shownNumber, versions } = version;
+  const madeBy = asset.step || asset.at ? jsxs("div", {
+    className: "cs-col cs-v-sec",
+    children: [
+      jsx("span", { className: "cs-eyebrow", children: asset.step === "In the reply" ? `Shown by ${AGENT}` : `Made by ${AGENT}` }),
+      asset.ask ? jsx("span", { className: "cs-v-quote", children: `“${asset.ask.length > 140 ? `${asset.ask.slice(0, 140)}…` : asset.ask}”` }) : null,
+      jsx("span", { className: "cs-faint", children: [asset.at ? timeOfDay(asset.at) : "", asset.step && asset.step !== "In the reply" ? asset.step : ""].filter(Boolean).join(" · ") })
+    ]
+  }) : null;
+  return [
+    older ? jsxs("div", {
+      className: "cs-v-note",
+      children: [
+        jsx("span", { children: `This is v${shownNumber} from ${versionTime(shownEntry)}. The game uses v${versions.findIndex((entry) => entry.current) + 1}.` }),
+        jsxs("div", {
+          className: "cs-row",
+          style: { gap: 6 },
+          children: [
+            jsx(Button, { disabled: restoring || restoreBlocked, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
+            jsx(Button, { onClick: () => setPicked(currentId), size: "sm", variant: "ghost", children: "Show the current one" })
+          ]
+        })
+      ]
+    }, "older") : null,
+    madeBy ? jsx("div", { children: madeBy }, "made") : null,
+    kind === "sprite" && info?.palette ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "In-game palette" }),
+        jsxs("div", {
+          className: "cs-row",
+          style: { gap: 8 },
+          children: [
+            jsx("div", { className: "cs-v-pal", children: info.palette.colors.map((color, position) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color}${position === 2 ? " (not used by sprites)" : ""}`, type: "button" }, position)) }),
+            info.palette.name ? jsx("span", { className: "cs-tag", children: info.palette.name }) : null
+          ]
+        }),
+        jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: gameColours, onChange: (event) => setGameColours(event.target.checked), type: "checkbox" }), "Show it in these colours"] })
+      ]
+    }, "palette") : null,
+    palette.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: `Colours in the file · ${palette.length}${palette.length >= 32 ? "+" : ""}` }),
+        jsx("div", { className: "cs-v-sw", children: palette.map((color) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color} · click to copy`, type: "button" }, color)) })
+      ]
+    }, "colours") : null,
+    checks.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Checks" }),
+        ...checks.map((check, position) => jsxs("span", { className: `cs-v-check${check.ok ? "" : " bad"}`, children: [jsx(Codicon, { name: check.ok ? "check" : "warning", size: 12 }), check.text] }, position))
+      ]
+    }, "checks") : null,
+    kind === "cover" ? jsxs("div", { className: "cs-col cs-v-sec", children: [jsx("span", { className: "cs-eyebrow", children: "Shown on" }), jsx("span", { className: "cs-v-text", children: "Its Games page card and the Build page" })] }, "shown") : info?.usedIn ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Used in" }),
+        ...info.usedIn.length ? info.usedIn.map((use) => jsxs("span", { className: "cs-v-text", children: [jsx("b", { children: use.scene }), ` · ${use.count > 1 ? `${use.count}: ` : ""}${use.as.join(", ")}`] }, use.sceneId)) : [jsx("span", { className: "cs-faint", children: "Not placed in any scene yet" }, "none")]
+      ]
+    }, "used") : null
+  ];
+}
+
+// page/pages/build/viewer/change-form.js
+function ChangeForm({ active, area, asks, change, disabled, image, kind, loaded, name, onArea, onSend, path, progress: progress2, shownView, version }) {
+  const [request, setRequest] = useState("");
+  const [rebuild, setRebuild] = useState(true);
+  const input = useRef(null);
+  const { older, shownEntry, shownNumber } = version;
+  const showForm = active && !change;
+  useEffect(() => {
+    if (showForm) {
+      input.current?.focus();
+    }
+  }, [showForm]);
+  if (!active) {
+    return null;
+  }
+  const send = async () => {
+    const words = request.trim();
+    if (!words || !onSend || disabled) {
+      return;
+    }
+    const notes = [];
+    if (area && image) {
+      notes.push(`Only change the area from (${area.x}, ${area.y}) to (${area.x + area.w - 1}, ${area.y + area.h - 1}), in pixels of the ${image.naturalWidth}×${image.naturalHeight} image. Keep everything outside it exactly as it is.`);
+    }
+    if (older && shownEntry) {
+      notes.push(`Start from version ${shownNumber} (from ${versionTime(shownEntry)}), kept at ${shownEntry.file}. The file in the game is a newer version.`);
+    }
+    if (rebuild && (kind === "sprite" || kind === "background")) {
+      notes.push("When it is done, build the game and show it to me with chromatic_present_game.");
+    }
+    const text2 = notes.length ? `${words}
+
+${notes.map((note) => `- ${note}`).join("\n")}` : words;
+    if (await onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }])) {
+      setRequest("");
+    }
+  };
+  return change ? [
+    jsxs("div", {
+      className: "cs-v-card",
+      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: change.text })]
+    }, "asked"),
+    jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [
+        jsx("span", { className: "cs-eyebrow", children: "Progress" }),
+        ...(progress2.length ? progress2 : []).map(
+          (tool) => jsxs("span", {
+            className: `cs-v-step ${tool.state}`,
+            children: [tool.state === "running" ? jsx("span", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : "check", size: 12 }), stepWords(tool)[tool.state === "running" ? 0 : 1]]
+          }, tool.id)
+        ),
+        !progress2.length ? jsx("span", { className: "cs-faint", children: "Starting…" }) : null
+      ]
+    }, "progress"),
+    jsx("span", { className: "cs-grow" }, "grow"),
+    jsx("span", { className: "cs-faint", children: "You can close this. The new version shows up here and in the chat." }, "close")
+  ] : [
+    jsx("textarea", {
+      className: "cs-v-input",
+      disabled: !onSend,
+      onChange: (event) => setRequest(event.target.value),
+      onKeyDown: (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
+          event.preventDefault();
+          void send();
+        }
+      },
+      placeholder: onSend ? `What should ${AGENT} change in ${name}?` : "Open this game’s conversation to ask for changes.",
+      ref: input,
+      rows: 4,
+      value: request
+    }, "input"),
+    area ? jsxs("div", {
+      className: "cs-row cs-v-sec",
+      style: { gap: 6 },
+      children: [jsx("span", { className: "cs-v-text", children: `Only the marked area · ${area.w}×${area.h}` }), jsx("span", { className: "cs-grow" }), jsx(Button, { onClick: () => onArea(null), size: "sm", variant: "ghost", children: "Clear" })]
+    }, "area") : shownView === "Image" || shownView === "Sheet" ? jsx("span", { className: "cs-faint", children: "Drag on the picture to change just one area." }, "area") : null,
+    older ? jsx("span", { className: "cs-faint", children: `It starts from v${shownNumber}, the version shown.` }, "from") : null,
+    kind === "sprite" || kind === "background" ? jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: rebuild, onChange: (event) => setRebuild(event.target.checked), type: "checkbox" }), "Build and show the game after"] }, "rebuild") : null,
+    jsxs(Button, { disabled: !onSend || disabled || !request.trim(), onClick: () => void send(), size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
+    jsx("span", { className: "cs-grow" }, "grow"),
+    asks.length ? jsxs("div", {
+      className: "cs-col cs-v-sec",
+      children: [jsx("span", { className: "cs-eyebrow", children: "Asked before" }), ...asks.slice(-4).map((ask, position) => jsx("span", { className: "cs-faint", title: ask, children: `“${ask.length > 80 ? `${ask.slice(0, 80)}…` : ask}”` }, position))]
+    }, "asks") : null
+  ];
+}
+
 // page/pages/build/viewer/checks.js
 function artChecks(image, kind, info) {
   if (!image) {
@@ -5880,8 +6181,53 @@ function artChecks(image, kind, info) {
   return checks;
 }
 
+// page/pages/build/viewer/info.js
+var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
+function useAssetInfo(path, refresh, edit) {
+  const root = useContext(AssetGame);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    if (!path) {
+      setResult(null);
+      return void 0;
+    }
+    let live = true;
+    callStudioOnly(RPC_ASSET_INFO, { path, root }, 2e4).then((answer) => live && setResult(answer?.ok ? { path, root, answer } : null)).catch(() => live && setResult(null));
+    return () => {
+      live = false;
+    };
+  }, [path, root, refresh, edit]);
+  return result && result.path === path && result.root === root ? result.answer : null;
+}
+function useImages(paths, version) {
+  const root = useContext(AssetGame);
+  const putBack = usePutBack();
+  const [images, setImages] = useState({});
+  const key = paths.join("\n");
+  useEffect(() => {
+    let live = true;
+    setImages({});
+    for (const path of paths) {
+      void assetEntry(path, version, root).promise.then((answer) => {
+        if (!live || !answer?.dataUrl) {
+          return;
+        }
+        const element = document.createElement("img");
+        element.onload = () => live && setImages((current) => ({ ...current, [path]: element }));
+        element.src = answer.dataUrl;
+      });
+    }
+    return () => {
+      live = false;
+    };
+  }, [key, version, root, putBack]);
+  return images;
+}
+
 // page/pages/build/viewer/in-game.js
-function SceneCanvas({ scene, images, scale, highlight, refresh }) {
+function SceneCanvas({ scene, scale, highlight, refresh }) {
+  const paths = [...new Set([scene.background, ...(scene.actors ?? []).map((actor) => actor.sprite)].filter(Boolean))];
+  const images = useImages(paths, `scene:${refresh}`);
   const ref = useRef(null);
   const width = (Number(scene.width) || 20) * 8;
   const height = (Number(scene.height) || 18) * 8;
@@ -5971,49 +6317,6 @@ function CoverInGame({ image, game }) {
   });
 }
 
-// page/pages/build/viewer/info.js
-var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
-function useAssetInfo(path, refresh) {
-  const root = useContext(AssetGame);
-  const [info, setInfo] = useState(null);
-  useEffect(() => {
-    if (!path) {
-      setInfo(null);
-      return void 0;
-    }
-    let live = true;
-    callStudioOnly(RPC_ASSET_INFO, { path, root }, 2e4).then((answer) => live && setInfo(answer?.ok ? answer : null)).catch(() => live && setInfo(null));
-    return () => {
-      live = false;
-    };
-  }, [path, root, refresh]);
-  return info;
-}
-function useImages(paths, version) {
-  const root = useContext(AssetGame);
-  const putBack = usePutBack();
-  const [images, setImages] = useState({});
-  const key = paths.join("\n");
-  useEffect(() => {
-    let live = true;
-    setImages({});
-    for (const path of paths) {
-      void assetEntry(path, version, root).promise.then((answer) => {
-        if (!live || !answer?.dataUrl) {
-          return;
-        }
-        const element = document.createElement("img");
-        element.onload = () => live && setImages((current) => ({ ...current, [path]: element }));
-        element.src = answer.dataUrl;
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [key, version, root, putBack]);
-  return images;
-}
-
 // page/pages/build/viewer/sprite-canvas.js
 function SpriteFrameCanvas({ image, sprite: sprite2, tiles, flip, scale, colors, under = null }) {
   const ref = useRef(null);
@@ -6042,25 +6345,6 @@ function SpriteFrameCanvas({ image, sprite: sprite2, tiles, flip, scale, colors,
 
 // page/pages/build/viewer/stage.js
 var ZOOM_STEPS = [1, 2, 3, 4, 6, 8, 12, 16];
-function versionTime(entry) {
-  return entry?.at ? timeOfDay(entry.at) : "";
-}
-function VersionThumb({ path, entry, number, selected, onPick }) {
-  const { state, asset: loaded } = useAsset(path, `kept:${entry.id}`);
-  return jsxs("button", {
-    "aria-label": `Version ${number}${entry.current ? ", in the game now" : ""}`,
-    "aria-pressed": selected,
-    className: `cs-v-ver${selected ? " on" : ""}`,
-    onClick: () => onPick(entry.id),
-    title: `v${number} · ${versionTime(entry)}${entry.current ? " · in the game now" : ""}`,
-    type: "button",
-    children: [
-      state === "ok" ? jsx(SheetFrame, { loaded }) : jsx("span", { className: "cs-v-ver-ph" }),
-      jsx("b", { children: `v${number}` }),
-      entry.current ? jsx("i", { "aria-hidden": true, className: "cs-v-now" }) : null
-    ]
-  });
-}
 function useBoxSize(ref) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
@@ -6129,271 +6413,11 @@ function ImageStage({ image, scale, grid, gridSize = [8, 8], area, onArea, picki
   });
 }
 
-// page/pages/build/viewer/asset-viewer.js
-function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, chat, root, game }) {
-  const asset = assets[index];
-  const path = asset?.path ?? null;
-  const [refresh, setRefresh] = useState(0);
-  const info = useAssetInfo(path, refresh);
-  const opened = useAsset(path, asset?.version);
-  const [picked, setPicked] = useState(null);
-  const shownVersion = picked ? `kept:${picked}` : asset?.version;
-  const { state, asset: loaded } = useAsset(path, shownVersion);
-  const image = useImage(loaded?.dataUrl);
-  const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
-  const sprite2 = info?.sprite ?? null;
-  const animations = useMemo(() => spriteAnimations(sprite2), [sprite2]);
-  const scenes = info?.scenes ?? [];
-  const views = kind === "cover" ? ["Image", "In game"] : kind === "sprite" ? [...animations.length ? ["Animation"] : [], "Sheet", ...scenes.length ? ["In game"] : []] : kind === "background" && scenes.length ? ["Image", "In game"] : ["Image"];
-  const [view, setView] = useState(null);
-  const shownView = views.includes(view) ? view : views[0];
-  const [side, setSide] = useState("Details");
-  const [zoom, setZoom] = useState("fit");
-  const [grid, setGrid] = useState(false);
-  const [area, setArea] = useState(null);
-  const [request, setRequest] = useState("");
-  const [rebuild, setRebuild] = useState(true);
-  const [gameColours, setGameColours] = useState(true);
-  const [animationIndex, setAnimationIndex] = useState(0);
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [onion, setOnion] = useState(false);
-  const [sceneIndex, setSceneIndex] = useState(0);
-  const [sentAt, setSentAt] = useState(null);
-  const [restoring, setRestoring] = useState(false);
-  const stageRef = useRef(null);
-  const box = useBoxSize(stageRef);
-  const dialog = useRef(null);
-  const input = useRef(null);
-  const palette = useMemo(() => image ? imagePalette(image, 32) : [], [image]);
-  const checks = useMemo(() => artChecks(image, kind, info), [image, kind, info]);
-  const sceneImages = useImages(
-    useMemo(() => [...new Set(scenes.flatMap((scene2) => [scene2.background, ...(scene2.actors ?? []).map((actor) => actor.sprite)]).filter(Boolean))], [scenes]),
-    `scene:${refresh}`
-  );
-  const versions = info?.versions ?? [];
-  const currentId = versions.find((entry) => entry.current)?.id ?? null;
-  const shownId = picked ?? loaded?.versionId ?? null;
-  const shownEntry = versions.find((entry) => entry.id === shownId) ?? null;
-  const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
-  const older = Boolean(shownEntry && currentId && shownEntry.id !== currentId);
-  const name = sprite2?.name || loaded?.sprite?.name || loaded?.name || baseName(path ?? "");
-  const animation = animations[Math.min(animationIndex, Math.max(0, animations.length - 1))] ?? null;
-  const frames = animation?.frames ?? [];
-  const frameMs = spriteFrameMs(sprite2?.animSpeed);
-  const colors = gameColours ? info?.palette?.colors : null;
-  const working = Boolean(sentAt && chat?.busy);
-  const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
-  useEffect(() => {
-    setPicked(null);
-    setView(null);
-    setArea(null);
-    setFrame(0);
-    setAnimationIndex(0);
-    setSceneIndex(0);
-    setZoom("fit");
-  }, [path, asset?.version]);
-  useEffect(() => setFrame(0), [animationIndex]);
-  useEffect(() => {
-    if (!animations.length) {
-      return;
-    }
-    const walking = animations.findIndex((entry) => /walk|run|moving/i.test(entry.name) && entry.frames.length > 1);
-    setAnimationIndex(walking === -1 ? Math.max(0, animations.findIndex((entry) => entry.frames.length > 1)) : walking);
-  }, [animations]);
-  useEffect(() => {
-    if (shownView !== "Animation" || !playing || frames.length < 2) {
-      return void 0;
-    }
-    const id = setInterval(() => setFrame((value) => (value + 1) % frames.length), frameMs);
-    return () => clearInterval(id);
-  }, [shownView, playing, frames.length, frameMs]);
-  const wasWorking = useRef(false);
-  useEffect(() => {
-    if (working) {
-      wasWorking.current = true;
-    } else if (sentAt && wasWorking.current) {
-      wasWorking.current = false;
-      setSentAt(null);
-      setPicked(null);
-      setRefresh((value) => value + 1);
-    }
-  }, [working, sentAt]);
-  useEffect(() => {
-    if (refresh && currentId) {
-      setPicked(currentId);
-    }
-  }, [refresh, currentId]);
-  useEffect(() => {
-    if (side === "Change") {
-      input.current?.focus?.();
-    } else {
-      setArea(null);
-    }
-  }, [side]);
-  useEffect(() => {
-    dialog.current?.focus?.();
-    const onKey = (event) => {
-      const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(event.target?.tagName ?? "");
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (area) {
-          setArea(null);
-        } else {
-          onClose();
-        }
-      } else if (typing) {
-        return;
-      } else if (event.key === "ArrowRight" && assets.length > 1) {
-        event.preventDefault();
-        onIndex((index + 1) % assets.length);
-      } else if (event.key === "ArrowLeft" && assets.length > 1) {
-        event.preventDefault();
-        onIndex((index - 1 + assets.length) % assets.length);
-      } else if ((event.key === "," || event.key === ".") && shownView === "Animation" && frames.length > 1) {
-        event.preventDefault();
-        setPlaying(false);
-        setFrame((value) => (value + (event.key === "." ? 1 : frames.length - 1)) % frames.length);
-      } else if (event.key === " " && shownView === "Animation") {
-        event.preventDefault();
-        setPlaying((value) => !value);
-      } else if (event.key === "+" || event.key === "=") {
-        setZoom((value) => ZOOM_STEPS.find((step) => step > (value === "fit" ? currentScale : value)) ?? 16);
-      } else if (event.key === "-") {
-        setZoom((value) => [...ZOOM_STEPS].reverse().find((step) => step < (value === "fit" ? currentScale : value)) ?? 1);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-  const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
-  let contentWidth = image?.naturalWidth ?? 0;
-  let contentHeight = image?.naturalHeight ?? 0;
-  if (shownView === "Animation" && sprite2) {
-    contentWidth = sprite2.canvasWidth;
-    contentHeight = sprite2.canvasHeight;
-  } else if (shownView === "In game" && scene) {
-    contentWidth = (Number(scene.width) || 20) * 8;
-    contentHeight = (Number(scene.height) || 18) * 8;
-  }
-  const fit = fitScale(box, contentWidth, contentHeight, shownView === "Animation" ? 140 : 48);
-  const currentScale = zoom === "fit" ? fit : zoom;
-  const zoomable = shownView !== "In game" || kind !== "cover";
-  useEffect(() => {
-    const element = stageRef.current;
-    if (!element || !zoomable) {
-      return void 0;
-    }
-    const onWheel = (event) => {
-      event.preventDefault();
-      setZoom((value) => {
-        const now = value === "fit" ? currentScale : value;
-        return event.deltaY < 0 ? ZOOM_STEPS.find((step) => step > now) ?? 16 : [...ZOOM_STEPS].reverse().find((step) => step < now) ?? 1;
-      });
-    };
-    element.addEventListener("wheel", onWheel, { passive: false });
-    return () => element.removeEventListener("wheel", onWheel);
-  }, [zoomable, currentScale]);
+// page/pages/build/viewer/stage-viewport.js
+function StageViewport({ area, children, kind, picking, running, shownView, stageRef, working, playback, scenePicker }) {
   const pan = useRef(null);
-  if (!asset) {
-    return null;
-  }
-  const reveal = async () => {
-    const shown = await ctx.os?.revealPath?.(path).catch(() => false);
-    if (!shown) {
-      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-      host.notify({ kind: "info", message: copied ? "The file is on the computer running Hermes. Its path is copied." : path });
-    }
-  };
-  const copyImage = async () => {
-    try {
-      const blob = await (await fetch(loaded.dataUrl)).blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-      host.notify({ kind: "success", message: "Image copied" });
-    } catch {
-      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
-      host.notify({ kind: "info", message: copied ? "The image could not be copied, so its path was." : "The image could not be copied." });
-    }
-  };
-  const copyColour = async (color) => {
-    const copied = await ctx.os?.writeClipboard?.(color).catch(() => false);
-    host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
-  };
-  const restore = async () => {
-    if (!shownEntry || restoring) {
-      return;
-    }
-    setRestoring(true);
-    try {
-      const answer = await callStudioOnly(RPC_ASSET_RESTORE, { path, root, version: shownEntry.id }, 2e4);
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? "It could not be restored.");
-      }
-      forgetAsset(path, answer.path);
-      host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
-      setRefresh((value) => value + 1);
-    } catch (error) {
-      host.notify({ kind: "error", message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setRestoring(false);
-    }
-  };
-  const send = () => {
-    const words = request.trim();
-    if (!words || !onSend || working) {
-      return;
-    }
-    const notes = [];
-    if (area && image) {
-      notes.push(`Only change the area from (${area.x}, ${area.y}) to (${area.x + area.w - 1}, ${area.y + area.h - 1}), in pixels of the ${image.naturalWidth}×${image.naturalHeight} image. Keep everything outside it exactly as it is.`);
-    }
-    if (older && shownEntry) {
-      notes.push(`Start from version ${shownNumber} (from ${versionTime(shownEntry)}), kept at ${shownEntry.file}. The file in the game is a newer version.`);
-    }
-    if (rebuild && (kind === "sprite" || kind === "background")) {
-      notes.push("When it is done, build the game and show it to me with chromatic_present_game.");
-    }
-    const text2 = notes.length ? `${words}
-
-${notes.map((note) => `- ${note}`).join("\n")}` : words;
-    onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }]);
-    setRequest("");
-    setArea(null);
-    setSentAt(Date.now());
-  };
-  let progress2 = [];
-  if (sentAt && chat?.items?.length) {
-    const turns = deriveTurns(chat.items);
-    const last = turns[turns.length - 1];
-    progress2 = last ? turnParts(last, root).steps.slice(-6) : [];
-  }
-  const running = progress2.find((tool) => tool.state === "running") ?? null;
-  const picking = side === "Change" && (shownView === "Image" || shownView === "Sheet") && !working;
-  let stage;
-  if (state === "loading" || !image && state !== "none") {
-    stage = jsx("span", { className: "cs-b-th lg loading" });
-  } else if (!image) {
-    stage = jsx("p", { className: "cs-small", children: "This picture could not be loaded." });
-  } else if (shownView === "Animation" && animation) {
-    const tiles = frames[Math.min(frame, frames.length - 1)] ?? [];
-    const before = onion && frames.length > 1 ? frames[(frame + frames.length - 1) % frames.length] : null;
-    stage = jsx(SpriteFrameCanvas, { colors, flip: animation.flip, image, scale: currentScale, sprite: sprite2, tiles, under: before });
-  } else if (shownView === "In game" && kind === "cover") {
-    stage = jsx(CoverInGame, { game, image });
-  } else if (shownView === "In game" && scene) {
-    stage = jsx(SceneCanvas, { highlight: kind === "sprite" ? sprite2?.id : null, images: sceneImages, refresh, scale: currentScale, scene });
-  } else {
-    const sheetColours = kind === "sprite" && colors ? paintSheet(image, colors) : null;
-    stage = jsx(ImageStage, {
-      area,
-      grid,
-      gridSize: kind === "sprite" ? [8, 16] : [8, 8],
-      image: sheetColours && sheetColours !== image ? canvasImage(sheetColours, image) : image,
-      onArea: setArea,
-      picking,
-      scale: currentScale
-    });
-  }
+  const { animation, animations, colors, frame, frames, image, onion, playing, setAnimationIndex, setFrame, setOnion, setPlaying, sprite: sprite2 } = playback;
+  const { scene, scenes, setSceneIndex } = scenePicker;
   const chips = [];
   if (shownView === "Animation" && animations.length) {
     chips.push(
@@ -6453,117 +6477,246 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
       }, "working")
     );
   }
-  const madeBy = asset.step || asset.at ? jsxs("div", {
-    className: "cs-col cs-v-sec",
+  return jsxs("div", {
+    className: `cs-v-stage${kind === "sprite" && shownView !== "In game" ? " checker" : ""}`,
     children: [
-      jsx("span", { className: "cs-eyebrow", children: asset.step === "In the reply" ? `Shown by ${AGENT}` : `Made by ${AGENT}` }),
-      asset.ask ? jsx("span", { className: "cs-v-quote", children: `“${asset.ask.length > 140 ? `${asset.ask.slice(0, 140)}…` : asset.ask}”` }) : null,
-      jsx("span", { className: "cs-faint", children: [asset.at ? timeOfDay(asset.at) : "", asset.step && asset.step !== "In the reply" ? asset.step : ""].filter(Boolean).join(" · ") })
+      jsx("div", {
+        className: `cs-v-scroll${picking ? "" : " pannable"}`,
+        onPointerDown: (event) => {
+          const element = stageRef.current;
+          if (picking || event.button !== 0 || !element || element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight) {
+            return;
+          }
+          pan.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
+          element.setPointerCapture?.(event.pointerId);
+        },
+        onPointerMove: (event) => {
+          const element = stageRef.current;
+          if (pan.current && element) {
+            element.scrollLeft = pan.current.left - (event.clientX - pan.current.x);
+            element.scrollTop = pan.current.top - (event.clientY - pan.current.y);
+          }
+        },
+        onPointerUp: () => {
+          pan.current = null;
+        },
+        ref: stageRef,
+        children: jsx("div", { className: "cs-v-stage-in", children })
+      }),
+      ...chips
     ]
-  }) : null;
-  const details = [
-    older ? jsxs("div", {
-      className: "cs-v-note",
-      children: [
-        jsx("span", { children: `This is v${shownNumber} from ${versionTime(shownEntry)}. The game uses v${versions.findIndex((entry) => entry.current) + 1}.` }),
-        jsxs("div", {
-          className: "cs-row",
-          style: { gap: 6 },
-          children: [
-            jsx(Button, { disabled: restoring || working, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
-            jsx(Button, { onClick: () => setPicked(currentId), size: "sm", variant: "ghost", children: "Show the current one" })
-          ]
-        })
-      ]
-    }, "older") : null,
-    madeBy ? jsx("div", { children: madeBy }, "made") : null,
-    kind === "sprite" && info?.palette ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "In-game palette" }),
-        jsxs("div", {
-          className: "cs-row",
-          style: { gap: 8 },
-          children: [
-            jsx("div", { className: "cs-v-pal", children: info.palette.colors.map((color, position) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color}${position === 2 ? " (not used by sprites)" : ""}`, type: "button" }, position)) }),
-            info.palette.name ? jsx("span", { className: "cs-tag", children: info.palette.name }) : null
-          ]
-        }),
-        jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: gameColours, onChange: (event) => setGameColours(event.target.checked), type: "checkbox" }), "Show it in these colours"] })
-      ]
-    }, "palette") : null,
-    palette.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: `Colours in the file · ${palette.length}${palette.length >= 32 ? "+" : ""}` }),
-        jsx("div", { className: "cs-v-sw", children: palette.map((color) => jsx("button", { onClick: () => void copyColour(color), style: { background: color }, title: `${color} · click to copy`, type: "button" }, color)) })
-      ]
-    }, "colours") : null,
-    checks.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Checks" }),
-        ...checks.map((check, position) => jsxs("span", { className: `cs-v-check${check.ok ? "" : " bad"}`, children: [jsx(Codicon, { name: check.ok ? "check" : "warning", size: 12 }), check.text] }, position))
-      ]
-    }, "checks") : null,
-    kind === "cover" ? jsxs("div", { className: "cs-col cs-v-sec", children: [jsx("span", { className: "cs-eyebrow", children: "Shown on" }), jsx("span", { className: "cs-v-text", children: "Its Games page card and the Build page" })] }, "shown") : info?.usedIn ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Used in" }),
-        ...info.usedIn.length ? info.usedIn.map((use) => jsxs("span", { className: "cs-v-text", children: [jsx("b", { children: use.scene }), ` · ${use.count > 1 ? `${use.count}: ` : ""}${use.as.join(", ")}`] }, use.sceneId)) : [jsx("span", { className: "cs-faint", children: "Not placed in any scene yet" }, "none")]
-      ]
-    }, "used") : null
-  ];
-  const change = working || sentAt && progress2.length ? [
-    jsxs("div", {
-      className: "cs-v-card",
-      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: chat?.items?.findLast?.((item) => item.kind === "user")?.text ?? "" })]
-    }, "asked"),
-    jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [
-        jsx("span", { className: "cs-eyebrow", children: "Progress" }),
-        ...(progress2.length ? progress2 : []).map(
-          (tool) => jsxs("span", {
-            className: `cs-v-step ${tool.state}`,
-            children: [tool.state === "running" ? jsx("span", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : "check", size: 12 }), stepWords(tool)[tool.state === "running" ? 0 : 1]]
-          }, tool.id)
-        ),
-        !progress2.length ? jsx("span", { className: "cs-faint", children: "Starting…" }) : null
-      ]
-    }, "progress"),
-    jsx("span", { className: "cs-grow" }, "grow"),
-    jsx("span", { className: "cs-faint", children: "You can close this. The new version shows up here and in the chat." }, "close")
-  ] : [
-    jsx("textarea", {
-      className: "cs-v-input",
-      disabled: !onSend,
-      onChange: (event) => setRequest(event.target.value),
-      onKeyDown: (event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
-          event.preventDefault();
-          send();
+  });
+}
+
+// page/pages/build/viewer/asset-viewer.js
+function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game, stored, turns }) {
+  const asset = assets[index];
+  const path = asset?.path ?? null;
+  const [refresh, setRefresh] = useState(0);
+  const lastChange = chat?.lastAssetChange;
+  const [edits, setEdits] = useState(() => ({ last: lastChange, byPath: /* @__PURE__ */ new Map() }));
+  if (lastChange && edits.last !== lastChange) {
+    setEdits({ last: lastChange, byPath: new Map(edits.byPath).set(lastChange.path, lastChange) });
+  }
+  const edit = edits.byPath.get(path);
+  const info = useAssetInfo(path, refresh, edit);
+  const opened = useAsset(path, asset?.version);
+  const version = useVersionHistory({
+    path,
+    original: asset?.version,
+    edit,
+    info,
+    root,
+    canRestore: () => !assetRestoreBlocked(BUILD_CHATS.get()[stored]),
+    onRefresh: () => setRefresh((value) => value + 1)
+  });
+  const { state, loaded, shownNumber } = version;
+  const image = useImage(loaded?.dataUrl);
+  const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
+  const sprite2 = info?.sprite ?? null;
+  const animations = useMemo(() => spriteAnimations(sprite2), [sprite2]);
+  const scenes = info?.scenes ?? [];
+  const views = kind === "cover" ? ["Image", "In game"] : kind === "sprite" ? [...animations.length ? ["Animation"] : [], "Sheet", ...scenes.length ? ["In game"] : []] : kind === "background" && scenes.length ? ["Image", "In game"] : ["Image"];
+  const [view, setView] = useState(null);
+  const shownView = views.includes(view) ? view : views[0];
+  const [side, setSide] = useState("Details");
+  const [zoom, setZoom] = useState("fit");
+  const [grid, setGrid] = useState(false);
+  const [area, setArea] = useState(null);
+  const [gameColours, setGameColours] = useState(true);
+  const [animationIndex, setAnimationIndex] = useState(0);
+  const [frame, setFrame] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [onion, setOnion] = useState(false);
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const stageRef = useRef(null);
+  const box = useBoxSize(stageRef);
+  const dialog = useRef(null);
+  const palette = useMemo(() => image ? imagePalette(image, 32) : [], [image]);
+  const checks = useMemo(() => artChecks(image, kind, info), [image, kind, info]);
+  const name = sprite2?.name || loaded?.sprite?.name || loaded?.name || baseName(path ?? "");
+  const animation = animations[Math.min(animationIndex, Math.max(0, animations.length - 1))] ?? null;
+  const frames = animation?.frames ?? [];
+  const frameMs = spriteFrameMs(sprite2?.animSpeed);
+  const colors = gameColours ? info?.palette?.colors : null;
+  const change = chat?.assetChange;
+  const working = change?.path === path;
+  const changeDisabled = version.restoring || !canSendAssetChange(chat);
+  const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
+  useEffect(() => {
+    setView(null);
+    setArea(null);
+    setFrame(0);
+    setAnimationIndex(0);
+    setSceneIndex(0);
+    setZoom("fit");
+  }, [path, asset?.version]);
+  useEffect(() => setFrame(0), [animationIndex]);
+  useEffect(() => {
+    if (!animations.length) {
+      return;
+    }
+    const walking = animations.findIndex((entry) => /walk|run|moving/i.test(entry.name) && entry.frames.length > 1);
+    setAnimationIndex(walking === -1 ? Math.max(0, animations.findIndex((entry) => entry.frames.length > 1)) : walking);
+  }, [animations]);
+  useEffect(() => {
+    if (shownView !== "Animation" || !playing || frames.length < 2) {
+      return void 0;
+    }
+    const id = setInterval(() => setFrame((value) => (value + 1) % frames.length), frameMs);
+    return () => clearInterval(id);
+  }, [shownView, playing, frames.length, frameMs]);
+  useEffect(() => {
+    if (side !== "Change") {
+      setArea(null);
+    }
+  }, [side]);
+  useLayoutEffect(() => {
+    const previous = opener ?? document.activeElement;
+    const element = dialog.current;
+    element?.focus({ preventScroll: true });
+    return () => {
+      const active = document.activeElement;
+      if (previous?.isConnected && (element?.contains(active) || active === document.body)) {
+        previous.focus({ preventScroll: true });
+      }
+    };
+  }, [opener]);
+  const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
+  let contentWidth = image?.naturalWidth ?? 0;
+  let contentHeight = image?.naturalHeight ?? 0;
+  if (shownView === "Animation" && sprite2) {
+    contentWidth = sprite2.canvasWidth;
+    contentHeight = sprite2.canvasHeight;
+  } else if (shownView === "In game" && scene) {
+    contentWidth = (Number(scene.width) || 20) * 8;
+    contentHeight = (Number(scene.height) || 18) * 8;
+  }
+  const fit = fitScale(box, contentWidth, contentHeight, shownView === "Animation" ? 140 : 48);
+  const currentScale = zoom === "fit" ? fit : zoom;
+  const zoomable = shownView !== "In game" || kind !== "cover";
+  useEffect(() => {
+    const onKey = (event) => {
+      const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(event.target?.tagName ?? "");
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (area) {
+          setArea(null);
+        } else {
+          onClose();
         }
-      },
-      placeholder: onSend ? `What should ${AGENT} change in ${name}?` : "Open this game’s conversation to ask for changes.",
-      ref: input,
-      rows: 4,
-      value: request
-    }, "input"),
-    area ? jsxs("div", {
-      className: "cs-row cs-v-sec",
-      style: { gap: 6 },
-      children: [jsx("span", { className: "cs-v-text", children: `Only the marked area · ${area.w}×${area.h}` }), jsx("span", { className: "cs-grow" }), jsx(Button, { onClick: () => setArea(null), size: "sm", variant: "ghost", children: "Clear" })]
-    }, "area") : shownView === "Image" || shownView === "Sheet" ? jsx("span", { className: "cs-faint", children: "Drag on the picture to change just one area." }, "area") : null,
-    older ? jsx("span", { className: "cs-faint", children: `It starts from v${shownNumber}, the version shown.` }, "from") : null,
-    kind === "sprite" || kind === "background" ? jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: rebuild, onChange: (event) => setRebuild(event.target.checked), type: "checkbox" }), "Build and show the game after"] }, "rebuild") : null,
-    jsxs(Button, { disabled: !onSend || !request.trim(), onClick: send, size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
-    jsx("span", { className: "cs-grow" }, "grow"),
-    asks.length ? jsxs("div", {
-      className: "cs-col cs-v-sec",
-      children: [jsx("span", { className: "cs-eyebrow", children: "Asked before" }), ...asks.slice(-4).map((ask, position) => jsx("span", { className: "cs-faint", title: ask, children: `“${ask.length > 80 ? `${ask.slice(0, 80)}…` : ask}”` }, position))]
-    }, "asks") : null
-  ];
+      } else if (typing) {
+        return;
+      } else if (event.key === "ArrowRight" && assets.length > 1) {
+        event.preventDefault();
+        onIndex((index + 1) % assets.length);
+      } else if (event.key === "ArrowLeft" && assets.length > 1) {
+        event.preventDefault();
+        onIndex((index - 1 + assets.length) % assets.length);
+      } else if ((event.key === "," || event.key === ".") && shownView === "Animation" && frames.length > 1) {
+        event.preventDefault();
+        setPlaying(false);
+        setFrame((value) => (value + (event.key === "." ? 1 : frames.length - 1)) % frames.length);
+      } else if (event.key === " " && shownView === "Animation" && !event.target?.closest?.("button")) {
+        event.preventDefault();
+        setPlaying((value) => !value);
+      } else if (event.key === "+" || event.key === "=") {
+        setZoom((value) => ZOOM_STEPS.find((step) => step > (value === "fit" ? currentScale : value)) ?? 16);
+      } else if (event.key === "-") {
+        setZoom((value) => [...ZOOM_STEPS].reverse().find((step) => step < (value === "fit" ? currentScale : value)) ?? 1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [area, assets.length, currentScale, frames.length, index, onClose, onIndex, shownView]);
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element || !zoomable) {
+      return void 0;
+    }
+    const onWheel = (event) => {
+      event.preventDefault();
+      setZoom((value) => {
+        const now = value === "fit" ? currentScale : value;
+        return event.deltaY < 0 ? ZOOM_STEPS.find((step) => step > now) ?? 16 : [...ZOOM_STEPS].reverse().find((step) => step < now) ?? 1;
+      });
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [zoomable, currentScale]);
+  if (!asset) {
+    return null;
+  }
+  const reveal = async () => {
+    const shown = await ctx.os?.revealPath?.(path).catch(() => false);
+    if (!shown) {
+      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+      host.notify({ kind: "info", message: copied ? "The file is on the computer running Hermes. Its path is copied." : path });
+    }
+  };
+  const copyImage = async () => {
+    try {
+      const blob = await (await fetch(loaded.dataUrl)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      host.notify({ kind: "success", message: "Image copied" });
+    } catch {
+      const copied = await ctx.os?.writeClipboard?.(path).catch(() => false);
+      host.notify({ kind: "info", message: copied ? "The image could not be copied, so its path was." : "The image could not be copied." });
+    }
+  };
+  const copyColour = async (color) => {
+    const copied = await ctx.os?.writeClipboard?.(color).catch(() => false);
+    host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
+  };
+  const changeTurn = working ? turns.findLast((turn) => turn.user?.assetChange === change) : null;
+  const progress2 = changeTurn ? turnParts(changeTurn, root).steps.slice(-6) : [];
+  const running = progress2.find((tool) => tool.state === "running") ?? null;
+  const picking = side === "Change" && (shownView === "Image" || shownView === "Sheet") && !working;
+  let stage;
+  if (state === "loading" || !image && state !== "none") {
+    stage = jsx("span", { className: "cs-b-th lg loading" });
+  } else if (!image) {
+    stage = jsx("p", { className: "cs-small", children: "This picture could not be loaded." });
+  } else if (shownView === "Animation" && animation) {
+    const tiles = frames[Math.min(frame, frames.length - 1)] ?? [];
+    const before = onion && frames.length > 1 ? frames[(frame + frames.length - 1) % frames.length] : null;
+    stage = jsx(SpriteFrameCanvas, { colors, flip: animation.flip, image, scale: currentScale, sprite: sprite2, tiles, under: before });
+  } else if (shownView === "In game" && kind === "cover") {
+    stage = jsx(CoverInGame, { game, image });
+  } else if (shownView === "In game" && scene) {
+    stage = jsx(SceneCanvas, { highlight: kind === "sprite" ? sprite2?.id : null, refresh, scale: currentScale, scene });
+  } else {
+    const sheetColours = kind === "sprite" && colors ? paintSheet(image, colors) : null;
+    stage = jsx(ImageStage, {
+      area,
+      grid,
+      gridSize: kind === "sprite" ? [8, 16] : [8, 8],
+      image: sheetColours && sheetColours !== image ? canvasImage(sheetColours, image) : image,
+      onArea: setArea,
+      picking,
+      scale: currentScale
+    });
+  }
   return jsx("div", {
     className: "cs-b-dim",
     onClick: onClose,
@@ -6607,34 +6760,17 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
         jsxs("div", {
           className: "cs-v-body",
           children: [
-            jsxs("div", {
-              className: `cs-v-stage${kind === "sprite" && shownView !== "In game" ? " checker" : ""}`,
-              children: [
-                jsx("div", {
-                  className: `cs-v-scroll${picking ? "" : " pannable"}`,
-                  onPointerDown: (event) => {
-                    const element = stageRef.current;
-                    if (picking || event.button !== 0 || !element || element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight) {
-                      return;
-                    }
-                    pan.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
-                    element.setPointerCapture?.(event.pointerId);
-                  },
-                  onPointerMove: (event) => {
-                    const element = stageRef.current;
-                    if (pan.current && element) {
-                      element.scrollLeft = pan.current.left - (event.clientX - pan.current.x);
-                      element.scrollTop = pan.current.top - (event.clientY - pan.current.y);
-                    }
-                  },
-                  onPointerUp: () => {
-                    pan.current = null;
-                  },
-                  ref: stageRef,
-                  children: jsx("div", { className: "cs-v-stage-in", children: stage })
-                }),
-                ...chips
-              ]
+            jsx(StageViewport, {
+              area,
+              kind,
+              picking,
+              running,
+              shownView,
+              stageRef,
+              working,
+              playback: { animation, animations, colors, frame, frames, image, onion, playing, setAnimationIndex, setFrame, setOnion, setPlaying, sprite: sprite2 },
+              scenePicker: { scene, scenes, setSceneIndex },
+              children: stage
             }),
             jsxs("div", {
               className: "cs-v-side",
@@ -6644,7 +6780,29 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
                   role: "tablist",
                   children: ["Details", "Change"].map((entry) => jsxs("button", { "aria-selected": side === entry, className: side === entry ? "on" : "", onClick: () => setSide(entry), role: "tab", type: "button", children: [entry, entry === "Change" && working ? jsx("span", { className: "cs-b-spin" }) : null] }, entry))
                 }),
-                jsx("div", { className: "cs-v-pane", children: side === "Details" ? details : change })
+                jsxs("div", {
+                  className: "cs-v-pane",
+                  children: [
+                    side === "Details" ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked: assetRestoreBlocked(chat) }) : null,
+                    jsx(ChangeForm, {
+                      active: side === "Change",
+                      area,
+                      asks,
+                      change: working ? change : null,
+                      disabled: changeDisabled,
+                      image,
+                      kind,
+                      loaded,
+                      name,
+                      onArea: setArea,
+                      onSend,
+                      path,
+                      progress: progress2,
+                      shownView,
+                      version
+                    }, path)
+                  ]
+                })
               ]
             })
           ]
@@ -6652,14 +6810,7 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
         jsxs("div", {
           className: "cs-v-foot",
           children: [
-            versions.length ? jsxs("div", {
-              className: "cs-v-vers",
-              children: [
-                jsx("span", { className: "cs-eyebrow", children: "Versions" }),
-                ...versions.map((entry, position) => jsx(VersionThumb, { entry, number: position + 1, onPick: setPicked, path, selected: entry.id === shownId }, entry.id)),
-                working ? jsxs("span", { className: "cs-v-ver pending", title: "Being made now", children: [jsx("span", { className: "cs-b-spin" }), jsx("b", { children: `v${versions.length + 1}` })] }) : null
-              ]
-            }) : null,
+            jsx(VersionHistory, { path, version, working }),
             jsx("span", { className: "cs-grow" }),
             assets.length > 1 ? jsx("span", { className: "cs-faint cs-v-nav", children: `← → other pictures · ${index + 1} of ${assets.length}` }) : null,
             jsxs(Button, { onClick: () => void reveal(), size: "sm", variant: "ghost", children: [jsx(Codicon, { name: "folder-opened", size: 13 }), "Show in folder"] }),
@@ -6673,9 +6824,29 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
 
 // page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
+function changeImage(change, root, version) {
+  const raw = change.asset?.replace(/^file:\/\//, "");
+  const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw));
+  return path ? { path, version, kind: assetKind(path), step: change.text } : null;
+}
+function buildCardArt(parts, root) {
+  const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
+  const reported = parts.report?.changes;
+  const version = reported?.length && parts.reportAt ? `reply:${parts.reportAt}` : "card";
+  const rows = reported?.length ? reported : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path }));
+  const changes = rows.map((change) => ({ ...change, image: changeImage(change, root, version) }));
+  const edited = [.../* @__PURE__ */ new Set([
+    ...changes.filter((change) => change.kind === "changed" && change.image).map((change) => change.image.path),
+    ...made.map((asset) => asset.path)
+  ])].slice(0, 2);
+  const primary = reported?.length ? changes.find((change) => change.kind !== "removed" && /\.(png|gif|jpe?g|webp)$/i.test(change.image?.path ?? ""))?.image.path : null;
+  return { changes, edited, primary: primary ?? parts.assets.find((asset) => !asset.looked && asset.kind !== "Playtest frame")?.path ?? null };
+}
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
-  const before = useAsset(from ? path : null, `reply:${from}`);
-  const after = useAsset(path, to ? `reply:${to}` : null);
+  const beforeVersion = from ? `reply:${from}` : null;
+  const afterVersion = to ? `reply:${to}` : null;
+  const before = useAssetPreview(from ? path : null, beforeVersion);
+  const after = useAssetPreview(path, afterVersion);
   const root = useContext(AssetGame);
   const [state, setState] = useState(null);
   if (after.state !== "ok") {
@@ -6700,7 +6871,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const side = (loaded, label, now) => jsxs("button", {
     "aria-label": compare ? `Look closer at ${label.toLowerCase()} version of ${name}` : `Look closer at ${name}`,
     className: now ? "cs-b-ba-side now" : "cs-b-ba-side",
-    onClick: () => onOpen?.({ path, version: now ? to ? `reply:${to}` : null : `reply:${from}`, kind: assetKind(path), step: label }),
+    onClick: (event) => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
     type: "button",
     children: [jsx("span", { className: "cs-b-ba-img", children: jsx(SheetFrame, { loaded }) }), jsx("span", { className: "cs-b-ba-cap", children: label })]
   });
@@ -6729,44 +6900,42 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     ]
   });
 }
-function ChangeList({ changes, root, onOpen }) {
+function ChangeList({ changes, onOpen }) {
   return jsx("ul", {
     className: "cs-b-bc-changes",
-    children: changes.map((change, index) => {
-      const path = change.asset ? isAbsolute(change.asset) ? change.asset.replace(/^file:\/\//, "") : joinPath(root, change.asset) : null;
-      return jsxs(
-        "li",
-        {
-          "data-kind": change.kind,
-          children: [
-            jsx("span", { "aria-hidden": true, className: "cs-b-bc-mark", children: CHANGE_MARK[change.kind] ?? "~" }),
-            path ? jsx(AssetThumb, { asset: { path, version: "card", kind: assetKind(path), step: change.text }, onOpen, size: "xs" }) : null,
-            jsx("span", { children: change.text })
-          ]
-        },
-        index
-      );
-    })
+    children: changes.map((change, index) => jsxs(
+      "li",
+      {
+        "data-kind": change.kind,
+        children: [
+          jsx("span", { "aria-hidden": true, className: "cs-b-bc-mark", children: CHANGE_MARK[change.kind] ?? "~" }),
+          change.image ? jsx(AssetThumb, { asset: change.image, onOpen, size: "xs" }) : null,
+          jsx("span", { children: change.text })
+        ]
+      },
+      index
+    ))
   });
 }
-function primaryArt(parts, root) {
-  const reported = parts.report?.changes.find((change) => change.kind !== "removed" && /\.(png|gif|jpe?g|webp)$/i.test(change.asset ?? ""));
-  if (reported) {
-    return isAbsolute(reported.asset) ? reported.asset.replace(/^file:\/\//, "") : joinPath(root, reported.asset);
-  }
-  return parts.assets.find((asset) => !asset.looked && asset.kind !== "Playtest frame")?.path ?? null;
-}
-function BuildCard({ art, replay, play, build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+function BuildCard({ art, primary, replay, play, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false);
   const failed = build?.state === "failed";
-  const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
-  const changes = report?.changes?.length ? report.changes : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path, made: true }));
+  const { changes, edited } = art;
   const tested = report?.tested ?? [];
   const untested = report?.untested ?? [];
   const notes = report?.notes ?? [];
-  const title = report?.title ?? (failed ? "The build didn’t finish" : build?.title ?? (art ? baseName(art) : "Done"));
+  const title = report?.title ?? (failed ? "The build didn’t finish" : build?.title ?? (primary ? baseName(primary) : "Done"));
   const summary = failed && parts.buildFailed || report?.summary;
-  const hasFoot = changes.length || tested.length || untested.length || notes.length || failed;
+  const extraArt = edited.filter((path) => path !== primary);
+  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed;
+  const compareArt = (path) => jsx(BeforeAfter, {
+    actions: isLast && !chatBusy,
+    from: parts.startedAt,
+    onOpen: onOpenAsset,
+    onSend,
+    path,
+    to: parts.endedAt
+  }, path);
   return jsxs("div", {
     className: `cs-b-bc${failed ? " bad" : ""}${live ? " live" : ""}`,
     "data-build": build?.n ?? void 0,
@@ -6783,7 +6952,7 @@ function BuildCard({ art, replay, play, build, parts, report, root, took, at, li
         ]
       }),
       summary ? jsx("p", { className: "cs-b-bc-sum", children: summary }) : null,
-      art ? jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path: art, to: parts.endedAt }, art) : replay,
+      primary ? compareArt(primary) : replay,
       play,
       hasFoot ? jsxs("div", {
         className: "cs-b-bc-foot",
@@ -6805,7 +6974,8 @@ function BuildCard({ art, replay, play, build, parts, report, root, took, at, li
       details ? jsxs("div", {
         className: "cs-b-bc-details",
         children: [
-          changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
+          changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
+          ...extraArt.map(compareArt),
           tested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Play-tested" }), ...tested.map((line, index) => jsxs("p", { children: [jsx("span", { className: "cs-b-ok", children: "✓ " }), line] }, index))] }) : null,
           untested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Not tested" }), ...untested.map((line, index) => jsx("p", { className: "cs-faint", children: `○ ${line}` }, index))] }) : null,
           notes.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "You might notice" }), ...notes.map((line, index) => jsx("p", { children: line }, index))] }) : null,
@@ -7152,6 +7322,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
 }
 var WORKED_MODE = atom("simple");
 function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) {
+  const id = useId();
   const [shown, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const mode = useValue(WORKED_MODE);
@@ -7196,7 +7367,8 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
           made.length && !shown ? jsxs("button", {
             "aria-label": `See the ${made.length === 1 ? "picture" : `${made.length} pictures`} this made`,
             className: "cs-b-wk-assets",
-            onClick: () => onOpenAsset?.(made[0]),
+            id,
+            onClick: (event) => onOpenAsset?.(made[0], event.currentTarget),
             type: "button",
             children: [jsx(AssetStack, { assets: made }), jsx("span", { children: `${made.length} ${made.length === 1 ? "asset" : "assets"}` })]
           }) : null
@@ -7265,9 +7437,15 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   const hasAgent = live || turn.items.length > 0;
   const startedAt = user?.at ?? end?.startedAt ?? null;
   const showWorked = parts.entries.length > 0 || live;
+  const report = parts.report;
+  const carded = !live && (build || report);
+  const art = !live ? buildCardArt(parts, root) : null;
+  const primary = build?.state === "failed" ? null : art?.primary;
+  const frames = parts.frames;
+  const frame = frames.at(-1) ?? null;
   const viewerAssets = [...parts.assets];
-  for (const asset of replyAssets([...parts.intro, ...parts.outro], root)) {
-    if (!viewerAssets.some((entry) => entry.path === asset.path && entry.version === asset.version)) {
+  for (const asset of [...frames, ...replyAssets([...parts.intro, ...parts.outro], root), ...art?.changes.map((change) => change.image) ?? []]) {
+    if (asset && !viewerAssets.some((entry) => entry.path === asset.path && entry.version === asset.version)) {
       viewerAssets.push(asset);
     }
   }
@@ -7276,25 +7454,23 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
       viewerAssets[position] = { ...asset, ask: user.text };
     });
   }
-  const viewerRef = useRef(viewerAssets);
-  viewerRef.current = viewerAssets;
-  const openAsset = useCallback((asset) => {
-    const assets = viewerRef.current;
-    const matched = assets.some((entry) => entry.path === asset.path && entry.version === asset.version);
-    onOpenAsset(matched ? assets : [...assets, { ...asset, ask: user?.text }], asset);
-  }, [onOpenAsset, user?.text]);
+  const viewerRef = useRef(null);
+  viewerRef.current = { assets: viewerAssets, ask: user?.text };
+  const openAsset = useCallback((asset, opener) => {
+    const { assets, ask } = viewerRef.current;
+    const index = assets.findIndex((entry) => entry.path === asset.path && entry.version === asset.version);
+    if (index === -1) {
+      onOpenAsset([...assets, { ...asset, ask }], assets.length, opener);
+    } else {
+      onOpenAsset(assets, index, opener);
+    }
+  }, [onOpenAsset]);
   const playable = Boolean(game && game.webExport && playableSha(game));
   const inlinePlaying = playable && playerOpen && !chatBusy;
-  const frames = parts.frames;
-  const frame = frames.at(-1) ?? null;
-  const report = parts.report;
-  const carded = !live && (build || report);
+  const replay = !live && build?.state !== "failed" && !primary && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null;
+  const featuredPaths = primary ? [primary] : replay ? frames.map((asset) => asset.path) : [];
   const hasReplyMedia = [...parts.intro, ...parts.outro].some((item) => /^\s*MEDIA:/im.test(item.text));
-  const showResult = !live && build?.state !== "failed";
-  const art = showResult ? primaryArt(parts, root) : null;
-  const replay = showResult && !art && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null;
-  const featuredPaths = art ? [art] : replay ? frames.map((asset) => asset.path) : [];
-  const compactPlayer = Boolean(art || replay || hasReplyMedia);
+  const compactPlayer = Boolean(primary || replay || hasReplyMedia);
   let play = null;
   let playLabel = null;
   if (latestBuild && game) {
@@ -7311,8 +7487,9 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     playLabel = jsx("span", { className: "cs-faint cs-small", children: "Earlier build" });
   }
   const took = startedAt && end?.at ? spanWords(end.at - startedAt) : null;
-  const card = carded || art ? jsx(BuildCard, {
+  const card = carded || primary ? jsx(BuildCard, {
     art,
+    primary,
     replay,
     play: inlinePlaying ? null : play,
     at: agentAt,
@@ -7324,7 +7501,6 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
     playLabel,
     report,
-    root,
     took
   }) : replay;
   const outro = parts.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`));
@@ -7344,7 +7520,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
           ...outro,
           showWorked ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? turnStartedAt ?? startedAt ?? Date.now() : startedAt, status: end?.status ?? null }, "worked") : null,
           card,
-          inlinePlaying || !carded && !art ? play : null,
+          inlinePlaying || !carded && !primary ? play : null,
           ...parts.errors.map(
             (item, index) => jsxs(
               "div",
@@ -7557,10 +7733,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
       node.removeAttribute("data-flash");
     };
   }, [highlight]);
-  const openAsset = useCallback(
-    (assets, asset) => setViewer({ assets, index: Math.max(0, assets.findIndex((entry) => entry === asset || entry.path === asset.path && entry.version === asset.version)) }),
-    []
-  );
+  const openAsset = useCallback((assets, index, opener) => setViewer({ assets, index, opener }), []);
   const latestBuild = useMemo(() => {
     for (let index = turns.length - 1; index >= 0; index -= 1) {
       if (turnBuilt(turns[index])) {
@@ -7664,8 +7837,11 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
         index: viewer.index,
         onClose: () => setViewer(null),
         onIndex: (index) => setViewer((current) => ({ ...current, index })),
-        onSend: stored ? onSend : null,
-        root
+        onSend: stored ? (...args) => sendAssetChange(stored, ...args) : null,
+        opener: viewer.opener,
+        root,
+        stored,
+        turns
       }) : null
     ]
   });

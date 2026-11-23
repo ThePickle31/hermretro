@@ -265,7 +265,7 @@ one or two sentences. It stores nothing: the page reads the tool call and its re
 args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|removed, text (1–100), asset? }] (≤8),
          tested?: [1–80] (≤6), untested?: [1–80] (≤6), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
 result { ok: true, report: { title, summary, changes[], tested[], untested[], notes[], suggestions[] },
-         project /* root or null */, message, warnings? }
+         reportedAt /* Unix time in ms, after image capture */, project /* root or null */, message, warnings? }
      | { ok: false, code: "INVALID_REPORT", problems[], error }
 ```
 

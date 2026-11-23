@@ -20,6 +20,7 @@ import { AssetViewer } from '#pages/build/viewer/asset-viewer.js'
 import { AGENT } from '#app/ids.js'
 import { playableSha } from '#app/player/stage.js'
 import { AssetGame } from '#pages/build/assets/cache.js'
+import { sendAssetChange } from '#pages/build/assets/changes.js'
 import { TurnMemo } from './turn-view.js'
 import { buildHistory, deriveTurns, turnBuilt } from './turns.js'
 
@@ -141,8 +142,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     element?.scrollTo?.({ behavior: 'smooth', top: element.scrollHeight })
   }
 
-  // The Assets panel's "Made in" link: show that turn (loading earlier messages when it is above the
-  // page), scroll to it and mark it for a moment.
+  // "Show" in the Builds menu loads earlier messages if needed, then expands and highlights the turn.
   const [highlight, setHighlight] = useState(null)
 
   useEffect(() => {
@@ -198,11 +198,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     }
   }, [highlight])
 
-  // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
-  const openAsset = useCallback(
-    (assets, asset) => setViewer({ assets, index: Math.max(0, assets.findIndex(entry => entry === asset || (entry.path === asset.path && entry.version === asset.version))) }),
-    []
-  )
+  const openAsset = useCallback((assets, index, opener) => setViewer({ assets, index, opener }), [])
   const latestBuild = useMemo(() => {
     for (let index = turns.length - 1; index >= 0; index -= 1) {
       if (turnBuilt(turns[index])) {
@@ -321,8 +317,11 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
             index: viewer.index,
             onClose: () => setViewer(null),
             onIndex: index => setViewer(current => ({ ...current, index })),
-            onSend: stored ? onSend : null,
-            root
+            onSend: stored ? (...args) => sendAssetChange(stored, ...args) : null,
+            opener: viewer.opener,
+            root,
+            stored,
+            turns
           })
         : null
     ]

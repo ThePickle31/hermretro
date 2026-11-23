@@ -4,6 +4,7 @@ handlers. Declared in TOOLS at the end (backend/hermes/declare.py)."""
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from .. import player as player_server
@@ -511,7 +512,13 @@ def build_report_handler(args: dict, **kwargs) -> str:
             game=library.game_id(root) if root else None,
             assets=[change["asset"] for change in report["changes"] if change.get("asset")],
         )
-        answer = {"ok": True, "report": report, "project": str(root) if root else None, "message": REPORT_MESSAGE}
+        answer = {
+            "ok": True,
+            "report": report,
+            "reportedAt": time.time_ns() / 1_000_000,
+            "project": str(root) if root else None,
+            "message": REPORT_MESSAGE,
+        }
         if warnings:
             answer["warnings"] = warnings
         return json.dumps(answer)

@@ -7,10 +7,29 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .versions import ASSET_SUFFIXES
+from .versions import ASSET_SUFFIXES, _same_folder
 
 # (folder under <root>/assets, the kind the page shows), in listing order.
 ASSET_FOLDERS = (("sprites", "sprite"), ("backgrounds", "background"), ("ui", "ui"), ("fonts", "ui"))
+
+
+def _walk_sorted(base: Path) -> Iterator[Path]:
+    """The order of sorted paths, reading one directory at a time. Do not walk links below base."""
+    try:
+        pending = [iter(sorted(base.iterdir()))]
+    except OSError:
+        return
+    while pending:
+        entry = next(pending[-1], None)
+        if entry is None:
+            pending.pop()
+            continue
+        yield entry
+        if not entry.is_symlink() and entry.is_dir():
+            try:
+                pending.append(iter(sorted(entry.iterdir())))
+            except OSError:
+                continue
 
 
 def project_images(root: Path, kinds: Iterable[str] | None = None) -> Iterator[tuple[Path, Path, str]]:
@@ -31,13 +50,15 @@ def project_images(root: Path, kinds: Iterable[str] | None = None) -> Iterator[t
         base = root / "assets" / folder
         if not base.is_dir():
             continue
-        for image in sorted(base.rglob("*")):
+        for image in _walk_sorted(base):
             if image.suffix.lower() not in ASSET_SUFFIXES or not image.is_file():
                 continue
             try:
                 real = image.resolve(strict=True)
             except (OSError, RuntimeError):
                 continue
-            if real != real_root and real_root not in real.parents:
+            if not real.is_relative_to(real_root) and not any(
+                _same_folder(real_root, parent) for parent in real.parents
+            ):
                 continue
             yield image, real, kind

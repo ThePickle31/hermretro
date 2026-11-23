@@ -34,6 +34,7 @@ profile).
 **Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
 `tests/page/page-build-history-restore.test.mjs` (exact and dated restores), `tests/page/page-build-saved-snapshot.test.mjs` (legacy snapshots for an unbound game),
 `tests/page/page-build-restore.test.mjs` (the viewer's Restore redraws the file's pictures),
+`tests/page/page-build-viewer.test.mjs` (focus while a sprite animates and scene image loading),
 `tests/page/page-build-speed.test.mjs` (the model panel's rail, stars and Standard / Fast),
 `tests/page/page-build-model-routing.test.mjs` (fresh sessions and the picked route),
 `tests/page/build-player.test.mjs`, `tests/page/registry.test.mjs` (its listeners), `tests/page/platformer-run.test.mjs`
@@ -41,6 +42,15 @@ profile).
 `tests/page/page-build-shelf.test.mjs` and `tests/page/cart-shelf.test.mjs` (the New Game shelf),
 `tests/page/page-setup-handoff.test.mjs` and `tests/page/new-game-draft.test.mjs` (onboarding's idea, the kept draft and
 the provider notice).
+
+## The image viewer
+
+`viewer/asset-viewer.js` coordinates the dialog, the stage and the selected view. It focuses the dialog on open
+and returns focus to the opening button on close when the button is still present. `viewer/asset-details.js` shows
+Details and `viewer/change-form.js` owns the draft and focuses the text area when it opens.
+`viewer/version-history.js` handles selecting, showing and restoring kept versions.
+`viewer/stage-viewport.js` draws the stage controls. `viewer/in-game.js` requests the
+background and actor images for the selected scene when its canvas is shown.
 
 ## The header
 

@@ -6,13 +6,13 @@ import { RPC_ASSET_INFO } from '#app/rpc.js'
 
 export const VIEWER_KIND = { cover: 'Game cover', sprite: 'Sprite', background: 'Background', ui: 'Interface', frame: 'Playtest frame', capture: 'Capture', image: 'Image' }
 
-export function useAssetInfo(path, refresh) {
+export function useAssetInfo(path, refresh, edit) {
   const root = useContext(AssetGame)
-  const [info, setInfo] = useState(null)
+  const [result, setResult] = useState(null)
 
   useEffect(() => {
     if (!path) {
-      setInfo(null)
+      setResult(null)
 
       return undefined
     }
@@ -20,15 +20,15 @@ export function useAssetInfo(path, refresh) {
     let live = true
 
     callStudioOnly(RPC_ASSET_INFO, { path, root }, 20_000)
-      .then(answer => live && setInfo(answer?.ok ? answer : null))
-      .catch(() => live && setInfo(null))
+      .then(answer => live && setResult(answer?.ok ? { path, root, answer } : null))
+      .catch(() => live && setResult(null))
 
     return () => {
       live = false
     }
-  }, [path, root, refresh])
+  }, [path, root, refresh, edit])
 
-  return info
+  return result && result.path === path && result.root === root ? result.answer : null
 }
 
 /** Images for several asset paths at once (a scene's background and its actors' sprites). */

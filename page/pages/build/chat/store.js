@@ -34,6 +34,8 @@ export function injectBuildDraft(stored, text) {
 // transcript), `busy` (true while a turn runs), `turnStartedAt`, `lastCompleteAt` (when the last turn ended),
 // `seenAt`, `runtime`/`seq`/`epoch` (the live session), `activity`, `segments` (see `patchChat` and chat/reducer.js).
 export const BUILD_CHATS = atom({})
+
+export const buildChatIdle = chat => Boolean(chat?.runtime && !chat.busy && !chat.opening && !chat.queued?.length && !chat.lost?.length)
 // Games opening their first or replacement thread. Keep the guard when leaving the Build page.
 export const BUILD_STARTING = atom(new Set())
 // Runtime session id (what events carry) → stored session id.

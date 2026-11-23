@@ -1,9 +1,9 @@
-// Time-only snapshots can be picked by date without being attributed to a numbered build.
+// Build history folds older turns, replays captured frames, and offers exact or dated restores.
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, settle, key, mount, check, answered }) => {
+await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, dom, settle, key, mount, check, answered }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } },
@@ -60,6 +60,16 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
     assert.match(result.textContent, /Frame 3 of 3.*Replay frames/)
     assert.ok(result.querySelector('button[aria-label="Look closer at start.png"]'))
   })
+  const frameOpener = view.node.querySelector('.cs-b-replay button[aria-label="Look closer at start.png"]')
+  await act(async () => frameOpener.click())
+  await settle()
+  const dialog = view.node.querySelector('[role="dialog"]')
+  const framePath = dialog?.querySelector('.cs-v-name')?.title
+  await key('keydown', 'Escape', dialog)
+  check('a replay frame opens its picture and returns focus to the replay thumbnail', () => {
+    assert.equal(framePath, '/home/u/games/FrogPost/playtests/start.png')
+    assert.equal(dom.window.document.activeElement, frameOpener)
+  })
   const openMenu = async () => {
     await click('Builds', view.node.querySelector('.cs-b-head'))
     await settle(30)
@@ -103,13 +113,20 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
   })
   snapshots = [{ id: 'snap-1', at: 1_030_001, builds: [1_030_001], reason: 'build' }]
   const adjacent = await openMenu()
-  check('an occurrence just after the turn is outside the legacy window', () => {
+  check('a snapshot just after the turn stays selectable by date', () => {
     assert.equal(adjacent.restore.disabled, true)
+    assert.match(adjacent.rows[2], /^Saved snapshot.*Restore$/)
   })
   await click('Builds', view.node.querySelector('.cs-b-head'))
   await settle()
+  check('the earlier build starts folded', () => {
+    assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
+  })
   await click('Show', view.node.querySelectorAll('.cs-b-brow')[1])
-  assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'true')
+  check('Show expands the earlier build in the transcript', () => {
+    assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'true')
+    assert.ok(view.node.querySelector('.cs-b-bc[data-build="1"]'))
+  })
   await act(async () => view.node.querySelector('.cs-b-sw').click())
   await click('Cloud Hop', view.node.querySelector('.cs-b-sw-pop'))
   await settle()
@@ -118,6 +135,8 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
     assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
   })
   await view.close()
+
+  scenario.storage.buildSelected = 'fff666fff666'
 
   // While hermretro updates, Restore (which restores files and sends a build request) and the chat box start nothing.
   snapshots = [{ id: 'snap-1', buildRefs: ['first'], buildCalls: [{ id: 'b1', ref: 'first', timestamp: 1020 }], reason: 'build' }]
@@ -129,6 +148,14 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
   scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finish = resolve }) : { ok: true })
   const updating = await mount(page)
   await settle(100)
+  await click('Builds', updating.node.querySelector('.cs-b-head')); await settle(30)
+  check('an exact stored call enables the earlier build’s Restore before updating', () => {
+    const restore = [...updating.node.querySelectorAll('.cs-b-brow')][1]
+      ?.querySelector('button:last-child')
+    assert.equal(restore?.textContent, 'Restore')
+    assert.equal(restore.disabled, false)
+  })
+  await key('keydown', 'Escape')
   await click('Update ready', updating.node); await click('Update now', updating.node); await settle(40)
   await click('Builds', updating.node.querySelector('.cs-b-head')); await settle(30)
   check('while updating, the Builds menu cannot restore a build', () => {

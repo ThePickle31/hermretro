@@ -1,9 +1,12 @@
 // Art shown where the game uses it.
 import { jsx, jsxs, useLayoutEffect, useRef } from '#sdk'
 import { drawSpriteFrame, paintSheet } from '#pages/build/assets/sprite.js'
+import { useImages } from './info.js'
 
 /** A scene as the game draws it at the start: the background and each actor's standing frame. */
-export function SceneCanvas({ scene, images, scale, highlight, refresh }) {
+export function SceneCanvas({ scene, scale, highlight, refresh }) {
+  const paths = [...new Set([scene.background, ...(scene.actors ?? []).map(actor => actor.sprite)].filter(Boolean))]
+  const images = useImages(paths, `scene:${refresh}`)
   const ref = useRef(null)
   const width = (Number(scene.width) || 20) * 8
   const height = (Number(scene.height) || 18) * 8

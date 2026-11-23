@@ -17,7 +17,7 @@ import path from 'node:path'
 
 const LINE_LIMIT = 400
 // Files that are one large function today. Split them and remove them here; never add to this list.
-const OVER_LIMIT = new Set(['pages/build/viewer/asset-viewer.js', 'pages/build/build-page.js', 'app/studio-page.js'])
+const OVER_LIMIT = new Set(['pages/build/build-page.js', 'app/studio-page.js'])
 const CLIMBS = '..' + '/'
 
 // What counts as source (and goes into the banner's hash): modules and the art they import. Dotfiles and

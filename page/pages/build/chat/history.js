@@ -110,7 +110,8 @@ export function historyItems(messages, running = false) {
       const name = message.name ?? message.tool_name
       const pending = tools.get(id)
       const calls = unwrapCalls(id, name, message.args)
-      const result = toolResultObject(text)
+      const payload = text || message.content
+      const result = toolResultObject(payload)
       const failed = toolFailed({ result })
       const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1)
       // A raw result can retain the wrapper's name and omit its arguments, including on validation errors.
@@ -131,6 +132,8 @@ export function historyItems(messages, running = false) {
       }
 
       for (const step of steps) {
+        step.finishedAt = at
+
         if (at && step.startedAt) {
           step.duration = Math.max(0, (at - step.startedAt) / 1000)
         }
@@ -139,8 +142,8 @@ export function historyItems(messages, running = false) {
           step.resultCall = { id, timestamp }
         }
 
-        if (text) {
-          step.info = stepInfo(step.name, text, exactCall)
+        if (payload) {
+          step.info = stepInfo(step.name, payload, exactCall) ?? step.info
 
           if (failed) {
             step.state = 'failed'

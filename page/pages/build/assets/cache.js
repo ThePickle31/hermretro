@@ -1,5 +1,5 @@
 // Project files (art) loaded through the `asset` RPC, cached per game and version.
-import { atom, createContext, useContext, useEffect, useState, useValue } from '#sdk'
+import { atom, createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useValue } from '#sdk'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET } from '#app/rpc.js'
 
@@ -44,8 +44,7 @@ export function assetEntry(path, version, root) {
     entry.promise = new Promise(resolve => {
       assetQueue.push(async () => {
         try {
-          // A reply's image asks for the version the file had when the reply was written (cover.png
-          // made again later must not change an earlier reply).
+          // Replies and reports ask for the version of an image at a particular time.
           const at = typeof version === 'string' && version.startsWith('reply:') ? Number(version.slice(6)) || null : null
           // The viewer's version strip asks for one kept version by id.
           const kept = typeof version === 'string' && version.startsWith('kept:') ? version.slice(5) : null
@@ -116,4 +115,24 @@ export function useAsset(path, version) {
   }
 
   return entry.done ? (entry.value ? { state: 'ok', asset: entry.value } : { state: 'none', code: entry.code }) : { state: 'loading' }
+}
+
+/** Keep a loaded viewer opener mounted while its image refreshes for the same game and version. */
+export function useAssetPreview(path, version) {
+  const root = useContext(AssetGame)
+  const result = useAsset(path, version)
+  const { state, asset } = result
+  const previous = useRef(null)
+
+  useLayoutEffect(() => {
+    if (state !== 'loading') {
+      previous.current = state === 'ok' ? { path, version, root, asset } : null
+    }
+  }, [path, version, root, state, asset])
+
+  const kept = previous.current
+
+  return state === 'loading' && kept?.path === path && kept.version === version && kept.root === root
+    ? { state: 'ok', asset: kept.asset }
+    : result
 }

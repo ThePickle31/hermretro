@@ -1,33 +1,8 @@
-// The viewer's image stage: zoom, fit and the version strip.
+// The viewer's image stage: zoom, fit and the area selection.
 import { jsx, jsxs, useLayoutEffect, useRef, useState } from '#sdk'
-import { useAsset } from '#pages/build/assets/cache.js'
-import { FrameCanvas, SheetFrame } from '#pages/build/assets/images.js'
-import { timeOfDay } from '#shared/ui/time.js'
+import { FrameCanvas } from '#pages/build/assets/images.js'
 
 export const ZOOM_STEPS = [1, 2, 3, 4, 6, 8, 12, 16]
-
-export function versionTime(entry) {
-  return entry?.at ? timeOfDay(entry.at) : ''
-}
-
-/** A version's small picture in the strip. */
-export function VersionThumb({ path, entry, number, selected, onPick }) {
-  const { state, asset: loaded } = useAsset(path, `kept:${entry.id}`)
-
-  return jsxs('button', {
-    'aria-label': `Version ${number}${entry.current ? ', in the game now' : ''}`,
-    'aria-pressed': selected,
-    className: `cs-v-ver${selected ? ' on' : ''}`,
-    onClick: () => onPick(entry.id),
-    title: `v${number} · ${versionTime(entry)}${entry.current ? ' · in the game now' : ''}`,
-    type: 'button',
-    children: [
-      state === 'ok' ? jsx(SheetFrame, { loaded }) : jsx('span', { className: 'cs-v-ver-ph' }),
-      jsx('b', { children: `v${number}` }),
-      entry.current ? jsx('i', { 'aria-hidden': true, className: 'cs-v-now' }) : null
-    ]
-  })
-}
 
 /** The stage's size, for Fit zoom. */
 export function useBoxSize(ref) {

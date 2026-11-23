@@ -8,7 +8,7 @@ import { PlayCard, playsBuild } from '#pages/build/player/play-card.js'
 import { AGENT } from '#app/ids.js'
 import { spanWords } from '#shared/ui/time.js'
 import { playableSha } from '#app/player/stage.js'
-import { BuildCard, NextSteps, primaryArt } from './build-card.js'
+import { BuildCard, buildCardArt, NextSteps } from './build-card.js'
 import { FrameReplay } from './frame-replay.js'
 import { AgentText, replyAssets } from './reply.js'
 import { turnParts } from './turns.js'
@@ -34,11 +34,16 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   const hasAgent = live || turn.items.length > 0
   const startedAt = user?.at ?? end?.startedAt ?? null
   const showWorked = parts.entries.length > 0 || live
-  // The viewer steps through the turn's images: the steps' first, then the ones its replies delivered.
+  const report = parts.report
+  const carded = !live && (build || report)
+  const art = !live ? buildCardArt(parts, root) : null
+  const primary = build?.state === 'failed' ? null : art?.primary
+  const frames = parts.frames
+  const frame = frames.at(-1) ?? null
   const viewerAssets = [...parts.assets]
 
-  for (const asset of replyAssets([...parts.intro, ...parts.outro], root)) {
-    if (!viewerAssets.some(entry => entry.path === asset.path && entry.version === asset.version)) {
+  for (const asset of [...frames, ...replyAssets([...parts.intro, ...parts.outro], root), ...(art?.changes.map(change => change.image) ?? [])]) {
+    if (asset && !viewerAssets.some(entry => entry.path === asset.path && entry.version === asset.version)) {
       viewerAssets.push(asset)
     }
   }
@@ -50,30 +55,28 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     })
   }
 
-  const viewerRef = useRef(viewerAssets)
+  const viewerRef = useRef(null)
 
-  viewerRef.current = viewerAssets
+  viewerRef.current = { assets: viewerAssets, ask: user?.text }
 
   // Stable, so the memoised replies do not re-render their markdown on every turn update.
-  const openAsset = useCallback(asset => {
-    const assets = viewerRef.current
-    const matched = assets.some(entry => entry.path === asset.path && entry.version === asset.version)
+  const openAsset = useCallback((asset, opener) => {
+    const { assets, ask } = viewerRef.current
+    const index = assets.findIndex(entry => entry.path === asset.path && entry.version === asset.version)
 
-    onOpenAsset(matched ? assets : [...assets, { ...asset, ask: user?.text }], asset)
-  }, [onOpenAsset, user?.text])
+    // Before/After can open a specific version that has no other thumbnail in the turn.
+    if (index === -1) {
+      onOpenAsset([...assets, { ...asset, ask }], assets.length, opener)
+    } else {
+      onOpenAsset(assets, index, opener)
+    }
+  }, [onOpenAsset])
   const playable = Boolean(game && game.webExport && playableSha(game))
   const inlinePlaying = playable && playerOpen && !chatBusy
-  const frames = parts.frames
-  const frame = frames.at(-1) ?? null
-  const report = parts.report
-  // A finished turn that built the game, or reported what it did, ends in its build card.
-  const carded = !live && (build || report)
+  const replay = !live && build?.state !== 'failed' && !primary && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null
+  const featuredPaths = primary ? [primary] : replay ? frames.map(asset => asset.path) : []
   const hasReplyMedia = [...parts.intro, ...parts.outro].some(item => /^\s*MEDIA:/im.test(item.text))
-  const showResult = !live && build?.state !== 'failed'
-  const art = showResult ? primaryArt(parts, root) : null
-  const replay = showResult && !art && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null
-  const featuredPaths = art ? [art] : replay ? frames.map(asset => asset.path) : []
-  const compactPlayer = Boolean(art || replay || hasReplyMedia)
+  const compactPlayer = Boolean(primary || replay || hasReplyMedia)
 
   // The newest build plays in a frame under its line; while the agent works, only its line says so.
   let play = null
@@ -94,9 +97,10 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   }
 
   const took = startedAt && end?.at ? spanWords(end.at - startedAt) : null
-  const card = carded || art
+  const card = carded || primary
     ? jsx(BuildCard, {
         art,
+        primary,
         replay,
         play: inlinePlaying ? null : play,
         at: agentAt,
@@ -108,7 +112,6 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
         parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
         playLabel,
         report,
-        root,
         took
       })
     : replay
@@ -135,7 +138,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
                 ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? (turnStartedAt ?? startedAt ?? Date.now()) : startedAt, status: end?.status ?? null }, 'worked')
                 : null,
               card,
-              inlinePlaying || (!carded && !art) ? play : null,
+              inlinePlaying || (!carded && !primary) ? play : null,
               ...parts.errors.map((item, index) =>
                 jsxs(
                   'div',
