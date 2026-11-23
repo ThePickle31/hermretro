@@ -35,13 +35,13 @@ import { CartShelf } from './cart-shelf.js'
 import { useBuildSelection, useMissingBuildGame } from './selection.js'
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, released: {} })
-  const selected = useBuildSelection(ctx, selection, select)
+  const selected = useBuildSelection(ctx, selection, onSelect)
 
   const rail = useMemo(
     () =>
@@ -70,7 +70,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
   const made = pendingId ? rail.find(game => game.buildSession === pendingId) : null
   useEffect(() => {
     if (made) {
-      select(made.id)
+      onSelect(made.id)
     }
   }, [made?.id])
 
@@ -140,7 +140,13 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, stored, chat)
+  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat)
+  const select = key => {
+    if (key !== selected) {
+      markPresentationsSeen()
+      onSelect(key)
+    }
+  }
 
   // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
   const refuseWhileUpdating = () => {
@@ -159,6 +165,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       return false
     }
 
+    markPresentationsSeen()
     let id = null
 
     try {
@@ -183,7 +190,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }
 
       changePending(current => [...current, created])
-      select(`pending:${id}`)
+      onSelect(`pending:${id}`)
       onLibraryChanged()
 
       return true

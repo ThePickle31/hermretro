@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 5d0c9553c6da26059651300257e9ea10547eb46990246b357a430b001a8becb3
- * body: sha256 e7cca3ca91cacdb617418066acde126851c3eeaffb017f2085b35cbc69a2a784
+ * sources: sha256 da550d6ada0da320e96e08274f3db71cddc45f784230dc7390e556df5c096a11
+ * body: sha256 b0dadc218b74b464847a14276d7278f4caa209217a9fde895a85c59f40d55be1
  */
 // page/sdk.js
 import {
@@ -5201,18 +5201,11 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
-function useInlinePlayer(gameId, stored, chat) {
+function useInlinePlayer(gameId, chat) {
   const [playerFor, setPlayerFor] = useState(null);
   const presentations = useValue(BUILD_PRESENTED);
-  const previous = useRef({ gameId, stored });
   const seen = useRef(presentations);
   useEffect(() => {
-    const last = previous.current;
-    const sameView = gameId && last.gameId ? gameId === last.gameId : stored && stored === last.stored;
-    previous.current = { gameId, stored };
-    if (!sameView) {
-      seen.current = presentations;
-    }
     if (!gameId || chat?.busy || chat?.opening) {
       return;
     }
@@ -5220,8 +5213,12 @@ function useInlinePlayer(gameId, stored, chat) {
       seen.current = presentations;
       setPlayerFor(gameId);
     }
-  }, [gameId, stored, presentations, chat?.busy, chat?.opening]);
+  }, [gameId, presentations, chat?.busy, chat?.opening]);
   return {
+    // Take a new baseline on navigation. Attaching a conversation or its project stays in the same visit.
+    markPresentationsSeen: () => {
+      seen.current = BUILD_PRESENTED.get();
+    },
     playerOpen: Boolean(gameId && playerFor === gameId),
     onPlay: () => gameId && setPlayerFor(gameId),
     onClosePlayer: () => setPlayerFor(null)
@@ -9460,11 +9457,11 @@ function useMissingBuildGame(id, unavailable) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
   const [local, setLocal] = useState({ bound: {}, released: {} });
-  const selected = useBuildSelection(ctx, selection, select);
+  const selected = useBuildSelection(ctx, selection, onSelect);
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
@@ -9486,7 +9483,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
   const made = pendingId ? rail.find((game2) => game2.buildSession === pendingId) : null;
   useEffect(() => {
     if (made) {
-      select(made.id);
+      onSelect(made.id);
     }
   }, [made?.id]);
   useEffect(() => {
@@ -9538,7 +9535,13 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, stored, chat);
+  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat);
+  const select = (key) => {
+    if (key !== selected) {
+      markPresentationsSeen();
+      onSelect(key);
+    }
+  };
   const refuseWhileUpdating = () => {
     if (!isUpdating()) {
       return false;
@@ -9550,6 +9553,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     if (refuseWhileUpdating()) {
       return false;
     }
+    markPresentationsSeen();
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
@@ -9565,7 +9569,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
       changePending((current) => [...current, created]);
-      select(`pending:${id}`);
+      onSelect(`pending:${id}`);
       onLibraryChanged();
       return true;
     } catch (error) {

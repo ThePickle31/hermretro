@@ -125,6 +125,12 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
   scenario.games = answered({ games: [otherGame], pending: [], device })
   scenario.byMethod['session.create'] = { session_id: runtime, stored_session_id: stored, messages: [] }
   scenario.byMethod['plugin.hermretro.build'] = { ok: true }
+  scenario.byMethod['prompt.submit'] = () => {
+    emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'first-turn' } })
+    emit({ type: 'tool.complete', session_id: runtime, payload: { tool_id: 'first-build', name: 'chromatic_rom_build', args: {}, result: { result: 'Completed.' } } })
+    emit(presentation(newGame, runtime, 101))
+    return { ok: true }
+  }
   const view = await mount(page)
   const build = buildView(view.node, act, scenario)
   await settle()
@@ -144,12 +150,7 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
     build.assertClosed()
   })
 
-  await act(async () => {
-    emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'first-turn' } })
-    emit({ type: 'tool.complete', session_id: runtime, payload: { tool_id: 'first-build', name: 'chromatic_rom_build', args: {}, result: { result: 'Completed.' } } })
-    emit(presentation(newGame, runtime, 101))
-  })
-  check('a presentation naming Lamplight waits while the selected conversation is still pending and busy', () => {
+  check('a presentation delivered before the first Send acknowledgement waits while Lamplight is pending', () => {
     build.assertSelected(`pending:${stored}`, 'New game')
     build.assertBusy(true)
     build.assertClosed()
