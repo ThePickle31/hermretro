@@ -1,11 +1,11 @@
 // The header: wordmark and the one segmented control.
-import { Button, Codicon, jsx, jsxs, Tip } from '#sdk'
+import { Codicon, jsx, jsxs, Tip } from '#sdk'
 import { UpdateChip } from './update/chip.js'
 
-/** Wordmark, one segmented control (always in the same place), the update chip (only while an update is ready or
- *  running) and Refresh. `pages` are the registry's, in nav order; `nav` ({ page, setupPending, playing }) is what
+/** Wordmark, one segmented control (always in the same place) and the update chip (only while an update is ready or
+ *  running). `pages` are the registry's, in nav order; `nav` ({ page, setupPending, playing }) is what
  *  their badges read; `update` is shell.pluginUpdate. */
-export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
+export function StudioNav({ pages, nav, onGo, viaProfile = null, update = null }) {
   const page = nav.page
 
   return jsxs('header', {
@@ -51,25 +51,9 @@ export function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile 
           )
         )
       }),
-      jsxs('div', {
+      jsx('div', {
         className: 'cs-top-end',
-        children: [
-          update ? jsx(UpdateChip, { update }, 'update') : null,
-          jsx(Tip, {
-          label: 'Check the setup and reload the studio',
-          children: jsx('span', {
-            style: { display: 'inline-flex' },
-            children: jsxs(Button, {
-              'aria-label': 'Refresh',
-              disabled: refreshing,
-              onClick: onRefresh,
-              size: 'sm',
-              variant: 'ghost',
-              children: [jsx(Codicon, { name: 'refresh', size: 14, spinning: refreshing }), jsx('span', { className: 'cs-lbl', children: 'Refresh' })]
-            })
-          })
-          }, 'refresh')
-        ]
+        children: update ? jsx(UpdateChip, { update }) : null
       })
     ]
   })

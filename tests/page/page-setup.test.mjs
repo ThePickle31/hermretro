@@ -337,9 +337,16 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   })
   scenario.status = { isError: true, isFetching: false, error: Object.assign(new Error('not_found'), { code: 4001 }) }
   await render()
-  check('a failed status call is reported as a failure, not as "switched off"', () => {
+  check('a failed status call is reported as a failure, not as "switched off", with its own Refresh', () => {
     assert.equal(heading(), "Could not read hermretro's status"); shows(/not_found/)
     hides('not switched on')
+    assert.ok([...dom.window.document.querySelectorAll('.cs-stage button')].some(node => node.textContent === 'Refresh'))
+  })
+  scenario.status = answered({ ok: false, error: 'the studio profile could not be read' })
+  await render()
+  check('a status that answers with an error says so, with its own Refresh', () => {
+    assert.equal(heading(), 'hermretro reported a problem'); shows(/the studio profile could not be read/)
+    assert.ok([...dom.window.document.querySelectorAll('.cs-stage button')].some(node => node.textContent === 'Refresh'))
   })
 
   scenario.status = answered(complete)

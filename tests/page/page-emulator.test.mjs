@@ -35,7 +35,6 @@ await runScenario(async helpers => {
       assert.ok(bar.querySelector(`button[aria-label="${name}"]`), `${name} has an aria-label`)
     }
     assert.ok([...bar.querySelectorAll('.cs-lbl')].some(node => node.textContent === 'Captures'))
-    assert.ok(dom.window.document.querySelector('.cs-top button[aria-label="Refresh"] .cs-lbl'), 'Refresh label can hide too')
   })
   scenario.player = notLoaded
   await tab('Games')

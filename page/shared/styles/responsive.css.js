@@ -7,7 +7,7 @@ export const RESPONSIVE_CSS = `
   .cs-empty > .cs-art { display: none; }
 }
 /* Narrow main pane (an emulator tab docked beside it, a small window): the header stays one row.
-   The segments tighten, Refresh keeps only its icon, the wordmark goes and, as
+   The segments tighten, the update chip keeps only its dot, the wordmark goes and, as
    a last resort, the segments scroll sideways. The player bar stops wrapping the same way and, below
    560px, its buttons keep only their icons (each has a tooltip and an aria-label). */
 @container (max-width: 900px) {

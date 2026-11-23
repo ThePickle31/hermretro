@@ -443,7 +443,7 @@ export function StudioPage({ ctx }) {
   let body
 
   if (!running) {
-    body = [jsx(NotRunning, { backend, gateway, status }, 'off')]
+    body = [jsx(NotRunning, { backend, gateway, onRefresh: refresh, refreshing, status }, 'off')]
   } else if (onboardScreen) {
     body = [
       jsx(
@@ -499,9 +499,7 @@ export function StudioPage({ ctx }) {
               {
                 nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
                 onGo: go,
-                onRefresh: refresh,
                 pages: NAV_PAGES,
-                refreshing,
                 update: pluginUpdate,
                 viaProfile
               },

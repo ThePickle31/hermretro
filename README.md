@@ -60,7 +60,7 @@ hermretro's own folder (below).
 
 ### Updating
 
-When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears beside Refresh in
+When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears at the end of
 the HermRetro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
 copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
 that copy) and then refreshes itself. Normally no restart is needed; if the chip says **Restart to finish**, quit
@@ -77,7 +77,7 @@ popover names it) or the game tools are installing.
 - **Ask Hermes to fix it** puts the error into a chat in the **hermretro** profile, not sent. When that profile is
   not set up yet, it copies the request to the clipboard instead and asks you to set the profile up first.
 - **A step broke later.** The other pages show a Repair banner; the Setup page has one step per part, with
-  **Check again** when the tools check fails, and Refresh in the page header checks everything again.
+  **Check again** when the tools check fails, and once setup is done **Check everything again** checks it all again.
 - **Start the tools over.** Setup's **Remove downloaded tools**, then install again. Your games are not touched.
 - **From a terminal or a chat instead.** `hermes plugins install ThePickle31/hermretro --enable` installs the
   plugin; `hermes plugins update hermretro` (in the profile you installed it into, never inside the hermretro
