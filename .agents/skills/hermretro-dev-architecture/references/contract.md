@@ -123,11 +123,11 @@ answer (`shared: true`) or its error. `status` reports `profile: { name, is_stud
 installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download.
 
-### `install` — params `{ action: "status" | "start_fenced" | "start" | "cancel", expires_at?, run_id? }`
+### `install` — params `{ action, admission?, run_id?, retire_legacy? }`
 
 The page's own toolchain install (first-run onboarding and the Setup page's toolchain step), with no chat.
-`start_fenced` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
-a background thread and returns at once. Another start joins the running install. Start is refused with
+`start_admitted` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
+a background thread and returns the admitted run. Another start joins the running install. Start is refused with
 `NO_SPACE` when the disk cannot hold even the estimate, or `WORKER_STILL_RUNNING` while an earlier installer worker's
 exit is unconfirmed. Each run has a `run_id`; `cancel` acts only on the running install with that `run_id` (any
 other, such as a stale Cancel for a run that finished while a retry runs, returns the status and stops nothing).
@@ -139,18 +139,21 @@ SIGTERM and then SIGKILL for the worker's process group when the worker does not
 `WORKER_STILL_RUNNING` when even the close could not confirm the worker exited: then the user quits and reopens
 Hermes before trying again, and until that worker is gone the broker does not stop or retire, and a new install,
 a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker from before cancel answers
-`cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
-start the broker; with no broker running, `status` reports the last install from its journal
+`cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` never start the broker.
+With no broker running, `status` reports the last install from its journal
 (`<deps root>/page-install.json`), a `running` one as `interrupted`. An unanswered broker request returns
-`UNAVAILABLE`. The page sends `expires_at` (Unix milliseconds) with `start_fenced`. The gateway caps it at
-the broker request budget and reports that cap as `start_expires_at` once it attempts the broker request.
-The broker checks expiry while holding the install lock, immediately before admitting the run. An admitted
-run can continue after the acknowledgement is lost. Only a confirmed status requested after both the lost
-acknowledgement and the admission deadline can resolve it. Older gateways reject the new action. Older
-brokers without the admission check are available for status and cancellation, and refuse new starts
-through the client. The legacy page action `start` still uses the broker request budget as an admission deadline.
-Update and Reload read fresh confirmed status before changing the plugin. A cancel also returns
-`UNAVAILABLE` when there is no broker to acknowledge it. Successful calls return:
+`UNAVAILABLE`. `prepare_start` returns `{ ok: true, admission }`, a deadline on the gateway host's monotonic
+clock. The page saves it before submitting `start_admitted`. The gateway echoes `admission` in the Start
+reply and bounds both startup and the broker request by the admission. The broker checks expiry under the install
+lock before admitting the run. After a lost acknowledgement or page remount, the page includes the saved
+admission in status requests. The gateway returns `expired_admission` only when expiry preceded the status
+read. The page requires a fresh idle result before changing the plugin. A known legacy handshake failure
+returns `BROKER_LEGACY`. An explicit Update or Reload can request `retire_legacy: true` to use the broker's
+ordinary shutdown guard and wait for its exit. A busy reply prevents the action.
+
+Older pages can still use `start` or `start_fenced` with its Unix-millisecond `expires_at` and
+`start_expires_at` reply. Older brokers can still answer status and cancel. Starts require the broker to
+advertise the matching deadline support. Status and cancel return:
 
 ```json
 {

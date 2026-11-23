@@ -8,7 +8,14 @@ import math
 import time
 from pathlib import Path
 
-from ..broker import BrokerNotRunning, BrokerUnavailable, request_shutdown
+from ..broker import (
+    BrokerNotRunning,
+    BrokerUnavailable,
+    BrokenBroker,
+    LegacyBrokerHello,
+    OtherCopyBusy,
+    request_shutdown,
+)
 from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
@@ -261,6 +268,31 @@ _REMOVE_WORKER = (
     "The last toolchain installer did not confirm it stopped, so the tools folder may still be in use. Quit and "
     "reopen Hermes, then try again."
 )
+_START_WINDOW = 60.0
+_START_EXPIRED = "The install start expired. Check the install status and try again."
+_LEGACY_BUSY = "The previous version of hermretro is still running games. Finish or close those chats, then try again."
+
+
+def _numeric_deadline(value) -> bool:
+    return type(value) in (int, float) and 0 < value < math.inf
+
+
+def _install_connect(*, retire_legacy: bool):
+    run = paths.runtime_dir()
+    if not retire_legacy:
+        return host.try_connect(run)
+    deadline = time.monotonic() + BROKER_STOP_WAIT
+    client, error = host.try_connect(run, retire_broken=True, deadline=deadline)
+    if not isinstance(error, BrokenBroker):
+        return client, error
+    if not error.stopping:
+        raise OtherCopyBusy(_LEGACY_BUSY) from error
+    # An acknowledged shutdown can still be closing workers. Wait for election release, then read
+    # the journal or the broker that replaced it. This action never starts a broker.
+    with _broker_lock(run, seconds=max(0, deadline - time.monotonic())) as held:
+        if not held:
+            raise BrokerUnavailable("The previous hermretro broker is still stopping.") from error
+    return host.try_connect(run, deadline=deadline)
 
 
 def _valid_install(install, *, starting: bool = False) -> bool:
@@ -278,9 +310,8 @@ def _valid_install(install, *, starting: bool = False) -> bool:
 @rpc("install")
 def rpc_install(ctx):
     """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker),
-    ``{"action": "start_fenced", "expires_at": ...}`` or ``{"action": "cancel", "run_id": ...}`` (MCP cancellation of that run
-    only; the install then reports ``cancelled`` once the engine let go of its lock). Always returns the download
-    list, so the page can show it first."""
+    ``prepare_start`` (issue an admission deadline), ``start_admitted`` or ``cancel`` for a named run.
+    Status can confirm a named admission expired before the status was read."""
 
     def install(params, **_kwargs):
         answer = {}
@@ -288,7 +319,12 @@ def rpc_install(ctx):
         try:
             params = params or {}
             action = params.get("action") or "status"
-            starting = action in ("start", "start_fenced")
+            if action == "prepare_start":
+                return {"ok": True, "admission": time.monotonic() + _START_WINDOW}
+            starting = action in ("start", "start_fenced", "start_admitted")
+            admission = params.get("admission")
+            # Sample before reading status, so an idle snapshot cannot predate admission expiry.
+            now = time.monotonic()
             expires_at = params.get("expires_at") if action == "start_fenced" else None
             root = paths.setup_root()
             answer = {
@@ -298,25 +334,36 @@ def rpc_install(ctx):
                 "space": recovery.free_space(root),
             }
             if starting:
-                if action == "start_fenced" and (
-                    type(expires_at) not in (int, float)
-                    or not math.isfinite(expires_at)
-                    or expires_at <= time.time() * 1000
-                ):
+                if action == "start_admitted":
+                    answer["admission"] = admission
+                    now = time.monotonic()
+                    valid = _numeric_deadline(admission) and now < admission <= now + _START_WINDOW
+                else:
+                    valid = action == "start" or (_numeric_deadline(expires_at) and expires_at > time.time() * 1000)
+                if not valid:
                     return {
                         **answer,
                         "ok": False,
                         "code": "START_EXPIRED",
-                        "error": "The install start expired. Check the install status and try again.",
+                        "error": _START_EXPIRED,
                     }
-                with host.ensure_broker() as client:
-                    # A lost reply can be reconciled once this window closes. Never widen the page's deadline.
-                    expires_at = min(expires_at or math.inf, (time.time() + client.control_timeout) * 1000)
-                    answer["start_expires_at"] = expires_at
-                    reply = client.request({"op": "install_start", "admit_before": expires_at})
+                broker = host.ensure_broker(deadline=admission) if action == "start_admitted" else host.ensure_broker()
+                with broker as client:
+                    if action == "start_admitted":
+                        reply = client.request({"op": "install_start", "admit_until": admission})
+                    else:
+                        expires_at = min(expires_at or math.inf, (time.time() + client.control_timeout) * 1000)
+                        answer["start_expires_at"] = expires_at
+                        reply = client.request({"op": "install_start", "admit_before": expires_at})
             elif action in ("status", "cancel"):
-                client, error = host.try_connect(paths.runtime_dir())
+                if action == "status" and _numeric_deadline(admission) and now >= admission:
+                    answer["expired_admission"] = admission
+                client, error = _install_connect(
+                    retire_legacy=action == "status" and params.get("retire_legacy") is True
+                )
                 if client is None:
+                    if action == "status" and isinstance(error, LegacyBrokerHello):
+                        return {**answer, "ok": False, "code": "BROKER_LEGACY", "error": str(error)}
                     if error is not None and not isinstance(error, BrokerNotRunning):
                         raise BrokerUnavailable(str(error)) from error
                     if action == "cancel":
@@ -369,6 +416,8 @@ def rpc_install(ctx):
                 raise BrokerUnavailable("The background process returned an invalid install status.")
             answer["install"] = install_state
             return answer
+        except OtherCopyBusy as error:
+            return {**answer, "ok": False, "code": "BUSY", "error": str(error)}
         except (BrokerUnavailable, ValueError) as error:
             message = f"Install start was unconfirmed. {error}" if starting else str(error)
             return {**answer, "ok": False, "code": "UNAVAILABLE", "error": message}

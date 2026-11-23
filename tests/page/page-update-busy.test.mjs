@@ -113,7 +113,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await openChip(); await click('Update now'); await settle(40)
   check('while the update runs, Download and install is disabled', () => { assert.equal(download().disabled, true) })
   download().click(); await settle(40)
-  check('and pressing it starts no install', () => { assert.ok(!installs.includes('start_fenced')) })
+  check('and pressing it starts no install', () => { assert.ok(!installs.includes('prepare_start')) })
   await act(async () => { release({ ok: true, unchanged: true }) }); await settle(40)
   check('after the update the install can start again', () => { assert.equal(download().disabled, false) })
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })

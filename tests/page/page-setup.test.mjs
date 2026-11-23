@@ -53,8 +53,8 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(!nav())
   })
   scenario.calls.length = 0
-  scenario.byMethod['plugin.hermretro.install'] = params => ({
-    ok: true, manifest, start_expires_at: params.expires_at, install: { state: 'running', run_id: 'run-1' }
+  scenario.byMethod['plugin.hermretro.install'] = params => params.action === 'prepare_start' ? { ok: true, admission: 160 } : ({
+    ok: true, manifest, admission: params.admission, install: { state: 'running', run_id: 'run-1' }
   })
   scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: true, profile: 'hermretro' }
@@ -64,8 +64,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
     assert.ok(requests.includes('plugin.hermretro.install'))
     const start = scenario.paramsByMethod['plugin.hermretro.install']
-    assert.equal(start.action, 'start_fenced')
-    assert.ok(start.expires_at > Date.now())
+    assert.deepEqual(start, { action: 'start_admitted', admission: 160 })
     assert.ok(requests.includes('profiles.create') && requests.includes('plugin.hermretro.studio_profile'))
     assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
   })
@@ -157,10 +156,12 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.storage = { setup: { onboardStarted: true } }
   scenario.status = answered(status()); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await act(async () => { root.render(null) }); await render()
-  scenario.byMethod['plugin.hermretro.install'] = { ok: false, code: 'OPERATION_IN_PROGRESS', error: 'Another setup operation is already running' }
+  scenario.byMethod['plugin.hermretro.install'] = params => params.action === 'prepare_start'
+    ? { ok: true, admission: 160 }
+    : { ok: false, admission: params.admission, code: 'OPERATION_IN_PROGRESS', error: 'Another setup operation is already running' }
   await click('Download and install'); await settle()
   delete scenario.byMethod['plugin.hermretro.install']
-  check('install already running in a chat (an older backend that cannot say so): waits, with Check again, no failure', () => {
+  check('a Start denied while a chat installs waits with Check again and no failure', () => {
     shows(/being installed from a chat/); assert.ok(!button('Try again')); assert.ok(button('Check again'))
   })
   scenario.install = installAnswer({ state: 'idle', elsewhere: true })

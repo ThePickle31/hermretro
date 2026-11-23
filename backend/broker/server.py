@@ -62,6 +62,7 @@ class Handler(socketserver.StreamRequestHandler):
                             # Node was removed or whose temporary folder cannot work (read now, not at start).
                             "node": broker.node,
                             "install_start_deadline": True,
+                            "install_start_monotonic": True,
                             "temp_ok": host_os.engine_temp_ready(sanitized_environment()),
                         }
                     elif request.get("op") == "call":

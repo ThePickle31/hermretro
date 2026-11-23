@@ -9,9 +9,10 @@ from pathlib import Path
 from unittest import mock
 
 from backend.broker import broker as broker_module, install as control
-from backend.broker.broker import Broker, Denied
+from backend.broker.broker import Denied
 from backend.broker.engine import EngineCancelled, EngineProcess
 from backend.setup import recovery
+from tests.backend.broker.bare import bare_broker as make_broker
 
 
 class CancellableEngine:
@@ -65,17 +66,15 @@ class QuietEngine:
 
 
 def bare_broker(engine, generation="this-broker"):
-    broker = Broker.__new__(Broker)
-    broker.stopping = threading.Event()
-    broker.install, broker.install_lock = {"state": "idle"}, threading.Lock()
-    broker.prepare_lock = threading.Lock()
-    broker.events = []
-    broker.trace = lambda **record: broker.events.append(record)
-    broker.new_engine = lambda name: engine
-    broker.install_engine = None
-    broker.last_activity = 0
-    broker.generation = generation
-    return broker
+    return make_broker(
+        install={"state": "idle"},
+        install_lock=threading.Lock(),
+        prepare_lock=threading.Lock(),
+        new_engine=lambda name: engine,
+        install_engine=None,
+        last_activity=0,
+        generation=generation,
+    )
 
 
 class Recovery(unittest.TestCase):
@@ -126,14 +125,34 @@ class Recovery(unittest.TestCase):
 
     def test_start_checks_its_deadline_again_after_preflight(self):
         broker = bare_broker(None)
-        with mock.patch.object(control.time, "time", side_effect=[1, 3]):
+        with (
+            mock.patch.object(control.time, "monotonic", side_effect=[1, 3]),
+            mock.patch.object(control.time, "time", return_value=0),
+        ):
             with self.assertRaises(Denied) as rejected:
-                broker.control({"op": "install_start", "admit_before": 2000})
+                broker.control({"op": "install_start", "admit_until": 2})
 
         self.assertEqual(rejected.exception.code, "START_EXPIRED")
         self.assertEqual(broker.install["state"], "idle")
         self.assertFalse(broker.prepare_lock.locked())
         self.assertIsNone(recovery.read_journal())
+
+    def test_start_acknowledges_the_admitted_snapshot_without_scanning_for_status(self):
+        engine = CancellableEngine(self.root)
+        broker = bare_broker(engine)
+        with (
+            mock.patch.object(broker, "install_status", side_effect=AssertionError("Status called during Start")),
+            mock.patch.object(control.setup, "download_bytes", return_value=10) as scan,
+            mock.patch.object(control.time, "time", return_value=9_999_999_999),
+        ):
+            answer = broker.control({"op": "install_start", "admit_until": time.monotonic() + 3})
+            scan.assert_called_once_with(self.root)
+        self.assertTrue(answer["ok"])
+        self.assertEqual(answer["install"]["state"], "running")
+        self.assertEqual(answer["install"]["run_id"], broker.install["run_id"])
+        self.wait_called(engine)
+        broker.cancel_install(answer["install"]["run_id"])
+        self.wait_finished(broker)
 
     def test_an_older_clients_unfenced_start_is_denied(self):
         broker = bare_broker(None)
@@ -251,6 +270,10 @@ class Recovery(unittest.TestCase):
         broker = bare_broker(None)
         broker.prepare_lock.acquire()
         self.assertTrue(broker.install_status()["elsewhere"])
+        with self.assertRaises(Denied) as refused:
+            broker.control({"op": "shutdown"})
+        self.assertEqual(refused.exception.code, "BUSY")
+        self.assertFalse(broker.stopping.is_set())
         broker.prepare_lock.release()
         self.assertFalse(broker.install_status()["elsewhere"])
 

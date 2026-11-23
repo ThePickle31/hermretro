@@ -5,7 +5,7 @@ import time
 import unittest
 from unittest import mock
 
-from backend.broker import BrokerNotRunning, BrokerUnavailable
+from backend.broker import BrokerNotRunning, BrokerUnavailable, BrokenBroker, LegacyBrokerHello
 from backend.broker.broker import Broker, Denied
 from backend.hermes import host as hermes_host
 from backend.setup import recovery, rpcs as setup_rpcs
@@ -89,6 +89,69 @@ class InstallRpc(unittest.TestCase):
 
         self.assertEqual((result["ok"], result["code"]), (False, "START_EXPIRED"))
         connect.assert_not_called()
+
+    def test_admission_uses_gateway_monotonic_time_and_is_confirmed_before_reading_status(self):
+        client = FakeBrokerClient({"ok": True, "install": {"state": "running", "run_id": "run-a"}})
+        now = mock.Mock(return_value=100)
+        with (
+            mock.patch.object(setup_rpcs.time, "monotonic", now),
+            mock.patch.object(setup_rpcs.time, "time", return_value=9_999_999_999),
+            mock.patch.object(hermes_host, "ensure_broker", return_value=client) as ensure,
+        ):
+            given = self.rpc({"action": "prepare_start"})
+            ensure.assert_not_called()
+            self.assertEqual(given, {"ok": True, "admission": 160.0})
+            admission = given["admission"]
+            result = self.rpc({"action": "start_admitted", "admission": admission})
+            self.assertEqual(result["admission"], admission)
+            self.assertEqual(result["install"]["run_id"], "run-a")
+            ensure.assert_called_once_with(deadline=admission)
+            self.assertEqual(client.asked, [{"op": "install_start", "admit_until": admission}])
+
+            def absent(_run):
+                now.return_value = admission + 1
+                return None, BrokerNotRunning("missing socket")
+
+            with mock.patch.object(hermes_host, "try_connect", side_effect=absent):
+                status = {"action": "status", "admission": admission}
+                self.assertNotIn("expired_admission", self.rpc(status), "status began before the expiry")
+                self.assertEqual(self.rpc(status)["expired_admission"], admission)
+            ensure.reset_mock()
+            expired = self.rpc({"action": "start_admitted", "admission": admission})
+            self.assertEqual(expired["code"], "START_EXPIRED")
+            ensure.assert_not_called()
+
+    def test_known_legacy_status_can_be_retired_only_by_an_explicit_action(self):
+        hello = {"ok": False, "error": "FileNotFoundError: adapter/../plugin.yaml"}
+        stopped = (None, BrokenBroker(hello, True))
+        missing = (None, BrokerNotRunning("missing socket"))
+        with (
+            mock.patch.object(hermes_host, "try_connect") as connect,
+            mock.patch.object(hermes_host, "ensure_broker") as spawn,
+            mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+        ):
+            connect.return_value = None, LegacyBrokerHello(hello["error"])
+            status = self.rpc({"action": "status"})
+            self.assertEqual((status["ok"], status["code"]), (False, "BROKER_LEGACY"))
+            self.assertEqual(connect.call_args.kwargs, {})
+            lock.assert_not_called()
+
+            connect.return_value = None, BrokenBroker(hello, False)
+            fresh = {"action": "status", "retire_legacy": True}
+            busy = self.rpc(fresh)
+            self.assertEqual((busy["ok"], busy["code"]), (False, "BUSY"))
+            self.assertTrue(connect.call_args.kwargs["retire_broken"])
+            self.assertGreater(connect.call_args.kwargs["deadline"], time.monotonic())
+            lock.assert_not_called()
+
+            connect.side_effect = [stopped, missing]
+            lock.return_value.__enter__.return_value = True
+            answer = self.rpc(fresh)
+            self.assertTrue(answer["ok"])
+            self.assertEqual(answer["install"], {"state": "idle"})
+            self.assertNotIn("retire_broken", connect.call_args.kwargs)
+            lock.assert_called_once()
+            spawn.assert_not_called()
 
     def test_bad_acknowledgements_are_unavailable_for_all_install_actions(self):
         replies = (

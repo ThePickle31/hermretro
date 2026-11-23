@@ -100,7 +100,7 @@ const recheckButton = (installer, label = 'Check again') => jsx(AsyncButton, { i
 export function InstallActions({ installer, compact = false }) {
   const { phase, start, starting, ask, node, unsupported } = installer
   const size = compact ? 'sm' : 'lg'
-  const blocked = !installer.confirmed || installer.unavailable || !installer.manifestReady || installer.conflict || installer.noSpace
+  const blocked = !installer.canStart || !installer.manifestReady || installer.conflict || installer.noSpace
 
   if (unsupported) {
     return jsxs('div', {
@@ -194,7 +194,7 @@ export function InstallActions({ installer, compact = false }) {
     })
   }
 
-  if (phase === 'failed' && installer.unavailable) {
+  if (phase === 'failed' && !installer.canStart && installer.unavailable) {
     return jsx('div', { className: 'cs-actions', children: recheckButton(installer) })
   }
 

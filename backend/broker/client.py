@@ -22,6 +22,10 @@ class BrokerNotRunning(BrokerUnavailable):
     """The socket was missing or refused the connection."""
 
 
+class LegacyBrokerHello(BrokerUnavailable):
+    """The old broker accepted the token but its fingerprint path was removed by an upgrade."""
+
+
 class OtherCopyBusy(BrokerUnavailable):
     """The running broker belongs to another copy of the plugin (another folder, or an older version that
     cannot say which), and it still has live game workers, so it is neither used nor replaced.
@@ -86,7 +90,12 @@ class BrokerClient:
             deadline = time.monotonic() + budget
             if self.startup_deadline is not None:
                 deadline = min(deadline, self.startup_deadline)
-        if op == "install_start" and self.hello.get("install_start_deadline") is not True:
+        monotonic_start = op == "install_start" and self.hello.get("install_start_monotonic") is True
+        if (
+            op == "install_start"
+            and not monotonic_start
+            and ("admit_until" in obj or self.hello.get("install_start_deadline") is not True)
+        ):
             return {
                 "ok": False,
                 "dispatched": False,
@@ -97,8 +106,11 @@ class BrokerClient:
                 },
             }
         try:
-            if op == "install_start":
-                # The server checks this even if it reads the request after this connection times out.
+            if monotonic_start and "admit_before" not in obj:
+                # The broker is on this host and reads the same monotonic clock.
+                obj = {**obj, "admit_until": min(obj.get("admit_until", deadline), deadline)}
+            elif op == "install_start":
+                # Keep the older Unix-millisecond fence for callers and brokers that use it.
                 expires_at = min(
                     obj.get("admit_before", float("inf")), (time.time() + _remaining(deadline, budget)) * 1000
                 )
@@ -284,8 +296,16 @@ def try_connect(
         return None, error
     if client.hello.get("ok"):
         return client, None
-    failure = BrokerUnavailable(json.dumps(client.hello))  # the token raced a restart
-    if retire_broken and "error" in client.hello and "denied" not in client.hello:
+    message = json.dumps(client.hello)
+    hello_error = client.hello.get("error")
+    legacy = (
+        "denied" not in client.hello
+        and isinstance(hello_error, str)
+        and hello_error.startswith("FileNotFoundError:")
+        and "adapter/../plugin.yaml" in hello_error
+    )
+    failure = LegacyBrokerHello(message) if legacy else BrokerUnavailable(message)
+    if retire_broken and legacy:
         # The handshake failed inside the broker, after it had accepted the token. A broker of the releases
         # before the backend/ layout does this once an update has removed adapter/, the folder it reads its
         # fingerprint from: it can never be compared, and every attempt keeps it from idling out. Ask it to
@@ -307,10 +327,11 @@ def _workers_cannot_start(hello: dict, node: str) -> bool:
     return hello.get("temp_ok") is False and host_os.engine_temp_ready({"TMPDIR": os.environ.get("TMPDIR", "")})
 
 
-def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
+def ensure_broker(state_dir: Path | None = None, wait: float = 20.0, *, deadline: float | None = None) -> BrokerClient:
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
-    The startup budget begins after Node discovery. A broker left over from another build is replaced when idle."""
+    The startup budget begins after Node discovery, bounded by the caller's monotonic deadline if given.
+    A broker left over from another build is replaced when idle."""
     state_dir = Path(state_dir) if state_dir else paths.runtime_dir()
     node = paths.find_node()
     if not node.get("ok"):
@@ -319,7 +340,8 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             + (f" (found {node['version']})" if node.get("version") else "")
             + "."
         )
-    deadline = time.monotonic() + wait
+    startup_end = time.monotonic() + wait
+    deadline = startup_end if deadline is None else min(deadline, startup_end)
     last: Exception | None = None
     spawned: subprocess.Popen | None = None
     while time.monotonic() < deadline:

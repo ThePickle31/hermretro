@@ -19,7 +19,7 @@ sent), and `setup.demoRequested` `{}` when Try the demo is picked during the ins
 
 **Uses from other pages:** none.
 
-**Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `setup`.
+**Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `setup` and `installStartPending` (the pending Start admission, kept across remounts).
 
 **Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-recovery.test.mjs` (the install's failure,
 cancel and recovery states), `tests/page/page-setup-handoff.test.mjs`, `tests/page/page-studio.test.mjs`.

@@ -96,7 +96,7 @@ class InstallMixin:
         return setup.worker_left(setup.read_journal())
 
     def install_busy(self) -> bool:
-        return self.install_running() or self.install_worker_left()
+        return self.prepare_lock.locked() or self.install_running() or self.install_worker_left()
 
     def close_install_worker(self) -> None:
         """The stopping broker's last try at the installer worker; an exit it cannot confirm is recorded."""
@@ -111,21 +111,20 @@ class InstallMixin:
             with self.install_lock:
                 self._record_left_worker(engine)
 
-    def _check_install_admission(self, admit_before: float | None) -> None:
-        if admit_before is not None and (
-            type(admit_before) not in (int, float)
-            or not math.isfinite(admit_before)
-            or time.time() * 1000 >= admit_before
-        ):
-            raise Denied("START_EXPIRED", "The install start expired. Check the install status and try again.")
+    def _check_install_admission(self, admit_until: float | None, admit_before: float | None) -> None:
+        deadline = admit_until if admit_until is not None else admit_before
+        if deadline is not None:
+            now = time.monotonic() if admit_until is not None else time.time() * 1000
+            if type(deadline) not in (int, float) or not now < deadline < math.inf:
+                raise Denied("START_EXPIRED", "The install start expired. Check the install status and try again.")
         if self.stopping.is_set():
             raise Denied("BROKER_STOPPING", "The background process is stopping. Try again.")
 
-    def start_install(self, *, admit_before: float | None = None) -> dict:
+    def start_install(self, *, admit_until: float | None = None, admit_before: float | None = None) -> dict:
         """Prepare the game toolchain for the desktop page, without a chat. Runs the engine's own
         toolchain_prepare in a throwaway worker on a background thread; install_status reports it."""
         with self.install_lock:
-            self._check_install_admission(admit_before)
+            self._check_install_admission(admit_until, admit_before)
             if self.install.get("state") == "running":
                 return dict(self.install)
             if self.install_worker_left():
@@ -143,7 +142,7 @@ class InstallMixin:
                 )
             baseline_bytes = setup.download_bytes(paths.setup_root())
             # Check again after filesystem work, under the same lock that protects the status snapshot.
-            self._check_install_admission(admit_before)
+            self._check_install_admission(admit_until, admit_before)
             if not self.prepare_lock.acquire(blocking=False):
                 raise Denied(
                     "OPERATION_IN_PROGRESS",

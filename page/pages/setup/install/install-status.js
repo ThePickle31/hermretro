@@ -6,10 +6,12 @@ import { RPC_INSTALL } from '#app/rpc.js'
 import { isUpdating } from '#app/update/lock.js'
 
 const INSTALL_QUERY = [ID, 'install']
-const START_ACTION = 'start_fenced'
+const PENDING_START = 'installStartPending'
+const START_ACTION = 'start_admitted'
 const START_TIMEOUT_MS = 60_000
 const INSTALL_STATES = new Set(['idle', 'running', 'done', 'failed', 'cancelled', 'interrupted'])
 export const INSTALL_STATUS_UNKNOWN = 'The install status could not be confirmed.'
+const INSTALL_BUSY = 'The game tools are being installed.'
 
 export function confirmedInstall(data, starting = false) {
   const install = data?.install
@@ -18,16 +20,32 @@ export function confirmedInstall(data, starting = false) {
     (!(starting || install.state === 'running') || (typeof install.run_id === 'string' && Boolean(install.run_id.trim())))
 }
 
-async function fetchInstall(queryClient) {
-  const checkedAt = performance.now()
-  const askedAt = Date.now()
+function pendingStart(ctx) {
+  return ctx.storage.get(PENDING_START, null)
+}
+
+function installBusy(data) {
+  return data?.install?.state === 'running' || data?.install?.elsewhere === true
+}
+
+async function fetchInstall(queryClient, attempt, retireLegacy = false) {
   let answer
 
   try {
-    const { data } = await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)
+    const params = { action: 'status' }
+
+    if (attempt) {
+      params.admission = attempt.admission
+    }
+
+    if (retireLegacy) {
+      params.retire_legacy = true
+    }
+
+    const { data } = await callBackend(RPC_INSTALL, params, 30_000)
 
     if (confirmedInstall(data)) {
-      return { ...data, checkedAt, askedAt }
+      return data
     }
 
     answer = data
@@ -39,27 +57,26 @@ async function fetchInstall(queryClient) {
 
   const previous = queryClient.getQueryData(INSTALL_QUERY)
 
-  return { ...previous, ...answer, ok: false, install: previous?.install, unsupported: Boolean(answer?.unsupported), error: answer?.error || INSTALL_STATUS_UNKNOWN }
+  return { ...previous, ...answer, ok: false, install: previous?.install, code: answer?.code, expired_admission: answer?.expired_admission, unsupported: Boolean(answer?.unsupported), error: answer?.error || INSTALL_STATUS_UNKNOWN }
 }
 
-function resolvesStart(attempt, data) {
-  return confirmedInstall(data) && data.checkedAt > attempt.after && data.askedAt >= attempt.expiresAt
+function expired(attempt, data) {
+  return attempt && data?.expired_admission === attempt.admission
 }
 
-export function useInstall({ enabled, polling }) {
+export function useInstall({ ctx, enabled, polling }) {
   const queryClient = useQueryClient()
-  const startInFlight = useRef(false)
-  const uncertain = useRef(null)
-  const [starting, setStarting] = useState(false)
-  const [unconfirmed, setUnconfirmed] = useState(null)
+  const preparing = useRef(false)
+  const [submission, setSubmission] = useState(null)
+  const attempt = pendingStart(ctx)
   const query = useQuery({
     queryKey: INSTALL_QUERY,
-    queryFn: () => fetchInstall(queryClient),
+    queryFn: () => fetchInstall(queryClient, pendingStart(ctx)),
     enabled,
     refetchInterval: enabled ? arg => {
       const data = arg?.state ? arg.state.data : arg
 
-      if (unconfirmed || data?.ok === false || data?.install?.state === 'running') {
+      if (pendingStart(ctx) || data?.ok === false || installBusy(data)) {
         return 1_500
       }
 
@@ -70,83 +87,117 @@ export function useInstall({ enabled, polling }) {
   })
 
   const confirmed = !query.isError && confirmedInstall(query.data)
-  const resolved = confirmed && unconfirmed && resolvesStart(unconfirmed, query.data)
+  const legacy = !query.isError && query.data?.code === 'BROKER_LEGACY' && !installBusy(query.data)
+  const pending = attempt && !expired(attempt, query.data)
+  const starting = submission === true || (Boolean(pending) && submission === attempt.admission)
   const statusError = query.isError ? describeRequestError(query.error).message : query.data?.error
-  const unavailable = (resolved ? null : unconfirmed?.error) || (!confirmed && (statusError || (query.data && INSTALL_STATUS_UNKNOWN))) || null
+  const unavailable = (pending && (attempt.error || INSTALL_STATUS_UNKNOWN)) || (!confirmed && (statusError || (query.data && INSTALL_STATUS_UNKNOWN))) || null
+  const canStart = !pending && !installBusy(query.data) && (confirmed || legacy)
 
   useEffect(() => {
-    if (resolved && uncertain.current === unconfirmed) {
-      uncertain.current = null
-      setUnconfirmed(null)
+    if (expired(attempt, query.data) && pendingStart(ctx)?.admission === attempt.admission) {
+      ctx.storage.set(PENDING_START, null)
     }
-  }, [resolved, unconfirmed])
+  }, [ctx, attempt?.admission, query.data?.expired_admission])
 
   const start = async () => {
-    if (!enabled || !confirmed || startInFlight.current || uncertain.current || isUpdating() || query.data.install.state === 'running') {
+    if (!enabled || !canStart || preparing.current || pendingStart(ctx) || isUpdating()) {
       return null
     }
 
-    startInFlight.current = true
-    setStarting(true)
+    preparing.current = true
+    setSubmission(true)
+    let admission = null
 
-    const expiresAt = Date.now() + START_TIMEOUT_MS
+    try {
+      const { data } = await callBackend(RPC_INSTALL, { action: 'prepare_start' }, 30_000)
+
+      if (data?.ok !== true || !Number.isFinite(data.admission) || data.admission <= 0) {
+        return { ok: false, error: data?.error || INSTALL_STATUS_UNKNOWN }
+      }
+
+      // While the grant was requested, another mount may have submitted a Start or begun an update.
+      if (pendingStart(ctx) || isUpdating()) {
+        return null
+      }
+
+      // A remount or a lost request reply must still leave the grant for status to reconcile.
+      ctx.storage.set(PENDING_START, { admission: data.admission })
+      if (pendingStart(ctx)?.admission !== data.admission) {
+        return { ok: false, error: INSTALL_STATUS_UNKNOWN }
+      }
+
+      admission = data.admission
+    } catch (error) {
+      return { ok: false, error: describeRequestError(error).message || INSTALL_STATUS_UNKNOWN }
+    } finally {
+      preparing.current = false
+      setSubmission(admission)
+    }
 
     try {
       let answer
 
       try {
-        const result = await callBackend(RPC_INSTALL, { action: START_ACTION, expires_at: expiresAt }, START_TIMEOUT_MS)
+        const result = await callBackend(RPC_INSTALL, { action: START_ACTION, admission }, START_TIMEOUT_MS)
 
         answer = result.data
       } catch (error) {
         answer = { error: describeRequestError(error).message }
       }
 
-      const admissionEnd = answer?.start_expires_at
-      const fenced = Number.isFinite(admissionEnd) && admissionEnd > 0 && admissionEnd <= expiresAt
-      const accepted = fenced && confirmedInstall(answer, true)
-      // Gateways from before start_fenced reject this action without a code.
-      const denied = answer?.ok === false &&
-        ((typeof answer.code === 'string' && Boolean(answer.code) && answer.code !== 'UNAVAILABLE') ||
-          answer.error === `Unknown action '${START_ACTION}'.`)
+      const accepted = answer?.admission === admission && confirmedInstall(answer, true)
+      const denied = answer?.ok === false && ((answer.admission === admission &&
+        typeof answer.code === 'string' && Boolean(answer.code) && answer.code !== 'UNAVAILABLE') ||
+        answer.error === `Unknown action '${START_ACTION}'.`)
 
-      if (!accepted && !denied) {
-        const attempt = { after: performance.now(), expiresAt: fenced ? admissionEnd : expiresAt, error: answer?.error || INSTALL_STATUS_UNKNOWN }
-
-        uncertain.current = attempt
-        setUnconfirmed(attempt)
-        answer = { ...answer, ok: false, code: 'UNAVAILABLE', error: attempt.error }
+      if (pendingStart(ctx)?.admission !== admission) {
+        return null // A fresh status has already reconciled this attempt.
       }
 
       if (accepted) {
         // A poll begun before the acknowledgement must not overwrite the confirmed run.
         await queryClient.cancelQueries({ queryKey: INSTALL_QUERY })
+        if (pendingStart(ctx)?.admission !== admission) {
+          return null
+        }
+
         queryClient.setQueryData(INSTALL_QUERY, answer)
       }
 
-      if (!denied) {
-        void query.refetch?.()
+      if (accepted || denied) {
+        ctx.storage.set(PENDING_START, null)
+      } else {
+        const error = answer?.error || INSTALL_STATUS_UNKNOWN
+
+        ctx.storage.set(PENDING_START, { admission, error })
+        answer = { ...answer, ok: false, code: 'UNAVAILABLE', error }
       }
+
+      void query.refetch?.()
 
       return answer
     } finally {
-      startInFlight.current = false
-      setStarting(false)
+      setSubmission(current => current === admission ? null : current)
     }
   }
 
-  // Read directly so the mutation can't reuse a cached or in-flight poll from before the user asked.
+  // The mutation needs its own read, including any pending Start saved before this page mounted.
   const confirmIdle = async () => {
-    const data = await fetchInstall(queryClient)
+    const before = pendingStart(ctx)
+    const data = await fetchInstall(queryClient, before, true)
+    const current = pendingStart(ctx)
 
-    if (startInFlight.current || data.install?.state === 'running') {
-      return 'The game tools are being installed.'
+    if (preparing.current || installBusy(data)) {
+      return INSTALL_BUSY
     }
 
-    const pending = uncertain.current
+    if ((before && !expired(before, data)) || (current && !expired(current, data))) {
+      return current?.error || before?.error || INSTALL_STATUS_UNKNOWN
+    }
 
-    return pending && !resolvesStart(pending, data) ? pending.error : (confirmedInstall(data) ? null : data.error)
+    return confirmedInstall(data) ? null : data.error
   }
 
-  return { ...query, confirmed, start, starting, unavailable, confirmIdle, updateBlock: unavailable || (!confirmed ? INSTALL_STATUS_UNKNOWN : null) }
+  return { ...query, canStart, start, starting, unavailable, confirmIdle, updateBlock: legacy && !pending ? null : unavailable || (!confirmed ? INSTALL_STATUS_UNKNOWN : null) }
 }

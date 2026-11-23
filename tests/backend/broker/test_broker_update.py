@@ -128,14 +128,14 @@ class BrokerAfterUpdate(unittest.TestCase):
     ):
         connected = client.BrokerClient.__new__(client.BrokerClient)
         connected.startup_deadline = None
-        connected.hello = {"install_start_deadline": True}
+        connected.hello = {"install_start_monotonic": True}
         connected.sock = mock.Mock()
         connected.sock.recv.side_effect = TimeoutError
         with self.assertRaisesRegex(client.BrokerUnavailable, "did not answer install_start"):
-            connected.request({"op": "install_start"})
+            connected.request({"op": "install_start", "admit_until": time.monotonic() + 60})
         wire = json.loads(connected.sock.sendall.call_args.args[0])
-        self.assertGreater(wire["admit_before"], time.time() * 1000)
-        self.assertLessEqual(wire["admit_before"], (time.time() + client.CONTROL_TIMEOUT) * 1000)
+        self.assertGreater(wire["admit_until"], time.monotonic())
+        self.assertLessEqual(wire["admit_until"], time.monotonic() + client.CONTROL_TIMEOUT)
         for deadline in connected.sock.settimeout.call_args_list:
             self.assertGreater(deadline.args[0], 0)
             self.assertLessEqual(deadline.args[0], client.CONTROL_TIMEOUT)
@@ -159,6 +159,21 @@ class BrokerAfterUpdate(unittest.TestCase):
         )
         connected.sock.sendall.assert_not_called()
 
+    def test_an_older_fenced_broker_accepts_only_the_wall_clock_protocol(self):
+        connected = client.BrokerClient.__new__(client.BrokerClient)
+        connected.startup_deadline = None
+        connected.hello = {"install_start_deadline": True}
+        connected.sock = mock.Mock()
+        connected.sock.recv.return_value = b'{"ok":true}\n'
+
+        answer = connected.request({"op": "install_start", "admit_until": time.monotonic() + 60})
+        self.assertEqual(answer["denied"]["code"], "BROKER_OUTDATED")
+        connected.sock.sendall.assert_not_called()
+
+        self.assertTrue(connected.request({"op": "install_start"})["ok"])
+        wire = json.loads(connected.sock.sendall.call_args.args[0])
+        self.assertGreater(wire["admit_before"], time.time() * 1000)
+
     def test_a_malformed_shutdown_cannot_authorize_replacement(self):
         connected = mock.Mock()
         connected.request.return_value = {"ok": False, "denied": "invalid reply"}
@@ -169,7 +184,7 @@ class BrokerAfterUpdate(unittest.TestCase):
         broker = self.old()
         found, error = client.try_connect(self.state)
         self.assertIsNone(found)
-        self.assertNotIsInstance(error, client.BrokenBroker)
+        self.assertIsInstance(error, client.LegacyBrokerHello)
         self.assertEqual(broker.requests, ["hello"])
 
     def test_the_client_asks_it_to_stop(self):
@@ -264,7 +279,7 @@ class BrokerAfterUpdate(unittest.TestCase):
             mock.patch.object(client, "spawn_broker") as spawn,
             self.assertRaisesRegex(client.BrokerUnavailable, "deadline expired"),
         ):
-            client.ensure_broker(self.state, wait=0.05)
+            client.ensure_broker(self.state, deadline=0.05)
         spawn.assert_not_called()
         clock.sleep.assert_not_called()
 

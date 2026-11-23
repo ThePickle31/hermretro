@@ -62,7 +62,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   // A chat is already preparing the tools: wait for it instead of reporting a failure. The backend says so too
   // (`install.elsewhere`); an older one does not, and then only this answer to the start is known.
   const [elsewhere, setElsewhere] = useState(false)
-  const { data, confirmed, starting, unavailable } = install
+  const { data, canStart, starting, unavailable } = install
   const unsupported = data?.unsupported || (install.isError && describeRequestError(install.error).notLoaded)
   const state = data?.install?.state ?? 'idle'
   const profile = status.data?.profile
@@ -115,7 +115,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   }
 
   const start = async () => {
-    if (!confirmed || starting || unavailable || state === 'running' || !manifestReady || conflict || noSpace) {
+    if (!canStart || starting || waitingElsewhere || !manifestReady || conflict || noSpace) {
       return
     }
 
@@ -201,7 +201,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     cancelError: state === 'running' ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
-    confirmed,
+    canStart,
     data,
     doctor,
     elsewhere: waitingElsewhere,

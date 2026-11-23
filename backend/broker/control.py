@@ -23,8 +23,11 @@ class ControlMixin(InstallMixin):
     def control(self, request: dict) -> dict:
         op = request.get("op")
         if op == "install_start":
-            self.start_install(admit_before=request.get("admit_before") or 0)
-            return {"ok": True, "install": self.install_status()}
+            if "admit_until" in request:
+                install = self.start_install(admit_until=request.get("admit_until") or 0)
+            else:
+                install = self.start_install(admit_before=request.get("admit_before") or 0)
+            return {"ok": True, "install": install}
         if op == "install_status":
             return {"ok": True, "install": self.install_status()}
         if op == "install_cancel":
@@ -58,7 +61,10 @@ class ControlMixin(InstallMixin):
             # Remove downloaded tools, which asks this first) must wait until that worker is gone.
             with self.install_lock:
                 if not request.get("force") and (
-                    busy or self.install.get("state") == "running" or self.install_worker_left()
+                    busy
+                    or self.prepare_lock.locked()
+                    or self.install.get("state") == "running"
+                    or self.install_worker_left()
                 ):
                     raise Denied("BUSY", "Conversations still have live Chromatic workers.")
                 self.stopping.set()

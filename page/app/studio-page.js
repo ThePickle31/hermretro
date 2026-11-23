@@ -164,13 +164,13 @@ export function StudioPage({ ctx }) {
 
   const toolchainStep = steps.find(step => step.id === 'toolchain')
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
-  const install = useInstall({ enabled: running, polling: wantInstall })
+  const install = useInstall({ ctx, enabled: running, polling: wantInstall })
   const installState = install.data?.install?.state ?? null
   // A chat holds the setup lock (the broker says so): the only time the tools check repeats on its own.
   const installElsewhere = Boolean(install.data?.install?.elsewhere)
   const pluginUpdate = usePluginUpdate({
     ctx,
-    installing: install.starting || installState === 'running',
+    installing: install.starting || installState === 'running' || installElsewhere,
     installError: install.updateBlock,
     confirmInstallIdle: install.confirmIdle,
     running,

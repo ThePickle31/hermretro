@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, dom, scenario, render, click, button, check, shows, hides, answered, status, doctor, installAnswer }) => {
+await runScenario(async ({ act, dom, root, scenario, render, click, button, check, shows, hides, answered, status, doctor, installAnswer }) => {
   const idle = installAnswer({ state: 'idle' }).data
   const running = installAnswer({ state: 'running', run_id: 'run-a', fraction: 0.42, current: 'cli' }).data
   const statusError = 'Broker did not answer install_status before its deadline'
@@ -14,10 +14,16 @@ await runScenario(async ({ act, dom, scenario, render, click, button, check, sho
   const starts = []
   const cancels = []
   let reply = unavailable
-  let startReply = () => ({ ok: false, code: 'UNAVAILABLE', error: startError, start_expires_at: Date.now() - 1 })
+  let admission = 100
+  let startReply = () => ({ ok: false, code: 'UNAVAILABLE', error: startError })
   scenario.byMethod['plugin.hermretro.install'] = params => {
     switch (params.action) {
-      case 'start_fenced':
+      case 'prepare_start':
+        admission += 60
+
+        return { ok: true, admission }
+      case 'start_admitted':
+        assert.equal(scenario.storage.installStartPending?.admission, params.admission, 'persist before submitting')
         starts.push(params)
 
         return startReply(params)
@@ -26,7 +32,7 @@ await runScenario(async ({ act, dom, scenario, render, click, button, check, sho
 
         return { ok: true }
       default:
-        return typeof reply === 'function' ? reply() : reply
+        return typeof reply === 'function' ? reply(params) : reply
     }
   }
   const publish = data => {
@@ -110,7 +116,7 @@ await runScenario(async ({ act, dom, scenario, render, click, button, check, sho
     assert.equal(button('Reload')?.disabled, true)
   })
 
-  await poll(running)
+  await poll(params => ({ ...running, expired_admission: params.admission }))
   check('a fresh status can confirm that the install started despite losing the acknowledgement', () => {
     hides(startError)
     shows('42%')
@@ -145,50 +151,125 @@ await runScenario(async ({ act, dom, scenario, render, click, button, check, sho
   })
 
   await poll(idle)
-  startReply = () => ({ ok: false, code: 'NO_SPACE', error: 'Out of room' })
+  startReply = params => ({ ok: false, admission: params.admission, code: 'NO_SPACE', error: 'Out of room' })
   await click('Download and install')
   check('an explicit Start denial is shown without treating the install as unconfirmed', () => {
     shows('Out of room')
     assert.equal(button('Reload')?.disabled, false)
   })
 
-  // A mixed-version or malformed reply does not prove the broker's shorter window, even if it claims success.
-  startReply = () => ({ ok: true, install: { state: 'done', run_id: 'old-run' } })
+  // Remount before the pending Start replies. Desktop wall time can move either way during reconciliation.
+  let completeStart
+  startReply = () => new Promise(resolve => { completeStart = resolve })
   await click('Try again')
-  await poll(idle)
-  check('a fresh idle during the original start window cannot authorize another mutation', () => {
-    shows('The install status could not be confirmed.')
-    assert.equal(button('Download and install')?.disabled, true)
-    assert.equal(button('Reload')?.disabled, true)
-  })
+  await act(async () => { root.render(null) })
+  await render()
   const originalNow = Date.now
-  Date.now = () => starts.at(-1).expires_at + 1
   try {
+    Date.now = () => originalNow() + 86_400_000
     await poll(idle)
-    check('a confirmed idle after admission expiry allows Start and Reload again', () => {
+    check('the remounted page blocks Start and Reload during the outstanding admission even with a fast Desktop clock', () => {
+      shows('The install status could not be confirmed.')
+      assert.equal(button('Download and install')?.disabled, true)
+      assert.equal(button('Reload')?.disabled, true)
+    })
+    await toggleChip()
+    check('the persisted attempt also blocks Update while Start is in flight', () => {
+      assert.equal(button('Update now')?.disabled, true)
+    })
+    await toggleChip()
+    await act(async () => { completeStart({ ok: true, install: { state: 'done', run_id: 'old-run' } }) })
+    await poll({ ...idle, expired_admission: starts[0].admission })
+    check('a malformed Start reply or an older admission cannot unblock the current attempt', () => {
+      assert.equal(button('Reload')?.disabled, true)
+    })
+    Date.now = () => originalNow() - 86_400_000
+    await poll(params => ({ ...idle, expired_admission: params.admission }))
+    check('gateway-confirmed expiry allows Start and Reload even with a slow Desktop clock', () => {
       assert.equal(button('Download and install')?.disabled, false)
       assert.equal(button('Reload')?.disabled, false)
+      assert.equal(scenario.storage.installStartPending, null)
     })
   } finally {
     Date.now = originalNow
   }
 
+  await click('Download and install')
+  await poll(params => ({ ...idle, expired_admission: params.admission }))
+  check('expiry also releases the original mount while its Start request is still unanswered', () => {
+    assert.equal(button('Download and install')?.disabled, false)
+    assert.equal(button('Reload')?.disabled, false)
+  })
+  await act(async () => { completeStart({ ...running, admission: starts.at(-1).admission }) })
+  check('a late acknowledgement cannot replace the status that reconciled its admission', () => {
+    assert.equal(scenario.queryData.get(cacheKey).install.state, 'idle')
+  })
+
   const mutations = []
   scenario.byMethod['session.active_list'] = () => ({ sessions: [] })
   scenario.byMethod['plugins.manage'] = params => { mutations.push(params.action); return { ok: true } }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => { mutations.push('studio_profile'); return { ok: true } }
-  reply = () => { throw new Error('Fresh status was rejected') }
+
+  await poll({ ...idle, install: { state: 'idle', elsewhere: true } })
+  await toggleChip()
+  check('an install elsewhere blocks Update and Reload in the UI', () => {
+    assert.equal(button('Update now')?.disabled, true)
+    assert.equal(button('Reload')?.disabled, true)
+  })
+  await toggleChip()
+  await poll(idle)
+  reply = { ...idle, install: { state: 'idle', elsewhere: true } }
   await toggleChip()
   await click('Update now')
+  check('Update checks for an install elsewhere after the cached status was idle', () => {
+    shows('The game tools are being installed.')
+    assert.deepEqual(mutations, [])
+  })
+  await click('Reload')
+  check('Reload checks for an install elsewhere after the cached status was idle', () => {
+    shows('Reload did not finish: The game tools are being installed.')
+    assert.deepEqual(mutations, [])
+  })
+  reply = () => { throw new Error('Fresh status was rejected') }
+  await click('Try again', dom.window.document.querySelector('.cs-upd-pop'))
   check('Update checks live status even if a cached idle enables the button', () => {
     shows('Fresh status was rejected')
     assert.deepEqual(mutations, [])
   })
 
   reply = { ok: true }
-  await click('Reload')
+  await click('Try again', dom.window.document.querySelector('.cs-repair'))
   check('Reload refuses a malformed live status even with a cached idle', () => {
     shows('Reload did not finish: The install status could not be confirmed.')
     assert.deepEqual(mutations, [])
+  })
+
+  const reads = []
+  const legacy = { ...unavailable, code: 'BROKER_LEGACY', error: 'The old broker could not read its fingerprint.' }
+  let legacyBusy = true
+  reply = params => {
+    reads.push(params)
+
+    return !params.retire_legacy ? legacy : legacyBusy ? { ok: false, code: 'BUSY', error: 'The old broker is running games.' } : idle
+  }
+  await act(async () => { root.render(null) })
+  await poll(reply)
+  await toggleChip()
+  check('a passive legacy poll offers an action without requesting retirement', () => {
+    assert.deepEqual(reads, [{ action: 'status' }])
+    assert.equal(button('Update now')?.disabled, false)
+    assert.equal(button('Reload')?.disabled, false)
+    assert.equal(button('Download and install')?.disabled, false)
+  })
+  await click('Update now')
+  check('explicit Update checks the legacy broker and honors its busy refusal', () => {
+    assert.deepEqual(reads.at(-1), { action: 'status', retire_legacy: true })
+    shows('The old broker is running games.')
+    assert.deepEqual(mutations, [])
+  })
+  legacyBusy = false
+  await click('Try again', dom.window.document.querySelector('.cs-upd-pop'))
+  check('Update proceeds after the guarded legacy retirement confirms idle', () => {
+    assert.deepEqual(mutations, ['update', 'studio_profile', 'toggle', 'toggle'])
   })
 })
