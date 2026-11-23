@@ -2,7 +2,7 @@
 
 After each successful ``chromatic_rom_build`` of a library game, the project's own files are copied to
 ``<base>/<game id>/<ms>/files/`` with ``<ms>/snapshot.json`` beside them. A build that changed nothing
-adds its time to the newest snapshot's ``builds`` list instead of a new copy. Restoring first keeps the
+adds its build reference to the newest snapshot instead of making a new copy. Restoring first keeps the
 current files as a ``before-restore`` snapshot, then makes the project's files match the chosen one.
 
 Pure functions over paths: no Hermes, broker or registry imports, so everything here is unit-testable.
@@ -18,10 +18,23 @@ import hashlib
 import json
 import os
 import shutil
-import tempfile
+import stat
 import time
 from contextlib import contextmanager
+from itertools import islice
 from pathlib import Path
+
+from .build_refs import build_history, public_snapshot, record_build
+from .restore_files import (
+    PROJECT_SUFFIX,
+    Digest,
+    DirectoryId,
+    LiveTree,
+    _restore_files,
+    directory_id,
+    file_digest,
+    file_stamp,
+)
 
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
@@ -35,8 +48,6 @@ STALE_PART_SECONDS = 600
 META = "snapshot.json"
 FILES = "files"
 REASONS = ("build", "before-restore")
-PROJECT_SUFFIX = ".gbsproj"
-_CHUNK = 1024 * 1024
 
 
 class SnapshotError(Exception):
@@ -49,67 +60,44 @@ def _temporary(name: str) -> bool:
     return name.endswith(TEMP_SUFFIXES) or name.startswith(".~")
 
 
-def _holds_project(entries) -> bool:
-    """Whether a folder's entries include a game project file (``*.gbsproj`` in any case, a file or a link to one), as
-    the engine finds a project."""
-    return any(
-        entry.name.lower().endswith(PROJECT_SUFFIX) and (entry.is_file() or entry.is_symlink()) for entry in entries
-    )
-
-
-def _other_game(root: Path, relative: str, seen: dict[str, bool]) -> bool:
-    """Whether ``relative`` (a file's path under ``root``) lies in a folder below ``root`` that is another game's
-    project (holds a ``.gbsproj``). ``seen`` remembers each folder's answer across calls."""
-    parts = relative.split("/")[:-1]
-    for index in range(1, len(parts) + 1):
-        folder = "/".join(parts[:index])
-        if folder not in seen:
-            try:
-                seen[folder] = _holds_project(list(os.scandir(root / folder)))
-            except OSError:
-                seen[folder] = False
-        if seen[folder]:
-            return True
-    return False
-
-
-def walk(root: Path, *, exclude_top: bool = True) -> dict[str, Path]:
-    """Every regular file under ``root`` by its relative posix path. Symlinks (files or folders) are
-    skipped and never followed; so are the excluded top-level folders, temporary files and every folder below
-    ``root`` that is another game's project (holds a ``.gbsproj``)."""
+def walk(root: Path, *, stored: bool = False, live: LiveTree | None = None) -> dict[str, Path]:
+    """Scan the whole tree up to the file cap, propagating I/O errors. A live project has exclusions, while stored
+    files must all be accounted for by the snapshot manifest."""
     found: dict[str, Path] = {}
     stack = [(Path(root), "")]
     while stack:
         folder, prefix = stack.pop()
-        try:
-            entries = list(os.scandir(folder))
-        except OSError:
+        identity = directory_id(folder.lstat()) if live is not None else None
+        with os.scandir(folder) as scan:
+            entries = [(entry, entry.stat(follow_symlinks=False).st_mode) for entry in scan]
+        if (
+            not stored
+            and prefix
+            and any(
+                entry.name.lower().endswith(PROJECT_SUFFIX) and (stat.S_ISREG(mode) or stat.S_ISLNK(mode))
+                for entry, mode in entries
+            )
+        ):
+            if live is not None:
+                live.other_games.add(identity)
             continue
-        if prefix and _holds_project(entries):
-            continue
-        for entry in entries:
-            if entry.is_symlink():
-                continue
+        if live is not None:
+            live.directories[prefix.rstrip("/")] = identity
+        for entry, mode in entries:
             relative = f"{prefix}{entry.name}"
-            try:
-                if entry.is_dir(follow_symlinks=False):
-                    if not (exclude_top and not prefix and entry.name in EXCLUDED_TOP):
-                        stack.append((Path(entry.path), relative + "/"))
-                elif entry.is_file(follow_symlinks=False) and not _temporary(entry.name):
+            if stat.S_ISDIR(mode):
+                if stored or prefix or entry.name not in EXCLUDED_TOP:
+                    stack.append((Path(entry.path), relative + "/"))
+                elif live is not None:
+                    live.excluded.add(directory_id(entry.stat(follow_symlinks=False)))
+            elif stat.S_ISREG(mode):
+                if stored or not _temporary(entry.name):
                     found[relative] = Path(entry.path)
-            except OSError:
-                continue
+            elif stored:
+                raise OSError(f"Unexpected entry in the snapshot: {relative}")
             if len(found) > MAX_FILES:
                 return found
     return found
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(_CHUNK), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _fingerprint(digests: dict[str, tuple[int, str]]) -> str:
@@ -153,66 +141,92 @@ def _locked(folder: Path):
 def _ids(folder: Path) -> list[str]:
     """Finished snapshot ids of one game, newest first."""
     try:
-        names = [
-            entry.name for entry in os.scandir(folder) if entry.name.isdigit() and entry.is_dir(follow_symlinks=False)
-        ]
-    except OSError:
+        with os.scandir(folder) as entries:
+            names = [
+                entry.name for entry in entries if _snapshot_id(entry.name) and entry.is_dir(follow_symlinks=False)
+            ]
+    except FileNotFoundError:
         return []
     return sorted(names, key=int, reverse=True)
 
 
-def public(meta: dict, identifier: str) -> dict:
-    answer = {
-        "id": identifier,
-        "at": meta.get("at"),
-        "builds": list(meta.get("builds") or []),
-        "files": meta.get("files"),
-        "bytes": meta.get("bytes"),
-        "reason": meta.get("reason"),
-    }
-    if meta.get("from"):
-        answer["from"] = meta["from"]
-    return answer
+def _snapshot_id(value: str) -> bool:
+    return value.isascii() and value.isdigit()
 
 
-def list_snapshots(base: Path, game: str) -> list[dict]:
+def list_snapshots(base: Path, game: str, *, stored: str | None = None) -> list[dict]:
     """Every snapshot of one game, newest first (without fingerprints)."""
     folder = game_dir(base, game)
     listed = []
     for identifier in _ids(folder):
         meta = _read_meta(folder / identifier)
         if meta is not None:
-            listed.append(public(meta, identifier))
+            listed.append(public_snapshot(meta, identifier, stored))
     return listed
 
 
 def _prune(folder: Path, keep: int, protect=()) -> None:
-    for identifier in _ids(folder)[keep:]:
-        if identifier not in protect:
-            shutil.rmtree(folder / identifier, ignore_errors=True)
     now = time.time()
     try:
-        for entry in os.scandir(folder):
-            if (
-                entry.name.endswith(".part")
-                and entry.is_dir(follow_symlinks=False)
-                and now - entry.stat(follow_symlinks=False).st_mtime > STALE_PART_SECONDS
-            ):
-                shutil.rmtree(entry.path, ignore_errors=True)
+        for identifier in _ids(folder)[keep:]:
+            if identifier not in protect:
+                shutil.rmtree(folder / identifier, ignore_errors=True)
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if (
+                    entry.name.endswith(".part")
+                    and entry.is_dir(follow_symlinks=False)
+                    and now - entry.stat(follow_symlinks=False).st_mtime > STALE_PART_SECONDS
+                ):
+                    shutil.rmtree(entry.path, ignore_errors=True)
     except OSError:
         pass
 
 
-def _measure(files: dict[str, Path]) -> tuple[int, dict[str, tuple[int, str]]]:
+def _measure(files: dict[str, Path], live: LiveTree | None = None) -> tuple[int, dict[str, tuple[int, str]]]:
     digests = {}
     total = 0
     for relative, path in files.items():
-        size = path.stat().st_size
+        info = path.lstat()
+        size = info.st_size
         total += size
         if total > MAX_BYTES:
             return total, {}
-        digests[relative] = (size, _sha256(path))
+        stamp = file_stamp(info)
+        measured = file_digest(path, size, expected_stamp=stamp)
+        if measured[0] != size:
+            raise OSError(f"{path} changed during the snapshot operation")
+        digests[relative] = measured
+        if live is not None:
+            live.files[relative] = (stamp, measured)
     return total, digests
+
+
+def _read_snapshot(source: Path, game: str) -> tuple[dict, dict[str, Path], dict[str, tuple[int, str]]]:
+    try:
+        try:
+            mode = source.lstat().st_mode
+        except FileNotFoundError:
+            raise SnapshotError("MISSING", "That build is no longer kept.") from None
+        files_dir = source / FILES
+        if not stat.S_ISDIR(mode) or not stat.S_ISDIR(files_dir.lstat().st_mode):
+            raise OSError("The snapshot is not a directory")
+        if not stat.S_ISREG((source / META).lstat().st_mode):
+            raise OSError("The snapshot metadata is not a regular file")
+        meta = _read_meta(source)
+        if meta is None or meta.get("game") != game or meta.get("reason") not in REASONS:
+            raise OSError("The snapshot metadata is invalid")
+        files = walk(files_dir, stored=True)
+        if len(files) > MAX_FILES or type(meta.get("files")) is not int or meta["files"] != len(files):
+            raise OSError("The snapshot file count does not match")
+        total, digests = _measure(files)
+        if total > MAX_BYTES or meta.get("bytes") != total or meta.get("fingerprint") != _fingerprint(digests):
+            raise OSError("The snapshot contents do not match")
+        return meta, files, digests
+    except OSError as error:
+        raise SnapshotError(
+            "INVALID_SNAPSHOT", "The saved build's files are incomplete, damaged or unreadable."
+        ) from error
 
 
 def take(
@@ -221,167 +235,207 @@ def take(
     root: Path,
     reason: str = "build",
     *,
-    from_id: str | None = None,
+    build_ref: str | None = None,
+    build_call: tuple[str, str] | None = None,
     now_ms: int | None = None,
     keep: int = KEEP,
-    protect=(),
 ) -> dict:
-    """Snapshot ``root`` for ``game``. Answers ``{id, created}`` (``created`` False when the newest
-    snapshot already holds exactly these files; a build is then added to its ``builds``), or
-    ``{skipped}`` with the reason when the project is too large to keep."""
+    """Snapshot the project under its history lock. Answers ``{id, created}`` or ``{skipped}`` at the size cap."""
     if reason not in REASONS:
         raise ValueError(f"unknown snapshot reason {reason!r}")
     root = Path(os.path.realpath(root))
     if not root.is_dir():
         raise SnapshotError("MISSING", f"{root} is not a folder.")
     folder = game_dir(base, game)
-    at = int(now_ms if now_ms is not None else time.time() * 1000)
     with _locked(folder):
-        files = walk(root)
-        if len(files) > MAX_FILES:
-            return {"skipped": f"more than {MAX_FILES} files"}
-        total, digests = _measure(files)
-        if total > MAX_BYTES:
-            return {"skipped": f"larger than {MAX_BYTES // (1024 * 1024)} MB"}
-        fingerprint = _fingerprint(digests)
-        newest = _ids(folder)[:1]
-        if newest:
-            meta = _read_meta(folder / newest[0])
-            if meta is not None and meta.get("fingerprint") == fingerprint:
-                if reason == "build":
-                    builds = [value for value in meta.get("builds") or [] if isinstance(value, int)]
-                    meta["builds"] = (builds + [at])[-200:]
-                    _write_json(folder / newest[0] / META, meta)
-                return {"id": newest[0], "created": False}
-        while (folder / str(at)).exists() or (folder / f"{at}.part").exists():
-            at += 1
-        partial = folder / f"{at}.part"
-        stored: dict[str, tuple[int, str]] = {}
-        try:
-            for relative, source in files.items():
-                target = partial / FILES / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                digest = hashlib.sha256()
-                size = 0
-                with open(source, "rb") as reader, open(target, "wb") as writer:
-                    for chunk in iter(lambda: reader.read(_CHUNK), b""):
-                        digest.update(chunk)
-                        size += len(chunk)
-                        writer.write(chunk)
-                stored[relative] = (size, digest.hexdigest())
-            meta = {
-                "at": at,
-                "game": game,
-                "root": str(root),
-                "files": len(stored),
-                "bytes": sum(size for size, _sha in stored.values()),
-                "reason": reason,
-                "fingerprint": _fingerprint(stored),
-                "builds": [at] if reason == "build" else [],
-            }
-            if from_id:
-                meta["from"] = str(from_id)
-            _write_json(partial / META, meta)
-            os.replace(partial, folder / str(at))
-        except BaseException:
-            shutil.rmtree(partial, ignore_errors=True)
-            raise
-        _prune(folder, keep, protect={str(at), *protect})
-        return {"id": str(at), "created": True}
-
-
-def _safe_parent(root: Path, relative: str) -> Path | None:
-    """The folder ``relative`` goes into, created as needed, or None when any part of the way is a
-    symlink or a file (never written through)."""
-    current = root
-    for part in relative.split("/")[:-1]:
-        current = current / part
-        if os.path.islink(current):
-            return None
-        if current.exists():
-            if not current.is_dir():
-                return None
-        else:
-            current.mkdir()
-    return current
-
-
-def restore(base: Path, game: str, root: Path, identifier: str, *, now_ms: int | None = None) -> dict:
-    """Make ``root``'s files match snapshot ``identifier``, after keeping the current files as a
-    ``before-restore`` snapshot. Answers ``{restored, backup, changed, removed}`` (+ ``problems``)."""
-    identifier = str(identifier or "")
-    folder = game_dir(base, game)
-    source = folder / identifier
-    if not identifier.isdigit() or not (source / META).is_file() or not (source / FILES).is_dir():
-        raise SnapshotError("MISSING", "That build is no longer kept.")
-    root = Path(os.path.realpath(root))
-    if not root.is_dir():
-        raise SnapshotError("NO_GAME", f"{root} is not a folder.")
-    backup = take(base, game, root, "before-restore", from_id=identifier, now_ms=now_ms, protect={identifier})
-    if backup.get("skipped"):
-        raise SnapshotError(
-            "TOO_LARGE",
-            "The project could not be backed up first (" + backup["skipped"] + "), so nothing was restored.",
+        return _take_locked(
+            folder, game, root, walk(root), reason, now_ms, keep, build_ref=build_ref, build_call=build_call
         )
-    if not (source / META).is_file():
+
+
+def _take_locked(
+    folder: Path,
+    game: str,
+    root: Path,
+    files: dict[str, Path],
+    reason: str,
+    now_ms: int | None,
+    keep: int,
+    *,
+    from_id: str | None = None,
+    build_ref: str | None = None,
+    build_call: tuple[str, str] | None = None,
+    live: LiveTree | None = None,
+) -> dict:
+    if len(files) > MAX_FILES:
+        return {"skipped": f"more than {MAX_FILES} files"}
+    total, digests = _measure(files, live)
+    if total > MAX_BYTES:
+        return {"skipped": f"larger than {MAX_BYTES // (1024 * 1024)} MB"}
+    fingerprint = _fingerprint(digests)
+    at = int(now_ms if now_ms is not None else time.time() * 1000)
+    newest = next(iter(_ids(folder)), None)
+    if newest is not None:
+        meta = _read_meta(folder / newest)
+        if meta is not None and meta.get("fingerprint") == fingerprint:
+            try:
+                _read_snapshot(folder / newest, game)
+            except SnapshotError:
+                pass  # a damaged snapshot is never reused as a build or backup
+            else:
+                _check_tree(root, files, live)
+                if reason == "build":
+                    record_build(meta, at, build_ref, build_call)
+                elif from_id:
+                    meta["backup"] = {"at": at, "from": from_id}
+                if reason == "build" or from_id:
+                    _write_json(folder / newest / META, meta)
+                return {"id": newest, "created": False}
+    occurrence = at
+    while os.path.lexists(folder / str(at)) or os.path.lexists(folder / f"{at}.part"):
+        at += 1
+    partial = folder / f"{at}.part"
+    partial.mkdir(mode=0o700)
+    try:
+        stage_id = directory_id(partial.lstat())
+        (partial / FILES).mkdir()
+        files_id = directory_id((partial / FILES).lstat())
+        for relative, source in files.items():
+            target = partial / FILES / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            expected = digests[relative]
+            with target.open("xb") as writer:
+                stamp = live.files[relative][0] if live is not None else None
+                if file_digest(source, expected[0], writer, expected_stamp=stamp) != expected:
+                    raise OSError(f"{relative} changed during the snapshot operation")
+        meta = {
+            "at": at,
+            "game": game,
+            "root": str(root),
+            "files": len(files),
+            "bytes": total,
+            "reason": reason,
+            "fingerprint": fingerprint,
+            "builds": [],
+        }
+        if from_id:
+            meta["from"] = from_id
+        if reason == "build":
+            record_build(meta, occurrence, build_ref, build_call)
+        _write_json(partial / META, meta)
+        staged = walk(partial / FILES, stored=True)
+        # Compare the names enumerated on the destination filesystem. Looking up each source name
+        # separately could succeed through a case-insensitive alias to a different destination entry.
+        if staged.keys() != files.keys() or _measure(staged)[1] != digests:
+            raise OSError("The staged snapshot does not match the project files")
+        _check_tree(root, files, live)
+        if directory_id(partial.lstat()) != stage_id or directory_id((partial / FILES).lstat()) != files_id:
+            raise OSError("The staged snapshot folder changed")
+        os.replace(partial, folder / str(at))
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    _prune(folder, keep, protect={str(at), from_id})
+    return {"id": str(at), "created": True}
+
+
+def _check_tree(root: Path, files: dict[str, Path], live: LiveTree | None) -> None:
+    seen = LiveTree() if live is not None else None
+    if live is not None and Path(os.path.realpath(root, strict=True)) != root:
+        raise OSError("The registered project folder was redirected")
+    if walk(root, live=seen).keys() != files.keys() or (
+        live is not None
+        and (
+            seen.excluded != live.excluded
+            or seen.other_games != live.other_games
+            or seen.directories != live.directories
+        )
+    ):
+        raise OSError("The project files changed during the snapshot operation")
+
+
+def _verify_restore(root: Path, root_id: DirectoryId, expected: dict[str, Digest]) -> list[str]:
+    """Check the live project after writing, including paths neither restore pass touched."""
+    seen = LiveTree()
+    try:
+        files = walk(root, live=seen)
+        if seen.directories[""] != root_id:
+            raise OSError("The registered project folder changed")
+        if len(files) > MAX_FILES:
+            raise OSError("The project exceeds the snapshot file limit")
+        problems = [
+            *(f"{name}: unexpected file" for name in sorted(files.keys() - expected.keys())),
+            *(f"{name}: missing after restore" for name in sorted(expected.keys() - files.keys())),
+        ][:20]
+        if problems:
+            return problems
+
+        total, actual = _measure(files, seen)
+        if total > MAX_BYTES:
+            raise OSError("The project exceeds the snapshot size limit")
+        _check_tree(root, files, seen)
+        for name, path in files.items():
+            if file_stamp(path.lstat()) != seen.files[name][0]:
+                raise OSError(f"{name} changed during final verification")
+    except OSError as error:
+        return [f"Could not verify the restored project: {error}"]
+
+    differences = (
+        f"{name}: contents differ from the saved snapshot"
+        for name in sorted(expected)
+        if actual[name] != expected[name]
+    )
+    return list(islice(differences, 20))
+
+
+def restore(
+    base: Path,
+    game: str,
+    root: Path,
+    identifier: str,
+    *,
+    build_ref: str | None = None,
+    build_at: int | None = None,
+    now_ms: int | None = None,
+) -> dict:
+    """Validate, back up and restore under one history lock. A restore with problems keeps its backup and counts."""
+    identifier = str(identifier or "")
+    if not _snapshot_id(identifier):
         raise SnapshotError("MISSING", "That build is no longer kept.")
+    root = Path(root).absolute()
+    folder = game_dir(base, game)
     with _locked(folder):
-        wanted = walk(source / FILES, exclude_top=False)
-        current = walk(root)
-        removed = changed = 0
-        problems = []
-        games: dict[str, bool] = {}
-        for relative in sorted(set(current) - set(wanted)):
-            try:
-                os.unlink(current[relative])
-                removed += 1
-            except OSError as error:
-                problems.append(f"{relative}: {error.strerror or error}")
-                continue
-            parent = current[relative].parent
-            while parent != root and root in parent.parents:
-                try:
-                    parent.rmdir()  # only succeeds while empty
-                except OSError:
-                    break
-                parent = parent.parent
-        for relative in sorted(wanted):
-            if relative.split("/", 1)[0] in EXCLUDED_TOP or _other_game(root, relative, games):
-                continue  # a folder that is now another game's project is that game's to keep
-            here = current.get(relative)
-            if here is not None and here.is_file() and not here.is_symlink():
-                try:
-                    if here.stat().st_size == wanted[relative].stat().st_size and _sha256(here) == _sha256(
-                        wanted[relative]
-                    ):
-                        continue
-                except OSError:
-                    pass
-            partial = None
-            try:
-                parent = _safe_parent(root, relative)
-                if parent is None:
-                    problems.append(f"{relative}: a link or file is in the way")
-                    continue
-                target = parent / relative.rsplit("/", 1)[-1]
-                if os.path.islink(target):
-                    problems.append(f"{relative}: a link is in the way")
-                    continue
-                # A new temporary file of its own (never one already there, which could be a link elsewhere), and
-                # a plain copy: the restored file gets a new modification time, so the game counts as changed
-                # since its last build and the page asks for a rebuild.
-                handle, partial = tempfile.mkstemp(dir=parent, prefix=f".{target.name}.", suffix=".hr-restore")
-                with os.fdopen(handle, "wb") as writer, open(wanted[relative], "rb") as reader:
-                    shutil.copyfileobj(reader, writer, _CHUNK)
-                os.replace(partial, target)
-                changed += 1
-            except OSError as error:
-                problems.append(f"{relative}: {error.strerror or error}")
-                if partial is not None:
-                    try:
-                        os.unlink(partial)
-                    except OSError:
-                        pass
+        try:
+            if Path(os.path.realpath(root, strict=True)) != root:
+                raise OSError("the registered path now points to another folder")
+            root_id = directory_id(root.lstat())
+        except OSError as error:
+            raise SnapshotError("NO_GAME", f"The registered project folder could not be opened ({error}).") from error
+        meta, wanted, digests = _read_snapshot(folder / identifier, game)
+        if (build_ref is not None and build_ref not in build_history(meta, "buildRefs")) or (
+            build_at is not None and build_history(meta, "builds").count(build_at) != 1
+        ):
+            raise SnapshotError("MISSING", "That snapshot no longer matches the selected build.")
+        live = LiveTree()
+        try:
+            current = walk(root, live=live)
+            if live.directories[""] != root_id:
+                raise OSError("The registered project folder changed")
+            backup = _take_locked(
+                folder, game, root, current, "before-restore", now_ms, KEEP, from_id=identifier, live=live
+            )
+        except OSError as error:
+            raise SnapshotError("BACKUP_FAILED", f"The current project could not be backed up ({error}).") from error
+        if backup.get("skipped"):
+            raise SnapshotError("TOO_LARGE", "The current project could not be backed up (" + backup["skipped"] + ").")
+        # Older snapshots can contain files in a folder that is now excluded.
+        wanted = {
+            name: path for name, path in wanted.items() if name.partition("/")[0] not in EXCLUDED_TOP or "/" not in name
+        }
+        digests = {name: digests[name] for name in wanted}
+        changed, removed, problems = _restore_files(root, wanted, digests, live)
+        if not problems:
+            problems = _verify_restore(root, root_id, digests)
     answer = {"restored": identifier, "backup": backup["id"], "changed": changed, "removed": removed}
     if problems:
         answer["problems"] = problems[:20]

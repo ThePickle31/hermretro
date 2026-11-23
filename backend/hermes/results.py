@@ -14,6 +14,7 @@ import json
 import os
 import threading
 from pathlib import Path
+from uuid import uuid4
 
 from .workflow import CHECKPOINT, DELIVER
 
@@ -95,6 +96,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
         payload["error"] = payload["error"] or text or "The engine reported an error."
         if isinstance(structured, dict) and structured.get("code"):
             payload["code"] = structured["code"]
+    if (
+        tool == "chromatic_rom_build"
+        and isinstance(structured, dict)
+        and structured.get("success") is True
+        and not result.get("isError")
+    ):
+        # Keep the reference ahead of verbose diagnostics in any leading preview.
+        payload["buildRef"] = uuid4().hex
     if text and not (result.get("isError") and structured):
         payload["result"] = text
     if structured is not None:

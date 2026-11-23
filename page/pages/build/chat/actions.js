@@ -2,7 +2,9 @@
 import { host } from '#sdk'
 import { describeRequestError } from '#app/backend.js'
 import { studioTarget } from '#app/routing.js'
+import { ROM_BUILD_TOOL } from '#app/tools.js'
 import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
+import { requestBuildSnapshots, snapshotFor } from '#pages/build/build-snapshots.js'
 import { attachmentLine } from './attachments.js'
 import { FAST_PROVIDERS, settleBuildPick } from './model-pick.js'
 import { historyItems } from './history.js'
@@ -12,14 +14,15 @@ import { withInfo } from './steps.js'
 import { BUILD_CHATS, buildRuntime, chatRequest, newId, patchChat, retainChatRoute } from './store.js'
 
 /** Attach to a game's conversation (stored id) and load what it says so far. */
-export async function openBuildChat(stored) {
+export async function openBuildChat(stored, game) {
   const known = BUILD_CHATS.get()[stored]
 
   if (known?.runtime || known?.opening) {
     return
   }
 
-  patchChat(stored, chat => ({ ...chat, opening: true, failure: null }))
+  game ??= known?.game
+  patchChat(stored, chat => ({ ...chat, game, opening: true, failure: null }))
   await retainChatRoute()
 
   try {
@@ -33,12 +36,13 @@ export async function openBuildChat(stored) {
     const running = typeof result?.running === 'boolean' ? result.running : Boolean(BUILD_CHATS.get()[stored]?.busy)
     const pending = result?.pending ?? result?.info?.pending_submissions
     const at = Date.now()
+    const items = historyItems(result?.messages, running)
 
     patchChat(stored, chat => ({
       ...withInfo(chat, result?.info),
       runtime,
       opening: false,
-      items: historyItems(result?.messages, running),
+      items,
       // Messages Hermes holds for later (behind a running or lost turn) wait under the conversation.
       queued: (Array.isArray(pending) ? pending : [])
         .filter(row => row?.status === 'queued' && typeof row.text === 'string' && row.text)
@@ -52,6 +56,9 @@ export async function openBuildChat(stored) {
       lastEventAt: Date.now(),
       unreachable: 0
     }))
+    if (game) {
+      void confirmStoredBuilds(stored, game, items)
+    }
   } catch (error) {
     const { message } = describeRequestError(error)
 
@@ -59,6 +66,27 @@ export async function openBuildChat(stored) {
     const missing = error?.code === 4007 || /^session not found$/i.test(message.trim())
 
     patchChat(stored, chat => ({ ...chat, opening: false, failure: message, missing }))
+  }
+}
+
+/** Compact history leaves ROM results unknown until a kept snapshot corroborates the exact row. */
+async function confirmStoredBuilds(stored, game, items) {
+  const unresolved = items.flatMap(item => item.kind === 'tools' ? item.tools : [])
+    .filter(tool => tool.name === ROM_BUILD_TOOL && tool.state === 'unknown' && tool.resultCall && !tool.args?.sourcePath)
+  if (!unresolved.length) {
+    return
+  }
+
+  const snapshots = await requestBuildSnapshots(game, stored).catch(() => false)
+  const confirmed = new Set(unresolved.filter(tool => snapshotFor(tool, snapshots)))
+  if (confirmed.size) {
+    patchChat(stored, chat => ({
+      ...chat,
+      // These are the exact tool objects from this resume, even if live events appended more work.
+      items: chat.items.map(item => item.kind === 'tools' && item.tools.some(tool => confirmed.has(tool))
+        ? { ...item, tools: item.tools.map(tool => confirmed.has(tool) ? { ...tool, state: 'done' } : tool) }
+        : item)
+    }))
   }
 }
 
@@ -120,9 +148,8 @@ export async function createBuildChat(title, pick = null) {
 }
 
 /** Send a message. Returns true once the transcript owns the message, even if it must offer a retry.
- *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand` (a New
- *  Game's first message), true only once Hermes accepted it: a message it did not take is not the transcript's to
- *  keep, so the caller keeps its own copy. */
+ *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand`, true
+ *  means Hermes accepted the message. New Game and Restore use it to handle a submission failure separately. */
 export async function sendBuildChat(stored, text, shown = text, attachments = [], { mustLand = false } = {}) {
   // An update is swapping and reloading the plugin: no new turn starts until it is done.
   if (isUpdating()) {
@@ -153,6 +180,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   // A lost turn pauses the conversation: Hermes keeps the message, and it runs once that is dropped.
   const paused = Boolean(chat?.lost?.length)
   const behindTurn = Boolean(chat?.busy) || paused
+  const submission = newId()
 
   patchChat(stored, current => ({
     ...current,
@@ -162,7 +190,7 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: 'user', text: shown, at: now, ...(current.info?.model ? { model: current.info.model, effort: current.info.effort ?? '' } : {}), ...(attachments.length ? { attachments } : {}) }
+      { kind: 'user', text: shown, at: now, submission, followup: Boolean(current.busy), ...(current.info?.model ? { model: current.info.model, effort: current.info.effort ?? '' } : {}), ...(attachments.length ? { attachments } : {}) }
     ]
   }))
 
@@ -186,23 +214,33 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     // `submission_id` makes a retried submit the same admission (the canonical gateway requires one).
     const named = attachments.length ? `${attachments.map(attachmentLine).join('\n')}\n${text}` : text
 
-    const reply = await chatRequest('prompt.submit', { session_id: chat.runtime, submission_id: newId(), text: named })
+    const reply = await chatRequest('prompt.submit', { session_id: chat.runtime, submission_id: submission, text: named })
 
     // Sent while the agent worked, and Hermes queued it for after this turn (an attachment, or the
     // user's busy-input setting): it waits under the conversation until its turn starts. Hermes also
     // answers "queued" when it puts a message through the gateway's queue with nothing ahead of it (a
     // New Game's first message): that one starts at once, so it stays in the conversation.
-    if (reply?.status === 'queued' && behindTurn) {
+    if (behindTurn && (reply?.status === 'queued' || reply?.status === 'streaming')) {
       patchChat(stored, current => {
-        const index = current.items.findLastIndex(item => item.kind === 'user' && item.at === now)
+        const index = current.items.findIndex(item => item.submission === submission)
 
         if (index === -1) {
           return current
         }
 
-        const item = current.items[index]
+        const item = { ...current.items[index], followup: false }
+        const items = current.items.filter(entry => entry.submission !== submission)
 
-        return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...(current.queued ?? []), item] }
+        if (reply.status === 'queued') {
+          return { ...current, items, queued: [...(current.queued ?? []), item] }
+        }
+
+        // The running turn ended before Hermes admitted this as a new turn. Place its user
+        // message after that end, including when the new turn's events arrived before the reply.
+        const end = items.findIndex((entry, position) => position >= index && entry.kind === 'end')
+        const start = end === -1 ? index : end + 1
+
+        return { ...current, items: [...items.slice(0, start), item, ...items.slice(start)] }
       })
     }
   } catch (error) {
