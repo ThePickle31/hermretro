@@ -206,11 +206,16 @@ class _Handler(BaseHTTPRequestHandler):
             if self.command == "HEAD":
                 return
             while remaining:
-                chunk = stream.read(min(remaining, 256 * 1024))
+                try:
+                    chunk = stream.read(min(remaining, 256 * 1024))
+                    if chunk:
+                        self.wfile.write(chunk)
+                except OSError:
+                    self.close_connection = True
+                    return
                 if not chunk:
                     self.close_connection = True
                     return
-                self.wfile.write(chunk)
                 remaining -= len(chunk)
 
     # -- routing -----------------------------------------------------------------
@@ -259,9 +264,9 @@ class _Handler(BaseHTTPRequestHandler):
             player, identifier, root, rel = routed
             if rel in ("", "index.html"):
                 build = build_for(identifier, root)
-                return self._send(
-                    200, frame_document(root, build, player.issue_generation(identifier)), "text/html; charset=utf-8"
-                )
+                # A HEAD response needs the document length without issuing a capture token.
+                generation = "0" * 32 if self.command == "HEAD" else player.issue_generation(identifier)
+                return self._send(200, frame_document(root, build, generation), "text/html; charset=utf-8")
             if rel.startswith(ANNOTATION_MOUNT + "/"):
                 return self._annotation(root, rel[len(ANNOTATION_MOUNT) + 1 :], identifier)
             if rel == "codex-states":

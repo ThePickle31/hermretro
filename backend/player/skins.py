@@ -124,7 +124,7 @@ def signature() -> tuple:
                 stat = path.lstat()
             except OSError:
                 continue
-            files.append((str(path), stat.st_mtime_ns, stat.st_size))
+            files.append((str(path), stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size))
     return tuple(files)
 
 

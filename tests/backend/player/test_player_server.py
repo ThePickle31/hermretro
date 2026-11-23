@@ -141,6 +141,10 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(context["romPath"], "rom/test.gbc")
         self.assertEqual(context["sourceRevision"], "rev-123")
         self.assertRegex(context["captures"]["generation"], r"^[a-f0-9]{32}$")
+        issued = self.server.generations[self.gid].copy()
+        status, headers, body = fetch(self.url("index.html"), method="HEAD")
+        self.assertEqual((status, int(headers["Content-Length"]), body), (200, len(html.encode()), b""))
+        self.assertEqual(self.server.generations[self.gid], issued)
 
     def test_head_and_get_a_recording_without_buffering_the_whole_file(self):
         media = b"recorded frame" * 100_000
