@@ -123,20 +123,32 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     { role: 'assistant', content: 'The music did not fit.', timestamp: 3060 }] })
   const build14ph = await mount(page)
   await settle(100)
+  check('only the current build mounts its conversation and the previous build starts folded', () => {
+    assert.equal(build14ph.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
+    assert.equal(build14ph.node.querySelectorAll('.cs-b-turn-body').length, 1)
+  })
+  await click('Builds', build14ph.node.querySelector('.cs-b-head'))
+  await settle()
+  await click('Show', build14ph.node.querySelectorAll('.cs-b-brow')[1])
+  await settle()
+  check('Show opens the chosen build at its conversation', () => {
+    assert.equal(build14ph.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'true')
+  })
   check('the report becomes build card #1: title, summary, what changed, and a footer with what was tested', () => {
     const card = build14ph.node.querySelector('.cs-b-bc[data-build="1"]')
     assert.ok(card); assert.match(card.querySelector('.cs-b-bc-title').textContent, /Robin in the sky/)
     assert.match(card.querySelector('.cs-b-bc-sum').textContent, /little red robin/)
-    assert.deepEqual([...card.querySelectorAll('.cs-b-bc-changes li')].map(node => node.textContent), ['+Robin sprite, 3 views', '~Camera follows the player'])
+    assert.ok(!card.querySelector('.cs-b-bc-changes'))
     assert.match(card.querySelector('.cs-b-bc-foot').textContent, /✓ 2 play-tested.*○ 1 not tested.*⚠ 1 note/)
     assert.ok(!/chromatic_build_report|Using build report/.test(build14ph.node.textContent), 'the report is not a step')
   })
-  check('the reply after a report is a line after the card, and its pictures are small cards in one row', () => {
+  check('the reply leads its build result, and its pictures are small cards in one row', () => {
     const turn = build14ph.node.querySelectorAll('.cs-b-turn')[0]
     const order = [...turn.querySelector('.cs-b-her').children].map(node => node.className.split(' ')[0])
-    assert.ok(order.indexOf('cs-b-bc') < order.lastIndexOf('cs-b-agent'), 'card first, then the reply')
+    assert.ok(order.lastIndexOf('cs-b-agent') < order.indexOf('cs-b-bc'), 'reply before the result')
     const cards = turn.querySelectorAll('.cs-b-rimgs .cs-b-rchip')
-    assert.equal(cards.length, 2)
+    assert.equal(cards.length, 1, 'the separate cover stays in the reply')
+    assert.ok(turn.querySelector('.cs-b-ba-side.now'), 'the matching sprite stays in its result')
   })
   check('every picture is asked for as Frog Post\u2019s, so the backend can refuse another game\u2019s', () => {
     assert.deepEqual([...scenario.assetRoots], [lib14[0].projectRoot])
@@ -148,6 +160,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   })
   await click('Details', build14ph.node.querySelector('.cs-b-bc[data-build="1"]'))
   check('Details lists what was play-tested, not tested and the notes', () => {
+    assert.deepEqual([...build14ph.node.querySelectorAll('.cs-b-bc-details .cs-b-bc-changes li')].map(node => node.textContent), ['+Robin sprite, 3 views', '~Camera follows the player'])
     const details = build14ph.node.querySelector('.cs-b-bc-details').textContent
     assert.match(details, /Play-tested.*Robin faces where it flies.*Not tested.*Sound.*You might notice.*only flaps while moving/)
   })
@@ -157,12 +170,12 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.match(card.textContent, /#2The build didn’t finish/); assert.match(card.textContent, /2\.4 KB too big/)
     assert.ok(button('Ask HermRetro to fix it'))
     assert.match(build14ph.node.querySelector('.cs-b-pill').textContent, /Build #2 didn’t finish/)
-    assert.match(build14ph.node.querySelectorAll('.cs-b-turn')[1].textContent, /Worked for [^·]*· 1 step(?!s)/, 'the result row is the build step, not another one')
+    assert.match(build14ph.node.querySelectorAll('.cs-b-turn')[1].textContent, /1 step(?!s)/, 'the result row is the build step, not another one')
   })
   check('next-step chips show only under the newest reply', () => {
     assert.equal(build14ph.node.querySelectorAll('.cs-b-next-steps').length, 0, 'the last turn reported nothing to suggest')
   })
-  await click('Worked for', build14ph.node.querySelector('.cs-b-turn'))
+  await click('11 steps', build14ph.node.querySelector('.cs-b-turn'))
   check('Simple shows the turn as five plain groups, folded, each with its step count', () => {
     const heads = [...build14ph.node.querySelectorAll('.cs-b-ph-head')].map(node => node.textContent)
     assert.deepEqual(heads.map(text => text.replace(/\d+ steps?.*/, '').trim()), ['Planned it', 'Drew the art', 'Set up the level', 'Built it', 'Play-tested it'])
@@ -251,10 +264,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   const build14p = await mount(page)
   await settle(100)
   const inlineFrame = () => build14p.node.querySelector('.cs-ip iframe')
-  const framePlay = () => build14p.node.querySelector('.cs-b-pc-go')
+  const framePlay = () => build14p.node.querySelector('.cs-b-pc-go, .cs-b-history-play')
   check('the newest build rests in a game frame under its line, with Play build #1; nothing plays until asked', () => {
     assert.match(framePlay()?.textContent ?? '', /Play build #1/); assert.ok(!inlineFrame())
-    assert.ok(!build14p.node.querySelector('.cs-b-bc .cs-b-pc'), 'under the build line, not in it')
+    assert.ok(build14p.node.querySelector('.cs-b-history-play'), 'the last playable build can start from its folded row')
   })
   await act(async () => { framePlay().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle()
@@ -265,9 +278,10 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   await typeInto(build14p.node.querySelector('textarea[aria-label="Message Hermes"]'), 'make it rain')
   await click('Send', build14p.node.querySelector('.cs-b-comp'))
   await settle()
-  check('while the agent works the game rests as a card that says when it is back', () => {
+  check('starting a turn folds the previous build and rests its player', () => {
     assert.ok(!inlineFrame())
-    assert.match(build14p.node.querySelector('.cs-b-bc').textContent, /Playable again when HermRetro finishes/, [...build14p.node.querySelectorAll('.cs-b-turn')].map(node => `[${node.dataset.turn}] ${node.textContent.slice(0, 120)}`).join(' || '))
+    assert.equal(build14p.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
+    assert.ok(!build14p.node.querySelector('.cs-b-pc-go'))
   })
   const runtime = 'rt-of-st-old'
   scenario.byMethod['prompt.submit'] = params => { submits.push(params); return { status: 'queued' } }
@@ -288,7 +302,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   check('presenting from a Build conversation opens no tab beside the chat, and the game waits for the turn to end', () => {
     assert.equal(scenario.workspaces.length, tabsBefore); assert.ok(!inlineFrame())
     assert.ok(!build14p.node.querySelector('.cs-b-pc'), 'no game frame while the agent works')
-    assert.match(build14p.node.querySelector('.cs-b-bc').textContent, /Earlier build/)
+    assert.match(build14p.node.querySelector('.cs-b-history-row').textContent, /#1/)
   })
   await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Done.' } }) })
   await settle()
@@ -296,7 +310,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     assert.ok(inlineFrame()); assert.match(build14p.node.querySelector('.cs-ip').textContent, /Try the rain/)
     const turnsNow = [...build14p.node.querySelectorAll('.cs-b-turn')]
     assert.ok(turnsNow.at(-1).querySelector('.cs-ip'), turnsNow.map(node => node.textContent.slice(0, 60)).join(' | '))
-    assert.match(turnsNow.at(-1).querySelector('.cs-b-bc-head').textContent, /#2/); assert.match(build14p.node.textContent, /Earlier build/)
+    assert.match(turnsNow.at(-1).querySelector('.cs-b-bc-head').textContent, /#2/); assert.match(build14p.node.querySelector('.cs-b-history-row').textContent, /#1/)
   })
   await act(async () => { emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'Q' } }) })
   await settle()

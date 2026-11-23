@@ -140,15 +140,12 @@ and the delta `offset`. Questions and approvals are server requests the page nev
 a tool runs it reads the session's `open_requests` and renders them as cards. A backend without the
 `build` RPC (-32601) keeps bindings for the visit only and names the project in the first message.
 
-- **The conversation** (approved design "Build redesign round 3, T": a T3 Code style thread in Hermes's
-  style, everything in the chat, nothing beside it, no filled boxes). The user's messages are bubbles
-  on the right; the agent's replies are plain prose on the left with no name over them (a small line
-  names the model only where it changed). No avatar, no coloured bar or tint. Every UI string calls
-  the agent HermRetro. Text is `MessageTextContent` (markdown), memoised per block. The header (title,
-  pill, Builds) has a rule under it.
-- **Worked for…** Each reply folds its steps into one line: "Working for 0:42 · 3 steps" (open, live)
-  and "✓ Worked for 1m 12s · drew the art, built it" once done (closed, opens on a click), followed by
-  a small stack of what the turn made and an "N assets" link that opens the viewer on its first
+- **Studio Conversation** keeps a 46-rem message column aligned with the composer. The current request is a
+  right-aligned bubble, followed by the agent's words, its work disclosure and the game result. Earlier numbered
+  builds fold into rows with their number, title and failure state. Opening one mounts its messages and media.
+  Other conversation turns remain in place. A folded playable build offers Play while the game is idle.
+- **Agent steps** start folded while working and after completion. The row names the running tool and the step
+  count. Opening it shows live updates and keeps it open when the turn finishes. A small asset stack opens its first
   picture (pictures a step only looked at and playtest frames do not count). Open, it has a Simple /
   Technical switch (one setting for every turn). Simple: a turn of 8 or more steps opens to fixed
   groups, always in this order (Planned it · Drew the art · Set up the level · Built it · Play-tested
@@ -163,24 +160,15 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
   lead the reply, words between steps are notes inside, words after the last step close it. Steps
   keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).
-- **Builds** (first approved as cards, "final set" A + D + E; now quiet lines, round 3 T). Each
-  turn that compiled the game (`rom_build`/`web_build` done or failed) is a numbered build, #1 up, in
-  conversation order (`buildHistory`). A finished build turn, or one that called
-  `chromatic_build_report`, ends in a build, drawn as a quiet line with no box: #n (outlined, red when
-  its last compile failed), the report's title (else the message that asked), how long it took, and
-  "Earlier build" on older builds ("Playable again when HermRetro finishes" on the newest while it
-  works); under it in grey: the report's summary; for a picture
-  it edited, Before → After (the `asset` RPC at the turn's start and end; nothing when the file is
-  new), with Keep / Undo on the newest turn (Undo = `asset_restore` of the earlier version, then
-  "Rebuild" asks the agent to build again); what changed (+ added, ~ changed, − removed, with a
-  thumbnail when the change names an asset; without a report, the pictures the turn made); a line
-  with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
-  lists, and the compiler's words for a failed build, with Ask HermRetro to fix it). With a report
-  the reply's words follow the card; without one they come first. The newest reply's suggestions
-  are chips under it that put their words in the message box (never sent).
+- **Build results.** Each turn that finishes a ROM or web compile gets a build number in conversation order.
+  Its result shows the report title and summary, test counts, and a diagnostic and retry action for failure.
+  Details opens the change list, checks and notes. A result can feature a versioned sprite or background,
+  including Before and After with Keep and Undo when an earlier version is available. Recorded playtest frames
+  can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes renderer
+  for sound and video. Play opens the real player beneath the reply. Suggestions still fill the message box.
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
-  first, with Show (scrolls to its card) and Restore (on built ones, except the one already playing
+  first, with Show (expands the build and scrolls to it) and Restore (on built ones, except the one already playing
   when nothing changed since). Restore matches the build to a snapshot from the `builds` RPC by time,
   confirms in place, calls `build_restore` (which saves the game as it is first) and sends the agent
   "I restored the game to build #n … Please build it again", so the restored files become the newest
