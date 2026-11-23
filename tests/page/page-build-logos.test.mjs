@@ -11,6 +11,8 @@ import { runScenario } from './harness.mjs'
 registerAliases()
 
 const ART = new URL('../../page/shared/art/providers/', import.meta.url)
+const png = name => `data:image/png;base64,${readFileSync(new URL(name, ART)).toString('base64')}`
+
 await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle, mount, check, answered }) => {
   const { LOGOS, providerLogo } = await import('../../page/shared/art/providers/index.js')
 
@@ -24,6 +26,9 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
       assert.match(logo.source, /^https:\/\//, brand)
       assert.ok(logo.name, brand)
     }
+  })
+  check('the shipped page carries the provider artwork notice', () => {
+    assert.match(readFileSync(new URL('../../desktop/plugin.js', import.meta.url), 'utf8').slice(0, 800), /not covered by the MIT licence/)
   })
   check('provider aliases and unknown providers', () => {
     assert.equal(providerLogo('openai-codex').name, 'OpenAI')
@@ -75,15 +80,14 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
     assert.deepEqual(Buffer.from(decodeURIComponent(src.slice(prefix.length)), 'utf8'), readFileSync(new URL('stepfun.svg', ART)))
   })
   check('dark theme: the brand\u2019s version for dark backgrounds, and a plate under a mark that has none', () => {
-    assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), LOGOS.openai.dark)
-    assert.notEqual(LOGOS.openai.dark, LOGOS.openai.light)
+    assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), png('openai-dark.png'))
     assert.ok(tiles()[1].classList.contains('plate'), 'Novita has no version for dark backgrounds')
     assert.ok(!tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc shows on dark')
   })
   scenario.theme = 'light'
   await view.rerender()
   check('light theme: the light version, and no plate', () => {
-    assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), LOGOS.openai.light)
+    assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), png('openai.png'))
     assert.ok(!tiles()[1].classList.contains('plate'))
     assert.ok(tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc gets a dark plate on light')
   })

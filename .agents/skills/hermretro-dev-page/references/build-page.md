@@ -277,7 +277,7 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   kit or GitHub organisation; the source of each is beside it in `index.js`), in the brand's version for the theme
   on screen (the SDK's `useTheme`). A provider without one (custom endpoints, Mixture of Agents, ones Hermes adds
   later) shows its first letter, two when another provider starts the same. A new Hermes provider gets its brand
-  added there; `tests/page/page-build-logos.test.mjs` lists the catalogue it checks.
+  added to that index. `tests/page/page-build-logos.test.mjs` checks representative aliases, theme variants and the letter fallback.
 - **Model and effort** (user picked mockup C, "one button, one panel"; its panel redrawn after the user's
   reference, round 2 direction F1): one button under the message box, "<mark> Claude Opus 5.5 · High". Its
   560 px panel (narrower, with shorter words, where the window or the box that scrolls the composer is narrower)
