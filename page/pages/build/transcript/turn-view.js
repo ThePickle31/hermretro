@@ -8,7 +8,7 @@ import { PlayCard, playsBuild } from '#pages/build/player/play-card.js'
 import { AGENT } from '#app/ids.js'
 import { spanWords, timeOfDay } from '#shared/ui/time.js'
 import { playableSha } from '#app/player/stage.js'
-import { BuildCard, NextSteps } from './build-card.js'
+import { BuildCard, buildCardArt, NextSteps } from './build-card.js'
 import { AgentText, replyAssets } from './reply.js'
 import { turnParts } from './turns.js'
 import { Worked } from './worked.js'
@@ -21,11 +21,15 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   const hasAgent = live || turn.items.length > 0
   const startedAt = user?.at ?? end?.startedAt ?? null
   const showWorked = parts.entries.length > 0 || (live && !parts.intro.length)
-  // The viewer steps through the turn's images: the steps' first, then the ones its replies delivered.
+  const report = parts.report
+  // A finished turn that built the game, or reported what it did, ends in its build card.
+  const carded = !live && (build || report)
+  const art = carded ? buildCardArt(parts, root) : null
+  // The viewer steps through work, reply, and build report images in the turn.
   const viewerAssets = [...parts.assets]
 
-  for (const asset of replyAssets([...parts.intro, ...parts.outro], root)) {
-    if (!viewerAssets.some(entry => entry.path === asset.path && entry.version === asset.version)) {
+  for (const asset of [...replyAssets([...parts.intro, ...parts.outro], root), ...(art?.changes.map(change => change.image) ?? [])]) {
+    if (asset && !viewerAssets.some(entry => entry.path === asset.path && entry.version === asset.version)) {
       viewerAssets.push(asset)
     }
   }
@@ -37,17 +41,24 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     })
   }
 
-  const viewerRef = useRef(viewerAssets)
+  const viewerRef = useRef(null)
 
-  viewerRef.current = viewerAssets
+  viewerRef.current = { assets: viewerAssets, ask: user?.text }
 
   // Stable, so the memoised replies do not re-render their markdown on every turn update.
-  const openAsset = useCallback((asset, opener) => onOpenAsset(viewerRef.current, asset, opener), [onOpenAsset])
+  const openAsset = useCallback((asset, opener) => {
+    const { assets, ask } = viewerRef.current
+    const index = assets.findIndex(entry => entry.path === asset.path && entry.version === asset.version)
+
+    // Before/After can open a particular point in time that has no other thumbnail in the turn.
+    if (index === -1) {
+      onOpenAsset([...assets, { ...asset, ask }], assets.length, opener)
+    } else {
+      onOpenAsset(assets, index, opener)
+    }
+  }, [onOpenAsset])
   const playable = Boolean(game && game.webExport && playableSha(game))
   const frame = [...parts.assets].reverse().find(asset => asset.kind === 'Playtest frame') ?? null
-  const report = parts.report
-  // A finished turn that built the game, or reported what it did, ends in its build card.
-  const carded = !live && (build || report)
 
   // The newest build plays in a frame under its line; while the agent works, only its line says so.
   let play = null
@@ -70,6 +81,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   const took = startedAt && end?.at ? spanWords(end.at - startedAt) : null
   const card = carded
     ? jsx(BuildCard, {
+        art,
         at: agentAt,
         build,
         chatBusy,
@@ -79,7 +91,6 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
         parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
         playLabel,
         report,
-        root,
         took
       })
     : null

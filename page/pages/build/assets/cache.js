@@ -1,5 +1,5 @@
 // Project files (art) loaded through the `asset` RPC, cached per game and version.
-import { atom, createContext, useContext, useEffect, useState, useValue } from '#sdk'
+import { atom, createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useValue } from '#sdk'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET } from '#app/rpc.js'
 
@@ -116,4 +116,24 @@ export function useAsset(path, version) {
   }
 
   return entry.done ? (entry.value ? { state: 'ok', asset: entry.value } : { state: 'none', code: entry.code }) : { state: 'loading' }
+}
+
+/** Keep a loaded viewer opener mounted while its image refreshes for the same game and version. */
+export function useAssetPreview(path, version) {
+  const root = useContext(AssetGame)
+  const result = useAsset(path, version)
+  const { state, asset } = result
+  const previous = useRef(null)
+
+  useLayoutEffect(() => {
+    if (state !== 'loading') {
+      previous.current = state === 'ok' ? { path, version, root, asset } : null
+    }
+  }, [path, version, root, state, asset])
+
+  const kept = previous.current
+
+  return state === 'loading' && kept?.path === path && kept.version === version && kept.root === root
+    ? { state: 'ok', asset: kept.asset }
+    : result
 }

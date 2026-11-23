@@ -21,10 +21,20 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, 
   // The file on disk is v2 until v1 is put back.
   const look = { v1: 'data:image/png;base64,djE=', v2: 'data:image/png;base64,djI=' }
   let onDisk = 'v2'
+  let finishReload
+  const reload = new Promise(resolve => { finishReload = resolve })
+  let reloads = 0
   scenario.byMethod['plugin.hermretro.asset'] = params => {
     const shown = params.version === '1' ? 'v1' : params.version === '2' ? 'v2' : onDisk
-    return { ok: true, path: art, name: 'frame.png', relative: 'assets/ui/frame.png', kind: 'ui', width: 16, height: 16, bytes: 4,
+    const answer = { ok: true, path: art, name: 'frame.png', relative: 'assets/ui/frame.png', kind: 'ui', width: 16, height: 16, bytes: 4,
       earlier: Boolean(params.version) && shown !== onDisk, versionId: shown === 'v1' ? '1' : '2', dataUrl: look[shown] }
+    if (onDisk === 'v1') {
+      reloads += 1
+
+      return reload.then(() => answer)
+    }
+
+    return answer
   }
   scenario.byMethod['plugin.hermretro.asset_info'] = params => ({ ok: true, path: params.path, relative: 'assets/ui/frame.png', kind: 'ui',
     versions: [{ id: '1', at: 1_000_000, file: '/kept/1.png', current: onDisk === 'v1' }, { id: '2', at: 1_010_000, file: params.path, current: onDisk === 'v2' }] })
@@ -43,17 +53,19 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, 
   await act(async () => { view.node.querySelector('.cs-v button[aria-label="Version 1"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await settle(30)
   await click('Restore v1', view.node.querySelector('.cs-v'))
-  await settle(80)
   check('Restore puts v1 back for this game', () => { assert.deepEqual(restores, [{ path: art, root: '/home/u/games/FrogPost', version: '1' }]) })
-  check('the pictures already in the conversation redraw as v1, whichever path they asked for', () => { assert.deepEqual(stacked(), [look.v1, look.v1]) })
-  const [, remounted] = openers()
-  check('restore remounts the original reply image button', () => {
-    assert.equal(opener.isConnected, false)
-    assert.ok(remounted)
+  check('the opener stays mounted while Restore reloads its image', () => {
+    assert.ok(reloads > 0)
+    assert.ok(opener.isConnected)
+    assert.ok(openers()[1] === opener)
   })
   await key('keydown', 'Escape', view.node.querySelector('[role="dialog"]'))
-  check('closing after restore focuses the same reply image', () => {
-    assert.ok(dom.window.document.activeElement === remounted)
+  check('Escape while the image is reloading focuses the original button', () => {
+    assert.equal(view.node.querySelector('[role="dialog"]'), null)
+    assert.ok(dom.window.document.activeElement === opener)
   })
+  await act(async () => finishReload())
+  check('the pictures already in the conversation redraw as v1, whichever path they asked for', () => { assert.deepEqual(stacked(), [look.v1, look.v1]) })
+  check('the original button keeps focus once the image has reloaded', () => assert.ok(dom.window.document.activeElement === opener))
   await view.close()
 })

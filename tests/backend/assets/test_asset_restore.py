@@ -24,11 +24,83 @@ class AssetRestore(unittest.TestCase):
         self.data = home.data
         self.params = {"root": str(self.game), "path": str(self.cover)}
         self.asset = assets_rpcs.rpc_asset(None)
+        self.info = assets_rpcs.rpc_asset_info(None)
         self.restore = assets_rpcs.rpc_asset_restore(None)
 
     def write(self, data, seconds):
         self.cover.write_bytes(data)
         os.utime(self.cover, ns=(seconds * 10**9, seconds * 10**9))
+
+    def test_a_read_only_lock_directory_only_disables_history(self):
+        self.write(PNG_A, 1000)
+        old = self.asset(self.params)
+        self.write(PNG_B, 2000)
+        original_open = Path.open
+
+        def read_only_lock(path, *args, **kwargs):
+            if path.parent == self.data / "asset-version-locks":
+                raise PermissionError("read-only lock directory")
+            return original_open(path, *args, **kwargs)
+
+        with (
+            mock.patch.object(Path, "open", read_only_lock),
+            mock.patch.object(assets_rpcs, "emit") as emit,
+            mock.patch.object(assets_rpcs.logger, "exception"),
+        ):
+            live = self.asset(self.params)
+            self.assertTrue(live["ok"], live)
+            self.assertNotEqual(live["dataUrl"], old["dataUrl"])
+            self.assertEqual(self.asset({**self.params, "at": 1_500_000}), live)
+            self.assertEqual(self.asset({**self.params, "version": live["versionId"]}), live)
+            self.assertFalse(self.asset({**self.params, "version": old["versionId"]})["ok"])
+            info = self.info(self.params)
+            self.assertTrue(info["ok"], info)
+            self.assertEqual(info["kind"], "cover")
+            self.assertEqual(info["versions"], [])
+            self.assertFalse(self.restore({**self.params, "version": old["versionId"]})["ok"])
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+        emit.assert_not_called()
+
+    def test_restore_reports_success_when_only_the_final_listing_fails(self):
+        self.write(PNG_A, 1000)
+        selected = self.asset(self.params)["versionId"]
+        self.write(PNG_B, 2000)
+
+        def fail_listing(real, folder):
+            self.assertEqual(real.read_bytes(), PNG_A)
+            self.assertEqual((folder / f"{2000 * 10**9}.png").read_bytes(), PNG_B)
+            raise PermissionError("history listing unavailable")
+
+        with (
+            mock.patch.object(assets_versions, "_versions", side_effect=fail_listing),
+            mock.patch.object(assets_rpcs, "emit") as emit,
+            mock.patch.object(assets_rpcs.logger, "exception"),
+        ):
+            restored = self.restore({**self.params, "version": selected})
+        self.assertEqual(restored, {"ok": True, "path": str(self.cover), "versions": []})
+        emit.assert_called_once_with("assets.image_restored", path=str(self.cover))
+
+    def test_preview_reconciles_an_interrupted_restore_at_the_cap(self):
+        limit = documented_keep()
+        for index in range(limit):
+            self.write(PNG_A[:24] + index.to_bytes(2, "big"), 1001 + index)
+            self.assertTrue(self.asset(self.params)["ok"])
+        # The restore backed up an older live file and stopped before replacing it or pruning.
+        self.write(PNG_B, 1000)
+        with assets_versions._version_lock(self.cover):
+            folder = assets_versions._versions_dir(self.cover, self.game)
+            backup, added = assets_versions._save_version(self.cover, folder, required=True)
+        self.assertTrue(added)
+        self.assertEqual(len(list(folder.iterdir())), limit + 1)
+
+        selected = str(1001 * 10**9)
+        viewed = self.asset({**self.params, "version": selected})
+        self.assertEqual(viewed["versionId"], selected)
+        self.assertTrue(viewed["earlier"])
+        self.assertEqual(len(list(folder.iterdir())), limit)
+        self.assertEqual(backup.read_bytes(), PNG_B)
+        self.assertTrue((folder / f"{selected}.png").is_file())
+        self.assertFalse((folder / f"{1002 * 10**9}.png").exists())
 
     def test_restore_leaves_current_bytes_in_place_if_the_backup_cannot_be_written(self):
         self.write(PNG_A, 1000)

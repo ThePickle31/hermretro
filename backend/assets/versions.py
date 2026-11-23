@@ -10,7 +10,7 @@ import os
 import re
 import tempfile
 import unicodedata
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from stat import S_ISDIR
 
@@ -219,6 +219,19 @@ def _versions_dir(real: Path, root: Path) -> Path:
     return folder
 
 
+@contextmanager
+def _preview_history(real: Path, root: Path):
+    """Use history under its lock when available. A live preview can still be read without it."""
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(_version_lock(real))
+            folder = _versions_dir(real, root)
+        except OSError:
+            logger.debug("hermretro could not open image history", exc_info=True)
+            folder = None
+        yield folder
+
+
 def _adopt_path_versions(old: Path, folder: Path, real: Path, root: Path) -> None:
     """Versions kept by earlier releases were filed by path alone. They move to ``root`` only when it alone (a game or
     the saved frames) holds the image: with a game inside another's folder, the old ones could be either's."""
@@ -247,8 +260,9 @@ def _write_image(path: Path, data: bytes, suffix: str) -> None:
         with os.fdopen(handle, "wb") as writer:
             writer.write(data)
         os.replace(partial, path)
-    finally:
+    except BaseException:
         Path(partial).unlink(missing_ok=True)
+        raise
 
 
 def _save_version(real: Path, folder: Path, *, required=False) -> tuple[Path | None, bool]:
@@ -291,12 +305,13 @@ def _prune_versions(folder: Path, protect=()) -> None:
 
 
 def _try_keep_version(real: Path, folder: Path, *, protect=(), prune=False) -> None:
-    saved, added = None, False
+    saved = None
     try:
-        saved, added = _save_version(real, folder)
+        saved, _ = _save_version(real, folder)
     except OSError:
         logger.debug("hermretro could not keep an image version", exc_info=True)
-    if added or prune:
+    # An interrupted restore can leave an extra backup even when the live file is already kept.
+    if saved is not None or prune:
         _prune_versions(folder, (*protect, saved))
 
 
@@ -328,7 +343,7 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
                     logger.debug("hermretro could not remove an unused image backup", exc_info=True)
             raise
         _try_keep_version(real, folder, protect=(selected, backup), prune=True)
-        return _versions(real, folder)
+        return _available_versions(real, folder)
 
 
 def _version_at(real: Path, folder: Path, at_ms) -> Path | None:
@@ -385,6 +400,14 @@ def _versions(real: Path, folder: Path) -> list[dict]:
     else:
         match["current"] = True
     return versions
+
+
+def _available_versions(real: Path, folder: Path) -> list[dict]:
+    try:
+        return _versions(real, folder)
+    except OSError:
+        logger.debug("hermretro could not list image history", exc_info=True)
+        return []
 
 
 def older_versions(real: Path, root: Path) -> int:

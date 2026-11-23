@@ -163,14 +163,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     return () => clearTimeout(id)
   }, [focusTurn?.seq, limit])
 
-  // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
-  const openAsset = useCallback(
-    (assets, asset, opener) => setViewer({
-      assets, opener,
-      index: Math.max(0, assets.findIndex(entry => entry === asset || (entry.path === asset.path && entry.version === asset.version)))
-    }),
-    []
-  )
+  const openAsset = useCallback((assets, index, opener) => setViewer({ assets, index, opener }), [])
   const latestBuild = useMemo(() => {
     for (let index = turns.length - 1; index >= 0; index -= 1) {
       if (turnBuilt(turns[index])) {

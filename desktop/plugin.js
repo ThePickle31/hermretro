@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 0716589b909db6a603c21ae7adce0109315ab62bcce2be6cd3e2dd63b85bf6ba
- * body: sha256 4068a75efc1b113201b769891e90291da0715bc857e29d814b174c3daea69707
+ * sources: sha256 6603675598a064f7fe1320255c9d35909a3c6c6afea9209efa0e0b37f969f2bf
+ * body: sha256 d6f55fefab014601edde134f561fbc884bd76fbad71899450fc715fcf4918bfd
  */
 // page/sdk.js
 import {
@@ -1427,6 +1427,19 @@ function useAsset(path, version) {
   }
   return entry.done ? entry.value ? { state: "ok", asset: entry.value } : { state: "none", code: entry.code } : { state: "loading" };
 }
+function useAssetPreview(path, version) {
+  const root = useContext(AssetGame);
+  const result = useAsset(path, version);
+  const { state, asset } = result;
+  const previous = useRef(null);
+  useLayoutEffect(() => {
+    if (state !== "loading") {
+      previous.current = state === "ok" ? { path, version, root, asset } : null;
+    }
+  }, [path, version, root, state, asset]);
+  const kept = previous.current;
+  return state === "loading" && kept?.path === path && kept.version === version && kept.root === root ? { state: "ok", asset: kept.asset } : result;
+}
 
 // page/pages/build/assets/sprite.js
 var SPRITE_SHADES = /* @__PURE__ */ new Map([[14743759, 0], [8831084, 1], [3172432, 2], [464929, 3]]);
@@ -1511,7 +1524,7 @@ function canvasImage(canvas2, image) {
 // page/pages/build/assets/images.js
 function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
   const id = useId();
-  const { state, asset: loaded } = useAsset(asset.path, asset.version);
+  const { state, asset: loaded } = useAssetPreview(asset.path, asset.version);
   if (state === "none") {
     return null;
   }
@@ -5425,7 +5438,7 @@ function replyAssets(items, root) {
 }
 function ReplyImage({ asset, line, onOpen }) {
   const id = useId();
-  const { state, code, asset: loaded } = useAsset(asset.path, asset.version);
+  const { state, code, asset: loaded } = useAssetPreview(asset.path, asset.version);
   if (state === "none") {
     return MessageTextContent ? jsx(MessageTextContent, code === "OTHER_GAME" ? { media: false, previewOnly: true, text: line } : { text: line }) : null;
   }
@@ -6358,10 +6371,13 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   }, [side]);
   useLayoutEffect(() => {
     const previous = opener ?? document.activeElement;
-    dialog.current?.focus({ preventScroll: true });
+    const element = dialog.current;
+    element?.focus({ preventScroll: true });
     return () => {
-      const target = previous?.isConnected ? previous : previous?.ownerDocument.getElementById(previous.id);
-      target?.focus?.({ preventScroll: true });
+      const active = document.activeElement;
+      if (previous?.isConnected && (element?.contains(active) || active === document.body)) {
+        previous.focus({ preventScroll: true });
+      }
     };
   }, [opener]);
   const scene = scenes[Math.min(sceneIndex, Math.max(0, scenes.length - 1))] ?? null;
@@ -6594,10 +6610,28 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
 
 // page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
+function changeImage(change, root) {
+  const raw = change.asset?.replace(/^file:\/\//, "");
+  const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw));
+  return path ? { path, version: "card", kind: assetKind(path), step: change.text } : null;
+}
+function buildCardArt(parts, root) {
+  const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
+  const reported = parts.report?.changes;
+  const rows = reported?.length ? reported : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path }));
+  const changes = rows.map((change) => ({ ...change, image: changeImage(change, root) }));
+  const edited = [.../* @__PURE__ */ new Set([
+    ...changes.filter((change) => change.kind === "changed" && change.image).map((change) => change.image.path),
+    ...made.map((asset) => asset.path)
+  ])].slice(0, 2);
+  return { changes, edited };
+}
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const id = useId();
-  const before = useAsset(path, `reply:${from}`);
-  const after = useAsset(path, to ? `reply:${to}` : null);
+  const beforeVersion = `reply:${from}`;
+  const afterVersion = to ? `reply:${to}` : null;
+  const before = useAssetPreview(path, beforeVersion);
+  const after = useAssetPreview(path, afterVersion);
   const root = useContext(AssetGame);
   const [state, setState] = useState(null);
   if (before.state !== "ok" || !before.asset.earlier || after.state !== "ok") {
@@ -6622,7 +6656,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     "aria-label": `Look closer at ${label.toLowerCase()} version of ${name}`,
     className: now ? "cs-b-ba-side now" : "cs-b-ba-side",
     id: `${id}-${label}`,
-    onClick: (event) => onOpen?.({ path, version: now ? to ? `reply:${to}` : null : `reply:${from}`, kind: assetKind(path), step: label }, event.currentTarget),
+    onClick: (event) => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
     type: "button",
     children: [jsx("span", { className: "cs-b-ba-img", children: jsx(SheetFrame, { loaded }) }), jsx("span", { className: "cs-b-ba-cap", children: label })]
   });
@@ -6647,32 +6681,27 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     ]
   });
 }
-function ChangeList({ changes, root, onOpen }) {
+function ChangeList({ changes, onOpen }) {
   return jsx("ul", {
     className: "cs-b-bc-changes",
-    children: changes.map((change, index) => {
-      const path = change.asset ? isAbsolute(change.asset) ? change.asset.replace(/^file:\/\//, "") : joinPath(root, change.asset) : null;
-      return jsxs(
-        "li",
-        {
-          "data-kind": change.kind,
-          children: [
-            jsx("span", { "aria-hidden": true, className: "cs-b-bc-mark", children: CHANGE_MARK[change.kind] ?? "~" }),
-            path ? jsx(AssetThumb, { asset: { path, version: "card", kind: assetKind(path), step: change.text }, onOpen, size: "xs" }) : null,
-            jsx("span", { children: change.text })
-          ]
-        },
-        index
-      );
-    })
+    children: changes.map((change, index) => jsxs(
+      "li",
+      {
+        "data-kind": change.kind,
+        children: [
+          jsx("span", { "aria-hidden": true, className: "cs-b-bc-mark", children: CHANGE_MARK[change.kind] ?? "~" }),
+          change.image ? jsx(AssetThumb, { asset: change.image, onOpen, size: "xs" }) : null,
+          jsx("span", { children: change.text })
+        ]
+      },
+      index
+    ))
   });
 }
-function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+function BuildCard({ art, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false);
   const failed = build?.state === "failed";
-  const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
-  const changes = report?.changes?.length ? report.changes : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path, made: true }));
-  const edited = [.../* @__PURE__ */ new Set([...(report?.changes ?? []).filter((change) => change.kind === "changed" && change.asset).map((change) => isAbsolute(change.asset) ? change.asset : joinPath(root, change.asset)), ...made.map((asset) => asset.path)])].filter(Boolean).slice(0, 2);
+  const { changes, edited } = art;
   const tested = report?.tested ?? [];
   const untested = report?.untested ?? [];
   const notes = report?.notes ?? [];
@@ -6695,7 +6724,7 @@ function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBus
       }),
       summary ? jsx("p", { className: "cs-b-bc-sum", children: summary }) : null,
       ...edited.map((path) => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
-      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
+      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
       hasFoot ? jsxs("div", {
         className: "cs-b-bc-foot",
         children: [
@@ -7103,9 +7132,12 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   const hasAgent = live || turn.items.length > 0;
   const startedAt = user?.at ?? end?.startedAt ?? null;
   const showWorked = parts.entries.length > 0 || live && !parts.intro.length;
+  const report = parts.report;
+  const carded = !live && (build || report);
+  const art = carded ? buildCardArt(parts, root) : null;
   const viewerAssets = [...parts.assets];
-  for (const asset of replyAssets([...parts.intro, ...parts.outro], root)) {
-    if (!viewerAssets.some((entry) => entry.path === asset.path && entry.version === asset.version)) {
+  for (const asset of [...replyAssets([...parts.intro, ...parts.outro], root), ...art?.changes.map((change) => change.image) ?? []]) {
+    if (asset && !viewerAssets.some((entry) => entry.path === asset.path && entry.version === asset.version)) {
       viewerAssets.push(asset);
     }
   }
@@ -7114,13 +7146,19 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
       viewerAssets[position] = { ...asset, ask: user.text };
     });
   }
-  const viewerRef = useRef(viewerAssets);
-  viewerRef.current = viewerAssets;
-  const openAsset = useCallback((asset, opener) => onOpenAsset(viewerRef.current, asset, opener), [onOpenAsset]);
+  const viewerRef = useRef(null);
+  viewerRef.current = { assets: viewerAssets, ask: user?.text };
+  const openAsset = useCallback((asset, opener) => {
+    const { assets, ask } = viewerRef.current;
+    const index = assets.findIndex((entry) => entry.path === asset.path && entry.version === asset.version);
+    if (index === -1) {
+      onOpenAsset([...assets, { ...asset, ask }], assets.length, opener);
+    } else {
+      onOpenAsset(assets, index, opener);
+    }
+  }, [onOpenAsset]);
   const playable = Boolean(game && game.webExport && playableSha(game));
   const frame = [...parts.assets].reverse().find((asset) => asset.kind === "Playtest frame") ?? null;
-  const report = parts.report;
-  const carded = !live && (build || report);
   let play = null;
   let playLabel = null;
   if (latestBuild && game) {
@@ -7138,6 +7176,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   }
   const took = startedAt && end?.at ? spanWords(end.at - startedAt) : null;
   const card = carded ? jsx(BuildCard, {
+    art,
     at: agentAt,
     build,
     chatBusy,
@@ -7147,7 +7186,6 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
     parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
     playLabel,
     report,
-    root,
     took
   }) : null;
   const outro = parts.outro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `o${index}`));
@@ -7316,14 +7354,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     const id = setTimeout(() => node.removeAttribute("data-flash"), 1600);
     return () => clearTimeout(id);
   }, [focusTurn?.seq, limit]);
-  const openAsset = useCallback(
-    (assets, asset, opener) => setViewer({
-      assets,
-      opener,
-      index: Math.max(0, assets.findIndex((entry) => entry === asset || entry.path === asset.path && entry.version === asset.version))
-    }),
-    []
-  );
+  const openAsset = useCallback((assets, index, opener) => setViewer({ assets, index, opener }), []);
   const latestBuild = useMemo(() => {
     for (let index = turns.length - 1; index >= 0; index -= 1) {
       if (turnBuilt(turns[index])) {

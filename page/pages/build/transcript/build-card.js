@@ -1,6 +1,6 @@
 // A build in the conversation: one quiet line (its number, title, time), what changed under it, what was tested.
 import { Button, Codicon, host, jsx, jsxs, useContext, useId, useState } from '#sdk'
-import { AssetGame, forgetAsset, useAsset } from '#pages/build/assets/cache.js'
+import { AssetGame, forgetAsset, useAssetPreview } from '#pages/build/assets/cache.js'
 import { AssetThumb, SheetFrame } from '#pages/build/assets/images.js'
 import { injectBuildDraft } from '#pages/build/chat/store.js'
 import { callStudioOnly, describeRequestError } from '#app/backend.js'
@@ -13,13 +13,35 @@ import { madeAssets } from './turns.js'
 
 const CHANGE_MARK = { added: '+', changed: '~', removed: '\u2212' }
 
+function changeImage(change, root) {
+  const raw = change.asset?.replace(/^file:\/\//, '')
+  const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw))
+
+  return path ? { path, version: 'card', kind: assetKind(path), step: change.text } : null
+}
+
+export function buildCardArt(parts, root) {
+  const made = madeAssets(parts, root).filter(asset => asset.kind !== 'Image' || /cover\.png$/i.test(asset.path))
+  const reported = parts.report?.changes
+  const rows = reported?.length ? reported : made.slice(0, 6).map(asset => ({ kind: 'changed', text: baseName(asset.path), asset: asset.path }))
+  const changes = rows.map(change => ({ ...change, image: changeImage(change, root) }))
+  const edited = [...new Set([
+    ...changes.filter(change => change.kind === 'changed' && change.image).map(change => change.image.path),
+    ...made.map(asset => asset.path)
+  ])].slice(0, 2)
+
+  return { changes, edited }
+}
+
 /** An edited picture as it was before the turn and as it is after, with Keep and Undo (Undo puts the
  *  earlier version back through the kept versions; the one there now is kept too, so it can be redone).
  *  Shows nothing when the file is new this turn (nothing earlier was kept). */
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const id = useId()
-  const before = useAsset(path, `reply:${from}`)
-  const after = useAsset(path, to ? `reply:${to}` : null)
+  const beforeVersion = `reply:${from}`
+  const afterVersion = to ? `reply:${to}` : null
+  const before = useAssetPreview(path, beforeVersion)
+  const after = useAssetPreview(path, afterVersion)
   const root = useContext(AssetGame)
   const [state, setState] = useState(null)
 
@@ -50,7 +72,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
       'aria-label': `Look closer at ${label.toLowerCase()} version of ${name}`,
       className: now ? 'cs-b-ba-side now' : 'cs-b-ba-side',
       id: `${id}-${label}`,
-      onClick: event => onOpen?.({ path, version: now ? (to ? `reply:${to}` : null) : `reply:${from}`, kind: assetKind(path), step: label }, event.currentTarget),
+      onClick: event => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
       type: 'button',
       children: [jsx('span', { className: 'cs-b-ba-img', children: jsx(SheetFrame, { loaded }) }), jsx('span', { className: 'cs-b-ba-cap', children: label })]
     })
@@ -83,36 +105,28 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
 }
 
 /** What changed, from the report (else the pictures the turn made): + added, ~ changed, − removed. */
-function ChangeList({ changes, root, onOpen }) {
+function ChangeList({ changes, onOpen }) {
   return jsx('ul', {
     className: 'cs-b-bc-changes',
-    children: changes.map((change, index) => {
-      const path = change.asset ? (isAbsolute(change.asset) ? change.asset.replace(/^file:\/\//, '') : joinPath(root, change.asset)) : null
-
-      return jsxs(
-        'li',
-        {
-          'data-kind': change.kind,
-          children: [
-            jsx('span', { 'aria-hidden': true, className: 'cs-b-bc-mark', children: CHANGE_MARK[change.kind] ?? '~' }),
-            path ? jsx(AssetThumb, { asset: { path, version: 'card', kind: assetKind(path), step: change.text }, onOpen, size: 'xs' }) : null,
-            jsx('span', { children: change.text })
-          ]
-        },
-        index
-      )
-    })
+    children: changes.map((change, index) => jsxs(
+      'li',
+      {
+        'data-kind': change.kind,
+        children: [
+          jsx('span', { 'aria-hidden': true, className: 'cs-b-bc-mark', children: CHANGE_MARK[change.kind] ?? '~' }),
+          change.image ? jsx(AssetThumb, { asset: change.image, onOpen, size: 'xs' }) : null,
+          jsx('span', { children: change.text })
+        ]
+      },
+      index
+    ))
   })
 }
 
-export function BuildCard({ build, parts, report, root, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+export function BuildCard({ art, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false)
   const failed = build?.state === 'failed'
-  const made = madeAssets(parts, root).filter(asset => asset.kind !== 'Image' || /cover\.png$/i.test(asset.path))
-  const changes = report?.changes?.length ? report.changes : made.slice(0, 6).map(asset => ({ kind: 'changed', text: baseName(asset.path), asset: asset.path, made: true }))
-  const edited = [...new Set([...(report?.changes ?? []).filter(change => change.kind === 'changed' && change.asset).map(change => (isAbsolute(change.asset) ? change.asset : joinPath(root, change.asset))), ...made.map(asset => asset.path)])]
-    .filter(Boolean)
-    .slice(0, 2)
+  const { changes, edited } = art
   const tested = report?.tested ?? []
   const untested = report?.untested ?? []
   const notes = report?.notes ?? []
@@ -136,7 +150,7 @@ export function BuildCard({ build, parts, report, root, took, at, live, isLast, 
       }),
       summary ? jsx('p', { className: 'cs-b-bc-sum', children: summary }) : null,
       ...edited.map(path => jsx(BeforeAfter, { actions: isLast && !chatBusy, from: parts.startedAt, onOpen: onOpenAsset, onSend, path, to: parts.endedAt }, `ba:${path}`)),
-      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset, root }) : null,
+      changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
       hasFoot
         ? jsxs('div', {
             className: 'cs-b-bc-foot',

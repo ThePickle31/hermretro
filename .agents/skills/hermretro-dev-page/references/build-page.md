@@ -90,6 +90,8 @@ that use stands in. The project lookup is cached per game until a settings, pale
 sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE` (in no game), `OTHER_GAME`,
 `TOO_LARGE`, `MISSING`. With `at` (a reply's time, ms) it answers the version the file had then; with
 `version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
+When history is unavailable, a readable live file can still be previewed. Requests for a specific kept
+version require access to that version.
 
 Versions: the plugin keeps a copy of a game image (up to 40 per file, named by modification time in
 ns, identical rewrites skipped, under `<plugin data>/asset-versions/`, filed under the game that owns the
@@ -101,8 +103,8 @@ it. So a file rewritten later (cover.png made again) still shows each reply what
 
 `{path, root}` (as for `asset`) → `{ok, path, relative, kind, versions}`, `kind` one of `cover` (the game card's cover),
 `sprite`, `background`, `ui`, `frame`, `capture`, `image`; `versions = [{id, at, file, current}]`
-oldest first, exactly one `current`. A sprite adds `sprite = {name, id, type, flipLeft, states,
-canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
+oldest first, exactly one `current` when history is available, otherwise empty. A sprite adds
+`sprite = {name, id, type, flipLeft, states, canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
 first state's animations, named by GB Studio slot: "Walk right"…; a tile is `{x, y, sliceX, sliceY,
 flipX, flipY}`, 8×16, `y` up from the canvas bottom) and `palette = {id, name, colors[4]}` (the one
 it is painted with in its first scene). Sprites and backgrounds add `usedIn = [{scene, sceneId, as,
@@ -116,7 +118,8 @@ project files; nothing is compiled.
 `{path, root, version}` (`path` and `root` as for `asset`) → `{ok, path, versions}`: puts a kept version back in
 place, keeping the one it replaces first. Not for saved frames.
 If the backup fails, the current file stays in place. The selected version and the backup survive pruning
-during that restore.
+during that restore. When the replacement succeeds but its history cannot be listed, the result is successful
+with an empty `versions` list.
 
 ### `assets` RPC
 

@@ -130,6 +130,15 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, key,
       assert.equal(view.node.querySelector('[role="dialog"]'), null)
       assert.ok(active() === opener)
     })
+
+    await act(async () => opener.click())
+    const composer = view.node.querySelector('textarea[aria-label="Message Hermes"]')
+    await act(async () => composer.focus())
+    await key('keydown', 'Escape', composer)
+    check('closing the viewer preserves focus already moved outside it', () => {
+      assert.equal(view.node.querySelector('[role="dialog"]'), null)
+      assert.ok(active() === composer)
+    })
   } finally {
     await view.close()
     mock.timers.reset()

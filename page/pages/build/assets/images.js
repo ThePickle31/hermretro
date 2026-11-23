@@ -1,12 +1,12 @@
 // Asset pictures in the conversation: thumbs, sprites, strips.
 import { jsx, jsxs, useEffect, useId, useLayoutEffect, useRef, useState } from '#sdk'
 import { baseName } from '#app/paths.js'
-import { useAsset } from './cache.js'
+import { useAsset, useAssetPreview } from './cache.js'
 import { drawSpriteFrame, paintSheet, spriteFrameMs } from './sprite.js'
 
 export function AssetThumb({ asset, onOpen, size = 'sm', fresh = false }) {
   const id = useId()
-  const { state, asset: loaded } = useAsset(asset.path, asset.version)
+  const { state, asset: loaded } = useAssetPreview(asset.path, asset.version)
 
   if (state === 'none') {
     return null

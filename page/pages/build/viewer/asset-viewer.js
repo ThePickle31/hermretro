@@ -113,14 +113,16 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
 
   useLayoutEffect(() => {
     const previous = opener ?? document.activeElement
+    const element = dialog.current
 
-    dialog.current?.focus({ preventScroll: true })
+    element?.focus({ preventScroll: true })
 
     return () => {
-      // Restore reloads the image, so its opener may have been replaced by a new button.
-      const target = previous?.isConnected ? previous : previous?.ownerDocument.getElementById(previous.id)
+      const active = document.activeElement
 
-      target?.focus?.({ preventScroll: true })
+      if (previous?.isConnected && (element?.contains(active) || active === document.body)) {
+        previous.focus({ preventScroll: true })
+      }
     }
   }, [opener])
 

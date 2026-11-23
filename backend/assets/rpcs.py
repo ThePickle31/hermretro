@@ -28,17 +28,16 @@ from .versions import (
     AssetOwners,
     _asset_file,
     _asset_kind,
+    _available_versions,
     _image_root,
     _image_size,
     _is_frames,
+    _preview_history,
     _restore_version,
     _same_folder,
     _shown_in,
     _try_keep_version,
     _version_at,
-    _version_lock,
-    _versions,
-    _versions_dir,
     size_text,
 )
 
@@ -70,7 +69,7 @@ def rpc_asset(ctx):
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
             if not _shown_in(root, params.get("root")):
                 return {"ok": False, "code": "OTHER_GAME", "error": "That image belongs to another game."}
-            with _version_lock(real):
+            with _preview_history(real, root) as folder:
                 stat = real.stat()
                 if stat.st_size > ASSET_MAX_BYTES:
                     limit = size_text(ASSET_MAX_BYTES)
@@ -79,21 +78,33 @@ def rpc_asset(ctx):
                         "code": "TOO_LARGE",
                         "error": f"The image is larger than {limit}, too large to preview.",
                     }
-                folder = _versions_dir(real, root)
                 earlier = None
+                data = None
                 wanted = str(params.get("version") or "")
                 if wanted:
                     # One kept version by its id (the file's modification time in ns), as the viewer lists them.
                     if not wanted.isdigit():
                         return {"ok": False, "code": "INVALID", "error": "Unknown version."}
                     if int(wanted) != stat.st_mtime_ns:
+                        if folder is None:
+                            return {"ok": False, "code": "ERROR", "error": "Image history is unavailable."}
                         earlier = folder / f"{wanted}{real.suffix.lower()}"
-                        if not earlier.is_file():
+                        try:
+                            data = earlier.read_bytes()
+                        except FileNotFoundError:
                             return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
-                elif params.get("at") is not None:
-                    earlier = _version_at(real, folder, params.get("at"))
-                _try_keep_version(real, folder, protect=(earlier,))
-                data = (earlier or real).read_bytes()
+                elif folder is not None and params.get("at") is not None:
+                    try:
+                        earlier = _version_at(real, folder, params["at"])
+                        if earlier is not None:
+                            data = earlier.read_bytes()
+                    except OSError:
+                        logger.debug("hermretro could not read an earlier image", exc_info=True)
+                        earlier = None
+                if data is None:
+                    data = real.read_bytes()
+                if folder is not None:
+                    _try_keep_version(real, folder, protect=(earlier,))
             width, height = _image_size(data)
             relative = None if _is_frames(root) else real.relative_to(root).as_posix()
             answer = {
@@ -149,10 +160,11 @@ def rpc_asset_info(ctx):
             if not found:
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in this game are shown here."}
             real, root = found
-            with _version_lock(real):
-                folder = _versions_dir(real, root)
-                _try_keep_version(real, folder)
-                versions = _versions(real, folder)
+            with _preview_history(real, root) as folder:
+                versions = []
+                if folder is not None:
+                    _try_keep_version(real, folder)
+                    versions = _available_versions(real, folder)
             frames = _is_frames(root)
             relative = None if frames else real.relative_to(root).as_posix()
             kind = "frame" if frames else _asset_kind(relative)

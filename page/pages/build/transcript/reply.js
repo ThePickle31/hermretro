@@ -1,6 +1,6 @@
 // A reply's text and the images it delivered.
 import { jsx, jsxs, memo, MessageTextContent, useId } from '#sdk'
-import { useAsset } from '#pages/build/assets/cache.js'
+import { useAssetPreview } from '#pages/build/assets/cache.js'
 import { SheetFrame } from '#pages/build/assets/images.js'
 import { isAbsolute, joinPath } from '#app/paths.js'
 import { assetKind } from './step-words.js'
@@ -47,7 +47,7 @@ export function replyAssets(items, root) {
  *  MEDIA rendering. */
 function ReplyImage({ asset, line, onOpen }) {
   const id = useId()
-  const { state, code, asset: loaded } = useAsset(asset.path, asset.version)
+  const { state, code, asset: loaded } = useAssetPreview(asset.path, asset.version)
 
   if (state === 'none') {
     return MessageTextContent ? jsx(MessageTextContent, code === 'OTHER_GAME' ? { media: false, previewOnly: true, text: line } : { text: line }) : null
