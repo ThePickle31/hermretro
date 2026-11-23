@@ -11,6 +11,9 @@ If the library read fails, the page shows the error and keeps the current select
 games or conversations. The page also keeps a selected game listed as unavailable by the shelf. A successful
 read confirming removal returns the page to New Game.
 
+`player/use-inline-player.js` keeps track of which game's player is open and opens it after a presentation
+once the conversation is ready. The transcript and empty conversation each place the player in their own layout.
+
 **Tabs:** none (its areas are subfolders, not tabs).
 
 **Events:** emits none. Listens to `games.coverRequested` (queues the cover draft in the game's message box,
