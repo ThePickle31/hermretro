@@ -55,6 +55,57 @@ class RestoreConcurrency(RestoreCase):
         self.assertEqual((answer.get("code"), answer["changed"], answer["removed"]), ("PARTIAL", 0, 1))
         self.assertEqual((moved / self.keep.name).read_bytes(), b"new")
 
+    def test_new_project_markers_during_hashing_protect_both_deletion_and_replacement(
+        self,
+    ):
+        spare = self.root / "new-game" / "spare.gbsres"
+        spare.parent.mkdir()
+        spare.write_bytes(b"spare scene")
+        targets = {path.name: path for path in (spare, self.keep)}
+        open_file = restore_files._open_file
+
+        def open_then_mark(path, dir_fd):
+            handle = open_file(path, dir_fd)
+            if dir_fd is not None and path in targets:
+                (targets[path].parent / "child.gbsproj").write_text("{}")
+            return handle
+
+        with mock.patch.object(restore_files, "_open_file", side_effect=open_then_mark):
+            answer = self.restore()
+
+        self.assertEqual(answer.get("code"), "PARTIAL", answer)
+        self.assertEqual((answer["changed"], answer["removed"]), (0, 1))
+        self.assertEqual(self.keep.read_bytes(), b"new")
+        self.assertEqual(spare.read_bytes(), b"spare scene")
+        self.assertEqual(
+            (self.folder / answer["backup"] / "files" / "new-game" / spare.name).read_bytes(),
+            b"spare scene",
+        )
+
+    def test_atomic_save_after_the_final_hash_preserves_the_edit_and_reports_partial(
+        self,
+    ):
+        digest = snapshots.file_digest
+
+        def save_after_read(path, *args, **kwargs):
+            measured = digest(path, *args, **kwargs)
+            if path == self.keep and not self.extra.exists():
+                temporary = self.keep.with_suffix(".tmp")
+                temporary.write_bytes(b"editor")
+                temporary.replace(self.keep)
+            return measured
+
+        with mock.patch.object(snapshots, "file_digest", side_effect=save_after_read):
+            answer = self.restore()
+
+        self.assertEqual(answer.get("code"), "PARTIAL", answer)
+        self.assertTrue(any(self.keep.name in problem for problem in answer["problems"]), answer)
+        self.assertEqual(self.keep.read_bytes(), b"editor")
+        self.assertEqual(
+            (self.folder / answer["backup"] / "files" / "project" / self.keep.name).read_bytes(),
+            b"new",
+        )
+
     def test_hard_linked_files_can_be_removed_replaced_and_kept_in_one_restore(self):
         changed = self.keep.with_name("a-changed.txt")
         unchanged = self.keep.with_name("z-unchanged.txt")

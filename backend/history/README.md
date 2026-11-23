@@ -30,12 +30,12 @@ Selecting one restores that snapshot by ID through the same validation and backu
   is untouched. A restore rejects a redirected library path, checks the selected build reference or
   historical occurrence, and validates the saved file count, bytes and fingerprint. It verifies the
   names and contents on disk before publishing the current project's backup and holds the per-game lock
-  through restore and pruning. Before a replacement or deletion, it rechecks opened ancestor folders
-  for nested-game markers, then verifies the live file against the backup. It records stamp changes
+  through restore and pruning. Before replacement or deletion it checks the live bytes against the backup,
+  scans opened ancestor folders again for nested-game markers, and rechecks the live file identity. It records stamp changes
   caused by removing hard links and verifies the remaining links against the updated stamp and the
-  original bytes. Before reporting success, it
-  scans the project again and checks its in-scope paths and contents against the saved files. A new
-  file that appeared during restore is left in place and reported as a conflict.
+  original bytes. Before reporting success it compares the project's paths and contents with the saved
+  files, then rechecks each measured file's identity, size and timestamps to catch edits during that
+  scan. A new file that appeared during restore is left in place and reported as a conflict.
 - A complete restore returns `{ok: true, restored, backup, changed, removed}`. `PARTIAL` returns
   `ok: false` with those snapshot IDs and counts plus the first 20 file problems. The backed-up files
   remain available, and a conflict leaves the live file in place. A reused snapshot records the backup's

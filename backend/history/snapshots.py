@@ -370,10 +370,13 @@ def _verify_restore(root: Path, root_id: DirectoryId, expected: dict[str, Digest
         if problems:
             return problems
 
-        total, actual = _measure(files)
+        total, actual = _measure(files, seen)
         if total > MAX_BYTES:
             raise OSError("The project exceeds the snapshot size limit")
         _check_tree(root, files, seen)
+        for name, path in files.items():
+            if file_stamp(path.lstat()) != seen.files[name][0]:
+                raise OSError(f"{name} changed during final verification")
     except OSError as error:
         return [f"Could not verify the restored project: {error}"]
 

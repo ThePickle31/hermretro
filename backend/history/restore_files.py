@@ -71,7 +71,7 @@ def _digest_open_file(
         if writer is not None:
             writer.write(chunk)
     if check is not None:
-        check(scan=False)
+        check()
     info = os.fstat(fd)
     if file_stamp(info) != stamp or file_stamp(os.stat(path, dir_fd=dir_fd, follow_symlinks=False)) != stamp:
         raise OSError(f"{path} changed during the snapshot operation")
@@ -99,10 +99,9 @@ def _parent(root: Path, relative: str, live: LiveTree, *, create: bool = False):
             raise OSError("the project folder changed after backup")
         ancestors = []
 
-        def check(*, scan=True):
-            if scan:
-                for _, _, child, _ in ancestors:
-                    _check_project_marker(child)
+        def check():
+            for _, _, child, _ in ancestors:
+                _check_project_marker(child)
             if directory_id(root.lstat()) != root_id or Path(os.path.realpath(root, strict=True)) != root:
                 raise OSError("the project folder changed after backup")
             for parent, name, _, identity in ancestors:
@@ -173,7 +172,7 @@ def _check_live(
             expected = live.unlinked.get(stamp, stamp)
             measured, before = _digest_open_file(handle, name, digest[0], None, fd, expected, check=check)
         except OSError as error:
-            raise OSError("the live file changed or could not be verified after backup") from error
+            raise OSError(f"the live file changed or could not be verified after backup: {error}") from error
         if measured != digest:
             raise OSError("the live file changed after backup")
 
