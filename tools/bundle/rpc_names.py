@@ -5,7 +5,7 @@
 
 A backend feature declares a page RPC with @rpc("name") in backend/<feature>/rpcs.py (backend/hermes/declare.py).
 This reads those files as text (ast) and never imports the backend, so it needs nothing but Python 3.11.
-node tools/bundle/bundle.mjs runs it before every build, and its --check (python tools/check.py bundle) fails
+node tools/bundle/bundle.mjs runs it at startup, and its --check (python tools/check.py bundle) fails
 when the file is stale. tests/repo/test_lockstep.py also checks it against what the plugin registers.
 """
 

@@ -15,23 +15,13 @@ import os
 import threading
 from pathlib import Path
 
+from .workflow import CHECKPOINT, DELIVER
+
 
 # What an agent does about an unexpected failure inside the plugin, whichever tool it came from.
 ADAPTER_ERROR_NEXT_STEP = (
     "This is a fault in hermretro, not in the game. Tell the user what failed; do not retry the same call blindly, "
     "and do not work around it outside the chromatic tools."
-)
-
-# A build is a checkpoint: the agent keeps authoring until everything agreed with the user is in the game.
-CHECKPOINT = (
-    "A build is a checkpoint, not a hand-off: keep authoring until everything agreed with the user is in the game; "
-    "only then "
-)
-# Handing the game to the user, in order, once everything agreed is built; the prompt section's steps end with it too.
-DELIVER = (
-    "playtest it yourself with the chromatic_emulator_* tools; fill in its game card with chromatic_game_info; "
-    "show it with chromatic_present_game; end the turn with "
-    "chromatic_build_report."
 )
 
 

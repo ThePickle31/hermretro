@@ -41,7 +41,7 @@ class SingleFlight(unittest.TestCase):
         gate.set()
         first.join(5)
         second.join(5)
-        self.assertEqual(len(commands), 8, "the hermes commands ran once")
+        self.assertEqual(len(commands), 7, "the hermes commands ran once")
         self.assertEqual(sorted(bool(answer.get("shared")) for answer in answers), [False, True])
 
     def test_a_failure_is_shared_and_the_next_call_runs_again(self):

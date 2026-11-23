@@ -1,13 +1,12 @@
 // The New Game screen.
 import { Codicon, jsx, jsxs, useEffect, useLayoutEffect, useRef, useValue } from '#sdk'
-import { AGENT } from '#app/ids.js'
 import { ProviderNotice } from './composer/provider-notice.js'
 import { clearNewGameDraft, editNewGameDraft, NEW_GAME_DRAFT, NEW_GAME_STARTING } from './new-game-draft.js'
 
 // The two ways to start, as the backend tells the agent (backend/library/rpcs.py build context): keep the words in step.
 const NEW_GAME_MODES = [
-  { id: 'build', title: 'Build it', text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: 'Ends with a game you can play' },
-  { id: 'plan', title: 'Plan first', text: 'A short interview, then a brief, backlog and test plan. Nothing is built until you say so.', ends: 'Ends with a plan to review' }
+  { id: 'build', title: 'Build it', text: 'Approve a short list before the project is created.', ends: 'Ends with a game you can play' },
+  { id: 'plan', title: 'Plan first', text: 'Start a project for the brief, backlog and test plan. Approve the brief before authoring begins.', ends: 'Ends with a plan to review' }
 ]
 
 // The last handoff the box took focus for: once each, not on every later visit.

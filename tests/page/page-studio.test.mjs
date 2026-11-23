@@ -71,8 +71,7 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   scenario.storage = kept
 
   // 11. The dedicated profile: the first step creates it, then the page moves over to it.
-  const createParams = { name: 'hermretro', description: 'hermretro', no_skills: true, share_auth: true, no_alias: true }
-  const installer = (studio = {}) => ({ ...complete, profile: { name: 'default', is_studio: false, create: createParams,
+  const installer = (studio = {}) => ({ ...complete, profile: { name: 'default', is_studio: false,
     studio: { name: 'hermretro', exists: false, installed: false, ours: false, ...studio } } })
   scenario.ambient = installer(); scenario.status = answered(installer())
   scenario.routes = [{ profile: 'default', connectionId: 'local' }]; scenario.byProfile = {}
@@ -85,14 +84,13 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     assert.match(text(), /The "default" profile, where the plugin is installed, is not changed/)
   })
   scenario.calls.length = 0; scenario.notices.length = 0
-  scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: true, profile: 'hermretro' }
   await click('Create the hermretro profile')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  check('the button has Hermes create the profile, then the plugin finishes it', () => {
+  check('the button asks the studio RPC to create the profile', () => {
     assert.deepEqual(scenario.calls.filter(call => call[0] === 'request').map(call => call[1]),
-      ['profiles.create', 'plugin.hermretro.studio_profile'])
-    assert.deepEqual(scenario.paramsByMethod['profiles.create'], createParams)
+      ['plugin.hermretro.studio_profile'])
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.studio_profile'], { create: true })
     assert.ok(scenario.notices.some(notice => /profile created/i.test(notice.message)))
   })
   scenario.ambient = installer({ exists: true, installed: true, ours: true })
@@ -140,7 +138,7 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   await click('Create the hermretro profile')
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
   check('a profile of that name made by someone else is not recreated, and the refusal is shown', () => {
-    assert.ok(!scenario.calls.some(call => call[1] === 'profiles.create'))
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.studio_profile'], { create: false })
     assert.match(text(), /already exists and was not made by hermretro/)
     assert.equal(heading(), 'Create the hermretro profile')
   })

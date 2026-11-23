@@ -11,7 +11,7 @@ metadata:
 
 # Plan a Chromatic game before building it
 
-Use before creating a new game, or before a large change to an existing one.
+Use for Plan first or when the user asks to plan a change to an existing game.
 The output is a small set of versioned planning documents inside the project,
 approved by the user, that the build and test work follows.
 
