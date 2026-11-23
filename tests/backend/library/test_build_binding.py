@@ -114,6 +114,22 @@ class Binding(unittest.TestCase):
             self.assertIn("make the requested changes", delivered)
             self.assertNotIn("brief", delivered)
 
+    def test_edit_does_not_treat_an_imported_games_notes_as_a_new_game_brief(self):
+        entry = self.registry.bind(self.game, "st-edit", PROFILE)
+        self.assertIs(entry["session"]["edit"], True)
+        brief = self.root / "docs" / "game" / "GAME-BRIEF.md"
+        brief.parent.mkdir(parents=True)
+        brief.write_text("- Status: proposed")
+        later = entry["session"]["createdAt"] + 1
+        os.utime(brief, (later, later))
+        with (
+            mock.patch.object(hermes_host, "_registry", return_value=self.registry),
+            mock.patch.object(hermes_host, "_profile_identity", return_value=PROFILE),
+        ):
+            context = library_hooks.build_context(session_id="st-edit")["context"]
+        self.assertIn("make the requested changes", context)
+        self.assertNotIn("brief", context)
+
     def test_a_game_that_already_has_a_conversation_is_never_claimed(self):
         self.registry.bind(self.game, "st-1", PROFILE)
         self.registry.build_start("st-new", PROFILE)

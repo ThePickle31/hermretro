@@ -7,7 +7,6 @@ edits. Only Hermes config commands write the studio's config.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -57,10 +56,10 @@ def refresh_soul(profile_home: Path) -> bool:
     return _replace_soul(soul, _shipped_before)
 
 
-def _read_soul(soul: Path) -> bytes | None:
+def _read_soul(soul: str | Path, directory: int | None = None) -> bytes | None:
     """Read a plain SOUL file without following a link or waiting on a pipe."""
     try:
-        handle = os.open(soul, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        handle = os.open(soul, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
     except OSError:
         return None
     with os.fdopen(handle, "rb") as reader:
@@ -153,6 +152,20 @@ def _ready(target: Path) -> bool:
     return _has_plugin(target) and (target / MARKER).is_file()
 
 
+def _can_resume(target: Path) -> bool:
+    try:
+        with profile_publication.profiles_directory(target) as (target, profiles):
+            entry = profile_publication.profile_entry(target, profiles)
+            return (
+                entry is not None
+                and stat.S_ISDIR(entry.st_mode)
+                and _ready(target)
+                and profile_publication.Tombstone(target, profiles).matches_receipt(entry)
+            )
+    except OSError:
+        return False
+
+
 def describe(home: Path, target: Path | None = None) -> dict:
     """For the page: which profile is answering, and the state of the studio profile."""
     name = profile_name(home)
@@ -165,7 +178,8 @@ def describe(home: Path, target: Path | None = None) -> dict:
     target = target or studio_dir()
     exists = _exists(target)
     deleted = exists and hermes_api.profile_is_deleted(target)
-    ours = exists and not deleted and _ours(target)
+    resumable = deleted and _can_resume(target)
+    ours = resumable or (exists and not deleted and _ours(target))
     return {
         "name": name,
         "is_studio": False,
@@ -176,7 +190,7 @@ def describe(home: Path, target: Path | None = None) -> dict:
             "ours": ours,
             # Someone else's profile has the name: finishing it would be refused (NAME_TAKEN), so the page says so
             # before it downloads anything.
-            "conflict": exists and (deleted or (not ours and not _has_plugin(target))),
+            "conflict": exists and not resumable and (deleted or (not ours and not _has_plugin(target))),
         },
     }
 
@@ -286,33 +300,70 @@ def _finish(
     target = target or studio_dir()
     if create:
         target.parent.mkdir(parents=True, exist_ok=True)
-        with profile_publication.publication_lock(target) as profiles:
-            if not _exists(target):
-                return _create(home, target, enabled, run, profiles)
-            if hermes_api.profile_is_deleted(target):
-                raise _name_taken()
-            if _ready(target):
-                return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
-    if not _exists(target):
-        raise StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
-    if hermes_api.profile_is_deleted(target):
-        raise _name_taken()
-    if not (_ours(target) or _has_plugin(target)):
-        raise _name_taken()
+    elif not target.parent.is_dir():
+        raise _not_created()
+    try:
+        with profile_publication.profiles_directory(target) as (pinned, profiles):
+            expected = profile_publication.profile_entry(pinned, profiles) if not create else None
+            profile_publication.lock_profiles(profiles)
+            if not create:
+                profile_publication.require_entry(pinned, profiles, expected)
 
-    marker = target / MARKER
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    # Cover repairs from different gateways or plugin hosts.
-    with marker.with_suffix(".lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+            def run_in_profile(directory, *args):
+                # Hermes uses the lexical profiles/ parent to find the shared Hermes root.
+                profile_publication.require_profiles_directory(target.parent, profiles, follow_symlinks=True)
+                run(target.parent / directory.name, *args)
+
+            return _finish_locked(home, pinned, enabled, run_in_profile, create, profiles)
+    except FileExistsError:
+        raise _name_taken() from None
+
+
+def _finish_locked(home: Path, target: Path, enabled: list[str] | None, run, create: bool, profiles: int) -> dict:
+    expected = profile_publication.profile_entry(target, profiles)
+    deleted = profile_publication.Tombstone(target, profiles)
+    if expected is not None and not stat.S_ISDIR(expected.st_mode):
+        raise _name_taken()
+    exists = expected is not None and hermes_api.profile_has_identity(target)
+    profile_publication.require_entry(target, profiles, expected)
+    if not exists:
+        if not create:
+            raise _not_created()
+        return _create(home, target, enabled, run, profiles, deleted)
+
+    ready = _ready(target)
+    if deleted.identity is not None:
+        if not ready or not deleted.matches_receipt(expected):
+            raise _name_taken()
+        deleted.clear(expected)
+        hermes_api.notify_profile_created(target)
+        return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
+
+    with profile_publication.open_profile(target, profiles, expected) as directory:
+
+        def check():
+            profile_publication.require_entry(target, profiles, expected)
+            deleted.check()
+            if not hermes_api.profile_has_identity(target) or not (_ours(target) or _has_plugin(target)):
+                raise _name_taken()
+
+        check()
+        if create and ready:
+            return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
         soul = target / "SOUL.md"
         keep_missing = not os.path.lexists(soul)
         try:
-            return _configure(home, target, enabled, run, workspace=(target / WORKSPACE).resolve())
+            return _configure(home, target, enabled, run, workspace=(target / WORKSPACE).resolve(), check=check)
         finally:
             # Every CLI subprocess can seed Hermes's own SOUL while initializing its home.
             if keep_missing and (seed := hermes_api.default_soul()) is not None:
-                profile_publication.discard_generated_file(soul, lambda path: _read_soul(path) == seed)
+                profile_publication.discard_generated_file(
+                    soul, directory, lambda path, parent: _read_soul(path, parent) == seed
+                )
+
+
+def _not_created() -> StudioProfileError:
+    return StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
 
 
 def _name_taken() -> StudioProfileError:
@@ -323,58 +374,63 @@ def _name_taken() -> StudioProfileError:
     )
 
 
-def _create(home: Path, target: Path, enabled: list[str] | None, run, profiles: int) -> dict:
-    # Resolve only the profiles parent. A leftover can have its own workspace link, which
-    # must not decide where chats start in the fresh studio.
-    workspace = target.parent.resolve() / target.name / WORKSPACE
-    try:
-        expected = profile_publication.creation_candidate(target)
-        # Hermes ignores dot-prefixed directories. Publish the preferences and finish marker
-        # together so a retry can tell a cleared setting from an unseeded one.
-        with (
-            profile_publication.tombstone(target, profiles) as clear_tombstone,
-            tempfile.TemporaryDirectory(dir=target.parent, prefix=f".{target.name}-") as directory,
-        ):
-            staging = Path(directory)
-            hermes_api.prepare_profile(staging, description=DESCRIPTION, soul=SOUL_FILE.read_text(encoding="utf-8"))
-            run(staging, "config", "set", "agent.max_turns", str(TURN_LIMIT))
-            answer = _configure(home, staging, enabled, run, workspace=workspace)
-            profile_publication.publish(staging, target, expected, profiles, clear_tombstone)
-    except FileExistsError:
-        if _exists(target) and _ready(target) and not hermes_api.profile_is_deleted(target):
-            return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
-        raise _name_taken() from None
+def _create(
+    home: Path, target: Path, enabled: list[str] | None, run, profiles: int, deleted: profile_publication.Tombstone
+) -> dict:
+    # A leftover can have its own workspace link. Start fresh chat in the new profile itself.
+    workspace = target / WORKSPACE
+    expected = profile_publication.creation_candidate(target, profiles, deleted)
+    # Hermes ignores dot-prefixed directories. Publish the preferences and finish marker
+    # together so a retry can tell a cleared setting from an unseeded one.
+    with tempfile.TemporaryDirectory(dir=target.parent, prefix=f".{target.name}-") as directory:
+        staging = Path(directory)
+        hermes_api.prepare_profile(staging, description=DESCRIPTION, soul=SOUL_FILE.read_text(encoding="utf-8"))
+        run(staging, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+        answer = _configure(home, staging, enabled, run, workspace=workspace)
+        deleted.record(staging)
+        profile_publication.publish(staging, target, expected, profiles, deleted)
     hermes_api.notify_profile_created(target)
     return {**answer, "soul_written": True}
 
 
-def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, workspace: Path) -> dict:
+def _configure(
+    home: Path, target: Path, enabled: list[str] | None, run, *, workspace: Path, check=lambda: None
+) -> dict:
+    def configure(*args):
+        check()
+        run(target, *args)
+
+    check()
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
     providers = []
     for folder in _provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
+        check()
         _link(folder, target / "plugins" / folder.name)
         providers.append(folder.name)
 
     for name in (paths.PLUGIN_ID, *providers):
-        run(target, "plugins", "enable", name)
-    run(target, "config", "set", "agent.disabled_toolsets", json.dumps(list(DISABLED_TOOLSETS)))
+        configure("plugins", "enable", name)
+    configure("config", "set", "agent.disabled_toolsets", json.dumps(list(DISABLED_TOOLSETS)))
     # No Hermes default skills, only the essential hermes-agent one (Hermes always keeps it) and the
     # plugin's own. The profile is created with no_skills; this keeps `hermes update` from seeding
     # them later even when the profile was made some other way. Nothing on disk is deleted.
-    run(target, "skills", "opt-out")
+    configure("skills", "opt-out")
     # No automatic post-turn self-improvement review: it would write its own skills and memories next
     # to the plugin's (`/refine` still works on request).
-    run(target, "config", "set", "auxiliary.background_review.enabled", "false")
-    run(target, "config", "set", "curator.enabled", "false")  # nor the weekly skill curator
+    configure("config", "set", "auxiliary.background_review.enabled", "false")
+    configure("config", "set", "curator.enabled", "false")  # nor the weekly skill curator
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
-    run(target, "config", "set", "approvals.mode", "smart")
+    configure("config", "set", "approvals.mode", "smart")
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.
+    check()
     (target / WORKSPACE).mkdir(parents=True, exist_ok=True)
-    run(target, "config", "set", "terminal.cwd", str(workspace))
+    configure("config", "set", "terminal.cwd", str(workspace))
 
+    check()
     write_soul = refresh_soul(target)
+    check()
     marker = target / MARKER
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(

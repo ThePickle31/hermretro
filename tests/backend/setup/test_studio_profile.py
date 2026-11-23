@@ -1,10 +1,10 @@
 """The dedicated hermretro profile: what the page is told, and what finishing it does."""
 
 import json
+import shutil
 import os
 import stat
 import sys
-import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -13,12 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import studio_profile as sp  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 
 class StudioProfile(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        root = Path(self.tmp.name)
+        root = self.base = isolated_home(self).base
         self.home = root / "profiles" / "work"  # where the user installed the plugin
         self.target = root / "profiles" / sp.STUDIO_PROFILE
         (self.home / "plugins" / "my-provider").mkdir(parents=True)
@@ -40,9 +40,6 @@ class StudioProfile(unittest.TestCase):
         (staging / "profile.yaml").write_text(f"description: '{description}'\n")
         (staging / "SOUL.md").write_text(soul)
         (staging / "config.yaml").write_text('{"model": {"provider": "example"}}')
-
-    def tearDown(self):
-        self.tmp.cleanup()
 
     def created(self, description=sp.DESCRIPTION):
         """An existing profile created before setup staged its preferences."""
@@ -78,10 +75,10 @@ class StudioProfile(unittest.TestCase):
             told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False, "conflict": False}
         )
         self.assertTrue(sp.describe(self.target)["is_studio"])
-        self.assertEqual(sp.profile_name(Path(self.tmp.name)), "default")
+        self.assertEqual(sp.profile_name(self.base), "default")
 
     def test_the_page_is_told_which_profile_installed_the_copy_it_runs(self):
-        root = Path(self.tmp.name)
+        root = self.base
         installed = self.home / "plugins" / "hermretro"
         installed.mkdir()
         self.assertEqual(sp.installed_in(installed), {"profile": "work", "linked": False})
@@ -365,6 +362,117 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual((archive / self.target.name / "logs" / "old.log").read_text(), "old runtime data")
         self.assertEqual(self.read_config(self.target)["agent"]["max_turns"], 1000)
         self.assertEqual(self.notifications, [self.target])
+
+    def interrupted_publication(self):
+        marker = sp.hermes_api.profile_tombstone(self.target)
+        marker.parent.mkdir()
+        marker.write_text("deleted")
+        with unittest.mock.patch.object(sp.profile_publication.Tombstone, "clear", side_effect=OSError("stopped")):
+            with self.assertRaisesRegex(OSError, "stopped"):
+                self.finish(create=True)
+        self.assertTrue(marker.is_file())
+        self.assertTrue((self.target / sp.MARKER).is_file())
+        self.commands.clear()
+        return marker
+
+    def test_setup_resumes_a_published_profile_without_changing_its_settings(self):
+        marker = self.interrupted_publication()
+        (self.target / "SOUL.md").write_text("my edits")
+        (self.target / "config.yaml").write_text('{"agent": {}}')
+        status = sp.describe(self.home, self.target)["studio"]
+        self.assertTrue(status["exists"])
+        self.assertFalse(status["installed"])
+        self.assertFalse(status["conflict"])
+        self.assertTrue(self.finish()["ok"])  # Setup sees the profile and requests repair.
+        self.assertFalse(marker.exists())
+        self.assertTrue(sp.describe(self.home, self.target)["studio"]["installed"])
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.notifications, [self.target])
+        self.assertEqual((self.target / "SOUL.md").read_text(), "my edits")
+        self.assertEqual(self.read_config(self.target), {"agent": {}})
+
+    def test_retry_does_not_clear_a_later_delete_that_rewrites_the_same_marker(self):
+        marker = self.interrupted_publication()
+        before = marker.stat()
+        marker.write_text("deleted")
+        os.utime(marker, ns=(before.st_atime_ns, before.st_mtime_ns - 1_000_000_000))
+        self.assertEqual(marker.stat().st_ino, before.st_ino)
+        for create in (True, False):
+            with self.assertRaises(sp.StudioProfileError) as raised:
+                self.finish(create=create)
+            self.assertEqual(raised.exception.code, "NAME_TAKEN")
+        self.assertTrue(sp.describe(self.home, self.target)["studio"]["conflict"])
+        self.assertTrue(marker.exists())
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.notifications, [])
+
+    def test_retry_does_not_adopt_a_replacement_even_if_it_contains_a_copied_receipt(self):
+        marker = self.interrupted_publication()
+        moved = self.target.with_name("moved")
+        self.target.rename(moved)
+        shutil.copytree(moved, self.target, symlinks=True)
+        (self.target / "SOUL.md").write_text("someone else's edits")
+        with self.assertRaises(sp.StudioProfileError) as raised:
+            self.finish(create=True)
+        self.assertEqual(raised.exception.code, "NAME_TAKEN")
+        self.assertTrue(marker.exists())
+        self.assertEqual((self.target / "SOUL.md").read_text(), "someone else's edits")
+        self.assertEqual(self.commands, [])
+
+    def test_repair_rechecks_the_profile_after_acquiring_the_profiles_lock(self):
+        self.created()
+        moved = self.target.with_name("moved")
+
+        def replace_while_waiting(profiles, flags):
+            self.assertEqual(os.fstat(profiles).st_ino, self.target.parent.stat().st_ino)
+            self.target.rename(moved)
+            self.created()  # It even has a matching Studio description, but is a different directory.
+
+        with unittest.mock.patch.object(sp.profile_publication.fcntl, "flock", side_effect=replace_while_waiting):
+            with self.assertRaises(sp.StudioProfileError) as raised:
+                self.finish()
+        self.assertEqual(raised.exception.code, "NAME_TAKEN")
+        self.assertFalse((self.target / "plugin-data").exists())
+        self.assertEqual(self.commands, [])
+
+    def test_repair_stops_after_a_directory_replacement_and_keeps_edits_in_both(self):
+        self.created()
+        (self.target / "SOUL.md").unlink()
+        moved = self.target.with_name("moved")
+
+        def replace_during_first_command(target, *args):
+            self.run_command(target, *args)
+            (target / "SOUL.md").write_text("my edits in the original")
+            target.rename(moved)
+            self.created(description="my own profile")
+            (self.target / "SOUL.md").write_text("Hermes default")
+
+        with unittest.mock.patch.object(sp.hermes_api, "default_soul", return_value=b"Hermes default"):
+            with self.assertRaises(sp.StudioProfileError) as raised:
+                self.finish(run=replace_during_first_command)
+        self.assertEqual(raised.exception.code, "NAME_TAKEN")
+        self.assertEqual(len(self.commands), 1)
+        self.assertFalse((self.target / "plugin-data").exists())
+        self.assertEqual((self.target / "SOUL.md").read_text(), "Hermes default")
+        self.assertEqual((moved / "SOUL.md").read_text(), "my edits in the original")
+
+    def test_create_and_repair_support_a_relocated_profiles_directory(self):
+        profiles = self.target.parent
+        resolved = profiles.with_name("relocated")
+        profiles.rename(resolved)
+        profiles.symlink_to(resolved, target_is_directory=True)
+        answer = self.finish(create=True)
+        self.assertEqual(answer["workspace"], str(resolved / self.target.name / sp.WORKSPACE))
+        self.assertTrue(self.finish()["ok"])
+        self.assertTrue((self.target / sp.MARKER).is_file())
+        self.assertTrue(all(path.parent == profiles for path, _ in self.commands))
+
+        self.target.rename(self.target.with_name("moved"))
+        self.target.symlink_to(resolved / "moved", target_is_directory=True)
+        for create in (True, False):
+            with self.assertRaises(sp.StudioProfileError) as raised:
+                self.finish(create=create)
+            self.assertEqual(raised.exception.code, "NAME_TAKEN")
 
     def test_a_hermes_command_that_cannot_start_or_hangs_is_a_plain_error(self):
         import subprocess

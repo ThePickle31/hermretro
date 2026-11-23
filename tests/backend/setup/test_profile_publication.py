@@ -1,19 +1,16 @@
 """The publishing step rechecks the profile name and the gateway's lock on disk."""
 
 import fcntl
-import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from backend.setup import profile_publication as pp
+from tests.support import isolated_home
 
 
 class ProfilePublication(unittest.TestCase):
     def setUp(self):
-        temp = tempfile.TemporaryDirectory()
-        self.addCleanup(temp.cleanup)
-        self.profiles = Path(temp.name) / "profiles"
+        self.profiles = isolated_home(self).base / "profiles"
         self.profiles.mkdir()
         self.target = self.profiles / "hermretro"
         self.staging = self.profiles / ".staging"
@@ -26,12 +23,13 @@ class ProfilePublication(unittest.TestCase):
         self.marker.write_text("deleted")
 
     def publish(self, race=None):
-        with pp.publication_lock(self.target) as profiles:
-            expected = pp.creation_candidate(self.target)
-            with pp.tombstone(self.target, profiles) as clear:
-                if race:
-                    race()
-                pp.publish(self.staging, self.target, expected, profiles, clear)
+        with pp.profiles_directory(self.target) as (target, profiles):
+            pp.lock_profiles(profiles)
+            deleted = pp.Tombstone(target, profiles)
+            expected = pp.creation_candidate(target, profiles, deleted)
+            if race:
+                race()
+            pp.publish(self.staging, target, expected, profiles, deleted)
 
     def test_an_identity_free_directory_without_a_tombstone_is_left_in_place(self):
         self.target.mkdir()

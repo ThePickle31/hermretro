@@ -105,9 +105,9 @@ def prepare_profile(staging: Path, *, description: str, soul: str) -> None:
     except ModuleNotFoundError as error:
         if error.name != "hermes_cli.profile_provision":
             raise
-        # Before the Desktop provisioning helpers moved to profile_provision.
-        from tui_gateway.methods_profiles import _inherit_launch_model as inherit_launch_model
-        from tui_gateway.methods_profiles import _mirror_launch_credentials
+        # The older split module's functions only work once bound to the gateway's globals.
+        from tui_gateway.server import _inherit_launch_model as inherit_launch_model
+        from tui_gateway.server import _mirror_launch_credentials
 
         _mirror_launch_credentials(staging, {"share_auth": True})
     else:

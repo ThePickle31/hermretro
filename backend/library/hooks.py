@@ -3,6 +3,7 @@ ephemeral context every turn)."""
 
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 from ..hermes import host, workflow
@@ -21,7 +22,7 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
     if kind == "game":
         root = bound.get("projectRoot")
         title = bound.get("title") or Path(root or "").name
-        guidance = _game_guidance(bound, root)
+        guidance = _game_guidance(bound, root, is_first_turn)
         return {
             "context": (
                 f"[hermretro] This is the Build conversation of the game \"{title}\" "
@@ -58,22 +59,35 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
     return None
 
 
-def _game_guidance(game: dict, root: str | None) -> str:
+def _game_guidance(game: dict, root: str | None, first: bool) -> str:
     presented = game.get("presented")
     if isinstance(presented, dict) and isinstance(presented.get("t"), (int, float)):
         return workflow.EDIT_GAME
 
-    plan = game.get("initialPlan", (game.get("session") or {}).get("plan"))
+    session = game.get("session")
+    session = session if isinstance(session, dict) else {}
+    plan = game.get("initialPlan", session.get("plan"))
     if plan is True:
         return workflow.PLAN_BOUND
     if plan is False:
         return workflow.BUILD_BOUND
-    if root:
-        # Older bindings did not keep the mode. Their plan files still say what
-        # remains in scope. ROMs and web exports can be intermediate checkpoints.
+    if session.get("edit") is True or first or not root:
+        return workflow.EDIT_GAME
+
+    # A legacy New Game bound the chat before writing its plans or making its first build.
+    # Earlier plans or activity belong to an existing game, even if later turns updated its notes.
+    bound_at = session.get("createdAt")
+    activity = (game.get(key) for key in ("lastBuild", "lastWebExport"))
+    if isinstance(bound_at, (int, float)) and not any(
+        isinstance(record, dict) and isinstance(record.get("t"), (int, float)) and record["t"] < bound_at
+        for record in activity
+    ):
         docs = Path(root, "docs", "game")
-        if (docs / "GAME-BRIEF.md").is_file():
-            return workflow.PLAN_BOUND
-        if (docs / "FIRST-BUILD.md").is_file():
-            return workflow.BUILD_BOUND
+        for name, guidance in (("GAME-BRIEF.md", workflow.PLAN_BOUND), ("FIRST-BUILD.md", workflow.BUILD_BOUND)):
+            try:
+                info = (docs / name).stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode) and info.st_mtime >= bound_at:
+                return guidance
     return workflow.EDIT_GAME

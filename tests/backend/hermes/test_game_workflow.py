@@ -5,6 +5,7 @@ Run alone: python -m unittest tests.backend.hermes.test_game_workflow
 """
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -129,10 +130,17 @@ class OneWorkflow(unittest.TestCase):
             brief = Path(directory, "docs", "game", "GAME-BRIEF.md")
             brief.parent.mkdir(parents=True)
             brief.write_text("Awaiting approval")
-            game = {"projectRoot": directory, "lastBuild": {"ok": True}}
-            self.assertIn(workflow.PLAN_BOUND, self.context("game", game))
-            self.assertIn(workflow.EDIT_GAME, self.context("game", {**game, "presented": {"t": 2}}))
-            self.assertIn(workflow.BUILD_BOUND, self.context("game", {**game, "initialPlan": False}))
+            bound_at = brief.stat().st_mtime - 1
+            game = {"projectRoot": directory, "session": {"createdAt": bound_at}, "lastBuild": {"ok": True}}
+            self.assertIn(workflow.PLAN_BOUND, self.context("game", game, first=False))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", game, first=True))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", {**game, "presented": {"t": 2}}, first=False))
+            self.assertIn(workflow.BUILD_BOUND, self.context("game", {**game, "initialPlan": False}, first=False))
+
+            previously_built = {**game, "lastBuild": {"ok": True, "t": bound_at - 1}}
+            self.assertIn(workflow.EDIT_GAME, self.context("game", previously_built, first=False))
+            os.utime(brief, (bound_at - 2, bound_at - 2))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", game, first=False))
 
     def test_drawing_art_and_importing_it_stays_allowed(self):
         self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", workflow.GAME_RULES)
