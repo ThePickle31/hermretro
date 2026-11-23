@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import json
 import os
 import re
 import tempfile
@@ -16,6 +17,7 @@ from stat import S_ISDIR
 
 from ..hermes import host
 from ..library import valid_id
+from ..system.paths import write_json_atomic
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -78,6 +80,7 @@ def _asset_kind(relative: str | None) -> str:
 # The "up to 40 per file" of the Versions paragraph (under the asset RPC heading) in .agents/skills/hermretro-dev-page/references/build-page.md: the
 # newest kept, the oldest dropped. AssetRetention in tests/backend/assets/test_asset_versions.py reads the number there.
 ASSET_KEEP_VERSIONS = 40
+_PENDING_RESTORE = "pending-restore.json"
 # A line of a reply that delivers a file (``MEDIA:/path``), quotes or backticks allowed around the path.
 _MEDIA_LINE = re.compile(
     r"^[ \t]*MEDIA:[ \t]*([`\"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$", re.IGNORECASE | re.MULTILINE
@@ -294,14 +297,28 @@ def _save_image_bytes(folder: Path, target: Path, data: bytes) -> tuple[Path, bo
     return target, True
 
 
-def _prune_versions(folder: Path, protect=()) -> None:
+def _prune_versions(real: Path, folder: Path, protect=()) -> None:
+    """Prune under the asset lock, including any restore that stopped before finishing history."""
+    pending = folder / _PENDING_RESTORE
     try:
-        kept = _kept_versions(folder)
-        excess = max(0, len(kept) - ASSET_KEEP_VERSIONS)
-        for old in [item for item in kept if item not in protect][:excess]:
-            old.unlink(missing_ok=True)
-    except OSError:
-        logger.debug("hermretro could not prune image history", exc_info=True)
+        ids = json.loads(pending.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        ids = []
+    else:
+        if (
+            not isinstance(ids, list)
+            or len(ids) != 2
+            or not all(isinstance(value, str) and value.isdigit() for value in ids)
+        ):
+            raise ValueError("Invalid pending image restore.")
+
+    protected = {*protect, *(folder / f"{value}{real.suffix.lower()}" for value in ids)}
+    kept = _kept_versions(folder)
+    excess = max(0, len(kept) - ASSET_KEEP_VERSIONS)
+    for old in [item for item in kept if item not in protected][:excess]:
+        old.unlink(missing_ok=True)
+    if ids:
+        pending.unlink()
 
 
 def _try_keep_version(real: Path, folder: Path, *, protect=(), prune=False) -> None:
@@ -312,7 +329,10 @@ def _try_keep_version(real: Path, folder: Path, *, protect=(), prune=False) -> N
         logger.debug("hermretro could not keep an image version", exc_info=True)
     # An interrupted restore can leave an extra backup even when the live file is already kept.
     if saved is not None or prune:
-        _prune_versions(folder, (*protect, saved))
+        try:
+            _prune_versions(real, folder, (*protect, saved))
+        except (OSError, ValueError):
+            logger.debug("hermretro could not prune image history", exc_info=True)
 
 
 def _keep_version(real: Path, root: Path) -> None:
@@ -332,22 +352,28 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
             data = selected.read_bytes()
         except FileNotFoundError:
             return None
+        pending = folder / _PENDING_RESTORE
+        if pending.exists():
+            _try_keep_version(real, folder, protect=(selected,), prune=True)
+            if pending.exists():
+                raise OSError("The previous image restore could not be finished.")
         backup, added = _save_version(real, folder, required=True)
         try:
+            write_json_atomic(pending, [selected.stem, backup.stem])
             _write_image(real, data, ".restore")
         except OSError:
-            if added:
+            for unused in (backup, pending) if added else (pending,):
                 try:
-                    backup.unlink(missing_ok=True)
+                    unused.unlink(missing_ok=True)
                 except OSError:
-                    logger.debug("hermretro could not remove an unused image backup", exc_info=True)
+                    logger.debug("hermretro could not clean up a failed image restore", exc_info=True)
             raise
-        _try_keep_version(real, folder, protect=(selected, backup), prune=True)
+        _try_keep_version(real, folder, prune=True)
         return _available_versions(real, folder)
 
 
 def _version_at(real: Path, folder: Path, at_ms) -> Path | None:
-    """The kept version of ``real`` that was current at ``at_ms`` (a reply's time), when the file has
+    """The kept version of ``real`` that was current at ``at_ms`` (a reply or report's time), when the file has
     been rewritten since; None when the file on disk is still that version (or nothing older was kept)."""
     try:
         at_ns = int(float(at_ms) * 1_000_000)

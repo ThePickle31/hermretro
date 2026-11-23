@@ -88,7 +88,7 @@ greens with `#65ff00` as transparency, so the page paints every sprite thumbnail
 one its first use in a scene is painted with, else the default sprite palette) and draws the frame
 that use stands in. The project lookup is cached per game until a settings, palette, scene, actor or
 sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE` (in no game), `OTHER_GAME`,
-`TOO_LARGE`, `MISSING`. With `at` (a reply's time, ms) it answers the version the file had then; with
+`TOO_LARGE`, `MISSING`. With `at` (a reply or report's time, ms) it answers the version the file had then; with
 `version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
 When history is unavailable, a readable live file can still be previewed. Requests for a specific kept
 version require access to that version.
@@ -96,8 +96,8 @@ version require access to that version.
 Versions: the plugin keeps a copy of a game image (up to 40 per file, named by modification time in
 ns, identical rewrites skipped, under `<plugin data>/asset-versions/`, filed under the game that owns the
 image: a folder that later becomes a game of its own starts with none) when a reply delivers it
-(`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), or the page shows
-it. So a file rewritten later (cover.png made again) still shows each reply what it delivered.
+(`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), a build report names it,
+or the page shows it. Replies and reports can still show their images after a later rewrite.
 
 ### `asset_info` RPC
 
@@ -117,8 +117,9 @@ project files; nothing is compiled.
 
 `{path, root, version}` (`path` and `root` as for `asset`) → `{ok, path, versions}`: puts a kept version back in
 place, keeping the one it replaces first. Not for saved frames.
-If the backup fails, the current file stays in place. The selected version and the backup survive pruning
-during that restore. When the replacement succeeds but its history cannot be listed, the result is successful
+The current file stays in place if the backup or restore record fails to save. The record tells the
+next history reader which two versions to keep when an interrupted restore still needs pruning.
+When the replacement succeeds but its history cannot be listed, the result is successful
 with an empty `versions` list.
 
 ### `assets` RPC
@@ -179,7 +180,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   it edited, Before → After (the `asset` RPC at the turn's start and end; nothing when the file is
   new), with Keep / Undo on the newest turn (Undo = `asset_restore` of the earlier version, then
   "Rebuild" asks the agent to build again); what changed (+ added, ~ changed, − removed, with a
-  thumbnail when the change names an asset; without a report, the pictures the turn made); a line
+  thumbnail that opens the asset at the report's time when the change names one; without a report,
+  the pictures the turn made); a line
   with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
   lists, and the compiler's words for a failed build, with Ask HermRetro to fix it). With a report
   the reply's words follow the card; without one they come first. The newest reply's suggestions

@@ -1,5 +1,5 @@
 // A build in the conversation: one quiet line (its number, title, time), what changed under it, what was tested.
-import { Button, Codicon, host, jsx, jsxs, useContext, useId, useState } from '#sdk'
+import { Button, Codicon, host, jsx, jsxs, useContext, useState } from '#sdk'
 import { AssetGame, forgetAsset, useAssetPreview } from '#pages/build/assets/cache.js'
 import { AssetThumb, SheetFrame } from '#pages/build/assets/images.js'
 import { injectBuildDraft } from '#pages/build/chat/store.js'
@@ -13,18 +13,19 @@ import { madeAssets } from './turns.js'
 
 const CHANGE_MARK = { added: '+', changed: '~', removed: '\u2212' }
 
-function changeImage(change, root) {
+function changeImage(change, root, version) {
   const raw = change.asset?.replace(/^file:\/\//, '')
   const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw))
 
-  return path ? { path, version: 'card', kind: assetKind(path), step: change.text } : null
+  return path ? { path, version, kind: assetKind(path), step: change.text } : null
 }
 
 export function buildCardArt(parts, root) {
   const made = madeAssets(parts, root).filter(asset => asset.kind !== 'Image' || /cover\.png$/i.test(asset.path))
   const reported = parts.report?.changes
+  const version = reported?.length && parts.reportAt ? `reply:${parts.reportAt}` : 'card'
   const rows = reported?.length ? reported : made.slice(0, 6).map(asset => ({ kind: 'changed', text: baseName(asset.path), asset: asset.path }))
-  const changes = rows.map(change => ({ ...change, image: changeImage(change, root) }))
+  const changes = rows.map(change => ({ ...change, image: changeImage(change, root, version) }))
   const edited = [...new Set([
     ...changes.filter(change => change.kind === 'changed' && change.image).map(change => change.image.path),
     ...made.map(asset => asset.path)
@@ -37,7 +38,6 @@ export function buildCardArt(parts, root) {
  *  earlier version back through the kept versions; the one there now is kept too, so it can be redone).
  *  Shows nothing when the file is new this turn (nothing earlier was kept). */
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
-  const id = useId()
   const beforeVersion = `reply:${from}`
   const afterVersion = to ? `reply:${to}` : null
   const before = useAssetPreview(path, beforeVersion)
@@ -71,7 +71,6 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     jsxs('button', {
       'aria-label': `Look closer at ${label.toLowerCase()} version of ${name}`,
       className: now ? 'cs-b-ba-side now' : 'cs-b-ba-side',
-      id: `${id}-${label}`,
       onClick: event => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
       type: 'button',
       children: [jsx('span', { className: 'cs-b-ba-img', children: jsx(SheetFrame, { loaded }) }), jsx('span', { className: 'cs-b-ba-cap', children: label })]

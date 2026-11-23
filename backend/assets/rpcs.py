@@ -48,7 +48,7 @@ logger = host.logger  # one logger for the Hermes side of the backend,
 def rpc_asset(ctx):
     """One image for the Build page (a thumbnail, the asset viewer): only from the folder of the library game the
     page shows (``root``, its project folder) or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
-    frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply's time, in
+    frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply or report's time, in
     ms) it answers the version the file had then, when it was kept and the file has changed since."""
 
     def asset(params, **_kwargs):

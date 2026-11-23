@@ -44,8 +44,7 @@ export function assetEntry(path, version, root) {
     entry.promise = new Promise(resolve => {
       assetQueue.push(async () => {
         try {
-          // A reply's image asks for the version the file had when the reply was written (cover.png
-          // made again later must not change an earlier reply).
+          // Replies and reports ask for the version of an image at a particular time.
           const at = typeof version === 'string' && version.startsWith('reply:') ? Number(version.slice(6)) || null : null
           // The viewer's version strip asks for one kept version by id.
           const kept = typeof version === 'string' && version.startsWith('kept:') ? version.slice(5) : null

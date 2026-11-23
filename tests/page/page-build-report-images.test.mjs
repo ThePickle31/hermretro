@@ -32,14 +32,16 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
   ] })
 
   const history = [
-    { id: '11', at: 1_900_000 }, { id: '12', at: 2_005_000 }, { id: '13', at: 2_200_000, current: true }
+    { id: '10', at: 1_004_000 }, { id: '11', at: 1_900_000 }, { id: '12', at: 2_004_000 },
+    { id: '13', at: 2_008_000 }, { id: '14', at: 2_200_000, current: true }
   ]
   const kind = path => path === player ? 'sprite' : path === room ? 'background' : 'cover'
+  const imageUrl = (path, id) => `data:image/png;base64,${Buffer.from(`${path}#${id}`).toString('base64')}`
   scenario.byMethod['plugin.hermretro.asset'] = ({ path, root, version, at }) => {
     assert.equal(root, projectRoot)
     assert.ok([player, room, cover].includes(path))
     const entry = path === room && (version ? history.find(item => item.id === version) : history.findLast(item => !at || item.at <= at))
-    const dataUrl = `data:image/png;base64,${Buffer.from(`${path}#${entry?.id ?? '1'}`).toString('base64')}`
+    const dataUrl = imageUrl(path, entry?.id ?? '1')
 
     return { ok: true, path, name: path.split('/').at(-1), kind: kind(path), width: 16, height: 16, dataUrl,
       versionId: entry?.id ?? '1', earlier: Boolean(entry && !entry.current) }
@@ -50,8 +52,9 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
   await settle()
   const cards = view.node.querySelectorAll('.cs-b-bc')
   const dialog = () => view.node.querySelector('[role="dialog"]')
+  const thumbnail = (card, label) => card.querySelector(`button[aria-label="${label}"]`)
   const open = async (card, label) => {
-    const opener = card.querySelector(`button[aria-label="${label}"]`)
+    const opener = thumbnail(card, label)
     assert.ok(opener, label)
     await act(async () => opener.click())
     await settle()
@@ -59,24 +62,33 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
   const close = () => key('keydown', 'Escape', dialog())
   const shownPath = () => dialog()?.querySelector('.cs-v-name')?.title
   const shownVersion = () => dialog()?.querySelector('.cs-v-ver[aria-pressed="true"]')?.textContent
+  const roomLabel = 'Look closer at workshop.png'
+
+  check('each report thumbnail shows the room at the report time', () => {
+    assert.equal(thumbnail(cards[0], roomLabel).querySelector('img').src, imageUrl(room, '10'))
+    assert.equal(thumbnail(cards[1], roomLabel).querySelector('img').src, imageUrl(room, '12'))
+  })
 
   await open(cards[0], 'Look closer at workshop_player.png')
   check('a report-only turn opens the player thumbnail', () => assert.equal(shownPath(), player))
   await key('keydown', 'ArrowRight', dialog())
-  check('the viewer steps to the other report image', () => assert.equal(shownPath(), room))
+  check('the viewer steps to the other report image at the report time', () => {
+    assert.equal(shownPath(), room)
+    assert.equal(shownVersion(), 'v1')
+  })
   await close()
-  await open(cards[0], 'Look closer at workshop.png')
+  await open(cards[0], roomLabel)
   check('the second thumbnail of a report-only turn opens the room', () => assert.equal(shownPath(), room))
   await close()
 
-  await open(cards[1], 'Look closer at workshop.png')
-  check('the report thumbnail opens the exact room instead of the reply cover', () => {
+  await open(cards[1], roomLabel)
+  check('the report thumbnail opens the room at the version on the card', () => {
     assert.equal(shownPath(), room)
     assert.equal(shownVersion(), 'v3')
   })
   await close()
 
-  for (const [label, version] of [['before', 'v1'], ['after', 'v2']]) {
+  for (const [label, version] of [['before', 'v2'], ['after', 'v4']]) {
     await open(cards[1], `Look closer at ${label} version of workshop.png`)
     check(`the ${label} image opens the room at ${version}`, () => {
       assert.equal(shownPath(), room)

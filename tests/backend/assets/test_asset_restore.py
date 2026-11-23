@@ -102,6 +102,56 @@ class AssetRestore(unittest.TestCase):
         self.assertTrue((folder / f"{selected}.png").is_file())
         self.assertFalse((folder / f"{1002 * 10**9}.png").exists())
 
+    def test_reopening_history_after_live_replacement_keeps_both_protected_versions(self):
+        limit = documented_keep()
+        for index in range(limit):
+            self.write(PNG_A[:24] + index.to_bytes(2, "big"), 1001 + index)
+            self.assertTrue(self.asset(self.params)["ok"])
+        selected = str(1001 * 10**9)
+        outgoing = str(1000 * 10**9)
+        self.write(PNG_B, 1000)
+        write_image = assets_versions._write_image
+
+        def stop_after_replace(path, data, suffix):
+            write_image(path, data, suffix)
+            if path == self.cover:
+                raise SystemExit("stopped after replacing live bytes")
+
+        with mock.patch.object(assets_versions, "_write_image", side_effect=stop_after_replace):
+            with self.assertRaisesRegex(SystemExit, "stopped after replacing live bytes"):
+                self.restore({**self.params, "version": selected})
+        self.assertEqual(self.cover.read_bytes(), PNG_A[:24] + b"\x00\x00")
+
+        info = self.info(self.params)
+        self.assertTrue(info["ok"], info)
+        self.assertEqual(len(info["versions"]), limit)
+        self.assertIn(selected, [entry["id"] for entry in info["versions"]])
+        self.assertIn(outgoing, [entry["id"] for entry in info["versions"]])
+        folder = assets_versions._versions_dir(self.cover, self.game)
+        self.assertEqual(len(list(folder.iterdir())), limit)
+
+        undone = self.restore({**self.params, "version": outgoing})
+        self.assertTrue(undone["ok"], undone)
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+
+    def test_restore_leaves_current_bytes_in_place_if_the_restore_record_cannot_be_written(self):
+        self.write(PNG_A, 1000)
+        selected = self.asset(self.params)["versionId"]
+        self.write(PNG_B, 2000)
+        folder = assets_versions._versions_dir(self.cover, self.game)
+
+        with (
+            mock.patch.object(assets_versions, "write_json_atomic", side_effect=OSError("restore record disk full")),
+            mock.patch.object(assets_rpcs, "emit") as emit,
+            mock.patch.object(assets_rpcs.logger, "exception"),
+        ):
+            answer = self.restore({**self.params, "version": selected})
+        self.assertFalse(answer["ok"], answer)
+        self.assertIn("restore record disk full", answer["error"])
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+        self.assertEqual([item.name for item in folder.iterdir()], [f"{selected}.png"])
+        emit.assert_not_called()
+
     def test_restore_leaves_current_bytes_in_place_if_the_backup_cannot_be_written(self):
         self.write(PNG_A, 1000)
         old_id = self.asset(self.params)["versionId"]

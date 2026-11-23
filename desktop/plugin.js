@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 6603675598a064f7fe1320255c9d35909a3c6c6afea9209efa0e0b37f969f2bf
- * body: sha256 d6f55fefab014601edde134f561fbc884bd76fbad71899450fc715fcf4918bfd
+ * sources: sha256 1364e386128541b5033136815b3280a2dd5f4e4290d864ee7eb02368b13b7bb9
+ * body: sha256 259d098dbc3dcc611b1ba7746015f109a0b106221c8f4564d570eceec798096d
  */
 // page/sdk.js
 import {
@@ -805,6 +805,7 @@ function historyItems(messages, running = false) {
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
         const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
         if (known) {
+          known.finishedAt = at;
           if (at && known.startedAt) {
             known.duration = Math.max(0, (at - known.startedAt) / 1e3);
           }
@@ -973,6 +974,7 @@ function reduceChat(chat, event) {
         report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ""), payload.args)[0]?.args),
         state: toolFailed(payload) ? "failed" : "done",
         summary: payload.summary ?? null,
+        finishedAt: now,
         duration: typeof payload.duration_s === "number" ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1e3 : null,
         image: typeof payload.image_path === "string" ? payload.image_path : null,
         info: stepInfo(tool.name, payload.result),
@@ -1523,7 +1525,6 @@ function canvasImage(canvas2, image) {
 
 // page/pages/build/assets/images.js
 function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
-  const id = useId();
   const { state, asset: loaded } = useAssetPreview(asset.path, asset.version);
   if (state === "none") {
     return null;
@@ -1534,7 +1535,6 @@ function AssetThumb({ asset, onOpen, size = "sm", fresh = false }) {
   return jsx("button", {
     "aria-label": `Look closer at ${loaded.name}`,
     className: `cs-b-th ${size}${fresh ? " fresh" : ""}`,
-    id,
     onClick: (event) => {
       event.stopPropagation();
       onOpen?.(asset, event.currentTarget);
@@ -5515,6 +5515,7 @@ function turnParts(turn, root) {
   const errors = [];
   let end = null;
   let report = null;
+  let reportAt = null;
   const hasCard = turn.items.some((item) => item.kind === "clarify");
   for (const item of turn.items) {
     if (item.kind === "assistant" && item.text.trim()) {
@@ -5522,8 +5523,10 @@ function turnParts(turn, root) {
     } else if (item.kind === "tools") {
       for (const tool of item.tools) {
         const short = shortTool(tool.name);
-        if (short === "build_report" && tool.state !== "failed") {
-          report = tool.info?.report ?? tool.report ?? report;
+        const reported = short === "build_report" && tool.state !== "failed" ? tool.info?.report ?? tool.report : null;
+        if (reported) {
+          report = reported;
+          reportAt = tool.finishedAt ?? tool.startedAt ?? null;
         }
         if (!HIDDEN_STEPS.has(short) && !(short === "clarify" && hasCard)) {
           tokens.push({ type: "step", tool });
@@ -5574,6 +5577,7 @@ function turnParts(turn, root) {
     buildFailed: lastBuild?.state === "failed" ? lastBuild.info?.error ?? "The build failed." : null,
     buildState: turnBuildState(turn),
     report,
+    reportAt,
     note: presented?.info?.note ?? null,
     running: steps.find((tool) => tool.state === "running") ?? null
   };
@@ -6610,16 +6614,17 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
 
 // page/pages/build/transcript/build-card.js
 var CHANGE_MARK = { added: "+", changed: "~", removed: "−" };
-function changeImage(change, root) {
+function changeImage(change, root, version) {
   const raw = change.asset?.replace(/^file:\/\//, "");
   const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw));
-  return path ? { path, version: "card", kind: assetKind(path), step: change.text } : null;
+  return path ? { path, version, kind: assetKind(path), step: change.text } : null;
 }
 function buildCardArt(parts, root) {
   const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
   const reported = parts.report?.changes;
+  const version = reported?.length && parts.reportAt ? `reply:${parts.reportAt}` : "card";
   const rows = reported?.length ? reported : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path }));
-  const changes = rows.map((change) => ({ ...change, image: changeImage(change, root) }));
+  const changes = rows.map((change) => ({ ...change, image: changeImage(change, root, version) }));
   const edited = [.../* @__PURE__ */ new Set([
     ...changes.filter((change) => change.kind === "changed" && change.image).map((change) => change.image.path),
     ...made.map((asset) => asset.path)
@@ -6627,7 +6632,6 @@ function buildCardArt(parts, root) {
   return { changes, edited };
 }
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
-  const id = useId();
   const beforeVersion = `reply:${from}`;
   const afterVersion = to ? `reply:${to}` : null;
   const before = useAssetPreview(path, beforeVersion);
@@ -6655,7 +6659,6 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const side = (loaded, label, now) => jsxs("button", {
     "aria-label": `Look closer at ${label.toLowerCase()} version of ${name}`,
     className: now ? "cs-b-ba-side now" : "cs-b-ba-side",
-    id: `${id}-${label}`,
     onClick: (event) => onOpen?.({ path, version: now ? afterVersion : beforeVersion, kind: assetKind(path), step: label }, event.currentTarget),
     type: "button",
     children: [jsx("span", { className: "cs-b-ba-img", children: jsx(SheetFrame, { loaded }) }), jsx("span", { className: "cs-b-ba-cap", children: label })]

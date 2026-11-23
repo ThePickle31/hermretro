@@ -92,6 +92,8 @@ export function historyItems(messages, running = false) {
 
         if (known) {
           // The result row's time is when the step finished.
+          known.finishedAt = at
+
           if (at && known.startedAt) {
             known.duration = Math.max(0, (at - known.startedAt) / 1000)
           }

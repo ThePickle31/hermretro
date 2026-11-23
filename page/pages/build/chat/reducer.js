@@ -212,6 +212,7 @@ export function reduceChat(chat, event) {
         report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ''), payload.args)[0]?.args),
         state: toolFailed(payload) ? 'failed' : 'done',
         summary: payload.summary ?? null,
+        finishedAt: now,
         duration: typeof payload.duration_s === 'number' ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1000 : null,
         image: typeof payload.image_path === 'string' ? payload.image_path : null,
         info: stepInfo(tool.name, payload.result),
