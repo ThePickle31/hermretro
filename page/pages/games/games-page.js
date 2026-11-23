@@ -1,6 +1,5 @@
 // The Games page (Shelf).
 import { Button, Codicon, jsx, jsxs, Tip } from '#sdk'
-import { studioError } from '#app/backend.js'
 import { emit } from '#app/events.js'
 import { sendToGameChat } from '#app/chat-insert.js'
 import { Art } from '#shared/ui/art.js'
@@ -57,19 +56,21 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
       })
 }
 
-export function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
+export function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, 'folder')
   const newGame = jsxs(Button, { onClick: onNewGame, size: 'sm', variant: 'default', children: [jsx(Codicon, { name: 'add', size: 14 }), 'New game'] })
 
-  if (games.isError || (games.data && !Array.isArray(list))) {
+  const notice = libraryError ? jsx(Lede, { children: libraryError }) : null
+
+  if (libraryError && !list?.length) {
     return [
       jsx(PageHead, { title: 'Your games' }, 'head'),
       jsxs('div', {
         className: 'cs-col',
         style: { gap: 12, maxWidth: '72ch' },
         children: [
-          jsx(Lede, { children: games.isError ? studioError(games.error, 'list your games') : games.data?.error || 'The games list could not be read.' }),
+          jsx('div', { role: 'alert', children: notice }),
           jsx('div', { children: newGame })
         ]
       }, 'err')
@@ -113,6 +114,7 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDe
 
   return [
     jsx(PageHead, { title: 'Your games', children: [jsx(DeviceChip, { hardwareOn, onSetUpDevice }, 'hw'), jsx('span', { style: { display: 'contents' }, children: newGame }, 'new')] }, 'head'),
+    notice ? jsx('div', { role: 'alert', children: notice }, 'err') : null,
     jsxs(
       'div',
       {
@@ -159,9 +161,13 @@ export function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDe
 
 /** The page's own Page: the shelf, fed from the shell. */
 export function Games({ shell }) {
+  const unavailable = shell.games.data?.unavailable
+  const partialError = Array.isArray(unavailable) && unavailable.length ? 'Some games could not be read.' : null
+
   return jsx(GamesPage, {
     ctx: shell.ctx,
     games: shell.games,
+    libraryError: shell.libraryError || partialError,
     hardwareOn: shell.hardwareOn,
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: game => {

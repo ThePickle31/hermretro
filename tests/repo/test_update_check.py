@@ -121,6 +121,7 @@ class OldBroker(unittest.TestCase):
                 self.assertFalse(broker.check_idle_once(), "the old broker idled out as soon as the hold was released")
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as new_client:
                     new_client.connect(broker.path)  # refused when the old broker idled out
+                    broker.wait_for_connections(2)  # count the new client before it can close
                 return "driven"
 
             self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")

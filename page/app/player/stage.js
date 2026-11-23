@@ -11,7 +11,7 @@ import { Working } from '#shared/ui/working.js'
 /** The ROM the player would load now: the web export's own (its ROM is a separate compilation, not the
  *  native build's bytes), else the last build for a backend that predates `web`. */
 export function playableSha(game) {
-  return game?.web?.sha256 ?? game?.rom?.sha256 ?? null
+  return game?.web === undefined ? game?.rom?.sha256 ?? null : game.web?.sha256 ?? null
 }
 
 /** Why the player RPC failed, worded for the person looking at the page; null while it has not. */
@@ -26,8 +26,8 @@ function playerFailure(game, player) {
   return game?.id === DEMO_ID && player?.data?.error ? String(player.data.error) : null
 }
 
-export function PlayerNotice({ game, player, onRefresh, refreshing }) {
-  const reason = playerFailure(game, player)
+export function PlayerNotice({ game, gameError, player, onRefresh, refreshing }) {
+  const reason = gameError || playerFailure(game, player)
 
   if (!reason) {
     return null
@@ -44,7 +44,7 @@ export function PlayerNotice({ game, player, onRefresh, refreshing }) {
 }
 
 /** `query` (e.g. `view=screen&color=hermes-midnight`) is added to the player's URL when the frame loads. */
-export function PlayerStage({ game, player, visible, frameRef, stageRef, frameKey, onLoad, ctx, query = '' }) {
+export function PlayerStage({ game, gameError, player, visible, frameRef, stageRef, frameKey, onLoad, ctx, query = '' }) {
   let inner = null
 
   if (game) {
@@ -70,7 +70,7 @@ export function PlayerStage({ game, player, visible, frameRef, stageRef, frameKe
     } else {
       inner = jsx('div', { className: 'cs-rp-msg', children: jsx(Working, { children: `Starting the player for ${game.title}…` }) })
     }
-  } else {
+  } else if (!gameError) {
     inner = jsx('div', { className: 'cs-rp-msg', children: jsx(Working, { quiet: true, children: 'Reading your games…' }) })
   }
 

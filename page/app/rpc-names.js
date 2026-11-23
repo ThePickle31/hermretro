@@ -15,6 +15,7 @@ export const RPC_NAMES = Object.freeze({
   capture_image: `plugin.${ID}.capture_image`,
   captures: `plugin.${ID}.captures`,
   doctor: `plugin.${ID}.doctor`,
+  game_build_status: `plugin.${ID}.game_build_status`,
   game_thumb: `plugin.${ID}.game_thumb`,
   games: `plugin.${ID}.games`,
   install: `plugin.${ID}.install`,
@@ -36,6 +37,7 @@ export const RPC_BUILDS = RPC_NAMES.builds // backend/history/rpcs.py
 export const RPC_CAPTURE_IMAGE = RPC_NAMES.capture_image // backend/library/rpcs.py
 export const RPC_CAPTURES = RPC_NAMES.captures // backend/library/rpcs.py
 export const RPC_DOCTOR = RPC_NAMES.doctor // backend/setup/rpcs.py
+export const RPC_GAME_BUILD_STATUS = RPC_NAMES.game_build_status // backend/library/rpcs.py
 export const RPC_GAME_THUMB = RPC_NAMES.game_thumb // backend/library/rpcs.py
 export const RPC_GAMES = RPC_NAMES.games // backend/library/rpcs.py
 export const RPC_INSTALL = RPC_NAMES.install // backend/setup/rpcs.py

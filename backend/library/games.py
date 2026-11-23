@@ -7,7 +7,6 @@ per-user directory that survives restarts. Stdlib only and no Hermes imports: th
 
 from __future__ import annotations
 
-import base64
 import fcntl
 import hashlib
 import json
@@ -16,26 +15,40 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from stat import S_ISREG
 
-from . import game_card
+from . import game_card, project, shelf
+from .project import (  # noqa: F401 - existing library imports
+    EXPORT_SOURCES,
+    FRESH_SLACK_SECONDS,
+    MAX_SOURCE_FILES,
+    NOT_SOURCE,
+    WEB_MANIFEST,
+    _json,
+    engine_made_export,
+    export_freshness,
+    file_sha256,
+    has_web_export,
+    project_file,
+    project_kind,
+    project_title,
+    source_digest,
+    sources_newer_than,
+    web_dir,
+    web_export_time,
+    web_rom,
+)
+from .shelf import public_session as public_session
+from .shelf import ERROR_CHARS as ERROR_CHARS
+from .thumbnails import MAX_THUMB_BYTES as MAX_THUMB_BYTES
+from .thumbnails import PNG_MAGIC as PNG_MAGIC
+from .thumbnails import decode_png as decode_png
+from .thumbnails import read_thumbnail
 
 VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
-# Folders under a project that hold build output, recordings or tooling, never game source.
-NOT_SOURCE = frozenset({"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs"})
-# How many source files sources_newer_than looks at before it stops and calls the ROM current. Its own bound, not the
-# snapshot cap (backend/history/snapshots.py MAX_FILES, which skips the copy): the two only happen to share a number.
-MAX_SOURCE_FILES = 20000
-MAX_THUMB_BYTES = 64 * 1024
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 MAX_PRESENTATIONS = 100
 MAX_NOTE_CHARS = 300
-# A failed build's error, as recorded in lastBuild and answered by the games RPC.
-ERROR_CHARS = 240
-# File times of a build and the web export made right after it can differ by a little.
-FRESH_SLACK_SECONDS = 2.0
-# The record the engine writes into each web export it makes (engine/modretro-chromatic/dist/web-build.js).
-WEB_MANIFEST = ".codex-web-build.json"
 
 
 def game_id(root: str | os.PathLike) -> str:
@@ -47,283 +60,27 @@ def valid_id(value) -> bool:
     return isinstance(value, str) and len(value) == 12 and all(c in "0123456789abcdef" for c in value)
 
 
-def decode_png(data_url, limit: int) -> bytes:
-    """A ``data:image/png;base64,`` URL (or bare base64) to PNG bytes, bounded and checked."""
-    if not isinstance(data_url, str) or not data_url:
-        raise ValueError("png must be a data:image/png;base64 URL.")
-    payload = data_url.split(",", 1)[1] if data_url.startswith("data:") else data_url
-    if data_url.startswith("data:") and not data_url[:32].lower().startswith("data:image/png;base64,"):
-        raise ValueError("png must be a data:image/png;base64 URL.")
-    if len(payload) > (limit * 4) // 3 + 8:
-        raise ValueError(f"The image is larger than {limit // 1024} KB.")
-    try:
-        raw = base64.b64decode(payload, validate=True)
-    except (ValueError, TypeError) as error:
-        raise ValueError("png is not valid base64.") from error
-    if len(raw) > limit:
-        raise ValueError(f"The image is larger than {limit // 1024} KB.")
-    if not raw.startswith(PNG_MAGIC):
-        raise ValueError("png is not a PNG image.")
-    return raw
-
-
-def _atomic_write(path: Path, data: bytes) -> None:
+def _atomic_write(path: Path, data: bytes, *, replace: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    temporary.write_bytes(data)
-    os.replace(temporary, path)
-
-
-_hash_cache: dict[tuple, str] = {}
-_hash_lock = threading.Lock()
-
-
-def file_sha256(path: Path) -> str:
-    info = path.stat()
-    key = (str(path), info.st_size, info.st_mtime_ns)
-    with _hash_lock:
-        known = _hash_cache.get(key)
-    if known:
-        return known
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    value = digest.hexdigest()
-    with _hash_lock:
-        if len(_hash_cache) > 256:
-            _hash_cache.clear()
-        _hash_cache[key] = value
-    return value
-
-
-# -- facts read from the project on disk ---------------------------------------------
-
-
-def project_file(root: Path) -> Path | None:
     try:
-        return next(iter(sorted(root.glob("*.gbsproj"))), None)
-    except OSError:
-        return None
-
-
-def project_kind(root: Path) -> str:
-    return "gbstudio" if project_file(root) else "gbdk"
-
-
-def _json(path: Path) -> dict:
-    try:
-        value = json.loads(path.read_text())
-        return value if isinstance(value, dict) else {}
-    except (OSError, ValueError):
-        return {}
-
-
-def project_title(root: Path) -> str:
-    project = project_file(root)
-    if project:
-        name = _json(project).get("name")
-        if isinstance(name, str) and name.strip():
-            return name.strip()[:200]
-    name = (_json(root / "build" / "web" / "gbstudio.json").get("project") or {}).get("name")
-    if isinstance(name, str) and name.strip():
-        return name.strip()[:200]
-    return root.name
-
-
-def web_dir(root: Path) -> Path:
-    return root / "build" / "web"
-
-
-def has_web_export(root: Path) -> bool:
-    web = web_dir(root)
-    return (web / "index.html").is_file() and (web / "js" / "binjgb.wasm").is_file()
-
-
-def web_rom(root: Path) -> Path | None:
-    """The ROM inside the web export, from its ``gbstudio.json`` (path-checked)."""
-    web = web_dir(root)
-    rel = _json(web / "gbstudio.json").get("rom")
-    if (
-        not isinstance(rel, str)
-        or not rel
-        or rel.startswith("/")
-        or ".." in rel.split("/")
-        or not rel.lower().endswith((".gb", ".gbc"))
-    ):
-        return None
-    path = web / rel
-    try:
-        if path.is_file() and path.resolve().is_relative_to(web.resolve()):
-            return path
-    except OSError:
-        pass
-    return None
-
-
-def _newest_build_rom(root: Path) -> Path | None:
-    try:
-        roms = [p for p in (root / "build").glob("*.gb*") if p.suffix.lower() in (".gb", ".gbc") and p.is_file()]
-    except OSError:
-        return None
-    return max(roms, key=lambda p: p.stat().st_mtime, default=None)
-
-
-def web_export_time(root: Path) -> float | None:
-    """When the playable web copy was written: its ROM's file time (else its ``index.html``)."""
-    if not has_web_export(root):
-        return None
-    target = web_rom(root) or (web_dir(root) / "index.html")
-    try:
-        return target.stat().st_mtime
-    except OSError:
-        return None
-
-
-def engine_made_export(root: Path) -> bool:
-    """Whether ``build/web`` is the engine's own export, unchanged: its ``.codex-web-build.json`` lists the
-    ROM and ``index.html`` it wrote, with their hashes, and both files still match. A copy assembled or edited
-    by hand has no such record, or one whose hashes no longer match."""
-    web = web_dir(root)
-    manifest = _json(web / WEB_MANIFEST)
-    files = manifest.get("files")
-    rom = web_rom(root)
-    if not isinstance(files, list) or rom is None or manifest.get("indexPath") != "index.html":
-        return False
-    if manifest.get("romPath") != rom.relative_to(web).as_posix():
-        return False
-    hashes = {item.get("path"): item.get("sha256") for item in files if isinstance(item, dict)}
-    for relative in ("index.html", manifest["romPath"]):
-        try:
-            # The bytes as they are now, never a cached digest: a swapped file can keep its size and time.
-            current = hashlib.sha256((web / relative).read_bytes()).hexdigest()
-        except OSError:
-            return False
-        if current != hashes.get(relative):
-            return False
-    return True
-
-
-# What a GB Studio web export is made from (the engine's own source fingerprint covers the same).
-EXPORT_SOURCES = ("project", "assets", "plugins")
-
-
-def source_digest(root: Path) -> str | None:
-    """A digest of what the playable copy is made from: the ``.gbsproj`` and every file under ``project/``,
-    ``assets/`` and ``plugins/``, by path and content. A deleted or renamed file changes it too; the card, the
-    plans and the README do not. None for a project that is not GB Studio's, or past ``MAX_SOURCE_FILES``."""
-    descriptor = project_file(root)
-    if descriptor is None:
-        return None
-    digest = hashlib.sha256(b"hermretro\0export-sources\0v1\0")
-    seen = 0
-    files = [descriptor]
-    for folder in EXPORT_SOURCES:
-        for directory, folders, names in os.walk(root / folder):
-            folders.sort()
-            files += [Path(directory, name) for name in sorted(names)]
-    for path in files:
-        seen += 1
-        if seen > MAX_SOURCE_FILES:
-            return None
-        try:
-            if path.is_symlink() or not path.is_file():
-                continue
-            digest.update(path.relative_to(root).as_posix().encode() + b"\0" + file_sha256(path).encode() + b"\0")
-        except OSError:
-            continue
-    return digest.hexdigest()
-
-
-# What to do about a stale playable copy, by why it is stale.
-_REBUILD = (
-    "Run chromatic_rom_build for this project (with the 'Keep the playable copy current' setting on it also "
-    "makes the playable copy; with it off, call chromatic_web_preview after it), then call "
-    "chromatic_present_game again."
-)
-_REMAKE = (
-    "Call chromatic_web_preview to make the playable copy from the current build, then call chromatic_present_game "
-    "again. If chromatic_web_preview fails, tell the user what it said instead of building again."
-)
-
-
-def export_freshness(
-    root: Path, last_build: dict | None = None, last_web_export: dict | None = None
-) -> tuple[bool, str | None, str | None]:
-    """Whether the web copy shows the latest build: ``(fresh, why, next step)``. Fresh means it exists, the engine
-    made it (``engine_made_export``), it is not older than the last ROM build, and no game source changed after it.
-    When the library recorded the build, its time counts (the native ROM file otherwise), and the copy's time is
-    the later of its files and the last successful web export the broker recorded (the engine reuses an unchanged
-    export without rewriting it). A failed build after the copy also counts as stale: the user would be shown an
-    older game than the one being worked on."""
-    last = last_build if isinstance(last_build, dict) else None
-    recorded = float(last.get("t") or 0) if last else 0.0
-    newest_rom = _newest_build_rom(root)
-    try:
-        rom_time = newest_rom.stat().st_mtime if newest_rom is not None else None
-    except OSError:
-        rom_time = None
-    # When hermretro's own successful build is the newest ROM, only its playable copy is missing: building the
-    # same thing again would loop, so the copy is made from it. A newer ROM nobody recorded needs a real build.
-    remake = bool(last and last.get("ok")) and recorded + FRESH_SLACK_SECONDS >= (rom_time or 0.0)
-    recover = _REMAKE if remake else _REBUILD
-    exported = web_export_time(root)
-    if exported is None:
-        return False, "This game has no playable web copy yet.", recover
-    if not engine_made_export(root):
-        return (
-            False,
-            "The playable copy in build/web was not made by hermretro's build, or was changed after it, so it may "
-            "not be this game as its sources stand.",
-            "Never make, copy or edit files in build/ yourself. " + recover,
-        )
-    if isinstance(last_web_export, dict) and isinstance(last_web_export.get("t"), (int, float)):
-        exported = max(exported, float(last_web_export["t"]))
-    built = None if last else rom_time  # a recorded build's time counts, else the newest ROM file's
-    if last and last.get("ok") is False and recorded > exported + FRESH_SLACK_SECONDS:
-        return (
-            False,
-            "The last chromatic_rom_build of this game failed, so the playable copy is an older build.",
-            "Fix what the build reported first. " + _REBUILD,
-        )
-    latest = max([moment for moment in (built, recorded if last and last.get("ok") else None) if moment] or [0.0])
-    if latest > exported + FRESH_SLACK_SECONDS:
-        return False, "The playable web copy is older than the last ROM build.", recover
-    recorded_sources = last_web_export.get("sources") if isinstance(last_web_export, dict) else None
-    if isinstance(recorded_sources, str):
-        changed = source_digest(root) != recorded_sources
-    else:  # an export recorded before the library kept its sources' digest
-        changed = sources_newer_than(root, exported)
-    if changed:
-        return False, "Game files changed after the playable copy was made, so it is not the current game.", _REBUILD
-    return True, None, None
-
-
-def sources_newer_than(root: Path, moment: float) -> bool:
-    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime)."""
-    seen = 0
-    top = os.fspath(root)
-    for directory, folders, files in os.walk(root):
-        folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
-        for name in files:
-            # The game card (game.json, cover.png) describes the game; it is not game source.
-            if name.startswith(".") or (directory == top and name in game_card.CARD_FILES):
-                continue
-            seen += 1
-            if seen > MAX_SOURCE_FILES:
-                return False
+        temporary.write_bytes(data)
+        if replace:
+            os.replace(temporary, path)
+        else:
             try:
-                if os.stat(os.path.join(directory, name)).st_mtime > moment + 1.0:
-                    return True
-            except OSError:
-                continue
-    return False
-
-
-# -- the registry ----------------------------------------------------------------------
+                os.link(temporary, path)
+            except FileExistsError:
+                pass
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 MAX_PENDING = 50
+
+
+def _pending_name(name) -> str | None:
+    return (name.strip()[:120] or None) if isinstance(name, str) else None
 
 
 class BindingError(Exception):
@@ -332,12 +89,21 @@ class BindingError(Exception):
         self.code = code
 
 
+class RegistryError(OSError):
+    """The library exists but could not be read safely."""
+
+
+def session_aliases(binding: dict) -> list[str]:
+    aliases = binding.get("aliases")
+    return [alias for alias in aliases if isinstance(alias, str)] if isinstance(aliases, list) else []
+
+
 def _session_matches(binding, profile: str | None, wanted: set) -> bool:
     if not isinstance(binding, dict) or not isinstance(binding.get("storedId"), str):
         return False
     if profile is not None and binding.get("profile") not in (None, profile):
         return False
-    known = {binding["storedId"], *(alias for alias in binding.get("aliases") or [] if isinstance(alias, str))}
+    known = {binding["storedId"], *session_aliases(binding)}
     return bool(known & wanted)
 
 
@@ -347,7 +113,8 @@ def _takes_chat(entry: dict, chat: dict) -> bool:
     session = entry.get("session")
     if not isinstance(session, dict):
         return True
-    return _session_matches(session, chat.get("profile"), {chat.get("conversationId"), chat.get("sessionId")})
+    wanted = {value for key in ("conversationId", "sessionId") if isinstance(value := chat.get(key), str)}
+    return _session_matches(session, chat.get("profile"), wanted)
 
 
 def _chat_follows_session(entry: dict) -> None:
@@ -360,10 +127,9 @@ def _chat_follows_session(entry: dict) -> None:
         entry["chat"] = {"conversationId": stored, "sessionId": stored, "profile": session.get("profile")}
 
 
-def public_session(binding) -> dict | None:
-    if not isinstance(binding, dict) or not isinstance(binding.get("storedId"), str):
-        return None
-    return {"storedId": binding["storedId"], "createdAt": binding.get("createdAt"), "profile": binding.get("profile")}
+def _identified_game(identifier: str, entry: dict) -> dict:
+    """Use the registry key even when a stored record names a different id."""
+    return {**entry, "id": identifier}
 
 
 class Registry:
@@ -386,28 +152,42 @@ class Registry:
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
     def load(self) -> dict:
-        data = _json(self.path)
-        games = data.get("games")
-        shown = data.get("presentations")
-        pending = data.get("pending")
-        # Unknown top-level keys are kept: another hermretro copy may share this file.
-        return {
-            **data,
-            "version": VERSION,
-            "games": games if isinstance(games, dict) else {},
-            "presentations": [item for item in shown if isinstance(item, dict)] if isinstance(shown, list) else [],
-            # Build: conversations started on New Game whose project does not exist yet (stored id → record).
-            "pending": {key: value for key, value in pending.items() if isinstance(value, dict)}
-            if isinstance(pending, dict)
-            else {},
-        }
+        """Read the registry, defaulting only for an absent file and fields older registries omit."""
+        try:
+            try:
+                info = self.path.lstat()
+            except FileNotFoundError:
+                return {"version": VERSION, "games": {}, "presentations": [], "pending": {}}
+            if not S_ISREG(info.st_mode) and not S_ISREG(self.path.stat().st_mode):
+                raise ValueError("The registry is not a regular file.")
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("games"), dict):
+                raise ValueError("Expected a registry with a games object.")
+            version = data.get("version", VERSION)
+            if type(version) is not int or version != VERSION:
+                raise ValueError(f"Unsupported registry version: {version!r}.")
+            if not isinstance(data.get("presentations", []), list) or not isinstance(data.get("pending", {}), dict):
+                raise ValueError("Invalid presentations or pending records.")
+        except (OSError, ValueError, RecursionError) as error:
+            raise RegistryError(f"Could not read the game library at {self.path}: {error}") from error
+        # Preserve unknown keys and individual records, even if a reader skips malformed metadata.
+        return {"version": VERSION, "presentations": [], "pending": {}, **data}
 
     def _save(self, data: dict) -> None:
         _atomic_write(self.path, json.dumps(data, indent=1, sort_keys=True).encode())
 
     def get(self, identifier: str) -> dict | None:
         entry = self.load()["games"].get(identifier) if valid_id(identifier) else None
-        return entry if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str) else None
+        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
+            return _identified_game(identifier, entry)
+        return None
+
+    @staticmethod
+    def _update_project(entry: dict, real: Path, now: float) -> None:
+        entry["projectRoot"] = str(real)
+        entry["updatedAt"] = now
+        entry["title"] = project_title(real, entry.get("title"))
+        entry["kind"] = project_kind(real)
 
     def upsert(
         self,
@@ -427,16 +207,10 @@ class Registry:
         with self._locked():
             data = self.load()
             entry = data["games"].get(identifier)
-            if entry is not None and only_if_missing:
-                return entry
+            if only_if_missing and identifier in data["games"]:
+                return _identified_game(identifier, entry) if isinstance(entry, dict) else None
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
-            entry["projectRoot"] = str(real)
-            entry["updatedAt"] = now
-            try:
-                entry["title"] = project_title(real)
-                entry["kind"] = project_kind(real)
-            except OSError:
-                entry.setdefault("title", real.name)
+            self._update_project(entry, real, now)
             if chat and _takes_chat(entry, chat):
                 entry["chat"] = chat
             if build is not None:
@@ -445,7 +219,7 @@ class Registry:
                 entry["lastWebExport"] = {"t": web_export, **({"sources": sources} if sources else {})}
             data["games"][identifier] = entry
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def present(self, root: str, *, chat: dict | None = None, note: str | None = None) -> dict | None:
         """Record that the agent showed this game to the user (``chromatic_present_game``): the chat
@@ -460,13 +234,7 @@ class Registry:
             data = self.load()
             entry = data["games"].get(identifier)
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
-            entry["projectRoot"] = str(real)
-            entry["updatedAt"] = now
-            try:
-                entry["title"] = project_title(real)
-                entry["kind"] = project_kind(real)
-            except OSError:
-                entry.setdefault("title", real.name)
+            self._update_project(entry, real, now)
             if chat and _takes_chat(entry, chat):
                 entry["chat"] = chat
             entry["presented"] = {"t": now, "note": note}
@@ -482,14 +250,16 @@ class Registry:
             }
             data["presentations"] = (data["presentations"] + [record])[-MAX_PRESENTATIONS:]
             self._save(data)
-            return {**entry, "presentation": record}
+            return {**_identified_game(identifier, entry), "presentation": record}
 
     def presentations(self, since: float | None = None) -> list[dict]:
         """Presentations newer than ``since`` (seconds), oldest first."""
         listed = [
             item
             for item in self.load()["presentations"]
-            if valid_id(item.get("gameId")) and isinstance(item.get("t"), (int, float))
+            if isinstance(item, dict)
+            and valid_id(item.get("gameId"))
+            and project.timestamp(item.get("t"), None) is not None
         ]
         if since is not None:
             listed = [item for item in listed if item["t"] > since]
@@ -499,18 +269,14 @@ class Registry:
         if not valid_id(identifier):
             raise ValueError("Unknown game id.")
         path = self.thumbs / f"{identifier}.png"
-        _atomic_write(path, png)
+        _atomic_write(path, png, replace=False)
         return path
 
     def thumb(self, identifier: str) -> str | None:
+        if not valid_id(identifier):
+            return None
         path = self.thumbs / f"{identifier}.png"
-        try:
-            raw = path.read_bytes()
-        except OSError:
-            return None
-        if not raw.startswith(PNG_MAGIC) or len(raw) > MAX_THUMB_BYTES:
-            return None
-        return "data:image/png;base64," + base64.b64encode(raw).decode()
+        return read_thumbnail(path)
 
     # -- Build: one game, one conversation --------------------------------------------
     # ``games[id].session = {storedId, profile, createdAt, aliases}`` names the one Hermes session that
@@ -521,24 +287,28 @@ class Registry:
     def binding_for(self, profile: str | None, ids) -> tuple[str | None, dict | None]:
         """``("game", entry)``, ``("pending", record)`` or ``(None, None)`` for a conversation."""
         wanted = {value for value in ids if isinstance(value, str) and value}
-        return self._binding_in(self.load(), profile, wanted) if wanted else (None, None)
+        if not wanted:
+            return None, None
+        kind, identifier, entry = self._binding_in(self.load(), profile, wanted)
+        return kind, _identified_game(identifier, entry) if kind == "game" else entry
 
     def game_around(self, path: str) -> dict | None:
         """The library game whose folder holds ``path`` (not ``path`` itself); None when there is none. Only folders that
         still exist count: a game deleted from disk leaves its folder free."""
         real = Path(os.path.realpath(path))
-        for entry in self.load()["games"].values():
-            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+        for identifier, entry in self.load()["games"].items():
+            if not valid_id(identifier) or not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
                 continue
             root = Path(os.path.realpath(entry["projectRoot"]))
             if root in real.parents and root.is_dir():
-                return entry
+                return _identified_game(identifier, entry)
         return None
 
     def game_for_root(self, root: str) -> dict | None:
         real = os.path.realpath(root)
-        entry = self.load()["games"].get(game_id(real))
-        return entry if isinstance(entry, dict) else None
+        identifier = game_id(real)
+        entry = self.load()["games"].get(identifier)
+        return _identified_game(identifier, entry) if isinstance(entry, dict) else None
 
     def build_start(self, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
         """Record a conversation started on New Game (before its project exists)."""
@@ -546,19 +316,24 @@ class Registry:
             raise BindingError("INVALID", "A stored session id is required.")
         with self._locked():
             data = self.load()
-            kind, _ = self._binding_in(data, profile, {stored})
+            kind, _, _ = self._binding_in(data, profile, {stored})
             if kind == "game":
                 raise BindingError("BOUND", "This conversation already belongs to a game.")
             record = {
                 "storedId": stored,
                 "profile": profile,
                 "createdAt": time.time(),
-                "name": name.strip()[:120] if isinstance(name, str) and name.strip() else None,
+                "name": _pending_name(name),
                 "plan": plan is True,
             }
             data["pending"][stored] = record
             # Keep the newest few: an abandoned New Game should not linger forever.
-            for key in sorted(data["pending"], key=lambda k: data["pending"][k].get("createdAt") or 0)[:-MAX_PENDING]:
+            records = [
+                (key, project.timestamp(item.get("createdAt")))
+                for key, item in data["pending"].items()
+                if isinstance(item, dict)
+            ]
+            for key, _ in sorted(records, key=lambda item: item[1])[:-MAX_PENDING]:
                 del data["pending"][key]
             self._save(data)
             return record
@@ -586,7 +361,7 @@ class Registry:
             entry = data["games"].get(identifier)
             if not isinstance(entry, dict):
                 raise BindingError("NO_GAME", "That game is not in the library.")
-            kind, other = self._binding_in(data, profile, {stored})
+            kind, _, other = self._binding_in(data, profile, {stored})
             if kind == "game" and other is not entry:
                 raise BindingError("BOUND", "This conversation already belongs to another game.")
             current = entry.get("session")
@@ -597,7 +372,7 @@ class Registry:
                 if profile is not None and current.get("profile") not in (None, profile):
                     raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
                 if current_id == stored:
-                    return entry
+                    return _identified_game(identifier, entry)
                 if current_id != replace:
                     raise BindingError("STALE", "This game's conversation changed since the page last looked.")
             elif replace is not None:
@@ -606,7 +381,7 @@ class Registry:
             _chat_follows_session(entry)
             data["pending"].pop(stored, None)
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def unbind(self, identifier: str, stored: str, profile: str | None) -> bool:
         """Stop editing: the game lets go of its conversation (the session itself is kept). Only the
@@ -645,7 +420,7 @@ class Registry:
             _chat_follows_session(entry)
             data["pending"].pop(record["storedId"], None)
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def note_alias(self, profile: str | None, conversation_id: str, session_id: str) -> None:
         """Remember a bound conversation's live session id (compression rotates it), so a hook that only
@@ -654,35 +429,42 @@ class Registry:
             return
         with self._locked():
             data = self.load()
-            kind, found = self._binding_in(data, profile, {conversation_id})
+            kind, _, found = self._binding_in(data, profile, {conversation_id})
             binding = found.get("session") if kind == "game" else found
-            if not isinstance(binding, dict) or session_id in (binding.get("aliases") or []):
+            if not isinstance(binding, dict) or session_id in session_aliases(binding):
                 return
-            binding["aliases"] = ((binding.get("aliases") or []) + [session_id])[-16:]
+            binding["aliases"] = (session_aliases(binding) + [session_id])[-16:]
             self._save(data)
 
     @staticmethod
-    def _binding_in(data: dict, profile: str | None, wanted: set) -> tuple[str | None, dict | None]:
-        for entry in data["games"].values():
-            if isinstance(entry, dict) and _session_matches(entry.get("session"), profile, wanted):
-                return "game", entry
+    def _binding_in(data: dict, profile: str | None, wanted: set) -> tuple[str | None, str | None, dict | None]:
+        for identifier, entry in data["games"].items():
+            if (
+                valid_id(identifier)
+                and isinstance(entry, dict)
+                and _session_matches(entry.get("session"), profile, wanted)
+            ):
+                return "game", identifier, entry
         for record in data["pending"].values():
             if _session_matches(record, profile, wanted):
-                return "pending", record
-        return None, None
+                return "pending", None, record
+        return None, None, None
 
-    def pending(self, profile: str | None = None) -> list[dict]:
+    def pending(self, profile: str | None = None, *, snapshot: dict | None = None) -> list[dict]:
+        data = self.load() if snapshot is None else snapshot
         listed = [
             {
                 "storedId": r.get("storedId"),
-                "name": r.get("name"),
-                "createdAt": r.get("createdAt"),
+                "name": _pending_name(r.get("name")),
+                "createdAt": project.timestamp(r.get("createdAt"), None),
                 "profile": r.get("profile"),
             }
-            for r in self.load()["pending"].values()
-            if isinstance(r.get("storedId"), str) and (profile is None or r.get("profile") in (None, profile))
+            for r in data["pending"].values()
+            if isinstance(r, dict)
+            and isinstance(r.get("storedId"), str)
+            and (profile is None or r.get("profile") in (None, profile))
         ]
-        return sorted(listed, key=lambda r: r.get("createdAt") or 0)
+        return sorted(listed, key=lambda r: project.timestamp(r.get("createdAt")))
 
     # -- broker hook ---------------------------------------------------------------
     def observe(
@@ -757,74 +539,30 @@ class Registry:
         return None
 
     # -- what the page sees ---------------------------------------------------------
-    def describe(self, entry: dict) -> dict | None:
-        root = Path(entry["projectRoot"])
-        if not root.is_dir():
+    def describe(self, entry: dict, *, identifier: str | None = None) -> dict | None:
+        root = shelf.registered_root(entry)
+        if root is None:
             return None
-        identifier = entry.get("id") or game_id(root)
-        last = entry.get("lastBuild") if isinstance(entry.get("lastBuild"), dict) else None
-        rom_path = None
-        if last and last.get("ok") and isinstance(last.get("rom"), str) and Path(last["rom"]).is_file():
-            rom_path = Path(last["rom"])
-        rom_path = rom_path or web_rom(root) or _newest_build_rom(root)
-        rom, built = None, None
-        if rom_path is not None:
-            info = rom_path.stat()
-            built = info.st_mtime
-            rom = {"path": str(rom_path), "sha256": file_sha256(rom_path), "size": info.st_size, "builtAt": int(built)}
-        # The player runs the web export, whose ROM is its own compilation (not byte-identical to the
-        # native build): the page compares this hash with the one the player loaded.
-        exported = has_web_export(root)
-        web_path = web_rom(root) if exported else None
-        web = None
-        if web_path is not None:
-            web_info = web_path.stat()
-            web = {"sha256": file_sha256(web_path), "builtAt": int(web_info.st_mtime)}
-        if last and last.get("ok") is False and (built is None or float(last.get("t") or 0) >= built):
-            state = "failed"
-        elif built is None:
-            state = "unbuilt"
-        elif sources_newer_than(root, built):
-            state = "changed"
-        else:
-            state = "ready"
-        try:
-            title = project_title(root)
-        except OSError:
-            title = entry.get("title") or root.name
-        card = game_card.public(root)
-        cover = game_card.cover_data_url(root) if card and card["hasCover"] else None
-        return {
-            "id": identifier,
-            "title": title,
-            "projectRoot": str(root),
-            "kind": project_kind(root),
-            "state": state,
-            "rom": rom,
-            "webExport": exported,
-            "web": web,
-            "thumb": cover or self.thumb(identifier),
-            "cover": bool(cover),
-            "card": card,
-            "displayTitle": (card or {}).get("title") or title,
-            "chat": entry.get("chat") if isinstance(entry.get("chat"), dict) else None,
-            "session": public_session(entry.get("session")),
-            "error": (str((last or {}).get("error") or "The build failed."))[:ERROR_CHARS]
-            if state == "failed"
-            else None,
-            "updatedAt": entry.get("updatedAt"),
-        }
+        return shelf.describe(entry, identifier if identifier is not None else game_id(root), root, self.thumb)
 
-    def library(self) -> list[dict]:
+    def library(self, *, snapshot: dict | None = None) -> list[dict]:
+        listed, _ = self.library_listing(snapshot=snapshot)
+        return listed
+
+    def library_listing(self, *, snapshot: dict | None = None) -> tuple[list[dict], list[str]]:
+        """Describe the shelf and identify registered games whose projects cannot be read."""
+        data = self.load() if snapshot is None else snapshot
         games = []
-        for entry in self.load()["games"].values():
-            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+        unavailable = []
+        for identifier, entry in data["games"].items():
+            if not valid_id(identifier):
                 continue
             try:
-                described = self.describe(entry)
+                described = self.describe(entry, identifier=identifier)
             except OSError:
-                described = None
+                unavailable.append(identifier)
+                continue
             if described:
                 games.append(described)
-        games.sort(key=lambda g: -(g.get("updatedAt") or 0))
-        return games
+        games.sort(key=lambda g: project.timestamp(g.get("updatedAt")), reverse=True)
+        return games, unavailable

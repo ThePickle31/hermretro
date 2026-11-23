@@ -73,6 +73,18 @@ await runScenario(async helpers => {
     // A user game gets the bar's Install contribution; the demo cartridge above does not.
     assert.ok([...dom.window.document.querySelectorAll('.cs-rp-bar button')].some(node => node.textContent.includes('Install')))
   })
+  const loadedFrame = frame()
+  const unreadable = { ok: true, game: { ...games[0], web: null, rom: { sha256: 'native-sha' } } }
+  scenario.gameBuildStatus = answered(unreadable)
+  await studio.rerender()
+  check('an unreadable web ROM never compares the native ROM with the playing web copy', () => {
+    assert.ok(!text().includes('Hermes rebuilt'))
+    assert.equal(frame(), loadedFrame)
+  })
+  const unavailable = { ok: false, code: 'UNAVAILABLE', error: 'Could not read the web build.' }
+  scenario.byMethod['plugin.hermretro.game_build_status'] = unavailable
+  await assert.rejects(scenario.fns.gameBuildStatus(), /Could not read the web build/)
+  scenario.gameBuildStatus = undefined
   const posted = []
   frame().contentWindow.postMessage = message => posted.push(message)
   await key('keydown', 'ArrowLeft', dom.window.document.body); await key('keyup', 'ArrowLeft', dom.window.document.body)
@@ -86,6 +98,9 @@ await runScenario(async helpers => {
     assert.ok(frame() === kept2, 'the player frame is retained'); assert.ok(dom.window.document.querySelector('.cs-rp-stage.off'))
     assert.deepEqual(posted.at(-1), { cs: 'cmd', type: 'hold' })
     assert.ok(nav().querySelector('.live'), 'the Emulator tab shows that a game is loaded')
+    const status = scenario.queries.filter(query => query.key === 'gameBuildStatus').at(-1)
+    assert.equal(status.enabled, true)
+    assert.equal(status.refetchInterval, false)
   })
   await tab('Emulator')
   check('coming back releases it, without reloading the frame', () => {
@@ -121,12 +136,49 @@ await runScenario(async helpers => {
   })
   await settle()
   check('messages that do not come from the player frame are ignored', () => { assert.ok(!scenario.inserted.some(([, value]) => /spoof/.test(value))) })
-  scenario.games = answered({ games: [{ ...games[0], rom: { ...games[0].rom, sha256: 'sha-two' } }, games[1]], device: { hardwareEnabled: true, skipped: false } })
+  const rebuilt = { ok: true, game: { id: games[0].id, title: games[0].title, web: { sha256: 'sha-two' } } }
+  scenario.gameBuildStatus = answered(rebuilt)
+  scenario.byMethod['plugin.hermretro.game_build_status'] = rebuilt
   await studio.rerender()
   check('a rebuild in chat (new ROM hash) shows the banner', () => { assert.match(text(), /Hermes rebuilt Comet Drift/); assert.match(text(), /Load the new build/) })
-  check('the games list polls every 5 s while the Emulator is shown', () => {
-    assert.equal(scenario.queries.filter(query => query.key === 'games').at(-1).refetchInterval, 5000)
+  const status = await scenario.fns.gameBuildStatus()
+  check('the Emulator polls this game every 5 s and leaves the shelf on its slower interval', () => {
+    assert.equal(scenario.queries.filter(query => query.key === 'games').at(-1).refetchInterval, 30_000)
+    assert.equal(scenario.queries.filter(query => query.key === 'gameBuildStatus').at(-1).refetchInterval, 5_000)
+    assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: games[0].id })
+    assert.deepEqual(status, rebuilt)
   })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = { ok: false, code: 'UNAVAILABLE', error: 'could not read the ROM' }
+  const error = await scenario.fns.gameBuildStatus().catch(error => error)
+  assert.match(error.message, /could not read the ROM/)
+  const shelfRpc = 'plugin.hermretro.games'
+  scenario.byMethod[shelfRpc] = { ok: true, games: [{ ...games[0], rom: { sha256: 'sha-legacy' } }] }
+  scenario.games = answered(await scenario.fns.games())
+  scenario.gameBuildStatus = { ...answered(rebuilt), isError: true, error }
+  await studio.rerender()
+  check('a failed status refresh hides the cached rebuild action and keeps the frame', () => {
+    assert.ok(!button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+  })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = () => { throw notLoaded.error }
+  const unsupported = await scenario.fns.gameBuildStatus().catch(error => error)
+  assert.equal(unsupported.code, -32601)
+  scenario.gameBuildStatus = { isError: true, error: unsupported }
+  await studio.rerender()
+  check('an older backend without game status can announce a build from the current shelf', () => {
+    assert.ok(button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+    assert.equal(scenario.storage.emulatorGame, games[0].id)
+  })
+  scenario.games = { ...scenario.games, isError: true, error: new Error('could not read the shelf') }
+  await studio.rerender()
+  check('an older backend does not announce a cached shelf build after a failed refresh', () => {
+    assert.ok(!button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+  })
+  scenario.gameBuildStatus = answered(rebuilt)
+  await studio.rerender()
+  check('a successful status refresh restores the rebuild action', () => { assert.ok(button('Load the new build')) })
   await click('Later')
   check('Later hides the banner for that build', () => { assert.ok(!text().includes('Hermes rebuilt')) })
   scenario.player = { isError: true, isFetching: false, error: Object.assign(new Error('unknown method'), { code: -32601 }) }
