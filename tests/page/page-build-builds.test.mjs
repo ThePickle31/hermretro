@@ -1,7 +1,4 @@
-// The Build page's Builds menu (page/pages/build/builds-menu.js): each build of the conversation, and whether
-// the backend kept its files (plugin.hermretro.builds). A build's startAt/endAt are page times in milliseconds
-// (a message's `timestamp`, Unix seconds, × 1000). Historical lookup needs one actual build occurrence
-// within the turn, also in milliseconds.
+// The Builds menu rejects time-only snapshots, even if exactly one occurrence falls inside the turn.
 // Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
@@ -36,17 +33,16 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
     return { rows: rows.map(node => node.textContent), restore }
   }
 
-  // Build #1's turn ran from 1000 s to 1030 s: a snapshot at 1 010 000 ms is its files.
+  // The sole occurrence could be from a concurrent chat that built the same game.
   snapshots = [{ id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' }]
   const kept = await openMenu()
   check('the Builds menu asks plugin.hermretro.builds for this game and lists the builds newest first', () => {
-    assert.deepEqual(asked.at(-1), { game: 'fff666fff666' })
+    assert.deepEqual(asked.at(-1), { game: 'fff666fff666', stored: 'st-frog' })
     assert.equal(kept.rows.length, 2); assert.match(kept.rows[0], /#2make it jump higher/); assert.match(kept.rows[1], /#1make the frog jump/)
   })
-  check('a snapshot taken during build #1 (in milliseconds) lets it be restored', () => {
-    assert.ok(kept.restore, 'build #1 has a Restore button'); assert.equal(kept.restore.disabled, false)
+  check('a lone time-only occurrence inside the turn cannot identify build #1', () => {
+    assert.ok(kept.restore, 'build #1 has a Restore button'); assert.equal(kept.restore.disabled, true)
   })
-  // The same time in seconds matches no build: snapshot times are milliseconds, as the page's are.
   snapshots = [{ id: 'snap-1', at: 1010, builds: [1010], reason: 'build' }]
   const lost = await openMenu()
   check('a snapshot from outside the build\u2019s turn matches nothing, so Restore stays disabled', () => {
@@ -73,7 +69,7 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   await view.close()
 
   // While hermretro updates, Restore (which restores files and sends a build request) and the chat box start nothing.
-  snapshots = [{ id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' }]
+  snapshots = [{ id: 'snap-1', buildRefs: ['first'], buildCalls: [{ id: 'b1', ref: 'first' }], reason: 'build' }]
   scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
   scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
   scenario['update-busy'] = answered([])

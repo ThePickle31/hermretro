@@ -298,6 +298,31 @@ class BuildHistoryHost(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual((self.root / "project" / "scene.gbsres").read_text(), "{}")
 
+    def test_build_call_ids_are_only_exposed_for_the_bound_conversation(self):
+        stored = "build-chat"
+        hermes_host._registry().bind(self.game, stored, hermes_host._profile_identity())
+        self.hook(
+            result=json.dumps({**json.loads(success(self.root)), "buildRef": "before"}),
+            conversation_id=stored,
+            session_id="compressed-build-chat",
+            tool_call_id="call_0",
+        )
+        (self.root / "project" / "scene.gbsres").write_text("other chat edited the game")
+        self.hook(
+            result=json.dumps({**json.loads(success(self.root)), "buildRef": "concurrent"}),
+            conversation_id="other-chat",
+            session_id="other-chat",
+            tool_call_id="call_0",
+        )
+        list_builds = history_rpcs.rpc_builds(None)
+        for selection in ({}, {"stored": "other-chat"}):
+            self.assertTrue(
+                all("buildCalls" not in item for item in list_builds({"game": self.game, **selection})["builds"])
+            )
+        newest, oldest = list_builds({"game": self.game, "stored": stored})["builds"]
+        self.assertNotIn("buildCalls", newest)
+        self.assertEqual(oldest["buildCalls"], [{"id": "call_0", "ref": "before"}])
+
     def test_the_hook_never_raises(self):
         with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")) as take:
             self.hook()

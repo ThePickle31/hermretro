@@ -17,7 +17,7 @@ def _snapshots_dir() -> Path:
 
 @rpc("builds")
 def rpc_builds(ctx):
-    """The Build page's build history for one library game: ``{game}`` → its snapshots, newest first."""
+    """The Build page's build history for one library game: ``{game, stored?}`` → its snapshots, newest first."""
 
     def builds(params, **_kwargs):
         try:
@@ -25,7 +25,11 @@ def rpc_builds(ctx):
             game = str(params.get("game") or "")
             if host._game_root(game) is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library has builds."}
-            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game)}
+            stored = params.get("stored")
+            bound = host._bound_game(stored, None) if isinstance(stored, str) and stored else None
+            if not bound or bound["id"] != game or bound["session"]["storedId"] != stored:
+                stored = None
+            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game, stored=stored)}
         except Exception as error:
             logger.exception("hermretro builds failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}

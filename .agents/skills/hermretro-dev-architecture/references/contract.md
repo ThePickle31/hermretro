@@ -219,7 +219,7 @@ instead of throwing.
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
-| `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
+| `builds` | `{ game, stored? }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
 | `build_restore` | `{ game, id, buildRef?, buildAt? }` | `{ ok: true, restored, backup, changed, removed }`. `PARTIAL` returns `ok: false`, the same IDs and counts, and `problems`. Preflight errors are `NO_GAME`, `MISSING`, `INVALID_SNAPSHOT`, `TOO_LARGE` and `BACKUP_FAILED`. |
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
@@ -280,14 +280,18 @@ or 20 000 files is skipped. When the files are identical to the newest snapshot 
 each), the existing copy is verified and reused. The newest 30 are kept, with the selected snapshot and
 backup protected during a restore.
 
-- The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`. Historical
-  occurrences remain in `builds`, in milliseconds. `builds { game }` returns
-  `{ ok, builds: [{ id, at, builds, buildRefs?, files, bytes, reason, from? }] }`, newest first.
+- The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`.
+  `builds { game, stored? }` returns
+  `{ ok, builds: [{ id, at, builds, buildRefs?, buildCalls?, files, bytes, reason, from? }] }`, newest first.
+  `buildCalls: [{ id, ref }]` lists Hermes tool call IDs and their refs for the game's bound conversation
+  when `stored` is that conversation's stored ID in this profile. These IDs let the page match builds
+  whose result bodies the gateway omitted. Historical times remain in `builds`, in milliseconds.
 - Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
   against the selected snapshot and checks the saved file count, byte total and fingerprint. It then
   keeps the current project as a `before-restore` snapshot
   (`from` is the restored ID), removes project files absent from the saved build and writes back files
-  that differ using a temporary sibling and rename. Incomplete restores include the verified backup,
+  that differ using a temporary sibling. Each overwrite or deletion checks that the live file still
+  matches the identity and contents backed up. Incomplete restores include the verified backup,
   operation counts and up to 20 file problems. A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)

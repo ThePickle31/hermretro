@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 976fb5f26c3eab91ffd86c1cddeb7ab25c3fa72a6ccd8d765f681adbce59dec0
- * body: sha256 e69b4ad0799d514263b6fec2bd470582815ecfc27ad019e2da47ddd167c47c9c
+ * sources: sha256 7224cf3505f776a91d54bdf389f5115dbb13bc8778a9bf3930b4914a2ecbb4e0
+ * body: sha256 6b41bbcef11a217f867c7c93bf12df7292fccc34be237b3e7acfd47b7f2cf86e
  */
 // page/sdk.js
 import {
@@ -495,29 +495,34 @@ function toolResultObject(value) {
   }
   return null;
 }
-function unwrapCalls(id, name, args) {
-  let parsed = args;
-  if (typeof parsed === "string") {
+function jsonValue(value) {
+  if (typeof value === "string") {
     try {
-      parsed = JSON.parse(parsed);
+      return JSON.parse(value);
     } catch {
-      parsed = null;
+      return null;
     }
   }
-  if (name === "tool_call" && Array.isArray(parsed?.calls) && parsed.calls.length) {
-    return parsed.calls.map((call, index) => {
-      let inner = call?.arguments ?? null;
-      if (typeof inner === "string") {
-        try {
-          inner = JSON.parse(inner);
-        } catch {
-          inner = null;
-        }
-      }
-      return { id: id == null ? null : `${id}:${index}`, name: String(call?.name ?? "tool"), args: inner && typeof inner === "object" ? inner : null };
-    });
+  return value;
+}
+function callArgs(value) {
+  const parsed = jsonValue(value);
+  return parsed && typeof parsed === "object" ? parsed : null;
+}
+function unwrapCalls(id, name, args) {
+  const parsed = callArgs(args);
+  if (name === "tool_call") {
+    const entries = jsonValue(parsed?.calls ?? (parsed?.name ? [parsed] : null));
+    const calls = Array.isArray(entries) ? entries : entries && typeof entries === "object" ? [entries] : [];
+    if (calls.length) {
+      return calls.map((call, index) => ({
+        id: id == null || calls.length === 1 ? id : `${id}:${index}`,
+        name: String(call?.name ?? "tool").trim(),
+        args: callArgs(call?.arguments)
+      }));
+    }
   }
-  return [{ id, name: String(name ?? "tool"), args: parsed && typeof parsed === "object" ? parsed : null }];
+  return [{ id, name: String(name ?? "tool"), args: parsed }];
 }
 
 // page/pages/build/chat/steps.js
@@ -763,10 +768,11 @@ function historyItems(messages, running = false) {
       items.push({ kind: "end", status: "complete", at: lastAt, startedAt, history: true });
     }
     agentSinceUser = false;
+    tools.clear();
   };
   const addTool = (call, at) => {
     if (call.id && tools.has(call.id)) {
-      return;
+      return tools.get(call.id);
     }
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: "done", startedAt: at };
     const last = items[items.length - 1];
@@ -778,6 +784,7 @@ function historyItems(messages, running = false) {
     } else {
       items.push({ kind: "tools", tools: [tool] });
     }
+    return tool;
   };
   for (const message of Array.isArray(messages) ? messages : []) {
     if (!message || message.display_kind === "hidden") {
@@ -803,22 +810,19 @@ function historyItems(messages, running = false) {
       }
     } else if (message.role === "tool") {
       agentSinceUser = true;
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
-        if (known) {
-          if (at && known.startedAt) {
-            known.duration = Math.max(0, (at - known.startedAt) / 1e3);
+      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name ?? message.tool_name, message.args)) {
+        const first = inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null;
+        const step = first && (first.name === inner.name || inner.name === "tool") ? first : addTool(inner, at);
+        if (at && step.startedAt) {
+          step.duration = Math.max(0, (at - step.startedAt) / 1e3);
+        }
+        step.args = step.args ?? stepArgs(inner.args);
+        step.resultSeen = typeof message.tool_call_id === "string" && step.id === message.tool_call_id;
+        if (text2) {
+          step.info = stepInfo(step.name, text2);
+          if (toolFailed({ result: text2 })) {
+            step.state = "failed";
           }
-          known.args = known.args ?? stepArgs(inner.args);
-          const result = text2.trim().startsWith("{") ? text2 : null;
-          if (result) {
-            known.info = stepInfo(known.name, result);
-            if (toolFailed({ result })) {
-              known.state = "failed";
-            }
-          }
-        } else {
-          addTool(inner, at);
         }
       }
     }
@@ -973,6 +977,7 @@ function reduceChat(chat, event) {
         args: tool.args ?? stepArgs(payload.args),
         report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ""), payload.args)[0]?.args),
         state: toolFailed(payload) ? "failed" : "done",
+        resultSeen: typeof payload.tool_id === "string" && Boolean(payload.tool_id),
         summary: payload.summary ?? null,
         duration: typeof payload.duration_s === "number" ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1e3 : null,
         image: typeof payload.image_path === "string" ? payload.image_path : null,
@@ -5584,6 +5589,16 @@ function isGameBuild(tool) {
 }
 function buildHistory(turns) {
   const builds = [];
+  const callCounts = /* @__PURE__ */ new Map();
+  for (const turn of turns) {
+    for (const item of turn.items) {
+      for (const tool of item.kind === "tools" ? item.tools : []) {
+        if (tool.resultSeen && tool.id) {
+          callCounts.set(tool.id, (callCounts.get(tool.id) ?? 0) + 1);
+        }
+      }
+    }
+  }
   turns.forEach((turn, index) => {
     const compile = lastCompile(turn);
     const state = compileState(compile);
@@ -5594,16 +5609,12 @@ function buildHistory(turns) {
     let endAt = null;
     let startAt = turn.user?.at ?? null;
     let thumb = null;
-    let gameBuilds = 0;
     for (const item of turn.items) {
       if (item.kind === "end") {
         endAt = item.at ?? endAt;
         startAt = startAt ?? item.startedAt ?? null;
       } else if (item.kind === "tools") {
         for (const tool of item.tools) {
-          if (isGameBuild(tool)) {
-            gameBuilds += 1;
-          }
           if (shortTool(tool.name) === "build_report" && tool.state !== "failed") {
             report = tool.info?.report ?? tool.report ?? report;
           }
@@ -5626,7 +5637,7 @@ function buildHistory(turns) {
       startAt,
       endAt,
       buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
-      legacyRestore: isGameBuild(compile) && Boolean(compile.info) && gameBuilds === 1,
+      callId: isGameBuild(compile) && compile.resultSeen && callCounts.get(compile.id) === 1 ? compile.id : null,
       thumb
     });
   });
@@ -7426,34 +7437,19 @@ function BuildPill({ builds, chat, game }) {
   }
   return jsxs("span", { className: `cs-b-pill ${tone}`, children: [tone === "quiet" ? null : jsx("i", { className: "cs-b-pill-dot" }), label] });
 }
-function duringBuild(time, build) {
-  return Number.isFinite(build.startAt) && Number.isFinite(build.endAt) && time >= build.startAt && time <= build.endAt;
-}
-function snapshotFor(build, snapshots, builds) {
+function snapshotFor(build, snapshots) {
   if (!Array.isArray(snapshots)) {
     return null;
   }
-  if (build.buildRef) {
-    const exact = snapshots.filter((snap) => Array.isArray(snap.buildRefs) && snap.buildRefs.includes(build.buildRef));
-    return exact.length === 1 ? { id: String(exact[0].id), buildRef: build.buildRef } : null;
-  }
-  if (!build.legacyRestore) {
-    return null;
-  }
-  let found = null;
-  for (const snap of snapshots) {
-    for (const time of Array.isArray(snap.builds) ? snap.builds : []) {
-      if (Number.isSafeInteger(time) && duringBuild(time, build)) {
-        if (found !== null || builds.some((other) => other !== build && duringBuild(time, other))) {
-          return null;
-        }
-        found = { id: String(snap.id), buildAt: time };
-      }
-    }
-  }
-  return found;
+  const matches = snapshots.flatMap((snap) => {
+    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : [];
+    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : [];
+    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.callId && call.id === build.callId).map((call) => call.ref);
+    return candidates.filter((ref) => refs.includes(ref)).map((buildRef) => ({ id: String(snap.id), buildRef }));
+  });
+  return matches.length === 1 ? matches[0] : null;
 }
-function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
+function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   const [open, setOpen] = useState(false);
   const [snapshots, setSnapshots] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -7466,7 +7462,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
     }
     let live = true;
     setSnapshots(null);
-    callStudioOnly(RPC_BUILDS, { game: game.id }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
+    callStudioOnly(RPC_BUILDS, { game: game.id, stored }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
         setOpen(false);
@@ -7484,7 +7480,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, game.id, builds]);
+  }, [open, game.id, stored, builds]);
   const newest = builds[builds.length - 1] ?? null;
   const playingBuild = [...builds].reverse().find((build) => build.state === "built") ?? null;
   const rows = [...builds].reverse();
@@ -7510,9 +7506,9 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
             children: rows.map((build) => {
               const current = build === newest;
               const playing = build === playingBuild;
-              const snapshot = snapshotFor(build, snapshots, builds);
+              const snapshot = snapshotFor(build, snapshots);
               const restorable = build.state === "built" && !(playing && current && game.state !== "changed");
-              const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef && snapshot?.buildAt === confirm?.buildAt;
+              const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef;
               return jsxs(
                 "div",
                 {
@@ -9163,6 +9159,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
         builds,
         busy: Boolean(shownChat?.busy || updating),
         game,
+        stored: shownStored,
         onRestore: (build, snapshot) => Boolean(shownStored) && !refuseWhileUpdating() && restoreProjectBuild(game.id, shownStored, build, snapshot, onLibraryChanged),
         onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
       }, game.id) : null,

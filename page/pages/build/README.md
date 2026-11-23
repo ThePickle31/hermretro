@@ -53,9 +53,9 @@ Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-mot
 `build-page.js` is near the size limit (`tests/repo/test_layout.py`: a warning above 400 lines, a failure above 600),
 so a new header part goes in its own file in `page/pages/build/`, with a row in the table above.
 
-`snapshotFor` (`builds-menu.js`) matches new ROM builds using the tool result's `buildRef`. For older
-builds, Restore requires one actual build occurrence from the RPC's `builds` field within the turn's
-`startAt` and `endAt`. These bounds and occurrence times are Unix milliseconds.
+`snapshotFor` (`builds-menu.js`) matches ROM builds using the result's `buildRef` or the Hermes tool
+call ID recorded for the bound conversation. The call ID survives the gateway's compact transcript.
+An occurrence time alone leaves Restore disabled.
 `build-restore.js` submits a rebuild in the same conversation after a complete restore. It reports
 an incomplete restore or a failed rebuild submission separately.
 

@@ -44,46 +44,28 @@ export function BuildPill({ builds, chat, game }) {
   return jsxs('span', { className: `cs-b-pill ${tone}`, children: [tone === 'quiet' ? null : jsx('i', { className: 'cs-b-pill-dot' }), label] })
 }
 
-function duringBuild(time, build) {
-  return Number.isFinite(build.startAt) && Number.isFinite(build.endAt) && time >= build.startAt && time <= build.endAt
-}
-
-/** Match a build result to its snapshot, or require one unambiguous build occurrence for older results. */
-function snapshotFor(build, snapshots, builds) {
+/** A ROM build's reference can come directly from the result or its session's persisted call ID. */
+function snapshotFor(build, snapshots) {
   if (!Array.isArray(snapshots)) {
     return null
   }
 
-  if (build.buildRef) {
-    const exact = snapshots.filter(snap => Array.isArray(snap.buildRefs) && snap.buildRefs.includes(build.buildRef))
+  const matches = snapshots.flatMap(snap => {
+    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : []
+    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : []
+    const candidates = build.buildRef
+      ? [build.buildRef]
+      : calls.filter(call => build.callId && call.id === build.callId).map(call => call.ref)
 
-    return exact.length === 1 ? { id: String(exact[0].id), buildRef: build.buildRef } : null
-  }
+    return candidates.filter(ref => refs.includes(ref)).map(buildRef => ({ id: String(snap.id), buildRef }))
+  })
 
-  if (!build.legacyRestore) {
-    return null
-  }
-
-  let found = null
-
-  for (const snap of snapshots) {
-    for (const time of Array.isArray(snap.builds) ? snap.builds : []) {
-      if (Number.isSafeInteger(time) && duringBuild(time, build)) {
-        if (found !== null || builds.some(other => other !== build && duringBuild(time, other))) {
-          return null
-        }
-
-        found = { id: String(snap.id), buildAt: time }
-      }
-    }
-  }
-
-  return found
+  return matches.length === 1 ? matches[0] : null
 }
 
 /** Builds ▾: every build of this conversation, newest first; Show scrolls to its card, Restore puts its
  *  files back (the backend saves the current ones first) and asks the agent to build it again. */
-export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
+export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   const [open, setOpen] = useState(false)
   const [snapshots, setSnapshots] = useState(null)
   const [confirm, setConfirm] = useState(null)
@@ -100,7 +82,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
     let live = true
 
     setSnapshots(null)
-    callStudioOnly(RPC_BUILDS, { game: game.id }, 20_000)
+    callStudioOnly(RPC_BUILDS, { game: game.id, stored }, 20_000)
       .then(answer => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false))
       .catch(() => live && setSnapshots(false))
 
@@ -123,7 +105,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       window.removeEventListener('mousedown', onDown)
       window.removeEventListener('keydown', onKey)
     }
-  }, [open, game.id, builds])
+  }, [open, game.id, stored, builds])
 
   const newest = builds[builds.length - 1] ?? null
   const playingBuild = [...builds].reverse().find(build => build.state === 'built') ?? null
@@ -153,10 +135,10 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                     children: rows.map(build => {
                       const current = build === newest
                       const playing = build === playingBuild
-                      const snapshot = snapshotFor(build, snapshots, builds)
+                      const snapshot = snapshotFor(build, snapshots)
                       // Restoring the build you already play changes nothing, unless the game was edited since.
                       const restorable = build.state === 'built' && !(playing && current && game.state !== 'changed')
-                      const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef && snapshot?.buildAt === confirm?.buildAt
+                      const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef
 
                       return jsxs(
                         'div',

@@ -139,6 +139,17 @@ function isGameBuild(tool) {
  *  card's title (the report's, else the message that asked for it) and when it ran. */
 export function buildHistory(turns) {
   const builds = []
+  const callCounts = new Map()
+
+  for (const turn of turns) {
+    for (const item of turn.items) {
+      for (const tool of item.kind === 'tools' ? item.tools : []) {
+        if (tool.resultSeen && tool.id) {
+          callCounts.set(tool.id, (callCounts.get(tool.id) ?? 0) + 1)
+        }
+      }
+    }
+  }
 
   turns.forEach((turn, index) => {
     const compile = lastCompile(turn)
@@ -152,7 +163,6 @@ export function buildHistory(turns) {
     let endAt = null
     let startAt = turn.user?.at ?? null
     let thumb = null
-    let gameBuilds = 0
 
     for (const item of turn.items) {
       if (item.kind === 'end') {
@@ -160,10 +170,6 @@ export function buildHistory(turns) {
         startAt = startAt ?? item.startedAt ?? null
       } else if (item.kind === 'tools') {
         for (const tool of item.tools) {
-          if (isGameBuild(tool)) {
-            gameBuilds += 1
-          }
-
           if (shortTool(tool.name) === 'build_report' && tool.state !== 'failed') {
             report = tool.info?.report ?? tool.report ?? report
           }
@@ -190,7 +196,7 @@ export function buildHistory(turns) {
       startAt,
       endAt,
       buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
-      legacyRestore: isGameBuild(compile) && Boolean(compile.info) && gameBuilds === 1,
+      callId: isGameBuild(compile) && compile.resultSeen && callCounts.get(compile.id) === 1 ? compile.id : null,
       thumb
     })
   })

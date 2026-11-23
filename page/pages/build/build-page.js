@@ -437,6 +437,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
                   builds,
                   busy: Boolean(shownChat?.busy || updating),
                   game,
+                  stored: shownStored,
                   onRestore: (build, snapshot) => Boolean(shownStored) && !refuseWhileUpdating() && restoreProjectBuild(game.id, shownStored, build, snapshot, onLibraryChanged),
                   onShow: key => setFocusTurn(current => ({ key, seq: (current?.seq ?? 0) + 1 }))
                 }, game.id)

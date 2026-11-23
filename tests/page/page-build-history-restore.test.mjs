@@ -18,12 +18,15 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     { role: 'assistant', content: 'Built.', timestamp: at + 3 }
   ]
   scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
-    ...turn('first', 1000, 'make the frog jump'),
+    { role: 'user', text: 'make the frog jump', timestamp: 1000 },
+    { role: 'tool', name: 'tool_call', tool_call_id: 'first', timestamp: 1002,
+      args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } },
+    { role: 'assistant', text: 'Done.', timestamp: 1003 },
     ...turn('missing', 2000, 'make it jump higher'),
     ...turn('latest', 3000, 'make it jump even higher')
   ] })
   scenario.byMethod['plugin.hermretro.builds'] = { ok: true, builds: [
-    { id: '42', at: 42, builds: [], buildRefs: ['first'], reason: 'before-restore' },
+    { id: '42', at: 42, builds: [], buildRefs: ['first'], buildCalls: [{ id: 'first', ref: 'first' }], reason: 'before-restore' },
     { id: '43', at: 43, builds: [1_001_500, 2_001_500], reason: 'build' }
   ] }
   const asks = []

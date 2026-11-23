@@ -19,10 +19,12 @@ import json
 import os
 import shutil
 import stat
-import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+
+from .build_refs import build_history, public_snapshot, record_build
+from .restore_files import LiveTree, _restore_files, directory_id, file_digest, file_stamp
 
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
@@ -37,7 +39,6 @@ META = "snapshot.json"
 FILES = "files"
 REASONS = ("build", "before-restore")
 PROJECT_SUFFIX = ".gbsproj"
-_CHUNK = 1024 * 1024
 
 
 class SnapshotError(Exception):
@@ -50,13 +51,14 @@ def _temporary(name: str) -> bool:
     return name.endswith(TEMP_SUFFIXES) or name.startswith(".~")
 
 
-def walk(root: Path, *, stored: bool = False, other_games: set[str] | None = None) -> dict[str, Path]:
+def walk(root: Path, *, stored: bool = False, live: LiveTree | None = None) -> dict[str, Path]:
     """Scan the whole tree up to the file cap, propagating I/O errors. A live project has exclusions, while stored
     files must all be accounted for by the snapshot manifest."""
     found: dict[str, Path] = {}
     stack = [(Path(root), "")]
     while stack:
         folder, prefix = stack.pop()
+        identity = directory_id(folder.lstat()) if live is not None else None
         with os.scandir(folder) as scan:
             entries = [(entry, entry.stat(follow_symlinks=False).st_mode) for entry in scan]
         if (
@@ -67,14 +69,18 @@ def walk(root: Path, *, stored: bool = False, other_games: set[str] | None = Non
                 for entry, mode in entries
             )
         ):
-            if other_games is not None:
-                other_games.add(prefix[:-1])
+            if live is not None:
+                live.other_games.add(identity)
             continue
+        if live is not None:
+            live.directories[prefix.rstrip("/")] = identity
         for entry, mode in entries:
             relative = f"{prefix}{entry.name}"
             if stat.S_ISDIR(mode):
                 if stored or prefix or entry.name not in EXCLUDED_TOP:
                     stack.append((Path(entry.path), relative + "/"))
+                elif live is not None:
+                    live.excluded.add(directory_id(entry.stat(follow_symlinks=False)))
             elif stat.S_ISREG(mode):
                 if stored or not _temporary(entry.name):
                     found[relative] = Path(entry.path)
@@ -83,23 +89,6 @@ def walk(root: Path, *, stored: bool = False, other_games: set[str] | None = Non
             if len(found) > MAX_FILES:
                 return found
     return found
-
-
-def _file_digest(path: Path, limit: int, writer=None) -> tuple[int, str]:
-    """Read a regular file without following a final symlink, optionally copying it in the same pass."""
-    digest = hashlib.sha256()
-    size = 0
-    with open(path, "rb", opener=lambda name, flags: os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK)) as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-            raise OSError(f"{path} is no longer a regular file")
-        for chunk in iter(lambda: handle.read(_CHUNK), b""):
-            size += len(chunk)
-            if size > limit:
-                raise OSError(f"{path} became larger during the snapshot operation")
-            digest.update(chunk)
-            if writer is not None:
-                writer.write(chunk)
-    return size, digest.hexdigest()
 
 
 def _fingerprint(digests: dict[str, tuple[int, str]]) -> str:
@@ -156,35 +145,14 @@ def _snapshot_id(value: str) -> bool:
     return value.isascii() and value.isdigit()
 
 
-def _history(meta: dict, key: str) -> list:
-    values = meta.get(key)
-    return values if isinstance(values, list) else []
-
-
-def public(meta: dict, identifier: str) -> dict:
-    answer = {
-        "id": identifier,
-        "at": meta.get("at"),
-        "builds": _history(meta, "builds"),
-        "files": meta.get("files"),
-        "bytes": meta.get("bytes"),
-        "reason": meta.get("reason"),
-    }
-    if refs := _history(meta, "buildRefs"):
-        answer["buildRefs"] = refs
-    if meta.get("from"):
-        answer["from"] = meta["from"]
-    return answer
-
-
-def list_snapshots(base: Path, game: str) -> list[dict]:
+def list_snapshots(base: Path, game: str, *, stored: str | None = None) -> list[dict]:
     """Every snapshot of one game, newest first (without fingerprints)."""
     folder = game_dir(base, game)
     listed = []
     for identifier in _ids(folder):
         meta = _read_meta(folder / identifier)
         if meta is not None:
-            listed.append(public(meta, identifier))
+            listed.append(public_snapshot(meta, identifier, stored))
     return listed
 
 
@@ -206,18 +174,22 @@ def _prune(folder: Path, keep: int, protect=()) -> None:
         pass
 
 
-def _measure(files: dict[str, Path]) -> tuple[int, dict[str, tuple[int, str]]]:
+def _measure(files: dict[str, Path], live: LiveTree | None = None) -> tuple[int, dict[str, tuple[int, str]]]:
     digests = {}
     total = 0
     for relative, path in files.items():
-        size = path.lstat().st_size
+        info = path.lstat()
+        size = info.st_size
         total += size
         if total > MAX_BYTES:
             return total, {}
-        measured = _file_digest(path, size)
+        stamp = file_stamp(info)
+        measured = file_digest(path, size, expected_stamp=stamp)
         if measured[0] != size:
             raise OSError(f"{path} changed during the snapshot operation")
         digests[relative] = measured
+        if live is not None:
+            live.files[relative] = (stamp, measured)
     return total, digests
 
 
@@ -248,17 +220,6 @@ def _read_snapshot(source: Path, game: str) -> tuple[dict, dict[str, Path], dict
         ) from error
 
 
-def _record_build(meta: dict, at: int, build_ref: str | None) -> None:
-    # Older builds only have occurrence times. Keeping the new references separate prevents a legacy lookup
-    # from picking the files of an unrelated new build whose time happens to fall in its turn.
-    if build_ref:
-        refs = _history(meta, "buildRefs")
-        if build_ref not in refs:
-            meta["buildRefs"] = [*refs, build_ref]
-    else:
-        meta["builds"] = [*_history(meta, "builds"), at][-200:]
-
-
 def take(
     base: Path,
     game: str,
@@ -266,6 +227,7 @@ def take(
     reason: str = "build",
     *,
     build_ref: str | None = None,
+    build_call: tuple[str, str] | None = None,
     now_ms: int | None = None,
     keep: int = KEEP,
 ) -> dict:
@@ -277,7 +239,9 @@ def take(
         raise SnapshotError("MISSING", f"{root} is not a folder.")
     folder = game_dir(base, game)
     with _locked(folder):
-        return _take_locked(folder, game, root, walk(root), reason, now_ms, keep, build_ref=build_ref)
+        return _take_locked(
+            folder, game, root, walk(root), reason, now_ms, keep, build_ref=build_ref, build_call=build_call
+        )
 
 
 def _take_locked(
@@ -291,11 +255,12 @@ def _take_locked(
     *,
     from_id: str | None = None,
     build_ref: str | None = None,
-    other_games: set[str] | None = None,
+    build_call: tuple[str, str] | None = None,
+    live: LiveTree | None = None,
 ) -> dict:
     if len(files) > MAX_FILES:
         return {"skipped": f"more than {MAX_FILES} files"}
-    total, digests = _measure(files)
+    total, digests = _measure(files, live)
     if total > MAX_BYTES:
         return {"skipped": f"larger than {MAX_BYTES // (1024 * 1024)} MB"}
     fingerprint = _fingerprint(digests)
@@ -309,9 +274,9 @@ def _take_locked(
             except SnapshotError:
                 pass  # a damaged snapshot is never reused as a build or backup
             else:
-                _check_tree(root, files, other_games)
+                _check_tree(root, files, live)
                 if reason == "build":
-                    _record_build(meta, at, build_ref)
+                    record_build(meta, at, build_ref, build_call)
                     _write_json(folder / newest / META, meta)
                 return {"id": newest, "created": False}
     occurrence = at
@@ -325,9 +290,10 @@ def _take_locked(
             target.parent.mkdir(parents=True, exist_ok=True)
             expected = digests[relative]
             with target.open("wb") as writer:
-                if _file_digest(source, expected[0], writer) != expected:
+                stamp = live.files[relative][0] if live is not None else None
+                if file_digest(source, expected[0], writer, expected_stamp=stamp) != expected:
                     raise OSError(f"{relative} changed during the snapshot operation")
-        _check_tree(root, files, other_games)
+        _check_tree(root, files, live)
         meta = {
             "at": at,
             "game": game,
@@ -341,7 +307,7 @@ def _take_locked(
         if from_id:
             meta["from"] = from_id
         if reason == "build":
-            _record_build(meta, occurrence, build_ref)
+            record_build(meta, occurrence, build_ref, build_call)
         _write_json(partial / META, meta)
         os.replace(partial, folder / str(at))
     except BaseException:
@@ -351,99 +317,17 @@ def _take_locked(
     return {"id": str(at), "created": True}
 
 
-def _check_tree(root: Path, files: dict[str, Path], other_games: set[str] | None) -> None:
-    seen_games = set() if other_games is not None else None
-    if walk(root, other_games=seen_games).keys() != files.keys() or seen_games != other_games:
+def _check_tree(root: Path, files: dict[str, Path], live: LiveTree | None) -> None:
+    seen = LiveTree() if live is not None else None
+    if walk(root, live=seen).keys() != files.keys() or (
+        live is not None
+        and (
+            seen.excluded != live.excluded
+            or seen.other_games != live.other_games
+            or seen.directories != live.directories
+        )
+    ):
         raise OSError("The project files changed during the snapshot operation")
-
-
-def _safe_parent(root: Path, relative: str) -> Path | None:
-    """The folder ``relative`` goes into, created as needed, or None when any part of the way is a
-    symlink or a file (never written through)."""
-    current = root
-    for part in relative.split("/")[:-1]:
-        current = current / part
-        if os.path.islink(current):
-            return None
-        if current.exists():
-            if not current.is_dir():
-                return None
-        else:
-            current.mkdir()
-    return current
-
-
-def _below_other_game(relative: str, other_games: set[str]) -> bool:
-    parent, _, _ = relative.rpartition("/")
-    while parent:
-        if parent in other_games:
-            return True
-        parent, _, _ = parent.rpartition("/")
-    return False
-
-
-def _restore_files(
-    root: Path,
-    wanted: dict[str, Path],
-    digests: dict[str, tuple[int, str]],
-    current: dict[str, Path],
-    other_games: set[str],
-) -> tuple[int, int, list[str]]:
-    removed = changed = 0
-    problems = []
-    for relative in sorted(current.keys() - wanted.keys()):
-        try:
-            current[relative].unlink()
-            removed += 1
-        except OSError as error:
-            problems.append(f"{relative}: {error.strerror or error}")
-            continue
-        parent = current[relative].parent
-        while parent != root:
-            try:
-                parent.rmdir()  # only succeeds while empty
-            except OSError:
-                break
-            parent = parent.parent
-    for relative, source in sorted(wanted.items()):
-        if "/" in relative and relative.split("/", 1)[0] in EXCLUDED_TOP:
-            continue  # older snapshots can contain files that are now excluded
-        if _below_other_game(relative, other_games):
-            problems.append(f"{relative}: now part of another game")
-            continue
-        expected = digests[relative]
-        here = current.get(relative)
-        if here is not None:
-            try:
-                if here.lstat().st_size == expected[0] and _file_digest(here, expected[0]) == expected:
-                    continue
-            except OSError:
-                pass  # try replacing a file we could not read
-        partial = None
-        try:
-            parent = _safe_parent(root, relative)
-            if parent is None:
-                problems.append(f"{relative}: a link or file is in the way")
-                continue
-            target = parent / relative.rsplit("/", 1)[-1]
-            if target.is_symlink():
-                problems.append(f"{relative}: a link is in the way")
-                continue
-            # A fresh sibling gives the restored file a new modification time, so it counts as changed.
-            handle, partial = tempfile.mkstemp(dir=parent, prefix=f".{target.name}.", suffix=".hr-restore")
-            with os.fdopen(handle, "wb") as writer:
-                if _file_digest(source, expected[0], writer) != expected:
-                    raise OSError("the saved file changed during the restore")
-            os.replace(partial, target)
-            changed += 1
-        except OSError as error:
-            problems.append(f"{relative}: {error.strerror or error}")
-            if partial is not None:
-                try:
-                    os.unlink(partial)
-                except OSError:
-                    pass
-    return changed, removed, problems
 
 
 def restore(
@@ -466,21 +350,21 @@ def restore(
     folder = game_dir(base, game)
     with _locked(folder):
         meta, wanted, digests = _read_snapshot(folder / identifier, game)
-        if (build_ref is not None and build_ref not in _history(meta, "buildRefs")) or (
-            build_at is not None and _history(meta, "builds").count(build_at) != 1
+        if (build_ref is not None and build_ref not in build_history(meta, "buildRefs")) or (
+            build_at is not None and build_history(meta, "builds").count(build_at) != 1
         ):
             raise SnapshotError("MISSING", "That snapshot no longer matches the selected build.")
-        other_games: set[str] = set()
+        live = LiveTree()
         try:
-            current = walk(root, other_games=other_games)
+            current = walk(root, live=live)
             backup = _take_locked(
-                folder, game, root, current, "before-restore", now_ms, KEEP, from_id=identifier, other_games=other_games
+                folder, game, root, current, "before-restore", now_ms, KEEP, from_id=identifier, live=live
             )
         except OSError as error:
             raise SnapshotError("BACKUP_FAILED", f"The current project could not be backed up ({error}).") from error
         if backup.get("skipped"):
             raise SnapshotError("TOO_LARGE", "The current project could not be backed up (" + backup["skipped"] + ").")
-        changed, removed, problems = _restore_files(root, wanted, digests, current, other_games)
+        changed, removed, problems = _restore_files(root, wanted, digests, live, excluded_top=EXCLUDED_TOP)
     answer = {"restored": identifier, "backup": backup["id"], "changed": changed, "removed": removed}
     if problems:
         answer["problems"] = problems[:20]

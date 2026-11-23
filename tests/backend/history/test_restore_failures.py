@@ -4,9 +4,10 @@ import os
 import subprocess
 import sys
 import unittest
+from contextlib import nullcontext
 from unittest import mock
 
-from backend.history import rpcs, snapshots
+from backend.history import restore_files, rpcs, snapshots
 from tests.support import isolated_home, make_library_game
 
 
@@ -62,14 +63,14 @@ class RestoreFailures(unittest.TestCase):
         self.assert_refused("BACKUP_FAILED")
 
     def test_a_tree_that_changes_during_backup_is_rejected(self):
-        original_read = snapshots._file_digest
+        original_read = snapshots.file_digest
 
-        def digest(path, limit, writer=None):
+        def digest(path, limit, writer=None, **kwargs):
             if writer is not None and path == self.keep:
                 (self.root / "appeared.txt").write_text("new file")
-            return original_read(path, limit, writer)
+            return original_read(path, limit, writer, **kwargs)
 
-        with mock.patch.object(snapshots, "_file_digest", side_effect=digest):
+        with mock.patch.object(snapshots, "file_digest", side_effect=digest):
             self.assert_refused("BACKUP_FAILED")
         self.assertEqual(list(self.folder.glob("*.part")), [])
 
@@ -91,6 +92,82 @@ class RestoreFailures(unittest.TestCase):
         self.assertFalse(self.extra.exists())
         self.assertIn("project/scene.gbsres: a link is in the way", answer["problems"])
         self.assertEqual((self.folder / answer["backup"] / "files" / "extra.txt").read_text(), "keep me")
+
+    def test_an_edit_after_backup_is_not_deleted(self):
+        write = snapshots._restore_files
+
+        def edit_then_restore(*args, **kwargs):
+            self.extra.write_text("editor!")
+            return write(*args, **kwargs)
+
+        with mock.patch.object(snapshots, "_restore_files", side_effect=edit_then_restore):
+            answer = self.restore()
+
+        self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 1, 0))
+        self.assertEqual(self.extra.read_text(), "editor!")
+        self.assertIn("extra.txt: the live file changed", answer["problems"][0])
+        self.assertEqual((self.folder / answer["backup"] / "files" / "extra.txt").read_text(), "keep me")
+
+    def test_an_atomic_editor_save_during_staging_is_not_overwritten_even_with_the_same_bytes(self):
+        read = restore_files.file_digest
+
+        def editor_save(path, limit, writer=None, **kwargs):
+            if writer is not None and path == self.saved / "project" / "scene.gbsres":
+                replacement = self.keep.with_suffix(".tmp")
+                replacement.write_bytes(b"new")
+                replacement.replace(self.keep)
+            return read(path, limit, writer, **kwargs)
+
+        with mock.patch.object(restore_files, "file_digest", side_effect=editor_save):
+            answer = self.restore()
+
+        self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 0, 1))
+        self.assertEqual(self.keep.read_bytes(), b"new")
+        self.assertIn("scene.gbsres: the live file changed", answer["problems"][0])
+        self.assertEqual((self.folder / answer["backup"] / "files" / "project" / self.keep.name).read_bytes(), b"new")
+        self.assertEqual(list(self.keep.parent.glob("*.hr-restore")), [])
+
+    def test_a_new_editor_file_is_not_overwritten(self):
+        self.keep.unlink()
+        write = snapshots._restore_files
+
+        def edit_then_restore(*args, **kwargs):
+            self.keep.write_bytes(b"editor")
+            return write(*args, **kwargs)
+
+        with mock.patch.object(snapshots, "_restore_files", side_effect=edit_then_restore):
+            answer = self.restore()
+
+        self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 0, 1))
+        self.assertEqual(self.keep.read_bytes(), b"editor")
+        self.assertIn("project/scene.gbsres: a file appeared after backup", answer["problems"])
+
+    def test_a_nested_game_is_protected_even_when_opened_by_an_alternate_spelling(self):
+        original = self.root / "Pond"
+        original.mkdir()
+        (original / "notes.txt").write_text("past")
+        snapshots.take(self.store, self.game, self.root, now_ms=2000)
+        # A two-part rename changes the directory spelling on case-insensitive filesystems too.
+        moved = original.rename(self.root / "moved")
+        current = moved.rename(self.root / "pond")
+        (current / "pond.gbsproj").write_text("{}")
+        (current / "notes.txt").write_text("theirs")
+        open_file = os.open
+
+        def open_alias(path, flags, *args, **kwargs):
+            if path == "Pond" and kwargs.get("dir_fd") is not None:
+                path = "pond"
+            return open_file(path, flags, *args, **kwargs)
+
+        # Test the filesystem lookup contract on Linux and exercise the actual alias where available.
+        lookup = nullcontext() if original.exists() else mock.patch.object(os, "open", side_effect=open_alias)
+        with lookup:
+            answer = self.restore(id="2000")
+
+        self.assertEqual(answer["code"], "PARTIAL")
+        self.assertIn("Pond/notes.txt: now part of another game", answer["problems"])
+        self.assertEqual((current / "notes.txt").read_text(), "theirs")
+        self.assertFalse((self.folder / answer["backup"] / "files" / "pond").exists())
 
     def test_a_damaged_identical_backup_is_replaced_with_a_valid_copy(self):
         saved = snapshots.take(self.store, self.game, self.root, now_ms=2000)

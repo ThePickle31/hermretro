@@ -34,11 +34,12 @@ export function historyItems(messages, running = false) {
     }
 
     agentSinceUser = false
+    tools.clear()
   }
 
   const addTool = (call, at) => {
     if (call.id && tools.has(call.id)) {
-      return
+      return tools.get(call.id)
     }
 
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
@@ -53,6 +54,8 @@ export function historyItems(messages, running = false) {
     } else {
       items.push({ kind: 'tools', tools: [tool] })
     }
+
+    return tool
   }
 
   for (const message of Array.isArray(messages) ? messages : []) {
@@ -85,30 +88,24 @@ export function historyItems(messages, running = false) {
     } else if (message.role === 'tool') {
       agentSinceUser = true
 
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        // A deferred call's result row names only the outer tool_call (or nothing: the gateway's resume leaves the
-        // name out): its one call is <id>:0.
-        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === 'tool_call' ? tools.get(`${inner.id}:0`) : null))
+      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name ?? message.tool_name, message.args)) {
+        // Compact resume rows carry the name, arguments and call ID even when the result body is omitted.
+        const first = inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null
+        const step = first && (first.name === inner.name || inner.name === 'tool') ? first : addTool(inner, at)
 
-        if (known) {
-          // The result row's time is when the step finished.
-          if (at && known.startedAt) {
-            known.duration = Math.max(0, (at - known.startedAt) / 1000)
+        if (at && step.startedAt) {
+          step.duration = Math.max(0, (at - step.startedAt) / 1000)
+        }
+
+        step.args = step.args ?? stepArgs(inner.args)
+        step.resultSeen = typeof message.tool_call_id === 'string' && step.id === message.tool_call_id
+
+        if (text) {
+          step.info = stepInfo(step.name, text)
+
+          if (toolFailed({ result: text })) {
+            step.state = 'failed'
           }
-
-          known.args = known.args ?? stepArgs(inner.args)
-          // The result row says how the step went: a failed build stays failed after a reload.
-          const result = text.trim().startsWith('{') ? text : null
-
-          if (result) {
-            known.info = stepInfo(known.name, result)
-
-            if (toolFailed({ result })) {
-              known.state = 'failed'
-            }
-          }
-        } else {
-          addTool(inner, at)
         }
       }
     }

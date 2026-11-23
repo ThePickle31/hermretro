@@ -17,19 +17,23 @@ Only successful builds are kept here; whether each build passed is recorded by t
   `tests/support.py` moves this folder.
 
 A successful ROM build's tool result carries a unique `buildRef`. The history hook adds it to the kept
-snapshot's `buildRefs`, including when unchanged files reuse an existing snapshot. The page can match
-resumed and live builds exactly. Older records use the actual build times in `builds` and require an
-unambiguous occurrence inside the turn.
+snapshot's `buildRefs`, including when unchanged files reuse an existing snapshot. It also records the
+Hermes tool call ID for the game's bound conversation. Hermes retains that ID in live events and
+resumed tool rows even when it spills, previews or omits the result body. The Builds menu requires a
+reference from the result or that scoped call ID. Builds that only have an occurrence time stay visible
+with Restore disabled.
 
 ## What `build_restore` answers
 
 - `NO_GAME`, `MISSING`, `INVALID_SNAPSHOT`, `TOO_LARGE` and `BACKUP_FAILED` are preflight failures. The project
   is untouched. A restore checks the selected build reference or historical occurrence, validates the
   saved file count, bytes and fingerprint, and completes the current project's backup while holding
-  the per-game lock through restore and pruning.
+  the per-game lock through restore and pruning. Before a replacement or deletion, it verifies the live
+  file's identity and contents against the backup. The filesystem identity of ancestor folders protects
+  nested games even when a path spelled differently resolves to the same folder.
 - A complete restore returns `{ok: true, restored, backup, changed, removed}`. `PARTIAL` returns
   `ok: false` with those snapshot IDs and counts plus the first 20 file problems. The backed-up files
-  remain available. Unexpected errors return `ERROR` and are logged.
+  remain available, and a conflict leaves the live file in place. Unexpected errors return `ERROR` and are logged.
 - The Build page shows the first file problem for an incomplete restore. It asks the agent to rebuild
   after a complete restore and reports a rebuild submission failure separately.
 

@@ -19,33 +19,40 @@ export function toolResultObject(value) {
   return null
 }
 
-/** Hermes's deferred-tool wrapper (`tool_call {calls: [...]}`) as the calls it made. */
-export function unwrapCalls(id, name, args) {
-  let parsed = args
-
-  if (typeof parsed === 'string') {
+function jsonValue(value) {
+  if (typeof value === 'string') {
     try {
-      parsed = JSON.parse(parsed)
+      return JSON.parse(value)
     } catch {
-      parsed = null
+      return null
     }
   }
 
-  if (name === 'tool_call' && Array.isArray(parsed?.calls) && parsed.calls.length) {
-    return parsed.calls.map((call, index) => {
-      let inner = call?.arguments ?? null
+  return value
+}
 
-      if (typeof inner === 'string') {
-        try {
-          inner = JSON.parse(inner)
-        } catch {
-          inner = null
-        }
-      }
+function callArgs(value) {
+  const parsed = jsonValue(value)
 
-      return { id: id == null ? null : `${id}:${index}`, name: String(call?.name ?? 'tool'), args: inner && typeof inner === 'object' ? inner : null }
-    })
+  return parsed && typeof parsed === 'object' ? parsed : null
+}
+
+/** Hermes keeps the outer id on a single deferred local call (live and in persisted tool rows). */
+export function unwrapCalls(id, name, args) {
+  const parsed = callArgs(args)
+
+  if (name === 'tool_call') {
+    const entries = jsonValue(parsed?.calls ?? (parsed?.name ? [parsed] : null))
+    const calls = Array.isArray(entries) ? entries : entries && typeof entries === 'object' ? [entries] : []
+
+    if (calls.length) {
+      return calls.map((call, index) => ({
+        id: id == null || calls.length === 1 ? id : `${id}:${index}`,
+        name: String(call?.name ?? 'tool').trim(),
+        args: callArgs(call?.arguments)
+      }))
+    }
   }
 
-  return [{ id, name: String(name ?? 'tool'), args: parsed && typeof parsed === 'object' ? parsed : null }]
+  return [{ id, name: String(name ?? 'tool'), args: parsed }]
 }
