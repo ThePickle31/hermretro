@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -34,7 +35,7 @@ DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
 DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob")
 SOUL_FILE = paths.PLUGIN_ROOT / "profile" / "SOUL.md"
 # SHA-256 of every SOUL.md this plugin shipped before the current one. A profile whose SOUL is still
-# exactly one of these was never edited by the user, so finishing the profile again updates it.
+# exactly one of these was never edited by the user, so it is updated (refresh_soul).
 OLDER_SOULS = frozenset(
     {
         "27585f72bfd4de1c745b0ba4df21b891577fb3a7eeb3c3faf5ca84314056e385",
@@ -45,6 +46,32 @@ OLDER_SOULS = frozenset(
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
 WORKSPACE = "workspace"
+
+
+def refresh_soul(profile_home: Path) -> bool:
+    """Put the shipped SOUL in place of one an earlier release shipped (never one the user has edited, nor a link),
+    so the studio profile gets each release's SOUL however the plugin was updated: through the page, with
+    ``hermes plugins update`` or as a linked checkout. Answers whether it was written."""
+    soul = profile_home / "SOUL.md"
+    try:
+        if soul.is_symlink() or hashlib.sha256(soul.read_bytes()).hexdigest() not in OLDER_SOULS:
+            return False
+        _write_soul(soul)
+    except OSError:
+        return False
+    return True
+
+
+def _write_soul(soul: Path) -> None:
+    """The shipped SOUL at ``soul``, whole or not at all (Hermes may be reading it for a new chat)."""
+    handle, partial = tempfile.mkstemp(dir=soul.parent, prefix=".SOUL.md.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as writer:
+            writer.write(SOUL_FILE.read_bytes())
+        os.replace(partial, soul)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
 
 
 class StudioProfileError(Exception):
@@ -271,14 +298,9 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
 
     marker = target / MARKER
     first_time = not marker.is_file()
-    soul = target / "SOUL.md"
-    try:
-        unedited = hashlib.sha256(soul.read_bytes()).hexdigest() in OLDER_SOULS
-    except OSError:
-        unedited = False
-    write_soul = first_time or unedited  # never overwrite a SOUL the user has since edited
-    if write_soul:
-        soul.write_text(SOUL_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    if first_time:
+        _write_soul(target / "SOUL.md")
+    write_soul = first_time or refresh_soul(target)
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
         json.dumps(

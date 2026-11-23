@@ -153,6 +153,30 @@ class StudioProfile(unittest.TestCase):
         self.assertIn("chromatic_present_game", soul)
         self.assertIn("games folder", soul)
 
+    def test_an_older_shipped_soul_is_replaced_and_any_other_kept(self):
+        import hashlib
+
+        self.target.mkdir(parents=True)
+        soul = self.target / "SOUL.md"
+        older = b"an older shipped soul"
+        with unittest.mock.patch.object(sp, "OLDER_SOULS", frozenset({hashlib.sha256(older).hexdigest()})):
+            self.assertFalse(sp.refresh_soul(self.target), "no SOUL: nothing is written")
+            self.assertFalse(soul.exists())
+            soul.write_bytes(older)
+            self.assertTrue(sp.refresh_soul(self.target))
+            self.assertEqual(soul.read_bytes(), sp.SOUL_FILE.read_bytes())
+            self.assertFalse(sp.refresh_soul(self.target), "the current SOUL is left alone")
+            soul.write_text("edited by the user")
+            self.assertFalse(sp.refresh_soul(self.target))
+            self.assertEqual(soul.read_text(), "edited by the user")
+            mine = self.target / "my-soul.md"
+            mine.write_bytes(older)
+            soul.unlink()
+            soul.symlink_to(mine)
+            self.assertFalse(sp.refresh_soul(self.target), "a link is the user's own arrangement")
+            self.assertTrue(soul.is_symlink())
+        self.assertEqual([path.name for path in self.target.iterdir() if path.name.endswith(".tmp")], [])
+
     def test_the_shipped_soul_uses_the_present_tool_and_the_games_folder(self):
         soul = sp.SOUL_FILE.read_text()
         self.assertIn("chromatic_present_game", soul)
