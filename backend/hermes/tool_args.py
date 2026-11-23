@@ -3,7 +3,7 @@
 A tool module imports them as ``from ..hermes.tool_args import tool_error, tool_project`` (the Hermes layer is shared,
 so every feature but the standard-library-only ones the broker imports may use it). A tool about the selected game
 resolves the project with ``tool_project`` and then its library game with ``host.library_game_for([root])``.
-``backend/library/tool_args.py`` re-exports both and lists the codes the library's tools answer with.
+``backend/library/tool_args.py`` re-exports both for the library's tool handlers.
 """
 
 from __future__ import annotations
