@@ -5,13 +5,16 @@ Run alone: python -m unittest tests.backend.hermes.test_game_workflow
 """
 
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from backend.hermes import workflow  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import results  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import game_card  # noqa: E402 - the repository root goes on sys.path first
@@ -37,21 +40,23 @@ def in_order(test, text):
 
 class OneWorkflow(unittest.TestCase):
     def test_the_steps_are_in_order_wherever_they_are_said(self):
-        in_order(self, hermes_host.GAME_STEPS)
-        in_order(self, studio_profile.SOUL_FILE.read_text())
+        in_order(self, workflow.GAME_STEPS)
+
+    def test_the_build_it_fallback_hands_the_complete_game_to_the_users_emulator(self):
+        start = workflow.BUILD_START
+        self.assertLess(
+            start.index("check every item"), start.index("chromatic_present_game in the hermretro emulator")
+        )
 
     def test_the_prompt_section_carries_the_steps_and_the_rules_within_its_limit(self):
-        section = hermes_host.SYSTEM_PROMPT_SECTION
+        section = workflow.SYSTEM_PROMPT_SECTION
         self.assertLessEqual(len(section), 2000)
-        self.assertIn(hermes_host.GAME_STEPS, section)
-        self.assertIn(hermes_host.GAME_RULES, section)
+        self.assertIn(workflow.GAME_STEPS, section)
+        self.assertIn(workflow.GAME_RULES, section)
 
     def test_the_rules_keep_the_game_in_the_tools(self):
-        for text in (hermes_host.GAME_RULES, studio_profile.SOUL_FILE.read_text()):
-            self.assertIn(".gbsres", text)
-            self.assertIn("build/", text)
-            self.assertIn("other programs", text)
-            self.assertIn("skills unless the user asks", text)
+        for rule in (".gbsres", "build/", "other programs", "skills unless the user asks"):
+            self.assertIn(rule, workflow.GAME_RULES)
 
     def context(self, kind, entry, first=True):
         registry = mock.Mock()
@@ -64,13 +69,14 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_planned_new_game_waits_for_the_users_approval(self):
         context = self.context("pending", {"name": "Robin", "plan": True})
-        self.assertIn("wait for the user to approve the brief before authoring anything", context)
-        self.assertIn(hermes_host.GAME_STEPS, context)
+        self.assertLess(context.index("create the project"), context.index("wait for the user to approve the brief"))
+        self.assertIn("before authoring or building", context)
+        self.assertNotIn(workflow.BUILD_THE_LIST, context)
 
     def test_a_quick_new_game_still_playtests_before_presenting(self):
         context = self.context("pending", {"name": "Robin", "plan": False})
-        self.assertIn(hermes_host.GAME_STEPS, context)
-        self.assertIn(hermes_host.GAME_RULES, context)
+        self.assertIn(workflow.DELIVER, context)
+        self.assertIn(workflow.GAME_RULES, context)
 
     def test_a_quick_new_game_agrees_a_list_and_builds_all_of_it(self):
         first = self.context("pending", {"name": "Robin", "plan": False})
@@ -79,15 +85,14 @@ class OneWorkflow(unittest.TestCase):
         self.assertIn("docs/game/FIRST-BUILD.md and build all of it in one go", first)
         later = self.context("pending", {"name": "Robin", "plan": False}, first=False)
         self.assertIn("Until the user approves the list of what you will make, create nothing", later)
-        self.assertIn(library_hooks.BUILD_THE_LIST, later)
+        self.assertIn(workflow.BUILD_THE_LIST, later)
 
     def test_a_planned_game_builds_its_whole_brief(self):
         for first in (True, False):
-            self.assertIn(library_hooks.BUILD_THE_BRIEF, self.context("pending", {"plan": True}, first=first))
+            self.assertIn(workflow.BUILD_THE_BRIEF, self.context("pending", {"plan": True}, first=first))
 
     def test_a_build_is_a_checkpoint_until_everything_agreed_is_in(self):
-        self.assertIn("a build is a checkpoint, not a hand-off", hermes_host.GAME_STEPS)
-        self.assertIn("A build is a checkpoint for you, not a hand-off", studio_profile.SOUL_FILE.read_text())
+        self.assertIn("a build is a checkpoint, not a hand-off", workflow.GAME_STEPS)
         built = {
             "ok": True,
             "result": {"content": [], "structuredContent": {"success": True}},
@@ -102,16 +107,43 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
         context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})
-        self.assertIn(hermes_host.GAME_STEPS, context)
-        self.assertIn(hermes_host.GAME_RULES, context)
+        self.assertIn(workflow.EDIT_GAME, context)
+        self.assertNotIn("create the project", context)
+        self.assertIn(workflow.GAME_RULES, context)
 
     def test_a_planned_game_keeps_waiting_for_approval_on_later_turns(self):
         context = self.context("pending", {"name": "Robin", "plan": True}, first=False)
-        self.assertIn("Author nothing until the user has approved the game brief", context)
-        self.assertNotIn("Author nothing", self.context("pending", {"name": "Robin"}, first=False))
+        self.assertIn("Wait for explicit brief approval before authoring or building", context)
+        self.assertNotIn("brief approval", self.context("pending", {"name": "Robin"}, first=False))
+
+    def test_a_checkpoint_does_not_clear_plan_first_guidance_but_a_presentation_does(self):
+        game = {"projectRoot": "/g/robin", "initialPlan": True, "lastBuild": {"ok": True}, "lastWebExport": {"t": 1}}
+        self.assertIn(workflow.PLAN_BOUND, self.context("game", game))
+        self.assertNotIn(workflow.EDIT_GAME, self.context("game", game))
+
+        after = self.context("game", {**game, "presented": {"t": 2}})
+        self.assertIn(workflow.EDIT_GAME, after)
+        self.assertNotIn("brief", after)
+
+    def test_an_old_binding_recovers_plan_first_from_its_brief_until_presentation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            brief = Path(directory, "docs", "game", "GAME-BRIEF.md")
+            brief.parent.mkdir(parents=True)
+            brief.write_text("Awaiting approval")
+            bound_at = brief.stat().st_mtime - 1
+            game = {"projectRoot": directory, "session": {"createdAt": bound_at}, "lastBuild": {"ok": True}}
+            self.assertIn(workflow.PLAN_BOUND, self.context("game", game, first=False))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", game, first=True))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", {**game, "presented": {"t": 2}}, first=False))
+            self.assertIn(workflow.BUILD_BOUND, self.context("game", {**game, "initialPlan": False}, first=False))
+
+            previously_built = {**game, "lastBuild": {"ok": True, "t": bound_at - 1}}
+            self.assertIn(workflow.EDIT_GAME, self.context("game", previously_built, first=False))
+            os.utime(brief, (bound_at - 2, bound_at - 2))
+            self.assertIn(workflow.EDIT_GAME, self.context("game", game, first=False))
 
     def test_drawing_art_and_importing_it_stays_allowed(self):
-        self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", hermes_host.GAME_RULES)
+        self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", workflow.GAME_RULES)
 
     def test_a_build_says_to_playtest_and_fill_the_card_before_presenting(self):
         built = {
@@ -154,7 +186,7 @@ class CardRulesUpFront(unittest.TestCase):
 
 class StudioSoul(unittest.TestCase):
     def test_profiles_with_the_last_shipped_soul_get_this_one(self):
-        self.assertIn("fc761b6efa1d664e24b9e444be7732b7a42a4b6e985f9b43a48984e25d494749", studio_profile.OLDER_SOULS)
+        self.assertIn("4a5f6954d64a86470419d70d67340d0e0d551aaae10a21bfd24a8d6a241ad1c5", studio_profile.OLDER_SOULS)
 
 
 if __name__ == "__main__":
