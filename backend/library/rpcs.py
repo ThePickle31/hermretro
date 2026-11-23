@@ -77,19 +77,30 @@ def _existing_sessions(ids: set[str]) -> set[str] | None:
         return None
 
 
-def _seed_library(registry: library.Registry) -> None:
-    """Add projects the running broker has selected but the library has not seen (for example work
-    done before the library existed). Never starts the broker."""
-    client, _error = host.try_connect(paths.runtime_dir())
-    if client is None:
-        return
-    with client:
-        answer = client.request({"op": "stats"})
-    for lane in answer.get("lanes") or [] if answer.get("ok") else []:
-        root = lane.get("selected_root")
-        if isinstance(root, str) and root:
+def _seed_library(registry: library.Registry, snapshot: dict) -> dict:
+    """Add missing projects selected by the running broker and return the shelf snapshot."""
+    attempted = False
+    try:
+        client, _error = host.try_connect(paths.runtime_dir())
+        if client is None:
+            return snapshot
+        with client:
+            answer = client.request({"op": "stats"})
+        known = set(snapshot["games"])
+        for lane in answer.get("lanes") or [] if answer.get("ok") else []:
+            root = lane.get("selected_root")
+            if not isinstance(root, str) or not root:
+                continue
+            identifier = library.game_id(root)
+            if identifier in known:
+                continue
+            known.add(identifier)
             seen = [s for s in lane.get("sessions_seen") or [] if isinstance(s, str)]
+            attempted = True
             registry.upsert(root, chat={"sessionId": seen[-1]} if seen else None, only_if_missing=True)
+    except Exception:
+        logger.debug("hermretro: seeding the library from the broker failed", exc_info=True)
+    return registry.load() if attempted else snapshot
 
 
 def _demo_entry() -> dict:
@@ -144,11 +155,7 @@ def rpc_games(ctx):
     def games(params, **_kwargs):
         try:
             registry = host._registry()
-            try:
-                _seed_library(registry)
-            except Exception:
-                logger.debug("hermretro: seeding the library from the broker failed", exc_info=True)
-            snapshot = registry.load()
+            snapshot = _seed_library(registry, registry.load())
             listed, unavailable = registry.library_listing(snapshot=snapshot)
             pending = registry.pending(host._profile_identity(), snapshot=snapshot)
             _route_games(listed, snapshot["games"], pending, lookup_titles=True)

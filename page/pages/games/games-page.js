@@ -161,10 +161,13 @@ export function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewG
 
 /** The page's own Page: the shelf, fed from the shell. */
 export function Games({ shell }) {
+  const unavailable = shell.games.data?.unavailable
+  const partialError = Array.isArray(unavailable) && unavailable.length ? 'Some games could not be read.' : null
+
   return jsx(GamesPage, {
     ctx: shell.ctx,
     games: shell.games,
-    libraryError: shell.libraryError,
+    libraryError: shell.libraryError || partialError,
     hardwareOn: shell.hardwareOn,
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: game => {

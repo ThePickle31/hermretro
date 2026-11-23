@@ -22,7 +22,7 @@ beside the chat has no shell): a contribution checks `go` before using it. Games
 
 **Starts with the plugin** (`register`): `watchBuilds(ctx)`, which opens the tab beside the chat on a
 presentation and refreshes the live beside-chat tab after builds. Both players check their own game through
-`game_build_status`.
+`game_build_status` and use the shelf for build notifications when an older backend lacks that RPC.
 
 **Uses from other pages:** `#pages/build/index.js` (is a session a Build conversation, which game Build shows,
 tool results).

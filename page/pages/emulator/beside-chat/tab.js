@@ -1,9 +1,9 @@
 // The emulator tab beside the chat.
 import { Codicon, host, jsx, jsxs, useEffect, useQuery, useRef, useState, useValue } from '#sdk'
-import { callBackend, callStudio } from '#app/backend.js'
+import { callBackend } from '#app/backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from '#app/ids.js'
 import { RPC_PLAYER } from '#app/rpc.js'
-import { readGameBuildStatus } from '#app/player/build-status.js'
+import { readSideBuildStatus } from '#app/player/build-status.js'
 import { EmulatorBar } from '#pages/emulator/emulator-bar.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from '#app/player/capture.js'
@@ -69,7 +69,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
 
   const buildStatus = useQuery({
     queryKey: [ID, 'gameBuildStatus', 'side', gameId],
-    queryFn: () => readGameBuildStatus(callStudio, gameId),
+    queryFn: () => readSideBuildStatus(gameId),
     enabled: checking,
     refetchInterval: checking ? 5_000 : false,
     staleTime: 2_000,
@@ -123,7 +123,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   const stageRef = useRef(null)
   const scopeRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = buildStatus.isError ? null : playableSha(game)
+  const currentSha = buildStatus.isError ? null : playableSha(buildStatus.data?.game)
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), scopeRef, visible: live && shown })
   const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled)

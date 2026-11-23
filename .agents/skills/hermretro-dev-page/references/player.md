@@ -52,13 +52,14 @@ when the agent is ready to present the game after making it, never for the whole
 - **Tab content.** Same `EmulatorBar`, `PlayerNotice`, `PlayerStage` and annotate / Ask Hermes code as
   the page, in `.cs-page.cs-side` (stage fills the tab; the player inside scales by height and width).
   Page keys reach the game only after the user last clicked inside the tab, so the chat keeps its keys.
-- **Rebuilt check.** The Emulator page polls `game_build_status` every 5 s while visible for a player's own
-  game. The beside-chat tab checks at the same interval while visible and holding playback. It also checks
-  on taking playback, showing the live tab again, and a build or turn ending while the tab is active.
-  Both keep the last successful status when a read fails and hide the rebuild action until a check succeeds.
-  An explicit `web: null` leaves the build comparison unavailable.
-  The Studio shelf keeps its 30 s refresh for edits outside the page. A remembered pick is cleared only when
-  the per-game check confirms it is gone.
+- **Rebuilt check.** Both emulators poll `game_build_status` every 5 s while visible and holding playback.
+  The beside-chat tab also checks on taking playback, showing the live tab again, and a build or turn ending
+  while it is active. When the RPC returns method not found (`-32601`), the check uses a successful
+  shelf response from the same profile. The Studio uses its existing 30 s shelf refresh, and the tab
+  reads the shelf on its next check. Other failures keep the last successful game data and hide the rebuild
+  action until a check succeeds. An explicit `web: null` leaves the build comparison unavailable.
+  The Studio still looks up a remembered pick without playback and clears it only when the per-game check
+  confirms it is gone.
 - **Agent side.** `rom_build` / `web_preview` results no longer carry any Studio address
   (`studio`/`studioPlayerUrl`/`studioGameId` are gone) and the engine's own preview address is not offered
   after a build. Their `nextStep`, the system prompt section and the skills say: when the game is ready for
@@ -100,7 +101,9 @@ Params: none. Result:
 `demo` is the built-in demo cartridge. It is never part of `games[]`, so the Games shelf stays the user's library.
 The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`.
 
-On `ok: false` the page shows the read error and retains any cached result. An empty library requires a successful answer.
+On `ok: false` the page shows the read error and retains any cached result. A nonempty `unavailable` list
+shows the shelf's read notice alongside the cards that loaded. An empty library requires a successful
+answer with no unreadable games.
 The Build page keeps the selected ID if it appears in `unavailable`. With an older shelf that omits the field,
 Build asks `game_build_status` before clearing a missing selection.
 

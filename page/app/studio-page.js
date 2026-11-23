@@ -16,10 +16,10 @@ import {
   useValue
 } from '#sdk'
 import { ART_DATA } from '#shared/art/index.js'
-import { callStudio, describeRequestError, studioError, useBackend } from './backend.js'
+import { callStudio, describeRequestError, readGamesShelf, studioError, useBackend } from './backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from './ids.js'
 import { forgetRoute, routing } from './routing.js'
-import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from './rpc.js'
+import { RPC_GAME_THUMB, RPC_PLAYER } from './rpc.js'
 import {
   computeSteps,
   ONBOARD_STAGES,
@@ -32,7 +32,7 @@ import {
 } from '#pages/index.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from './player/capture.js'
-import { readGameBuildStatus } from './player/build-status.js'
+import { buildStatusUnsupported, readGameBuildStatus } from './player/build-status.js'
 import { shrinkFrame } from '#shared/player/frame-image.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
 import { playableSha, PlayerAway, PlayerStage } from './player/stage.js'
@@ -264,17 +264,11 @@ export function StudioPage({ ctx }) {
 
   // ── games and the player ──
   const onEmulator = page === 'emulator'
+  const liveOwner = useValue(LIVE_PLAYER)
+  const pageLive = liveOwner === 'page'
   const games = useQuery({
     queryKey: [ID, 'games', viaProfile],
-    queryFn: async () => {
-      const data = await callStudio(RPC_GAMES)
-
-      if (data?.ok !== true || !Array.isArray(data.games)) {
-        throw new Error(data?.error || 'The games list could not be read.')
-      }
-
-      return data
-    },
+    queryFn: readGamesShelf,
     enabled: running,
     refetchInterval: 30_000,
     staleTime: 2_000,
@@ -291,7 +285,7 @@ export function StudioPage({ ctx }) {
     queryKey: [ID, 'gameBuildStatus', viaProfile, emu.id],
     queryFn: () => readGameBuildStatus(callStudio, emu.id),
     enabled: checkPicked,
-    refetchInterval: checkPicked && onEmulator ? 5_000 : false,
+    refetchInterval: checkPicked && onEmulator && pageLive ? 5_000 : false,
     retry: false
   })
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
@@ -328,9 +322,6 @@ export function StudioPage({ ctx }) {
   // One game runs at a time. Visiting the Emulator page never takes the game from a tab beside the
   // chat (that would restart a game the user is playing); the page offers "Bring it here" instead and
   // only plays when nothing else does.
-  const liveOwner = useValue(LIVE_PLAYER)
-  const pageLive = liveOwner === 'page'
-
   useEffect(() => {
     if (onEmulator && running && liveOwner === null) {
       claimLive('page')
@@ -351,7 +342,8 @@ export function StudioPage({ ctx }) {
   const frameRef = useRef(null)
   const stageRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = buildStatus.isError ? null : playableSha(game)
+  const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null
+  const currentSha = playableSha(buildStatus.isError ? shelfBuild : current)
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const thumbTried = useRef(new Set())
 

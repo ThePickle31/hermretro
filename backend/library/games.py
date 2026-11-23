@@ -92,6 +92,10 @@ def _atomic_write(path: Path, data: bytes) -> None:
 MAX_PENDING = 50
 
 
+def _pending_name(name) -> str | None:
+    return (name.strip()[:120] or None) if isinstance(name, str) else None
+
+
 class BindingError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -216,7 +220,7 @@ class Registry:
         with self._locked():
             data = self.load()
             entry = data["games"].get(identifier)
-            if entry is not None and only_if_missing:
+            if only_if_missing and identifier in data["games"]:
                 return _identified_game(identifier, entry) if isinstance(entry, dict) else None
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
             self._update_project(entry, real, now)
@@ -341,7 +345,7 @@ class Registry:
                 "storedId": stored,
                 "profile": profile,
                 "createdAt": time.time(),
-                "name": name.strip()[:120] if isinstance(name, str) and name.strip() else None,
+                "name": _pending_name(name),
                 "plan": plan is True,
             }
             data["pending"][stored] = record
@@ -473,8 +477,8 @@ class Registry:
         listed = [
             {
                 "storedId": r.get("storedId"),
-                "name": r.get("name"),
-                "createdAt": r.get("createdAt"),
+                "name": _pending_name(r.get("name")),
+                "createdAt": project.timestamp(r.get("createdAt"), None),
                 "profile": r.get("profile"),
             }
             for r in data["pending"].values()

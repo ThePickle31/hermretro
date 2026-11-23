@@ -88,9 +88,27 @@ await runScenario(async ({ answered, buildScenario, check, hides, mount, notLoad
     shows(failure)
   })
 
+  const partialFailure = 'Some games could not be read.'
+  scenario.games = answered({ ...loaded, unavailable: ['bbb222bbb222'] })
+  await studio.rerender()
+  check('a partial shelf read keeps the available cards and shows the read error', () => {
+    shows('Comet Drift')
+    shows(partialFailure)
+    assert.equal(studio.node.querySelector('[role="alert"]')?.textContent, partialFailure)
+  })
+  scenario.games = answered(partial)
+  await studio.rerender()
+  check('a shelf of unreadable games shows the read error instead of the empty state', () => {
+    shows(partialFailure)
+    hides('No games yet')
+  })
+
   scenario.games = answered({ ok: true, games: [], unavailable: [], pending: [] })
   await studio.rerender()
-  check('a successful empty library shows the empty state', () => { shows('No games yet') })
+  check('a successful empty library shows the empty state', () => {
+    shows('No games yet')
+    hides(partialFailure)
+  })
   await tab('Build')
   check('a successful read confirming removal can reset the selection', () => {
     assert.equal(scenario.storage.buildSelected, 'new')

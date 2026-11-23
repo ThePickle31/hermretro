@@ -8,7 +8,7 @@ from unittest import mock
 
 from backend.hermes import host
 from backend.library import games, game_card, project, rpcs, shelf
-from tests.support import isolated_home, make_project
+from tests.support import FakeBrokerClient, isolated_home, make_project
 
 
 class RegistryReads(unittest.TestCase):
@@ -209,6 +209,63 @@ class RegistryReads(unittest.TestCase):
         self.assertEqual(game["session"]["storedId"], "stored-first")
         self.assertTrue(game["session"]["thisProfile"])
         self.assertNotIn("card", game)
+
+    def test_shelf_cleans_pending_metadata_without_changing_the_registry(self):
+        data = self.registry.load()
+        data["pending"] = {
+            "bad": {"storedId": "bad", "name": {"broken": True}, "createdAt": [1]},
+            "infinite": {"storedId": "infinite", "name": "   ", "createdAt": float("inf")},
+            "valid": {"storedId": "valid", "name": "  " + "x" * 150 + "  ", "createdAt": 123},
+        }
+        self.registry.path.write_text(json.dumps(data))
+        original = self.registry.path.read_bytes()
+        with mock.patch.object(host, "try_connect", return_value=(None, None)):
+            answer = rpcs.rpc_games(self.ctx)({})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual(
+            answer["pending"],
+            [
+                {"storedId": "bad", "name": None, "createdAt": None, "exists": None},
+                {"storedId": "infinite", "name": None, "createdAt": None, "exists": None},
+                {"storedId": "valid", "name": "x" * 120, "createdAt": 123, "exists": None},
+            ],
+        )
+        self.assertEqual(self.registry.path.read_bytes(), original)
+
+    def test_shelf_seeding_skips_registered_lanes(self):
+        lane = {"selected_root": str(self.root), "sessions_seen": ["other-chat"]}
+        client = FakeBrokerClient({"ok": True, "lanes": [lane, lane]})
+        with (
+            mock.patch.object(host, "try_connect", return_value=(client, None)),
+            mock.patch.object(host, "_registry", return_value=self.registry),
+            mock.patch.object(self.registry, "load", wraps=self.registry.load) as load,
+            mock.patch.object(self.registry, "upsert", wraps=self.registry.upsert) as upsert,
+        ):
+            answer = rpcs.rpc_games(self.ctx)({})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual([game["id"] for game in answer["games"]], [self.game])
+        load.assert_called_once()
+        upsert.assert_not_called()
+
+    def test_shelf_seeding_rechecks_a_missing_game_under_the_registry_lock(self):
+        lane = {"selected_root": str(self.second), "sessions_seen": ["seed-chat"]}
+        client = FakeBrokerClient({"ok": True, "lanes": [lane, lane]})
+        upsert = self.registry.upsert
+
+        def register_before_seed(root, **kwargs):
+            upsert(root, chat={"sessionId": "new-chat"})
+            return upsert(root, **kwargs)
+
+        with (
+            mock.patch.object(host, "try_connect", return_value=(client, None)),
+            mock.patch.object(host, "_registry", return_value=self.registry),
+            mock.patch.object(self.registry, "upsert", side_effect=register_before_seed) as seed,
+        ):
+            answer = rpcs.rpc_games(self.ctx)({})
+        self.assertTrue(answer["ok"], answer)
+        new = next(game for game in answer["games"] if game["id"] != self.game)
+        self.assertEqual(new["chat"]["sessionId"], "new-chat")
+        seed.assert_called_once_with(str(self.second), chat={"sessionId": "seed-chat"}, only_if_missing=True)
 
     def test_status_detects_an_external_rom_replacement_with_the_same_size_and_mtime(self):
         rom = self.root / "build" / "web" / "rom" / "game.gbc"

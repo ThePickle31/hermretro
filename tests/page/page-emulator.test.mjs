@@ -99,6 +99,9 @@ await runScenario(async helpers => {
     assert.ok(frame() === kept2, 'the player frame is retained'); assert.ok(dom.window.document.querySelector('.cs-rp-stage.off'))
     assert.deepEqual(posted.at(-1), { cs: 'cmd', type: 'hold' })
     assert.ok(nav().querySelector('.live'), 'the Emulator tab shows that a game is loaded')
+    const status = scenario.queries.filter(query => query.key === 'gameBuildStatus').at(-1)
+    assert.equal(status.enabled, true)
+    assert.equal(status.refetchInterval, false)
   })
   await tab('Emulator')
   check('coming back releases it, without reloading the frame', () => {
@@ -149,9 +152,28 @@ await runScenario(async helpers => {
   scenario.byMethod['plugin.hermretro.game_build_status'] = { ok: false, code: 'UNAVAILABLE', error: 'could not read the ROM' }
   const error = await scenario.fns.gameBuildStatus().catch(error => error)
   assert.match(error.message, /could not read the ROM/)
+  const shelfRpc = 'plugin.hermretro.games'
+  scenario.byMethod[shelfRpc] = { ok: true, games: [{ ...games[0], rom: { sha256: 'sha-legacy' } }] }
+  scenario.games = answered(await scenario.fns.games())
   scenario.gameBuildStatus = { ...answered(rebuilt), isError: true, error }
   await studio.rerender()
   check('a failed status refresh hides the cached rebuild action and keeps the frame', () => {
+    assert.ok(!button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+  })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = () => { throw notLoaded.error }
+  const unsupported = await scenario.fns.gameBuildStatus().catch(error => error)
+  assert.equal(unsupported.code, -32601)
+  scenario.gameBuildStatus = { isError: true, error: unsupported }
+  await studio.rerender()
+  check('an older backend without game status can announce a build from the current shelf', () => {
+    assert.ok(button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+    assert.equal(scenario.storage.emulatorGame, games[0].id)
+  })
+  scenario.games = { ...scenario.games, isError: true, error: new Error('could not read the shelf') }
+  await studio.rerender()
+  check('an older backend does not announce a cached shelf build after a failed refresh', () => {
     assert.ok(!button('Load the new build'))
     assert.equal(frame(), loadedFrame)
   })

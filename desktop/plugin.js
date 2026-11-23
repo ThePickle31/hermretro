@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 ac9cfa300a9d41d4a10b42126f57b2df1c6d2d90a0e8a3f0d9b980a69b8a8b9c
- * body: sha256 f68792efa9b1081962c756f2cf2d4cdc23f255570aefb11601c479052ce41259
+ * sources: sha256 33aa38909148bd1593a5e58ee0e81d0fc92fc96ec389887073177f1d844a8e5d
+ * body: sha256 065b9a9f8e17cf0b7aafa67240b7e2b928c74681656fa4cbcd39369512d74145
  */
 // page/sdk.js
 import {
@@ -415,6 +415,13 @@ function nodeState(node) {
 }
 async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function readGamesShelf() {
+  const data = await callStudio(RPC_GAMES);
+  if (data?.ok !== true || !Array.isArray(data.games)) {
+    throw new Error(data?.error || "The games list could not be read.");
+  }
+  return data;
 }
 async function callStudioOnly(method, params = {}, timeoutMs) {
   const target = studioTarget();
@@ -8370,10 +8377,12 @@ function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewGame, on
   ];
 }
 function Games({ shell }) {
+  const unavailable = shell.games.data?.unavailable;
+  const partialError = Array.isArray(unavailable) && unavailable.length ? "Some games could not be read." : null;
   return jsx(GamesPage, {
     ctx: shell.ctx,
     games: shell.games,
-    libraryError: shell.libraryError,
+    libraryError: shell.libraryError || partialError,
     hardwareOn: shell.hardwareOn,
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: (game) => {
@@ -8801,12 +8810,25 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/app/player/build-status.js
+var buildStatusUnsupported = (error) => error?.code === -32601;
 async function readGameBuildStatus(call, id) {
   const data = await call(RPC_GAME_BUILD_STATUS, { id });
   if (data?.ok === true || data?.code === "NO_GAME") {
     return data;
   }
   throw new Error(data?.error || "Could not read the game build.");
+}
+async function readSideBuildStatus(id) {
+  try {
+    return await readGameBuildStatus(callStudio, id);
+  } catch (error) {
+    if (!buildStatusUnsupported(error)) {
+      throw error;
+    }
+  }
+  const shelf = await readGamesShelf();
+  const game = shelf.games.find((item) => item?.id === id) ?? null;
+  return { ok: true, game, device: shelf.device };
 }
 
 // page/pages/build/selection.js
@@ -15073,7 +15095,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   useEffect(() => () => releaseLive(surface), []);
   const buildStatus = useQuery({
     queryKey: [ID, "gameBuildStatus", "side", gameId],
-    queryFn: () => readGameBuildStatus(callStudio, gameId),
+    queryFn: () => readSideBuildStatus(gameId),
     enabled: checking,
     refetchInterval: checking ? 5e3 : false,
     staleTime: 2e3,
@@ -15116,7 +15138,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   const stageRef = useRef(null);
   const scopeRef = useRef(null);
   const loadedSha = player.data?.url ? player.data.romSha256 ?? null : null;
-  const currentSha = buildStatus.isError ? null : playableSha(game);
+  const currentSha = buildStatus.isError ? null : playableSha(buildStatus.data?.game);
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), scopeRef, visible: live && shown });
   const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled);
@@ -17652,15 +17674,11 @@ function StudioPage({ ctx }) {
     go("setup");
   };
   const onEmulator = page === "emulator";
+  const liveOwner = useValue(LIVE_PLAYER);
+  const pageLive = liveOwner === "page";
   const games = useQuery({
     queryKey: [ID, "games", viaProfile],
-    queryFn: async () => {
-      const data = await callStudio(RPC_GAMES);
-      if (data?.ok !== true || !Array.isArray(data.games)) {
-        throw new Error(data?.error || "The games list could not be read.");
-      }
-      return data;
-    },
+    queryFn: readGamesShelf,
     enabled: running,
     refetchInterval: 3e4,
     staleTime: 2e3,
@@ -17677,7 +17695,7 @@ function StudioPage({ ctx }) {
     queryKey: [ID, "gameBuildStatus", viaProfile, emu.id],
     queryFn: () => readGameBuildStatus(callStudio, emu.id),
     enabled: checkPicked,
-    refetchInterval: checkPicked && onEmulator ? 5e3 : false,
+    refetchInterval: checkPicked && onEmulator && pageLive ? 5e3 : false,
     retry: false
   });
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
@@ -17701,8 +17719,6 @@ function StudioPage({ ctx }) {
       setEmuOpened(true);
     }
   }, [onEmulator, game?.id]);
-  const liveOwner = useValue(LIVE_PLAYER);
-  const pageLive = liveOwner === "page";
   useEffect(() => {
     if (onEmulator && running && liveOwner === null) {
       claimLive("page");
@@ -17721,7 +17737,8 @@ function StudioPage({ ctx }) {
   const frameRef = useRef(null);
   const stageRef = useRef(null);
   const loadedSha = player.data?.url ? player.data.romSha256 ?? null : null;
-  const currentSha = buildStatus.isError ? null : playableSha(game);
+  const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null;
+  const currentSha = playableSha(buildStatus.isError ? shelfBuild : current);
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
   const thumbTried = useRef(/* @__PURE__ */ new Set());
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), visible: onEmulator && running && pageLive });

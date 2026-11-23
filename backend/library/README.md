@@ -42,8 +42,9 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest `games.MAX_PENDING` are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
 `Registry.load()["games"]` holds raw entries, including games whose folders are gone. The registry key determines
-the game id used by the shelf, chat bindings, and thumbnails. After seeding, the `games` RPC reads one snapshot
-for the games, pending conversations, and chat ownership. `Registry.library_listing()` returns the games
+the game id used by the shelf, chat bindings, and thumbnails. The `games` RPC reads one snapshot for seeding,
+the games, pending conversations, and chat ownership. It skips registered broker lane roots and rereads the
+snapshot after attempting to register a missing root under lock. `Registry.library_listing()` returns the games
 described through `shelf.describe` in descending `updatedAt` order and the IDs of unreadable entries.
 The emulator checks one game through `game_build_status`, including whether its project is unavailable or gone.
 That RPC reads the build files and chat link, while shelf descriptions also inspect source timestamps and card
