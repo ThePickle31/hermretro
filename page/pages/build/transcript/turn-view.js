@@ -51,15 +51,16 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   }, [onOpenAsset, user?.text])
   const playable = Boolean(game && game.webExport && playableSha(game))
   const inlinePlaying = playable && playerOpen && !chatBusy
-  const frames = parts.assets.filter(asset => asset.kind === 'Playtest frame')
+  const frames = parts.frames
   const frame = frames.at(-1) ?? null
   const report = parts.report
   // A finished turn that built the game, or reported what it did, ends in its build card.
   const carded = !live && (build || report)
   const hasReplyMedia = [...parts.intro, ...parts.outro].some(item => /^\s*MEDIA:/im.test(item.text))
-  const showResult = !live && build?.state !== 'failed' && !hasReplyMedia
+  const showResult = !live && build?.state !== 'failed'
   const art = showResult ? primaryArt(parts, root) : null
   const replay = showResult && !art && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null
+  const featuredPaths = art ? [art] : replay ? frames.map(asset => asset.path) : []
   const compactPlayer = Boolean(art || replay || hasReplyMedia)
 
   // The newest build plays in a frame under its line; while the agent works, only its line says so.
@@ -99,7 +100,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
         took
       })
     : replay
-  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `o${index}`))
+  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`))
 
   return jsxs('div', {
     className: 'cs-b-turn-body',
@@ -123,7 +124,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
               user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? '') !== (previousModel.effort ?? ''))
                 ? jsx('div', { className: 'cs-b-who', children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ''}` })
                 : null,
-              ...parts.intro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `i${index}`)),
+              ...parts.intro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `i${index}`)),
               ...outro,
               showWorked
                 ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? (turnStartedAt ?? startedAt ?? Date.now()) : startedAt, status: end?.status ?? null }, 'worked')

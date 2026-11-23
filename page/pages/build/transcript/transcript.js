@@ -25,7 +25,7 @@ import { buildHistory, deriveTurns, turnBuilt } from './turns.js'
 
 const TURN_PAGE = 40
 
-export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null }) {
+export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null, onFocusHandled }) {
   const items = chat?.items ?? []
   const turns = useMemo(() => deriveTurns(items), [items])
   // Each turn's build (#n), the same object while it is unchanged so finished turns do not re-render.
@@ -143,10 +143,10 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
 
   // The Assets panel's "Made in" link: show that turn (loading earlier messages when it is above the
   // page), scroll to it and mark it for a moment.
-  const focused = useRef(null)
+  const [highlight, setHighlight] = useState(null)
 
   useEffect(() => {
-    if (!focusTurn || focused.current === focusTurn.seq) {
+    if (!focusTurn) {
       return undefined
     }
 
@@ -175,15 +175,28 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
       return undefined
     }
 
-    focused.current = focusTurn.seq
+    onFocusHandled(null)
     stuck.current = false
     node.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    setHighlight({ node })
+
+    return undefined
+  }, [focusTurn, limit, openBuilds, builds, turns, onFocusHandled])
+
+  useEffect(() => {
+    if (!highlight) {
+      return undefined
+    }
+    const { node } = highlight
     node.setAttribute('data-flash', 'true')
 
     const id = setTimeout(() => node.removeAttribute('data-flash'), 1600)
 
-    return () => clearTimeout(id)
-  }, [focusTurn?.seq, limit, openBuilds, builds, turns])
+    return () => {
+      clearTimeout(id)
+      node.removeAttribute('data-flash')
+    }
+  }, [highlight])
 
   // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
   const openAsset = useCallback(

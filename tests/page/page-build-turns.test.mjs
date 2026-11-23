@@ -147,7 +147,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
     const order = [...turn.querySelector('.cs-b-her').children].map(node => node.className.split(' ')[0])
     assert.ok(order.lastIndexOf('cs-b-agent') < order.indexOf('cs-b-bc'), 'reply before the result')
     const cards = turn.querySelectorAll('.cs-b-rimgs .cs-b-rchip')
-    assert.equal(cards.length, 2)
+    assert.equal(cards.length, 1, 'the separate cover stays in the reply')
+    assert.ok(turn.querySelector('.cs-b-ba-side.now'), 'the matching sprite stays in its result')
   })
   check('every picture is asked for as Frog Post\u2019s, so the backend can refuse another game\u2019s', () => {
     assert.deepEqual([...scenario.assetRoots], [lib14[0].projectRoot])

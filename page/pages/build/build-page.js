@@ -467,7 +467,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
                   busy: Boolean(shownChat?.busy || updating),
                   game,
                   onRestore: restoreBuild,
-                  onShow: key => setFocusTurn(current => ({ key, seq: (current?.seq ?? 0) + 1 }))
+                  onShow: key => setFocusTurn({ key, stored: shownStored })
                 })
               : null,
             pendingItem && !shownChat?.busy
@@ -545,7 +545,8 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       onClosePlayer: () => setPlayerFor(null),
       onPlay: () => game && setPlayerFor(game.id),
       onSend: (text, shown, attachments) => void send(text, attachments ?? [], shown ?? text),
-      focusTurn,
+      focusTurn: focusTurn?.stored === shownStored ? focusTurn : null,
+      onFocusHandled: setFocusTurn,
       playerOpen: Boolean(game && playerFor === game.id),
       stored: shownStored
     }, shownStored ?? 'none')

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f5b3c04aec7b02943405bfb4c9ebffedd47853b6e7c9fb1b164397a2bfa78da0
- * body: sha256 7a5eceb2fdce4576d9a0c33c5d359e990eb4cea83ebfeb75ebb671974a846016
+ * sources: sha256 10dbe6a30196a4bf5a5a5bb40228303750cf6a56a491c4f5e0c0f200aa401891
+ * body: sha256 6a37a633909a62fd3755cd57c64de0ad7a7d6255ffd98c194626361c47603999
  */
 // page/sdk.js
 import {
@@ -555,13 +555,13 @@ function stepInfo(name, result) {
   }
   const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
   const text2 = (value) => typeof value === "string" && value ? value : null;
-  const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean).slice(0, 8);
+  const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean);
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
-    images,
+    images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
     report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
   };
@@ -5237,13 +5237,22 @@ function stepDetail(tool) {
   const text2 = tool.summary ?? tool.preview ?? "";
   return typeof text2 === "string" ? text2 : "";
 }
+function imagePath(value, root) {
+  if (typeof value !== "string" || !/\.(png|gif|jpe?g|webp)$/i.test(value)) {
+    return null;
+  }
+  return isAbsolute(value) ? value.replace(/^file:\/\//, "") : joinPath(root, value);
+}
+function capturedFrames(tool, root) {
+  if (tool.state !== "done" || !shortTool(tool.name).startsWith("emulator_")) {
+    return [];
+  }
+  return (tool.info?.images ?? []).map((value) => imagePath(value, root)).filter((path) => path && assetKind(path) === "Playtest frame");
+}
 function stepImages(tool, root) {
   const found = [];
   const add = (value) => {
-    if (typeof value !== "string" || !/\.(png|gif|jpe?g|webp)$/i.test(value)) {
-      return;
-    }
-    const path = isAbsolute(value) ? value.replace(/^file:\/\//, "") : joinPath(root, value);
+    const path = imagePath(value, root);
     if (path && !found.includes(path)) {
       found.push(path);
     }
@@ -5430,10 +5439,13 @@ function replyAssets(items, root) {
     (item) => replySegments(item.text, root).filter((segment) => segment.type === "image").map((segment) => ({ path: segment.path, version: `reply:${item.at ?? ""}`, kind: assetKind(segment.path), step: "In the reply", at: item.at ?? null }))
   );
 }
-function ReplyImage({ asset, line, onOpen }) {
+function ReplyImage({ asset, line, onOpen, featured }) {
   const { state, code, asset: loaded } = useAsset(asset.path, asset.version);
   if (state === "none") {
     return MessageTextContent ? jsx(MessageTextContent, code === "OTHER_GAME" ? { media: false, previewOnly: true, text: line } : { text: line }) : null;
+  }
+  if (featured) {
+    return null;
   }
   if (state === "loading") {
     return jsx("span", { "aria-hidden": true, className: "cs-b-rchip loading" });
@@ -5458,14 +5470,14 @@ function ReplyImage({ asset, line, onOpen }) {
   });
 }
 var AgentText = memo(
-  ({ item, root, onOpenAsset }) => {
+  ({ item, root, onOpenAsset, featuredPaths }) => {
     const segments = replySegments(item.text, root);
     const media = replyAssets([item], root);
     const blocks = [];
     segments.forEach((segment, index) => {
       if (segment.type === "image") {
         const asset = media.find((entry) => entry.path === segment.path);
-        const chip = jsx(ReplyImage, { asset, line: segment.line, onOpen: onOpenAsset }, `m${index}`);
+        const chip = jsx(ReplyImage, { asset, featured: featuredPaths.includes(asset.path), line: segment.line, onOpen: onOpenAsset }, `m${index}`);
         const last = blocks[blocks.length - 1];
         if (last?.images) {
           last.images.push(chip);
@@ -5481,7 +5493,7 @@ var AgentText = memo(
       children: blocks.map((block) => block?.images ? jsx("div", { className: "cs-b-rimgs", children: block.images }, block.key) : block)
     });
   },
-  (previous, next) => previous.item.text === next.item.text && previous.root === next.root && previous.onOpenAsset === next.onOpenAsset
+  (previous, next) => previous.item.text === next.item.text && previous.root === next.root && previous.onOpenAsset === next.onOpenAsset && previous.featuredPaths.length === next.featuredPaths.length && previous.featuredPaths.every((path, index) => path === next.featuredPaths[index])
 );
 
 // page/pages/build/transcript/turns.js
@@ -5540,14 +5552,25 @@ function turnParts(turn, root) {
   const entries = first === -1 ? [] : tokens.slice(first, last + 1).map((token) => token.type === "text" ? { type: "note", item: token.item } : token);
   const steps = entries.filter((entry) => entry.type === "step").map((entry) => entry.tool);
   const assets = [];
+  const frames = [];
   for (const tool of steps) {
+    const samples = capturedFrames(tool, root);
+    const byPath = /* @__PURE__ */ new Map();
     for (const path of stepImages(tool, root)) {
-      const known = assets.findIndex((asset) => asset.path === path);
+      const known = assets.findIndex((asset2) => asset2.path === path);
       const looked = LOOK_STEPS.test(shortTool(tool.name)) && (known === -1 || assets[known].looked);
       if (known !== -1) {
         assets.splice(known, 1);
       }
-      assets.push({ path, version: tool.id, kind: assetKind(path), step: stepWords(tool)[1], at: tool.startedAt ?? null, looked });
+      const asset = { path, version: tool.id, kind: assetKind(path), step: stepWords(tool)[1], at: tool.startedAt ?? null, looked };
+      assets.push(asset);
+      byPath.set(path, asset);
+      if (!samples.length && !looked && asset.kind === "Playtest frame") {
+        frames.push(asset);
+      }
+    }
+    for (const path of samples) {
+      frames.push(byPath.get(path));
     }
   }
   const builds = steps.filter((tool) => BUILD_STEPS.has(shortTool(tool.name)));
@@ -5562,6 +5585,7 @@ function turnParts(turn, root) {
     errors,
     end,
     assets,
+    frames,
     built: builds.some((tool) => tool.state === "done"),
     buildFailed: lastBuild?.state === "failed" ? lastBuild.info?.error ?? "The build failed." : null,
     buildState: turnBuildState(turn),
@@ -6675,8 +6699,15 @@ function FrameReplay({ frames, onOpen }) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const current = Math.min(index, frames.length - 1);
+  const frame = frames[current];
+  const { state } = useAsset(frame.path, frame.version);
+  const last = current === frames.length - 1;
   useEffect(() => {
-    if (!playing) {
+    if (!playing || state === "loading") {
+      return void 0;
+    }
+    if (state === "none") {
+      setPlaying(false);
       return void 0;
     }
     const timer = setTimeout(() => {
@@ -6687,15 +6718,16 @@ function FrameReplay({ frames, onOpen }) {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [playing, current, frames.length]);
+  }, [playing, current, frames.length, state]);
   return jsxs("div", {
     className: "cs-b-replay",
     children: [
-      jsx(AssetThumb, { asset: frames[current], onOpen, size: "lg" }),
+      jsx(AssetThumb, { asset: frame, onOpen, size: "lg" }),
       jsxs("div", {
         className: "cs-col",
         children: [
           jsx("b", { children: "Playtest" }),
+          state === "none" ? jsx("span", { className: "cs-faint cs-small", children: "Frame unavailable" }) : null,
           frames.length > 1 ? jsxs("div", {
             className: "cs-col",
             children: [
@@ -6714,13 +6746,13 @@ function FrameReplay({ frames, onOpen }) {
               jsxs("button", {
                 className: "cs-b-link",
                 onClick: () => {
-                  if (!playing) {
+                  if (!playing && last) {
                     setIndex(0);
                   }
                   setPlaying(!playing);
                 },
                 type: "button",
-                children: [jsx(Codicon, { name: playing ? "debug-pause" : "play", size: 12 }), playing ? "Pause" : "Replay frames"]
+                children: [jsx(Codicon, { name: playing ? "debug-pause" : "play", size: 12 }), playing ? "Pause" : current > 0 && !last ? "Resume" : "Replay frames"]
               })
             ]
           }) : null
@@ -7109,14 +7141,15 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   }, [onOpenAsset, user?.text]);
   const playable = Boolean(game && game.webExport && playableSha(game));
   const inlinePlaying = playable && playerOpen && !chatBusy;
-  const frames = parts.assets.filter((asset) => asset.kind === "Playtest frame");
+  const frames = parts.frames;
   const frame = frames.at(-1) ?? null;
   const report = parts.report;
   const carded = !live && (build || report);
   const hasReplyMedia = [...parts.intro, ...parts.outro].some((item) => /^\s*MEDIA:/im.test(item.text));
-  const showResult = !live && build?.state !== "failed" && !hasReplyMedia;
+  const showResult = !live && build?.state !== "failed";
   const art = showResult ? primaryArt(parts, root) : null;
   const replay = showResult && !art && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null;
+  const featuredPaths = art ? [art] : replay ? frames.map((asset) => asset.path) : [];
   const compactPlayer = Boolean(art || replay || hasReplyMedia);
   let play = null;
   let playLabel = null;
@@ -7150,7 +7183,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     root,
     took
   }) : replay;
-  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `o${index}`));
+  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`));
   return jsxs("div", {
     className: "cs-b-turn-body",
     children: [
@@ -7166,7 +7199,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
         children: [
           // No name over the reply (it is the agent's thread); a line only where the model changed.
           user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? "") !== (previousModel.effort ?? "")) ? jsx("div", { className: "cs-b-who", children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ""}` }) : null,
-          ...parts.intro.map((item, index) => jsx(AgentText, { item, onOpenAsset: openAsset, root }, `i${index}`)),
+          ...parts.intro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `i${index}`)),
           ...outro,
           showWorked ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? turnStartedAt ?? startedAt ?? Date.now() : startedAt, status: end?.status ?? null }, "worked") : null,
           card,
@@ -7255,7 +7288,7 @@ var TurnMemo = memo(
 
 // page/pages/build/transcript/transcript.js
 var TURN_PAGE = 40;
-function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null }) {
+function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null, onFocusHandled }) {
   const items = chat?.items ?? [];
   const turns = useMemo(() => deriveTurns(items), [items]);
   const buildCache = useRef(/* @__PURE__ */ new Map());
@@ -7342,9 +7375,9 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     setBehind(false);
     element?.scrollTo?.({ behavior: "smooth", top: element.scrollHeight });
   };
-  const focused = useRef(null);
+  const [highlight, setHighlight] = useState(null);
   useEffect(() => {
-    if (!focusTurn || focused.current === focusTurn.seq) {
+    if (!focusTurn) {
       return void 0;
     }
     const index = turns.findIndex((turn) => turn.key === focusTurn.key);
@@ -7364,13 +7397,24 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     if (!node) {
       return void 0;
     }
-    focused.current = focusTurn.seq;
+    onFocusHandled(null);
     stuck.current = false;
     node.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    setHighlight({ node });
+    return void 0;
+  }, [focusTurn, limit, openBuilds, builds, turns, onFocusHandled]);
+  useEffect(() => {
+    if (!highlight) {
+      return void 0;
+    }
+    const { node } = highlight;
     node.setAttribute("data-flash", "true");
     const id = setTimeout(() => node.removeAttribute("data-flash"), 1600);
-    return () => clearTimeout(id);
-  }, [focusTurn?.seq, limit, openBuilds, builds, turns]);
+    return () => {
+      clearTimeout(id);
+      node.removeAttribute("data-flash");
+    };
+  }, [highlight]);
   const openAsset = useCallback(
     (assets, asset) => setViewer({ assets, index: Math.max(0, assets.findIndex((entry) => entry === asset || entry.path === asset.path && entry.version === asset.version)) }),
     []
@@ -9265,7 +9309,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
         busy: Boolean(shownChat?.busy || updating),
         game,
         onRestore: restoreBuild,
-        onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
+        onShow: (key) => setFocusTurn({ key, stored: shownStored })
       }) : null,
       pendingItem && !shownChat?.busy ? jsx(Button, { onClick: () => void discard(pendingItem), size: "sm", variant: "ghost", children: "Discard" }) : null
     ]
@@ -9330,7 +9374,8 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       onClosePlayer: () => setPlayerFor(null),
       onPlay: () => game && setPlayerFor(game.id),
       onSend: (text2, shown, attachments) => void send(text2, attachments ?? [], shown ?? text2),
-      focusTurn,
+      focusTurn: focusTurn?.stored === shownStored ? focusTurn : null,
+      onFocusHandled: setFocusTurn,
       playerOpen: Boolean(game && playerFor === game.id),
       stored: shownStored
     }, shownStored ?? "none");
