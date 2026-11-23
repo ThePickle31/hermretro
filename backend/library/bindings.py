@@ -11,8 +11,6 @@ import time
 
 from . import project
 
-MAX_PENDING = 50
-
 
 def _pending_name(name) -> str | None:
     return (name.strip()[:120] or None) if isinstance(name, str) else None
@@ -72,7 +70,7 @@ def binding_for(registry, profile: str | None, ids) -> tuple[str | None, dict | 
     return kind, project.identified_game(identifier, entry) if kind == "game" else entry
 
 
-def build_start(registry, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
+def build_start(registry, stored: str, profile: str | None, name: str | None, plan: bool, *, max_pending: int) -> dict:
     if not isinstance(stored, str) or not stored or len(stored) > 256:
         raise BindingError("INVALID", "A stored session id is required.")
     with registry._locked():
@@ -94,7 +92,7 @@ def build_start(registry, stored: str, profile: str | None, name: str | None = N
             for key, item in data["pending"].items()
             if isinstance(item, dict)
         ]
-        for key, _ in sorted(records, key=lambda item: item[1])[:-MAX_PENDING]:
+        for key, _ in sorted(records, key=lambda item: item[1])[:-max_pending]:
             del data["pending"][key]
         registry._save(data)
         return record

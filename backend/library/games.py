@@ -17,7 +17,6 @@ from pathlib import Path
 from stat import S_ISREG
 
 from . import bindings, game_card, project, shelf
-from .bindings import MAX_PENDING as MAX_PENDING
 from .bindings import BindingError as BindingError
 from .bindings import session_aliases as session_aliases
 from .project import (  # noqa: F401 - existing library imports
@@ -52,6 +51,7 @@ from .thumbnails import read_thumbnail
 VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
 MAX_PRESENTATIONS = 100
+MAX_PENDING = 50
 MAX_NOTE_CHARS = 300
 
 
@@ -245,7 +245,7 @@ class Registry:
 
     def build_start(self, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
         """Record a conversation started on New Game (before its project exists)."""
-        return bindings.build_start(self, stored, profile, name, plan)
+        return bindings.build_start(self, stored, profile, name, plan, max_pending=MAX_PENDING)
 
     def build_cancel(self, stored: str, profile: str | None) -> bool:
         return bindings.build_cancel(self, stored, profile)

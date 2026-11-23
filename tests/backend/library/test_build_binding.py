@@ -48,6 +48,12 @@ class Binding(unittest.TestCase):
         self.registry.bind(self.game, "st-1", PROFILE)
         self.assertEqual(self.registry.binding_for("/profiles/other", ["st-1"]), (None, None))
 
+    def test_new_game_keeps_the_configured_number_of_pending_conversations(self):
+        with mock.patch.object(games, "MAX_PENDING", 1):
+            self.registry.build_start("st-first", PROFILE)
+            self.registry.build_start("st-second", PROFILE)
+        self.assertEqual([entry["storedId"] for entry in self.registry.pending(PROFILE)], ["st-second"])
+
     def test_a_new_game_conversation_claims_the_first_project_it_makes(self):
         self.registry.build_start("st-new", PROFILE, "Lamplight")
         self.assertEqual(self.registry.pending(PROFILE)[0]["name"], "Lamplight")
