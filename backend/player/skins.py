@@ -39,7 +39,21 @@ def _text(value) -> str | None:
     return value.strip()
 
 
-def _read(folder: Path) -> dict | None:
+def _personal_image(path: Path) -> bool:
+    """Check a personal finish before using it in place of a bundled one."""
+    if not path.is_file():
+        return False
+    try:
+        with path.open("rb") as stream:
+            header = stream.read(16)
+        if path.suffix == ".png":
+            return header.startswith(b"\x89PNG\r\n\x1a\n") and header[12:16] == b"IHDR"
+        return header[:4] == b"RIFF" and header[8:12] == b"WEBP" and header[12:16] in (b"VP8 ", b"VP8L", b"VP8X")
+    except OSError:
+        return False
+
+
+def _read(folder: Path, *, personal: bool) -> dict | None:
     """One skin from its folder, or None (logged) when it cannot be used."""
     skin_id = folder.name
     problem = (
@@ -56,9 +70,10 @@ def _read(folder: Path) -> dict | None:
     if any(path.is_symlink() for path in files.values()):
         logger.warning("hermretro: skin %s skipped: its files must be files, not links", skin_id)
         return None
-    image = next((files[kind] for kind in IMAGE_TYPES if files[kind].is_file()), None)
+    usable = _personal_image if personal else Path.is_file
+    image = next((files[kind] for kind in IMAGE_TYPES if usable(files[kind])), None)
     if image is None:
-        logger.warning("hermretro: skin %s skipped: its folder has no skin.webp or skin.png", skin_id)
+        logger.warning("hermretro: skin %s skipped: its folder has no usable skin.webp or skin.png", skin_id)
         return None
     data = {}
     if files[".json"].is_file():
@@ -90,7 +105,7 @@ def skins() -> list[dict]:
     for root in _roots():
         try:
             for folder in root.iterdir():
-                if folder.is_dir() and (skin := _read(folder)):
+                if folder.is_dir() and (skin := _read(folder, personal=root != SKINS_DIR)):
                     found[skin["id"]] = skin
         except FileNotFoundError:
             continue
@@ -120,6 +135,8 @@ def signature() -> tuple:
     files = []
     for root in _roots():
         for path in sorted(root.glob("*/skin.*")):
+            if path.parent.is_symlink():
+                continue
             try:
                 stat = path.lstat()
             except OSError:

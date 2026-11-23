@@ -84,6 +84,19 @@ class AFolderOfSkins(unittest.TestCase):
         (personal / "skin.webp").write_bytes(WEBP)
         self.assertNotEqual(skins.signature(), before)
         self.assertEqual([skin["image"] for skin in skins.skins()], [personal / "skin.webp"])
+        elsewhere = personal.rename(personal.parent.parent / "moved-personal-skin")
+        self.addCleanup(elsewhere.rmdir)
+        self.addCleanup((elsewhere / "skin.webp").unlink)
+        personal.symlink_to(elsewhere, target_is_directory=True)
+        self.assertEqual(skins.signature(), before)
+        bundled = self.folder / "sunset" / "skin.webp"
+        with self.assertLogs(skins.logger, "WARNING"):
+            self.assertEqual(skins.image_for("sunset"), bundled)
+        personal.unlink()
+        personal.mkdir()
+        (personal / "skin.webp").touch()
+        with self.assertLogs(skins.logger, "WARNING"):
+            self.assertEqual(skins.image_for("sunset"), bundled)
 
     def test_a_folder_with_only_its_image_is_a_skin_with_defaults(self):
         self.add("sunset-orange", None, image=".png")

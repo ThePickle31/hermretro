@@ -94,6 +94,9 @@ class LoopbackStart(unittest.TestCase):
 
 
 class PlayerServer(unittest.TestCase):
+    def setUp(self):
+        isolated_home(self)
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
