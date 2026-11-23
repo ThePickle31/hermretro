@@ -140,6 +140,26 @@ class RemoveDownloads(unittest.TestCase):
         lock.assert_not_called()
         emit.assert_not_called()
 
+    def test_malformed_shutdown_leaves_the_tools_in_place(self):
+        run = self.home / "run"
+        run.mkdir()
+        for reply in (
+            ValueError("Invalid broker response to shutdown"),
+            {"ok": False, "denied": ["BUSY"]},
+        ):
+            connected = FakeBrokerClient({})
+            with (
+                self.subTest(reply=reply),
+                mock.patch.object(paths, "runtime_dir", return_value=run),
+                mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)),
+                mock.patch.object(connected, "request", side_effect=[reply]),
+                mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+            ):
+                answer = setup_rpcs.rpc_remove_tools(None)({})
+                self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
+                lock.assert_not_called()
+                self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

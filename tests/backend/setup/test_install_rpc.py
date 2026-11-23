@@ -59,6 +59,26 @@ class InstallRpc(unittest.TestCase):
                     self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
                     self.assertNotIn("install", answer)
 
+    def test_start_timeout_is_unconfirmed_and_status_can_find_the_started_install(self):
+        connected = FakeBrokerClient({"ok": True, "install": {"state": "running", "run_id": "run-a"}})
+        with (
+            mock.patch.object(hermes_host, "ensure_broker", return_value=connected),
+            mock.patch.object(
+                connected,
+                "request",
+                side_effect=BrokerUnavailable("Broker did not answer install_start"),
+            ),
+        ):
+            start = self.rpc({"action": "start"})
+        self.assertEqual((start["ok"], start["code"]), (False, "UNAVAILABLE"))
+        self.assertIn("Install start was unconfirmed", start["error"])
+        self.assertNotIn("install", start)
+
+        with mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)):
+            status = self.rpc({"action": "status"})
+        self.assertEqual(status["install"], {"state": "running", "run_id": "run-a"})
+        self.assertEqual(connected.asked, [{"op": "install_status"}])
+
     def test_cancel_goes_to_the_broker_with_its_run_and_never_starts_one(self):
         client = FakeBrokerClient({"ok": True, "install": {"state": "running", "cancelling": True}})
         with mock.patch.object(hermes_host, "try_connect", lambda _dir: (client, None)):

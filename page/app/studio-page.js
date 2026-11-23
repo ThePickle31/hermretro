@@ -164,11 +164,17 @@ export function StudioPage({ ctx }) {
 
   const toolchainStep = steps.find(step => step.id === 'toolchain')
   const wantInstall = running && (onboarding || page === 'setup' || toolchainStep?.state === 'todo')
-  const install = useInstall({ enabled: wantInstall })
+  const install = useInstall({ enabled: running, polling: wantInstall })
   const installState = install.data?.install?.state ?? null
   // A chat holds the setup lock (the broker says so): the only time the tools check repeats on its own.
   const installElsewhere = Boolean(install.data?.install?.elsewhere)
-  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === 'running', running, status })
+  const pluginUpdate = usePluginUpdate({
+    ctx,
+    installing: install.starting || installState === 'running',
+    installError: install.unavailable,
+    running,
+    status
+  })
   const lastElsewhere = useRef(installElsewhere)
   const finishedAt = install.data?.install?.finished_at ?? null
   // One key per finished run, whether or not this page ever saw it running (a reload near its end).

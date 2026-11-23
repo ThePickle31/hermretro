@@ -123,6 +123,31 @@ class BrokerAfterUpdate(unittest.TestCase):
         self.assertEqual(broker.requests, ["hello", "shutdown"])
         spawn.assert_not_called()
 
+    def test_install_start_has_a_control_deadline_and_engine_calls_keep_their_budget(
+        self,
+    ):
+        connected = client.BrokerClient.__new__(client.BrokerClient)
+        connected.startup_deadline = None
+        connected.sock = mock.Mock()
+        connected.sock.recv.side_effect = TimeoutError
+        with self.assertRaisesRegex(client.BrokerUnavailable, "did not answer install_start"):
+            connected.request({"op": "install_start"})
+        for deadline in connected.sock.settimeout.call_args_list:
+            self.assertGreater(deadline.args[0], 0)
+            self.assertLessEqual(deadline.args[0], client.CONTROL_TIMEOUT)
+
+        connected.sock.recv.side_effect = None
+        connected.sock.recv.return_value = b'{"ok":true}\n'
+        connected.call(None, "chromatic_toolchain_prepare", timeout=900)
+        connected.sock.settimeout.assert_called_with(None)
+        self.assertEqual(json.loads(connected.sock.sendall.call_args.args[0])["timeout"], 900)
+
+    def test_a_malformed_shutdown_cannot_authorize_replacement(self):
+        connected = mock.Mock()
+        connected.request.return_value = {"ok": False, "denied": "invalid reply"}
+        with self.assertRaisesRegex(client.BrokerUnavailable, "did not confirm shutdown"):
+            client._shutdown_for_replacement(connected)
+
     def test_a_plain_connect_never_stops_it(self):
         broker = self.old()
         found, error = client.try_connect(self.state)

@@ -7,7 +7,7 @@ import contextlib
 import time
 from pathlib import Path
 
-from ..broker import BrokerNotRunning, BrokerUnavailable
+from ..broker import BrokerNotRunning, BrokerUnavailable, request_shutdown
 from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
@@ -282,7 +282,10 @@ def rpc_install(ctx):
             }
             if action == "start":
                 with host.ensure_broker() as client:
-                    reply = client.request({"op": "install_start"})
+                    try:
+                        reply = client.request({"op": "install_start"})
+                    except (BrokerUnavailable, ValueError) as error:
+                        raise BrokerUnavailable(f"Install start was unconfirmed. {error}") from error
             elif action in ("status", "cancel"):
                 client, error = host.try_connect(paths.runtime_dir())
                 if client is None:
@@ -347,12 +350,8 @@ def rpc_remove_tools(ctx):
                 raise BrokerUnavailable(str(error)) from error
             if client is not None:
                 with client:
-                    reply = client.request({"op": "shutdown"})
-                if reply.get("ok") is not True:
-                    denied = reply.get("denied") or {}
-                    if denied.get("code") == "BUSY":
+                    if not request_shutdown(client):
                         return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
-                    raise BrokerUnavailable(denied.get("message") or reply.get("error") or "Shutdown was unconfirmed.")
             # The broker's election lock: held by a running broker until it exits, and while we hold it any
             # broker another call starts loses the election and exits, so nothing runs from the folder.
             with _broker_lock(run) as held:

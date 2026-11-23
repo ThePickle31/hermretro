@@ -1,5 +1,5 @@
 // The toolchain install driven by the page (no chat): state, polling and the studio profile.
-import { host, useQuery, useState } from '#sdk'
+import { host, useEffect, useQuery, useQueryClient, useState } from '#sdk'
 import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { ID } from '#app/ids.js'
@@ -10,22 +10,90 @@ import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
 const SETUP_PROMPT =
   'Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.'
 
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)).data
+const INSTALL_QUERY = [ID, 'install']
+
+async function fetchInstall(queryClient) {
+  const checkedAt = performance.now()
+  const { data } = await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)
+
+  if (data?.code === 'UNAVAILABLE') {
+    const previous = queryClient.getQueryData(INSTALL_QUERY)
+
+    return { ...previous, ...data, install: previous?.install }
+  }
+
+  return data?.ok && data.install ? { ...data, checkedAt } : data
 }
 
-const installInterval = arg => ((arg?.state ? arg.state.data : arg)?.install?.state === 'running' ? 1_500 : 5_000)
-
-/** The install's status: polled quickly while it runs, slowly otherwise. */
-export function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, 'install'],
-    queryFn: fetchInstall,
+export function useInstall({ enabled, polling }) {
+  const queryClient = useQueryClient()
+  const [starting, setStarting] = useState(false)
+  const [unconfirmed, setUnconfirmed] = useState(null)
+  const query = useQuery({
+    queryKey: INSTALL_QUERY,
+    queryFn: () => fetchInstall(queryClient),
     enabled,
-    refetchInterval: enabled ? installInterval : false,
+    refetchInterval: enabled ? arg => {
+      const data = arg?.state ? arg.state.data : arg
+
+      if (unconfirmed || data?.code === 'UNAVAILABLE' || data?.install?.state === 'running') {
+        return 1_500
+      }
+
+      return polling ? 5_000 : false
+    } : false,
     staleTime: 1_000,
     retry: false
   })
+
+  // An answer to a status request already in flight when start timed out may predate the install.
+  const resolved = unconfirmed && query.data?.checkedAt > unconfirmed.after
+  const statusError = query.data?.code === 'UNAVAILABLE' ? query.data.error : null
+  const unavailable = (resolved ? null : unconfirmed?.error) || statusError
+
+  useEffect(() => {
+    if (resolved) {
+      setUnconfirmed(null)
+    }
+  }, [resolved])
+
+  const start = async () => {
+    setStarting(true)
+
+    try {
+      let answer
+
+      try {
+        const result = await callBackend(RPC_INSTALL, { action: 'start' }, 60_000)
+
+        answer = result.data
+      } catch (error) {
+        const { message, notLoaded } = describeRequestError(error)
+
+        if (notLoaded) {
+          throw error
+        }
+
+        answer = { code: 'UNAVAILABLE', error: message }
+      }
+
+      if (answer?.code === 'UNAVAILABLE') {
+        setUnconfirmed({ after: performance.now(), error: answer.error })
+      } else if (answer?.ok && answer.install) {
+        queryClient.setQueryData(INSTALL_QUERY, answer)
+      }
+
+      if (answer?.ok || answer?.code === 'UNAVAILABLE') {
+        await query.refetch?.()
+      }
+
+      return answer
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  return { ...query, start, starting, unavailable }
 }
 
 /** Hermes creates the profile; the plugin then makes it a hermretro one. */
@@ -73,7 +141,6 @@ function checkedSince(doctor, finishedAt) {
 /** Everything one install view needs: phase, rows, actions. Shared by onboarding and the Setup step.
  *  `doctor` is the tools check: it decides whether a finished install verified, and what to offer when not. */
 export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
-  const [starting, setStarting] = useState(false)
   const [failure, setFailure] = useState(null)
   // A cancel that did not go through, shown while the install it was meant to stop keeps running.
   const [cancelError, setCancelError] = useState(null)
@@ -81,7 +148,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   // A chat is already preparing the tools: wait for it instead of reporting a failure. The backend says so too
   // (`install.elsewhere`); an older one does not, and then only this answer to the start is known.
   const [elsewhere, setElsewhere] = useState(false)
-  const data = install.data
+  const { data, starting, unavailable } = install
   const unsupported = install.isError && describeRequestError(install.error).notLoaded
   const state = data?.install?.state ?? 'idle'
   const profile = status.data?.profile
@@ -134,7 +201,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   }
 
   const start = async () => {
-    if (starting || !manifestReady || conflict || noSpace) {
+    if (starting || unavailable || state === 'running' || !manifestReady || conflict || noSpace) {
       return
     }
 
@@ -144,13 +211,12 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
       return
     }
 
-    setStarting(true)
     setFailure(null)
     // The profile is made while the tools download.
     makeProfile()
 
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'start' }, 60_000)
+      const answer = await install.start()
 
       if (answer?.code === 'OPERATION_IN_PROGRESS') {
         setElsewhere(true)
@@ -159,16 +225,17 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
         return
       }
 
+      if (answer?.code === 'UNAVAILABLE') {
+        return
+      }
+
       if (!answer?.ok) {
         throw new Error(answer?.error || 'The install could not start.')
       }
 
       setElsewhere(false)
-      await install.refetch?.()
     } catch (error) {
       setFailure(describeRequestError(error).message || String(error?.message ?? error))
-    } finally {
-      setStarting(false)
     }
   }
 
@@ -242,6 +309,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     start,
     starting,
     state,
+    unavailable,
     unsupported,
     unverified,
     updating,

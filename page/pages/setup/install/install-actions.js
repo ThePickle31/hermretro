@@ -178,7 +178,7 @@ export function InstallActions({ installer, compact = false }) {
   }
 
   if (phase === 'review') {
-    const blocked = !installer.manifestReady || installer.conflict || installer.noSpace
+    const blocked = installer.unavailable || !installer.manifestReady || installer.conflict || installer.noSpace
 
     return jsxs('div', {
       className: 'cs-actions',
@@ -193,6 +193,10 @@ export function InstallActions({ installer, compact = false }) {
         blocked ? recheckButton(installer) : null
       ]
     })
+  }
+
+  if (phase === 'failed' && installer.unavailable) {
+    return jsx('div', { className: 'cs-actions', children: recheckButton(installer) })
   }
 
   if (phase === 'failed' && installer.unverified) {
@@ -252,6 +256,7 @@ export function InstallError({ installer }) {
       ? note('space', `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`)
       : null,
     before && !installer.noSpace && installer.spaceWarning ? note('space-warning', installer.spaceWarning, 'cs-small') : null,
+    installer.unavailable ? note('status', installer.unavailable) : null,
     phase === 'running' && installer.cancelError ? note('cancel', installer.cancelError) : null,
     phase === 'review' && installer.elsewhereEnded
       ? note('elsewhere', 'The install that was running in a chat stopped before the tools were ready. Install them here instead.', 'cs-small')

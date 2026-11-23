@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
- * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
+ * sources: sha256 aaf129faf828299cd3aa6f886852ebf9b6ff17af7060df7765d1260ea90133ba
+ * body: sha256 1e94e68cf345881e37271773862305b1d28ee4f1ccf6133ba417f701bebee87f
  */
 // page/sdk.js
 import {
@@ -9819,19 +9819,70 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
 
 // page/pages/setup/install/installer.js
 var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
+var INSTALL_QUERY = [ID, "install"];
+async function fetchInstall(queryClient) {
+  const checkedAt = performance.now();
+  const { data } = await callBackend(RPC_INSTALL, { action: "status" }, 3e4);
+  if (data?.code === "UNAVAILABLE") {
+    const previous = queryClient.getQueryData(INSTALL_QUERY);
+    return { ...previous, ...data, install: previous?.install };
+  }
+  return data?.ok && data.install ? { ...data, checkedAt } : data;
 }
-var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
-function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, "install"],
-    queryFn: fetchInstall,
+function useInstall({ enabled, polling }) {
+  const queryClient = useQueryClient();
+  const [starting, setStarting] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(null);
+  const query = useQuery({
+    queryKey: INSTALL_QUERY,
+    queryFn: () => fetchInstall(queryClient),
     enabled,
-    refetchInterval: enabled ? installInterval : false,
+    refetchInterval: enabled ? (arg) => {
+      const data = arg?.state ? arg.state.data : arg;
+      if (unconfirmed || data?.code === "UNAVAILABLE" || data?.install?.state === "running") {
+        return 1500;
+      }
+      return polling ? 5e3 : false;
+    } : false,
     staleTime: 1e3,
     retry: false
   });
+  const resolved = unconfirmed && query.data?.checkedAt > unconfirmed.after;
+  const statusError = query.data?.code === "UNAVAILABLE" ? query.data.error : null;
+  const unavailable = (resolved ? null : unconfirmed?.error) || statusError;
+  useEffect(() => {
+    if (resolved) {
+      setUnconfirmed(null);
+    }
+  }, [resolved]);
+  const start = async () => {
+    setStarting(true);
+    try {
+      let answer;
+      try {
+        const result = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
+        answer = result.data;
+      } catch (error) {
+        const { message, notLoaded } = describeRequestError(error);
+        if (notLoaded) {
+          throw error;
+        }
+        answer = { code: "UNAVAILABLE", error: message };
+      }
+      if (answer?.code === "UNAVAILABLE") {
+        setUnconfirmed({ after: performance.now(), error: answer.error });
+      } else if (answer?.ok && answer.install) {
+        queryClient.setQueryData(INSTALL_QUERY, answer);
+      }
+      if (answer?.ok || answer?.code === "UNAVAILABLE") {
+        await query.refetch?.();
+      }
+      return answer;
+    } finally {
+      setStarting(false);
+    }
+  };
+  return { ...query, start, starting, unavailable };
 }
 async function createStudioProfile(profile) {
   if (isUpdating()) {
@@ -9861,12 +9912,11 @@ function checkedSince(doctor, finishedAt) {
   return !at || !finishedAt || at >= finishedAt * 1e3;
 }
 function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
-  const [starting, setStarting] = useState(false);
   const [failure, setFailure] = useState(null);
   const [cancelError, setCancelError] = useState(null);
   const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
   const [elsewhere, setElsewhere] = useState(false);
-  const data = install.data;
+  const { data, starting, unavailable } = install;
   const unsupported = install.isError && describeRequestError(install.error).notLoaded;
   const state = data?.install?.state ?? "idle";
   const profile = status.data?.profile;
@@ -9908,32 +9958,31 @@ function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     }
   };
   const start = async () => {
-    if (starting || !manifestReady || conflict || noSpace) {
+    if (starting || unavailable || state === "running" || !manifestReady || conflict || noSpace) {
       return;
     }
     if (isUpdating()) {
       setFailure(UPDATING_MESSAGE);
       return;
     }
-    setStarting(true);
     setFailure(null);
     makeProfile();
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
+      const answer = await install.start();
       if (answer?.code === "OPERATION_IN_PROGRESS") {
         setElsewhere(true);
         await install.refetch?.();
+        return;
+      }
+      if (answer?.code === "UNAVAILABLE") {
         return;
       }
       if (!answer?.ok) {
         throw new Error(answer?.error || "The install could not start.");
       }
       setElsewhere(false);
-      await install.refetch?.();
     } catch (error) {
       setFailure(describeRequestError(error).message || String(error?.message ?? error));
-    } finally {
-      setStarting(false);
     }
   };
   const cancel = async () => {
@@ -9991,6 +10040,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
     start,
     starting,
     state,
+    unavailable,
     unsupported,
     unverified,
     updating,
@@ -10200,7 +10250,7 @@ function InstallActions({ installer, compact = false }) {
     });
   }
   if (phase === "review") {
-    const blocked = !installer.manifestReady || installer.conflict || installer.noSpace;
+    const blocked = installer.unavailable || !installer.manifestReady || installer.conflict || installer.noSpace;
     return jsxs("div", {
       className: "cs-actions",
       children: [
@@ -10214,6 +10264,9 @@ function InstallActions({ installer, compact = false }) {
         blocked ? recheckButton(installer) : null
       ]
     });
+  }
+  if (phase === "failed" && installer.unavailable) {
+    return jsx("div", { className: "cs-actions", children: recheckButton(installer) });
   }
   if (phase === "failed" && installer.unverified) {
     return jsxs("div", {
@@ -10259,6 +10312,7 @@ function InstallError({ installer }) {
     before && !installer.manifestReady && !installer.unsupported ? note("manifest", "The download list could not be read, so nothing can be reviewed or installed yet. Check again; if it stays empty, update or reinstall hermretro.") : null,
     before && installer.noSpace ? note("space", `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`) : null,
     before && !installer.noSpace && installer.spaceWarning ? note("space-warning", installer.spaceWarning, "cs-small") : null,
+    installer.unavailable ? note("status", installer.unavailable) : null,
     phase === "running" && installer.cancelError ? note("cancel", installer.cancelError) : null,
     phase === "review" && installer.elsewhereEnded ? note("elsewhere", "The install that was running in a chat stopped before the tools were ready. Install them here instead.", "cs-small") : null,
     phase === "failed" && installer.unverified ? note(
@@ -17241,7 +17295,7 @@ function remember2(ctx, key, value) {
   }
 }
 var RESTART_ADVICE = { hermes: "Restart Hermes", app: "Quit and reopen Hermes" };
-function usePluginUpdate({ ctx, status, running, installing = false }) {
+function usePluginUpdate({ ctx, status, running, installing = false, installError = null }) {
   const queryClient = useQueryClient();
   const installedIn = status.data?.plugin?.installed_in ?? null;
   const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
@@ -17276,8 +17330,8 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
   });
   const busy = useRef(false);
-  const installingNow = useRef(installing);
-  installingNow.current = installing;
+  const installBlocked = useRef(false);
+  installBlocked.current = installing || Boolean(installError);
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
   useEffect(() => {
     if (!state.announce) {
@@ -17310,7 +17364,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
     }
   }, [fresher]);
-  const blockedFor = (verb) => installing ? installingSentence(verb) : chats.length ? busySentence(chats, verb) : null;
+  const blockedFor = (verb) => installing ? installingSentence(verb) : installError || (chats.length ? busySentence(chats, verb) : null);
   const blocked = blockedFor("update");
   const start = async (options = {}) => {
     if (busy.current || !target) {
@@ -17338,7 +17392,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
         studio,
         options,
         resume,
-        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
+        busy: () => installBlocked.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
         onStep: (step) => setState((current) => ({ ...current, step })),
         onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
         installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
@@ -17399,7 +17453,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       outcome ??= await runReload({
         install,
         studio,
-        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio)
+        busy: () => installBlocked.current ? Promise.resolve(["the game tools install"]) : busyChats(studio)
       });
     } finally {
       busy.current = false;
@@ -17530,10 +17584,16 @@ function StudioPage({ ctx }) {
   }, [legacyReady, memory.onboarded]);
   const toolchainStep = steps.find((step) => step.id === "toolchain");
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
-  const install = useInstall({ enabled: wantInstall });
+  const install = useInstall({ enabled: running, polling: wantInstall });
   const installState = install.data?.install?.state ?? null;
   const installElsewhere = Boolean(install.data?.install?.elsewhere);
-  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
+  const pluginUpdate = usePluginUpdate({
+    ctx,
+    installing: install.starting || installState === "running",
+    installError: install.unavailable,
+    running,
+    status
+  });
   const lastElsewhere = useRef(installElsewhere);
   const finishedAt = install.data?.install?.finished_at ?? null;
   const doneRun = installState === "done" ? `${install.data?.install?.run_id ?? ""}@${finishedAt ?? ""}` : null;

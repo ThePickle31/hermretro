@@ -33,7 +33,7 @@ class OtherCopyBusy(BrokerUnavailable):
 
 
 CONTROL_TIMEOUT = 3.0
-QUICK_OPS = frozenset({"hello", "stats", "activity", "install_status", "install_cancel"})
+QUICK_OPS = frozenset({"hello", "stats", "activity", "install_start", "install_status", "install_cancel"})
 
 
 def _remaining(deadline: float | None, maximum: float) -> float:
@@ -236,19 +236,27 @@ class BrokenBroker(BrokerUnavailable):
         self.stopping = stopping
 
 
-def _shutdown_for_replacement(client: BrokerClient) -> bool:
-    """True when the broker agreed to stop, False only when it explicitly said it was busy."""
+def request_shutdown(client: BrokerClient) -> bool:
+    """Return whether the broker agreed to stop. Only an explicit busy reply returns False."""
     try:
         answer = client.request({"op": "shutdown"})
-    except (BrokerUnavailable, ValueError) as error:
-        raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {error}") from error
+    except ValueError as error:
+        raise BrokerUnavailable("Shutdown was unconfirmed.") from error
     if answer.get("ok") is True:
         return True
-    denied = answer.get("denied") or {}
-    if denied.get("code") == "BUSY":
+    denied = answer.get("denied")
+    if not isinstance(denied, dict):
+        denied = {}
+    if answer.get("ok") is False and denied.get("code") == "BUSY":
         return False
-    detail = denied.get("message") or answer.get("error") or "unknown reply"
-    raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {detail}")
+    raise BrokerUnavailable(denied.get("message") or answer.get("error") or "Shutdown was unconfirmed.")
+
+
+def _shutdown_for_replacement(client: BrokerClient) -> bool:
+    try:
+        return request_shutdown(client)
+    except BrokerUnavailable as error:
+        raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {error}") from error
 
 
 def try_connect(

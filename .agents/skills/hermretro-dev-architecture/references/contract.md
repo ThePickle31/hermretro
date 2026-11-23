@@ -142,7 +142,9 @@ a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker 
 `cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
 start the broker; with no broker running, `status` reports the last install from its journal
 (`<deps root>/page-install.json`), a `running` one as `interrupted`. An unanswered broker request returns
-`UNAVAILABLE`. A cancel also returns `UNAVAILABLE` when there is no broker to acknowledge it. Successful calls return:
+`UNAVAILABLE`. A start acknowledgement can time out while the install goes ahead. The page keeps the last
+confirmed status and checks again before allowing another start, an update or a reload. A cancel also returns
+`UNAVAILABLE` when there is no broker to acknowledge it. Successful calls return:
 
 ```json
 {
