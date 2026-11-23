@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
- * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
+ * sources: sha256 976fb5f26c3eab91ffd86c1cddeb7ab25c3fa72a6ccd8d765f681adbce59dec0
+ * body: sha256 e69b4ad0799d514263b6fec2bd470582815ecfc27ad019e2da47ddd167c47c9c
  */
 // page/sdk.js
 import {
@@ -535,7 +535,7 @@ function engineError(parsed, content) {
   const error = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string");
   return error?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
-var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
+var STEP_ARG_KEYS = ["name", "file_path", "path", "command", "image_url", "assetPath", "outputPath", "sourcePath", "kind", "query", "url", "question", "questions", "goal", "sceneId", "note"];
 function stepArgs(args) {
   if (!args || typeof args !== "object") {
     return null;
@@ -564,6 +564,7 @@ function stepInfo(name, result) {
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
+    buildRef: String(name ?? "") === "chromatic_rom_build" ? text2(parsed.buildRef) : null,
     images,
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
     report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
@@ -5555,30 +5556,37 @@ function turnParts(turn, root) {
     assets,
     built: builds.some((tool) => tool.state === "done"),
     buildFailed: lastBuild?.state === "failed" ? lastBuild.info?.error ?? "The build failed." : null,
-    buildState: turnBuildState(turn),
+    buildState: compileState(lastCompile(turn)),
     report,
     note: presented?.info?.note ?? null,
     running: steps.find((tool) => tool.state === "running") ?? null
   };
 }
 var COMPILE_STEPS = /* @__PURE__ */ new Set(["rom_build", "web_build"]);
-function turnBuildState(turn) {
-  let state = null;
+function lastCompile(turn) {
+  let compile = null;
   for (const item of turn.items) {
     if (item.kind === "tools") {
       for (const tool of item.tools) {
         if (COMPILE_STEPS.has(shortTool(tool.name)) && (tool.state === "done" || tool.state === "failed")) {
-          state = tool.state === "done" ? "built" : "failed";
+          compile = tool;
         }
       }
     }
   }
-  return state;
+  return compile;
+}
+function compileState(compile) {
+  return compile ? compile.state === "done" ? "built" : "failed" : null;
+}
+function isGameBuild(tool) {
+  return shortTool(tool.name) === "rom_build" && tool.state === "done" && !tool.args?.sourcePath;
 }
 function buildHistory(turns) {
   const builds = [];
   turns.forEach((turn, index) => {
-    const state = turnBuildState(turn);
+    const compile = lastCompile(turn);
+    const state = compileState(compile);
     if (!state) {
       return;
     }
@@ -5586,12 +5594,16 @@ function buildHistory(turns) {
     let endAt = null;
     let startAt = turn.user?.at ?? null;
     let thumb = null;
+    let gameBuilds = 0;
     for (const item of turn.items) {
       if (item.kind === "end") {
         endAt = item.at ?? endAt;
         startAt = startAt ?? item.startedAt ?? null;
       } else if (item.kind === "tools") {
         for (const tool of item.tools) {
+          if (isGameBuild(tool)) {
+            gameBuilds += 1;
+          }
           if (shortTool(tool.name) === "build_report" && tool.state !== "failed") {
             report = tool.info?.report ?? tool.report ?? report;
           }
@@ -5613,13 +5625,15 @@ function buildHistory(turns) {
       title: report?.title ?? (asked2 ? asked2.length > 48 ? `${asked2.slice(0, 47)}…` : asked2 : `Build ${builds.length + 1}`),
       startAt,
       endAt,
+      buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
+      legacyRestore: isGameBuild(compile) && Boolean(compile.info) && gameBuilds === 1,
       thumb
     });
   });
   return builds;
 }
 function turnBuilt(turn) {
-  return turnBuildState(turn) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
+  return compileState(lastCompile(turn)) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
 function madeAssets(parts, root) {
@@ -7412,22 +7426,32 @@ function BuildPill({ builds, chat, game }) {
   }
   return jsxs("span", { className: `cs-b-pill ${tone}`, children: [tone === "quiet" ? null : jsx("i", { className: "cs-b-pill-dot" }), label] });
 }
-function snapshotFor(build, snapshots) {
-  if (!build.endAt || !Array.isArray(snapshots)) {
+function duringBuild(time, build) {
+  return Number.isFinite(build.startAt) && Number.isFinite(build.endAt) && time >= build.startAt && time <= build.endAt;
+}
+function snapshotFor(build, snapshots, builds) {
+  if (!Array.isArray(snapshots)) {
     return null;
   }
-  const from = (build.startAt ?? build.endAt - 36e5) - 2e3;
-  const to = build.endAt + 5e3;
+  if (build.buildRef) {
+    const exact = snapshots.filter((snap) => Array.isArray(snap.buildRefs) && snap.buildRefs.includes(build.buildRef));
+    return exact.length === 1 ? { id: String(exact[0].id), buildRef: build.buildRef } : null;
+  }
+  if (!build.legacyRestore) {
+    return null;
+  }
   let found = null;
   for (const snap of snapshots) {
-    const times = [snap.at, ...Array.isArray(snap.builds) ? snap.builds : []].filter((value) => typeof value === "number");
-    for (const time of times) {
-      if (time >= from && time <= to && (!found || time > found.time)) {
-        found = { id: String(snap.id), time };
+    for (const time of Array.isArray(snap.builds) ? snap.builds : []) {
+      if (Number.isSafeInteger(time) && duringBuild(time, build)) {
+        if (found !== null || builds.some((other) => other !== build && duringBuild(time, other))) {
+          return null;
+        }
+        found = { id: String(snap.id), buildAt: time };
       }
     }
   }
-  return found?.id ?? null;
+  return found;
 }
 function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
   const [open, setOpen] = useState(false);
@@ -7441,6 +7465,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       return void 0;
     }
     let live = true;
+    setSnapshots(null);
     callStudioOnly(RPC_BUILDS, { game: game.id }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
@@ -7459,7 +7484,7 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, game.id]);
+  }, [open, game.id, builds]);
   const newest = builds[builds.length - 1] ?? null;
   const playingBuild = [...builds].reverse().find((build) => build.state === "built") ?? null;
   const rows = [...builds].reverse();
@@ -7485,8 +7510,9 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
             children: rows.map((build) => {
               const current = build === newest;
               const playing = build === playingBuild;
-              const snapshot = snapshotFor(build, snapshots);
+              const snapshot = snapshotFor(build, snapshots, builds);
               const restorable = build.state === "built" && !(playing && current && game.state !== "changed");
+              const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef && snapshot?.buildAt === confirm?.buildAt;
               return jsxs(
                 "div",
                 {
@@ -7502,17 +7528,19 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                         })
                       ]
                     }),
-                    confirm === build.key ? jsxs("span", {
+                    confirm?.key === build.key ? jsxs("span", {
                       className: "cs-b-brow-acts",
                       children: [
                         jsx(Button, {
-                          disabled: working,
+                          disabled: working || busy || !sameSnapshot || !restorable,
                           onClick: async () => {
                             setWorking(true);
-                            const done = await onRestore(build, snapshot);
-                            setWorking(false);
-                            if (done) {
-                              setOpen(false);
+                            try {
+                              if (await onRestore(build, snapshot)) {
+                                setOpen(false);
+                              }
+                            } finally {
+                              setWorking(false);
                             }
                           },
                           size: "sm",
@@ -7533,10 +7561,10 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                           children: "Show"
                         }),
                         restorable ? jsx(Tip, {
-                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to build #${build.n}` : snapshots === null ? "Looking for this build’s files…" : "This build’s files were not kept",
+                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to build #${build.n}` : snapshots === null ? "Looking for this build’s files…" : snapshots === false ? "Could not load saved builds" : "No saved files match this build",
                           children: jsx("span", {
                             style: { display: "inline-flex" },
-                            children: jsx(Button, { disabled: busy || !snapshot, onClick: () => setConfirm(build.key), size: "sm", variant: "outline", children: "Restore" })
+                            children: jsx(Button, { disabled: busy || working || !snapshot, onClick: () => setConfirm({ key: build.key, ...snapshot }), size: "sm", variant: "outline", children: "Restore" })
                           })
                         }) : null
                       ]
@@ -7549,12 +7577,57 @@ function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
           }) : jsx("p", { className: "cs-b-sw-empty cs-small cs-faint", children: `No builds in this conversation yet. ${AGENT} builds the game after each change.` }),
           jsx("p", {
             className: "cs-b-sw-foot",
-            children: confirm ? "The game as it is now is saved first, then HermRetro builds the restored files as a new build." : "Restore makes a new build from an earlier one. Nothing is deleted."
+            children: confirm ? "The game as it is now is saved first, then HermRetro builds the restored files as a new build." : "Restore puts back the files from an earlier build."
           })
         ]
       }) : null
     ]
   });
+}
+
+// page/pages/build/build-restore.js
+async function restoreProjectBuild(game, stored, build, snapshot, onLibraryChanged) {
+  let answer;
+  try {
+    answer = await callStudioOnly(RPC_BUILD_RESTORE, { game, ...snapshot }, 6e4);
+  } catch (error) {
+    onLibraryChanged();
+    host.notify({ kind: "error", message: `Could not confirm restore of build #${build.n}: ${describeRequestError(error).message}` });
+    return true;
+  }
+  if (answer?.code === "PARTIAL" || answer?.problems?.length) {
+    onLibraryChanged();
+    const detail = answer.problems?.[0];
+    host.notify({ kind: "error", message: `Restore of build #${build.n} was incomplete. The previous files were saved.${detail ? ` ${detail}` : ""}` });
+    return true;
+  }
+  if (!answer || answer.code === "ERROR") {
+    onLibraryChanged();
+    host.notify({ kind: "error", message: `Could not confirm restore of build #${build.n}: ${answer?.error ?? "No restore result was returned."}` });
+    return true;
+  }
+  if (!answer.ok) {
+    host.notify({ kind: "error", message: `Could not restore build #${build.n}: ${answer.error ?? "Restore failed."}` });
+    return false;
+  }
+  onLibraryChanged();
+  try {
+    const sent = await sendBuildChat(
+      stored,
+      `I restored the game to build #${build.n} ("${build.title}") from the hermretro Builds menu: its files are back as they were then (the version before this is saved). Please build it again and check that it still works.`,
+      `Restore build #${build.n} · ${build.title}`,
+      [],
+      { mustLand: true }
+    );
+    if (sent) {
+      return true;
+    }
+  } catch (error) {
+    host.notify({ kind: "error", message: `Build #${build.n} was restored, but the rebuild request failed: ${describeRequestError(error).message}` });
+    return true;
+  }
+  host.notify({ kind: "error", message: `Build #${build.n} was restored. The rebuild request could not be confirmed.` });
+  return true;
 }
 
 // page/pages/build/composer/provider-notice.js
@@ -9035,27 +9108,6 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     }
     onLibraryChanged();
   };
-  const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored || refuseWhileUpdating()) {
-      return false;
-    }
-    try {
-      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 6e4);
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? "The build could not be restored.");
-      }
-    } catch (error) {
-      host.notify({ kind: "error", message: `Could not restore build #${build.n}: ${describeRequestError(error).message}` });
-      return false;
-    }
-    onLibraryChanged();
-    await send(
-      `I restored the game to build #${build.n} ("${build.title}") from the hermretro Builds menu: its files are back as they were then (the version before this is saved). Please build it again and check that it still works.`,
-      [],
-      `Restore build #${build.n} · ${build.title}`
-    );
-    return true;
-  };
   const statesRef = useRef({ key: "", value: {} });
   const states = useMemo(() => {
     const result = {};
@@ -9111,9 +9163,9 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
         builds,
         busy: Boolean(shownChat?.busy || updating),
         game,
-        onRestore: restoreBuild,
+        onRestore: (build, snapshot) => Boolean(shownStored) && !refuseWhileUpdating() && restoreProjectBuild(game.id, shownStored, build, snapshot, onLibraryChanged),
         onShow: (key) => setFocusTurn((current) => ({ key, seq: (current?.seq ?? 0) + 1 }))
-      }) : null,
+      }, game.id) : null,
       pendingItem && !shownChat?.busy ? jsx(Button, { onClick: () => void discard(pendingItem), size: "sm", variant: "ghost", children: "Discard" }) : null
     ]
   });
