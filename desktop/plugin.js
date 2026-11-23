@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b3e23c4cfe2982201c46a56695d32d0729905e39ff5fbdb4d7c276c5a7caad9c
- * body: sha256 9f1c7b524b8b37e14c8f79360b1d5663b50734e27d509290d2e4f3775924d5e5
+ * sources: sha256 a16f5ef7f58a03cd57f5bf44934db009970c6019505060c9bc01d72695975878
+ * body: sha256 aa8335ef209d1a4824bb1fba97c184694c2a948ec077645069a2627b89741cb4
  */
 // page/sdk.js
 import {
@@ -5201,27 +5201,24 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
-function useInlinePlayer(gameId, chat) {
+function useInlinePlayer(gameId, stored, chat) {
   const [playerFor, setPlayerFor] = useState(null);
-  const presentationSeq = useValue(BUILD_PRESENTED)[gameId ?? ""]?.seq;
-  const seenPresentation = useRef(presentationSeq ?? 0);
-  const openWhenDone = useRef(false);
+  const presentations = useValue(BUILD_PRESENTED);
+  const view = stored ? `chat:${stored}` : `game:${gameId}`;
+  const seen = useRef({ view, presentations });
   useEffect(() => {
-    const seq = presentationSeq ?? 0;
-    if (seq !== seenPresentation.current) {
-      seenPresentation.current = seq;
-      openWhenDone.current = true;
+    if (seen.current.view !== view) {
+      seen.current = { view, presentations };
+      return;
     }
-  }, [presentationSeq]);
-  useEffect(() => {
-    if (gameId && openWhenDone.current && !chat?.busy && !chat?.opening) {
-      openWhenDone.current = false;
+    if (!gameId || chat?.busy || chat?.opening) {
+      return;
+    }
+    if ((presentations[gameId]?.seq ?? 0) > (seen.current.presentations[gameId]?.seq ?? 0)) {
+      seen.current = { view, presentations };
       setPlayerFor(gameId);
     }
-  }, [chat?.busy, chat?.opening, presentationSeq, gameId]);
-  useEffect(() => {
-    openWhenDone.current = false;
-  }, [gameId]);
+  }, [view, gameId, presentations, chat?.busy, chat?.opening]);
   return {
     playerOpen: Boolean(gameId && playerFor === gameId),
     onPlay: () => gameId && setPlayerFor(gameId),
@@ -9539,7 +9536,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat);
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, stored, chat);
   const refuseWhileUpdating = () => {
     if (!isUpdating()) {
       return false;

@@ -140,7 +140,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat)
+  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, stored, chat)
 
   // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
   const refuseWhileUpdating = () => {
