@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 
-from backend.broker.client import BrokerClient
+from backend.broker.client import BrokerClient, spawn_broker
 from backend.system import host as host_os, paths
 
 HANDOFF = 3.0
@@ -32,7 +32,10 @@ class BrokerRun:
         self.compiler_temp.mkdir()
         self.project_a = self.work / "projA"
         self.project_b = self.work / "projB"
-        self.node = paths.find_node()["path"]
+        node = paths.find_node()
+        self.node = node["path"]
+        self.node_version = f"v{node['version']}" if node["version"] else None
+        self.launches: list[subprocess.Popen] = []
         self.brokers: set[int] = set()
         self.checks: list[dict] = []
         self.observations: dict = {}
@@ -41,20 +44,51 @@ class BrokerRun:
         self.checks.append({"id": check_id, "title": title, "passed": bool(passed), "detail": detail})
         print(("PASS " if passed else "FAIL ") + check_id + " " + title, flush=True)
 
+    def spawn_broker(self, state_dir: Path, node: str, *, deadline: float | None = None) -> subprocess.Popen:
+        process = spawn_broker(state_dir, node, deadline=deadline)
+        self.launches.append(process)
+        return process
+
+    def live_brokers(self) -> set[int]:
+        """Find this run's exact launch commands, including the broker inside a Linux systemd scope."""
+        known_pids = self.brokers | {process.pid for process in self.launches}
+        if not known_pids:
+            return set()
+        arguments = f" -m backend.broker --state-dir {self.state} --node {self.node}"
+        listing = subprocess.run(
+            ["ps", "-A", "-ww", "-o", "pid=,command="], check=True, capture_output=True, text=True, errors="replace"
+        )
+        found = set()
+        for row in listing.stdout.splitlines():
+            fields = row.split(maxsplit=1)
+            if len(fields) == 2:
+                pid, command = int(fields[0]), fields[1]
+                if command == sys.executable + arguments or (pid in known_pids and command.endswith(arguments)):
+                    found.add(pid)
+        return found
+
     def stop_brokers(self) -> None:
-        """Teardown: ask the broker to stop (it closes its workers and their temp folders), kill only what this run
-        started and would not stop, then remove the temp folders brokers killed on purpose could not."""
+        """Prefer normal shutdown. A failed handshake can leave a live broker without a reported PID."""
         try:
             with BrokerClient(self.state) as last:
                 last.request({"op": "shutdown", "force": True})
         except Exception:  # noqa: BLE001 - no broker running is the usual case
             pass
-        if not wait_gone(self.brokers, 10):
-            for pid in self.brokers:
-                command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
-                if alive(pid) and "backend.broker" in command.stdout:
-                    os.kill(pid, signal.SIGKILL)
-            wait_gone(self.brokers, 5)
+        else:
+            wait_gone(self.brokers, 10)
+        for sig, timeout in ((signal.SIGTERM, 10), (signal.SIGKILL, 5)):
+            remaining = self.live_brokers()
+            if not remaining:
+                break
+            self.brokers.update(remaining)
+            for pid in remaining:
+                try:
+                    os.kill(pid, sig)
+                except ProcessLookupError:
+                    pass
+            wait_gone(remaining, timeout)
+        for process in self.launches:
+            process.poll()
         for pid in self.brokers:
             for path in fallback_dirs(pid):
                 shutil.rmtree(path, ignore_errors=True)
@@ -76,7 +110,7 @@ class BrokerRun:
             },
             "engine": paths.verify_engine(),
             "host": {
-                "node": subprocess.run([self.node, "--version"], capture_output=True, text=True).stdout.strip(),
+                "node": self.node_version,
                 "python": sys.version.split()[0],
                 "platform": sys.platform,
             },

@@ -23,7 +23,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from backend.broker.client import BrokerClient, ensure_broker, spawn_broker  # noqa: E402 - direct script entry point
+from backend.broker.client import BrokerClient, ensure_broker  # noqa: E402 - direct script entry point
 from tests.acceptance import ownership, projects, recovery  # noqa: E402 - direct script entry point
 from tests.acceptance.fixture import HANDOFF, BrokerRun  # noqa: E402 - direct script entry point
 
@@ -62,7 +62,7 @@ def check_election(suite, connections):
             client.close()
         cause = errors[0] if errors else None
         raise RuntimeError("Startup did not provide two connections to the same broker (E1)") from cause
-    loser = spawn_broker(suite.state, suite.node)
+    loser = suite.spawn_broker(suite.state, suite.node)
     loser_code = loser.wait(timeout=10)
     suite.check(
         "E2",
@@ -130,7 +130,8 @@ def run() -> int:
     ):
         suite = BrokerRun(Path(work), name)
         try:
-            exercise(suite)
+            with mock.patch("backend.broker.client.spawn_broker", suite.spawn_broker):
+                exercise(suite)
             passed = all(check["passed"] for check in suite.checks)
             evidence = suite.write_evidence(passed)
             count = sum(check["passed"] for check in suite.checks)
