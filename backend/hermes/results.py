@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import threading
+from uuid import uuid4
 from pathlib import Path
 
 
@@ -109,6 +110,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
         payload["result"] = text
     if structured is not None:
         payload["structuredContent"] = structured
+    if (
+        tool == "chromatic_rom_build"
+        and not result.get("isError")
+        and isinstance(structured, dict)
+        and structured.get("success") is True
+    ):
+        # The same result goes to the history hook and the saved transcript, even for deferred tools.
+        payload["buildRef"] = uuid4().hex
     if result.get("_meta"):
         payload["_meta"] = result["_meta"]
     if other:

@@ -36,7 +36,8 @@ def snapshot_after_build(
         args = args if isinstance(args, dict) else {}
         if args.get("sourcePath"):
             return  # a standalone C experiment, not the game's build
-        structured = (host.tool_result_payload(result) or {}).get("structuredContent") or {}
+        payload = host.tool_result_payload(result) or {}
+        structured = payload["structuredContent"]
         candidates = [structured.get("projectRoot"), args.get("projectPath")]
         try:
             candidates.append(host._chat_project(str(conversation_id or ""), str(session_id or "")))
@@ -47,7 +48,8 @@ def snapshot_after_build(
         if found is None:
             return
         game, root = found
-        taken = snapshots.take(_snapshots_dir(), game, root, "build")
+        build_ref = payload.get("buildRef")
+        taken = snapshots.take(_snapshots_dir(), game, root, "build", build_ref=build_ref)
         if taken.get("skipped"):
             logger.debug("hermretro: build snapshot of %s skipped: %s", root, taken["skipped"])
         else:

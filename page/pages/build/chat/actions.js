@@ -120,9 +120,8 @@ export async function createBuildChat(title, pick = null) {
 }
 
 /** Send a message. Returns true once the transcript owns the message, even if it must offer a retry.
- *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand` (a New
- *  Game's first message), true only once Hermes accepted it: a message it did not take is not the transcript's to
- *  keep, so the caller keeps its own copy. */
+ *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand`, true
+ *  means Hermes accepted the message. New Game and Restore use it to handle a submission failure separately. */
 export async function sendBuildChat(stored, text, shown = text, attachments = [], { mustLand = false } = {}) {
   // An update is swapping and reloading the plugin: no new turn starts until it is done.
   if (isUpdating()) {

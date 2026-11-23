@@ -44,28 +44,41 @@ export function BuildPill({ builds, chat, game }) {
   return jsxs('span', { className: `cs-b-pill ${tone}`, children: [tone === 'quiet' ? null : jsx('i', { className: 'cs-b-pill-dot' }), label] })
 }
 
-/** The snapshot the backend kept for a build: one taken while its turn ran (latest wins). Every time here is in
- *  milliseconds: startAt/endAt are message timestamps (Unix seconds) × 1000, snapshot times are the backend's ms. */
-function snapshotFor(build, snapshots) {
-  if (!build.endAt || !Array.isArray(snapshots)) {
+function duringBuild(time, build) {
+  return Number.isFinite(build.startAt) && Number.isFinite(build.endAt) && time >= build.startAt && time <= build.endAt
+}
+
+/** Match a build result to its snapshot, or require one unambiguous build occurrence for older results. */
+function snapshotFor(build, snapshots, builds) {
+  if (!Array.isArray(snapshots)) {
     return null
   }
 
-  const from = (build.startAt ?? build.endAt - 3_600_000) - 2_000
-  const to = build.endAt + 5_000
+  if (build.buildRef) {
+    const exact = snapshots.filter(snap => Array.isArray(snap.buildRefs) && snap.buildRefs.includes(build.buildRef))
+
+    return exact.length === 1 ? { id: String(exact[0].id), buildRef: build.buildRef } : null
+  }
+
+  if (!build.legacyRestore) {
+    return null
+  }
+
   let found = null
 
   for (const snap of snapshots) {
-    const times = [snap.at, ...(Array.isArray(snap.builds) ? snap.builds : [])].filter(value => typeof value === 'number')
+    for (const time of Array.isArray(snap.builds) ? snap.builds : []) {
+      if (Number.isSafeInteger(time) && duringBuild(time, build)) {
+        if (found !== null || builds.some(other => other !== build && duringBuild(time, other))) {
+          return null
+        }
 
-    for (const time of times) {
-      if (time >= from && time <= to && (!found || time > found.time)) {
-        found = { id: String(snap.id), time }
+        found = { id: String(snap.id), buildAt: time }
       }
     }
   }
 
-  return found?.id ?? null
+  return found
 }
 
 /** Builds ▾: every build of this conversation, newest first; Show scrolls to its card, Restore puts its
@@ -86,6 +99,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
 
     let live = true
 
+    setSnapshots(null)
     callStudioOnly(RPC_BUILDS, { game: game.id }, 20_000)
       .then(answer => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false))
       .catch(() => live && setSnapshots(false))
@@ -109,7 +123,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
       window.removeEventListener('mousedown', onDown)
       window.removeEventListener('keydown', onKey)
     }
-  }, [open, game.id])
+  }, [open, game.id, builds])
 
   const newest = builds[builds.length - 1] ?? null
   const playingBuild = [...builds].reverse().find(build => build.state === 'built') ?? null
@@ -139,9 +153,10 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                     children: rows.map(build => {
                       const current = build === newest
                       const playing = build === playingBuild
-                      const snapshot = snapshotFor(build, snapshots)
+                      const snapshot = snapshotFor(build, snapshots, builds)
                       // Restoring the build you already play changes nothing, unless the game was edited since.
                       const restorable = build.state === 'built' && !(playing && current && game.state !== 'changed')
+                      const sameSnapshot = snapshot?.id === confirm?.id && snapshot?.buildRef === confirm?.buildRef && snapshot?.buildAt === confirm?.buildAt
 
                       return jsxs(
                         'div',
@@ -160,20 +175,20 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                                 })
                               ]
                             }),
-                            confirm === build.key
+                            confirm?.key === build.key
                               ? jsxs('span', {
                                   className: 'cs-b-brow-acts',
                                   children: [
                                     jsx(Button, {
-                                      disabled: working,
+                                      disabled: working || busy || !sameSnapshot || !restorable,
                                       onClick: async () => {
                                         setWorking(true)
-                                        const done = await onRestore(build, snapshot)
-
-                                        setWorking(false)
-
-                                        if (done) {
-                                          setOpen(false)
+                                        try {
+                                          if (await onRestore(build, snapshot)) {
+                                            setOpen(false)
+                                          }
+                                        } finally {
+                                          setWorking(false)
                                         }
                                       },
                                       size: 'sm',
@@ -196,10 +211,10 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                                     }),
                                     restorable
                                       ? jsx(Tip, {
-                                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to build #${build.n}` : snapshots === null ? 'Looking for this build\u2019s files…' : 'This build\u2019s files were not kept',
+                                          label: busy ? `Wait until ${AGENT} finishes` : snapshot ? `Put the game back to build #${build.n}` : snapshots === null ? 'Looking for this build\u2019s files…' : snapshots === false ? 'Could not load saved builds' : 'No saved files match this build',
                                           children: jsx('span', {
                                             style: { display: 'inline-flex' },
-                                            children: jsx(Button, { disabled: busy || !snapshot, onClick: () => setConfirm(build.key), size: 'sm', variant: 'outline', children: 'Restore' })
+                                            children: jsx(Button, { disabled: busy || working || !snapshot, onClick: () => setConfirm({ key: build.key, ...snapshot }), size: 'sm', variant: 'outline', children: 'Restore' })
                                           })
                                         })
                                       : null
@@ -214,7 +229,7 @@ export function BuildsMenu({ builds, busy, game, onShow, onRestore }) {
                 : jsx('p', { className: 'cs-b-sw-empty cs-small cs-faint', children: `No builds in this conversation yet. ${AGENT} builds the game after each change.` }),
               jsx('p', {
                 className: 'cs-b-sw-foot',
-                children: confirm ? 'The game as it is now is saved first, then HermRetro builds the restored files as a new build.' : 'Restore makes a new build from an earlier one. Nothing is deleted.'
+                children: confirm ? 'The game as it is now is saved first, then HermRetro builds the restored files as a new build.' : 'Restore puts back the files from an earlier build.'
               })
             ]
           })

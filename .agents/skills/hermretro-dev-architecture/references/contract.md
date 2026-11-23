@@ -220,7 +220,7 @@ instead of throwing.
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
-| `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
+| `build_restore` | `{ game, id, buildRef?, buildAt? }` | `{ ok: true, restored, backup, changed, removed }`. `PARTIAL` returns `ok: false`, the same IDs and counts, and `problems`. Preflight errors are `NO_GAME`, `MISSING`, `INVALID_SNAPSHOT`, `TOO_LARGE` and `BACKUP_FAILED`. |
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
 Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
@@ -270,20 +270,25 @@ kept asset's current version is saved like a delivered image, so the card keeps 
 After each successful `chromatic_rom_build` (Hermes's `post_tool_call`: result without `error`/`isError`
 and `structuredContent.success === true`, not a `sourcePath` build) of a game in the library, the plugin
 copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
-`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…] }`.
+`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…], buildRefs? }`.
 Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
 `captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
 project that holds a `.gbsproj` of its own (in any case, a file or a link, as the engine finds a project: another
 game's project, which restoring this one never changes, even
 when an older snapshot holds files there from before it was a game). A project over 64 MB
 or 20 000 files is skipped. When the files are identical to the newest snapshot (path + size + SHA-256 of
-each), no copy is made and the build's time is appended to that snapshot's `builds`. The newest 30 are kept.
+each), the existing copy is verified and reused. The newest 30 are kept, with the selected snapshot and
+backup protected during a restore.
 
-- `builds { game }` → `{ ok, builds: [{ id, at, builds, files, bytes, reason, from? }] }`, newest first.
-- `build_restore { game, id }` first keeps the current files as a `before-restore` snapshot (`from` = the
-  restored id; reused when identical to the newest), then deletes project files the snapshot lacks and
-  writes back every file that differs (a new temp sibling + rename; never through a link). Restored files get a
-  new modification time, so the game counts as changed and needs a rebuild, which records a new build.
+- The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`. Historical
+  occurrences remain in `builds`, in milliseconds. `builds { game }` returns
+  `{ ok, builds: [{ id, at, builds, buildRefs?, files, bytes, reason, from? }] }`, newest first.
+- Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
+  against the selected snapshot and checks the saved file count, byte total and fingerprint. It then
+  keeps the current project as a `before-restore` snapshot
+  (`from` is the restored ID), removes project files absent from the saved build and writes back files
+  that differ using a temporary sibling and rename. Incomplete restores include the verified backup,
+  operation counts and up to 20 file problems. A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)
 

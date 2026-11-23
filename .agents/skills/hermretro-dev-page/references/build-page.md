@@ -181,10 +181,11 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
   first, with Show (scrolls to its card) and Restore (on built ones, except the one already playing
-  when nothing changed since). Restore matches the build to a snapshot from the `builds` RPC by time,
-  confirms in place, calls `build_restore` (which saves the game as it is first) and sends the agent
-  "I restored the game to build #n … Please build it again", so the restored files become the newest
-  build. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
+  when nothing changed since). Restore matches the build result's reference to a snapshot from the `builds`
+  RPC. Older records require one actual build occurrence within the turn. It confirms in place and
+  calls `build_restore` to save the current project and put the earlier files back. A complete restore
+  submits a rebuild. An incomplete restore shows the file problem, and a failed rebuild submission
+  reports that the files were already restored. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
   right-click menu and the stuck status).
 - **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and

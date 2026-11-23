@@ -19,7 +19,7 @@ from backend.history import hooks as history_hooks  # noqa: E402 - the repositor
 from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:
@@ -49,7 +49,7 @@ class Snapshots(unittest.TestCase):
         self.tmp.cleanup()
 
     def files_of(self, identifier):
-        return sorted(snapshots.walk(self.store / "g" / identifier / "files", exclude_top=False))
+        return sorted(snapshots.walk(self.store / "g" / identifier / "files", stored=True))
 
     def test_a_snapshot_keeps_the_sources_and_leaves_out_output_tools_and_temp_files(self):
         os.symlink(self.base, self.root / "link-out")
@@ -266,6 +266,37 @@ class BuildHistoryHost(unittest.TestCase):
     def test_a_multimodal_envelope_is_read_through_its_text(self):
         self.hook(result={"_multimodal": True, "content": [], "text_summary": success(self.root)})
         self.assertEqual(len(self.listed()["builds"]), 1)
+
+    def test_the_normal_build_result_identifies_its_snapshot_even_when_files_are_reused(self):
+        engine = FakeBrokerClient(
+            {"ok": True, "result": {"structuredContent": {"success": True, "projectRoot": str(self.root)}}}
+        )
+        ctx = mock.Mock()
+        ctx.get_config.side_effect = lambda _key, default: default
+        with mock.patch.object(hermes_host, "ensure_broker", return_value=engine):
+            handler = hermes_host.make_tool_handler(ctx, {"name": "rom_build"})
+            first = handler({})
+            self.hook(result=first)
+            second = handler({})
+            self.hook(result=second)
+
+        refs = [json.loads(first)["buildRef"], json.loads(second)["buildRef"]]
+        self.assertNotEqual(*refs)
+        (saved,) = self.listed()["builds"]
+        self.assertEqual(saved["buildRefs"], refs)
+        self.assertEqual(saved["builds"], [])
+
+        # The association lives on disk and identifies the old snapshot even after a different build.
+        (self.root / "project" / "scene.gbsres").write_text("changed")
+        with mock.patch.object(hermes_host, "ensure_broker", return_value=engine):
+            third = handler({})
+            self.hook(result=third)
+        latest, earlier = self.listed()["builds"]
+        self.assertEqual(latest["buildRefs"], [json.loads(third)["buildRef"]])
+        self.assertEqual((earlier["id"], earlier["buildRefs"]), (saved["id"], refs))
+        result = history_rpcs.rpc_build_restore(None)({"game": self.game, "id": earlier["id"], "buildRef": refs[0]})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual((self.root / "project" / "scene.gbsres").read_text(), "{}")
 
     def test_the_hook_never_raises(self):
         with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")) as take:

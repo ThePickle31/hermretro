@@ -11,21 +11,27 @@ Only successful builds are kept here; whether each build passed is recorded by t
 - Hooks (`hooks.py`): `post_tool_call` — after a successful `chromatic_rom_build` of a library game, keeps a snapshot (chained after assets' `post_tool_call`).
 - Events emitted: `history.build_kept`. Listens to: none.
 
-- Data: `<plugin data dir>/snapshots/<game>/<ms>/` (`host._data_dir()`, the profile's Hermes plugin data folder, not the hermretro home; `<ms>` is the build's time in Unix milliseconds). Only folders whose names are all digits are listed and pruned (the newest 30 are kept); other per-game files may sit beside them. In tests, `isolated_home(self)` from `tests/support.py` moves this folder.
+- Snapshots live in `<plugin data dir>/snapshots/<game>/<ms>/`, under the profile's Hermes plugin data folder
+  (`host._data_dir()`). Numeric snapshot folders use Unix milliseconds and are pruned to the newest 30, with
+  the selected snapshot and backup protected during restore. In tests, `isolated_home(self)` from
+  `tests/support.py` moves this folder.
+
+A successful ROM build's tool result carries a unique `buildRef`. The history hook adds it to the kept
+snapshot's `buildRefs`, including when unchanged files reuse an existing snapshot. The page can match
+resumed and live builds exactly. Older records use the actual build times in `builds` and require an
+unambiguous occurrence inside the turn.
 
 ## What `build_restore` answers
 
-- `ok: false` with a `code`: `NO_GAME` (not a library game, or its folder is gone), `MISSING` (that build is no longer
-  kept) or `TOO_LARGE` (the current files could not be kept first) mean nothing was restored. `ERROR` is an
-  unexpected failure (logged); it can come after files were already changed.
-- `ok: true` means the restore ran: the current files were kept as the `before-restore` snapshot `backup`, then
-  `removed` files the build lacked were deleted and `changed` files were written back (`restored` is the build's id).
-  It does not mean every file came back: `problems`, present only when something was skipped, lists the first 20
-  `"<relative path>: <reason>"` lines for files that could not be deleted or written (a link or a file in the way, an
-  OS error). Those files are as they were before the restore; the rest are restored.
-- The Build page treats any `ok: true` as restored (it does not show `problems`) and asks the agent to build again.
-  `snapshots.restore` (`snapshots.py`) makes this answer and `tests/backend/history/test_snapshots.py` tests it; its
-  `.agents/skills/hermretro-dev-architecture/references/contract.md` table row lists the same keys ("Build history (snapshots)" there says how files come back).
+- `NO_GAME`, `MISSING`, `INVALID_SNAPSHOT`, `TOO_LARGE` and `BACKUP_FAILED` are preflight failures. The project
+  is untouched. A restore checks the selected build reference or historical occurrence, validates the
+  saved file count, bytes and fingerprint, and completes the current project's backup while holding
+  the per-game lock through restore and pruning.
+- A complete restore returns `{ok: true, restored, backup, changed, removed}`. `PARTIAL` returns
+  `ok: false` with those snapshot IDs and counts plus the first 20 file problems. The backed-up files
+  remain available. Unexpected errors return `ERROR` and are logged.
+- The Build page shows the first file problem for an incomplete restore. It asks the agent to rebuild
+  after a complete restore and reports a rebuild submission failure separately.
 
 ## Front door
 
@@ -33,7 +39,8 @@ Only successful builds are kept here; whether each build passed is recorded by t
 
 ## Tests
 
-`tests/backend/history/`: `test_snapshots.py` (the snapshots, the `post_tool_call` hook, and the `builds` / `build_restore` RPC tests), `test_snapshot_limits.py` (the limits `.agents/skills/hermretro-dev-architecture/references/contract.md` states are the ones enforced), `test_event_build_kept.py` (the event).
+`tests/backend/history/` covers snapshots and builds, restore preflight and partial failures, snapshot
+limits, and the `history.build_kept` event.
 
 ## Adding here
 

@@ -1,7 +1,7 @@
 // The Build page's Builds menu (page/pages/build/builds-menu.js): each build of the conversation, and whether
 // the backend kept its files (plugin.hermretro.builds). A build's startAt/endAt are page times in milliseconds
-// (a message's `timestamp`, Unix seconds, × 1000), and so is a snapshot's `at`/`builds`: a snapshot matches a build
-// when one of its times falls from 2 s before the turn started to 5 s after it ended.
+// (a message's `timestamp`, Unix seconds, × 1000). Historical lookup needs one actual build occurrence
+// within the turn, also in milliseconds.
 // Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
@@ -51,6 +51,24 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   const lost = await openMenu()
   check('a snapshot from outside the build\u2019s turn matches nothing, so Restore stays disabled', () => {
     assert.ok(lost.restore); assert.equal(lost.restore.disabled, true)
+  })
+  snapshots = [{ id: 'backup', at: 1_010_000, builds: [], reason: 'before-restore' }]
+  const backup = await openMenu()
+  check('the time a restore backup was made does not match a build', () => {
+    assert.equal(backup.restore.disabled, true)
+  })
+  snapshots = [
+    { id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' },
+    { id: 'snap-2', at: 1_012_000, builds: [1_012_000], reason: 'build' }
+  ]
+  const ambiguous = await openMenu()
+  check('two historical build occurrences in the same turn disable Restore', () => {
+    assert.equal(ambiguous.restore.disabled, true)
+  })
+  snapshots = [{ id: 'snap-1', at: 1_030_001, builds: [1_030_001], reason: 'build' }]
+  const adjacent = await openMenu()
+  check('an occurrence just after the turn is outside the legacy window', () => {
+    assert.equal(adjacent.restore.disabled, true)
   })
   await view.close()
 

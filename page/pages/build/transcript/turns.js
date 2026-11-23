@@ -100,7 +100,7 @@ export function turnParts(turn, root) {
     assets,
     built: builds.some(tool => tool.state === 'done'),
     buildFailed: lastBuild?.state === 'failed' ? (lastBuild.info?.error ?? 'The build failed.') : null,
-    buildState: turnBuildState(turn),
+    buildState: compileState(lastCompile(turn)),
     report,
     note: presented?.info?.note ?? null,
     running: steps.find(tool => tool.state === 'running') ?? null
@@ -110,21 +110,29 @@ export function turnParts(turn, root) {
 // The steps that make a numbered build (a present or a player refresh alone does not).
 const COMPILE_STEPS = new Set(['rom_build', 'web_build'])
 
-/** How a turn's builds went, cheaply: null (it did not build), 'built' or 'failed' (its last compile). */
-function turnBuildState(turn) {
-  let state = null
+/** The last finished compile in the turn, if any. */
+function lastCompile(turn) {
+  let compile = null
 
   for (const item of turn.items) {
     if (item.kind === 'tools') {
       for (const tool of item.tools) {
         if (COMPILE_STEPS.has(shortTool(tool.name)) && (tool.state === 'done' || tool.state === 'failed')) {
-          state = tool.state === 'done' ? 'built' : 'failed'
+          compile = tool
         }
       }
     }
   }
 
-  return state
+  return compile
+}
+
+function compileState(compile) {
+  return compile ? (compile.state === 'done' ? 'built' : 'failed') : null
+}
+
+function isGameBuild(tool) {
+  return shortTool(tool.name) === 'rom_build' && tool.state === 'done' && !tool.args?.sourcePath
 }
 
 /** The conversation's builds in order, numbered from 1: one per turn that compiled the game, with the
@@ -133,7 +141,8 @@ export function buildHistory(turns) {
   const builds = []
 
   turns.forEach((turn, index) => {
-    const state = turnBuildState(turn)
+    const compile = lastCompile(turn)
+    const state = compileState(compile)
 
     if (!state) {
       return
@@ -143,6 +152,7 @@ export function buildHistory(turns) {
     let endAt = null
     let startAt = turn.user?.at ?? null
     let thumb = null
+    let gameBuilds = 0
 
     for (const item of turn.items) {
       if (item.kind === 'end') {
@@ -150,6 +160,10 @@ export function buildHistory(turns) {
         startAt = startAt ?? item.startedAt ?? null
       } else if (item.kind === 'tools') {
         for (const tool of item.tools) {
+          if (isGameBuild(tool)) {
+            gameBuilds += 1
+          }
+
           if (shortTool(tool.name) === 'build_report' && tool.state !== 'failed') {
             report = tool.info?.report ?? tool.report ?? report
           }
@@ -175,6 +189,8 @@ export function buildHistory(turns) {
       title: report?.title ?? (asked ? (asked.length > 48 ? `${asked.slice(0, 47)}…` : asked) : `Build ${builds.length + 1}`),
       startAt,
       endAt,
+      buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
+      legacyRestore: isGameBuild(compile) && Boolean(compile.info) && gameBuilds === 1,
       thumb
     })
   })
@@ -186,7 +202,7 @@ export function buildHistory(turns) {
  *  last compile did not fail (a retry that stopped leaves the earlier turn's build the one that plays). */
 export function turnBuilt(turn) {
   return (
-    turnBuildState(turn) !== 'failed' &&
+    compileState(lastCompile(turn)) !== 'failed' &&
     turn.items.some(item => item.kind === 'tools' && item.tools.some(tool => tool.state === 'done' && BUILD_STEPS.has(shortTool(tool.name))))
   )
 }

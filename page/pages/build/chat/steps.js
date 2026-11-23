@@ -31,7 +31,7 @@ function engineError(parsed, content) {
 
 // Argument keys worth keeping on a step (labels, details, image paths). Bulky ones (file bodies, code,
 // patches) are dropped: a long conversation holds hundreds of steps.
-const STEP_ARG_KEYS = ['name', 'file_path', 'path', 'command', 'image_url', 'assetPath', 'outputPath', 'kind', 'query', 'url', 'question', 'questions', 'goal', 'sceneId', 'note']
+const STEP_ARG_KEYS = ['name', 'file_path', 'path', 'command', 'image_url', 'assetPath', 'outputPath', 'sourcePath', 'kind', 'query', 'url', 'question', 'questions', 'goal', 'sceneId', 'note']
 
 export function stepArgs(args) {
   if (!args || typeof args !== 'object') {
@@ -73,6 +73,7 @@ export function stepInfo(name, result) {
     projectRoot: text(content.projectRoot),
     assetPath: text(content.assetPath),
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
+    buildRef: String(name ?? '') === 'chromatic_rom_build' ? text(parsed.buildRef) : null,
     images,
     note: String(name ?? '') === PRESENT_TOOL && parsed.ok === true ? text(parsed.studio?.note) : null,
     report: String(name ?? '') === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null

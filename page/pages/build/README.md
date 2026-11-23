@@ -53,10 +53,11 @@ Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-mot
 `build-page.js` is near the size limit (`tests/repo/test_layout.py`: a warning above 400 lines, a failure above 600),
 so a new header part goes in its own file in `page/pages/build/`, with a row in the table above.
 
-A build's `startAt`/`endAt` (`buildHistory`, `transcript/turns.js`) are milliseconds: a message's `timestamp` (Unix
-seconds) × 1000 (`chat/history.js`), or `Date.now()` for a live turn. The `builds` RPC's snapshot `at` and `builds` times
-are milliseconds too, and `snapshotFor` (`builds-menu.js`) gives a build the latest one from 2 s before its turn started
-(an hour before its end when the start is unknown) to 5 s after it ended; without one, Restore stays disabled.
+`snapshotFor` (`builds-menu.js`) matches new ROM builds using the tool result's `buildRef`. For older
+builds, Restore requires one actual build occurrence from the RPC's `builds` field within the turn's
+`startAt` and `endAt`. These bounds and occurrence times are Unix milliseconds.
+`build-restore.js` submits a rebuild in the same conversation after a complete restore. It reports
+an incomplete restore or a failed rebuild submission separately.
 
 ## Adding a tab here
 

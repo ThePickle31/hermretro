@@ -46,7 +46,17 @@ def rpc_build_restore(ctx):
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be restored."}
             identifier = str(params.get("id") or "")
-            return {"ok": True, **snapshots.restore(_snapshots_dir(), game, root, identifier)}
+            restored = snapshots.restore(
+                _snapshots_dir(),
+                game,
+                root,
+                identifier,
+                build_ref=params.get("buildRef"),
+                build_at=params.get("buildAt"),
+            )
+            if restored.get("problems"):
+                return {"ok": False, "code": "PARTIAL", "error": "Some files could not be restored.", **restored}
+            return {"ok": True, **restored}
         except snapshots.SnapshotError as error:
             return {"ok": False, "code": error.code, "error": str(error)}
         except Exception as error:

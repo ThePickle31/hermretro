@@ -18,13 +18,13 @@ import { rootOf } from './transcript/groups.js'
 import { AssetGame } from './assets/cache.js'
 import { Transcript } from './transcript/transcript.js'
 import { buildHistory, deriveTurns } from './transcript/turns.js'
-import { callStudioOnly, describeRequestError } from '#app/backend.js'
+import { describeRequestError } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
-import { RPC_BUILD_RESTORE } from '#app/rpc.js'
 import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
+import { restoreProjectBuild } from './build-restore.js'
 import { BuildPromptCard } from './transcript/questions.js'
 import { BuildNewGame } from './new-game.js'
 import { Background } from '#app/background.js'
@@ -363,35 +363,6 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     onLibraryChanged()
   }
 
-  // Restore: the backend saves the game as it is now, puts that build's files back, and the agent is
-  // asked to build it again, which makes it the newest build.
-  const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored || refuseWhileUpdating()) {
-      return false
-    }
-
-    try {
-      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 60_000)
-
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? 'The build could not be restored.')
-      }
-    } catch (error) {
-      host.notify({ kind: 'error', message: `Could not restore build #${build.n}: ${describeRequestError(error).message}` })
-
-      return false
-    }
-
-    onLibraryChanged()
-    await send(
-      `I restored the game to build #${build.n} ("${build.title}") from the hermretro Builds menu: its files are back as they were then (the version before this is saved). Please build it again and check that it still works.`,
-      [],
-      `Restore build #${build.n} \u00b7 ${build.title}`
-    )
-
-    return true
-  }
-
   // Per conversation: working, waiting, unread. Kept as the same object while those stay the same, so
   // a streaming reply does not re-render the switcher on every frame.
   const statesRef = useRef({ key: '', value: {} })
@@ -466,9 +437,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
                   builds,
                   busy: Boolean(shownChat?.busy || updating),
                   game,
-                  onRestore: restoreBuild,
+                  onRestore: (build, snapshot) => Boolean(shownStored) && !refuseWhileUpdating() && restoreProjectBuild(game.id, shownStored, build, snapshot, onLibraryChanged),
                   onShow: key => setFocusTurn(current => ({ key, seq: (current?.seq ?? 0) + 1 }))
-                })
+                }, game.id)
               : null,
             pendingItem && !shownChat?.busy
               ? jsx(Button, { onClick: () => void discard(pendingItem), size: 'sm', variant: 'ghost', children: 'Discard' })
