@@ -84,10 +84,13 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, settle
     assert.ok(tiles()[1].classList.contains('plate'), 'Novita has no version for dark backgrounds')
     assert.ok(!tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc shows on dark')
   })
+  const darkLogo = chip().querySelector('.cs-b-mp-mark img').getAttribute('src')
+
   scenario.theme = 'light'
   await view.rerender()
   check('light theme: the light version, and no plate', () => {
     assert.equal(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), png('openai.png'))
+    assert.notEqual(chip().querySelector('.cs-b-mp-mark img').getAttribute('src'), darkLogo)
     assert.ok(!tiles()[1].classList.contains('plate'))
     assert.ok(tiles()[2].classList.contains('plate'), 'StepFun\u2019s white disc gets a dark plate on light')
   })
