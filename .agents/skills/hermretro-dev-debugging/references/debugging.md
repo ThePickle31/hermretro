@@ -18,7 +18,7 @@ capped at 104 bytes on macOS).
 
 ## Player captures
 
-`save_capture` in `backend/player/server.py` writes each screenshot or recording as `<project>/captures/<stamp>-<kind>.<png|webm|mp4>`:
+`save_capture` in `backend/player/captures.py` writes each screenshot or recording as `<project>/captures/<stamp>-<kind>.<png|webm|mp4>`:
 `<stamp>` is the UTC save time, `YYYY-MM-DDTHH-MM-SS-mmmZ` (`_stamp`), `<kind>` is `screenshot`, `video` or
 `annotation` (a page-sent game screen), and a name already taken gets `-2`, `-3`… (`_free_name`). Beside it,
 `<file>.json` holds `id`, `kind`, `media` (the file name), `mimeType`, `bytes`, `sha256`, `createdAt`, `game` (the game id),

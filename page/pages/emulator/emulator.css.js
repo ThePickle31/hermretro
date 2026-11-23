@@ -23,7 +23,7 @@ export const EMULATOR_CSS = `
 .cs-rp-note b { color: var(--ui-text-primary); font-size: 13px; }
 .cs-rp-note span { color: var(--ui-text-secondary); font-size: 12px; line-height: 1.45; }
 .cs-rp-void { background: var(--ui-bg-quaternary); height: 100%; opacity: .5; }
-.cs-pad.flush .cs-rp-stage:not(.off) { height: max(500px, calc(100svh - 230px)); }
+.cs-pad.flush > .cs-rp-stage:not(.off) { height: max(500px, calc(100svh - 230px)); }
 .cs-rp-foot { align-items: center; border-top: 1px solid var(--ui-stroke-tertiary); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 6px clamp(12px, 2cqi, 32px); }
 .cs-rp-hint { color: var(--ui-text-tertiary); font-size: 12px; }
 .cs-side-note { align-items: center; background: var(--ui-bg-secondary); border-bottom: 1px solid var(--ui-stroke-tertiary); color: var(--ui-text-secondary); display: flex; font-size: 12px; gap: 8px; line-height: 1.4; padding: 5px clamp(10px, 2cqi, 20px); }

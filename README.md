@@ -120,6 +120,7 @@ Tested so far on Linux x64 (including the Desktop install above); macOS (Apple S
   - **Games**: your library as cartridges: play, install on a Chromatic (through the chat's approval),
     open the game's chat, or start a new game on Build.
   - **Emulator**: ModRetro's real player, served by the plugin (`backend/player/server.py`).
+    Personal finishes use the same `<id>/skin.webp` or `skin.png` and optional `skin.json` under `<hermretro home>/skins/`. A valid personal skin with the same ID overrides the bundled finish and survives plugin updates.
   - **Build**: one game, one conversation with HermRetro. Start with **Build it** or **Plan first**. When a turn has built the game, you play it
     right in that turn's build card, at a whole-number scale, with a play-test checklist from the build
     report beside it and Annotate to point HermRetro at sprites and tiles in the game.

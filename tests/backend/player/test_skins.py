@@ -12,10 +12,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.player import skins  # noqa: E402 - the repository root goes on sys.path first
 
+from tests.support import isolated_home  # noqa: E402 - repository root above
+
 WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 "
 
 
 class ShippedSkins(unittest.TestCase):
+    def setUp(self):
+        isolated_home(self)
+
     def test_the_hermes_skins_ship_in_order_and_the_first_is_the_default(self):
         ids = [skin["id"] for skin in skins.skins()]
         self.assertEqual(
@@ -55,6 +60,7 @@ class ShippedSkins(unittest.TestCase):
 
 class AFolderOfSkins(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.folder = Path(tmp.name)
@@ -69,6 +75,44 @@ class AFolderOfSkins(unittest.TestCase):
             (folder / f"skin{image}").write_bytes(WEBP)
         if data is not None:
             (folder / "skin.json").write_text(data if isinstance(data, str) else json.dumps(data))
+
+    def test_personal_finish_overrides_its_bundled_id(self):
+        self.add("sunset", {})
+        before = skins.rail_entries()
+        personal = skins.paths.hermretro_home() / "skins" / "sunset"
+        personal.mkdir(parents=True)
+        reference = (skins.paths.SKINS_DIR / "hermes-midnight" / "skin.webp").read_bytes()
+        (personal / "skin.webp").write_bytes(reference)
+        (personal / "skin.json").write_text('{"name":"Personal"}')
+        self.assertNotEqual(skins.rail_entries(), before)
+        self.assertEqual([skin["image"] for skin in skins.skins()], [personal / "skin.webp"])
+        elsewhere = personal.rename(personal.parent.parent / "moved-personal-skin")
+        self.addCleanup(elsewhere.rmdir)
+        self.addCleanup((elsewhere / "skin.webp").unlink)
+        self.addCleanup((elsewhere / "skin.json").unlink)
+        personal.symlink_to(elsewhere, target_is_directory=True)
+        with self.assertLogs(skins.logger, "WARNING"):
+            self.assertEqual(skins.rail_entries(), before)
+        bundled = self.folder / "sunset" / "skin.webp"
+        with self.assertLogs(skins.logger, "WARNING"):
+            self.assertEqual(skins.image_for("sunset"), bundled)
+        personal.unlink()
+        personal.mkdir()
+        # A declared canvas without pixels cannot display a finish.
+        empty_webp = b"WEBPVP8X" + (10).to_bytes(4, "little") + bytes(10)
+        empty_webp = b"RIFF" + len(empty_webp).to_bytes(4, "little") + empty_webp
+        png = (skins.paths.SKINS_DIR / "supply-co" / "skin.png").read_bytes()
+        for name, data in (
+            ("skin.webp", reference[:16]),
+            ("skin.webp", empty_webp),
+            ("skin.png", png[:33] + png[-12:]),
+        ):
+            with self.subTest(name=name, size=len(data)):
+                file = personal / name
+                file.write_bytes(data)
+                with self.assertLogs(skins.logger, "WARNING"):
+                    self.assertEqual(skins.image_for("sunset"), bundled)
+                file.unlink()
 
     def test_a_folder_with_only_its_image_is_a_skin_with_defaults(self):
         self.add("sunset-orange", None, image=".png")
@@ -98,10 +142,11 @@ class AFolderOfSkins(unittest.TestCase):
         self.add("no-image", {}, image=None)
         self.add("Bad_Id", {})
         self.add("broken", "{not json")
+        self.add("too-deep", "[" * 4000)
         self.add("good", {})
         with self.assertLogs(skins.logger, "WARNING") as logged:
             self.assertEqual([skin["id"] for skin in skins.skins()], ["good"])
-        self.assertEqual(len(logged.output), 3)
+        self.assertEqual(len(logged.output), 4)
 
     def test_engine_ids_are_skins_and_the_rail_lists_every_skin_in_order(self):
         self.add("cloud", {"order": 2, "background": "#e5e6e3", "ink": "#27272b"})
@@ -136,7 +181,7 @@ class AFolderOfSkins(unittest.TestCase):
     def test_no_skins_or_no_folder_leaves_the_engine_default(self):
         self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ""))
         with mock.patch.object(skins, "SKINS_DIR", self.folder / "gone"):
-            self.assertEqual((skins.skins(), skins.signature(), skins.page_skins()), ([], (), []))
+            self.assertEqual((skins.skins(), skins.rail_entries(), skins.page_skins()), ([], "", []))
 
 
 if __name__ == "__main__":
