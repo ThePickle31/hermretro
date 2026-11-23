@@ -183,10 +183,12 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   first, with Show (scrolls to its card) and Restore (on built ones, except the one already playing
   when nothing changed since). Restore matches a snapshot from the `builds` RPC using the build's
   reference. Compact result rows instead use the call ID and exact result timestamp confirmed for
-  that reference. It confirms in place and
-  calls `build_restore` to save the current project and put the earlier files back. A complete restore
-  submits a rebuild. An incomplete restore shows the file problem, and a failed rebuild submission
-  reports that the files were already restored. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
+  that reference. Legacy snapshots without an exact match appear by their saved date and time,
+  including for games without a conversation. Each selection confirms in place and calls `build_restore`
+  to save the current project and put the earlier files back. A complete restore submits a rebuild,
+  opening a conversation through the usual first-message flow when needed. An incomplete restore
+  shows the backup ID and file problem. A failed rebuild submission reports that the files were
+  already restored. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
   right-click menu and the stuck status).
 - **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and

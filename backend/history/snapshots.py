@@ -21,10 +21,20 @@ import shutil
 import stat
 import time
 from contextlib import contextmanager
+from itertools import islice
 from pathlib import Path
 
 from .build_refs import build_history, public_snapshot, record_build
-from .restore_files import PROJECT_SUFFIX, LiveTree, _restore_files, directory_id, file_digest, file_stamp
+from .restore_files import (
+    PROJECT_SUFFIX,
+    Digest,
+    DirectoryId,
+    LiveTree,
+    _restore_files,
+    directory_id,
+    file_digest,
+    file_stamp,
+)
 
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
@@ -341,6 +351,37 @@ def _check_tree(root: Path, files: dict[str, Path], live: LiveTree | None) -> No
         raise OSError("The project files changed during the snapshot operation")
 
 
+def _verify_restore(root: Path, root_id: DirectoryId, expected: dict[str, Digest]) -> list[str]:
+    """Check the live project after writing, including paths neither restore pass touched."""
+    seen = LiveTree()
+    try:
+        files = walk(root, live=seen)
+        if seen.directories[""] != root_id:
+            raise OSError("The registered project folder changed")
+        if len(files) > MAX_FILES:
+            raise OSError("The project exceeds the snapshot file limit")
+        problems = [
+            *(f"{name}: unexpected file" for name in sorted(files.keys() - expected.keys())),
+            *(f"{name}: missing after restore" for name in sorted(expected.keys() - files.keys())),
+        ][:20]
+        if problems:
+            return problems
+
+        total, actual = _measure(files)
+        if total > MAX_BYTES:
+            raise OSError("The project exceeds the snapshot size limit")
+        _check_tree(root, files, seen)
+    except OSError as error:
+        return [f"Could not verify the restored project: {error}"]
+
+    differences = (
+        f"{name}: contents differ from the saved snapshot"
+        for name in sorted(expected)
+        if actual[name] != expected[name]
+    )
+    return list(islice(differences, 20))
+
+
 def restore(
     base: Path,
     game: str,
@@ -381,7 +422,14 @@ def restore(
             raise SnapshotError("BACKUP_FAILED", f"The current project could not be backed up ({error}).") from error
         if backup.get("skipped"):
             raise SnapshotError("TOO_LARGE", "The current project could not be backed up (" + backup["skipped"] + ").")
-        changed, removed, problems = _restore_files(root, wanted, digests, live, excluded_top=EXCLUDED_TOP)
+        # Older snapshots can contain files in a folder that is now excluded.
+        wanted = {
+            name: path for name, path in wanted.items() if name.partition("/")[0] not in EXCLUDED_TOP or "/" not in name
+        }
+        digests = {name: digests[name] for name in wanted}
+        changed, removed, problems = _restore_files(root, wanted, digests, live)
+        if not problems:
+            problems = _verify_restore(root, root_id, digests)
     answer = {"restored": identifier, "backup": backup["id"], "changed": changed, "removed": removed}
     if problems:
         answer["problems"] = problems[:20]

@@ -95,3 +95,61 @@ test('an outer result cannot assign a reference to a wrapped batch', () => {
 
   assert.equal(buildsFor(completed.items)[0].buildRef, null)
 })
+
+const rawStart = (id, timestamp, calls = deferred.args.calls) => ({
+  role: 'assistant',
+  tool_calls: [{ id, function: { name: 'tool_call', arguments: JSON.stringify({ calls }) } }],
+  timestamp
+})
+const rawResult = (id, timestamp, body) => ({
+  role: 'tool', tool_name: 'tool_call', tool_call_id: id, content: JSON.stringify(body), timestamp
+})
+const stepsFor = items => items.filter(item => item.kind === 'tools').flatMap(item => item.tools)
+
+test('a raw outer validation error fails the wrapped ROM occurrence with the same ID', () => {
+  const failure = { error: 'Required argument project is missing' }
+  const items = historyItems([
+    { role: 'user', content: 'Build it', timestamp: 1 },
+    rawStart(callId, 2), rawResult(callId, 3, { buildRef: ref }),
+    rawStart(callId, 4), { ...rawResult(callId, 5, failure), name: 'tool_call' },
+    { role: 'user', content: 'Try again', timestamp: 6 },
+    rawStart(callId, 7), rawResult(callId, 8, { buildRef: secondRef })
+  ])
+
+  assert.deepEqual(stepsFor(items).map(step => [step.name, step.state, step.info?.error]), [
+    [rom, 'done', null], [rom, 'failed', failure.error], [rom, 'done', null]
+  ])
+  assert.equal(new Set(stepsFor(items).map(step => step.id)).size, 3)
+  assert.deepEqual(buildsFor(items).map(build => [build.state, build.buildRef, build.resultCall]), [
+    ['failed', null, null], ['built', secondRef, { id: callId, timestamp: 8 }]
+  ])
+})
+
+test('raw batch results keep their outer IDs separate from other calls', () => {
+  const calls = [deferred.args.calls[0], { name: 'read_file', arguments: {} }]
+  const items = historyItems([
+    { role: 'user', content: 'Build it', timestamp: 1 },
+    rawStart(callId, 2, calls),
+    rawStart(`${callId}:0`, 3),
+    rawResult(callId, 4, { error: 'tool_call takes exactly one entry for local tools' }),
+    rawResult(`${callId}:0`, 5, { buildRef: ref })
+  ])
+
+  assert.deepEqual(stepsFor(items).map(step => [step.name, step.state, step.info?.buildRef]), [
+    [rom, 'failed', null], ['read_file', 'failed', null], [rom, 'done', ref]
+  ])
+  assert.deepEqual(buildsFor(items)[0].resultCall, { id: `${callId}:0`, timestamp: 5 })
+})
+
+test('a compact result for a batch member stays within its outer occurrence', () => {
+  const calls = [{ name: 'read_file', arguments: {} }, deferred.args.calls[0]]
+  const items = historyItems([
+    rawStart(callId, 1, calls),
+    { ...rawResult(callId, 2, { buildRef: ref }), args: deferred.args },
+    { ...rawResult(callId, 3, { ok: true }), args: { calls: [calls[0]] } }
+  ])
+
+  assert.deepEqual(stepsFor(items).map(step => step.name), ['read_file', rom])
+  assert.equal(buildsFor(items)[0].buildRef, null)
+  assert.equal(buildsFor(items)[0].resultCall, null)
+})

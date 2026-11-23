@@ -162,6 +162,41 @@ class RestoreFailures(unittest.TestCase):
         self.assertEqual((self.folder / answer["backup"] / "files" / "project" / self.keep.name).read_bytes(), b"new")
         self.assertEqual(list(self.keep.parent.glob("*.hr-restore")), [])
 
+    def test_a_new_unrelated_file_during_restore_is_preserved_and_reported(self):
+        appeared = self.root / "editor.txt"
+        read = restore_files.file_digest
+
+        def editor_save(path, limit, writer=None, **kwargs):
+            if writer is not None and path == self.saved / "project" / self.keep.name:
+                appeared.write_text("new editor file")
+            return read(path, limit, writer, **kwargs)
+
+        with mock.patch.object(restore_files, "file_digest", side_effect=editor_save):
+            answer = self.restore()
+
+        self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 1, 1))
+        self.assertEqual(appeared.read_text(), "new editor file")
+        self.assertTrue(any("editor.txt" in problem for problem in answer["problems"]), answer)
+        backup = self.folder / answer["backup"] / "files"
+        self.assertEqual((backup / "extra.txt").read_text(), "keep me")
+        self.assertFalse((backup / appeared.name).exists())
+
+    def test_a_file_modified_after_its_restore_is_reported(self):
+        write = snapshots._restore_files
+
+        def restore_then_edit(*args, **kwargs):
+            result = write(*args, **kwargs)
+            self.keep.write_bytes(b"edit after restore")
+            return result
+
+        with mock.patch.object(snapshots, "_restore_files", side_effect=restore_then_edit):
+            answer = self.restore()
+
+        self.assertEqual(answer["code"], "PARTIAL")
+        self.assertEqual(self.keep.read_bytes(), b"edit after restore")
+        self.assertTrue(any(self.keep.name in problem for problem in answer["problems"]), answer)
+        self.assertTrue((self.folder / answer["backup"] / "files" / "extra.txt").is_file())
+
     def test_a_new_editor_file_is_not_overwritten(self):
         self.keep.unlink()
         write = snapshots._restore_files

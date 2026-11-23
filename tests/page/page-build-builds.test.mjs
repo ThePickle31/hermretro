@@ -1,4 +1,4 @@
-// The Builds menu rejects time-only snapshots, even if exactly one occurrence falls inside the turn.
+// Time-only snapshots can be picked by date without being attributed to a numbered build.
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
@@ -37,10 +37,11 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   const kept = await openMenu()
   check('the Builds menu asks plugin.hermretro.builds for this game and lists the builds newest first', () => {
     assert.deepEqual(asked.at(-1), { game: 'fff666fff666', stored: 'st-frog' })
-    assert.equal(kept.rows.length, 2); assert.match(kept.rows[0], /#2make it jump higher/); assert.match(kept.rows[1], /#1make the frog jump/)
+    assert.equal(kept.rows.length, 3); assert.match(kept.rows[0], /#2make it jump higher/); assert.match(kept.rows[1], /#1make the frog jump/)
   })
   check('a lone time-only occurrence inside the turn cannot identify build #1', () => {
-    assert.ok(kept.restore, 'build #1 has a Restore button'); assert.equal(kept.restore.disabled, true)
+    assert.equal(kept.restore?.disabled, true)
+    assert.match(kept.rows[2], /^Saved snapshot.*Restore$/)
   })
   snapshots = [{ id: 'snap-1', at: 1010, builds: [1010], reason: 'build' }]
   const lost = await openMenu()
@@ -51,14 +52,16 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   const backup = await openMenu()
   check('the time a restore backup was made does not match a build', () => {
     assert.equal(backup.restore.disabled, true)
+    assert.equal(backup.rows.length, 2)
   })
   snapshots = [
     { id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' },
     { id: 'snap-2', at: 1_012_000, builds: [1_012_000], reason: 'build' }
   ]
   const ambiguous = await openMenu()
-  check('two historical build occurrences in the same turn disable Restore', () => {
+  check('two historical snapshots stay selectable and leave the numbered Restore disabled', () => {
     assert.equal(ambiguous.restore.disabled, true)
+    assert.equal(ambiguous.rows.filter(row => row.startsWith('Saved snapshot')).length, 2)
   })
   snapshots = [{ id: 'snap-1', at: 1_030_001, builds: [1_030_001], reason: 'build' }]
   const adjacent = await openMenu()

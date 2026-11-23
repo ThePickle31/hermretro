@@ -20,7 +20,9 @@ A successful ROM build's tool result carries a unique `buildRef`. The history ho
 snapshot's `buildRefs`, including when unchanged files reuse an existing snapshot. It also records the
 Hermes tool call ID for the game's bound conversation. When a compact resume omits the body, the
 Builds menu matches the call ID and exact result timestamp against a stored result that carries the
-same reference. Builds without either form of evidence stay visible with Restore disabled.
+same reference. Numbered builds without either form of evidence have Restore disabled. The menu
+lists legacy snapshots that have no exact match by their saved date and time. Selecting one restores
+that snapshot by ID through the same validation and backup steps.
 
 ## What `build_restore` answers
 
@@ -29,11 +31,13 @@ same reference. Builds without either form of evidence stay visible with Restore
   historical occurrence, and validates the saved file count, bytes and fingerprint. It verifies the
   names and contents on disk before publishing the current project's backup and holds the per-game lock
   through restore and pruning. Before a replacement or deletion, it verifies the live file against the
-  backup and rechecks opened ancestor folders for nested-game markers.
+  backup and rechecks opened ancestor folders for nested-game markers. Before reporting success, it
+  scans the project again and checks its in-scope paths and contents against the saved files. A new
+  file that appeared during restore is left in place and reported as a conflict.
 - A complete restore returns `{ok: true, restored, backup, changed, removed}`. `PARTIAL` returns
   `ok: false` with those snapshot IDs and counts plus the first 20 file problems. The backed-up files
   remain available, and a conflict leaves the live file in place. Unexpected errors return `ERROR` and are logged.
-- The Build page shows the first file problem for an incomplete restore. It asks the agent to rebuild
+- The Build page shows the backup ID and first file problem for an incomplete restore. It asks the agent to rebuild
   after a complete restore and reports a rebuild submission failure separately.
 
 ## Front door

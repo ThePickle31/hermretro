@@ -282,13 +282,13 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
 
   // A game with no conversation opens a blank one; the session is made on the first message and bound to
   // the game (replacing a removed one), so the agent is told which game it works on and finds it selected.
-  const send = async (text, attachments = [], shown = text) => {
+  const send = async (text, attachments = [], shown = text, options) => {
     if (refuseWhileUpdating()) {
       return false
     }
 
     if (!fresh) {
-      return stored ? sendBuildChat(stored, text, shown, attachments) : false
+      return stored ? sendBuildChat(stored, text, shown, attachments, options) : false
     }
 
     const { id, title, projectRoot } = game
@@ -312,7 +312,8 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
         target,
         recorded ? text : `Work on my existing hermretro game "${title}" at ${projectRoot} (select that project first). ${text}`,
         shown,
-        attachments
+        attachments,
+        options
       )
     } catch (error) {
       host.notify({ kind: 'error', message: `Could not start the conversation: ${describeRequestError(error).message}` })
@@ -432,13 +433,15 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
             switcher,
             jsx(BuildPill, { builds, chat: shownChat, game }),
             jsx('span', { className: 'cs-grow' }),
-            game && (builds.length || shownStored)
+            game && !elsewhere
               ? jsx(BuildsMenu, {
                   builds,
-                  busy: Boolean(shownChat?.busy || updating),
+                  busy: Boolean(shownChat?.busy || shownChat?.opening || shownChat?.missing || shownChat?.failure || startingGame || updating),
                   game,
                   stored: shownStored,
-                  onRestore: (build, snapshot) => Boolean(shownStored) && !refuseWhileUpdating() && restoreProjectBuild(game.id, shownStored, build, snapshot, onLibraryChanged),
+                  onRestore: (snapshot, target, title) => !refuseWhileUpdating() && restoreProjectBuild(
+                    game.id, snapshot, target, title, (text, shown) => send(text, [], shown, { mustLand: true }), onLibraryChanged
+                  ),
                   onShow: key => setFocusTurn(current => ({ key, seq: (current?.seq ?? 0) + 1 }))
                 }, game.id)
               : null,

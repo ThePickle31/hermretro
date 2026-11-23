@@ -286,15 +286,17 @@ backup protected during a restore.
   `buildCalls: [{ id, ref, timestamp }]` gives the call ID and exact result timestamp in Unix seconds
   when a stored result in the bound conversation carries the recorded build reference. The page uses
   these two fields together when the gateway omits a result body. Historical times in `builds` use
-  milliseconds.
+  milliseconds. An unmatched legacy snapshot is selectable by its saved `at` date and time.
 - Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
-  against the selected snapshot and checks the saved file count, byte total and fingerprint. It then
+  against the selected snapshot. An explicitly selected saved snapshot supplies its `id`. Either
+  selection checks the saved file count, byte total and fingerprint. The restore then
   rejects redirected project paths and verifies the backup's names and contents before publishing it.
   The `before-restore` snapshot's `from` field is the restored ID. The restore removes project files
   absent from the saved build and writes back files that differ using a temporary sibling. Each
   overwrite or deletion verifies the live file against the backup and checks opened ancestor folders
-  for nested-game markers. Incomplete restores include the verified backup,
-  operation counts and up to 20 file problems. A complete restore requests a rebuild.
+  for nested-game markers. A final scan verifies the resulting project paths and contents against the
+  selected snapshot. An unexpected file is preserved and reported. Incomplete restores include the
+  verified backup ID, operation counts and up to 20 file problems. A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)
 

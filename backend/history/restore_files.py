@@ -185,7 +185,7 @@ def _remove_empty_parents(root: Path, relative: str, live: LiveTree) -> None:
 
 
 def _restore_files(
-    root: Path, wanted: dict[str, Path], digests: dict[str, Digest], live: LiveTree, *, excluded_top: frozenset[str]
+    root: Path, wanted: dict[str, Path], digests: dict[str, Digest], live: LiveTree
 ) -> tuple[int, int, list[str]]:
     removed = changed = 0
     problems = []
@@ -203,8 +203,6 @@ def _restore_files(
         _remove_empty_parents(root, relative, live)
 
     for relative, source in sorted(wanted.items()):
-        if "/" in relative and relative.split("/", 1)[0] in excluded_top:
-            continue  # older snapshots can contain files that are now excluded
         expected = digests[relative]
         backed_up = live.files.get(relative)
         try:

@@ -29,6 +29,7 @@ profile).
 **Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `buildSelected`, `buildModel`, `buildModelStars`, `buildNewGame` (the New Game draft), `inlinePlayer` and `playtest`.
 
 **Tests:** `tests/page/page-build.test.mjs`, `tests/page/page-build-turns.test.mjs`, `tests/page/page-build-builds.test.mjs` (the Builds menu),
+`tests/page/page-build-history-restore.test.mjs` (exact and dated restores), `tests/page/page-build-saved-snapshot.test.mjs` (legacy snapshots for an unbound game),
 `tests/page/page-build-restore.test.mjs` (the viewer's Restore redraws the file's pictures),
 `tests/page/page-build-speed.test.mjs` (the model panel's rail, stars and Standard / Fast),
 `tests/page/page-build-model-routing.test.mjs` (fresh sessions and the picked route),
@@ -55,9 +56,12 @@ so a new header part goes in its own file in `page/pages/build/`, with a row in 
 
 `snapshotFor` (`builds-menu.js`) matches ROM builds using the result's `buildRef`. When the compact
 transcript omits the result body, it requires the call ID and exact tool-result timestamp confirmed
-by the `builds` RPC for the bound conversation.
-`build-restore.js` submits a rebuild in the same conversation after a complete restore. It reports
-an incomplete restore or a failed rebuild submission separately.
+by the `builds` RPC for the bound conversation. A raw validation error from a single wrapped tool
+call is paired with that step by its outer call ID. Legacy snapshots that have no exact match get
+their own Restore row labelled with the snapshot's date and time. The confirmation restores the
+chosen snapshot by ID.
+`build-restore.js` submits a rebuild after a complete restore. It reports an incomplete restore with
+the backup ID and reports a failed rebuild submission separately.
 
 ## Adding a tab here
 

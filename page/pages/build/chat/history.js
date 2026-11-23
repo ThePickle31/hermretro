@@ -18,6 +18,23 @@ function messageText(message) {
     : ''
 }
 
+function matchingStep(occurrence, call, index, count) {
+  if (!occurrence) {
+    return null
+  }
+
+  const { steps, finished } = occurrence
+  if (count === steps.length) {
+    const step = steps[index]
+
+    return !finished.has(step) && (step.name === call.name || call.name === 'tool') ? step : null
+  }
+
+  const unmatched = steps.filter(step => step.name === call.name && !finished.has(step))
+
+  return unmatched.length === 1 ? unmatched[0] : null
+}
+
 /** The transcript as the gateway stores it, in the Build page's shape: turns end with an `end` item
  *  (from the timestamps, so "Worked for…" shows how long each one took). */
 export function historyItems(messages, running = false) {
@@ -25,6 +42,7 @@ export function historyItems(messages, running = false) {
   const tools = new Map()
   let agentSinceUser = false
   let lastAt = null
+  let stepCount = 0
 
   const closeTurn = () => {
     if (agentSinceUser) {
@@ -38,7 +56,7 @@ export function historyItems(messages, running = false) {
   }
 
   const addTool = (call, at) => {
-    const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
+    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
     const last = items[items.length - 1]
 
     if (last?.kind === 'tools') {
@@ -74,44 +92,63 @@ export function historyItems(messages, running = false) {
       }
 
       for (const call of Array.isArray(message.tool_calls) ? message.tool_calls : []) {
-        for (const inner of unwrapCalls(call?.id ?? null, call?.function?.name ?? call?.name, call?.function?.arguments ?? call?.args)) {
-          const step = addTool(inner, at)
+        const id = call?.id ?? null
+        const name = call?.function?.name ?? call?.name
+        const steps = unwrapCalls(id, name, call?.function?.arguments ?? call?.args).map(inner => addTool(inner, at))
 
-          if (inner.id) {
-            tools.set(inner.id, step)
-          }
+        if (id) {
+          tools.set(id, { name, steps, finished: new Set() })
         }
       }
     } else if (message.role === 'tool') {
       agentSinceUser = true
+      const id = message.tool_call_id ?? null
+      const name = message.name ?? message.tool_name
+      const pending = tools.get(id)
+      const calls = unwrapCalls(id, name, message.args)
+      const failed = toolFailed({ result: text })
+      const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1)
+      // A raw result can retain the wrapper's name and omit its arguments, including on validation errors.
+      const outerResult = pending?.name === 'tool_call' && calls.length === 1 && ['tool_call', 'tool'].includes(calls[0].name)
+      let steps
 
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name ?? message.tool_name, message.args)) {
-        // Compact resume rows carry the name, arguments and call ID even when the result body is omitted.
-        const pending = tools.get(inner.id) ?? (inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null)
-        const step = pending && (pending.name === inner.name || inner.name === 'tool') ? pending : addTool(inner, at)
+      if (outerResult && (exactCall || failed)) {
+        steps = pending.steps.filter(step => !pending.finished.has(step))
+      } else {
+        // A compact row can stand alone or describe a single member of the original batch.
+        steps = calls.map((inner, index) => {
+          const step = matchingStep(pending, inner, index, calls.length) ?? addTool(inner, at)
 
-        if (step === pending) {
-          tools.delete(step.id)
-        }
+          step.args = step.args ?? stepArgs(inner.args)
 
+          return step
+        })
+      }
+
+      for (const step of steps) {
         if (at && step.startedAt) {
           step.duration = Math.max(0, (at - step.startedAt) / 1000)
         }
 
-        step.args = step.args ?? stepArgs(inner.args)
-        const exactCall = typeof message.tool_call_id === 'string' && step.id === message.tool_call_id
-
-        if (exactCall && timestamp !== null) {
-          step.resultCall = { id: message.tool_call_id, timestamp }
+        if (exactCall && typeof id === 'string' && timestamp !== null) {
+          step.resultCall = { id, timestamp }
         }
 
         if (text) {
-          step.info = stepInfo(step.name, text, exactCall || !message.tool_call_id)
+          step.info = stepInfo(step.name, text, exactCall)
 
-          if (toolFailed({ result: text })) {
+          if (failed) {
             step.state = 'failed'
           }
         }
+
+        if (pending?.steps.includes(step)) {
+          pending.finished.add(step)
+        }
+      }
+
+      if (pending && (outerResult || pending.finished.size === pending.steps.length)) {
+        tools.delete(id)
       }
     }
 
