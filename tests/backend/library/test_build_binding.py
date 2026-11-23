@@ -74,6 +74,62 @@ class Binding(unittest.TestCase):
         self.assertEqual(self.registry.pending(PROFILE), [])
         self.assertEqual(self.registry.library()[0]["session"]["storedId"], "st-new")
 
+    def test_plan_first_keeps_the_explicit_approval_gate_after_the_project_claims_the_chat(self):
+        self.registry.build_start("st-plan", PROFILE, "Lamplight", plan=True)
+        self.registry.note_alias(PROFILE, "st-plan", "st-live")
+        with (
+            mock.patch.object(hermes_host, "_registry", return_value=self.registry),
+            mock.patch.object(hermes_host, "_profile_identity", return_value=PROFILE),
+        ):
+            pending = library_hooks.build_context(session_id="st-plan", is_first_turn=True)["context"]
+            self.assertIn("wait for the user to approve the brief before authoring or building", pending)
+            self.registry.observe(
+                "project_create_blank",
+                {"select": True},
+                {"projectRoot": str(self.root)},
+                False,
+                lane_root=None,
+                conversation_id="st-plan",
+                sessions_seen=["st-live"],
+                profile=PROFILE,
+            )
+            self.assertEqual(self.registry.pending(PROFILE), [])
+            before_brief = library_hooks.build_context(session_id="st-plan")["context"]
+            self.assertIn("If the brief is missing or still awaiting approval", before_brief)
+            brief = self.root / "docs" / "game" / "GAME-BRIEF.md"
+            brief.parent.mkdir(parents=True, exist_ok=True)
+            brief.write_text("- Status: proposed\n")
+            bound = library_hooks.build_context(session_id="st-plan")["context"]
+            self.assertIn("wait for the user's explicit approval", bound)
+            self.assertIn("Record that approval in the brief before starting the build", bound)
+            self.assertNotIn("create the project", bound)
+            self.assertEqual(library_hooks.build_context(session_id="st-live")["context"], bound)
+            self.registry.upsert(str(self.root), build={"ok": True})
+            self.assertEqual(library_hooks.build_context(session_id="st-plan")["context"], bound)
+            self.registry.unbind(self.game, "st-plan", PROFILE)
+            self.registry.bind(self.game, "st-reopened", PROFILE)
+            self.assertEqual(library_hooks.build_context(session_id="st-reopened")["context"], bound)
+            self.registry.present(str(self.root))
+            delivered = library_hooks.build_context(session_id="st-reopened")["context"]
+            self.assertIn("make the requested changes", delivered)
+            self.assertNotIn("brief", delivered)
+
+    def test_edit_does_not_treat_an_imported_games_notes_as_a_new_game_brief(self):
+        entry = self.registry.bind(self.game, "st-edit", PROFILE)
+        self.assertIs(entry["session"]["edit"], True)
+        brief = self.root / "docs" / "game" / "GAME-BRIEF.md"
+        brief.parent.mkdir(parents=True)
+        brief.write_text("- Status: proposed")
+        later = entry["session"]["createdAt"] + 1
+        os.utime(brief, (later, later))
+        with (
+            mock.patch.object(hermes_host, "_registry", return_value=self.registry),
+            mock.patch.object(hermes_host, "_profile_identity", return_value=PROFILE),
+        ):
+            context = library_hooks.build_context(session_id="st-edit")["context"]
+        self.assertIn("make the requested changes", context)
+        self.assertNotIn("brief", context)
+
     def test_a_game_that_already_has_a_conversation_is_never_claimed(self):
         self.registry.bind(self.game, "st-1", PROFILE)
         self.registry.build_start("st-new", PROFILE)

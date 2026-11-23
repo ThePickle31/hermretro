@@ -8,9 +8,10 @@
   section only in the profile named `hermretro` (`studio_profile.is_studio`; `HERMRETRO_EVERY_PROFILE=1` for
   plugin development); the page's RPCs in every profile the plugin is on. Registering in the `hermretro` profile also
   replaces a `SOUL.md` an earlier release shipped (`studio_profile.refresh_soul`: its hash is in `OLDER_SOULS`; an
-  edited one or a link is kept) and puts the profile's `agent.max_turns` back to its fixed `TURN_LIMIT` (1000) through
-  the hermes command (`studio_profile.pin_turn_limit`; the commands the plugin runs carry `HERMRETRO_CONFIGURING=1`,
-  so the plugin loading inside them leaves the config alone). Checked by `tests/backend/hermes/test_registration.py`.
+  edited one or a link is kept). Fresh creation seeds `agent.max_turns` to 1000 and installs the studio SOUL
+  before publishing the profile. Repair keeps any existing turn limit, including a cleared one, and any custom
+  or missing SOUL. Checked by `tests/backend/setup/test_studio_profile.py` and
+  `tests/backend/hermes/test_registration.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `.agents/skills/hermretro-dev-architecture/references/architecture.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
   `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
@@ -111,15 +112,17 @@ A page read that needs the engine is a broker control op (`backend/broker/contro
 RPC through `host.ensure_broker()`; `doctor` reads no hardware, so a device read must also refuse unless the RPC's
 `ctx.get_config("hardware_enabled")` is on (the gate `Broker.call` applies to the hardware tools).
 
-### `studio_profile` — no params
+### `studio_profile` — params `{ create? }`
 
-Finishes the dedicated `hermretro` profile after the page has created it with Hermes's own
-`profiles.create` (parameters come from `status.profile.create`). Returns
+Finishes an existing `hermretro` profile, or with `create: true` prepares a new one and publishes it after its
+initial preferences and finish marker have been written. If a deleted profile left a directory with no identity
+and no gateway owner, creation keeps that directory under a hidden sibling in `profiles/` and publishes the new
+profile under the studio name. Returns
 `{ ok, profile, plugin, providers[], disabled_toolsets[], soul_written, workspace }` or `{ ok: false, code, error }`
 with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`, `HERMES_COMMAND_FAILED`.
 Safe to call again, and single-flight: a call made while another runs in the same process waits for it and gets its
 answer (`shared: true`) or its error. `status` reports `profile: { name, is_studio, studio: { name, exists,
-installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
+installed, ours, conflict } }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download.
 
 ### `install` — params `{ action: "status" | "start" | "cancel", run_id? }`

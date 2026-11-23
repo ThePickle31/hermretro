@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 ae5b0e23eb0474fb881b416ca3d28e918129c65cc8c361fc53dc6eeb94248521
- * body: sha256 2d084bc65b1d4b0c8bcfda36367bc2006c4e03310c5b875921f0acdb07993753
+ * sources: sha256 9409062b39bebaed8f57cebd28a42796c02860483c0561a4d42b0e2983bb6ac5
+ * body: sha256 1ccc81c6a484ac409a12c6f694e325c75b0bfda894dd6beaca56d1040823dfaf
  */
 // page/sdk.js
 import {
@@ -7690,6 +7690,10 @@ function LostTurnCard({ chat, stored }) {
   });
 }
 
+// page/pages/build/workflow.js
+var BUILD_START = "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, and create nothing until they approve it. Once the user approves the list, create the project, save the approved list in it as docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: keep building while any is missing, and name in the build report only an item no tool can make. Then playtest it yourself using chromatic_emulator_run and chromatic_emulator_step; fill in its game card with chromatic_game_info; show it with chromatic_present_game in the hermretro emulator; end the turn with chromatic_build_report.";
+var PLAN_START = "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write the game brief, backlog and test plan into it, and wait for the user to approve the brief before authoring or building. Record the approval in the brief. Once the user approves the brief, build everything in its scope in one go, then check the test plan against the build before presenting. Then playtest it yourself using chromatic_emulator_run and chromatic_emulator_step; fill in its game card with chromatic_game_info; show it with chromatic_present_game in the hermretro emulator; end the turn with chromatic_build_report.";
+
 // page/pages/build/binding.js
 async function buildRpc(params) {
   try {
@@ -7708,7 +7712,8 @@ async function buildRpc(params) {
 function newGamePrompt({ name, idea, plan }) {
   const what = idea.trim() || "a small game";
   const title = name.trim();
-  return plan ? `Use hermretro to help me plan a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Interview me briefly, then create the project, and write the game brief, backlog and test plan into it before building anything.` : `Use hermretro to make a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. Ask me a few quick questions first, then show me a list of what you will make and wait for my approval. Once I approve it, create the project, save the list in it as docs/game/FIRST-BUILD.md, build the whole game and show it to me in the emulator.`;
+  const introduction = plan ? "help me plan" : "make";
+  return `Use hermretro to ${introduction} a new Game Boy Color game${title ? ` called "${title}"` : ""}: ${what}. ${plan ? PLAN_START : BUILD_START}`;
 }
 
 // page/shared/ui/elapsed.js
@@ -8044,8 +8049,8 @@ ${words}` : words;
 
 // page/pages/build/new-game.js
 var NEW_GAME_MODES = [
-  { id: "build", title: "Build it", text: `A few quick questions, then ${AGENT} makes the game and shows it to you in the emulator.`, ends: "Ends with a game you can play" },
-  { id: "plan", title: "Plan first", text: "A short interview, then a brief, backlog and test plan. Nothing is built until you say so.", ends: "Ends with a plan to review" }
+  { id: "build", title: "Build it", text: "Approve a short list before the project is created.", ends: "Ends with a game you can play" },
+  { id: "plan", title: "Plan first", text: "Start a project for the brief, backlog and test plan. Approve the brief before authoring begins.", ends: "Ends with a plan to review" }
 ];
 var focusedSeq = 0;
 function BuildNewGame({ onStart, picker = null, updating = false }) {
@@ -10272,10 +10277,7 @@ async function createStudioProfile(profile) {
   if (isUpdating()) {
     throw new Error(UPDATING_MESSAGE);
   }
-  if (!profile.studio?.exists) {
-    await host.request("profiles.create", profile.create);
-  }
-  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 24e4);
+  const { data } = await callBackend(RPC_STUDIO_PROFILE, { create: !profile.studio?.exists }, 24e4);
   if (!data?.ok) {
     throw new Error(data?.error || "The profile could not be set up.");
   }
