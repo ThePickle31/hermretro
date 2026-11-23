@@ -61,6 +61,7 @@ class Handler(socketserver.StreamRequestHandler):
                             # What every new worker inherits, so a client can replace an idle broker whose
                             # Node was removed or whose temporary folder cannot work (read now, not at start).
                             "node": broker.node,
+                            "install_start_deadline": True,
                             "temp_ok": host_os.engine_temp_ready(sanitized_environment()),
                         }
                     elif request.get("op") == "call":

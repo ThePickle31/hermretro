@@ -66,6 +66,7 @@ class QuietEngine:
 
 def bare_broker(engine, generation="this-broker"):
     broker = Broker.__new__(Broker)
+    broker.stopping = threading.Event()
     broker.install, broker.install_lock = {"state": "idle"}, threading.Lock()
     broker.prepare_lock = threading.Lock()
     broker.events = []
@@ -108,6 +109,39 @@ class Recovery(unittest.TestCase):
                 return
             time.sleep(0.01)
         self.fail("toolchain_prepare was not called")
+
+    def test_idle_read_before_a_delayed_handler_cannot_be_followed_by_expired_admission(self):
+        broker = bare_broker(None)
+        request = {"op": "install_start", "admit_before": 1000}
+
+        with mock.patch.object(control.time, "time", return_value=2):
+            self.assertEqual(broker.control({"op": "install_status"})["install"]["state"], "idle")
+            with self.assertRaises(Denied) as rejected:
+                broker.control(request)
+
+        self.assertEqual(rejected.exception.code, "START_EXPIRED")
+        self.assertEqual(broker.install["state"], "idle")
+        self.assertFalse(broker.prepare_lock.locked())
+        self.assertIsNone(recovery.read_journal())
+
+    def test_start_checks_its_deadline_again_after_preflight(self):
+        broker = bare_broker(None)
+        with mock.patch.object(control.time, "time", side_effect=[1, 3]):
+            with self.assertRaises(Denied) as rejected:
+                broker.control({"op": "install_start", "admit_before": 2000})
+
+        self.assertEqual(rejected.exception.code, "START_EXPIRED")
+        self.assertEqual(broker.install["state"], "idle")
+        self.assertFalse(broker.prepare_lock.locked())
+        self.assertIsNone(recovery.read_journal())
+
+    def test_an_older_clients_unfenced_start_is_denied(self):
+        broker = bare_broker(None)
+        for request in ({"op": "install_start"}, {"op": "install_start", "admit_before": None}):
+            with self.subTest(request=request), self.assertRaises(Denied) as rejected:
+                broker.control(request)
+            self.assertEqual(rejected.exception.code, "START_EXPIRED")
+        self.assertEqual(broker.install["state"], "idle")
 
     def test_cancel_uses_the_engine_cancellation_and_waits_for_its_lock(self):
         engine = CancellableEngine(self.root)

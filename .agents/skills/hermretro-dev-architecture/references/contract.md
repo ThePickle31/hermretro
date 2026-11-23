@@ -123,11 +123,11 @@ answer (`shared: true`) or its error. `status` reports `profile: { name, is_stud
 installed, ours, conflict }, create? }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download.
 
-### `install` — params `{ action: "status" | "start" | "cancel", run_id? }`
+### `install` — params `{ action: "status" | "start_fenced" | "start" | "cancel", expires_at?, run_id? }`
 
 The page's own toolchain install (first-run onboarding and the Setup page's toolchain step), with no chat.
-`start` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
-a background thread and returns at once; a second `start` joins the running install, and `start` is refused with
+`start_fenced` has the broker run the engine's `toolchain_prepare` for `["build", "emulator"]` in a throwaway worker on
+a background thread and returns at once. Another start joins the running install. Start is refused with
 `NO_SPACE` when the disk cannot hold even the estimate, or `WORKER_STILL_RUNNING` while an earlier installer worker's
 exit is unconfirmed. Each run has a `run_id`; `cancel` acts only on the running install with that `run_id` (any
 other, such as a stale Cancel for a run that finished while a retry runs, returns the status and stops nothing).
@@ -142,8 +142,14 @@ a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker 
 `cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
 start the broker; with no broker running, `status` reports the last install from its journal
 (`<deps root>/page-install.json`), a `running` one as `interrupted`. An unanswered broker request returns
-`UNAVAILABLE`. A start acknowledgement can time out while the install goes ahead. The page keeps the last
-confirmed status and checks again before allowing another start, an update or a reload. A cancel also returns
+`UNAVAILABLE`. The page sends `expires_at` (Unix milliseconds) with `start_fenced`. The gateway caps it at
+the broker request budget and reports that cap as `start_expires_at` once it attempts the broker request.
+The broker checks expiry while holding the install lock, immediately before admitting the run. An admitted
+run can continue after the acknowledgement is lost. Only a confirmed status requested after both the lost
+acknowledgement and the admission deadline can resolve it. Older gateways reject the new action. Older
+brokers without the admission check are available for status and cancellation, and refuse new starts
+through the client. The legacy page action `start` still uses the broker request budget as an admission deadline.
+Update and Reload read fresh confirmed status before changing the plugin. A cancel also returns
 `UNAVAILABLE` when there is no broker to acknowledge it. Successful calls return:
 
 ```json

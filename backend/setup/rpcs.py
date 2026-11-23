@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import time
 from pathlib import Path
 
@@ -262,17 +263,33 @@ _REMOVE_WORKER = (
 )
 
 
+def _valid_install(install, *, starting: bool = False) -> bool:
+    if not isinstance(install, dict):
+        return False
+    state = install.get("state")
+    if not isinstance(state, str):
+        return False
+    if state == "running" or (starting and state in recovery.TERMINAL):
+        run_id = install.get("run_id")
+        return isinstance(run_id, str) and bool(run_id.strip())
+    return not starting and (state == "idle" or state in recovery.TERMINAL)
+
+
 @rpc("install")
 def rpc_install(ctx):
     """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker),
-    ``{"action": "start"}`` or ``{"action": "cancel", "run_id": ...}`` (the engine's own MCP cancellation of that run
+    ``{"action": "start_fenced", "expires_at": ...}`` or ``{"action": "cancel", "run_id": ...}`` (MCP cancellation of that run
     only; the install then reports ``cancelled`` once the engine let go of its lock). Always returns the download
     list, so the page can show it first."""
 
     def install(params, **_kwargs):
         answer = {}
+        starting = False
         try:
-            action = (params or {}).get("action") or "status"
+            params = params or {}
+            action = params.get("action") or "status"
+            starting = action in ("start", "start_fenced")
+            expires_at = params.get("expires_at") if action == "start_fenced" else None
             root = paths.setup_root()
             answer = {
                 "ok": True,
@@ -280,12 +297,23 @@ def rpc_install(ctx):
                 "root": str(root),
                 "space": recovery.free_space(root),
             }
-            if action == "start":
+            if starting:
+                if action == "start_fenced" and (
+                    type(expires_at) not in (int, float)
+                    or not math.isfinite(expires_at)
+                    or expires_at <= time.time() * 1000
+                ):
+                    return {
+                        **answer,
+                        "ok": False,
+                        "code": "START_EXPIRED",
+                        "error": "The install start expired. Check the install status and try again.",
+                    }
                 with host.ensure_broker() as client:
-                    try:
-                        reply = client.request({"op": "install_start"})
-                    except (BrokerUnavailable, ValueError) as error:
-                        raise BrokerUnavailable(f"Install start was unconfirmed. {error}") from error
+                    # A lost reply can be reconciled once this window closes. Never widen the page's deadline.
+                    expires_at = min(expires_at or math.inf, (time.time() + client.control_timeout) * 1000)
+                    answer["start_expires_at"] = expires_at
+                    reply = client.request({"op": "install_start", "admit_before": expires_at})
             elif action in ("status", "cancel"):
                 client, error = host.try_connect(paths.runtime_dir())
                 if client is None:
@@ -302,11 +330,21 @@ def rpc_install(ctx):
                     if action == "status":
                         reply = client.request({"op": "install_status"})
                     else:
-                        reply = client.request({"op": "install_cancel", "run_id": (params or {}).get("run_id")})
+                        reply = client.request({"op": "install_cancel", "run_id": params.get("run_id")})
             else:
                 return {"ok": False, "error": f"Unknown action {action!r}."}
-            if not reply.get("ok"):
-                denied = reply.get("denied") or {}
+            if reply.get("ok") is not True:
+                denied = reply.get("denied")
+                if (
+                    reply.get("ok") is not False
+                    or reply.get("dispatched") is not False
+                    or not isinstance(denied, dict)
+                    or not isinstance(denied.get("code"), str)
+                    or not denied["code"]
+                ):
+                    raise BrokerUnavailable(
+                        reply.get("error") or "The background process did not confirm the install status."
+                    )
                 if action == "cancel" and denied.get("code") in _NO_CANCEL:
                     # A broker from before cancel: it answers install_cancel as an ownerless lane op
                     # (IDENTITY_REQUIRED), and the install it runs goes on.
@@ -324,12 +362,16 @@ def rpc_install(ctx):
                     **answer,
                     "ok": False,
                     "code": denied.get("code"),
-                    "error": denied.get("message") or reply.get("error") or "The install could not start.",
+                    "error": denied.get("message") or "The install request was refused.",
                 }
-            answer["install"] = reply.get("install") or {"state": "idle"}
+            install_state = reply.get("install")
+            if not _valid_install(install_state, starting=starting):
+                raise BrokerUnavailable("The background process returned an invalid install status.")
+            answer["install"] = install_state
             return answer
-        except BrokerUnavailable as error:
-            return {**answer, "ok": False, "code": "UNAVAILABLE", "error": str(error)}
+        except (BrokerUnavailable, ValueError) as error:
+            message = f"Install start was unconfirmed. {error}" if starting else str(error)
+            return {**answer, "ok": False, "code": "UNAVAILABLE", "error": message}
         except Exception as error:
             logger.exception("hermretro install failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}

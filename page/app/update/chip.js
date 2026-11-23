@@ -65,7 +65,7 @@ function body(update) {
         ),
         update.review ? jsx(Findings, { review: update.review }, 'f') : null,
         actions(
-          jsx(Button, { onClick: update.agree, size: 'sm', variant: 'default', children: 'Install anyway' }, 'yes'),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.agree, size: 'sm', variant: 'default', children: 'Install anyway' }, 'yes'),
           jsx(Button, { onClick: update.cancel, size: 'sm', variant: 'ghost', children: 'Cancel' }, 'no')
         )
       ]
@@ -74,7 +74,7 @@ function body(update) {
         "Couldn't update",
         jsx('p', { children: `${update.error ?? 'The update did not finish.'} Nothing was changed${update.version ? `; you are still on ${update.version}` : ''}.` }, 'p'),
         actions(
-          jsx(Button, { onClick: update.start, size: 'sm', variant: 'default', children: 'Try again' }, 'again'),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Try again' }, 'again'),
           jsx(Button, { onClick: update.openPlugins, size: 'sm', variant: 'link', children: 'Open Capabilities → Plugins' }, 'plugins')
         )
       ]

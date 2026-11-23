@@ -86,7 +86,23 @@ class BrokerClient:
             deadline = time.monotonic() + budget
             if self.startup_deadline is not None:
                 deadline = min(deadline, self.startup_deadline)
+        if op == "install_start" and self.hello.get("install_start_deadline") is not True:
+            return {
+                "ok": False,
+                "dispatched": False,
+                "denied": {
+                    "code": "BROKER_OUTDATED",
+                    "message": "The older hermretro background process cannot safely start the install. "
+                    "Close its chats and try again.",
+                },
+            }
         try:
+            if op == "install_start":
+                # The server checks this even if it reads the request after this connection times out.
+                expires_at = min(
+                    obj.get("admit_before", float("inf")), (time.time() + _remaining(deadline, budget)) * 1000
+                )
+                obj = {**obj, "admit_before": expires_at}
             self.sock.settimeout(_remaining(deadline, budget) if budget is not None else None)
             self.sock.sendall((json.dumps(obj, separators=(",", ":")) + "\n").encode())
             line = bytearray()
@@ -294,7 +310,7 @@ def _workers_cannot_start(hello: dict, node: str) -> bool:
 def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
-    A broker left over from another build of this backend is replaced when it is idle."""
+    The startup budget begins after Node discovery. A broker left over from another build is replaced when idle."""
     state_dir = Path(state_dir) if state_dir else paths.runtime_dir()
     node = paths.find_node()
     if not node.get("ok"):

@@ -61,10 +61,11 @@ line, never the attach ticket: `{ profile, method, result, error }` cut to 1800 
 5. Timeouts: a tool call waits `DEFAULT_CALL_TIMEOUT` (900 s, `backend/broker/lane.py`) unless the request sets
    `timeout`; a worker's start waits 60 s for its `initialize` answer and other requests 60 s by default
    (`backend/broker/engine.py`). A timed-out call is reported as outcome unknown (the engine may still finish
-   it), never as not done. The broker client bounds startup to 20 s by default, and bounds the connect, handshake
+   it), never as not done. The broker client begins its 20 s default startup budget after Node discovery. It bounds the connect, handshake
    and quick control acknowledgements (including install start, status and cancel) to 3 s each. Lane status gets
    20 s and a shutdown from Setup gets 15 s. Replacement requests also share the startup budget. Engine tool
-   calls keep their own budgets.
+   calls keep their own budgets. The broker also expires install starts that have not reached admission by the
+   end of their request window.
 
 ## Logging
 

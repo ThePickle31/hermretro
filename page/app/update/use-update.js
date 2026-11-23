@@ -63,7 +63,7 @@ const RESTART_ADVICE = { hermes: 'Restart Hermes', app: 'Quit and reopen Hermes'
  *  copy, loads it; `advice` says which) or failed.
  *  `installing`: the page's toolchain install is running. While it is, or while a chat in the hermretro profile is
  *  building (`blocked` says which), Update is refused: an update must never swap the plugin under a build. */
-export function usePluginUpdate({ ctx, status, running, installing = false, installError = null }) {
+export function usePluginUpdate({ ctx, status, running, installing = false, installError = null, confirmInstallIdle }) {
   const queryClient = useQueryClient()
   const installedIn = status.data?.plugin?.installed_in ?? null
   const profile = installedIn && !installedIn.linked ? (installedIn.profile ?? null) : null
@@ -102,10 +102,6 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     }
   })
   const busy = useRef(false)
-  // The install's latest state, read by a running update before it reloads (an install started meanwhile is waited for).
-  const installBlocked = useRef(false)
-
-  installBlocked.current = installing || Boolean(installError)
   // The status says the hermretro profile was made: not finding it is then an error, never "there is none".
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists)
 
@@ -186,7 +182,8 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
         studio,
         options,
         resume,
-        busy: () => (installBlocked.current ? Promise.resolve(['the game tools install']) : busyChats(studio)),
+        busy: () => busyChats(studio),
+        confirmInstallIdle,
         onStep: step => setState(current => ({ ...current, step })),
         onWaiting: waiting => setState(current => ({ ...current, waiting })),
         installed: () => remember(ctx, PENDING, { at: Date.now(), error: null }),
@@ -264,7 +261,8 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
       outcome ??= await runReload({
         install,
         studio,
-        busy: () => (installBlocked.current ? Promise.resolve(['the game tools install']) : busyChats(studio))
+        busy: () => busyChats(studio),
+        confirmInstallIdle
       })
     } finally {
       busy.current = false

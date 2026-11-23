@@ -102,6 +102,7 @@ export const useQuery = options => {
 
 export const useQueryClient = () => ({
   invalidateQueries: () => {},
+  cancelQueries: async () => {},
   getQueryData: queryKey => scenario.queryData.get(JSON.stringify(queryKey)),
   setQueryData: (queryKey, value) => {
     const key = JSON.stringify(queryKey)

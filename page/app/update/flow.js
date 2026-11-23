@@ -158,9 +158,15 @@ async function reloadStudio(studio) {
  *  they ship for the hermretro profile, refreshed from `install` (null for a linked checkout) when that is another
  *  profile, then, once nothing is being built there, the plugin reloaded. Resolves to `{ ok: true, reloaded }`
  *  (`reloaded` false when only a restart loads it) or `{ ok: false, error }`; never throws. */
-export async function loadIntoStudio({ install, studio, busy, onWaiting = () => {}, waitMs = 2_000, checkTries = 5 }) {
+export async function loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting = () => {}, waitMs = 2_000, checkTries = 5 }) {
   if (install && studio.profile === STUDIO_PROFILE && install.profile !== STUDIO_PROFILE) {
     // Settings the new version ships for the hermretro profile (its SOUL, toolsets). Not done is not finished.
+    const installError = await confirmInstallIdle()
+
+    if (installError) {
+      return { ok: false, error: installError }
+    }
+
     let finished
 
     try {
@@ -205,6 +211,12 @@ export async function loadIntoStudio({ install, studio, busy, onWaiting = () => 
 
   onWaiting(null)
 
+  const installError = await confirmInstallIdle()
+
+  if (installError) {
+    return { ok: false, error: installError }
+  }
+
   try {
     return { ok: true, reloaded: await reloadStudio(studio) }
   } catch (error) {
@@ -223,6 +235,7 @@ export async function loadIntoStudio({ install, studio, busy, onWaiting = () => 
  *  `busy()` names the chats building right now (busyChats). It is asked right before anything changes, and again before
  *  the hermretro profile is reloaded: a turn started meanwhile is waited for (`onWaiting(chats)`, every `waitMs`); the
  *  reload needs a successful idle answer, and `checkTries` failed checks in a row end in `partial`.
+ *  `confirmInstallIdle()` reads the toolchain installer before each mutation and returns any reason to stop.
  *  `installed()` is called right before Hermes is asked to update (the caller remembers it, since a lost answer may
  *  follow an install) and `refused()` when Hermes definitely changed nothing; `resume` is set when an earlier run got
  *  that far: Hermes then answers "unchanged" and the remaining steps still run. */
@@ -232,6 +245,7 @@ export async function runUpdate({
   options = {},
   resume = false,
   busy = async () => [],
+  confirmInstallIdle,
   onStep = () => {},
   onWaiting = () => {},
   installed = () => {},
@@ -250,6 +264,12 @@ export async function runUpdate({
 
   if (building.length) {
     return { kind: 'busy', chats: building }
+  }
+
+  const installError = await confirmInstallIdle()
+
+  if (installError) {
+    return { kind: 'failed', error: installError }
   }
 
   onStep(0)
@@ -316,7 +336,7 @@ export async function runUpdate({
   onStep(1)
 
   if (studio && studio.profile !== install.profile) {
-    const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries })
+    const loaded = await loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting, waitMs, checkTries })
 
     if (!loaded.ok) {
       return { kind: 'partial', error: loaded.error }
@@ -335,7 +355,7 @@ export async function runUpdate({
  *  `studio` without updating: the same steps as the end of runUpdate, refused while something is being built.
  *  Resolves to `{ kind: 'reloaded', pageRefreshed }`, `{ kind: 'restart' }` (only a restart of Hermes loads it),
  *  `{ kind: 'busy', chats }` or `{ kind: 'failed', error }`; never throws. */
-export async function runReload({ install, studio, busy = async () => [], onWaiting, waitMs, checkTries }) {
+export async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, onWaiting, waitMs, checkTries }) {
   let building
 
   try {
@@ -348,7 +368,7 @@ export async function runReload({ install, studio, busy = async () => [], onWait
     return { kind: 'busy', chats: building }
   }
 
-  const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries })
+  const loaded = await loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting, waitMs, checkTries })
 
   if (!loaded.ok) {
     return { kind: 'failed', error: loaded.error }

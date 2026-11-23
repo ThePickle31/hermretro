@@ -171,7 +171,8 @@ export function StudioPage({ ctx }) {
   const pluginUpdate = usePluginUpdate({
     ctx,
     installing: install.starting || installState === 'running',
-    installError: install.unavailable,
+    installError: install.updateBlock,
+    confirmInstallIdle: install.confirmIdle,
     running,
     status
   })

@@ -9,6 +9,7 @@ import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, answered, notLoaded, status, doctor, installAnswer }) => {
   const document = dom.window.document
+  scenario.byMethod['plugin.hermretro.install'] = () => installAnswer({ state: 'idle' }).data
   const banner = () => document.querySelector('.cs-repair')?.textContent.replace(/\s+/g, ' ') ?? ''
   const log = []
   let toggleAnswer = () => ({ ok: true, gateway_reloaded: true, restart_required: false })

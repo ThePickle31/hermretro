@@ -53,19 +53,24 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(!nav())
   })
   scenario.calls.length = 0
-  scenario.byMethod['plugin.hermretro.install'] = params => ({ ok: true, manifest, install: { state: params.action === 'start' ? 'running' : 'idle' } })
+  scenario.byMethod['plugin.hermretro.install'] = params => ({
+    ok: true, manifest, start_expires_at: params.expires_at, install: { state: 'running', run_id: 'run-1' }
+  })
   scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: true, profile: 'hermretro' }
   await click('Download and install')
   await settle()
   check('Download and install starts the backend install and makes the studio profile alongside, no chat', () => {
     const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
-    assert.ok(requests.includes('plugin.hermretro.install')); assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.install'], { action: 'start' })
+    assert.ok(requests.includes('plugin.hermretro.install'))
+    const start = scenario.paramsByMethod['plugin.hermretro.install']
+    assert.equal(start.action, 'start_fenced')
+    assert.ok(start.expires_at > Date.now())
     assert.ok(requests.includes('profiles.create') && requests.includes('plugin.hermretro.studio_profile'))
     assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
   })
   delete scenario.byMethod['plugin.hermretro.install']; delete scenario.byMethod['profiles.create']; delete scenario.byMethod['plugin.hermretro.studio_profile']
-  scenario.install = installAnswer({ state: 'running', started_at: 1, fraction: 0.4, downloaded_bytes: 281_000_000, current: 'cli', run: { components: {
+  scenario.install = installAnswer({ state: 'running', run_id: 'run-1', started_at: 1, fraction: 0.4, downloaded_bytes: 281_000_000, current: 'cli', run: { components: {
     gbdk: { state: 'done', version: '4.5.0', checks: [{ file: 'gbdk-linux64.tar.gz', sha256: 'd7857a5f6d135ee4', reused: false }] },
     cli: { state: 'running', checks: [] } } } })
   await render()

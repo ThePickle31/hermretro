@@ -424,6 +424,7 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, text, 
   scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
   scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
   scenario['update-busy'] = answered([])
+  scenario.byMethod['plugin.hermretro.install'] = () => scenario.install.data
   scenario.byMethod['session.active_list'] = () => ({ sessions: [] })
   let finishUpdate
   scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finishUpdate = resolve }) : { ok: true })

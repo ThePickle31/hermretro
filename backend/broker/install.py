@@ -7,6 +7,7 @@ Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`
 
 from __future__ import annotations
 
+import math
 import secrets
 import threading
 import time
@@ -110,10 +111,21 @@ class InstallMixin:
             with self.install_lock:
                 self._record_left_worker(engine)
 
-    def start_install(self) -> dict:
+    def _check_install_admission(self, admit_before: float | None) -> None:
+        if admit_before is not None and (
+            type(admit_before) not in (int, float)
+            or not math.isfinite(admit_before)
+            or time.time() * 1000 >= admit_before
+        ):
+            raise Denied("START_EXPIRED", "The install start expired. Check the install status and try again.")
+        if self.stopping.is_set():
+            raise Denied("BROKER_STOPPING", "The background process is stopping. Try again.")
+
+    def start_install(self, *, admit_before: float | None = None) -> dict:
         """Prepare the game toolchain for the desktop page, without a chat. Runs the engine's own
         toolchain_prepare in a throwaway worker on a background thread; install_status reports it."""
         with self.install_lock:
+            self._check_install_admission(admit_before)
             if self.install.get("state") == "running":
                 return dict(self.install)
             if self.install_worker_left():
@@ -129,6 +141,9 @@ class InstallMixin:
                     f"and {space['free_bytes'] // 1_000_000:,} MB is free where they go ({paths.setup_root()}). "
                     "Free some space, then try again.",
                 )
+            baseline_bytes = setup.download_bytes(paths.setup_root())
+            # Check again after filesystem work, under the same lock that protects the status snapshot.
+            self._check_install_admission(admit_before)
             if not self.prepare_lock.acquire(blocking=False):
                 raise Denied(
                     "OPERATION_IN_PROGRESS",
@@ -147,7 +162,7 @@ class InstallMixin:
                     "code": None,
                     "hint": None,
                     "seeded": None,
-                    "baseline_bytes": setup.download_bytes(paths.setup_root()),
+                    "baseline_bytes": baseline_bytes,
                     "broker": getattr(self, "generation", None),
                 }
                 snapshot = dict(self.install)

@@ -1,6 +1,7 @@
 """The `install` RPC across reloads and restarts: the last install from its journal, cancel through the broker."""
 
 import os
+import time
 import unittest
 from unittest import mock
 
@@ -61,6 +62,8 @@ class InstallRpc(unittest.TestCase):
 
     def test_start_timeout_is_unconfirmed_and_status_can_find_the_started_install(self):
         connected = FakeBrokerClient({"ok": True, "install": {"state": "running", "run_id": "run-a"}})
+        connected.control_timeout = 3
+        expires_at = (time.time() + 60) * 1000
         with (
             mock.patch.object(hermes_host, "ensure_broker", return_value=connected),
             mock.patch.object(
@@ -69,8 +72,9 @@ class InstallRpc(unittest.TestCase):
                 side_effect=BrokerUnavailable("Broker did not answer install_start"),
             ),
         ):
-            start = self.rpc({"action": "start"})
+            start = self.rpc({"action": "start_fenced", "expires_at": expires_at})
         self.assertEqual((start["ok"], start["code"]), (False, "UNAVAILABLE"))
+        self.assertLess(start["start_expires_at"], expires_at)
         self.assertIn("Install start was unconfirmed", start["error"])
         self.assertNotIn("install", start)
 
@@ -79,8 +83,50 @@ class InstallRpc(unittest.TestCase):
         self.assertEqual(status["install"], {"state": "running", "run_id": "run-a"})
         self.assertEqual(connected.asked, [{"op": "install_status"}])
 
+    def test_expired_page_start_never_connects_or_spawns(self):
+        with mock.patch.object(hermes_host, "ensure_broker") as connect:
+            result = self.rpc({"action": "start_fenced", "expires_at": 1})
+
+        self.assertEqual((result["ok"], result["code"]), (False, "START_EXPIRED"))
+        connect.assert_not_called()
+
+    def test_bad_acknowledgements_are_unavailable_for_all_install_actions(self):
+        replies = (
+            {"ok": True},
+            {"ok": True, "install": []},
+            {"ok": True, "install": {"state": "unknown"}},
+            {"ok": True, "install": {"state": ["idle"]}},
+            {"ok": True, "install": {"state": "running"}},
+            {"ok": False, "dispatched": None, "error": "unexpected broker error"},
+        )
+        for reply in replies:
+            for action in ("start", "status", "cancel"):
+                connected = FakeBrokerClient(reply)
+                connected.control_timeout = 3
+                with (
+                    self.subTest(reply=reply, action=action),
+                    mock.patch.object(hermes_host, "ensure_broker", return_value=connected),
+                    mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)),
+                ):
+                    answer = self.rpc({"action": action})
+                    self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
+                    self.assertNotIn("install", answer)
+
+    def test_a_start_cannot_acknowledge_idle_but_preserves_an_explicit_denial(self):
+        connected = FakeBrokerClient({"ok": True, "install": {"state": "idle"}})
+        connected.control_timeout = 3
+        with mock.patch.object(hermes_host, "ensure_broker", return_value=connected):
+            self.assertEqual(self.rpc({"action": "start"})["code"], "UNAVAILABLE")
+            connected.answer = {
+                "ok": False,
+                "dispatched": False,
+                "denied": {"code": "NO_SPACE", "message": "Out of room"},
+            }
+            denied = self.rpc({"action": "start"})
+        self.assertEqual((denied["ok"], denied["code"], denied["error"]), (False, "NO_SPACE", "Out of room"))
+
     def test_cancel_goes_to_the_broker_with_its_run_and_never_starts_one(self):
-        client = FakeBrokerClient({"ok": True, "install": {"state": "running", "cancelling": True}})
+        client = FakeBrokerClient({"ok": True, "install": {"state": "running", "run_id": "run-a", "cancelling": True}})
         with mock.patch.object(hermes_host, "try_connect", lambda _dir: (client, None)):
             answer = self.rpc({"action": "cancel", "run_id": "run-a"})
         self.assertEqual(client.asked, [{"op": "install_cancel", "run_id": "run-a"}])
