@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b2271d18aa0922928d0d1b3aa7b25438f1bf8864946672e00300b816904018cc
- * body: sha256 94394fcc071a1f917fe340872136d5f8361a884df941fda3ef96abff7ab8c5a9
+ * sources: sha256 60a5a22a3b4361be091db85ca69d9f90c31b6db689936e582a4fc6487ab9f4bf
+ * body: sha256 e2881d661504508b6c247ff3f8023d6023af787bae51fa268561b27faebc0f1c
  */
 // page/sdk.js
 import {
@@ -193,6 +193,7 @@ var RPC_NAMES = Object.freeze({
   capture_image: `plugin.${ID}.capture_image`,
   captures: `plugin.${ID}.captures`,
   doctor: `plugin.${ID}.doctor`,
+  game_build_status: `plugin.${ID}.game_build_status`,
   game_thumb: `plugin.${ID}.game_thumb`,
   games: `plugin.${ID}.games`,
   install: `plugin.${ID}.install`,
@@ -213,6 +214,7 @@ var RPC_BUILDS = RPC_NAMES.builds;
 var RPC_CAPTURE_IMAGE = RPC_NAMES.capture_image;
 var RPC_CAPTURES = RPC_NAMES.captures;
 var RPC_DOCTOR = RPC_NAMES.doctor;
+var RPC_GAME_BUILD_STATUS = RPC_NAMES.game_build_status;
 var RPC_GAME_THUMB = RPC_NAMES.game_thumb;
 var RPC_GAMES = RPC_NAMES.games;
 var RPC_INSTALL = RPC_NAMES.install;
@@ -11829,6 +11831,15 @@ var BUILD_PAGE = {
   }
 };
 
+// page/app/player/build-status.js
+async function readGameBuildStatus(call, id) {
+  const data = await call(RPC_GAME_BUILD_STATUS, { id });
+  if (data?.ok === true || data?.code === "NO_GAME") {
+    return data;
+  }
+  throw new Error(data?.error || "Could not read the game build.");
+}
+
 // page/pages/emulator/emulator-bar.js
 function Captures({ game, open }) {
   const captures = useQuery({
@@ -14992,7 +15003,7 @@ function openSideEmulator(ctx, game) {
       dock: { pane: "workspace", pos: "right" },
       minWidth: "22rem",
       title: `Emulator · ${game.title}`,
-      render: () => jsx(SideEmulator, { ctx, gameId: game.id, paneId: `plugin-workspace:${key}`, title: game.title }),
+      render: () => jsx(SideEmulator, { ctx, initialGame: game, paneId: `plugin-workspace:${key}` }),
       onClose: () => {
         sideTabs.delete(game.id);
         releaseLive(surface);
@@ -15007,7 +15018,9 @@ function openSideEmulator(ctx, game) {
     return false;
   }
 }
-function SideEmulator({ ctx, gameId, title, paneId }) {
+function SideEmulator({ ctx, initialGame, paneId }) {
+  const gameId = initialGame.id;
+  const demo = gameId === DEMO_ID;
   const surface = sideSurface(gameId);
   const owner = useValue(LIVE_PLAYER);
   const tick = useValue(BUILD_TICK);
@@ -15020,22 +15033,22 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
     }
   }, [owner, shown]);
   useEffect(() => () => releaseLive(surface), []);
-  const games = useQuery({
-    queryKey: [ID, "games", "side", gameId],
-    queryFn: async () => (await callBackend(RPC_GAMES)).data,
-    refetchInterval: shown ? 5e3 : 3e4,
+  const buildStatus = useQuery({
+    queryKey: [ID, "gameBuildStatus", "side", gameId],
+    queryFn: () => readGameBuildStatus(async (method, params) => (await callBackend(method, params)).data, gameId),
+    enabled: !demo,
+    refetchInterval: demo ? false : shown ? 5e3 : 3e4,
     staleTime: 2e3,
     retry: false
   });
-  const firstTick = useRef(tick);
+  const lastTick = useRef(tick);
   useEffect(() => {
-    if (tick !== firstTick.current) {
-      void games.refetch?.();
+    if (!demo && tick !== lastTick.current) {
+      lastTick.current = tick;
+      void buildStatus.refetch?.();
     }
   }, [tick]);
-  const list = Array.isArray(games.data?.games) ? games.data.games : [];
-  const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
-  const game = gameId === DEMO_ID ? demo : list.find((item) => item.id === gameId) ?? { id: gameId, title, rom: null, web: null, chat: null };
+  const game = demo ? DEMO_GAME : buildStatus.data?.game ?? (buildStatus.data?.code === "NO_GAME" ? { id: gameId, title: initialGame.title } : initialGame);
   const [reload, setReload] = useState(0);
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
@@ -15048,7 +15061,6 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
       seenSeq.current = seq;
       setDismissed(null);
       setReload((value) => value + 1);
-      void games.refetch?.();
     }
   }, [presentation?.seq]);
   const note = presentation?.note && noteHidden !== presentation.seq ? presentation.note : null;
@@ -15068,7 +15080,7 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
   const currentSha = playableSha(game);
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), scopeRef, visible: live && shown });
-  const hardwareOn = Boolean(games.data?.device?.hardwareEnabled);
+  const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled);
   return jsxs("div", {
     className: "cs-page cs-side",
     "data-page": "emulator",
@@ -17473,13 +17485,13 @@ function StudioPage({ ctx }) {
     return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
   });
   const changeBuildVisit = useCallback((change) => {
-    setNavigation((current) => current.page === "build" && current.visit === visit ? change(current) : current);
+    setNavigation((current2) => current2.page === "build" && current2.visit === visit ? change(current2) : current2);
   }, [visit]);
   const selectBuild = useCallback((selection) => {
-    changeBuildVisit((current) => current.buildSelection === selection ? current : { ...current, buildSelection: selection });
+    changeBuildVisit((current2) => current2.buildSelection === selection ? current2 : { ...current2, buildSelection: selection });
   }, [changeBuildVisit]);
   const changeBuildPending = (change) => {
-    changeBuildVisit((current) => ({ ...current, buildPending: change(current.buildPending) }));
+    changeBuildVisit((current2) => ({ ...current2, buildPending: change(current2.buildPending) }));
   };
   const [pinned, setPinned] = useState(null);
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
@@ -17562,9 +17574,9 @@ function StudioPage({ ctx }) {
     const finishedMs = Number(finishedAt) * 1e3 || 0;
     const asked2 = doctorAsked.current;
     const answeredAt = asked2.answerAt || Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0);
-    const current = doctor.isFetching ? asked2.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
+    const current2 = doctor.isFetching ? asked2.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
     verifiedRun.current = doneRun;
-    if (!finishedMs || !current) {
+    if (!finishedMs || !current2) {
       void doctor.refetch?.();
     }
   }, [doneRun, doctor.isFetching]);
@@ -17580,10 +17592,10 @@ function StudioPage({ ctx }) {
       // install (its end triggers one check above), only while a chat installs where this page cannot see it.
       pollDoctor: Boolean(toolchainOpen) && installElsewhere
     };
-    setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
+    setPolling((current2) => current2.fast === next.fast && current2.pollDoctor === next.pollDoctor ? current2 : next);
   }, [autoId, toolchainStep?.state, installElsewhere]);
   const go = (id, selection = null) => {
-    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current.visit + 1 });
+    setNavigation((current2) => id === current2.page && selection === null ? current2 : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current2.visit + 1 });
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -17605,8 +17617,7 @@ function StudioPage({ ctx }) {
     queryKey: [ID, "games", viaProfile],
     queryFn: () => callStudio(RPC_GAMES),
     enabled: running,
-    // While the player is on screen, a rebuild in chat is noticed within seconds.
-    refetchInterval: onEmulator ? 5e3 : 3e4,
+    refetchInterval: 3e4,
     staleTime: 2e3,
     retry: false
   });
@@ -17615,20 +17626,29 @@ function StudioPage({ ctx }) {
   const [emuOpened, setEmuOpened] = useState(false);
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
+  const checkPicked = running && Boolean(emu.id && emu.id !== DEMO_ID);
+  const buildStatus = useQuery({
+    queryKey: [ID, "gameBuildStatus", viaProfile, emu.id],
+    queryFn: () => readGameBuildStatus(callStudio, emu.id),
+    enabled: checkPicked,
+    refetchInterval: checkPicked && onEmulator ? 5e3 : false,
+    retry: false
+  });
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
-  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games));
   const libraryKnown = Boolean(games.data) || games.isError;
-  const picked = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id);
-  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null);
+  const removed = checkPicked && buildStatus.data?.code === "NO_GAME" && !buildStatus.isFetching && !buildStatus.isError;
+  const picked = gameList.find((item) => item.id === emu.id);
+  const current = buildStatus.data?.game;
+  const game = removed || emu.id === DEMO_ID || !emu.id && libraryKnown ? demo : current ? { ...picked, ...current } : picked ?? null;
   useEffect(() => {
-    if (libraryRead && emu.id && !picked) {
-      setEmu((current) => ({ id: null, reload: current.reload }));
+    if (removed) {
+      setEmu((current2) => ({ id: null, reload: current2.reload }));
       try {
         ctx.storage.set(EMULATOR_GAME, null);
       } catch {
       }
     }
-  }, [libraryRead, emu.id, Boolean(picked)]);
+  }, [removed, emu.id]);
   useEffect(() => {
     if (onEmulator && game) {
       setEmuOpened(true);
@@ -17683,7 +17703,7 @@ function StudioPage({ ctx }) {
     ctx.setTimeout(() => void attempt(3), 3e3);
   };
   const play = (id) => {
-    setEmu((current) => ({ id, reload: current.reload }));
+    setEmu((current2) => ({ id, reload: current2.reload }));
     try {
       ctx.storage.set(EMULATOR_GAME, id);
     } catch {
@@ -17739,10 +17759,10 @@ function StudioPage({ ctx }) {
       fullScreen: () => void stageRef.current?.requestFullscreen?.()?.catch?.(() => {
       }),
       later: () => setDismissed(currentSha),
-      reload: () => setEmu((current) => ({ id: game.id, reload: current.reload + 1 })),
+      reload: () => setEmu((current2) => ({ id: game.id, reload: current2.reload + 1 })),
       refresh: () => {
         refresh();
-        setEmu((current) => ({ id: current.id, reload: current.reload + 1 }));
+        setEmu((current2) => ({ id: current2.id, reload: current2.reload + 1 }));
       },
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
