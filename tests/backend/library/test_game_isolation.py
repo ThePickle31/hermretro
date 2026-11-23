@@ -18,8 +18,7 @@ from backend.hermes import host as hermes_host  # noqa: E402 - the repository ro
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.library.test_build_binding import EngineStub  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.bare import EngineStub, bare_broker  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import FakeBrokerClient, isolated_home, make_library_game  # noqa: E402 - the repository root goes on sys.path first
 
 PROFILE = "/profiles/hermretro"
