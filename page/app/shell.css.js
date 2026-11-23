@@ -1,7 +1,7 @@
 import { DISPLAY, MONO } from '#shared/styles/tokens.js'
 
 export const SHELL_CSS = `
-/* header: wordmark, one segmented control, refresh */
+/* header: wordmark, one segmented control, the update chip */
 .cs-top { align-items: center; background: var(--ui-bg-editor); border-bottom: 1px solid var(--ui-stroke-tertiary); display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 14px clamp(16px, 3.5cqi, 64px); position: sticky; top: 0; z-index: 10; }
 .cs-brand { all: unset; color: var(--ui-text-primary); cursor: pointer; font: 700 18px/.9 ${DISPLAY}; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 .cs-brand span { color: var(--ui-accent); }

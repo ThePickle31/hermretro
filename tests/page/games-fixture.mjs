@@ -1,6 +1,6 @@
 // The shared starting state of the Games and Emulator scenarios (page-games, page-emulator,
 // page-emulator-side .test.mjs): the studio left as the studio-profile scenarios leave it, a library of four games
-// fed by the games RPC, the studio page mounted and Refresh pressed. Each file navigates to its own page from here.
+// fed by the games RPC, the studio page mounted and everything checked again from Setup. Each file navigates to its own page from here.
 //   const { games, now2, studio } = await gamesStudio(helpers)   // helpers: what runScenario hands the scenario
 // Comet Drift and Old Orbit carry a `card` in the real shape (.agents/skills/hermretro-dev-architecture/references/contract.md, "The game object";
 // game_card.public()): Comet Drift's is complete with genres and controls, Old Orbit's is still missing its cover.
@@ -29,10 +29,10 @@ export function libraryGames(now2) {
   ]
 }
 
-/** Set the scenario up, mount the studio page and press Refresh; returns { games, now2, studio }. */
-export async function gamesStudio({ scenario, page, mount, click, answered, doctor, installAnswer, complete }) {
+/** Set the scenario up, mount the studio page and check everything again from Setup; returns { games, now2, studio }. */
+export async function gamesStudio({ scenario, page, mount, click, tab, answered, doctor, installAnswer, complete }) {
   // Where the studio-profile scenarios leave the app: the active profile has the plugin but is not the studio,
-  // a hermretro route is known, and the profile RPCs still answer (Refresh below forgets the route).
+  // a hermretro route is known, and the profile RPCs still answer (checking everything again below forgets the route).
   scenario.ambient = { ...complete, profile: { name: 'default', is_studio: false,
     create: { name: 'hermretro', description: 'hermretro', no_skills: true, share_auth: true, no_alias: true },
     studio: { name: 'hermretro', exists: true, installed: false, ours: false } } }
@@ -50,6 +50,7 @@ export async function gamesStudio({ scenario, page, mount, click, answered, doct
   scenario.games = answered({ games, gamesDir: '/home/u/.hermes/hermretro/games', device: { hardwareEnabled: true, skipped: false } })
   scenario.player = { isPending: true }
   const studio = await mount(page)
-  await click('Refresh') // forget the profile route left over from the cases above
+  await tab('Setup')
+  await click('Check everything again') // forget the profile route left over from the cases above
   return { games, now2, studio }
 }

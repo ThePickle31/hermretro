@@ -184,6 +184,6 @@ export function studioError(error, what) {
   const { message, notLoaded } = describeRequestError(error)
 
   return notLoaded
-    ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in, then press Refresh.`
+    ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in.`
     : message || 'Unknown error'
 }

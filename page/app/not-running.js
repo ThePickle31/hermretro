@@ -8,7 +8,7 @@ import { Working } from '#shared/ui/working.js'
 
 /** Shown instead of the setup steps while the plugin's backend cannot be reached. Normally
  *  never seen: switching the plugin on in Capabilities turns on the page and the backend. */
-export function NotRunning({ backend, status, gateway }) {
+export function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
   let title = 'Checking hermretro…'
   let body = jsx(Working, { children: 'Asking the plugin for its status.' })
 
@@ -24,7 +24,17 @@ export function NotRunning({ backend, status, gateway }) {
       className: 'cs-content',
       children: [
         jsx(Lede, { children: 'The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below.' }),
-        jsx('pre', { className: 'cs-error', children: describeRequestError(status.error).message || 'Unknown error' })
+        jsx('pre', { className: 'cs-error', children: describeRequestError(status.error).message || 'Unknown error' }),
+        jsx('div', {
+          className: 'cs-actions',
+          children: jsxs(Button, {
+            disabled: refreshing,
+            onClick: onRefresh,
+            size: 'sm',
+            variant: 'default',
+            children: [jsx(Codicon, { name: 'refresh', size: 14, spinning: refreshing }), 'Refresh']
+          })
+        })
       ]
     })
   } else if (backend === 'unavailable') {

@@ -56,7 +56,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
   let buildAnswer = params => ({ ok: true })
   scenario.byMethod['plugin.hermretro.build'] = params => { buildCalls.push(params); return buildAnswer(params) }
   const build14 = await mount(page)
-  await click('Refresh')
+  await tab('Setup')
+  await click('Check everything again')
   await tab('Build')
   let menu14 = await gamesMenu(build14)
   const shelf14 = await libraryMenu(build14)

@@ -1,6 +1,6 @@
 import { MONO } from '#shared/styles/tokens.js'
 
-// The update chip beside Refresh and its popover (chip.js). The chip reuses .cs-chip; under 900px only its dot shows
+// The update chip at the header's end and its popover (chip.js). The chip reuses .cs-chip; under 900px only its dot shows
 // (responsive.css.js hides .cs-top-end .cs-lbl).
 export const UPDATE_CSS = `
 .cs-top-end { align-items: center; gap: 10px; }

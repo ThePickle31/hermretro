@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 73ed31048e5c57ffeff673d7d7ba33cafd510eedf8c8281d836e5b129731c2de
- * body: sha256 f7b86b7cb2ef607c30b5f78cc2aec5871a9b76a5078a37b3011345a17cfc870c
+ * sources: sha256 82b1c115f9a66011172e726049d4adeb3e6ba151b37fdbee379ff5895c4ae382
+ * body: sha256 d2bfd0ff67ea5b96134367bc670d46fe867a1f2ad2eca00de055f2c9fc9a2c5f
  */
 // page/sdk.js
 import {
@@ -422,7 +422,7 @@ async function callStudioOnly(method, params = {}, timeoutMs) {
 }
 function studioError(error, what) {
   const { message, notLoaded } = describeRequestError(error);
-  return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in, then press Refresh.` : message || "Unknown error";
+  return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in.` : message || "Unknown error";
 }
 
 // page/app/update/lock.js
@@ -14795,7 +14795,7 @@ var RESPONSIVE_CSS = `
   .cs-empty > .cs-art { display: none; }
 }
 /* Narrow main pane (an emulator tab docked beside it, a small window): the header stays one row.
-   The segments tighten, Refresh keeps only its icon, the wordmark goes and, as
+   The segments tighten, the update chip keeps only its dot, the wordmark goes and, as
    a last resort, the segments scroll sideways. The player bar stops wrapping the same way and, below
    560px, its buttons keep only their icons (each has a tooltip and an aria-label). */
 @container (max-width: 900px) {
@@ -14862,7 +14862,7 @@ var FLYER_CSS = `
 
 // page/app/shell.css.js
 var SHELL_CSS = `
-/* header: wordmark, one segmented control, refresh */
+/* header: wordmark, one segmented control, the update chip */
 .cs-top { align-items: center; background: var(--ui-bg-editor); border-bottom: 1px solid var(--ui-stroke-tertiary); display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 14px clamp(16px, 3.5cqi, 64px); position: sticky; top: 0; z-index: 10; }
 .cs-brand { all: unset; color: var(--ui-text-primary); cursor: pointer; font: 700 18px/.9 ${DISPLAY}; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 .cs-brand span { color: var(--ui-accent); }
@@ -16953,7 +16953,7 @@ function UpdateChip({ update }) {
 }
 
 // page/app/nav.js
-function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null, update = null }) {
+function StudioNav({ pages, nav, onGo, viaProfile = null, update = null }) {
   const page = nav.page;
   return jsxs("header", {
     className: "cs-top",
@@ -16996,32 +16996,16 @@ function StudioNav({ pages, nav, onGo, onRefresh, refreshing, viaProfile = null,
           )
         )
       }),
-      jsxs("div", {
+      jsx("div", {
         className: "cs-top-end",
-        children: [
-          update ? jsx(UpdateChip, { update }, "update") : null,
-          jsx(Tip, {
-            label: "Check the setup and reload the studio",
-            children: jsx("span", {
-              style: { display: "inline-flex" },
-              children: jsxs(Button, {
-                "aria-label": "Refresh",
-                disabled: refreshing,
-                onClick: onRefresh,
-                size: "sm",
-                variant: "ghost",
-                children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), jsx("span", { className: "cs-lbl", children: "Refresh" })]
-              })
-            })
-          }, "refresh")
-        ]
+        children: update ? jsx(UpdateChip, { update }) : null
       })
     ]
   });
 }
 
 // page/app/not-running.js
-function NotRunning({ backend, status, gateway }) {
+function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
   let title = "Checking hermretro…";
   let body2 = jsx(Working, { children: "Asking the plugin for its status." });
   if (backend === "offline") {
@@ -17036,7 +17020,17 @@ function NotRunning({ backend, status, gateway }) {
       className: "cs-content",
       children: [
         jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
-        jsx("pre", { className: "cs-error", children: describeRequestError(status.error).message || "Unknown error" })
+        jsx("pre", { className: "cs-error", children: describeRequestError(status.error).message || "Unknown error" }),
+        jsx("div", {
+          className: "cs-actions",
+          children: jsxs(Button, {
+            disabled: refreshing,
+            onClick: onRefresh,
+            size: "sm",
+            variant: "default",
+            children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), "Refresh"]
+          })
+        })
       ]
     });
   } else if (backend === "unavailable") {
@@ -17751,7 +17745,7 @@ function StudioPage({ ctx }) {
   };
   let body2;
   if (!running) {
-    body2 = [jsx(NotRunning, { backend, gateway, status }, "off")];
+    body2 = [jsx(NotRunning, { backend, gateway, onRefresh: refresh, refreshing, status }, "off")];
   } else if (onboardScreen) {
     body2 = [
       jsx(
@@ -17792,9 +17786,7 @@ function StudioPage({ ctx }) {
           {
             nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
             onGo: go,
-            onRefresh: refresh,
             pages: NAV_PAGES,
-            refreshing,
             update: pluginUpdate,
             viaProfile
           },

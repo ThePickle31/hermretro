@@ -16,7 +16,7 @@ Build, or on the page the user last chose (a remembered page that no longer exis
 | Games | **Shelf**, layout "A1 · split Play" |
 | Emulator | ModRetro's **real player**, always: the game picked on the Games page, else the demo cartridge |
 
-Beside Refresh, the header shows an update chip (`page/app/update/`) only
+At its end, the header shows an update chip (`page/app/update/`) only
 while Hermes's own daily check says a newer hermretro exists (`plugins.manage list` in the profile named by status
 `plugin.installed_in`), while an update runs, or just after one. Its popover runs the update: Hermes's
 `plugins.manage update` in that profile (a caution scan or a widened plugin is shown and needs "Install anyway"; a
@@ -77,7 +77,7 @@ adds both: a row naming its design, and a `### <Page>` subsection saying what it
 - ModRetro's **real player** in a `SandboxedFrame`, served by the backend (`player.md`, the `player` RPC), always. It plays only the game picked with Play on the Games page (remembered across visits in `ctx.storage` `emulatorGame`, `page/app/studio-page.js`); a game a chat builds or presents never loads here by itself (presentations open in the tab beside the chat). A picked game waits for a successful library answer, and one no longer in the library is forgotten (a new game later made in its folder has the same id). With none picked it loads the **demo cartridge** (Hello Color; no chip or extra button for it, and no Install). Tests: `tests/page/page-emulator-pick.test.mjs`.
 - A failed or missing `player` RPC shows a compact notice with the reason and Refresh above an empty device area (for -32601: reload the plugin, Capabilities › Plugins).
 - Above it a thin bar with only the player's controls: keyboard-focus indicator, Install, Ask Hermes, Captures drawer, Full screen (no game tabs: Play on the Games shelf picks the game).
-- Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, icon-only Refresh, and below 600 px no wordmark).
+- Below 700 px of page width the bar stops wrapping, and below 560 px its buttons keep only their icons, each with a tooltip; the header likewise stays one row (tighter segments, the update chip's dot only, and below 600 px no wordmark).
 - "Hermes rebuilt <game> · Load the new build" banner when the game's web ROM (`web.sha256`) changed after the frame loaded.
 - Under the player: a one-line hint ("Hermes shows your game beside the chat when it is ready for you to try.") and the user's own **Open beside the chat** button (`player.md`, "The emulator beside the chat").
 - Default device finish: the first skin in `player/skins/` (**Hermes Edition · Nous Black**).
