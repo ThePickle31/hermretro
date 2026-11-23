@@ -534,6 +534,9 @@ class GamesRpc(unittest.TestCase):
         )
         self.assertFalse(thumb({"id": "000000000000", "png": "x"})["ok"])
         self.assertFalse(thumb({"id": identifier, "png": "data:image/png;base64,!!"})["ok"])
+        later = "data:image/png;base64," + base64.b64encode(PNG + b"later frame").decode()
+        self.assertTrue(thumb({"id": identifier, "png": later})["ok"])
+        self.assertEqual((games.Registry(paths.library_dir()).thumbs / f"{identifier}.png").read_bytes(), PNG)
         self.assertTrue(library_rpcs.rpc_games(self.ctx)({})["games"][0]["thumb"].startswith("data:image/png"))
 
 

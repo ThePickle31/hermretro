@@ -83,6 +83,33 @@ await runScenario(async helpers => {
   })
   await seeding.close()
 
+  const captureTimers = new Set()
+  const schedule = helpers.ctx.setTimeout
+  helpers.ctx.setTimeout = (fn, ms) => {
+    if (ms !== 3_000) return schedule(fn, ms)
+    captureTimers.add(fn)
+    return () => captureTimers.delete(fn)
+  }
+  scenario.games = { isPending: true }
+  scenario.gameBuildStatus = answered({ ok: true, game: { id: games[0].id, title: games[0].title } })
+  const capturing = await mount(page)
+  await tab('Emulator')
+  const frame = capturing.node.querySelector('.cs-rp-stage iframe')
+  await act(async () => frame.dispatchEvent(new helpers.dom.window.Event('load')))
+  check('an early player load waits for a shelf thumbnail decision', () => assert.equal(captureTimers.size, 0))
+  library([{ ...games[0], thumb: 'saved-thumbnail' }])
+  await capturing.rerender()
+  check('a remembered game with saved artwork queues no capture', () => assert.equal(captureTimers.size, 0))
+  library([{ ...games[0], thumb: null }])
+  await capturing.rerender()
+  check('a loaded frame captures once the shelf confirms a missing thumbnail', () => assert.equal(captureTimers.size, 1))
+  library([{ ...games[0], thumb: 'saved-while-queued' }])
+  await capturing.rerender()
+  check('a thumbnail saved while capture is queued cancels the job', () => assert.equal(captureTimers.size, 0))
+  await capturing.close()
+  helpers.ctx.setTimeout = schedule
+  scenario.gameBuildStatus = answered({ ok: false, code: 'NO_GAME' })
+
   scenario.storage.emulatorGame = 'fff999fff999' // a game since removed from the library
   library(games, ['fff999fff999'])
   const later = await mount(page)

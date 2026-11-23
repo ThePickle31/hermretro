@@ -79,12 +79,18 @@ def decode_png(data_url, limit: int) -> bytes:
     return raw
 
 
-def _atomic_write(path: Path, data: bytes) -> None:
+def _atomic_write(path: Path, data: bytes, *, replace: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
         temporary.write_bytes(data)
-        os.replace(temporary, path)
+        if replace:
+            os.replace(temporary, path)
+        else:
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                pass
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -282,7 +288,7 @@ class Registry:
         if not valid_id(identifier):
             raise ValueError("Unknown game id.")
         path = self.thumbs / f"{identifier}.png"
-        _atomic_write(path, png)
+        _atomic_write(path, png, replace=False)
         return path
 
     def thumb(self, identifier: str) -> str | None:

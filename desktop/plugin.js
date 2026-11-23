@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 259d34eadd82cfd3a5406cfeb7435f204ad8d0c588b2c9d7eaeaa4f3278f4757
- * body: sha256 fcdd2eb0daa0afdb8e62920ab18c196bd4850eb6d71b8dc6b49a98fe60dcf49d
+ * sources: sha256 3c3492d25f377e9df0931f403435949b8a9649c271a830f36fa7f54015a9a6ca
+ * body: sha256 f94feb816280735663b11b5ce34659352f30bdcb0dbf02e669404b1769dd2b51
  */
 // page/sdk.js
 import {
@@ -16648,6 +16648,49 @@ function shrinkFrame(dataUrl) {
   });
 }
 
+// page/app/player/title-screen.js
+function useTitleScreen(ctx, frameRef, gameId, snap) {
+  const [loadedFrame, setLoadedFrame] = useState(null);
+  const tried = useRef(/* @__PURE__ */ new Set());
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!gameId || !loadedFrame || loadedFrame !== frameRef.current || tried.current.has(gameId)) {
+      return void 0;
+    }
+    let active = true;
+    let cancelTimer;
+    const current = () => active && loadedFrame === frameRef.current;
+    const capture = async (remaining) => {
+      if (!current()) {
+        return;
+      }
+      const png = await shrinkFrame(await snap());
+      if (!current()) {
+        return;
+      }
+      if (!png && remaining > 0) {
+        cancelTimer = ctx.setTimeout(() => void capture(remaining - 1), 5e3);
+        return;
+      }
+      tried.current.add(gameId);
+      if (png) {
+        try {
+          await callStudio(RPC_GAME_THUMB, { id: gameId, png });
+          void queryClient.invalidateQueries({ queryKey: [ID, "games"] });
+        } catch (error) {
+          console.warn("[hermretro] title screen not saved:", describeRequestError(error).message);
+        }
+      }
+    };
+    cancelTimer = ctx.setTimeout(() => void capture(3), 3e3);
+    return () => {
+      active = false;
+      cancelTimer();
+    };
+  }, [ctx, frameRef, gameId, loadedFrame, queryClient, snap]);
+  return () => setLoadedFrame(frameRef.current);
+}
+
 // page/app/update/flow.js
 var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
 var UPDATE_MARKER = "update";
@@ -17745,32 +17788,10 @@ function StudioPage({ ctx }) {
   const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null;
   const currentSha = playableSha(buildStatus.isError ? shelfBuild : current);
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
-  const thumbTried = useRef(/* @__PURE__ */ new Set());
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), visible: onEmulator && running && pageLive });
   const ask = () => askAboutGame(ctx, game, bridge.snap);
-  const onFrameLoad = () => {
-    const target = game;
-    if (!target || target.id === DEMO_ID || target.thumb || thumbTried.current.has(target.id)) {
-      return;
-    }
-    thumbTried.current.add(target.id);
-    const attempt = async (remaining) => {
-      const png = await shrinkFrame(await bridge.snap());
-      if (!png) {
-        if (remaining > 0) {
-          ctx.setTimeout(() => void attempt(remaining - 1), 5e3);
-        }
-        return;
-      }
-      try {
-        await callStudio(RPC_GAME_THUMB, { id: target.id, png });
-        void queryClient.invalidateQueries({ queryKey: [ID, "games"] });
-      } catch (error) {
-        console.warn("[hermretro] title screen not saved:", describeRequestError(error).message);
-      }
-    };
-    ctx.setTimeout(() => void attempt(3), 3e3);
-  };
+  const thumbnailGame = shelfSettled && pageLive && !unavailable && picked && !picked.thumb && picked.id === game?.id ? picked.id : null;
+  const onFrameLoad = useTitleScreen(ctx, frameRef, thumbnailGame, bridge.snap);
   const play = (id) => {
     setEmu((current2) => ({ id, reload: current2.reload }));
     try {

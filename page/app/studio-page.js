@@ -16,10 +16,10 @@ import {
   useValue
 } from '#sdk'
 import { ART_DATA } from '#shared/art/index.js'
-import { callStudio, describeRequestError, readGamesShelf, studioError, useBackend } from './backend.js'
+import { callStudio, readGamesShelf, studioError, useBackend } from './backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from './ids.js'
 import { forgetRoute, routing } from './routing.js'
-import { RPC_GAME_THUMB, RPC_PLAYER } from './rpc.js'
+import { RPC_PLAYER } from './rpc.js'
 import {
   computeSteps,
   ONBOARD_STAGES,
@@ -33,7 +33,7 @@ import {
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from './player/capture.js'
 import { buildStatusUnsupported, readGameBuildStatus } from './player/build-status.js'
-import { shrinkFrame } from '#shared/player/frame-image.js'
+import { useTitleScreen } from './player/title-screen.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
 import { playableSha, PlayerAway, PlayerStage } from './player/stage.js'
 import { PageStyle } from './style.js'
@@ -348,42 +348,12 @@ export function StudioPage({ ctx }) {
   const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null
   const currentSha = playableSha(buildStatus.isError ? shelfBuild : current)
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
-  const thumbTried = useRef(new Set())
 
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), visible: onEmulator && running && pageLive })
   const ask = () => askAboutGame(ctx, game, bridge.snap)
 
-  // After a game first loads, keep its title screen for the shelf (when it has none yet).
-  const onFrameLoad = () => {
-    const target = game
-
-    if (!target || target.id === DEMO_ID || target.thumb || thumbTried.current.has(target.id)) {
-      return
-    }
-
-    thumbTried.current.add(target.id)
-
-    const attempt = async remaining => {
-      const png = await shrinkFrame(await bridge.snap())
-
-      if (!png) {
-        if (remaining > 0) {
-          ctx.setTimeout(() => void attempt(remaining - 1), 5_000)
-        }
-
-        return
-      }
-
-      try {
-        await callStudio(RPC_GAME_THUMB, { id: target.id, png })
-        void queryClient.invalidateQueries({ queryKey: [ID, 'games'] })
-      } catch (error) {
-        console.warn('[hermretro] title screen not saved:', describeRequestError(error).message)
-      }
-    }
-
-    ctx.setTimeout(() => void attempt(3), 3_000)
-  }
+  const thumbnailGame = shelfSettled && pageLive && !unavailable && picked && !picked.thumb && picked.id === game?.id ? picked.id : null
+  const onFrameLoad = useTitleScreen(ctx, frameRef, thumbnailGame, bridge.snap)
 
   const play = id => {
     setEmu(current => ({ id, reload: current.reload }))

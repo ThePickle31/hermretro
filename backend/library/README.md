@@ -53,7 +53,7 @@ game whose web ROM cannot be read, with `web: null`, and `game_build_status` rep
 exists but its ROM cannot be read. Card display validation and image encoding share a cache based on the cover file's identity. Presentation
 validates the current cover and checks for copies from `assets/` on every call.
 
-Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
+Automatic capture fills a missing thumbnail once. Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
 Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`project.project_title`: the `.gbsproj` name, else the web export's, else the stored title or folder name).
 
