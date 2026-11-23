@@ -166,7 +166,7 @@ export function InstallActions({ installer, compact = false }) {
       return jsx('div', { className: 'cs-actions', children: recheckButton(installer) })
     }
 
-    if (installer.state !== 'running' || installer.verifying) {
+    if (!installer.canCancel || installer.verifying) {
       return null
     }
 

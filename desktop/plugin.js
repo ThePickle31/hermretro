@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e0963db742161aba92d3cc689913cec089ec45f5e7b19fa621977960b392d835
- * body: sha256 f9ddbff85c3078b3ec2c7f709c3d907dd74ebdbdd9d5148e064696bed97a572a
+ * sources: sha256 e5740f469de87533d4a5c12287a7e0e7243d4c21c03e10b2d210477a5caf6a58
+ * body: sha256 a5f0ba0efb16c69f2db418c51d31b6713f61bf3b5b0cc322e880dd31a1183aec
  */
 // page/sdk.js
 import {
@@ -10022,13 +10022,23 @@ var INSTALL_STATUS_UNKNOWN = "The install status could not be confirmed.";
 var INSTALL_BUSY = "The game tools are being installed.";
 function confirmedInstall(data, starting = false) {
   const install = data?.install;
-  return data?.ok === true && INSTALL_STATES.has(install?.state) && (!starting || install.state !== "idle") && (!(starting || install.state === "running") || typeof install.run_id === "string" && Boolean(install.run_id.trim()));
+  const named = typeof install?.run_id === "string" && Boolean(install.run_id.trim());
+  return data?.ok === true && INSTALL_STATES.has(install?.state) && (!starting || install.state !== "idle") && (install.worker_left === void 0 || typeof install.worker_left === "boolean") && (starting ? named : install.state !== "running" || named || data.legacy_progress === true && !Object.hasOwn(install, "run_id"));
 }
 function pendingStart(ctx) {
   return ctx.storage.get(PENDING_START, null);
 }
+function validAdmission(admission) {
+  return typeof admission?.boot_id === "string" && Boolean(admission.boot_id) && Number.isFinite(admission.deadline) && admission.deadline > 0;
+}
+function sameAdmission(left, right) {
+  if (typeof left === "number") {
+    return left === right;
+  }
+  return validAdmission(left) && left.boot_id === right?.boot_id && left.deadline === right?.deadline;
+}
 function installBusy(data) {
-  return data?.install?.state === "running" || data?.install?.elsewhere === true;
+  return data?.install?.state === "running" || data?.install?.elsewhere === true || data?.install?.worker_left === true;
 }
 async function fetchInstall(queryClient, attempt, retireLegacy = false) {
   let answer;
@@ -10050,10 +10060,20 @@ async function fetchInstall(queryClient, attempt, retireLegacy = false) {
     answer = { error: message, unsupported: notLoaded };
   }
   const previous = queryClient.getQueryData(INSTALL_QUERY);
-  return { ...previous, ...answer, ok: false, install: previous?.install, code: answer?.code, expired_admission: answer?.expired_admission, unsupported: Boolean(answer?.unsupported), error: answer?.error || INSTALL_STATUS_UNKNOWN };
+  return {
+    ...previous,
+    ...answer,
+    ok: false,
+    install: previous?.install,
+    legacy_progress: previous?.legacy_progress,
+    code: answer?.code,
+    expired_admission: void 0,
+    unsupported: Boolean(answer?.unsupported),
+    error: answer?.error || INSTALL_STATUS_UNKNOWN
+  };
 }
 function expired(attempt, data) {
-  return attempt && data?.expired_admission === attempt.admission;
+  return attempt && data?.ok === true && sameAdmission(attempt.admission, data.expired_admission);
 }
 function useInstall({ ctx, enabled, polling }) {
   const queryClient = useQueryClient();
@@ -10075,17 +10095,18 @@ function useInstall({ ctx, enabled, polling }) {
     retry: false
   });
   const confirmed = !query.isError && confirmedInstall(query.data);
-  const legacy = !query.isError && query.data?.code === "BROKER_LEGACY" && !installBusy(query.data);
+  const busy = installBusy(query.data);
+  const legacy = !query.isError && query.data?.code === "BROKER_LEGACY" && !busy;
   const pending = attempt && !expired(attempt, query.data);
-  const starting = submission === true || Boolean(pending) && submission === attempt.admission;
+  const starting = submission === true || Boolean(pending) && sameAdmission(submission, attempt.admission);
   const statusError = query.isError ? describeRequestError(query.error).message : query.data?.error;
   const unavailable = pending && (attempt.error || INSTALL_STATUS_UNKNOWN) || !confirmed && (statusError || query.data && INSTALL_STATUS_UNKNOWN) || null;
-  const canStart = !pending && !installBusy(query.data) && (confirmed || legacy);
+  const canStart = !pending && !busy && (confirmed || legacy);
   useEffect(() => {
-    if (expired(attempt, query.data) && pendingStart(ctx)?.admission === attempt.admission) {
+    if (expired(attempt, query.data) && sameAdmission(attempt.admission, pendingStart(ctx)?.admission)) {
       ctx.storage.set(PENDING_START, null);
     }
-  }, [ctx, attempt?.admission, query.data?.expired_admission]);
+  }, [ctx, attempt, query.data]);
   const start = async () => {
     if (!enabled || !canStart || preparing.current || pendingStart(ctx) || isUpdating()) {
       return null;
@@ -10095,14 +10116,14 @@ function useInstall({ ctx, enabled, polling }) {
     let admission = null;
     try {
       const { data } = await callBackend(RPC_INSTALL, { action: "prepare_start" }, 3e4);
-      if (data?.ok !== true || !Number.isFinite(data.admission) || data.admission <= 0) {
+      if (data?.ok !== true || !validAdmission(data.admission)) {
         return { ok: false, error: data?.error || INSTALL_STATUS_UNKNOWN };
       }
       if (pendingStart(ctx) || isUpdating()) {
         return null;
       }
       ctx.storage.set(PENDING_START, { admission: data.admission });
-      if (pendingStart(ctx)?.admission !== data.admission) {
+      if (!sameAdmission(data.admission, pendingStart(ctx)?.admission)) {
         return { ok: false, error: INSTALL_STATUS_UNKNOWN };
       }
       admission = data.admission;
@@ -10120,14 +10141,14 @@ function useInstall({ ctx, enabled, polling }) {
       } catch (error) {
         answer = { error: describeRequestError(error).message };
       }
-      const accepted = answer?.admission === admission && confirmedInstall(answer, true);
-      const denied = answer?.ok === false && (answer.admission === admission && typeof answer.code === "string" && Boolean(answer.code) && answer.code !== "UNAVAILABLE" || answer.error === `Unknown action '${START_ACTION}'.`);
-      if (pendingStart(ctx)?.admission !== admission) {
+      const accepted = sameAdmission(admission, answer?.admission) && confirmedInstall(answer, true);
+      const denied = answer?.ok === false && (sameAdmission(admission, answer.admission) && typeof answer.code === "string" && Boolean(answer.code) && answer.code !== "UNAVAILABLE" || answer.error === `Unknown action '${START_ACTION}'.`);
+      if (!sameAdmission(admission, pendingStart(ctx)?.admission)) {
         return null;
       }
       if (accepted) {
         await queryClient.cancelQueries({ queryKey: INSTALL_QUERY });
-        if (pendingStart(ctx)?.admission !== admission) {
+        if (!sameAdmission(admission, pendingStart(ctx)?.admission)) {
           return null;
         }
         queryClient.setQueryData(INSTALL_QUERY, answer);
@@ -10157,7 +10178,7 @@ function useInstall({ ctx, enabled, polling }) {
     }
     return confirmedInstall(data) ? null : data.error;
   };
-  return { ...query, canStart, start, starting, unavailable, confirmIdle, updateBlock: legacy && !pending ? null : unavailable || (!confirmed ? INSTALL_STATUS_UNKNOWN : null) };
+  return { ...query, busy, canStart, start, starting, unavailable, confirmIdle, updateBlock: legacy && !pending ? null : unavailable || (!confirmed ? INSTALL_STATUS_UNKNOWN : null) };
 }
 
 // page/pages/setup/install/installer.js
@@ -10197,6 +10218,8 @@ function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   const { data, canStart, starting, unavailable } = install;
   const unsupported = data?.unsupported || install.isError && describeRequestError(install.error).notLoaded;
   const state = data?.install?.state ?? "idle";
+  const runId = data?.install?.run_id;
+  const canCancel = state === "running" && data?.legacy_progress !== true && typeof runId === "string" && Boolean(runId.trim());
   const profile = status.data?.profile;
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
   const conflict = Boolean(needsProfile && profile.studio?.conflict);
@@ -10264,9 +10287,12 @@ function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     }
   };
   const cancel = async () => {
+    if (!canCancel) {
+      return;
+    }
     setCancelError(null);
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: data?.install?.run_id ?? null }, 3e4);
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: runId }, 3e4);
       if (!confirmedInstall(answer)) {
         setCancelError(answer?.error || INSTALL_STATUS_UNKNOWN);
       }
@@ -10294,6 +10320,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   return {
     ask,
     cancel,
+    canCancel,
     cancelError: state === "running" ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
@@ -10521,7 +10548,7 @@ function InstallActions({ installer, compact = false }) {
     if (installer.elsewhere && installer.state !== "running") {
       return jsx("div", { className: "cs-actions", children: recheckButton(installer) });
     }
-    if (installer.state !== "running" || installer.verifying) {
+    if (!installer.canCancel || installer.verifying) {
       return null;
     }
     return installer.cancelling ? jsx(Working, { quiet: true, children: "Stopping safely: waiting for the installer to finish its current step…" }) : jsx("div", {
@@ -17899,7 +17926,7 @@ function StudioPage({ ctx }) {
   const installElsewhere = Boolean(install.data?.install?.elsewhere);
   const pluginUpdate = usePluginUpdate({
     ctx,
-    installing: install.starting || installState === "running" || installElsewhere,
+    installing: install.starting || install.busy,
     installError: install.updateBlock,
     confirmInstallIdle: install.confirmIdle,
     running,

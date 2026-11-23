@@ -358,11 +358,14 @@ class InstallMixin:
         root = paths.setup_root()
         with self.install_lock:
             state = dict(self.install)
-            elsewhere = state.get("state") != "running" and self.prepare_lock.locked()
+            running = state.get("state") == "running"
+            elsewhere = not running and self.prepare_lock.locked()
+            worker_left = not running and self.install_worker_left()
         if state.get("state") == "idle":
             state = setup.recovered_install(root, getattr(self, "generation", None)) or state
         answer = setup.install_progress(state, root)
         answer["elsewhere"] = elsewhere
+        answer["worker_left"] = worker_left
         now = time.time()
         if state.get("state") == "running" and state.get("started_at"):
             answer["elapsed_seconds"] = round(now - state["started_at"], 1)

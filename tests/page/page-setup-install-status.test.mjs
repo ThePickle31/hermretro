@@ -14,16 +14,16 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
   const starts = []
   const cancels = []
   let reply = unavailable
-  let admission = 100
+  let deadline = 100
   let startReply = () => ({ ok: false, code: 'UNAVAILABLE', error: startError })
   scenario.byMethod['plugin.hermretro.install'] = params => {
     switch (params.action) {
       case 'prepare_start':
-        admission += 60
+        deadline += 60
 
-        return { ok: true, admission }
+        return { ok: true, admission: { boot_id: 'test-boot', deadline } }
       case 'start_admitted':
-        assert.equal(scenario.storage.installStartPending?.admission, params.admission, 'persist before submitting')
+        assert.deepEqual(scenario.storage.installStartPending?.admission, params.admission, 'persist before submitting')
         starts.push(params)
 
         return startReply(params)
@@ -93,6 +93,18 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
     hides(statusError)
     assert.equal(button('Download and install')?.disabled, false)
     assert.equal(button('Reload')?.disabled, false)
+  })
+  scenario.storage.installStartPending = { admission: 86460 }
+  await poll({ ...unavailable, expired_admission: 86460 })
+  check('an unavailable status cannot clear a stored admission from before the upgrade', () => {
+    assert.equal(scenario.storage.installStartPending?.admission, 86460)
+    assert.equal(button('Download and install')?.disabled, true)
+    assert.equal(button('Reload')?.disabled, true)
+  })
+  await poll(params => ({ ...idle, expired_admission: params.admission }))
+  check('a fresh confirmed status releases a stale numeric admission', () => {
+    assert.equal(scenario.storage.installStartPending, null)
+    assert.equal(button('Download and install')?.disabled, false)
   })
   let answerOldPoll
   reply = new Promise(resolve => { answerOldPoll = resolve })
@@ -179,12 +191,12 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
     })
     await toggleChip()
     await act(async () => { completeStart({ ok: true, install: { state: 'done', run_id: 'old-run' } }) })
-    await poll({ ...idle, expired_admission: starts[0].admission })
+    await poll({ ...idle, expired_admission: { ...starts.at(-1).admission, boot_id: 'other-boot' } })
     check('a malformed Start reply or an older admission cannot unblock the current attempt', () => {
       assert.equal(button('Reload')?.disabled, true)
     })
     Date.now = () => originalNow() - 86_400_000
-    await poll(params => ({ ...idle, expired_admission: params.admission }))
+    await poll(params => ({ ...idle, expired_admission: { ...params.admission } }))
     check('gateway-confirmed expiry allows Start and Reload even with a slow Desktop clock', () => {
       assert.equal(button('Download and install')?.disabled, false)
       assert.equal(button('Reload')?.disabled, false)
@@ -210,6 +222,28 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
   scenario.byMethod['plugins.manage'] = params => { mutations.push(params.action); return { ok: true } }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => { mutations.push('studio_profile'); return { ok: true } }
 
+  const retained = { ...idle, install: { state: 'failed', elsewhere: false, worker_left: true } }
+  await poll(retained)
+  await toggleChip()
+  check('a failed install with a live worker blocks Start, Update and Reload', () => {
+    assert.equal(button('Try again')?.disabled, true)
+    assert.equal(button('Update now')?.disabled, true)
+    assert.equal(button('Reload')?.disabled, true)
+  })
+  await toggleChip()
+
+  const oldRunning = { ...idle, install: { state: 'running', fraction: 0.42, current: 'cli' }, legacy_progress: true }
+  await poll(oldRunning)
+  await toggleChip()
+  check('a retained unnamed install shows progress and blocks mutations without offering Cancel', () => {
+    shows('42%')
+    assert.ok(!button('Cancel'))
+    assert.ok(!button('Download and install'))
+    assert.equal(button('Update now')?.disabled, true)
+    assert.equal(button('Reload')?.disabled, true)
+  })
+  await toggleChip()
+
   await poll({ ...idle, install: { state: 'idle', elsewhere: true } })
   await toggleChip()
   check('an install elsewhere blocks Update and Reload in the UI', () => {
@@ -218,15 +252,16 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
   })
   await toggleChip()
   await poll(idle)
-  reply = { ...idle, install: { state: 'idle', elsewhere: true } }
+  reply = retained
   await toggleChip()
   await click('Update now')
-  check('Update checks for an install elsewhere after the cached status was idle', () => {
+  check('Update checks for a retained installer after the cached status was idle', () => {
     shows('The game tools are being installed.')
     assert.deepEqual(mutations, [])
   })
+  reply = oldRunning
   await click('Reload')
-  check('Reload checks for an install elsewhere after the cached status was idle', () => {
+  check('Reload checks for a retained unnamed run after the cached status was idle', () => {
     shows('Reload did not finish: The game tools are being installed.')
     assert.deepEqual(mutations, [])
   })

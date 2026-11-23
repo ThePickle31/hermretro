@@ -137,17 +137,24 @@ Cancelling takes three steps: the broker sends the engine MCP's own `notificatio
 SIGTERM and then SIGKILL for the worker's process group when the worker does not exit on its own. The result is
 `cancelled`, or `failed` with `SETUP_LOCK_KEPT` when this run's engine kept its lock (never removed by hermretro), or
 `WORKER_STILL_RUNNING` when even the close could not confirm the worker exited: then the user quits and reopens
-Hermes before trying again, and until that worker is gone the broker does not stop or retire, and a new install,
-a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker from before cancel answers
-`cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` never start the broker.
+Hermes before trying again. While the worker is still alive, status reports `install.worker_left: true` even in a
+terminal state. The page blocks Start, Update and Reload, the broker stays up, and a chat's
+`chromatic_toolchain_prepare` and `remove_tools` are refused. For a retained broker without the liveness field,
+the gateway checks the journal's recorded worker group. A retained v0.0.9 broker can report a running install
+without a `run_id`; the gateway marks the result `legacy_progress: true` so the page shows progress with the busy
+guards in place. A broker from before cancel answers `cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install
+goes on). `status` and `cancel` never start the broker.
 With no broker running, `status` reports the last install from its journal
 (`<deps root>/page-install.json`), a `running` one as `interrupted`. An unanswered broker request returns
-`UNAVAILABLE`. `prepare_start` returns `{ ok: true, admission }`, a deadline on the gateway host's monotonic
-clock. The page saves it before submitting `start_admitted`. The gateway echoes `admission` in the Start
+`UNAVAILABLE`. `prepare_start` returns `{ ok: true, admission: { boot_id, deadline } }`. The deadline is on the
+gateway host's monotonic clock and the boot UUID stays stable across gateway restarts. The page saves both values
+before submitting `start_admitted`. The gateway echoes `admission` in the Start
 reply and bounds both startup and the broker request by the admission. The broker checks expiry under the install
 lock before admitting the run. After a lost acknowledgement or page remount, the page includes the saved
-admission in status requests. The gateway returns `expired_admission` only when expiry preceded the status
-read. The page requires a fresh idle result before changing the plugin. A known legacy handshake failure
+admission in status requests. A confirmed status can echo `expired_admission` when the grant was already unusable
+before the status read, including after reboot. An older numeric grant can be reconciled by status and can hold
+the page for at most the 60-second admission window. Start requires a boot-bound grant. The page requires a
+fresh idle result before changing the plugin. A known legacy handshake failure
 returns `BROKER_LEGACY`. An explicit Update or Reload can request `retire_legacy: true` to use the broker's
 ordinary shutdown guard and wait for its exit. A busy reply prevents the action.
 
@@ -167,7 +174,7 @@ advertise the matching deadline support. Status and cancel return:
   "install": { "state": "idle | running | done | failed | cancelled | interrupted", "run_id": "9f2c…", "started_at": 0, "finished_at": 0,
                "code": null, "error": null, "hint": null, "seeded": false, "fraction": 0.4,
                "downloaded_bytes": 281000000, "current": "cli", "elapsed_seconds": 151, "quiet_seconds": 12,
-               "cancelling": false, "elsewhere": false,
+               "cancelling": false, "elsewhere": false, "worker_left": false,
                "run": { "components": { "gbdk": { "state": "done | running | failed | pending", "status": "prepared",
                         "version": "4.5.0", "reused": false, "error": null,
                         "checks": [{ "file": "gbdk-linux64.tar.gz", "sha256": "...", "reused": false }] } } } }

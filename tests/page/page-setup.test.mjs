@@ -52,7 +52,8 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     assert.ok(!nav())
   })
   scenario.calls.length = 0
-  scenario.byMethod['plugin.hermretro.install'] = params => params.action === 'prepare_start' ? { ok: true, admission: 160 } : ({
+  const admission = { boot_id: 'test-boot', deadline: 160 }
+  scenario.byMethod['plugin.hermretro.install'] = params => params.action === 'prepare_start' ? { ok: true, admission } : ({
     ok: true, manifest, admission: params.admission, install: { state: 'running', run_id: 'run-1' }
   })
   scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
@@ -63,7 +64,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
     const requests = scenario.calls.filter(call => call[0] === 'request').map(call => call[1])
     assert.ok(requests.includes('plugin.hermretro.install'))
     const start = scenario.paramsByMethod['plugin.hermretro.install']
-    assert.deepEqual(start, { action: 'start_admitted', admission: 160 })
+    assert.deepEqual(start, { action: 'start_admitted', admission })
     assert.ok(requests.includes('profiles.create') && requests.includes('plugin.hermretro.studio_profile'))
     assert.ok(!scenario.calls.some(call => call[0] === 'newChat' || call[0] === 'insert'))
   })
@@ -156,7 +157,7 @@ await runScenario(async ({ act, createRoot, dom, scenario, page, root, render, s
   scenario.status = answered(status()); scenario.doctor = answered(doctor(['cli'])); scenario.install = installAnswer({ state: 'idle' })
   await act(async () => { root.render(null) }); await render()
   scenario.byMethod['plugin.hermretro.install'] = params => params.action === 'prepare_start'
-    ? { ok: true, admission: 160 }
+    ? { ok: true, admission }
     : { ok: false, admission: params.admission, code: 'OPERATION_IN_PROGRESS', error: 'Another setup operation is already running' }
   await click('Download and install'); await settle()
   delete scenario.byMethod['plugin.hermretro.install']

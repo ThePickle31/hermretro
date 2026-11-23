@@ -65,6 +65,8 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   const { data, canStart, starting, unavailable } = install
   const unsupported = data?.unsupported || (install.isError && describeRequestError(install.error).notLoaded)
   const state = data?.install?.state ?? 'idle'
+  const runId = data?.install?.run_id
+  const canCancel = state === 'running' && data?.legacy_progress !== true && typeof runId === 'string' && Boolean(runId.trim())
   const profile = status.data?.profile
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed)
   // A profile named hermretro that someone else made: finishing it is refused, so nothing is downloaded either.
@@ -155,10 +157,14 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   /** Ask the install on screen (its run_id) to stop: the engine's own cancellation, then the page waits for it to
    *  let go. A cancel that arrives after that run ended never stops a retry started since. */
   const cancel = async () => {
+    if (!canCancel) {
+      return
+    }
+
     setCancelError(null)
 
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel', run_id: data?.install?.run_id ?? null }, 30_000)
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel', run_id: runId }, 30_000)
 
       if (!confirmedInstall(answer)) {
         setCancelError(answer?.error || INSTALL_STATUS_UNKNOWN)
@@ -198,6 +204,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   return {
     ask,
     cancel,
+    canCancel,
     cancelError: state === 'running' ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,

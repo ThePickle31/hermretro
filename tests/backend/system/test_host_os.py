@@ -4,6 +4,7 @@
 import importlib.util
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,16 @@ POSIX = host_os.LINUX or host_os.MACOS
 
 
 class HostOs(unittest.TestCase):
+    @unittest.skipUnless(POSIX, "Linux and macOS only")
+    def test_boot_identity_is_shared_by_gateway_processes(self):
+        other = subprocess.check_output(
+            [sys.executable, "-B", "-c", "from backend.system.host import boot_id; print(boot_id())"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        self.assertIsNotNone(host_os.boot_id())
+        self.assertEqual(host_os.boot_id(), other)
+
     @unittest.skipUnless(POSIX, "Linux and macOS only")
     def test_the_kernel_names_the_peer_of_a_unix_socket(self):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)

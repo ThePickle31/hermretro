@@ -271,10 +271,21 @@ _REMOVE_WORKER = (
 _START_WINDOW = 60.0
 _START_EXPIRED = "The install start expired. Check the install status and try again."
 _LEGACY_BUSY = "The previous version of hermretro is still running games. Finish or close those chats, then try again."
+# The loaded fingerprint of the published v0.0.9 backend (protocol 2). It has install_status but no run_id.
+_UNNAMED_INSTALL_BROKER = "2013a14d51f86e69d64a840a"
 
 
 def _numeric_deadline(value) -> bool:
     return type(value) in (int, float) and 0 < value < math.inf
+
+
+def _admission_pending(admission, boot_id: str | None, now: float) -> bool:
+    if isinstance(admission, dict):
+        if boot_id is not None and admission.get("boot_id") != boot_id:
+            return False
+        admission = admission.get("deadline")
+    # A numeric grant saved by an older Desktop can still have a request in flight on this boot.
+    return _numeric_deadline(admission) and now < admission <= now + _START_WINDOW
 
 
 def _install_connect(*, retire_legacy: bool):
@@ -320,11 +331,20 @@ def rpc_install(ctx):
             params = params or {}
             action = params.get("action") or "status"
             if action == "prepare_start":
-                return {"ok": True, "admission": time.monotonic() + _START_WINDOW}
+                boot_id = host_os.boot_id()
+                if boot_id is None:
+                    raise BrokerUnavailable("The gateway's boot identity could not be read.")
+                return {"ok": True, "admission": {"boot_id": boot_id, "deadline": time.monotonic() + _START_WINDOW}}
             starting = action in ("start", "start_fenced", "start_admitted")
             admission = params.get("admission")
+            boot_id = host_os.boot_id() if isinstance(admission, dict) else None
             # Sample before reading status, so an idle snapshot cannot predate admission expiry.
             now = time.monotonic()
+            expired = (
+                {"expired_admission": admission}
+                if action == "status" and admission is not None and not _admission_pending(admission, boot_id, now)
+                else {}
+            )
             expires_at = params.get("expires_at") if action == "start_fenced" else None
             root = paths.setup_root()
             answer = {
@@ -336,8 +356,7 @@ def rpc_install(ctx):
             if starting:
                 if action == "start_admitted":
                     answer["admission"] = admission
-                    now = time.monotonic()
-                    valid = _numeric_deadline(admission) and now < admission <= now + _START_WINDOW
+                    valid = boot_id is not None and _admission_pending(admission, boot_id, time.monotonic())
                 else:
                     valid = action == "start" or (_numeric_deadline(expires_at) and expires_at > time.time() * 1000)
                 if not valid:
@@ -347,17 +366,16 @@ def rpc_install(ctx):
                         "code": "START_EXPIRED",
                         "error": _START_EXPIRED,
                     }
-                broker = host.ensure_broker(deadline=admission) if action == "start_admitted" else host.ensure_broker()
+                deadline = admission["deadline"] if action == "start_admitted" else None
+                broker = host.ensure_broker(deadline=deadline) if deadline is not None else host.ensure_broker()
                 with broker as client:
-                    if action == "start_admitted":
-                        reply = client.request({"op": "install_start", "admit_until": admission})
+                    if deadline is not None:
+                        reply = client.request({"op": "install_start", "admit_until": deadline})
                     else:
                         expires_at = min(expires_at or math.inf, (time.time() + client.control_timeout) * 1000)
                         answer["start_expires_at"] = expires_at
                         reply = client.request({"op": "install_start", "admit_before": expires_at})
             elif action in ("status", "cancel"):
-                if action == "status" and _numeric_deadline(admission) and now >= admission:
-                    answer["expired_admission"] = admission
                 client, error = _install_connect(
                     retire_legacy=action == "status" and params.get("retire_legacy") is True
                 )
@@ -368,14 +386,19 @@ def rpc_install(ctx):
                         raise BrokerUnavailable(str(error)) from error
                     if action == "cancel":
                         raise BrokerUnavailable("No broker is running to cancel the install.")
-                    # No broker: nothing runs. The last install, as its journal tells it (``interrupted`` when its
+                    # No broker: report the last install as its journal tells it (``interrupted`` when its
                     # broker ended mid-run), so a reload shows what happened instead of a fresh start.
                     last = recovery.recovered(root, None)
                     answer["install"] = onboarding.progress(last, root) if last is not None else {"state": "idle"}
-                    return answer
+                    if recovery.worker_left(last):
+                        answer["install"]["worker_left"] = True
+                    return {**answer, **expired}
                 with client:
+                    unnamed_broker = client.hello.get("loaded_fingerprint") == _UNNAMED_INSTALL_BROKER
                     if action == "status":
                         reply = client.request({"op": "install_status"})
+                    elif unnamed_broker:
+                        return {**answer, "ok": False, "code": "CANCEL_UNSUPPORTED", "error": _NO_CANCEL_MESSAGE}
                     else:
                         reply = client.request({"op": "install_cancel", "run_id": params.get("run_id")})
             else:
@@ -412,10 +435,27 @@ def rpc_install(ctx):
                     "error": denied.get("message") or "The install request was refused.",
                 }
             install_state = reply.get("install")
-            if not _valid_install(install_state, starting=starting):
+            legacy_progress = (
+                action == "status"
+                and unnamed_broker
+                and isinstance(install_state, dict)
+                and install_state.get("state") == "running"
+                and "run_id" not in install_state
+            )
+            if not legacy_progress and not _valid_install(install_state, starting=starting):
                 raise BrokerUnavailable("The background process returned an invalid install status.")
+            if "worker_left" in install_state and type(install_state["worker_left"]) is not bool:
+                raise BrokerUnavailable("The background process returned an invalid install status.")
+            if (
+                action == "status"
+                and "worker_left" not in install_state
+                and recovery.worker_left(recovery.read_journal())
+            ):
+                install_state = {**install_state, "worker_left": True}
+            if legacy_progress:
+                answer["legacy_progress"] = True
             answer["install"] = install_state
-            return answer
+            return {**answer, **expired}
         except OtherCopyBusy as error:
             return {**answer, "ok": False, "code": "BUSY", "error": str(error)}
         except (BrokerUnavailable, ValueError) as error:

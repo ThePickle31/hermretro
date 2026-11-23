@@ -170,7 +170,7 @@ export function StudioPage({ ctx }) {
   const installElsewhere = Boolean(install.data?.install?.elsewhere)
   const pluginUpdate = usePluginUpdate({
     ctx,
-    installing: install.starting || installState === 'running' || installElsewhere,
+    installing: install.starting || install.busy,
     installError: install.updateBlock,
     confirmInstallIdle: install.confirmIdle,
     running,

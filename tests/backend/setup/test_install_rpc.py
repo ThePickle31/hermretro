@@ -94,22 +94,24 @@ class InstallRpc(unittest.TestCase):
         client = FakeBrokerClient({"ok": True, "install": {"state": "running", "run_id": "run-a"}})
         now = mock.Mock(return_value=100)
         with (
+            mock.patch.object(setup_rpcs.host_os, "boot_id", return_value="same-boot"),
             mock.patch.object(setup_rpcs.time, "monotonic", now),
             mock.patch.object(setup_rpcs.time, "time", return_value=9_999_999_999),
             mock.patch.object(hermes_host, "ensure_broker", return_value=client) as ensure,
         ):
             given = self.rpc({"action": "prepare_start"})
             ensure.assert_not_called()
-            self.assertEqual(given, {"ok": True, "admission": 160.0})
+            self.assertEqual(given, {"ok": True, "admission": {"boot_id": "same-boot", "deadline": 160.0}})
             admission = given["admission"]
+            deadline = admission["deadline"]
             result = self.rpc({"action": "start_admitted", "admission": admission})
             self.assertEqual(result["admission"], admission)
             self.assertEqual(result["install"]["run_id"], "run-a")
-            ensure.assert_called_once_with(deadline=admission)
-            self.assertEqual(client.asked, [{"op": "install_start", "admit_until": admission}])
+            ensure.assert_called_once_with(deadline=deadline)
+            self.assertEqual(client.asked, [{"op": "install_start", "admit_until": deadline}])
 
             def absent(_run):
-                now.return_value = admission + 1
+                now.return_value = deadline + 1
                 return None, BrokerNotRunning("missing socket")
 
             with mock.patch.object(hermes_host, "try_connect", side_effect=absent):
@@ -152,6 +154,55 @@ class InstallRpc(unittest.TestCase):
             self.assertNotIn("retire_broken", connect.call_args.kwargs)
             lock.assert_called_once()
             spawn.assert_not_called()
+
+    def test_an_old_boot_grant_cannot_start_even_inside_the_new_boots_window(self):
+        grant = {"boot_id": "old-boot", "deadline": 150}
+        attempt = {"action": "status", "admission": grant}
+        with (
+            mock.patch.object(setup_rpcs.host_os, "boot_id", return_value="new-boot"),
+            mock.patch.object(setup_rpcs.time, "monotonic", return_value=121),
+            mock.patch.object(hermes_host, "ensure_broker") as spawn,
+            mock.patch.object(hermes_host, "try_connect") as connect,
+        ):
+            for admission in (grant, 150, 86460):
+                result = self.rpc({"action": "start_admitted", "admission": admission})
+                self.assertEqual(result.get("code"), "START_EXPIRED")
+            spawn.assert_not_called()
+
+            connect.return_value = None, BrokerUnavailable("status unknown")
+            self.assertNotIn("expired_admission", self.rpc(attempt))
+            connect.return_value = None, BrokerNotRunning("missing socket")
+            self.assertEqual(self.rpc(attempt).get("expired_admission"), grant)
+            attempt["admission"] = {"boot_id": "old-boot", "deadline": 86460}
+            self.assertEqual(self.rpc(attempt).get("expired_admission"), attempt["admission"])
+            self.assertEqual(self.rpc({"admission": 86460}).get("expired_admission"), 86460)
+            self.assertNotIn("expired_admission", self.rpc({"admission": 150}))
+
+    def test_a_retained_v009_broker_can_report_read_only_progress(self):
+        running = {"state": "running", "fraction": 0.42}
+        client = FakeBrokerClient({"ok": True, "install": running})
+        client.hello = {"loaded_fingerprint": "2013a14d51f86e69d64a840a"}
+        with mock.patch.object(hermes_host, "try_connect", return_value=(client, None)):
+            answer = self.rpc({"action": "status", "retire_legacy": True})
+            self.assertTrue(answer["ok"])
+            self.assertEqual(answer["install"], running)
+            self.assertIs(answer["legacy_progress"], True)
+            cancelled = self.rpc({"action": "cancel", "run_id": "some-other-run"})
+            self.assertEqual(cancelled["code"], "CANCEL_UNSUPPORTED")
+            client.answer = {"ok": True, "install": {**running, "run_id": None}}
+            malformed = self.rpc({"action": "status"})
+            self.assertEqual(malformed["code"], "UNAVAILABLE")
+        self.assertEqual(client.asked, [{"op": "install_status"}, {"op": "install_status"}])
+
+    def test_a_retained_broker_and_a_missing_broker_report_a_journaled_worker(self):
+        terminal = {"state": "failed", "elsewhere": False}
+        client = FakeBrokerClient({"ok": True, "install": terminal})
+        recovery.write_journal({"state": "failed", "worker_pgid": os.getpgid(0)})
+        for connection in ((client, None), (None, BrokerNotRunning("missing socket"))):
+            with mock.patch.object(hermes_host, "try_connect", return_value=connection):
+                answer = self.rpc({"action": "status", "retire_legacy": True})
+                self.assertEqual(answer["install"]["state"], "failed")
+                self.assertIs(answer["install"]["worker_left"], True)
 
     def test_bad_acknowledgements_are_unavailable_for_all_install_actions(self):
         replies = (
