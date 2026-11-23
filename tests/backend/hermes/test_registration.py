@@ -142,7 +142,20 @@ class Registration(unittest.TestCase):
 
     def test_only_the_studio_profile_gets_its_turn_limit_pinned(self):
         studio = self.plugin.studio_profile
-        with mock.patch.object(studio, "pin_turn_limit") as pin:
+
+        class AtOnce:
+            """The pin's thread, run on start so the test sees what it did."""
+
+            def __init__(self, target, args, **_kwargs):
+                self.run = lambda: target(*args)
+
+            def start(self):
+                self.run()
+
+        with (
+            mock.patch.object(studio, "pin_turn_limit") as pin,
+            mock.patch.object(self.plugin.threading, "Thread", AtOnce),
+        ):
             self.register("default")
             self.register("work")
             self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})

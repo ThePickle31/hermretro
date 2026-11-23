@@ -27,8 +27,8 @@ AGREE_A_LIST = (
 )
 BUILD_THE_LIST = (
     "Once the user approves the list, create the project, save the approved list in it as "
-    "docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build "
-    "and name in the build report anything that is not in it."
+    "docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: "
+    "keep building while any is missing, and name in the build report only an item no tool can make."
 )
 # Plan first: once the brief is approved, the same one full build.
 BUILD_THE_BRIEF = (

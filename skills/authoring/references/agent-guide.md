@@ -369,7 +369,7 @@ for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-Show the game to the user in the **hermretro emulator** beside the chat: when it is ready to try (after your own testing), call `chromatic_present_game`, optionally with a short `note` on what to try. Do not open `chromatic_web_preview` URLs, including screenshot Open links, yourself, and do not reload the player with `drive_preview`. Only if the user says they cannot see the emulator, open `studio.playerUrl` from that result with `desktop_preview` (`action: "open"`); without desktop tools, give the user that URL. Give `chromatic_device_capture` URLs to the user without claiming they opened (not yet verified inside Hermes). Never launch an external browser yourself.
+Show the game to the user in the **hermretro emulator** beside the chat: once everything agreed with the user is in it and you have tested it, call `chromatic_present_game`, optionally with a short `note` on what to try. Do not open `chromatic_web_preview` URLs, including screenshot Open links, yourself, and do not reload the player with `drive_preview`. Only if the user says they cannot see the emulator, open `studio.playerUrl` from that result with `desktop_preview` (`action: "open"`); without desktop tools, give the user that URL. Give `chromatic_device_capture` URLs to the user without claiming they opened (not yet verified inside Hermes). Never launch an external browser yourself.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public
@@ -380,8 +380,8 @@ still require their own checks.
 
 For new or iterated projects, build with `chromatic_rom_build` early and after each
 meaningful change, and follow its `nextStep`; nothing opens for the user after a
-build. Present it with `chromatic_present_game` when it is ready to try, and again
-after meaningful successful builds the user should test, at a safe point. Do not interrupt human play, saves or recordings;
+build. A build is a checkpoint, not a hand-off: present it with `chromatic_present_game` only once
+everything agreed with the user is in the game, at a safe point. Do not interrupt human play, saves or recordings;
 resolve unknown outcomes before updating. Do not arbitrarily reload or autoplay.
 
 After a confirmed close, the same plugin instance tries its last port again and uses another free port if it is occupied. The reopened view always gets a new private URL; old links are invalid. This does not discover, adopt, or stop other listeners.

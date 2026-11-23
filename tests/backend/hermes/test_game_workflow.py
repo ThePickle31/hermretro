@@ -93,8 +93,12 @@ class OneWorkflow(unittest.TestCase):
             "result": {"content": [], "structuredContent": {"success": True}},
             "player": {"ready": True},
         }
-        step = json.loads(results.encode(built, "chromatic_rom_build", None, False))["nextStep"]
-        self.assertLess(step.index("keep authoring until everything agreed"), step.index("chromatic_emulator_"))
+        for player in ({"ready": True}, {"ready": False, "error": "export failed"}, None):
+            response = {**built, "player": player} if player else {k: v for k, v in built.items() if k != "player"}
+            step = json.loads(results.encode(response, "chromatic_rom_build", None, False))["nextStep"]
+            self.assertLess(step.index("keep authoring until everything agreed"), step.index("chromatic_emulator_"))
+        failed = {"ok": True, "result": {"content": [], "isError": True, "structuredContent": {"success": False}}}
+        self.assertNotIn("keep authoring", results.encode(failed, "chromatic_rom_build", None, False))
 
     def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
         context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})

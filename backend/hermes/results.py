@@ -151,6 +151,14 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
         and isinstance(structured.get("url"), str)
     ):
         payload["nextStep"] = "The playable copy is ready. " + present
+    if (
+        tool == "chromatic_rom_build"
+        and "nextStep" not in payload
+        and not result.get("isError")
+        and (structured or {}).get("success") is not False
+    ):
+        # No playable copy was refreshed (the setting is off, or the export failed): still a checkpoint.
+        payload["nextStep"] = "Continue with your work. " + CHECKPOINT + DELIVER
 
     images = save_images(result, image_dir) if image_dir is not None else []
     if images:

@@ -25,7 +25,7 @@ PRESENT_TOOL = {
     "name": "chromatic_present_game",
     "description": (
         "Show the game to the user in the hermretro emulator beside the chat (ModRetro's player, served "
-        "by the plugin). Call it once the game is built and ready for the user to try, and again after later "
+        "by the plugin). Call it once everything agreed with the user is built and you have tested it, and again after later "
         "changes the user should test; each call loads the newest build there. Nothing opens by itself after a "
         "build. Needs a fresh playable copy (run chromatic_rom_build first) and a complete game card (cover art, "
         "title, tagline, description, genres; set them with chromatic_game_info). Never touches a device. Do not open "
