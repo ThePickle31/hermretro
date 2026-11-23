@@ -272,6 +272,9 @@ class PlayerServer(unittest.TestCase):
 
 
 class Pieces(unittest.TestCase):
+    def setUp(self):
+        isolated_home(self)
+
     def test_frame_shim_is_valid_javascript_with_its_placeholders_filled(self):
         shim = frame.frame_shim()
         self.assertNotIn("__DEFAULT_COLOR__", shim)

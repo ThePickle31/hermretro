@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from .. import library
@@ -39,52 +40,47 @@ def annotations_dir() -> Path:
     return paths.ENGINE_ROOT / "dist" / "web-annotations"
 
 
-_view_cache: dict[tuple, bytes] = {}
-
-
 def patched_view(source: Path) -> bytes:
     """``view.js`` with the plugin's skins (``player/skins/``) as its finishes, in their order."""
     info = source.stat()
-    key = (str(source), info.st_size, info.st_mtime_ns, skins.signature())
-    if key in _view_cache:
-        return _view_cache[key]
+    return _patched_view(source, info.st_size, info.st_mtime_ns, skins.rail_entries())
+
+
+@lru_cache(maxsize=1)
+def _patched_view(source: Path, size: int, modified: int, entries: str) -> bytes:
     text = source.read_text()
     start = text.find(VIEW_ANCHOR)
     end = text.find("\n];", start) + 1
     if start < 0 or end < 1:
         logger.warning("hermretro: view.js has no DEVICE_COLORS list; serving it without the plugin's skins")
-    elif entries := skins.rail_entries():
+    elif entries:
         text = text[: start + len(VIEW_ANCHOR)] + entries + text[end:]
         text = text.replace(RAIL_ANCHOR, RAIL_ANCHOR + RAIL_ORDER, 1)
-    _view_cache.clear()
-    _view_cache[key] = text.encode()
-    return _view_cache[key]
+    return text.encode()
 
 
 # -- the frame page ------------------------------------------------------------------
+
 
 # Runs first in the frame (``player/frame-shim.js``). The frame is sandboxed (allow-scripts, opaque
 # origin), so: storage lives in memory, the player's same-origin fetches are sent as CORS requests to
 # this server, and the host annotation API plus page commands talk to the Studio page through
 # postMessage. ``__DEFAULT_COLOR__`` and ``__COLOR_KEY__`` are filled in here.
-_shim_cache: dict[tuple, str] = {}
-
-
 def frame_shim() -> str:
     """The shim as an inline ``<script>`` body, read once per file version."""
     source = paths.PLUGIN_ROOT / "player" / "frame-shim.js"
     info = source.stat()
-    key = (info.st_size, info.st_mtime_ns, skins.signature())
-    if key not in _shim_cache:
-        text = (
-            source.read_text(encoding="utf-8")
-            .replace("__DEFAULT_COLOR__", skins.default_skin())
-            .replace("__COLOR_KEY__", COLOR_KEY)
-            .replace("</script", "<\\/script")
-        )
-        _shim_cache.clear()
-        _shim_cache[key] = text
-    return _shim_cache[key]
+    return _frame_shim(source, info.st_size, info.st_mtime_ns, skins.default_skin())
+
+
+@lru_cache(maxsize=1)
+def _frame_shim(source: Path, size: int, modified: int, default_skin: str) -> str:
+    return (
+        source.read_text(encoding="utf-8")
+        .replace("__DEFAULT_COLOR__", default_skin)
+        .replace("__COLOR_KEY__", COLOR_KEY)
+        .replace("</script", "<\\/script")
+    )
 
 
 def engine_bootstrap(runtime_sha256: str) -> str:

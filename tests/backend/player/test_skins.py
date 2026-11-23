@@ -78,23 +78,27 @@ class AFolderOfSkins(unittest.TestCase):
 
     def test_personal_finish_overrides_its_bundled_id(self):
         self.add("sunset", {})
-        before = skins.signature()
+        before = skins.rail_entries()
         personal = skins.paths.hermretro_home() / "skins" / "sunset"
         personal.mkdir(parents=True)
-        (personal / "skin.webp").write_bytes(WEBP)
-        self.assertNotEqual(skins.signature(), before)
+        reference = (skins.paths.SKINS_DIR / "hermes-midnight" / "skin.webp").read_bytes()
+        (personal / "skin.webp").write_bytes(reference)
+        (personal / "skin.json").write_text('{"name":"Personal"}')
+        self.assertNotEqual(skins.rail_entries(), before)
         self.assertEqual([skin["image"] for skin in skins.skins()], [personal / "skin.webp"])
         elsewhere = personal.rename(personal.parent.parent / "moved-personal-skin")
         self.addCleanup(elsewhere.rmdir)
         self.addCleanup((elsewhere / "skin.webp").unlink)
+        self.addCleanup((elsewhere / "skin.json").unlink)
         personal.symlink_to(elsewhere, target_is_directory=True)
-        self.assertEqual(skins.signature(), before)
+        with self.assertLogs(skins.logger, "WARNING"):
+            self.assertEqual(skins.rail_entries(), before)
         bundled = self.folder / "sunset" / "skin.webp"
         with self.assertLogs(skins.logger, "WARNING"):
             self.assertEqual(skins.image_for("sunset"), bundled)
         personal.unlink()
         personal.mkdir()
-        (personal / "skin.webp").touch()
+        (personal / "skin.webp").write_bytes(reference[:16])
         with self.assertLogs(skins.logger, "WARNING"):
             self.assertEqual(skins.image_for("sunset"), bundled)
 
@@ -164,7 +168,7 @@ class AFolderOfSkins(unittest.TestCase):
     def test_no_skins_or_no_folder_leaves_the_engine_default(self):
         self.assertEqual((skins.skins(), skins.default_skin(), skins.rail_entries()), ([], "", ""))
         with mock.patch.object(skins, "SKINS_DIR", self.folder / "gone"):
-            self.assertEqual((skins.skins(), skins.signature(), skins.page_skins()), ([], (), []))
+            self.assertEqual((skins.skins(), skins.rail_entries(), skins.page_skins()), ([], "", []))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -45,10 +46,18 @@ def _personal_image(path: Path) -> bool:
         return False
     try:
         with path.open("rb") as stream:
-            header = stream.read(16)
-        if path.suffix == ".png":
-            return header.startswith(b"\x89PNG\r\n\x1a\n") and header[12:16] == b"IHDR"
-        return header[:4] == b"RIFF" and header[8:12] == b"WEBP" and header[12:16] in (b"VP8 ", b"VP8L", b"VP8X")
+            size = os.fstat(stream.fileno()).st_size
+            header = stream.read(24)
+            if path.suffix == ".png":
+                if size < 57 or header[:16] != b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR":
+                    return False
+                stream.seek(-12, os.SEEK_END)
+                return stream.read() == b"\x00\x00\x00\x00IEND\xaeB`\x82"
+            if size < 26 or header[:4] != b"RIFF" or header[8:12] != b"WEBP":
+                return False
+            declared = int.from_bytes(header[4:8], "little") + 8
+            first_chunk = int.from_bytes(header[16:20], "little")
+            return declared == size and 0 < first_chunk <= size - 20 and header[12:16] in (b"VP8 ", b"VP8L", b"VP8X")
     except OSError:
         return False
 
@@ -105,8 +114,11 @@ def skins() -> list[dict]:
     for root in _roots():
         try:
             for folder in root.iterdir():
-                if folder.is_dir() and (skin := _read(folder, personal=root != SKINS_DIR)):
-                    found[skin["id"]] = skin
+                try:
+                    if folder.is_dir() and (skin := _read(folder, personal=root != SKINS_DIR)):
+                        found[skin["id"]] = skin
+                except OSError as error:
+                    logger.warning("hermretro: cannot read skin %s: %s", folder.name, error)
         except FileNotFoundError:
             continue
         except OSError as error:
@@ -128,21 +140,6 @@ def image_for(skin_id: str) -> Path | None:
 def page_skins() -> list[dict]:
     """The skins as the page's player menu shows them: ``{id, name, swatch}``."""
     return [{"id": skin["id"], "name": skin["name"], "swatch": skin["background"]} for skin in skins()]
-
-
-def signature() -> tuple:
-    """What changes when a skin is added, removed or edited (for caches built from them)."""
-    files = []
-    for root in _roots():
-        for path in sorted(root.glob("*/skin.*")):
-            if path.parent.is_symlink():
-                continue
-            try:
-                stat = path.lstat()
-            except OSError:
-                continue
-            files.append((str(path), stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size))
-    return tuple(files)
 
 
 def rail_entries() -> str:
