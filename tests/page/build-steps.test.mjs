@@ -1,5 +1,4 @@
 // The Build page's reading of a step's result (page/pages/build/chat/steps.js): when a step failed, and why.
-// Run alone: node tests/page/build-steps.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'

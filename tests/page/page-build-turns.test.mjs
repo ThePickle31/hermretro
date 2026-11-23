@@ -1,7 +1,6 @@
 // The Build page, part two: long turns and build cards, suggestions and @ mentions, the inline player, removed
 // and lost conversations, the model and effort picker, and the game card on the Games page.
 // Part one is page-build.test.mjs.
-// Run alone: node tests/page/page-build-turns.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

@@ -1,6 +1,5 @@
 // The page registry (page/pages/index.js, app/registry.js), page events (app/events.js), UI slots
 // (app/slots.js), tabs (app/page-view.js) and the stylesheet order (app/style.js), from the sources.
-// Run alone: node tests/page/registry.test.mjs
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerAliases } from './aliases.mjs'

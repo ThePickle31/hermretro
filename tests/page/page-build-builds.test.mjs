@@ -1,5 +1,4 @@
 // The Builds menu rejects time-only snapshots, even if exactly one occurrence falls inside the turn.
-// Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

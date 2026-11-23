@@ -1,5 +1,4 @@
 // The SDK stand-in's react-query surface (tests/page/sdk-stub.mjs): the query client's cache, and per-key answers.
-// Run alone: node tests/page/sdk-stub.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'
