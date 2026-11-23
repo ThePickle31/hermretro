@@ -228,6 +228,9 @@ class Ownership(unittest.TestCase):
         broker.start_install()
         self.finished(broker)
         self.assertEqual(broker.install["code"], "WORKER_STILL_RUNNING")
+        snapshot = broker.control({"op": "install_status"})["install"]
+        self.assertEqual((snapshot["state"], snapshot["elsewhere"]), ("failed", False))
+        self.assertIs(snapshot["worker_left"], True)
         with self.assertRaises(Denied) as refused:
             broker.control({"op": "shutdown"})
         self.assertEqual(refused.exception.code, "BUSY", "an update must not replace this broker")
@@ -246,7 +249,7 @@ class Ownership(unittest.TestCase):
         self.assertEqual(again.exception.code, "WORKER_STILL_RUNNING", "a new broker waits for it too")
         engine.alive = lambda: False
         engine._group_exists, engine._proc = (lambda: False), object()
-        self.assertFalse(broker.install_worker_left(), "once it exited, nothing waits")
+        self.assertIs(broker.control({"op": "install_status"})["install"]["worker_left"], False)
         self.assertIsNone(broker.install_engine)
         broker.control({"op": "shutdown"})
         self.assertTrue(broker.stopping.is_set())

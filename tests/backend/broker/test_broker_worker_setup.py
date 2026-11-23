@@ -63,7 +63,7 @@ class StaleWorkerSetup(unittest.TestCase):
         self.addCleanup(running.close)
         return running
 
-    def spawn(self, _state, node):  # what ensure_broker starts: a broker of the Node it found now
+    def spawn(self, _state, node, *, deadline):  # what ensure_broker starts: a broker of the Node it found now
         self.temp_broken = False  # a fresh broker inherits the client's (fixed) TMPDIR
         self.started.append(self.start(Path(node)))
         process = mock.Mock()
@@ -97,10 +97,11 @@ class StaleWorkerSetup(unittest.TestCase):
     def test_a_busy_broker_keeps_its_games_and_its_next_worker_says_what_to_do(self):
         old = self.start(self.old_node)
         shutil.rmtree(self.old_node.parent.parent)
-        with mock.patch.object(old.broker, "install_running", return_value=True):  # busy: shutdown is refused
-            with self.connect() as connection:
-                self.assertEqual(self.started, [])
-                self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
+        with old.broker.install_lock:
+            old.broker.install["state"] = "running"  # busy: shutdown is refused
+        with self.connect() as connection:
+            self.assertEqual(self.started, [])
+            self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
         self.assertFalse(old.stopped.is_set())
         with (
             mock.patch.object(

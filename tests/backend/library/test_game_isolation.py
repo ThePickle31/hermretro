@@ -95,6 +95,23 @@ class TwoGamesAtOnce(unittest.TestCase):
         with mock.patch.object(hermes_host, "try_connect", lambda _dir: (client, None)):
             self.assertEqual(hermes_host._chat_project("chat-b", "chat-b"), str(self.root_b))
 
+    def test_a_silent_broker_leaves_the_project_lookup_to_the_library(self):
+        registry = hermes_host._registry()
+        data = registry.load()
+        data["games"][self.a]["chat"] = {"conversationId": "legacy-chat", "profile": PROFILE}
+        registry._save(data)
+        connected = FakeBrokerClient({})
+        with (
+            mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)),
+            mock.patch.object(
+                connected, "request", side_effect=hermes_host.BrokerUnavailable("Broker did not answer activity")
+            ) as ask,
+        ):
+            self.assertEqual(hermes_host._chat_project("legacy-chat", "legacy-run"), str(self.root_a))
+        ask.assert_called_once_with(
+            {"op": "activity", "profile": PROFILE, "ids": ["legacy-chat", "legacy-run"], "limit": 1}
+        )
+
     def test_another_chat_never_becomes_a_bound_games_chat_link(self):
         registry = hermes_host._registry()
         stranger = {"conversationId": "side-chat", "sessionId": "side-run", "profile": PROFILE}

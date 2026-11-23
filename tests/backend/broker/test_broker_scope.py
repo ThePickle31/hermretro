@@ -3,6 +3,8 @@
 import os
 import subprocess
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -45,6 +47,37 @@ class BrokerScope(unittest.TestCase):
         self.assertTrue(first[5].startswith("--unit=hermretro-broker-"))
         self.assertNotEqual(first[5], second[5])  # unit names never collide
         self.assertEqual(probe.call_count, 1)  # probed once per process
+
+    def test_the_startup_budget_bounds_the_probe_without_caching_a_short_timeout(self):
+        with (
+            mock.patch.dict(os.environ, {"INVOCATION_ID": "x"}),
+            mock.patch.object(client.shutil, "which", return_value="/usr/bin/systemd-run"),
+            mock.patch.object(
+                client.subprocess, "run", side_effect=subprocess.TimeoutExpired("systemd-run", 0.05)
+            ) as probe,
+            mock.patch.object(client.subprocess, "Popen") as popen,
+            tempfile.TemporaryDirectory() as run,
+        ):
+            with self.assertRaisesRegex(TimeoutError, "scope probe timed out"):
+                client.spawn_broker(Path(run), "node", deadline=time.monotonic() + 0.05)
+        self.assertGreater(probe.call_args.kwargs["timeout"], 0.0)
+        self.assertLessEqual(probe.call_args.kwargs["timeout"], 0.05)
+        self.assertIsNone(client._SCOPE_RUNNER)
+        popen.assert_not_called()
+
+    def test_the_broker_does_not_spawn_if_the_scope_probe_used_the_budget(self):
+        clock = mock.Mock()
+        clock.monotonic.return_value = 0.05
+        with (
+            mock.patch.object(client, "time", clock),
+            mock.patch.object(client, "own_scope", return_value=[]) as scope,
+            mock.patch.object(client.subprocess, "Popen") as popen,
+            tempfile.TemporaryDirectory() as run,
+            self.assertRaisesRegex(TimeoutError, "deadline expired"),
+        ):
+            client.spawn_broker(Path(run), "node", deadline=0.05)
+        scope.assert_called_once_with(mock.ANY, deadline=0.05)
+        popen.assert_not_called()
 
 
 if __name__ == "__main__":

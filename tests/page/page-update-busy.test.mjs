@@ -8,6 +8,7 @@ import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, shows, tab, typeInto, answered, status, doctor, installAnswer, holdTimers }) => {
   const document = dom.window.document
+  scenario.byMethod['plugin.hermretro.install'] = () => installAnswer({ state: 'idle' }).data
   const chip = () => document.querySelector('.cs-upd-chip')
   const popover = () => document.querySelector('.cs-upd-pop')?.textContent.replace(/\s+/g, ' ') ?? ''
   const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
@@ -29,7 +30,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const fresh = async ({ busy = [], install = 'idle', page = 'games' } = {}) => {
     await act(async () => { root.render(null) })
     scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page }
-    scenario.status = answered(base()); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: install })
+    scenario.status = answered(base()); scenario.doctor = answered(doctor([])); scenario.install = installAnswer({ state: install, run_id: install === 'running' ? 'run-a' : null })
     scenario['update-busy'] = answered(busy)
     log.length = 0
     await render()
@@ -111,7 +112,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await openChip(); await click('Update now'); await settle(40)
   check('while the update runs, Download and install is disabled', () => { assert.equal(download().disabled, true) })
   download().click(); await settle(40)
-  check('and pressing it starts no install', () => { assert.ok(!installs.includes('start')) })
+  check('and pressing it starts no install', () => { assert.ok(!installs.includes('prepare_start')) })
   await act(async () => { release({ ok: true, unchanged: true }) }); await settle(40)
   check('after the update the install can start again', () => { assert.equal(download().disabled, false) })
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })

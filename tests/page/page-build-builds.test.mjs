@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, dom, settle, key, mount, check, answered }) => {
+await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, dom, settle, key, mount, check, answered, installAnswer }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } },
@@ -143,6 +143,8 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
   scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
   scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
   scenario['update-busy'] = answered([])
+  scenario.install = installAnswer({ state: 'idle' })
+  scenario.byMethod['plugin.hermretro.install'] = () => scenario.install.data
   scenario.byMethod['session.active_list'] = () => ({ sessions: [] })
   let finish
   scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finish = resolve }) : { ok: true })

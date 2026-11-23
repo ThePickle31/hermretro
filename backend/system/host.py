@@ -18,6 +18,7 @@ import tempfile
 from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
+from uuid import UUID
 
 LINUX = sys.platform.startswith("linux")
 MACOS = sys.platform == "darwin"
@@ -128,6 +129,20 @@ def unsupported_reason() -> str | None:
         return None
     name = "Windows" if sys.platform.startswith(("win", "cygwin", "msys")) else platform.system() or sys.platform
     return f"hermretro supports Linux and macOS; {name} is not supported. Use hermretro on a Linux or macOS computer."
+
+
+def boot_id() -> str | None:
+    """The kernel's UUID for this boot, shared by gateway processes on the same host."""
+    try:
+        if LINUX:
+            value = Path("/proc/sys/kernel/random/boot_id").read_text()
+        elif MACOS:
+            value = subprocess.check_output(["/usr/sbin/sysctl", "-n", "kern.bootsessionuuid"], text=True, timeout=2)
+        else:
+            return None
+        return str(UUID(value.strip()))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
 
 
 def peer_credentials(sock: socket.socket) -> tuple[int | None, int | None]:

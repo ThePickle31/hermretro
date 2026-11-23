@@ -5,7 +5,8 @@ import { ONBOARDING_CSS } from './onboarding/onboarding.css.js'
 import { SETUP_CSS } from './setup.css.js'
 import { SetupPage } from './setup-page.js'
 
-export { createStudioProfileOnce, useInstall } from './install/installer.js'
+export { createStudioProfileOnce } from './install/installer.js'
+export { useInstall } from './install/install-status.js'
 export { ONBOARD_STAGES, OnboardHeader, Onboarding } from './onboarding/onboarding.js'
 export { computeSteps, STEP_SHORT, toolchainState, toolchainStateKnown, useSetupMemory } from './steps.js'
 

@@ -100,6 +100,7 @@ const recheckButton = (installer, label = 'Check again') => jsx(AsyncButton, { i
 export function InstallActions({ installer, compact = false }) {
   const { phase, start, starting, ask, node, unsupported } = installer
   const size = compact ? 'sm' : 'lg'
+  const blocked = !installer.canStart || !installer.manifestReady || installer.conflict || installer.noSpace
 
   if (unsupported) {
     return jsxs('div', {
@@ -165,7 +166,7 @@ export function InstallActions({ installer, compact = false }) {
       return jsx('div', { className: 'cs-actions', children: recheckButton(installer) })
     }
 
-    if (installer.state !== 'running' || installer.verifying) {
+    if (!installer.canCancel || installer.verifying) {
       return null
     }
 
@@ -178,8 +179,6 @@ export function InstallActions({ installer, compact = false }) {
   }
 
   if (phase === 'review') {
-    const blocked = !installer.manifestReady || installer.conflict || installer.noSpace
-
     return jsxs('div', {
       className: 'cs-actions',
       children: [
@@ -195,6 +194,10 @@ export function InstallActions({ installer, compact = false }) {
     })
   }
 
+  if (phase === 'failed' && !installer.canStart && installer.unavailable) {
+    return jsx('div', { className: 'cs-actions', children: recheckButton(installer) })
+  }
+
   if (phase === 'failed' && installer.unverified) {
     return jsxs('div', {
       className: 'cs-actions',
@@ -202,7 +205,7 @@ export function InstallActions({ installer, compact = false }) {
         recheckButton(installer),
         installer.missing.length
           ? jsxs(Button, {
-              disabled: starting || installer.updating,
+              disabled: starting || installer.updating || blocked,
               onClick: () => void start(),
               size,
               variant: 'outline',
@@ -219,7 +222,7 @@ export function InstallActions({ installer, compact = false }) {
       className: 'cs-actions',
       children: [
         jsxs(Button, {
-          disabled: starting || installer.updating || !installer.manifestReady || installer.conflict || installer.noSpace,
+          disabled: starting || installer.updating || blocked,
           onClick: () => void start(),
           size,
           variant: 'default',
@@ -252,6 +255,7 @@ export function InstallError({ installer }) {
       ? note('space', `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`)
       : null,
     before && !installer.noSpace && installer.spaceWarning ? note('space-warning', installer.spaceWarning, 'cs-small') : null,
+    installer.unavailable ? note('status', installer.unavailable) : null,
     phase === 'running' && installer.cancelError ? note('cancel', installer.cancelError) : null,
     phase === 'review' && installer.elsewhereEnded
       ? note('elsewhere', 'The install that was running in a chat stopped before the tools were ready. Install them here instead.', 'cs-small')

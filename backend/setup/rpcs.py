@@ -4,10 +4,18 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import time
 from pathlib import Path
 
-from ..broker import BrokerUnavailable
+from ..broker import (
+    BrokerNotRunning,
+    BrokerUnavailable,
+    BrokenBroker,
+    LegacyBrokerHello,
+    OtherCopyBusy,
+    request_shutdown,
+)
 from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
@@ -114,16 +122,22 @@ def rpc_status(ctx):
                 "profile": studio_profile.describe(host._data_dir().parents[1]),
                 "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
             }
-            client, _error = host.try_connect(paths.runtime_dir())  # never starts the broker
-            if client is not None:
+            client, error = host.try_connect(paths.runtime_dir())  # never starts the broker
+            if client is None:
+                if error is not None and not isinstance(error, BrokerNotRunning):
+                    answer["broker"]["running"] = None
+            else:
                 with client:
                     answer["broker"]["running"] = True
                     # The page names the focused chat as "chat": a "session_id" parameter would make the
                     # gateway authorize it as a live session and fail the call for a draft chat.
                     wanted = (params or {}).get("chat") or session_id or (params or {}).get("session_id")
-                    lane = client.request(
-                        {"op": "lane_status", "profile": host._profile_identity(), "session_id": wanted}
-                    ).get("lane")
+                    try:
+                        lane = client.request(
+                            {"op": "lane_status", "profile": host._profile_identity(), "session_id": wanted}
+                        ).get("lane")
+                    except (BrokerUnavailable, ValueError):
+                        lane = None
                     if lane and lane.get("selected_root"):
                         answer["project"] = {
                             "root": lane["selected_root"],
@@ -194,8 +208,10 @@ def rpc_activity(ctx):
         try:
             params = params or {}
             ids = [value for value in (params.get("chat"), params.get("stored"), session_id) if value]
-            client, _error = host.try_connect(paths.runtime_dir())
+            client, error = host.try_connect(paths.runtime_dir())
             if client is None:
+                if error is not None and not isinstance(error, BrokerNotRunning):
+                    return {"ok": False, "error": str(error)}
                 return {"ok": True, "lane": None, "matched": None, "running": False}
             with client:
                 answer = client.request(
@@ -213,6 +229,8 @@ def rpc_activity(ctx):
                 }
             answer["running"] = True
             return answer
+        except BrokerUnavailable as error:
+            return {"ok": False, "error": str(error)}
         except Exception as error:
             logger.exception("hermretro activity failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
@@ -250,47 +268,153 @@ _REMOVE_WORKER = (
     "The last toolchain installer did not confirm it stopped, so the tools folder may still be in use. Quit and "
     "reopen Hermes, then try again."
 )
+_START_WINDOW = 60.0
+_START_EXPIRED = "The install start expired. Check the install status and try again."
+_LEGACY_BUSY = "The previous version of hermretro is still running games. Finish or close those chats, then try again."
+# The loaded fingerprint of the published v0.0.9 backend (protocol 2). It has install_status but no run_id.
+_UNNAMED_INSTALL_BROKER = "2013a14d51f86e69d64a840a"
+
+
+def _numeric_deadline(value) -> bool:
+    return type(value) in (int, float) and 0 < value < math.inf
+
+
+def _admission_pending(admission, boot_id: str | None, now: float) -> bool:
+    if isinstance(admission, dict):
+        if boot_id is not None and admission.get("boot_id") != boot_id:
+            return False
+        admission = admission.get("deadline")
+    # A numeric grant saved by an older Desktop can still have a request in flight on this boot.
+    return _numeric_deadline(admission) and now < admission <= now + _START_WINDOW
+
+
+def _install_connect(*, retire_legacy: bool):
+    run = paths.runtime_dir()
+    if not retire_legacy:
+        return host.try_connect(run)
+    deadline = time.monotonic() + BROKER_STOP_WAIT
+    client, error = host.try_connect(run, retire_broken=True, deadline=deadline)
+    if not isinstance(error, BrokenBroker):
+        return client, error
+    if not error.stopping:
+        raise OtherCopyBusy(_LEGACY_BUSY) from error
+    # An acknowledged shutdown can still be closing workers. Wait for election release, then read
+    # the journal or the broker that replaced it. This action never starts a broker.
+    with _broker_lock(run, seconds=max(0, deadline - time.monotonic())) as held:
+        if not held:
+            raise BrokerUnavailable("The previous hermretro broker is still stopping.") from error
+    return host.try_connect(run, deadline=deadline)
+
+
+def _valid_install(install, *, starting: bool = False) -> bool:
+    if not isinstance(install, dict):
+        return False
+    state = install.get("state")
+    if not isinstance(state, str):
+        return False
+    if state == "running" or (starting and state in recovery.TERMINAL):
+        run_id = install.get("run_id")
+        return isinstance(run_id, str) and bool(run_id.strip())
+    return not starting and (state == "idle" or state in recovery.TERMINAL)
 
 
 @rpc("install")
 def rpc_install(ctx):
     """The page's own toolchain install: ``{"action": "status"}`` (passive, never starts the broker),
-    ``{"action": "start"}`` or ``{"action": "cancel", "run_id": ...}`` (the engine's own MCP cancellation of that run
-    only; the install then reports ``cancelled`` once the engine let go of its lock). Always returns the download
-    list, so the page can show it first."""
+    ``prepare_start`` (issue an admission deadline), ``start_admitted`` or ``cancel`` for a named run.
+    Status can confirm a named admission expired before the status was read."""
 
     def install(params, **_kwargs):
+        answer = {}
+        starting = False
         try:
-            action = (params or {}).get("action") or "status"
+            params = params or {}
+            action = params.get("action") or "status"
+            if action == "prepare_start":
+                boot_id = host_os.boot_id()
+                if boot_id is None:
+                    raise BrokerUnavailable("The gateway's boot identity could not be read.")
+                return {"ok": True, "admission": {"boot_id": boot_id, "deadline": time.monotonic() + _START_WINDOW}}
+            starting = action in ("start", "start_fenced", "start_admitted")
+            admission = params.get("admission")
+            boot_id = host_os.boot_id() if isinstance(admission, dict) else None
+            # Sample before reading status, so an idle snapshot cannot predate admission expiry.
+            now = time.monotonic()
+            expired = (
+                {"expired_admission": admission}
+                if action == "status" and admission is not None and not _admission_pending(admission, boot_id, now)
+                else {}
+            )
+            expires_at = params.get("expires_at") if action == "start_fenced" else None
             root = paths.setup_root()
             answer = {
                 "ok": True,
                 "manifest": onboarding.manifest(),
                 "root": str(root),
                 "space": recovery.free_space(root),
-                "install": {"state": "idle"},
             }
-            if action == "start":
-                with host.ensure_broker() as client:
-                    reply = client.request({"op": "install_start"})
+            if starting:
+                if action == "start_admitted":
+                    answer["admission"] = admission
+                    valid = boot_id is not None and _admission_pending(admission, boot_id, time.monotonic())
+                else:
+                    valid = action == "start" or (_numeric_deadline(expires_at) and expires_at > time.time() * 1000)
+                if not valid:
+                    return {
+                        **answer,
+                        "ok": False,
+                        "code": "START_EXPIRED",
+                        "error": _START_EXPIRED,
+                    }
+                deadline = admission["deadline"] if action == "start_admitted" else None
+                broker = host.ensure_broker(deadline=deadline) if deadline is not None else host.ensure_broker()
+                with broker as client:
+                    if deadline is not None:
+                        reply = client.request({"op": "install_start", "admit_until": deadline})
+                    else:
+                        expires_at = min(expires_at or math.inf, (time.time() + client.control_timeout) * 1000)
+                        answer["start_expires_at"] = expires_at
+                        reply = client.request({"op": "install_start", "admit_before": expires_at})
             elif action in ("status", "cancel"):
-                client, _error = host.try_connect(paths.runtime_dir())
+                client, error = _install_connect(
+                    retire_legacy=action == "status" and params.get("retire_legacy") is True
+                )
                 if client is None:
-                    # No broker: nothing runs. The last install, as its journal tells it (``interrupted`` when its
+                    if action == "status" and isinstance(error, LegacyBrokerHello):
+                        return {**answer, "ok": False, "code": "BROKER_LEGACY", "error": str(error)}
+                    if error is not None and not isinstance(error, BrokerNotRunning):
+                        raise BrokerUnavailable(str(error)) from error
+                    if action == "cancel":
+                        raise BrokerUnavailable("No broker is running to cancel the install.")
+                    # No broker: report the last install as its journal tells it (``interrupted`` when its
                     # broker ended mid-run), so a reload shows what happened instead of a fresh start.
                     last = recovery.recovered(root, None)
-                    if last is not None:
-                        answer["install"] = onboarding.progress(last, root)
-                    return answer
+                    answer["install"] = onboarding.progress(last, root) if last is not None else {"state": "idle"}
+                    if recovery.worker_left(last):
+                        answer["install"]["worker_left"] = True
+                    return {**answer, **expired}
                 with client:
+                    unnamed_broker = client.hello.get("loaded_fingerprint") == _UNNAMED_INSTALL_BROKER
                     if action == "status":
                         reply = client.request({"op": "install_status"})
+                    elif unnamed_broker:
+                        return {**answer, "ok": False, "code": "CANCEL_UNSUPPORTED", "error": _NO_CANCEL_MESSAGE}
                     else:
-                        reply = client.request({"op": "install_cancel", "run_id": (params or {}).get("run_id")})
+                        reply = client.request({"op": "install_cancel", "run_id": params.get("run_id")})
             else:
                 return {"ok": False, "error": f"Unknown action {action!r}."}
-            if not reply.get("ok"):
-                denied = reply.get("denied") or {}
+            if reply.get("ok") is not True:
+                denied = reply.get("denied")
+                if (
+                    reply.get("ok") is not False
+                    or reply.get("dispatched") is not False
+                    or not isinstance(denied, dict)
+                    or not isinstance(denied.get("code"), str)
+                    or not denied["code"]
+                ):
+                    raise BrokerUnavailable(
+                        reply.get("error") or "The background process did not confirm the install status."
+                    )
                 if action == "cancel" and denied.get("code") in _NO_CANCEL:
                     # A broker from before cancel: it answers install_cancel as an ownerless lane op
                     # (IDENTITY_REQUIRED), and the install it runs goes on.
@@ -308,12 +432,35 @@ def rpc_install(ctx):
                     **answer,
                     "ok": False,
                     "code": denied.get("code"),
-                    "error": denied.get("message") or reply.get("error") or "The install could not start.",
+                    "error": denied.get("message") or "The install request was refused.",
                 }
-            answer["install"] = reply.get("install") or {"state": "idle"}
-            return answer
-        except BrokerUnavailable as error:
-            return {"ok": False, "code": "UNAVAILABLE", "error": str(error)}
+            install_state = reply.get("install")
+            legacy_progress = (
+                action == "status"
+                and unnamed_broker
+                and isinstance(install_state, dict)
+                and install_state.get("state") == "running"
+                and "run_id" not in install_state
+            )
+            if not legacy_progress and not _valid_install(install_state, starting=starting):
+                raise BrokerUnavailable("The background process returned an invalid install status.")
+            if "worker_left" in install_state and type(install_state["worker_left"]) is not bool:
+                raise BrokerUnavailable("The background process returned an invalid install status.")
+            if (
+                action == "status"
+                and "worker_left" not in install_state
+                and recovery.worker_left(recovery.read_journal())
+            ):
+                install_state = {**install_state, "worker_left": True}
+            if legacy_progress:
+                answer["legacy_progress"] = True
+            answer["install"] = install_state
+            return {**answer, **expired}
+        except OtherCopyBusy as error:
+            return {**answer, "ok": False, "code": "BUSY", "error": str(error)}
+        except (BrokerUnavailable, ValueError) as error:
+            message = f"Install start was unconfirmed. {error}" if starting else str(error)
+            return {**answer, "ok": False, "code": "UNAVAILABLE", "error": message}
         except Exception as error:
             logger.exception("hermretro install failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
@@ -329,12 +476,13 @@ def rpc_remove_tools(ctx):
     def remove(params, **_kwargs):
         try:
             run = paths.runtime_dir()
-            client, _error = host.try_connect(run)  # never starts the broker
+            client, error = host.try_connect(run)  # never starts the broker
+            if error is not None and not isinstance(error, BrokerNotRunning):
+                raise BrokerUnavailable(str(error)) from error
             if client is not None:
                 with client:
-                    reply = client.request({"op": "shutdown"})
-                if not reply.get("ok"):
-                    return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
+                    if not request_shutdown(client):
+                        return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
             # The broker's election lock: held by a running broker until it exits, and while we hold it any
             # broker another call starts loses the election and exits, so nothing runs from the folder.
             with _broker_lock(run) as held:
@@ -349,6 +497,8 @@ def rpc_remove_tools(ctx):
             return removed
         except provision.ProvisionError as error:
             return {"ok": False, "code": error.code, "error": str(error)}
+        except BrokerUnavailable as error:
+            return {"ok": False, "code": "UNAVAILABLE", "error": str(error)}
         except Exception as error:
             logger.exception("hermretro remove_tools failed")
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}

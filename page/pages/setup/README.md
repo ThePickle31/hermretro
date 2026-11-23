@@ -19,9 +19,9 @@ sent), and `setup.demoRequested` `{}` when Try the demo is picked during the ins
 
 **Uses from other pages:** none.
 
-**Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `setup`.
+**Page state** (`shell.ctx.storage`, [.agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"](../../../.agents/skills/hermretro-dev-page/references/adding.md#adding-to-the-page)): `setup` and `installStartPending`. Start stores the gateway's boot UUID and monotonic deadline before submitting. A confirmed status reconciles it after remounts, lost replies or a gateway host reboot. Start, Update and Reload wait while another install or a retained installer worker is active. The page displays progress from a retained v0.0.9 broker without a Cancel action.
 
-**Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-recovery.test.mjs` (the install's failure,
+**Tests:** `tests/page/page-setup.test.mjs`, `tests/page/page-setup-install-status.test.mjs` (admission reconciliation and busy guards), `tests/page/page-setup-recovery.test.mjs` (the install's failure,
 cancel and recovery states), `tests/page/page-setup-handoff.test.mjs`, `tests/page/page-studio.test.mjs`.
 
 ## Adding a tab here

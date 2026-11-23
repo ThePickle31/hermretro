@@ -116,7 +116,7 @@ await runScenario(async ({ act, createRoot, dom, host, mount, scenario, page, ro
   // During the install: the demo only when asked for, in its own tab beside the chat; the install screen stays.
   scenario.storage = { setup: { onboardStarted: true } }
   scenario.status = answered(status()); scenario.doctor = answered(doctor(['cli']))
-  scenario.install = installAnswer({ state: 'running', started_at: 1, fraction: 0.2, current: 'cli', run: { components: { cli: { state: 'running', checks: [] } } } })
+  scenario.install = installAnswer({ state: 'running', run_id: 'run-1', started_at: 1, fraction: 0.2, current: 'cli', run: { components: { cli: { state: 'running', checks: [] } } } })
   scenario.workspaces.length = 0
   await act(async () => { root.render(null) }); await render()
   check('while installing, Try the demo is offered and nothing plays on its own', () => {

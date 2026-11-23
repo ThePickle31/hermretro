@@ -8,6 +8,7 @@ import { runScenario } from './harness.mjs'
 
 await runScenario(async ({ act, dom, scenario, root, render, settle, click, button, check, holdTimers, answered, status, doctor, installAnswer }) => {
   const document = dom.window.document
+  scenario.byMethod['plugin.hermretro.install'] = () => installAnswer({ state: 'idle' }).data
   const chip = () => document.querySelector('.cs-upd-chip')
   const popover = () => document.querySelector('.cs-upd-pop')?.textContent.replace(/\s+/g, ' ') ?? ''
   const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }

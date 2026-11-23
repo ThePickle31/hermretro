@@ -1,32 +1,14 @@
 // The toolchain install driven by the page (no chat): state, polling and the studio profile.
-import { useQuery, useState } from '#sdk'
+import { useState } from '#sdk'
 import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
-import { ID } from '#app/ids.js'
 import { forgetRoute, routing } from '#app/routing.js'
 import { RPC_INSTALL, RPC_STUDIO_PROFILE } from '#app/rpc.js'
 import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
+import { confirmedInstall, INSTALL_STATUS_UNKNOWN } from './install-status.js'
 
 const SETUP_PROMPT =
   'Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.'
-
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: 'status' }, 30_000)).data
-}
-
-const installInterval = arg => ((arg?.state ? arg.state.data : arg)?.install?.state === 'running' ? 1_500 : 5_000)
-
-/** The install's status: polled quickly while it runs, slowly otherwise. */
-export function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, 'install'],
-    queryFn: fetchInstall,
-    enabled,
-    refetchInterval: enabled ? installInterval : false,
-    staleTime: 1_000,
-    retry: false
-  })
-}
 
 /** Create or repair the studio profile. */
 async function createStudioProfile(profile) {
@@ -69,7 +51,6 @@ function checkedSince(doctor, finishedAt) {
 /** Everything one install view needs: phase, rows, actions. Shared by onboarding and the Setup step.
  *  `doctor` is the tools check: it decides whether a finished install verified, and what to offer when not. */
 export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
-  const [starting, setStarting] = useState(false)
   const [failure, setFailure] = useState(null)
   // A cancel that did not go through, shown while the install it was meant to stop keeps running.
   const [cancelError, setCancelError] = useState(null)
@@ -77,9 +58,11 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   // A chat is already preparing the tools: wait for it instead of reporting a failure. The backend says so too
   // (`install.elsewhere`); an older one does not, and then only this answer to the start is known.
   const [elsewhere, setElsewhere] = useState(false)
-  const data = install.data
-  const unsupported = install.isError && describeRequestError(install.error).notLoaded
+  const { data, canStart, starting, unavailable } = install
+  const unsupported = data?.unsupported || (install.isError && describeRequestError(install.error).notLoaded)
   const state = data?.install?.state ?? 'idle'
+  const runId = data?.install?.run_id
+  const canCancel = state === 'running' && data?.legacy_progress !== true && typeof runId === 'string' && Boolean(runId.trim())
   const profile = status.data?.profile
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed)
   // A profile named hermretro that someone else made: finishing it is refused, so nothing is downloaded either.
@@ -130,7 +113,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   }
 
   const start = async () => {
-    if (starting || !manifestReady || conflict || noSpace) {
+    if (!canStart || starting || waitingElsewhere || !manifestReady || conflict || noSpace) {
       return
     }
 
@@ -140,13 +123,9 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
       return
     }
 
-    setStarting(true)
     setFailure(null)
-    // The profile is made while the tools download.
-    makeProfile()
-
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'start' }, 60_000)
+      const answer = await install.start()
 
       if (answer?.code === 'OPERATION_IN_PROGRESS') {
         setElsewhere(true)
@@ -155,29 +134,36 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
         return
       }
 
+      if (!answer || answer.code === 'UNAVAILABLE') {
+        return
+      }
+
       if (!answer?.ok) {
         throw new Error(answer?.error || 'The install could not start.')
       }
 
+      // The profile is made while the tools download.
+      makeProfile()
       setElsewhere(false)
-      await install.refetch?.()
     } catch (error) {
       setFailure(describeRequestError(error).message || String(error?.message ?? error))
-    } finally {
-      setStarting(false)
     }
   }
 
   /** Ask the install on screen (its run_id) to stop: the engine's own cancellation, then the page waits for it to
    *  let go. A cancel that arrives after that run ended never stops a retry started since. */
   const cancel = async () => {
+    if (!canCancel) {
+      return
+    }
+
     setCancelError(null)
 
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel', run_id: data?.install?.run_id ?? null }, 30_000)
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: 'cancel', run_id: runId }, 30_000)
 
-      if (!answer?.ok) {
-        setCancelError(answer?.error || 'The install could not be cancelled.')
+      if (!confirmedInstall(answer)) {
+        setCancelError(answer?.error || INSTALL_STATUS_UNKNOWN)
       }
     } catch (error) {
       setCancelError(describeRequestError(error).message || String(error?.message ?? error))
@@ -214,9 +200,11 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
   return {
     ask,
     cancel,
+    canCancel,
     cancelError: state === 'running' ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
+    canStart,
     data,
     doctor,
     elsewhere: waitingElsewhere,
@@ -238,6 +226,7 @@ export function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     start,
     starting,
     state,
+    unavailable,
     unsupported,
     unverified,
     updating,

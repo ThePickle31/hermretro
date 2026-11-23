@@ -7,6 +7,7 @@ Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`
 
 from __future__ import annotations
 
+import math
 import secrets
 import threading
 import time
@@ -95,7 +96,7 @@ class InstallMixin:
         return setup.worker_left(setup.read_journal())
 
     def install_busy(self) -> bool:
-        return self.install_running() or self.install_worker_left()
+        return self.prepare_lock.locked() or self.install_running() or self.install_worker_left()
 
     def close_install_worker(self) -> None:
         """The stopping broker's last try at the installer worker; an exit it cannot confirm is recorded."""
@@ -110,10 +111,20 @@ class InstallMixin:
             with self.install_lock:
                 self._record_left_worker(engine)
 
-    def start_install(self) -> dict:
+    def _check_install_admission(self, admit_until: float | None, admit_before: float | None) -> None:
+        deadline = admit_until if admit_until is not None else admit_before
+        if deadline is not None:
+            now = time.monotonic() if admit_until is not None else time.time() * 1000
+            if type(deadline) not in (int, float) or not now < deadline < math.inf:
+                raise Denied("START_EXPIRED", "The install start expired. Check the install status and try again.")
+        if self.stopping.is_set():
+            raise Denied("BROKER_STOPPING", "The background process is stopping. Try again.")
+
+    def start_install(self, *, admit_until: float | None = None, admit_before: float | None = None) -> dict:
         """Prepare the game toolchain for the desktop page, without a chat. Runs the engine's own
         toolchain_prepare in a throwaway worker on a background thread; install_status reports it."""
         with self.install_lock:
+            self._check_install_admission(admit_until, admit_before)
             if self.install.get("state") == "running":
                 return dict(self.install)
             if self.install_worker_left():
@@ -129,6 +140,9 @@ class InstallMixin:
                     f"and {space['free_bytes'] // 1_000_000:,} MB is free where they go ({paths.setup_root()}). "
                     "Free some space, then try again.",
                 )
+            baseline_bytes = setup.download_bytes(paths.setup_root())
+            # Check again after filesystem work, under the same lock that protects the status snapshot.
+            self._check_install_admission(admit_until, admit_before)
             if not self.prepare_lock.acquire(blocking=False):
                 raise Denied(
                     "OPERATION_IN_PROGRESS",
@@ -147,7 +161,7 @@ class InstallMixin:
                     "code": None,
                     "hint": None,
                     "seeded": None,
-                    "baseline_bytes": setup.download_bytes(paths.setup_root()),
+                    "baseline_bytes": baseline_bytes,
                     "broker": getattr(self, "generation", None),
                 }
                 snapshot = dict(self.install)
@@ -344,11 +358,14 @@ class InstallMixin:
         root = paths.setup_root()
         with self.install_lock:
             state = dict(self.install)
-            elsewhere = state.get("state") != "running" and self.prepare_lock.locked()
+            running = state.get("state") == "running"
+            elsewhere = not running and self.prepare_lock.locked()
+            worker_left = not running and self.install_worker_left()
         if state.get("state") == "idle":
             state = setup.recovered_install(root, getattr(self, "generation", None)) or state
         answer = setup.install_progress(state, root)
         answer["elsewhere"] = elsewhere
+        answer["worker_left"] = worker_left
         now = time.time()
         if state.get("state") == "running" and state.get("started_at"):
             answer["elapsed_seconds"] = round(now - state["started_at"], 1)

@@ -175,5 +175,26 @@ class UpdatedOnDisk(Home):
             self.assertTrue(status({})["restart_needed"])
 
 
+class ReadOnlyStatus(Home):
+    def test_silent_hello_leaves_the_broker_state_unknown(self):
+        error = client.BrokerUnavailable("Broker did not answer hello before its deadline")
+        with mock.patch.object(hermes_host, "try_connect", return_value=(None, error)):
+            status = setup_rpcs.rpc_status(CTX)({})
+            activity = setup_rpcs.rpc_activity(CTX)({})
+        self.assertTrue(status["ok"])
+        self.assertIsNone(status["broker"]["running"])
+        self.assertIsNone(status["project"])
+        self.assertFalse(activity["ok"])
+
+    def test_lane_status_timeout_preserves_the_rest_of_the_report(self):
+        connected = mock.MagicMock()
+        connected.request.side_effect = client.BrokerUnavailable("Broker did not answer lane_status")
+        with mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)):
+            status = setup_rpcs.rpc_status(CTX)({"chat": "chat-a"})
+        self.assertTrue(status["ok"])
+        self.assertTrue(status["broker"]["running"])
+        self.assertIsNone(status["project"])
+
+
 if __name__ == "__main__":
     unittest.main()

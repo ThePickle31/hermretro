@@ -48,7 +48,7 @@ class NotAnswering(Exception):
 
 class TimedClient(client.BrokerClient):
     """``client.BrokerClient`` with a timeout on its socket from the connect on, for this tool only: the plugin's
-    own clients keep no timeout of their own (a tool call may run for many minutes)."""
+    ordinary engine calls may run for many minutes."""
 
     def __init__(self, state_dir: Path, timeout: float):
         self.state_dir = Path(state_dir)
@@ -63,7 +63,8 @@ class TimedClient(client.BrokerClient):
         except OSError as error:
             self.sock.close()
             raise client.BrokerUnavailable(str(error)) from error
-        self.reader = self.sock.makefile("rb")
+        self.control_timeout = timeout
+        self.startup_deadline = None
         try:
             token = (self.state_dir / "broker.token").read_text()
             self.hello = self.ask({"op": "hello", "protocol": paths.PROTOCOL, "token": token}, "hello")

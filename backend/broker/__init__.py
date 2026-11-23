@@ -3,8 +3,26 @@
 Front door: the client side other features use to reach the broker.
 """
 
-from .client import BrokerUnavailable, OtherCopyBusy, ensure_broker, try_connect
+from .client import (
+    BrokerNotRunning,
+    BrokerUnavailable,
+    BrokenBroker,
+    LegacyBrokerHello,
+    OtherCopyBusy,
+    ensure_broker,
+    request_shutdown,
+    try_connect,
+)
 
-__all__ = ["BrokerUnavailable", "OtherCopyBusy", "ensure_broker", "try_connect"]
+__all__ = [
+    "BrokerNotRunning",
+    "BrokerUnavailable",
+    "BrokenBroker",
+    "LegacyBrokerHello",
+    "OtherCopyBusy",
+    "ensure_broker",
+    "request_shutdown",
+    "try_connect",
+]
 
 EVENTS: dict[str, str] = {}

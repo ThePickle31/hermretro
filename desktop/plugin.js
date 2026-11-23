@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 c9e3947f3b24016cd93b730d53bd3b52ba72d04b03eed8e0d3b497c2d5615ac9
- * body: sha256 48d82e33a75155e3959fe5d9bfa3cfb8ce07583efd8a75aa1e4aeea88352e721
+ * sources: sha256 ded5e4ed9eae2c8a4885baa5dab8078d37d49098a02d52c8650428905d1e7c01
+ * body: sha256 f09c0e134700a607a5e32c0065562a47a8e8a40287ffac4d6760c79b8647dccc
  */
 // page/sdk.js
 import {
@@ -10433,22 +10433,177 @@ function SetupComplete({ steps, status, doctor, emulatorOnly, onRecheck, recheck
   });
 }
 
-// page/pages/setup/install/installer.js
-var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
-async function fetchInstall() {
-  return (await callBackend(RPC_INSTALL, { action: "status" }, 3e4)).data;
+// page/pages/setup/install/install-status.js
+var INSTALL_QUERY = [ID, "install"];
+var PENDING_START = "installStartPending";
+var START_ACTION = "start_admitted";
+var START_TIMEOUT_MS = 6e4;
+var INSTALL_STATES = /* @__PURE__ */ new Set(["idle", "running", "done", "failed", "cancelled", "interrupted"]);
+var INSTALL_STATUS_UNKNOWN = "The install status could not be confirmed.";
+var INSTALL_BUSY = "The game tools are being installed.";
+function confirmedInstall(data, starting = false) {
+  const install = data?.install;
+  const named = typeof install?.run_id === "string" && Boolean(install.run_id.trim());
+  return data?.ok === true && INSTALL_STATES.has(install?.state) && (!starting || install.state !== "idle") && (install.worker_left === void 0 || typeof install.worker_left === "boolean") && (starting ? named : install.state !== "running" || named || data.legacy_progress === true && !Object.hasOwn(install, "run_id"));
 }
-var installInterval = (arg) => (arg?.state ? arg.state.data : arg)?.install?.state === "running" ? 1500 : 5e3;
-function useInstall({ enabled }) {
-  return useQuery({
-    queryKey: [ID, "install"],
-    queryFn: fetchInstall,
+function pendingStart(ctx) {
+  return ctx.storage.get(PENDING_START, null);
+}
+function validAdmission(admission) {
+  return typeof admission?.boot_id === "string" && Boolean(admission.boot_id) && Number.isFinite(admission.deadline) && admission.deadline > 0;
+}
+function sameAdmission(left, right) {
+  if (typeof left === "number") {
+    return left === right;
+  }
+  return validAdmission(left) && left.boot_id === right?.boot_id && left.deadline === right?.deadline;
+}
+function installBusy(data) {
+  return data?.install?.state === "running" || data?.install?.elsewhere === true || data?.install?.worker_left === true;
+}
+async function fetchInstall(queryClient, attempt, retireLegacy = false) {
+  let answer;
+  try {
+    const params = { action: "status" };
+    if (attempt) {
+      params.admission = attempt.admission;
+    }
+    if (retireLegacy) {
+      params.retire_legacy = true;
+    }
+    const { data } = await callBackend(RPC_INSTALL, params, 3e4);
+    if (confirmedInstall(data)) {
+      return data;
+    }
+    answer = data;
+  } catch (error) {
+    const { message, notLoaded } = describeRequestError(error);
+    answer = { error: message, unsupported: notLoaded };
+  }
+  const previous = queryClient.getQueryData(INSTALL_QUERY);
+  return {
+    ...previous,
+    ...answer,
+    ok: false,
+    install: previous?.install,
+    legacy_progress: previous?.legacy_progress,
+    code: answer?.code,
+    expired_admission: void 0,
+    unsupported: Boolean(answer?.unsupported),
+    error: answer?.error || INSTALL_STATUS_UNKNOWN
+  };
+}
+function expired(attempt, data) {
+  return attempt && data?.ok === true && sameAdmission(attempt.admission, data.expired_admission);
+}
+function useInstall({ ctx, enabled, polling }) {
+  const queryClient = useQueryClient();
+  const preparing = useRef(false);
+  const [submission, setSubmission] = useState(null);
+  const attempt = pendingStart(ctx);
+  const query = useQuery({
+    queryKey: INSTALL_QUERY,
+    queryFn: () => fetchInstall(queryClient, pendingStart(ctx)),
     enabled,
-    refetchInterval: enabled ? installInterval : false,
+    refetchInterval: enabled ? (arg) => {
+      const data = arg?.state ? arg.state.data : arg;
+      if (pendingStart(ctx) || data?.ok === false || installBusy(data)) {
+        return 1500;
+      }
+      return polling ? 5e3 : false;
+    } : false,
     staleTime: 1e3,
     retry: false
   });
+  const confirmed = !query.isError && confirmedInstall(query.data);
+  const busy = installBusy(query.data);
+  const legacy = !query.isError && query.data?.code === "BROKER_LEGACY" && !busy;
+  const pending = attempt && !expired(attempt, query.data);
+  const starting = submission === true || Boolean(pending) && sameAdmission(submission, attempt.admission);
+  const statusError = query.isError ? describeRequestError(query.error).message : query.data?.error;
+  const unavailable = pending && (attempt.error || INSTALL_STATUS_UNKNOWN) || !confirmed && (statusError || query.data && INSTALL_STATUS_UNKNOWN) || null;
+  const canStart = !pending && !busy && (confirmed || legacy);
+  useEffect(() => {
+    if (expired(attempt, query.data) && sameAdmission(attempt.admission, pendingStart(ctx)?.admission)) {
+      ctx.storage.set(PENDING_START, null);
+    }
+  }, [ctx, attempt, query.data]);
+  const start = async () => {
+    if (!enabled || !canStart || preparing.current || pendingStart(ctx) || isUpdating()) {
+      return null;
+    }
+    preparing.current = true;
+    setSubmission(true);
+    let admission = null;
+    try {
+      const { data } = await callBackend(RPC_INSTALL, { action: "prepare_start" }, 3e4);
+      if (data?.ok !== true || !validAdmission(data.admission)) {
+        return { ok: false, error: data?.error || INSTALL_STATUS_UNKNOWN };
+      }
+      if (pendingStart(ctx) || isUpdating()) {
+        return null;
+      }
+      ctx.storage.set(PENDING_START, { admission: data.admission });
+      if (!sameAdmission(data.admission, pendingStart(ctx)?.admission)) {
+        return { ok: false, error: INSTALL_STATUS_UNKNOWN };
+      }
+      admission = data.admission;
+    } catch (error) {
+      return { ok: false, error: describeRequestError(error).message || INSTALL_STATUS_UNKNOWN };
+    } finally {
+      preparing.current = false;
+      setSubmission(admission);
+    }
+    try {
+      let answer;
+      try {
+        const result = await callBackend(RPC_INSTALL, { action: START_ACTION, admission }, START_TIMEOUT_MS);
+        answer = result.data;
+      } catch (error) {
+        answer = { error: describeRequestError(error).message };
+      }
+      const accepted = sameAdmission(admission, answer?.admission) && confirmedInstall(answer, true);
+      const denied = answer?.ok === false && (sameAdmission(admission, answer.admission) && typeof answer.code === "string" && Boolean(answer.code) && answer.code !== "UNAVAILABLE" || answer.error === `Unknown action '${START_ACTION}'.`);
+      if (!sameAdmission(admission, pendingStart(ctx)?.admission)) {
+        return null;
+      }
+      if (accepted) {
+        await queryClient.cancelQueries({ queryKey: INSTALL_QUERY });
+        if (!sameAdmission(admission, pendingStart(ctx)?.admission)) {
+          return null;
+        }
+        queryClient.setQueryData(INSTALL_QUERY, answer);
+      }
+      if (accepted || denied) {
+        ctx.storage.set(PENDING_START, null);
+      } else {
+        const error = answer?.error || INSTALL_STATUS_UNKNOWN;
+        ctx.storage.set(PENDING_START, { admission, error });
+        answer = { ...answer, ok: false, code: "UNAVAILABLE", error };
+      }
+      void query.refetch?.();
+      return answer;
+    } finally {
+      setSubmission((current) => current === admission ? null : current);
+    }
+  };
+  const confirmIdle = async () => {
+    const before = pendingStart(ctx);
+    const data = await fetchInstall(queryClient, before, true);
+    const current = pendingStart(ctx);
+    if (preparing.current || installBusy(data)) {
+      return INSTALL_BUSY;
+    }
+    if (before && !expired(before, data) || current && !expired(current, data)) {
+      return current?.error || before?.error || INSTALL_STATUS_UNKNOWN;
+    }
+    return confirmedInstall(data) ? null : data.error;
+  };
+  return { ...query, busy, canStart, start, starting, unavailable, confirmIdle, updateBlock: legacy && !pending ? null : unavailable || (!confirmed ? INSTALL_STATUS_UNKNOWN : null) };
 }
+
+// page/pages/setup/install/installer.js
+var SETUP_PROMPT = "Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.";
 async function createStudioProfile(profile) {
   if (isUpdating()) {
     throw new Error(UPDATING_MESSAGE);
@@ -10474,14 +10629,15 @@ function checkedSince(doctor, finishedAt) {
   return !at || !finishedAt || at >= finishedAt * 1e3;
 }
 function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
-  const [starting, setStarting] = useState(false);
   const [failure, setFailure] = useState(null);
   const [cancelError, setCancelError] = useState(null);
   const [profileWork, setProfileWork] = useState({ state: "idle", error: null });
   const [elsewhere, setElsewhere] = useState(false);
-  const data = install.data;
-  const unsupported = install.isError && describeRequestError(install.error).notLoaded;
+  const { data, canStart, starting, unavailable } = install;
+  const unsupported = data?.unsupported || install.isError && describeRequestError(install.error).notLoaded;
   const state = data?.install?.state ?? "idle";
+  const runId = data?.install?.run_id;
+  const canCancel = state === "running" && data?.legacy_progress !== true && typeof runId === "string" && Boolean(runId.trim());
   const profile = status.data?.profile;
   const needsProfile = Boolean(profile && !profile.is_studio && !profile.studio?.installed);
   const conflict = Boolean(needsProfile && profile.studio?.conflict);
@@ -10521,40 +10677,42 @@ function useInstaller({ ctx, status, install, toolchainDone, doctor }) {
     }
   };
   const start = async () => {
-    if (starting || !manifestReady || conflict || noSpace) {
+    if (!canStart || starting || waitingElsewhere || !manifestReady || conflict || noSpace) {
       return;
     }
     if (isUpdating()) {
       setFailure(UPDATING_MESSAGE);
       return;
     }
-    setStarting(true);
     setFailure(null);
-    makeProfile();
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "start" }, 6e4);
+      const answer = await install.start();
       if (answer?.code === "OPERATION_IN_PROGRESS") {
         setElsewhere(true);
         await install.refetch?.();
         return;
       }
+      if (!answer || answer.code === "UNAVAILABLE") {
+        return;
+      }
       if (!answer?.ok) {
         throw new Error(answer?.error || "The install could not start.");
       }
+      makeProfile();
       setElsewhere(false);
-      await install.refetch?.();
     } catch (error) {
       setFailure(describeRequestError(error).message || String(error?.message ?? error));
-    } finally {
-      setStarting(false);
     }
   };
   const cancel = async () => {
+    if (!canCancel) {
+      return;
+    }
     setCancelError(null);
     try {
-      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: data?.install?.run_id ?? null }, 3e4);
-      if (!answer?.ok) {
-        setCancelError(answer?.error || "The install could not be cancelled.");
+      const { data: answer } = await callBackend(RPC_INSTALL, { action: "cancel", run_id: runId }, 3e4);
+      if (!confirmedInstall(answer)) {
+        setCancelError(answer?.error || INSTALL_STATUS_UNKNOWN);
       }
     } catch (error) {
       setCancelError(describeRequestError(error).message || String(error?.message ?? error));
@@ -10580,9 +10738,11 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
   return {
     ask,
     cancel,
+    canCancel,
     cancelError: state === "running" ? cancelError : null,
     cancelling: Boolean(data?.install?.cancelling),
     conflict,
+    canStart,
     data,
     doctor,
     elsewhere: waitingElsewhere,
@@ -10604,6 +10764,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
     start,
     starting,
     state,
+    unavailable,
     unsupported,
     unverified,
     updating,
@@ -10752,6 +10913,7 @@ var recheckButton = (installer, label = "Check again") => jsx(AsyncButton, { ico
 function InstallActions({ installer, compact = false }) {
   const { phase, start, starting, ask, node, unsupported } = installer;
   const size = compact ? "sm" : "lg";
+  const blocked = !installer.canStart || !installer.manifestReady || installer.conflict || installer.noSpace;
   if (unsupported) {
     return jsxs("div", {
       className: "cs-col",
@@ -10804,7 +10966,7 @@ function InstallActions({ installer, compact = false }) {
     if (installer.elsewhere && installer.state !== "running") {
       return jsx("div", { className: "cs-actions", children: recheckButton(installer) });
     }
-    if (installer.state !== "running" || installer.verifying) {
+    if (!installer.canCancel || installer.verifying) {
       return null;
     }
     return installer.cancelling ? jsx(Working, { quiet: true, children: "Stopping safely: waiting for the installer to finish its current step…" }) : jsx("div", {
@@ -10813,7 +10975,6 @@ function InstallActions({ installer, compact = false }) {
     });
   }
   if (phase === "review") {
-    const blocked = !installer.manifestReady || installer.conflict || installer.noSpace;
     return jsxs("div", {
       className: "cs-actions",
       children: [
@@ -10828,13 +10989,16 @@ function InstallActions({ installer, compact = false }) {
       ]
     });
   }
+  if (phase === "failed" && !installer.canStart && installer.unavailable) {
+    return jsx("div", { className: "cs-actions", children: recheckButton(installer) });
+  }
   if (phase === "failed" && installer.unverified) {
     return jsxs("div", {
       className: "cs-actions",
       children: [
         recheckButton(installer),
         installer.missing.length ? jsxs(Button, {
-          disabled: starting || installer.updating,
+          disabled: starting || installer.updating || blocked,
           onClick: () => void start(),
           size,
           variant: "outline",
@@ -10849,7 +11013,7 @@ function InstallActions({ installer, compact = false }) {
       className: "cs-actions",
       children: [
         jsxs(Button, {
-          disabled: starting || installer.updating || !installer.manifestReady || installer.conflict || installer.noSpace,
+          disabled: starting || installer.updating || blocked,
           onClick: () => void start(),
           size,
           variant: "default",
@@ -10872,6 +11036,7 @@ function InstallError({ installer }) {
     before && !installer.manifestReady && !installer.unsupported ? note("manifest", "The download list could not be read, so nothing can be reviewed or installed yet. Check again; if it stays empty, update or reinstall hermretro.") : null,
     before && installer.noSpace ? note("space", `Not enough free disk space: the game tools need about ${formatBytes(installer.data?.space?.needed_bytes)} and ${formatBytes(installer.data?.space?.free_bytes)} is free. Free some space, then check again.`) : null,
     before && !installer.noSpace && installer.spaceWarning ? note("space-warning", installer.spaceWarning, "cs-small") : null,
+    installer.unavailable ? note("status", installer.unavailable) : null,
     phase === "running" && installer.cancelError ? note("cancel", installer.cancelError) : null,
     phase === "review" && installer.elsewhereEnded ? note("elsewhere", "The install that was running in a chat stopped before the tools were ready. Install them here instead.", "cs-small") : null,
     phase === "failed" && installer.unverified ? note(
@@ -17338,9 +17503,13 @@ async function reloadStudio(studio) {
   }
   return Boolean(answer.gateway_reloaded) && !answer.restart_required;
 }
-async function loadIntoStudio({ install, studio, busy, onWaiting = () => {
+async function loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting = () => {
 }, waitMs = 2e3, checkTries = 5 }) {
   if (install && studio.profile === STUDIO_PROFILE && install.profile !== STUDIO_PROFILE) {
+    const installError2 = await confirmInstallIdle();
+    if (installError2) {
+      return { ok: false, error: installError2 };
+    }
     let finished;
     try {
       finished = await requestOn(install, RPC_STUDIO_PROFILE, {}, 24e4);
@@ -17372,6 +17541,10 @@ async function loadIntoStudio({ install, studio, busy, onWaiting = () => {
     await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
   }
   onWaiting(null);
+  const installError = await confirmInstallIdle();
+  if (installError) {
+    return { ok: false, error: installError };
+  }
   try {
     return { ok: true, reloaded: await reloadStudio(studio) };
   } catch (error) {
@@ -17384,6 +17557,7 @@ async function runUpdate({
   options = {},
   resume = false,
   busy = async () => [],
+  confirmInstallIdle,
   onStep = () => {
   },
   onWaiting = () => {
@@ -17405,6 +17579,10 @@ async function runUpdate({
   }
   if (building.length) {
     return { kind: "busy", chats: building };
+  }
+  const installError = await confirmInstallIdle();
+  if (installError) {
+    return { kind: "failed", error: installError };
   }
   onStep(0);
   installed();
@@ -17446,7 +17624,7 @@ async function runUpdate({
   let restart = Boolean(result.restart_required);
   onStep(1);
   if (studio && studio.profile !== install.profile) {
-    const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries });
+    const loaded = await loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting, waitMs, checkTries });
     if (!loaded.ok) {
       return { kind: "partial", error: loaded.error };
     }
@@ -17456,7 +17634,7 @@ async function runUpdate({
   remember3({ result: "updated", restart, at: Date.now() });
   return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
 }
-async function runReload({ install, studio, busy = async () => [], onWaiting, waitMs, checkTries }) {
+async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, onWaiting, waitMs, checkTries }) {
   let building;
   try {
     building = await busy();
@@ -17466,7 +17644,7 @@ async function runReload({ install, studio, busy = async () => [], onWaiting, wa
   if (building.length) {
     return { kind: "busy", chats: building };
   }
-  const loaded = await loadIntoStudio({ install, studio, busy, onWaiting, waitMs, checkTries });
+  const loaded = await loadIntoStudio({ install, studio, busy, confirmInstallIdle, onWaiting, waitMs, checkTries });
   if (!loaded.ok) {
     return { kind: "failed", error: loaded.error };
   }
@@ -17524,7 +17702,7 @@ function body(update) {
         ),
         update.review ? jsx(Findings, { review: update.review }, "f") : null,
         actions(
-          jsx(Button, { onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
           jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no")
         )
       ];
@@ -17533,7 +17711,7 @@ function body(update) {
         "Couldn't update",
         jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
         actions(
-          jsx(Button, { onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
+          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
           jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
         )
       ];
@@ -17917,7 +18095,7 @@ function remember2(ctx, key, value) {
   }
 }
 var RESTART_ADVICE = { hermes: "Restart Hermes", app: "Quit and reopen Hermes" };
-function usePluginUpdate({ ctx, status, running, installing = false }) {
+function usePluginUpdate({ ctx, status, running, installing = false, installError = null, confirmInstallIdle }) {
   const queryClient = useQueryClient();
   const installedIn = status.data?.plugin?.installed_in ?? null;
   const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
@@ -17952,8 +18130,6 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
     }
   });
   const busy = useRef(false);
-  const installingNow = useRef(installing);
-  installingNow.current = installing;
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
   useEffect(() => {
     if (!state.announce) {
@@ -17986,7 +18162,7 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       setState((current) => ({ ...current, raced: void 0, racedAt: void 0 }));
     }
   }, [fresher]);
-  const blockedFor = (verb) => installing ? installingSentence(verb) : chats.length ? busySentence(chats, verb) : null;
+  const blockedFor = (verb) => installing ? installingSentence(verb) : installError || (chats.length ? busySentence(chats, verb) : null);
   const blocked = blockedFor("update");
   const start = async (options = {}) => {
     if (busy.current || !target) {
@@ -18014,7 +18190,8 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
         studio,
         options,
         resume,
-        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio),
+        busy: () => busyChats(studio),
+        confirmInstallIdle,
         onStep: (step) => setState((current) => ({ ...current, step })),
         onWaiting: (waiting) => setState((current) => ({ ...current, waiting })),
         installed: () => remember2(ctx, PENDING, { at: Date.now(), error: null }),
@@ -18075,7 +18252,8 @@ function usePluginUpdate({ ctx, status, running, installing = false }) {
       outcome ??= await runReload({
         install,
         studio,
-        busy: () => installingNow.current ? Promise.resolve(["the game tools install"]) : busyChats(studio)
+        busy: () => busyChats(studio),
+        confirmInstallIdle
       });
     } finally {
       busy.current = false;
@@ -18206,10 +18384,17 @@ function StudioPage({ ctx }) {
   }, [legacyReady, memory.onboarded]);
   const toolchainStep = steps.find((step) => step.id === "toolchain");
   const wantInstall = running && (onboarding || page === "setup" || toolchainStep?.state === "todo");
-  const install = useInstall({ enabled: wantInstall });
+  const install = useInstall({ ctx, enabled: running, polling: wantInstall });
   const installState = install.data?.install?.state ?? null;
   const installElsewhere = Boolean(install.data?.install?.elsewhere);
-  const pluginUpdate = usePluginUpdate({ ctx, installing: installState === "running", running, status });
+  const pluginUpdate = usePluginUpdate({
+    ctx,
+    installing: install.starting || install.busy,
+    installError: install.updateBlock,
+    confirmInstallIdle: install.confirmIdle,
+    running,
+    status
+  });
   const lastElsewhere = useRef(installElsewhere);
   const finishedAt = install.data?.install?.finished_at ?? null;
   const doneRun = installState === "done" ? `${install.data?.install?.run_id ?? ""}@${finishedAt ?? ""}` : null;

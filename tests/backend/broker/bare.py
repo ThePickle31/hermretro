@@ -15,6 +15,7 @@ from backend.broker.broker import Broker  # noqa: E402 - the repository root goe
 
 def bare_broker(**fields):
     broker = Broker.__new__(Broker)
+    broker.stopping = threading.Event()
     broker.lanes, broker.writer_leases = {}, {}
     broker.table_lock = threading.RLock()
     broker.events = []

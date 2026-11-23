@@ -18,6 +18,14 @@ class BrokerUnavailable(RuntimeError):
     pass
 
 
+class BrokerNotRunning(BrokerUnavailable):
+    """The socket was missing or refused the connection."""
+
+
+class LegacyBrokerHello(BrokerUnavailable):
+    """The old broker accepted the token but its fingerprint path was removed by an upgrade."""
+
+
 class OtherCopyBusy(BrokerUnavailable):
     """The running broker belongs to another copy of the plugin (another folder, or an older version that
     cannot say which), and it still has live game workers, so it is neither used nor replaced.
@@ -28,16 +36,35 @@ class OtherCopyBusy(BrokerUnavailable):
         self.plugin_root = plugin_root
 
 
+CONTROL_TIMEOUT = 3.0
+QUICK_OPS = frozenset({"hello", "stats", "activity", "install_start", "install_status", "install_cancel"})
+
+
+def _remaining(deadline: float | None, maximum: float) -> float:
+    if deadline is None:
+        return maximum
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Broker startup or request deadline expired")
+    return min(maximum, remaining)
+
+
 class BrokerClient:
-    def __init__(self, state_dir: Path, token: str | None = None):
+    control_timeout = CONTROL_TIMEOUT
+
+    def __init__(self, state_dir: Path, token: str | None = None, *, deadline: float | None = None):
         self.state_dir = Path(state_dir)
+        self.startup_deadline = deadline
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
+            self.sock.settimeout(_remaining(deadline, self.control_timeout))
             self.sock.connect(str(self.state_dir / "broker.sock"))
+        except (FileNotFoundError, ConnectionRefusedError) as error:
+            self.close()
+            raise BrokerNotRunning(str(error)) from error
         except OSError as error:
-            self.sock.close()
+            self.close()
             raise BrokerUnavailable(str(error)) from error
-        self.reader = self.sock.makefile("rb")
         try:
             if token is None:
                 token = (self.state_dir / "broker.token").read_text()
@@ -47,14 +74,68 @@ class BrokerClient:
             raise
 
     def request(self, obj: dict) -> dict:
+        op = obj.get("op")
+        if op in QUICK_OPS:
+            budget = self.control_timeout
+        elif op == "lane_status":
+            # lane_status may spend up to 15 seconds asking an idle engine about its emulator.
+            budget = 20.0
+        elif op == "shutdown":
+            # Setup removal allows longer for older brokers to answer. Replacement has the startup budget.
+            budget = 15.0 if self.startup_deadline is None else self.control_timeout
+        else:
+            budget = None
+        deadline = None
+        if budget is not None:
+            deadline = time.monotonic() + budget
+            if self.startup_deadline is not None:
+                deadline = min(deadline, self.startup_deadline)
+        monotonic_start = op == "install_start" and self.hello.get("install_start_monotonic") is True
+        if (
+            op == "install_start"
+            and not monotonic_start
+            and ("admit_until" in obj or self.hello.get("install_start_deadline") is not True)
+        ):
+            return {
+                "ok": False,
+                "dispatched": False,
+                "denied": {
+                    "code": "BROKER_OUTDATED",
+                    "message": "The older hermretro background process cannot safely start the install. "
+                    "Close its chats and try again.",
+                },
+            }
         try:
+            if monotonic_start and "admit_before" not in obj:
+                # The broker is on this host and reads the same monotonic clock.
+                obj = {**obj, "admit_until": min(obj.get("admit_until", deadline), deadline)}
+            elif op == "install_start":
+                # Keep the older Unix-millisecond fence for callers and brokers that use it.
+                expires_at = min(
+                    obj.get("admit_before", float("inf")), (time.time() + _remaining(deadline, budget)) * 1000
+                )
+                obj = {**obj, "admit_before": expires_at}
+            self.sock.settimeout(_remaining(deadline, budget) if budget is not None else None)
             self.sock.sendall((json.dumps(obj, separators=(",", ":")) + "\n").encode())
-            line = self.reader.readline()
+            line = bytearray()
+            while not line.endswith(b"\n"):
+                if budget is not None:
+                    self.sock.settimeout(_remaining(deadline, budget))
+                part = self.sock.recv(65536)
+                if not part:
+                    self.close()
+                    raise BrokerUnavailable("Broker closed the connection")
+                line.extend(part)
+        except TimeoutError as error:
+            self.close()
+            raise BrokerUnavailable(f"Broker did not answer {op} before its deadline") from error
         except OSError as error:
+            self.close()
             raise BrokerUnavailable(str(error)) from error
-        if not line:
-            raise BrokerUnavailable("Broker closed the connection")
-        return json.loads(line)
+        answer = json.loads(line)
+        if not isinstance(answer, dict):
+            raise ValueError(f"Invalid broker response to {op}")
+        return answer
 
     def call(
         self,
@@ -77,12 +158,7 @@ class BrokerClient:
         return self.request(request)
 
     def close(self) -> None:
-        for closer in (getattr(self, "reader", None), self.sock):
-            try:
-                if closer is not None:
-                    closer.close()
-            except OSError:
-                pass
+        self.sock.close()
 
     def __enter__(self) -> BrokerClient:
         return self
@@ -94,7 +170,7 @@ class BrokerClient:
 _SCOPE_RUNNER: str | None = None  # "" once probed and unavailable
 
 
-def own_scope(env: dict) -> list[str]:
+def own_scope(env: dict, *, deadline: float | None = None) -> list[str]:
     """A command prefix that starts the broker in its own systemd scope, or ``[]``.
 
     Under systemd the gateway's unit owns every process it starts, broker and engine workers
@@ -105,33 +181,38 @@ def own_scope(env: dict) -> list[str]:
     works; anywhere else (macOS, containers, no user bus) the broker starts as before."""
     global _SCOPE_RUNNER
     if _SCOPE_RUNNER is None:
-        _SCOPE_RUNNER = _probe_scope(env)
+        _SCOPE_RUNNER = _probe_scope(env, deadline=deadline)
     if not _SCOPE_RUNNER:
         return []
     unit = f"hermretro-broker-{os.getpid()}-{time.time_ns()}"  # one scope per broker
     return [_SCOPE_RUNNER, "--user", "--scope", "--quiet", "--collect", f"--unit={unit}"]
 
 
-def _probe_scope(env: dict) -> str:
+def _probe_scope(env: dict, *, deadline: float | None) -> str:
     # systemd sets INVOCATION_ID for every process of a unit it starts (the gateway service).
     inside_service = bool(os.environ.get("INVOCATION_ID"))
     runner = shutil.which("systemd-run", path=env.get("PATH"))
     if not inside_service or not runner:
         return ""
+    timeout = _remaining(deadline, 10)
     try:
         probe = subprocess.run(
             [runner, "--user", "--scope", "--quiet", "--collect", "true"],
             env=env,
             stdin=subprocess.DEVNULL,
             capture_output=True,
-            timeout=10,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired as error:
+        if timeout < 10:
+            raise TimeoutError("Systemd scope probe timed out") from error
+        return ""
     except (OSError, subprocess.SubprocessError):
         return ""
     return runner if probe.returncode == 0 else ""
 
 
-def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
+def spawn_broker(state_dir: Path, node: str, *, deadline: float | None = None) -> subprocess.Popen:
     """Start a broker detached from the caller. It runs from the plugin root with a minimal environment."""
     env = {
         key: os.environ[key]
@@ -161,8 +242,10 @@ def spawn_broker(state_dir: Path, node: str) -> subprocess.Popen:
     if log_path.is_file() and log_path.stat().st_size > 5 * 1024 * 1024:
         log_path.replace(log_path.with_suffix(".log.1"))  # the run folder survives reboots: keep it small
     with open(log_path, "ab") as log:
+        launch = own_scope(env, deadline=deadline) + command
+        _remaining(deadline, CONTROL_TIMEOUT)  # The scope probe may have used the rest of the startup budget.
         return subprocess.Popen(
-            own_scope(env) + command,
+            launch,
             cwd=str(paths.PLUGIN_ROOT),
             env=env,
             stdin=subprocess.DEVNULL,
@@ -181,24 +264,56 @@ class BrokenBroker(BrokerUnavailable):
         self.stopping = stopping
 
 
-def try_connect(state_dir: Path, retire_broken: bool = False) -> tuple[BrokerClient | None, Exception | None]:
+def request_shutdown(client: BrokerClient) -> bool:
+    """Return whether the broker agreed to stop. Only an explicit busy reply returns False."""
     try:
-        client = BrokerClient(state_dir)
-    except (BrokerUnavailable, FileNotFoundError, json.JSONDecodeError) as error:
+        answer = client.request({"op": "shutdown"})
+    except ValueError as error:
+        raise BrokerUnavailable("Shutdown was unconfirmed.") from error
+    if answer.get("ok") is True:
+        return True
+    denied = answer.get("denied")
+    if not isinstance(denied, dict):
+        denied = {}
+    if answer.get("ok") is False and denied.get("code") == "BUSY":
+        return False
+    raise BrokerUnavailable(denied.get("message") or answer.get("error") or "Shutdown was unconfirmed.")
+
+
+def _shutdown_for_replacement(client: BrokerClient) -> bool:
+    try:
+        return request_shutdown(client)
+    except BrokerUnavailable as error:
+        raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {error}") from error
+
+
+def try_connect(
+    state_dir: Path, retire_broken: bool = False, *, deadline: float | None = None
+) -> tuple[BrokerClient | None, Exception | None]:
+    try:
+        client = BrokerClient(state_dir, deadline=deadline)
+    except (BrokerUnavailable, OSError, ValueError) as error:
         return None, error
     if client.hello.get("ok"):
         return client, None
-    failure = BrokerUnavailable(json.dumps(client.hello))  # the token raced a restart
-    if retire_broken and "error" in client.hello and "denied" not in client.hello:
+    message = json.dumps(client.hello)
+    hello_error = client.hello.get("error")
+    legacy = (
+        "denied" not in client.hello
+        and isinstance(hello_error, str)
+        and hello_error.startswith("FileNotFoundError:")
+        and "adapter/../plugin.yaml" in hello_error
+    )
+    failure = LegacyBrokerHello(message) if legacy else BrokerUnavailable(message)
+    if retire_broken and legacy:
         # The handshake failed inside the broker, after it had accepted the token. A broker of the releases
         # before the backend/ layout does this once an update has removed adapter/, the folder it reads its
         # fingerprint from: it can never be compared, and every attempt keeps it from idling out. Ask it to
         # stop, as a broker of another build is asked.
         try:
-            stopping = bool(client.request({"op": "shutdown"}).get("ok"))
-        except (BrokerUnavailable, ValueError):
-            stopping = False
-        failure = BrokenBroker(client.hello, stopping)
+            failure = BrokenBroker(client.hello, _shutdown_for_replacement(client))
+        except BrokerUnavailable as error:
+            failure = error
     client.close()
     return None, failure
 
@@ -212,10 +327,11 @@ def _workers_cannot_start(hello: dict, node: str) -> bool:
     return hello.get("temp_ok") is False and host_os.engine_temp_ready({"TMPDIR": os.environ.get("TMPDIR", "")})
 
 
-def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerClient:
+def ensure_broker(state_dir: Path | None = None, wait: float = 20.0, *, deadline: float | None = None) -> BrokerClient:
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
-    A broker left over from another build of this backend is replaced when it is idle."""
+    The startup budget begins after Node discovery, bounded by the caller's monotonic deadline if given.
+    A broker left over from another build is replaced when idle."""
     state_dir = Path(state_dir) if state_dir else paths.runtime_dir()
     node = paths.find_node()
     if not node.get("ok"):
@@ -224,53 +340,66 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0) -> BrokerCl
             + (f" (found {node['version']})" if node.get("version") else "")
             + "."
         )
-    deadline = time.monotonic() + wait
+    startup_end = time.monotonic() + wait
+    deadline = startup_end if deadline is None else min(deadline, startup_end)
     last: Exception | None = None
     spawned: subprocess.Popen | None = None
     while time.monotonic() < deadline:
-        client, last = try_connect(state_dir, retire_broken=True)
+        client, last = try_connect(state_dir, retire_broken=True, deadline=deadline)
+        delay = 0.05
         if isinstance(last, BrokenBroker):
             if not last.stopping:
                 raise OtherCopyBusy(
                     "The previous version of hermretro is still running games. Finish or close those chats "
                     "(it stops by itself once they are idle), then try again."
                 )
-            time.sleep(0.4)
             spawned = None
-            continue
-        if client is not None:
-            # Compared as real paths, read now: a plugin folder swapped for a link (a dev checkout) while
-            # this process ran would otherwise look like another install and shut down every broker the
-            # new files start, in a loop.
-            theirs = client.hello.get("plugin_root")
-            other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
-            # Only loaded_fingerprint counts: brokers of builds without it named the files on disk, which after
-            # an update are the new build's, so their code_fingerprint matched while they ran the old code.
-            loaded = client.hello.get("loaded_fingerprint")
-            current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
-            if current and not _workers_cannot_start(client.hello, node["path"]):
+            delay = 0.4
+        elif client is not None:
+            if not _retire_stale_broker(client, node["path"], deadline):
                 return client
-            # A broker from another build of this backend, or one whose new workers cannot start while a fresh
-            # one's could. Replace it only when no conversation has a live worker; otherwise keep using it (same
-            # wire protocol) rather than kill someone's running game. It retires itself once it is idle.
-            answer = client.request({"op": "shutdown"})
-            if not answer.get("ok"):
-                if other_install:
-                    # A second copy of the plugin (another profile's install) has its own engine and
-                    # dependency folders; its broker must not serve this copy's conversations.
-                    client.close()
-                    raise OtherCopyBusy(
-                        "Another copy of hermretro (" + str(theirs) + ") is running games right now. Finish or "
-                        "close those chats, then try again.",
-                        theirs,
-                    )
-                return client
-            client.close()
-            time.sleep(0.4)
             spawned = None
-            continue
-        # Again when the one started lost the election (exit 3) to a broker that was still stopping.
-        if spawned is None or spawned.poll() == 3:
-            spawned = spawn_broker(state_dir, node["path"])
-        time.sleep(0.05)
+            delay = 0.4
+        elif isinstance(last, BrokerNotRunning) and (spawned is None or spawned.poll() == 3):
+            # Retry a lost election (exit 3) once the broker that won is gone.
+            try:
+                _remaining(deadline, wait)
+                spawned = spawn_broker(state_dir, node["path"], deadline=deadline)
+            except TimeoutError as error:
+                last = error
+                break
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(delay, remaining))
     raise BrokerUnavailable(f"The hermretro broker did not start: {last}")
+
+
+def _retire_stale_broker(client: BrokerClient, node: str, deadline: float) -> bool:
+    """Close a broker that agreed to retire, or return it to the caller with the startup budget cleared."""
+    try:
+        # Compare real paths now: a plugin folder swapped for a link while this process ran must not look
+        # like another install. Only loaded_fingerprint identifies the running code of an updated broker.
+        theirs = client.hello.get("plugin_root")
+        other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
+        loaded = client.hello.get("loaded_fingerprint")
+        current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
+        if not current or _workers_cannot_start(client.hello, node):
+            # A busy broker retires on its own. Its workers can keep serving this install's conversations.
+            if _shutdown_for_replacement(client):
+                client.close()
+                return True
+            if other_install:
+                raise OtherCopyBusy(
+                    "Another copy of hermretro (" + str(theirs) + ") is running games right now. Finish or "
+                    "close those chats, then try again.",
+                    theirs,
+                )
+        _remaining(deadline, CONTROL_TIMEOUT)
+    except TimeoutError as error:
+        client.close()
+        raise BrokerUnavailable(str(error)) from error
+    except Exception:
+        client.close()
+        raise
+    client.startup_deadline = None
+    return False
