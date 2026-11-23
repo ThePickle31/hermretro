@@ -88,21 +88,23 @@ greens with `#65ff00` as transparency, so the page paints every sprite thumbnail
 one its first use in a scene is painted with, else the default sprite palette) and draws the frame
 that use stands in. The project lookup is cached per game until a settings, palette, scene, actor or
 sprite file changes. Failures: `INVALID`, `NOT_IMAGE`, `OUTSIDE` (in no game), `OTHER_GAME`,
-`TOO_LARGE`, `MISSING`. With `at` (a reply's time, ms) it answers the version the file had then; with
+`TOO_LARGE`, `MISSING`. With `at` (a reply or report's time, ms) it answers the version the file had then; with
 `version` (an id from `asset_info`) that kept version. Every answer carries `versionId` and `earlier`.
+When history is unavailable, a readable live file can still be previewed. Requests for a specific kept
+version require access to that version.
 
 Versions: the plugin keeps a copy of a game image (up to 40 per file, named by modification time in
 ns, identical rewrites skipped, under `<plugin data>/asset-versions/`, filed under the game that owns the
 image: a folder that later becomes a game of its own starts with none) when a reply delivers it
-(`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), or the page shows
-it. So a file rewritten later (cover.png made again) still shows each reply what it delivered.
+(`MEDIA:` line, `post_llm_call`), a step looks at or writes it (`post_tool_call`), a build report names it,
+or the page shows it. Replies and reports can still show their images after a later rewrite.
 
 ### `asset_info` RPC
 
 `{path, root}` (as for `asset`) → `{ok, path, relative, kind, versions}`, `kind` one of `cover` (the game card's cover),
 `sprite`, `background`, `ui`, `frame`, `capture`, `image`; `versions = [{id, at, file, current}]`
-oldest first, exactly one `current`. A sprite adds `sprite = {name, id, type, flipLeft, states,
-canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
+oldest first, exactly one `current` when history is available, otherwise empty. A sprite adds
+`sprite = {name, id, type, flipLeft, states, canvasWidth, canvasHeight, animSpeed, numTiles, animations: [{slot, name, frames: [[tile]]}]}` (the
 first state's animations, named by GB Studio slot: "Walk right"…; a tile is `{x, y, sliceX, sliceY,
 flipX, flipY}`, 8×16, `y` up from the canvas bottom) and `palette = {id, name, colors[4]}` (the one
 it is painted with in its first scene). Sprites and backgrounds add `usedIn = [{scene, sceneId, as,
@@ -115,6 +117,12 @@ project files; nothing is compiled.
 
 `{path, root, version}` (`path` and `root` as for `asset`) → `{ok, path, versions}`: puts a kept version back in
 place, keeping the one it replaces first. Not for saved frames.
+The current file stays in place if the backup or restore record fails to save. The record tells the
+next history reader which two versions to keep when an interrupted restore still needs pruning.
+The viewer disables Restore while its Build conversation is active. Restore answers `CONFLICT` if the engine
+writer lock is held or the image changes after backup.
+When the replacement succeeds but its history cannot be listed, the result is successful
+with an empty `versions` list.
 
 ### `assets` RPC
 
@@ -123,7 +131,8 @@ pictures the Build page's @ picker lists: the game card's cover first, then ever
 `assets/sprites`, `assets/backgrounds`, `assets/ui` and `assets/fonts` (symlinks leaving the game are
 skipped, and so are a nested game's pictures), at most 400. Each is `{path, relative, name, file, kind, modifiedAt, bytes}`; `name` is the
 sidecar's (`.gbsres`) name when there is one, `kind` one of `cover`, `sprite`, `background`, `ui`.
-No image data: the page loads each through `asset`. Failure: `NO_GAME`.
+Within each asset folder, paths are sorted by component. `truncated` is true only when an eligible image
+was left out. The page loads image data through `asset`. Failure: `NO_GAME`.
 
 ### Page
 
@@ -165,24 +174,25 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   confirms the exact stored result occurrence.
 - **Build results.** Each turn that finishes a ROM or web compile gets a build number in conversation order.
   Its result shows the report title and summary, test counts, and a diagnostic and retry action for failure.
-  Details opens the change list, checks and notes. A result can feature a versioned sprite or background,
-  including Before and After with Keep and Undo when an earlier version is available. Recorded playtest frames
-  can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes renderer
-  for sound and video. Play opens the real player beneath the reply. Suggestions still fill the message box.
+  A result can feature a sprite or background with Before and After at the turn's start and end. When an
+  earlier version is available, the latest turn offers Keep and Undo. Undo restores the earlier version
+  and offers to rebuild. Details opens the change list, additional image comparisons, checks and notes.
+  The change thumbnails open the original images at the report capture time from its tool result, or the
+  recorded tool time for older reports. Turns without reports list the pictures they made. Recorded playtest
+  frames can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes
+  renderer for sound and video. Play opens the real player beneath the reply. Suggestions fill the message box.
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
-  first, with Show (expands the build and scrolls to it) and Restore (on built ones, except the one already playing
-  when nothing changed since). Restore matches a snapshot from the `builds` RPC using the build's
-  reference. Compact result rows instead use the call ID and exact result timestamp confirmed for
-  that reference. Legacy snapshots without an exact match and before-restore backups appear by date
-  and time, including for games without a conversation. Backup rows also show the ID.
-  Each selection confirms in place and calls `build_restore`
-  to save the current project and put the earlier files back. A complete restore submits a rebuild,
-  opening a conversation through the usual first-message flow when needed. An incomplete restore
-  shows the backup ID and file problem. Reopen Builds to select that backup. A failed rebuild
-  submission reports that the files were already restored. There is no Assets panel and no Full chat
-  button (Open in full chat stays in the switcher's
-  right-click menu and the stuck status).
+  first, with Show to expand the build and scroll to it. Restore matches a completed build to its
+  saved snapshot by reference. Compact result rows use the call ID and exact result timestamp
+  confirmed for that reference. The current build offers Restore after the project changes.
+  Legacy snapshots without an exact match and before-restore backups appear by date and time,
+  including for games without a conversation. Backup rows also show the ID. Confirming a selection
+  calls `build_restore` to save the current project and put the earlier files back. A complete restore
+  submits a rebuild and opens a conversation when needed. An incomplete restore shows the file
+  problem and the ID of the backup users can select in Builds. A failed rebuild submission reports
+  that the files were restored. Open in full chat stays in the switcher's right-click menu and the
+  stuck status.
 - **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and
   Enter/Tab pick, Esc closes. The pick leaves the text and is attached as an `@name` chip (sent as

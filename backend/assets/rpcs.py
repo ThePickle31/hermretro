@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
-import tempfile
 from pathlib import Path
 
 from ..hermes import host
@@ -27,19 +25,24 @@ from .sprites import (
 from .versions import (
     ASSET_MAX_BYTES,
     ASSET_SUFFIXES,
+    AssetOwners,
+    ImageTooLarge,
     _asset_file,
     _asset_kind,
-    _asset_roots,
+    _available_versions,
     _image_root,
     _image_size,
     _is_frames,
-    _keep_version,
+    _preview_history,
+    _read_image,
+    _restore_version,
+    _same_folder,
     _shown_in,
+    _try_keep_version,
     _version_at,
-    _versions,
-    _versions_dir,
     size_text,
 )
+from .writer_lock import RestoreConflict
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -48,7 +51,7 @@ logger = host.logger  # one logger for the Hermes side of the backend,
 def rpc_asset(ctx):
     """One image for the Build page (a thumbnail, the asset viewer): only from the folder of the library game the
     page shows (``root``, its project folder) or the frames Hermes saved from tool results. Answers a data URL, its size and, for a sprite, the
-    frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply's time, in
+    frame size and speed from its sidecar, so the page can animate it. With ``at`` (a reply or report's time, in
     ms) it answers the version the file had then, when it was kept and the file has changed since."""
 
     def asset(params, **_kwargs):
@@ -69,30 +72,41 @@ def rpc_asset(ctx):
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in your games are shown here."}
             if not _shown_in(root, params.get("root")):
                 return {"ok": False, "code": "OTHER_GAME", "error": "That image belongs to another game."}
-            size = real.stat().st_size
-            if size > ASSET_MAX_BYTES:
-                limit = size_text(ASSET_MAX_BYTES)
-                return {
-                    "ok": False,
-                    "code": "TOO_LARGE",
-                    "error": f"The image is larger than {limit}, too large to preview.",
-                }
-            _keep_version(real, root)
-            earlier = None
-            wanted = str(params.get("version") or "")
-            if wanted:
-                # One kept version by its id (the file's modification time in ns), as the viewer lists them.
-                if not wanted.isdigit():
-                    return {"ok": False, "code": "INVALID", "error": "Unknown version."}
-                if int(wanted) != real.stat().st_mtime_ns:
-                    kept = _versions_dir(real, root) / f"{wanted}{real.suffix.lower()}"
-                    if not kept.is_file():
-                        return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
-                    earlier = kept
-            elif params.get("at") is not None:
-                earlier = _version_at(real, root, params.get("at"))
-            source = earlier or real
-            data = source.read_bytes()
+            with _preview_history(real, root) as folder:
+                stat = real.stat()
+                earlier = None
+                data = None
+                wanted = str(params.get("version") or "")
+                if wanted:
+                    # One kept version by its id (the file's modification time in ns), as the viewer lists them.
+                    if not wanted.isdigit():
+                        return {"ok": False, "code": "INVALID", "error": "Unknown version."}
+                    kept = folder / f"{wanted}{real.suffix.lower()}" if folder is not None else None
+                    use_kept = int(wanted) != stat.st_mtime_ns or (
+                        stat.st_size > ASSET_MAX_BYTES and kept is not None and kept.is_file()
+                    )
+                    if use_kept:
+                        if kept is None:
+                            return {"ok": False, "code": "ERROR", "error": "Image history is unavailable."}
+                        earlier = kept
+                        try:
+                            data, _ = _read_image(earlier, ASSET_MAX_BYTES)
+                        except FileNotFoundError:
+                            return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
+                elif folder is not None and params.get("at") is not None:
+                    try:
+                        earlier = _version_at(real, folder, params["at"])
+                        if earlier is not None:
+                            data, _ = _read_image(earlier, ASSET_MAX_BYTES)
+                    except ImageTooLarge:
+                        raise
+                    except OSError:
+                        logger.debug("hermretro could not read an earlier image", exc_info=True)
+                        earlier = None
+                if data is None:
+                    data, stat = _read_image(real, ASSET_MAX_BYTES)
+                if folder is not None:
+                    _try_keep_version(real, folder, protect=(earlier,))
             width, height = _image_size(data)
             relative = None if _is_frames(root) else real.relative_to(root).as_posix()
             answer = {
@@ -104,9 +118,9 @@ def rpc_asset(ctx):
                 "width": width,
                 "height": height,
                 "bytes": len(data),
-                "modifiedAt": (int(earlier.stem) / 1e9) if earlier else real.stat().st_mtime,
+                "modifiedAt": (int(earlier.stem) / 1e9) if earlier else stat.st_mtime,
                 "earlier": earlier is not None,
-                "versionId": earlier.stem if earlier else str(real.stat().st_mtime_ns),
+                "versionId": earlier.stem if earlier else str(stat.st_mtime_ns),
                 "dataUrl": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
             }
             sidecar = real.with_name(real.name + ".gbsres")
@@ -126,6 +140,12 @@ def rpc_asset(ctx):
                 except (ValueError, TypeError, OSError):
                     pass
             return answer
+        except ImageTooLarge:
+            return {
+                "ok": False,
+                "code": "TOO_LARGE",
+                "error": f"The image is larger than {size_text(ASSET_MAX_BYTES)}, too large to preview.",
+            }
         except FileNotFoundError:
             return {"ok": False, "code": "MISSING", "error": "The image is gone."}
         except Exception as error:
@@ -148,7 +168,11 @@ def rpc_asset_info(ctx):
             if not found:
                 return {"ok": False, "code": "OUTSIDE", "error": "Only images in this game are shown here."}
             real, root = found
-            _keep_version(real, root)
+            with _preview_history(real, root) as folder:
+                versions = []
+                if folder is not None:
+                    _try_keep_version(real, folder)
+                    versions = _available_versions(real, folder)
             frames = _is_frames(root)
             relative = None if frames else real.relative_to(root).as_posix()
             kind = "frame" if frames else _asset_kind(relative)
@@ -157,7 +181,7 @@ def rpc_asset_info(ctx):
                 "path": str(real),
                 "relative": relative,
                 "kind": kind,
-                "versions": _versions(real, root),
+                "versions": versions,
             }
             if not frames and real == cover_path(root).resolve():
                 answer["kind"] = "cover"
@@ -233,22 +257,13 @@ def rpc_asset_restore(ctx):
             real, root = found
             if _is_frames(root):
                 return {"ok": False, "code": "INVALID", "error": "Playtest frames are not restored."}
-            kept = _versions_dir(real, root) / f"{wanted}{real.suffix.lower()}"
-            if not kept.is_file():
+            versions = _restore_version(real, root, wanted)
+            if versions is None:
                 return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
-            _keep_version(real, root)
-            # A new temporary file of its own (never one already there, which could be a link elsewhere).
-            handle, partial = tempfile.mkstemp(dir=real.parent, prefix=f".{real.name}.", suffix=".restore")
-            try:
-                with os.fdopen(handle, "wb") as writer:
-                    writer.write(kept.read_bytes())
-                os.replace(partial, real)
-            except BaseException:
-                Path(partial).unlink(missing_ok=True)
-                raise
-            _keep_version(real, root)
             emit("assets.image_restored", path=str(real))
-            return {"ok": True, "path": str(real), "versions": _versions(real, root)}
+            return {"ok": True, "path": str(real), "versions": versions}
+        except RestoreConflict as error:
+            return {"ok": False, "code": "CONFLICT", "error": str(error)}
         except Exception as error:
             logger.exception("hermretro asset_restore failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
@@ -257,18 +272,6 @@ def rpc_asset_restore(ctx):
 
 
 ASSET_LIST_LIMIT = 400
-
-
-def _list_root(params) -> Path | None:
-    """The library game a list is for, by id or by its folder (never a folder outside the library)."""
-    root = host._game_root(str(params.get("game") or "")) if params.get("game") else None
-    if root is None and params.get("root"):
-        try:
-            wanted = Path(str(params["root"])).expanduser().resolve(strict=True)
-        except (OSError, RuntimeError):
-            return None
-        root = next((base for base in _asset_roots() if base == wanted and not _is_frames(base)), None)
-    return root
 
 
 @rpc("assets")
@@ -280,27 +283,32 @@ def rpc_assets(ctx):
     def assets(params, **_kwargs):
         try:
             params = params if isinstance(params, dict) else {}
-            root = _list_root(params)
+            owners = AssetOwners()
+            root = owners.list_root(params.get("game"), params.get("root"))
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be listed."}
             items = []
             truncated = False
             cover = cover_path(root)
             if cover.is_file():
-                stat = cover.stat()
-                items.append(
-                    {
-                        "path": str(cover.resolve()),
-                        "relative": cover.relative_to(root).as_posix(),
-                        "name": "Cover",
-                        "file": cover.name,
-                        "kind": "cover",
-                        "modifiedAt": stat.st_mtime,
-                        "bytes": stat.st_size,
-                    }
-                )
+                real_cover = cover.resolve()
+                cover_owner = owners.image_root(real_cover)
+                if cover_owner == root or (cover_owner is not None and _same_folder(cover_owner, root)):
+                    stat = real_cover.stat()
+                    items.append(
+                        {
+                            "path": str(real_cover),
+                            "relative": cover.relative_to(root).as_posix(),
+                            "name": "Cover",
+                            "file": cover.name,
+                            "kind": "cover",
+                            "modifiedAt": stat.st_mtime,
+                            "bytes": stat.st_size,
+                        }
+                    )
             for image, real, kind in project_images(root):
-                if _image_root(real) != root:
+                owner = owners.image_root(real)
+                if owner is None or (owner != root and not _same_folder(owner, root)):
                     continue  # a game inside this one's art folders keeps its own pictures
                 if len(items) >= ASSET_LIST_LIMIT:
                     truncated = True  # a picture is left out; at exactly the cap there is none
@@ -310,7 +318,7 @@ def rpc_assets(ctx):
                 items.append(
                     {
                         "path": str(real),
-                        "relative": real.relative_to(root).as_posix(),
+                        "relative": real.relative_to(owner).as_posix(),
                         "name": str(meta.get("name") or image.stem),
                         "file": image.name,
                         "kind": kind,

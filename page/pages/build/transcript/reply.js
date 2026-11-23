@@ -1,6 +1,6 @@
 // A reply's text and the images it delivered.
-import { jsx, jsxs, memo, MessageTextContent } from '#sdk'
-import { useAsset } from '#pages/build/assets/cache.js'
+import { jsx, jsxs, memo, MessageTextContent, useId } from '#sdk'
+import { useAssetPreview } from '#pages/build/assets/cache.js'
 import { SheetFrame } from '#pages/build/assets/images.js'
 import { isAbsolute, joinPath } from '#app/paths.js'
 import { assetKind } from './step-words.js'
@@ -46,7 +46,8 @@ export function replyAssets(items, root) {
  *  would read the file itself); anything else the backend will not give (outside the games) stays the app's own
  *  MEDIA rendering. */
 function ReplyImage({ asset, line, onOpen, featured }) {
-  const { state, code, asset: loaded } = useAsset(asset.path, asset.version)
+  const id = useId()
+  const { state, code, asset: loaded } = useAssetPreview(asset.path, asset.version)
 
   if (state === 'none') {
     return MessageTextContent ? jsx(MessageTextContent, code === 'OTHER_GAME' ? { media: false, previewOnly: true, text: line } : { text: line }) : null
@@ -65,9 +66,10 @@ function ReplyImage({ asset, line, onOpen, featured }) {
   return jsxs('button', {
     'aria-label': `Look closer at ${loaded.name}`,
     className: 'cs-b-rchip',
+    id,
     onClick: event => {
       event.stopPropagation()
-      onOpen?.(asset)
+      onOpen?.(asset, event.currentTarget)
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: 'button',

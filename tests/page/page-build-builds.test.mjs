@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, settle, key, mount, check, answered, installAnswer }) => {
+await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, dom, settle, key, mount, check, answered, installAnswer }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } },
@@ -59,6 +59,16 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
     const result = view.node.querySelector('.cs-b-replay')
     assert.match(result.textContent, /Frame 3 of 3.*Replay frames/)
     assert.ok(result.querySelector('button[aria-label="Look closer at start.png"]'))
+  })
+  const frameOpener = view.node.querySelector('.cs-b-replay button[aria-label="Look closer at start.png"]')
+  await act(async () => frameOpener.click())
+  await settle()
+  const dialog = view.node.querySelector('[role="dialog"]')
+  const framePath = dialog?.querySelector('.cs-v-name')?.title
+  await key('keydown', 'Escape', dialog)
+  check('a replay frame opens its picture and returns focus to the replay thumbnail', () => {
+    assert.equal(framePath, '/home/u/games/FrogPost/playtests/start.png')
+    assert.equal(dom.window.document.activeElement, frameOpener)
   })
   const openMenu = async () => {
     await click('Builds', view.node.querySelector('.cs-b-head'))

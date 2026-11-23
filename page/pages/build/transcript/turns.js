@@ -32,6 +32,7 @@ export function turnParts(turn, root) {
   const errors = []
   let end = null
   let report = null
+  let reportAt = null
   const hasCard = turn.items.some(item => item.kind === 'clarify')
 
   for (const item of turn.items) {
@@ -42,8 +43,11 @@ export function turnParts(turn, root) {
         const short = shortTool(tool.name)
 
         // The build card's words: the last report the turn made.
-        if (short === 'build_report' && tool.state !== 'failed') {
-          report = tool.info?.report ?? tool.report ?? report
+        const reported = short === 'build_report' && tool.state !== 'failed' ? (tool.info?.report ?? tool.report) : null
+
+        if (reported) {
+          report = reported
+          reportAt = tool.info?.reportedAt ?? tool.finishedAt ?? tool.startedAt ?? null
         }
 
         if (!HIDDEN_STEPS.has(short) && !(short === 'clarify' && hasCard)) {
@@ -115,6 +119,7 @@ export function turnParts(turn, root) {
     buildFailed: lastBuild?.state === 'failed' ? (lastBuild.info?.error ?? 'The build failed.') : null,
     buildState: compileState(lastCompile(turn)),
     report,
+    reportAt,
     note: presented?.info?.note ?? null,
     running: steps.find(tool => tool.state === 'running') ?? null
   }

@@ -11,7 +11,7 @@ import { historyItems } from './history.js'
 import { endTurn, lostTurns, sealText } from './reducer.js'
 import { APPROVAL_LABELS, schedulePromptCheck } from './requests.js'
 import { withInfo } from './steps.js'
-import { BUILD_CHATS, buildRuntime, chatRequest, newId, patchChat, retainChatRoute } from './store.js'
+import { BUILD_CHATS, buildChatIdle, buildRuntime, chatRequest, newId, patchChat, retainChatRoute } from './store.js'
 
 /** Attach to a game's conversation (stored id) and load what it says so far. */
 export async function openBuildChat(stored, game) {
@@ -148,9 +148,9 @@ export async function createBuildChat(title, pick = null) {
 }
 
 /** Send a message. Returns true once the transcript owns the message, even if it must offer a retry.
- *  `attachments` (./attachments.js) are named at the top of the message and shown as chips. With `mustLand`, true
- *  means Hermes accepted the message. New Game and Restore use it to handle a submission failure separately. */
-export async function sendBuildChat(stored, text, shown = text, attachments = [], { mustLand = false } = {}) {
+ *  With `mustLand`, true means Hermes accepted the message. New Game, Restore, and asset Change use it
+ *  to handle a submission failure. Attachments appear at the start of the message and as chips. */
+export async function sendBuildChat(stored, text, shown = text, attachments = [], { mustLand = false, assetChange = null } = {}) {
   // An update is swapping and reloading the plugin: no new turn starts until it is done.
   if (isUpdating()) {
     host.notify({ kind: 'warning', message: UPDATING_MESSAGE })
@@ -174,6 +174,10 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
   const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true }
   const chat = BUILD_CHATS.get()[stored]
 
+  if (assetChange && (chat?.assetChange !== assetChange || !buildChatIdle(chat))) {
+    return false
+  }
+
   const now = Date.now()
   const live = Boolean(chat?.runtime)
   // Whether a turn was already running when this was sent: only then can the message really wait.
@@ -190,7 +194,16 @@ export async function sendBuildChat(stored, text, shown = text, attachments = []
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: 'user', text: shown, at: now, submission, followup: Boolean(current.busy), ...(current.info?.model ? { model: current.info.model, effort: current.info.effort ?? '' } : {}), ...(attachments.length ? { attachments } : {}) }
+      {
+        kind: 'user',
+        text: shown,
+        at: now,
+        submission,
+        followup: Boolean(current.busy),
+        ...(assetChange ? { assetChange } : {}),
+        ...(current.info?.model ? { model: current.info.model, effort: current.info.effort ?? '' } : {}),
+        ...(attachments.length ? { attachments } : {})
+      }
     ]
   }))
 
