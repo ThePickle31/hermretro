@@ -38,7 +38,6 @@ export async function gamesStudio({ scenario, page, mount, click, tab, answered,
     studio: { name: 'hermretro', exists: true, installed: false, ours: false } } }
   scenario.routes = [{ profile: 'default', connectionId: 'local' }, { profile: 'hermretro', targetProfile: 'hermretro', connectionId: 'local' }]
   scenario.byProfile = {}
-  scenario.byMethod['profiles.create'] = { ok: true, name: 'hermretro' }
   scenario.byMethod['plugin.hermretro.studio_profile'] = { ok: false, code: 'NAME_TAKEN', error: 'A profile named hermretro already exists and was not made by hermretro.' }
   scenario.install = installAnswer({ state: 'idle' })
 

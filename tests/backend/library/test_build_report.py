@@ -10,6 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import contracts  # noqa: E402 - the repository root goes on sys.path first
+from backend.hermes import workflow  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as host_tools  # noqa: E402 - the repository root goes on sys.path first
@@ -223,9 +224,9 @@ class BuildReport(unittest.TestCase):
             self.assertIn(needed, schema["description"])
 
     def test_agent_guidance_names_the_report(self):
-        self.assertIn("chromatic_build_report", hermes_host.SYSTEM_PROMPT_SECTION)
-        self.assertLessEqual(len(hermes_host.SYSTEM_PROMPT_SECTION), 2000)
-        section = hermes_host.SYSTEM_PROMPT_SECTION
+        self.assertIn("chromatic_build_report", workflow.SYSTEM_PROMPT_SECTION)
+        self.assertLessEqual(len(workflow.SYSTEM_PROMPT_SECTION), 2000)
+        section = workflow.SYSTEM_PROMPT_SECTION
         self.assertLess(section.index("chromatic_present_game"), section.index("chromatic_build_report"))
         registry = mock.Mock()
         registry.binding_for.return_value = ("game", {"title": "Robin", "projectRoot": str(self.root)})

@@ -202,11 +202,12 @@ match their sources.
 
 ```sh
 node tools/bundle/bundle.mjs                                    # build desktop/plugin.js and player/frame-shim.js
-node tools/bundle/bundle.mjs --watch                            # rebuild on save; a linked checkout hot-reloads
+node tools/bundle/bundle.mjs --watch                            # rebuild on page/ or backend/hermes/workflow.py saves
 node tools/bundle/bundle.mjs --report                           # lines per module
 ```
 
-Commit the sources and the rebuilt files together. The bundler and the page tests take esbuild,
+The bundler generates the Desktop's RPC names and Build fallback from the backend. Commit the sources and
+the rebuilt files together. The bundler and the page tests take esbuild,
 TypeScript, jsdom and React from the pinned `tools/npm/` (or a Hermes Desktop checkout; `tools/bundle/node-modules.mjs`
 has the search order). The plugin itself has no npm dependencies, and users never install `tools/npm/`. It also checks the source tree on every build: only `sdk.js` imports
 packages, imports across folders use the aliases (`#sdk`, `#app/`, `#pages/`, `#shared/`, `#frame/`, `#backgrounds/`) and none
