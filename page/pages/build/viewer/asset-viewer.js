@@ -1,9 +1,11 @@
 // The asset viewer.
 import { Button, Codicon, host, jsx, jsxs, useEffect, useLayoutEffect, useMemo, useRef, useState } from '#sdk'
-import { forgetAsset, useAsset } from '#pages/build/assets/cache.js'
+import { useAsset } from '#pages/build/assets/cache.js'
+import { assetRestoreBlocked, canSendAssetChange } from '#pages/build/assets/changes.js'
 import { imagePalette, useImage } from '#pages/build/assets/images.js'
 import { canvasImage, paintSheet, spriteAnimations, spriteFrameMs } from '#pages/build/assets/sprite.js'
-import { deriveTurns, turnParts } from '#pages/build/transcript/turns.js'
+import { BUILD_CHATS } from '#pages/build/chat/store.js'
+import { turnParts } from '#pages/build/transcript/turns.js'
 import { baseName } from '#app/paths.js'
 import { AssetDetails } from './asset-details.js'
 import { ChangeForm } from './change-form.js'
@@ -16,16 +18,26 @@ import { StageViewport } from './stage-viewport.js'
 import { useVersionHistory, VersionHistory } from './version-history.js'
 
 /** Look closer at a picture: see it, see it in the game, check it, change it, go back to a version. */
-export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game }) {
+export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game, stored, turns }) {
   const asset = assets[index]
   const path = asset?.path ?? null
   const [refresh, setRefresh] = useState(0)
-  const info = useAssetInfo(path, refresh)
+  const lastChange = chat?.lastAssetChange
+  const [edits, setEdits] = useState(() => ({ last: lastChange, byPath: new Map() }))
+
+  if (lastChange && edits.last !== lastChange) {
+    setEdits({ last: lastChange, byPath: new Map(edits.byPath).set(lastChange.path, lastChange) })
+  }
+
+  const edit = edits.byPath.get(path)
+  const info = useAssetInfo(path, refresh, edit)
   const opened = useAsset(path, asset?.version)
   const version = useVersionHistory({
-    path, original: asset?.version, info, root, onRefresh: () => setRefresh(value => value + 1)
+    path, original: asset?.version, edit, info, root,
+    canRestore: () => !assetRestoreBlocked(BUILD_CHATS.get()[stored]),
+    onRefresh: () => setRefresh(value => value + 1)
   })
-  const { state, loaded, shownNumber, showLive } = version
+  const { state, loaded, shownNumber } = version
   const image = useImage(loaded?.dataUrl)
   const kind = info?.kind ?? (loaded?.sprite ? 'sprite' : opened.asset?.kind) ?? 'image'
   const sprite = info?.sprite ?? null
@@ -44,7 +56,6 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const [playing, setPlaying] = useState(true)
   const [onion, setOnion] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
-  const [sentPath, setSentPath] = useState(null)
   const stageRef = useRef(null)
   const box = useBoxSize(stageRef)
   const dialog = useRef(null)
@@ -55,8 +66,9 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const frames = animation?.frames ?? []
   const frameMs = spriteFrameMs(sprite?.animSpeed)
   const colors = gameColours ? info?.palette?.colors : null
-  const changeWorking = Boolean(sentPath && chat?.busy)
-  const working = sentPath === path && changeWorking
+  const change = chat?.assetChange
+  const working = change?.path === path
+  const changeDisabled = version.restoring || !canSendAssetChange(chat)
   const asks = [...new Set(assets.filter(entry => entry.path === path && entry.ask).map(entry => entry.ask))]
 
   // A new picture starts fresh.
@@ -91,24 +103,6 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
 
     return () => clearInterval(id)
   }, [shownView, playing, frames.length, frameMs])
-
-  // A change sent from here: when the agent finishes, the new version is fetched and shown.
-  const wasWorking = useRef(false)
-
-  useEffect(() => {
-    if (changeWorking) {
-      wasWorking.current = true
-    } else if (sentPath && wasWorking.current) {
-      wasWorking.current = false
-      setSentPath(null)
-      forgetAsset(sentPath)
-
-      if (sentPath === path) {
-        showLive()
-        setRefresh(value => value + 1)
-      }
-    }
-  }, [changeWorking, path, sentPath, showLive])
 
   useEffect(() => {
     if (side !== 'Change') {
@@ -243,15 +237,8 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   }
 
   // The steps of the turn the change started, newest last.
-  let progress = []
-
-  if (sentPath === path && sentPath && chat?.items?.length) {
-    const turns = deriveTurns(chat.items)
-    const last = turns[turns.length - 1]
-
-    progress = last ? turnParts(last, root).steps.slice(-6) : []
-  }
-
+  const changeTurn = working ? turns.findLast(turn => turn.user?.assetChange === change) : null
+  const progress = changeTurn ? turnParts(changeTurn, root).steps.slice(-6) : []
   const running = progress.find(tool => tool.state === 'running') ?? null
   const picking = side === 'Change' && (shownView === 'Image' || shownView === 'Sheet') && !working
 
@@ -351,15 +338,11 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
                 jsxs('div', {
                   className: 'cs-v-pane',
                   children: [
-                    side === 'Details' ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) : null,
+                    side === 'Details' ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked: assetRestoreBlocked(chat) }) : null,
                     jsx(ChangeForm, {
-                      active: side === 'Change', area, asks, chat, image, kind, loaded, name, onArea: setArea, onSend,
-                      onSent: () => {
-                        setArea(null)
-                        setSentPath(path)
-                      },
-                      path, progress, showProgress: Boolean(working || progress.length), shownView, version
-                    })
+                      active: side === 'Change', area, asks, change: working ? change : null, disabled: changeDisabled,
+                      image, kind, loaded, name, onArea: setArea, onSend, path, progress, shownView, version
+                    }, path)
                   ]
                 })
               ]

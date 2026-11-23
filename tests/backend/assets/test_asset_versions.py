@@ -316,6 +316,39 @@ class AssetVersions(unittest.TestCase):
         self.assertEqual(answer["code"], "TOO_LARGE")
         self.assertEqual(answer["error"], "The image is larger than 16 bytes, too large to preview.")
 
+    def test_earlier_preview_uses_the_size_of_the_selected_file(self):
+        self.write(PNG_A, 1000)
+        path = str(self.cover)
+        _, first = self.shown()
+        selected = first["versionId"]
+        limit = assets_versions.ASSET_MAX_BYTES
+        with self.cover.open("wb") as image:
+            image.truncate(limit + 1)
+        os.utime(self.cover, ns=(2000 * 10**9, 2000 * 10**9))
+
+        for params in ({"at": 1_500_000}, {"version": selected}):
+            with self.subTest(params=params):
+                data, answer = self.shown(**params)
+                self.assertEqual(data, PNG_A)
+                self.assertEqual(answer["versionId"], selected)
+                self.assertTrue(answer["earlier"])
+        self.assertEqual(self.asset({"path": path})["code"], "TOO_LARGE")
+        info = assets_rpcs.rpc_asset_info(None)({"path": path, "root": str(self.game)})
+        self.assertTrue(info["ok"], info)
+        self.assertEqual(
+            [(entry["id"], entry["current"]) for entry in info["versions"]],
+            [(selected, False), (str(2000 * 10**9), True)],
+        )
+
+        self.write(PNG_B, 2000)
+        kept = assets_versions._versions_dir(self.cover, self.game) / f"{selected}.png"
+        with kept.open("wb") as image:
+            image.truncate(limit + 1)
+        for params in ({"at": 1_500_000}, {"version": selected}):
+            with self.subTest(params=params):
+                self.assertEqual(self.asset({"path": path, **params})["code"], "TOO_LARGE")
+        self.assertEqual(self.shown()[0], PNG_B)
+
 
 def documented_keep() -> int:
     """The per-file limit .agents/skills/hermretro-dev-page/references/build-page.md's "Versions" paragraph states ("up to 40 per file")."""

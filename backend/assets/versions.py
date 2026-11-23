@@ -13,11 +13,12 @@ import tempfile
 import unicodedata
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from stat import S_ISDIR
+from stat import S_ISDIR, S_ISREG
 
 from ..hermes import host
 from ..library import valid_id
 from ..system.paths import write_json_atomic
+from .writer_lock import RestoreConflict, project_writer_lock
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -256,12 +257,38 @@ def _kept_versions(folder: Path) -> list[Path]:
         return []
 
 
-def _write_image(path: Path, data: bytes, suffix: str) -> None:
+class ImageTooLarge(OSError):
+    """The file selected for reading exceeds the image size limit."""
+
+
+def _read_image(path: Path, limit: int = ASSET_MAX_BYTES) -> tuple[bytes, os.stat_result]:
+    """Bound the read even if the file grows after fstat."""
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb") as source:
+        stat = os.fstat(source.fileno())
+        if not S_ISREG(stat.st_mode):
+            raise OSError("The image is no longer a regular file.")
+        if stat.st_size <= limit:
+            data = source.read(limit + 1)
+            if len(data) <= limit:
+                return data, stat
+    raise ImageTooLarge(f"The image is larger than {size_text(limit)}.")
+
+
+def _same_image_bytes(path: Path, data: bytes) -> bool:
+    try:
+        return _read_image(path)[0] == data
+    except ImageTooLarge:
+        return False
+
+
+def _write_image(path: Path, data: bytes, suffix: str, *, before_replace=None) -> None:
     """Atomically write a kept copy or replace the live image, cleaning up on failure."""
     handle, partial = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=suffix)
     try:
         with os.fdopen(handle, "wb") as writer:
             writer.write(data)
+        if before_replace is not None:
+            before_replace()
         os.replace(partial, path)
     except BaseException:
         Path(partial).unlink(missing_ok=True)
@@ -270,27 +297,26 @@ def _write_image(path: Path, data: bytes, suffix: str) -> None:
 
 def _save_version(real: Path, folder: Path, *, required=False) -> tuple[Path | None, bool]:
     """Save the live bytes under the asset lock. Return their kept path and whether it is new."""
-    with real.open("rb") as source:
-        stat = os.fstat(source.fileno())
-        target = folder / f"{stat.st_mtime_ns}{real.suffix.lower()}"
-        if target.is_file() and not required:
-            return target, False
-        if stat.st_size <= ASSET_MAX_BYTES:
-            data = source.read(ASSET_MAX_BYTES + 1)
-            if len(data) <= ASSET_MAX_BYTES:
-                return _save_image_bytes(folder, target, data)
-    if required:
-        raise OSError(f"The current image is larger than {size_text(ASSET_MAX_BYTES)} and could not be backed up.")
-    return None, False
+    stat = real.stat()
+    target = folder / f"{stat.st_mtime_ns}{real.suffix.lower()}"
+    if stat.st_size <= ASSET_MAX_BYTES and target.is_file() and not required:
+        return target, False
+    try:
+        data, stat = _read_image(real)
+    except ImageTooLarge:
+        if required:
+            raise
+        return None, False
+    return _save_image_bytes(folder, folder / f"{stat.st_mtime_ns}{real.suffix.lower()}", data)
 
 
 def _save_image_bytes(folder: Path, target: Path, data: bytes) -> tuple[Path, bool]:
     if target.is_file():
-        if target.read_bytes() != data:
+        if not _same_image_bytes(target, data):
             raise OSError("A different image already has the current image's modification time.")
         return target, False
     kept = _kept_versions(folder)
-    if kept and int(kept[-1].stem) < int(target.stem) and kept[-1].read_bytes() == data:
+    if kept and int(kept[-1].stem) < int(target.stem) and _same_image_bytes(kept[-1], data):
         return kept[-1], False
     folder.mkdir(parents=True, exist_ok=True)
     _write_image(target, data, ".part")
@@ -345,11 +371,11 @@ def _keep_version(real: Path, root: Path) -> None:
 
 
 def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
-    with _version_lock(real):
+    with project_writer_lock(root), _version_lock(real):
         folder = _versions_dir(real, root)
         selected = folder / f"{wanted}{real.suffix.lower()}"
         try:
-            data = selected.read_bytes()
+            data, _ = _read_image(selected)
         except FileNotFoundError:
             return None
         pending = folder / _PENDING_RESTORE
@@ -357,10 +383,21 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
             _try_keep_version(real, folder, protect=(selected,))
             if pending.exists():
                 raise OSError("The previous image restore could not be finished.")
-        backup, added = _save_version(real, folder, required=True)
+        try:
+            live, stat = _read_image(real)
+        except ImageTooLarge as error:
+            raise OSError(
+                f"The current image is larger than {size_text(ASSET_MAX_BYTES)} and could not be backed up."
+            ) from error
+        backup, added = _save_image_bytes(folder, folder / f"{stat.st_mtime_ns}{real.suffix.lower()}", live)
         try:
             write_json_atomic(pending, [selected.stem, backup.stem])
-            _write_image(real, data, ".restore")
+            _write_image(
+                real,
+                data,
+                ".restore",
+                before_replace=lambda: _check_restore_source(real, stat, live),
+            )
         except OSError:
             for unused in (backup, pending) if added else (pending,):
                 try:
@@ -370,6 +407,36 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
             raise
         _try_keep_version(real, folder)
         return _available_versions(real, folder)
+
+
+def _image_identity(stat: os.stat_result) -> tuple:
+    return (
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_mode,
+        stat.st_size,
+        stat.st_mtime_ns,
+        stat.st_ctime_ns,
+        stat.st_uid,
+        stat.st_gid,
+        stat.st_nlink,
+        getattr(stat, "st_flags", None),
+    )
+
+
+def _check_restore_source(real: Path, stat: os.stat_result, backed_up: bytes) -> None:
+    """Check the live name and bytes after staging the replacement, just before rename."""
+    message = "The image changed during Restore. Open it again before restoring a version."
+    try:
+        identity = _image_identity(stat)
+        data, current = _read_image(real)
+        unchanged = (
+            data == backed_up and _image_identity(current) == identity and _image_identity(real.lstat()) == identity
+        )
+    except OSError as error:
+        raise RestoreConflict(message) from error
+    if not unchanged:
+        raise RestoreConflict(message)
 
 
 def _version_at(real: Path, folder: Path, at_ms) -> Path | None:
@@ -414,13 +481,17 @@ def _versions(real: Path, folder: Path) -> list[dict]:
     """Every kept version, oldest first, with the current one marked."""
     kept = _kept_versions(folder)
     current = real.stat().st_mtime_ns
-    data = real.read_bytes()
     versions = [
         {"id": item.stem, "at": int(item.stem) // 1_000_000, "file": str(item), "current": False} for item in kept
     ]
     match = next((entry for entry in reversed(versions) if int(entry["id"]) == current), None)
-    if match is None and kept and kept[-1].read_bytes() == data:
-        match = versions[-1]
+    if match is None and kept:
+        try:
+            data, _ = _read_image(real)
+            if _same_image_bytes(kept[-1], data):
+                match = versions[-1]
+        except ImageTooLarge:
+            pass
     if match is None:
         versions.append({"id": str(current), "at": current // 1_000_000, "file": str(real), "current": True})
     else:

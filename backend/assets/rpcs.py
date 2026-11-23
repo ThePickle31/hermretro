@@ -26,6 +26,7 @@ from .versions import (
     ASSET_MAX_BYTES,
     ASSET_SUFFIXES,
     AssetOwners,
+    ImageTooLarge,
     _asset_file,
     _asset_kind,
     _available_versions,
@@ -33,6 +34,7 @@ from .versions import (
     _image_size,
     _is_frames,
     _preview_history,
+    _read_image,
     _restore_version,
     _same_folder,
     _shown_in,
@@ -40,6 +42,7 @@ from .versions import (
     _version_at,
     size_text,
 )
+from .writer_lock import RestoreConflict
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -71,13 +74,6 @@ def rpc_asset(ctx):
                 return {"ok": False, "code": "OTHER_GAME", "error": "That image belongs to another game."}
             with _preview_history(real, root) as folder:
                 stat = real.stat()
-                if stat.st_size > ASSET_MAX_BYTES:
-                    limit = size_text(ASSET_MAX_BYTES)
-                    return {
-                        "ok": False,
-                        "code": "TOO_LARGE",
-                        "error": f"The image is larger than {limit}, too large to preview.",
-                    }
                 earlier = None
                 data = None
                 wanted = str(params.get("version") or "")
@@ -85,24 +81,30 @@ def rpc_asset(ctx):
                     # One kept version by its id (the file's modification time in ns), as the viewer lists them.
                     if not wanted.isdigit():
                         return {"ok": False, "code": "INVALID", "error": "Unknown version."}
-                    if int(wanted) != stat.st_mtime_ns:
-                        if folder is None:
+                    kept = folder / f"{wanted}{real.suffix.lower()}" if folder is not None else None
+                    use_kept = int(wanted) != stat.st_mtime_ns or (
+                        stat.st_size > ASSET_MAX_BYTES and kept is not None and kept.is_file()
+                    )
+                    if use_kept:
+                        if kept is None:
                             return {"ok": False, "code": "ERROR", "error": "Image history is unavailable."}
-                        earlier = folder / f"{wanted}{real.suffix.lower()}"
+                        earlier = kept
                         try:
-                            data = earlier.read_bytes()
+                            data, _ = _read_image(earlier, ASSET_MAX_BYTES)
                         except FileNotFoundError:
                             return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
                 elif folder is not None and params.get("at") is not None:
                     try:
                         earlier = _version_at(real, folder, params["at"])
                         if earlier is not None:
-                            data = earlier.read_bytes()
+                            data, _ = _read_image(earlier, ASSET_MAX_BYTES)
+                    except ImageTooLarge:
+                        raise
                     except OSError:
                         logger.debug("hermretro could not read an earlier image", exc_info=True)
                         earlier = None
                 if data is None:
-                    data = real.read_bytes()
+                    data, stat = _read_image(real, ASSET_MAX_BYTES)
                 if folder is not None:
                     _try_keep_version(real, folder, protect=(earlier,))
             width, height = _image_size(data)
@@ -138,6 +140,12 @@ def rpc_asset(ctx):
                 except (ValueError, TypeError, OSError):
                     pass
             return answer
+        except ImageTooLarge:
+            return {
+                "ok": False,
+                "code": "TOO_LARGE",
+                "error": f"The image is larger than {size_text(ASSET_MAX_BYTES)}, too large to preview.",
+            }
         except FileNotFoundError:
             return {"ok": False, "code": "MISSING", "error": "The image is gone."}
         except Exception as error:
@@ -254,6 +262,8 @@ def rpc_asset_restore(ctx):
                 return {"ok": False, "code": "MISSING", "error": "That version is no longer kept."}
             emit("assets.image_restored", path=str(real))
             return {"ok": True, "path": str(real), "versions": versions}
+        except RestoreConflict as error:
+            return {"ok": False, "code": "CONFLICT", "error": str(error)}
         except Exception as error:
             logger.exception("hermretro asset_restore failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}

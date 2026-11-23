@@ -6,7 +6,7 @@ import { RPC_ASSET_INFO } from '#app/rpc.js'
 
 export const VIEWER_KIND = { cover: 'Game cover', sprite: 'Sprite', background: 'Background', ui: 'Interface', frame: 'Playtest frame', capture: 'Capture', image: 'Image' }
 
-export function useAssetInfo(path, refresh) {
+export function useAssetInfo(path, refresh, edit) {
   const root = useContext(AssetGame)
   const [result, setResult] = useState(null)
 
@@ -26,7 +26,7 @@ export function useAssetInfo(path, refresh) {
     return () => {
       live = false
     }
-  }, [path, root, refresh])
+  }, [path, root, refresh, edit])
 
   return result && result.path === path && result.root === root ? result.answer : null
 }

@@ -4,7 +4,7 @@ import { AGENT } from '#app/ids.js'
 import { timeOfDay } from '#shared/ui/time.js'
 import { versionTime } from './version-history.js'
 
-export function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) {
+export function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked }) {
   const { currentId, older, restore, restoring, setPicked, shownEntry, shownNumber, versions } = version
   const madeBy = asset.step || asset.at
     ? jsxs('div', {
@@ -27,7 +27,7 @@ export function AssetDetails({ asset, checks, copyColour, gameColours, info, kin
               className: 'cs-row',
               style: { gap: 6 },
               children: [
-                jsx(Button, { disabled: restoring || working, onClick: () => void restore(), size: 'sm', children: restoring ? 'Restoring…' : `Restore v${shownNumber}` }),
+                jsx(Button, { disabled: restoring || restoreBlocked, onClick: () => void restore(), size: 'sm', children: restoring ? 'Restoring…' : `Restore v${shownNumber}` }),
                 jsx(Button, { onClick: () => setPicked(currentId), size: 'sm', variant: 'ghost', children: 'Show the current one' })
               ]
             })

@@ -20,6 +20,7 @@ import { AssetViewer } from '#pages/build/viewer/asset-viewer.js'
 import { AGENT } from '#app/ids.js'
 import { playableSha } from '#app/player/stage.js'
 import { AssetGame } from '#pages/build/assets/cache.js'
+import { sendAssetChange } from '#pages/build/assets/changes.js'
 import { TurnMemo } from './turn-view.js'
 import { buildHistory, deriveTurns, turnBuilt } from './turns.js'
 
@@ -280,9 +281,11 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
             index: viewer.index,
             onClose: () => setViewer(null),
             onIndex: index => setViewer(current => ({ ...current, index })),
-            onSend: stored ? onSend : null,
+            onSend: stored ? (...args) => sendAssetChange(stored, ...args) : null,
             opener: viewer.opener,
-            root
+            root,
+            stored,
+            turns
           })
         : null
     ]

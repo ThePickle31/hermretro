@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 92e377c0e7d26823a008cdee3f6afce4cb98bccbf8f556bb9dfa6efe77e48580
- * body: sha256 00ff88cedc71b945b4a8b2e7efde9f7c563789c0d80007161c6f709102f60f1a
+ * sources: sha256 ce8d941aca574052650855b2cfbc3dced2e8b90d770e3dc801adfbbbedeb7f72
+ * body: sha256 b272584d35213d8ed03304b5fcc949d2e80c426218a5e4944f0690d14df6069e
  */
 // page/sdk.js
 import {
@@ -598,6 +598,7 @@ function injectBuildDraft(stored, text2) {
   BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
 }
 var BUILD_CHATS = atom({});
+var buildChatIdle = (chat) => Boolean(chat?.runtime && !chat.busy && !chat.opening && !chat.queued?.length && !chat.lost?.length);
 var BUILD_STARTING = atom(/* @__PURE__ */ new Set());
 var buildRuntime = /* @__PURE__ */ new Map();
 var isBuildSession = (runtime) => buildRuntime.has(runtime);
@@ -1174,7 +1175,7 @@ async function createBuildChat(title, pick = null) {
   patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
   return stored;
 }
-async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false } = {}) {
+async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false, assetChange = null } = {}) {
   if (isUpdating()) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return false;
@@ -1189,6 +1190,9 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   const before = BUILD_CHATS.get()[stored];
   const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true };
   const chat = BUILD_CHATS.get()[stored];
+  if (assetChange && (chat?.assetChange !== assetChange || !buildChatIdle(chat))) {
+    return false;
+  }
   const now = Date.now();
   const live = Boolean(chat?.runtime);
   const paused = Boolean(chat?.lost?.length);
@@ -1201,7 +1205,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: "user", text: shown, at: now, ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
+      { kind: "user", text: shown, at: now, ...assetChange ? { assetChange } : {}, ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
     ]
   }));
   if (!chat?.runtime) {
@@ -5414,6 +5418,41 @@ function rootOf(game, items) {
   return null;
 }
 
+// page/pages/build/assets/changes.js
+var canSendAssetChange = (chat) => buildChatIdle(chat) && !chat.assetChange;
+var assetRestoreBlocked = (chat) => Boolean(chat?.busy || chat?.assetChange);
+async function sendAssetChange(stored, text2, shown, attachments) {
+  if (!canSendAssetChange(BUILD_CHATS.get()[stored])) {
+    return false;
+  }
+  const change = { path: attachments[0].path, text: shown };
+  patchChat(stored, (chat) => ({ ...chat, assetChange: change }));
+  let started2 = false;
+  let completed = false;
+  let accepted = null;
+  const finish = () => {
+    const chat = BUILD_CHATS.get()[stored];
+    started2 ||= chat.items.at(-1)?.assetChange === change;
+    completed ||= started2 && !chat.busy && !chat.opening;
+    if (accepted === null || accepted && !completed) {
+      return;
+    }
+    stop();
+    if (accepted) {
+      forgetAsset(change.path);
+    }
+    patchChat(stored, (current) => ({ ...current, assetChange: null, ...accepted ? { lastAssetChange: change } : {} }));
+  };
+  const stop = BUILD_CHATS.listen(finish);
+  try {
+    accepted = await sendBuildChat(stored, text2, shown, attachments, { assetChange: change, mustLand: true });
+    return accepted;
+  } finally {
+    accepted ??= false;
+    finish();
+  }
+}
+
 // page/pages/build/transcript/reply.js
 var MEDIA_IMAGE_LINE = /^[ \t]*MEDIA:[ \t]*([`"']?)(.+?\.(?:png|gif|jpe?g|webp))\1[ \t]*$/gim;
 function replySegments(text2, root) {
@@ -5656,8 +5695,8 @@ function madeAssets(parts, root) {
 
 // page/pages/build/viewer/version-history.js
 var LIVE = /* @__PURE__ */ Symbol("live image");
-function useVersionHistory({ path, original, info, onRefresh, root }) {
-  const scope = useMemo(() => ({}), [root, path, original]);
+function useVersionHistory({ path, original, edit, info, onRefresh, root, canRestore }) {
+  const scope = useMemo(() => ({}), [root, path, original, edit]);
   const [selection, setSelection] = useState({ scope, picked: null });
   const [restoring, setRestoring] = useState(false);
   if (selection.scope !== scope) {
@@ -5667,7 +5706,7 @@ function useVersionHistory({ path, original, info, onRefresh, root }) {
     setSelection((current) => current.scope === scope ? { scope, picked: picked2 } : current);
   }, [scope]);
   const showLive = useCallback(() => setPicked(LIVE), [setPicked]);
-  const picked = selection.scope === scope ? selection.picked : null;
+  const picked = (selection.scope === scope ? selection.picked : null) ?? (edit ? LIVE : null);
   const { state, asset: loaded } = useAsset(path, picked === LIVE ? null : picked ? `kept:${picked}` : original);
   const versions = info?.versions ?? [];
   const currentId = versions.find((entry) => entry.current)?.id ?? null;
@@ -5676,7 +5715,7 @@ function useVersionHistory({ path, original, info, onRefresh, root }) {
   const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
   const older = picked !== LIVE && Boolean(shownEntry && currentId && shownEntry.id !== currentId);
   const restore = async () => {
-    if (!shownEntry || restoring) {
+    if (!shownEntry || restoring || !canRestore()) {
       return;
     }
     setRestoring(true);
@@ -5729,7 +5768,7 @@ function VersionHistory({ path, version, working }) {
 }
 
 // page/pages/build/viewer/asset-details.js
-function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) {
+function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked }) {
   const { currentId, older, restore, restoring, setPicked, shownEntry, shownNumber, versions } = version;
   const madeBy = asset.step || asset.at ? jsxs("div", {
     className: "cs-col cs-v-sec",
@@ -5748,7 +5787,7 @@ function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, pale
           className: "cs-row",
           style: { gap: 6 },
           children: [
-            jsx(Button, { disabled: restoring || working, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
+            jsx(Button, { disabled: restoring || restoreBlocked, onClick: () => void restore(), size: "sm", children: restoring ? "Restoring…" : `Restore v${shownNumber}` }),
             jsx(Button, { onClick: () => setPicked(currentId), size: "sm", variant: "ghost", children: "Show the current one" })
           ]
         })
@@ -5795,12 +5834,12 @@ function AssetDetails({ asset, checks, copyColour, gameColours, info, kind, pale
 }
 
 // page/pages/build/viewer/change-form.js
-function ChangeForm({ active, area, asks, chat, image, kind, loaded, name, onArea, onSend, onSent, path, progress: progress2, showProgress, shownView, version }) {
+function ChangeForm({ active, area, asks, change, disabled, image, kind, loaded, name, onArea, onSend, path, progress: progress2, shownView, version }) {
   const [request, setRequest] = useState("");
   const [rebuild, setRebuild] = useState(true);
   const input = useRef(null);
   const { older, shownEntry, shownNumber } = version;
-  const showForm = active && !showProgress;
+  const showForm = active && !change;
   useEffect(() => {
     if (showForm) {
       input.current?.focus();
@@ -5809,9 +5848,9 @@ function ChangeForm({ active, area, asks, chat, image, kind, loaded, name, onAre
   if (!active) {
     return null;
   }
-  const send = () => {
+  const send = async () => {
     const words = request.trim();
-    if (!words || !onSend) {
+    if (!words || !onSend || disabled) {
       return;
     }
     const notes = [];
@@ -5827,14 +5866,14 @@ function ChangeForm({ active, area, asks, chat, image, kind, loaded, name, onAre
     const text2 = notes.length ? `${words}
 
 ${notes.map((note) => `- ${note}`).join("\n")}` : words;
-    onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }]);
-    setRequest("");
-    onSent();
+    if (await onSend(text2, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }])) {
+      setRequest("");
+    }
   };
-  return showProgress ? [
+  return change ? [
     jsxs("div", {
       className: "cs-v-card",
-      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: chat?.items?.findLast?.((item) => item.kind === "user")?.text ?? "" })]
+      children: [jsx("span", { className: "cs-faint", children: "You asked" }), jsx("span", { className: "cs-v-text", children: change.text })]
     }, "asked"),
     jsxs("div", {
       className: "cs-col cs-v-sec",
@@ -5859,7 +5898,7 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
       onKeyDown: (event) => {
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
           event.preventDefault();
-          send();
+          void send();
         }
       },
       placeholder: onSend ? `What should ${AGENT} change in ${name}?` : "Open this game’s conversation to ask for changes.",
@@ -5874,7 +5913,7 @@ ${notes.map((note) => `- ${note}`).join("\n")}` : words;
     }, "area") : shownView === "Image" || shownView === "Sheet" ? jsx("span", { className: "cs-faint", children: "Drag on the picture to change just one area." }, "area") : null,
     older ? jsx("span", { className: "cs-faint", children: `It starts from v${shownNumber}, the version shown.` }, "from") : null,
     kind === "sprite" || kind === "background" ? jsxs("label", { className: "cs-v-toggle", children: [jsx("input", { checked: rebuild, onChange: (event) => setRebuild(event.target.checked), type: "checkbox" }), "Build and show the game after"] }, "rebuild") : null,
-    jsxs(Button, { disabled: !onSend || !request.trim(), onClick: send, size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
+    jsxs(Button, { disabled: !onSend || disabled || !request.trim(), onClick: () => void send(), size: "sm", children: [`Send to ${AGENT}`, jsx("span", { className: "cs-v-kbd", children: "↵" })] }, "send"),
     jsx("span", { className: "cs-grow" }, "grow"),
     asks.length ? jsxs("div", {
       className: "cs-col cs-v-sec",
@@ -5968,7 +6007,7 @@ function artChecks(image, kind, info) {
 
 // page/pages/build/viewer/info.js
 var VIEWER_KIND = { cover: "Game cover", sprite: "Sprite", background: "Background", ui: "Interface", frame: "Playtest frame", capture: "Capture", image: "Image" };
-function useAssetInfo(path, refresh) {
+function useAssetInfo(path, refresh, edit) {
   const root = useContext(AssetGame);
   const [result, setResult] = useState(null);
   useEffect(() => {
@@ -5981,7 +6020,7 @@ function useAssetInfo(path, refresh) {
     return () => {
       live = false;
     };
-  }, [path, root, refresh]);
+  }, [path, root, refresh, edit]);
   return result && result.path === path && result.root === root ? result.answer : null;
 }
 function useImages(paths, version) {
@@ -6294,20 +6333,28 @@ function StageViewport({ area, children, kind, picking, running, shownView, stag
 }
 
 // page/pages/build/viewer/asset-viewer.js
-function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game }) {
+function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game, stored, turns }) {
   const asset = assets[index];
   const path = asset?.path ?? null;
   const [refresh, setRefresh] = useState(0);
-  const info = useAssetInfo(path, refresh);
+  const lastChange = chat?.lastAssetChange;
+  const [edits, setEdits] = useState(() => ({ last: lastChange, byPath: /* @__PURE__ */ new Map() }));
+  if (lastChange && edits.last !== lastChange) {
+    setEdits({ last: lastChange, byPath: new Map(edits.byPath).set(lastChange.path, lastChange) });
+  }
+  const edit = edits.byPath.get(path);
+  const info = useAssetInfo(path, refresh, edit);
   const opened = useAsset(path, asset?.version);
   const version = useVersionHistory({
     path,
     original: asset?.version,
+    edit,
     info,
     root,
+    canRestore: () => !assetRestoreBlocked(BUILD_CHATS.get()[stored]),
     onRefresh: () => setRefresh((value) => value + 1)
   });
-  const { state, loaded, shownNumber, showLive } = version;
+  const { state, loaded, shownNumber } = version;
   const image = useImage(loaded?.dataUrl);
   const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
   const sprite2 = info?.sprite ?? null;
@@ -6326,7 +6373,6 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   const [playing, setPlaying] = useState(true);
   const [onion, setOnion] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
-  const [sentPath, setSentPath] = useState(null);
   const stageRef = useRef(null);
   const box = useBoxSize(stageRef);
   const dialog = useRef(null);
@@ -6337,8 +6383,9 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   const frames = animation?.frames ?? [];
   const frameMs = spriteFrameMs(sprite2?.animSpeed);
   const colors = gameColours ? info?.palette?.colors : null;
-  const changeWorking = Boolean(sentPath && chat?.busy);
-  const working = sentPath === path && changeWorking;
+  const change = chat?.assetChange;
+  const working = change?.path === path;
+  const changeDisabled = version.restoring || !canSendAssetChange(chat);
   const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
   useEffect(() => {
     setView(null);
@@ -6363,20 +6410,6 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     const id = setInterval(() => setFrame((value) => (value + 1) % frames.length), frameMs);
     return () => clearInterval(id);
   }, [shownView, playing, frames.length, frameMs]);
-  const wasWorking = useRef(false);
-  useEffect(() => {
-    if (changeWorking) {
-      wasWorking.current = true;
-    } else if (sentPath && wasWorking.current) {
-      wasWorking.current = false;
-      setSentPath(null);
-      forgetAsset(sentPath);
-      if (sentPath === path) {
-        showLive();
-        setRefresh((value) => value + 1);
-      }
-    }
-  }, [changeWorking, path, sentPath, showLive]);
   useEffect(() => {
     if (side !== "Change") {
       setArea(null);
@@ -6479,12 +6512,8 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     const copied = await ctx.os?.writeClipboard?.(color).catch(() => false);
     host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
   };
-  let progress2 = [];
-  if (sentPath === path && sentPath && chat?.items?.length) {
-    const turns = deriveTurns(chat.items);
-    const last = turns[turns.length - 1];
-    progress2 = last ? turnParts(last, root).steps.slice(-6) : [];
-  }
+  const changeTurn = working ? turns.findLast((turn) => turn.user?.assetChange === change) : null;
+  const progress2 = changeTurn ? turnParts(changeTurn, root).steps.slice(-6) : [];
   const running = progress2.find((tool) => tool.state === "running") ?? null;
   const picking = side === "Change" && (shownView === "Image" || shownView === "Sheet") && !working;
   let stage;
@@ -6578,28 +6607,24 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
                 jsxs("div", {
                   className: "cs-v-pane",
                   children: [
-                    side === "Details" ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, working }) : null,
+                    side === "Details" ? jsx(AssetDetails, { asset, checks, copyColour, gameColours, info, kind, palette, setGameColours, version, restoreBlocked: assetRestoreBlocked(chat) }) : null,
                     jsx(ChangeForm, {
                       active: side === "Change",
                       area,
                       asks,
-                      chat,
+                      change: working ? change : null,
+                      disabled: changeDisabled,
                       image,
                       kind,
                       loaded,
                       name,
                       onArea: setArea,
                       onSend,
-                      onSent: () => {
-                        setArea(null);
-                        setSentPath(path);
-                      },
                       path,
                       progress: progress2,
-                      showProgress: Boolean(working || progress2.length),
                       shownView,
                       version
-                    })
+                    }, path)
                   ]
                 })
               ]
@@ -7468,9 +7493,11 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
         index: viewer.index,
         onClose: () => setViewer(null),
         onIndex: (index) => setViewer((current) => ({ ...current, index })),
-        onSend: stored ? onSend : null,
+        onSend: stored ? (...args) => sendAssetChange(stored, ...args) : null,
         opener: viewer.opener,
-        root
+        root,
+        stored,
+        turns
       }) : null
     ]
   });

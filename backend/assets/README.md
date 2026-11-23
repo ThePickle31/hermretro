@@ -22,8 +22,13 @@ spellings on case-insensitive disks. It stops after finding the first eligible i
 `asset-versions/`, filed under the game that owns the image (a folder that later becomes a game of its own starts
 with none of the outer game's), up to `ASSET_KEEP_VERSIONS` per image, images up to `ASSET_MAX_BYTES` only.
 Older path-only history is adopted when exactly one root owns the image. Version operations take a per-image
-file lock across Hermes processes. Restore verifies that the current bytes are kept before replacing the file
-and protects both the selected version and the backup when applying the cap. To count an image's older versions,
+file lock across Hermes processes. Restore also uses the engine's project writer lock through Node.js. It keeps
+the current bytes and checks the live file's identity, metadata and bytes again immediately before replacement.
+A conflict leaves the other writer's work and the existing history in place. Editors that bypass the engine
+lock can still write between that final check and rename because POSIX has no conditional rename against a file
+revision. Restore protects both the selected version and the backup when applying the cap. Preview applies
+the byte limit to the selected file, so a small kept version can still be shown after a larger live replacement.
+To count an image's older versions,
 use `older_versions(real, root)` (`real` the resolved path, `root` its game from `_image_root(real)`; the current
 file is not counted).
 

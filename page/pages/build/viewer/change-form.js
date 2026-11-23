@@ -5,12 +5,12 @@ import { baseName } from '#app/paths.js'
 import { stepWords } from '#pages/build/transcript/step-words.js'
 import { versionTime } from './version-history.js'
 
-export function ChangeForm({ active, area, asks, chat, image, kind, loaded, name, onArea, onSend, onSent, path, progress, showProgress, shownView, version }) {
+export function ChangeForm({ active, area, asks, change, disabled, image, kind, loaded, name, onArea, onSend, path, progress, shownView, version }) {
   const [request, setRequest] = useState('')
   const [rebuild, setRebuild] = useState(true)
   const input = useRef(null)
   const { older, shownEntry, shownNumber } = version
-  const showForm = active && !showProgress
+  const showForm = active && !change
 
   useEffect(() => {
     if (showForm) {
@@ -22,10 +22,10 @@ export function ChangeForm({ active, area, asks, chat, image, kind, loaded, name
     return null
   }
 
-  const send = () => {
+  const send = async () => {
     const words = request.trim()
 
-    if (!words || !onSend) {
+    if (!words || !onSend || disabled) {
       return
     }
 
@@ -45,16 +45,16 @@ export function ChangeForm({ active, area, asks, chat, image, kind, loaded, name
 
     const text = notes.length ? `${words}\n\n${notes.map(note => `- ${note}`).join('\n')}` : words
 
-    onSend(text, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }])
-    setRequest('')
-    onSent()
+    if (await onSend(text, area ? `${words} (the marked area)` : words, [{ path, name: loaded?.name ?? baseName(path) }])) {
+      setRequest('')
+    }
   }
 
-  return showProgress
+  return change
     ? [
         jsxs('div', {
           className: 'cs-v-card',
-          children: [jsx('span', { className: 'cs-faint', children: 'You asked' }), jsx('span', { className: 'cs-v-text', children: chat?.items?.findLast?.(item => item.kind === 'user')?.text ?? '' })]
+          children: [jsx('span', { className: 'cs-faint', children: 'You asked' }), jsx('span', { className: 'cs-v-text', children: change.text })]
         }, 'asked'),
         jsxs('div', {
           className: 'cs-col cs-v-sec',
@@ -80,7 +80,7 @@ export function ChangeForm({ active, area, asks, chat, image, kind, loaded, name
           onKeyDown: event => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) {
               event.preventDefault()
-              send()
+              void send()
             }
           },
           placeholder: onSend ? `What should ${AGENT} change in ${name}?` : 'Open this game\u2019s conversation to ask for changes.',
@@ -101,7 +101,7 @@ export function ChangeForm({ active, area, asks, chat, image, kind, loaded, name
         kind === 'sprite' || kind === 'background'
           ? jsxs('label', { className: 'cs-v-toggle', children: [jsx('input', { checked: rebuild, onChange: event => setRebuild(event.target.checked), type: 'checkbox' }), 'Build and show the game after'] }, 'rebuild')
           : null,
-        jsxs(Button, { disabled: !onSend || !request.trim(), onClick: send, size: 'sm', children: [`Send to ${AGENT}`, jsx('span', { className: 'cs-v-kbd', children: '\u21b5' })] }, 'send'),
+        jsxs(Button, { disabled: !onSend || disabled || !request.trim(), onClick: () => void send(), size: 'sm', children: [`Send to ${AGENT}`, jsx('span', { className: 'cs-v-kbd', children: '\u21b5' })] }, 'send'),
         jsx('span', { className: 'cs-grow' }, 'grow'),
         asks.length
           ? jsxs('div', {

@@ -119,6 +119,8 @@ project files; nothing is compiled.
 place, keeping the one it replaces first. Not for saved frames.
 The current file stays in place if the backup or restore record fails to save. The record tells the
 next history reader which two versions to keep when an interrupted restore still needs pruning.
+The viewer disables Restore while its Build conversation is active. Restore answers `CONFLICT` if the engine
+writer lock is held or the image changes after backup.
 When the replacement succeeds but its history cannot be listed, the result is successful
 with an empty `versions` list.
 

@@ -8,8 +8,8 @@ import { timeOfDay } from '#shared/ui/time.js'
 
 const LIVE = Symbol('live image')
 
-export function useVersionHistory({ path, original, info, onRefresh, root }) {
-  const scope = useMemo(() => ({}), [root, path, original])
+export function useVersionHistory({ path, original, edit, info, onRefresh, root, canRestore }) {
+  const scope = useMemo(() => ({}), [root, path, original, edit])
   const [selection, setSelection] = useState({ scope, picked: null })
   const [restoring, setRestoring] = useState(false)
 
@@ -21,7 +21,7 @@ export function useVersionHistory({ path, original, info, onRefresh, root }) {
     setSelection(current => current.scope === scope ? { scope, picked } : current)
   }, [scope])
   const showLive = useCallback(() => setPicked(LIVE), [setPicked])
-  const picked = selection.scope === scope ? selection.picked : null
+  const picked = (selection.scope === scope ? selection.picked : null) ?? (edit ? LIVE : null)
   const { state, asset: loaded } = useAsset(path, picked === LIVE ? null : picked ? `kept:${picked}` : original)
   const versions = info?.versions ?? []
   const currentId = versions.find(entry => entry.current)?.id ?? null
@@ -31,7 +31,7 @@ export function useVersionHistory({ path, original, info, onRefresh, root }) {
   const older = picked !== LIVE && Boolean(shownEntry && currentId && shownEntry.id !== currentId)
 
   const restore = async () => {
-    if (!shownEntry || restoring) {
+    if (!shownEntry || restoring || !canRestore()) {
       return
     }
 

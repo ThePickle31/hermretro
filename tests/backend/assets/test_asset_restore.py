@@ -12,6 +12,7 @@ from unittest import mock
 
 from backend.assets import rpcs as assets_rpcs
 from backend.assets import versions as assets_versions
+from backend.assets.writer_lock import project_writer_lock
 from tests.backend.assets.test_asset_versions import PNG_A, PNG_B, documented_keep, path_digest
 from tests.support import isolated_home, make_library_game
 
@@ -112,8 +113,8 @@ class AssetRestore(unittest.TestCase):
         self.write(PNG_B, 1000)
         write_image = assets_versions._write_image
 
-        def stop_after_replace(path, data, suffix):
-            write_image(path, data, suffix)
+        def stop_after_replace(path, data, suffix, **kwargs):
+            write_image(path, data, suffix, **kwargs)
             if path == self.cover:
                 raise SystemExit("stopped after replacing live bytes")
 
@@ -148,10 +149,10 @@ class AssetRestore(unittest.TestCase):
         pending = folder / assets_versions._PENDING_RESTORE
         write_image = assets_versions._write_image
 
-        def fail_capture(path, data, suffix):
+        def fail_capture(path, data, suffix, **kwargs):
             if path.parent == folder and data == PNG_A:
                 raise OSError("could not capture the restored file")
-            write_image(path, data, suffix)
+            write_image(path, data, suffix, **kwargs)
 
         with mock.patch.object(assets_versions, "_write_image", side_effect=fail_capture):
             self.assertTrue(self.restore({**self.params, "version": selected})["ok"])
@@ -297,6 +298,74 @@ class AssetRestore(unittest.TestCase):
             answer = self.restore({**self.params, "version": old_id})
         self.assertTrue(answer["ok"], answer)
         self.assertTrue(any(Path(call.args[1]) == self.cover for call in replace.call_args_list))
+
+    def test_restore_conflicts_if_an_engine_writer_holds_the_project_lock(self):
+        self.write(PNG_A, 1000)
+        selected = self.asset(self.params)["versionId"]
+        self.write(PNG_B, 2000)
+        folder = assets_versions._versions_dir(self.cover, self.game)
+
+        with (
+            project_writer_lock(self.game),
+            mock.patch.object(assets_rpcs, "emit") as emit,
+        ):
+            answer = self.restore({**self.params, "version": selected})
+
+        self.assertEqual(answer.get("code"), "CONFLICT", answer)
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+        self.assertEqual([item.name for item in folder.iterdir()], [f"{selected}.png"])
+        emit.assert_not_called()
+
+    def test_restore_detects_external_edits_after_writing_the_backup(self):
+        original_mtime = 2000 * 10**9
+        record = assets_versions.write_json_atomic
+
+        def rewrite():
+            self.write(PNG_A, 2000)  # An in-place edit of the same size, with mtime put back.
+
+        def replace():
+            replacement = self.cover.with_suffix(".replacement")
+            replacement.write_bytes(PNG_B)
+            os.utime(replacement, ns=(original_mtime, original_mtime))
+            os.replace(replacement, self.cover)
+
+        for edit in (rewrite, replace, lambda: self.cover.chmod(0o640)):
+            with self.subTest(edit=edit):
+                self.write(PNG_A, 1000)
+                selected = self.asset(self.params)["versionId"]
+                self.write(PNG_B, 2000)
+                self.cover.chmod(0o600)
+                folder = assets_versions._versions_dir(self.cover, self.game)
+                history = {item.name: item.read_bytes() for item in folder.iterdir()}
+                external = {}
+
+                def edit_after_backup(path, data, *, folder=folder, edit=edit, external=external):
+                    self.assertEqual((folder / f"{original_mtime}.png").read_bytes(), PNG_B)
+                    record(path, data)
+                    edit()
+                    external.update(data=self.cover.read_bytes(), stat=self.cover.stat())
+
+                with (
+                    mock.patch.object(
+                        assets_versions,
+                        "write_json_atomic",
+                        side_effect=edit_after_backup,
+                    ),
+                    mock.patch.object(assets_rpcs, "emit") as emit,
+                ):
+                    answer = self.restore({**self.params, "version": selected})
+
+                self.assertEqual(answer.get("code"), "CONFLICT", answer)
+                self.assertEqual(self.cover.read_bytes(), external["data"])
+                actual = self.cover.stat()
+                expected = external["stat"]
+                self.assertEqual(
+                    (actual.st_ino, actual.st_mode, actual.st_mtime_ns),
+                    (expected.st_ino, expected.st_mode, expected.st_mtime_ns),
+                )
+                self.assertEqual({item.name: item.read_bytes() for item in folder.iterdir()}, history)
+                self.assertEqual(list(self.cover.parent.glob(f".{self.cover.name}.*.restore")), [])
+                emit.assert_not_called()
 
     def test_restore_at_the_cap_keeps_the_selected_version_and_what_it_replaced(self):
         limit = documented_keep()
