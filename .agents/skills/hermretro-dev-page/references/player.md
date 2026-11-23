@@ -53,9 +53,10 @@ when the agent is ready to present the game after making it, never for the whole
   the page, in `.cs-page.cs-side` (stage fills the tab; the player inside scales by height and width).
   Page keys reach the game only after the user last clicked inside the tab, so the chat keeps its keys.
 - **Rebuilt check.** Both surfaces poll `game_build_status` every 5 s while visible for a player's own
-  game. They compare the player's `romSha256` with the web export's `web.sha256`, falling back to the
-  available ROM hash. The Studio shelf keeps its 30 s refresh for edits outside the page. A remembered
-  pick is cleared only when the per-game check confirms it is gone.
+  game. They compare the player's `romSha256` with the web export's `web.sha256` and retain the last
+  successful status when a read fails. An explicit `web: null` leaves the build comparison unavailable.
+  The Studio shelf keeps its 30 s refresh for edits outside the page. A remembered pick is cleared only when
+  the per-game check confirms it is gone.
 - **Agent side.** `rom_build` / `web_preview` results no longer carry any Studio address
   (`studio`/`studioPlayerUrl`/`studioGameId` are gone) and the engine's own preview address is not offered
   after a build. Their `nextStep`, the system prompt section and the skills say: when the game is ready for
@@ -94,12 +95,14 @@ Params: none. Result:
 }
 ```
 `demo` is the built-in demo cartridge. It is never part of `games[]`, so the Games shelf stays the user's library.
-The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM inside that export (named by its `gbstudio.json`): the player loads that file, which is its own compilation and not byte-identical to `rom`, so the rebuilt banner compares against `web.sha256`.
+The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`.
+
+On `ok: false` the page shows the read error and retains any cached result. An empty library requires a successful answer.
 
 ### `game_build_status` → check one game's build
 Params `{ "id": "…" }`. Result `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session },
 device: { hardwareEnabled } }`. The result omits shelf images, card data and source state. Errors include
-`NO_GAME` for confirmed removal and `UNAVAILABLE` when the library or project cannot be read.
+`NO_GAME` for confirmed removal and `UNAVAILABLE` when the library, project, or an existing export's ROM cannot be read.
 
 ### `game_thumb` → store a title screen
 Params `{ "id": "…", "png": "data:image/png;base64,…" }` (≤ 64 KB). Saves `state_dir/thumbs/<id>.png`; `games` returns it from then on. Result `{ "ok": true }`.

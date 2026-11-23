@@ -70,16 +70,21 @@ def project_kind(root: Path) -> str:
     return "gbstudio" if project_file(root) else "gbdk"
 
 
-def _json(path: Path, *, strict_io: bool = False) -> dict:
+def _json(path: Path, *, required: bool = False) -> dict:
     try:
         if _file_info(path) is None:
+            if required:
+                raise FileNotFoundError(f"{path.name} is missing.")
             return {}
         value = json.loads(path.read_text(encoding="utf-8"))
-        return value if isinstance(value, dict) else {}
-    except (FileNotFoundError, NotADirectoryError, ValueError, RecursionError):
-        pass
+        if not isinstance(value, dict):
+            raise ValueError("Expected a JSON object.")
+        return value
+    except (ValueError, RecursionError) as error:
+        if required:
+            raise OSError(f"Could not read {path.name}: {error}") from error
     except OSError:
-        if strict_io:
+        if required:
             raise
     return {}
 
@@ -122,28 +127,29 @@ def project_exists(root: Path) -> bool:
         return False
 
 
-def web_rom(root: Path, *, strict_io: bool = False) -> Path | None:
+def web_rom(root: Path, *, required: bool = False) -> Path | None:
     """The ROM inside the web export, from its ``gbstudio.json`` (path-checked)."""
     web = web_dir(root)
-    rel = _json(web / "gbstudio.json", strict_io=strict_io).get("rom")
-    if (
-        not isinstance(rel, str)
-        or not rel
-        or "\x00" in rel
-        or rel.startswith("/")
-        or ".." in rel.split("/")
-        or not rel.lower().endswith((".gb", ".gbc"))
-    ):
-        return None
-    path = web / rel
     try:
-        if _file_info(path) is not None and path.resolve().is_relative_to(web.resolve()):
-            return path
-    except RuntimeError:  # a symlink loop on Python 3.11 and 3.12
-        return None
+        rel = _json(web / "gbstudio.json", required=required).get("rom")
+        if (
+            isinstance(rel, str)
+            and "\x00" not in rel
+            and not rel.startswith("/")
+            and ".." not in rel.split("/")
+            and rel.lower().endswith((".gb", ".gbc"))
+        ):
+            path = web / rel
+            if _file_info(path) is not None and path.resolve().is_relative_to(web.resolve()):
+                return path
+    except RuntimeError as error:  # a symlink loop on Python 3.11 and 3.12
+        if required:
+            raise OSError("Could not resolve the web build's ROM.") from error
     except OSError:
-        if strict_io:
+        if required:
             raise
+    if required:
+        raise OSError("The web build names no readable ROM inside it.")
     return None
 
 
@@ -167,15 +173,31 @@ def _rom_info(path: Path | None) -> tuple[dict | None, float | None]:
     return {"path": str(path), "sha256": sha256, "size": info.st_size, "builtAt": int(info.st_mtime)}, info.st_mtime
 
 
-def build_artifacts(root: Path, last: dict) -> tuple[dict, float | None]:
+def _recorded_rom(last: dict) -> tuple[dict | None, float | None]:
+    recorded = last.get("rom")
+    if last.get("ok") is True and isinstance(recorded, str) and "\x00" not in recorded:
+        path = Path(recorded)
+        if path.is_absolute():
+            try:
+                return _rom_info(path)
+            except OSError:
+                pass
+    return None, None
+
+
+def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) -> tuple[dict, float | None]:
     """The native build and the web export, which can have different ROMs."""
     exported = has_web_export(root)
-    web_path = web_rom(root, strict_io=True)
-    web_rom_info, web_time = _rom_info(web_path)
-    recorded = last.get("rom")
-    rom, built = (None, None)
-    if last.get("ok") is True and isinstance(recorded, str) and recorded and "\x00" not in recorded:
-        rom, built = _rom_info(Path(recorded))
+    required = exported and require_web_rom
+    try:
+        web_rom_info, web_time = _rom_info(web_rom(root, required=required))
+    except OSError:
+        if required:
+            raise
+        web_rom_info, web_time = None, None
+    if required and web_rom_info is None:
+        raise OSError("The web build's ROM is unavailable.")
+    rom, built = _recorded_rom(last)
     if rom is None:
         rom, built = (web_rom_info, web_time) if web_rom_info else _rom_info(_newest_build_rom(root))
     web = {"sha256": web_rom_info["sha256"], "builtAt": web_rom_info["builtAt"]} if exported and web_rom_info else None

@@ -16,7 +16,7 @@ import {
   useValue
 } from '#sdk'
 import { ART_DATA } from '#shared/art/index.js'
-import { callStudio, describeRequestError, useBackend } from './backend.js'
+import { callStudio, describeRequestError, studioError, useBackend } from './backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from './ids.js'
 import { forgetRoute, routing } from './routing.js'
 import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from './rpc.js'
@@ -266,13 +266,22 @@ export function StudioPage({ ctx }) {
   const onEmulator = page === 'emulator'
   const games = useQuery({
     queryKey: [ID, 'games', viaProfile],
-    queryFn: () => callStudio(RPC_GAMES),
+    queryFn: async () => {
+      const data = await callStudio(RPC_GAMES)
+
+      if (data?.ok !== true || !Array.isArray(data.games)) {
+        throw new Error(data?.error || 'The games list could not be read.')
+      }
+
+      return data
+    },
     enabled: running,
     refetchInterval: 30_000,
     staleTime: 2_000,
     retry: false
   })
   const gameList = Array.isArray(games.data?.games) ? games.data.games : []
+  const libraryError = games.isError ? studioError(games.error, 'list your games') : null
   const [emu, setEmu] = useState(() => ({ id: pickedGame(ctx), reload: 0 }))
   const [emuOpened, setEmuOpened] = useState(false)
   const [dismissed, setDismissed] = useState(null)
@@ -295,6 +304,7 @@ export function StudioPage({ ctx }) {
   const game = removed || emu.id === DEMO_ID || (!emu.id && libraryKnown)
     ? demo
     : current ? { ...picked, ...current } : picked ?? null
+  const gameError = game ? null : buildStatus.isError ? studioError(buildStatus.error, 'read the game build') : libraryError
 
   // A picked game gone from the library is forgotten, so a different game made later in its folder (with the same
   // id) is never played here without a new Play.
@@ -341,7 +351,7 @@ export function StudioPage({ ctx }) {
   const frameRef = useRef(null)
   const stageRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = playableSha(game)
+  const currentSha = buildStatus.isError && !current ? null : playableSha(game)
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const thumbTried = useRef(new Set())
 
@@ -427,11 +437,13 @@ export function StudioPage({ ctx }) {
     selectBuild,
     games,
     gameList,
+    libraryError,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
     play,
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,
+      gameError,
       query: player,
       focused: bridge.focused,
       rebuilt,
@@ -474,7 +486,7 @@ export function StudioPage({ ctx }) {
   const stage =
     running && !onboardScreen && (emuOpened || onEmulator)
       ? pageLive
-        ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? 'none'}:${emu.reload}`, frameRef, game, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, 'player')
+        ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? 'none'}:${emu.reload}`, frameRef, game, gameError, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, 'player')
         : onEmulator
           ? jsx(PlayerAway, { onBring: () => claimLive('page'), where: 'Playing beside the chat' }, 'player')
           : null

@@ -123,6 +123,57 @@ class RegistryReads(unittest.TestCase):
 
         with mock.patch.object(Path, "read_text", read):
             self.assertEqual(self.status({"id": self.game})["code"], "UNAVAILABLE")
+            [game] = self.registry.library()
+        self.assertTrue(game["webExport"])
+        self.assertIsNone(game["web"])
+        self.assertEqual(game["rom"]["path"], str(self.root / "build" / "project.gb"))
+
+    def test_status_leaves_a_malformed_web_export_unavailable_until_it_can_be_read(self):
+        config = self.root / "build" / "web" / "gbstudio.json"
+        saved = config.read_bytes()
+        first = self.status({"id": self.game})
+        for contents in (b"{", b"[]", b'{"rom": ["wrong type"]}', b'{"rom": "rom/missing.gbc"}'):
+            with self.subTest(contents=contents):
+                config.write_bytes(contents)
+                self.assertEqual(self.status({"id": self.game})["code"], "UNAVAILABLE")
+                [game] = self.registry.library()
+                self.assertTrue(game["webExport"])
+                self.assertIsNone(game["web"])
+        config.write_bytes(saved)
+        self.assertEqual(self.status({"id": self.game}), first)
+
+    def test_a_malformed_recorded_rom_does_not_hide_a_healthy_web_export(self):
+        data = self.registry.load()
+        data["games"][self.game]["lastBuild"] = {"ok": True, "rom": str(self.root / ("x" * 4096 + ".gb"))}
+        self.registry.path.write_text(json.dumps(data))
+        [game] = self.registry.library()
+        self.assertEqual(game["id"], self.game)
+        self.assertTrue(game["webExport"])
+        self.assertEqual(game["web"]["sha256"], self.status({"id": self.game})["game"]["web"]["sha256"])
+
+    def test_games_rpc_uses_one_snapshot_and_routes_chat_using_the_registry_key(self):
+        profile = host._profile_identity()
+        self.registry.bind(self.game, "stored-first", profile)
+        self.registry.build_start("stored-new", profile, "New game")
+        data = self.registry.load()
+        data["games"][self.game]["id"] = "f" * 12
+        self.registry.path.write_text(json.dumps(data))
+        read = self.registry.load
+        with (
+            mock.patch.object(host, "try_connect", return_value=(None, None)),
+            mock.patch.object(host, "_registry", return_value=self.registry),
+            mock.patch.object(self.registry, "load", wraps=read) as load,
+        ):
+            answer = rpcs.rpc_games(self.ctx)({})
+        self.assertEqual(load.call_count, 1)
+        self.assertTrue(answer["ok"], answer)
+        [game] = answer["games"]
+        self.assertEqual(game["id"], self.game)
+        self.assertEqual(game["chat"]["sessionId"], "stored-first")
+        self.assertEqual(answer["pending"][0]["storedId"], "stored-new")
+        self.assertEqual(self.registry.binding_for(profile, ["stored-first"])[1]["id"], self.game)
+        self.assertEqual(self.status({"id": self.game})["game"]["id"], self.game)
+        self.assertEqual(self.registry.load(), data)
 
     def test_status_only_reads_the_requested_game_and_keeps_its_chat_route(self):
         self.registry.upsert(str(self.second))

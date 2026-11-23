@@ -74,6 +74,18 @@ await runScenario(async helpers => {
     // A user game gets the bar's Install contribution; the demo cartridge above does not.
     assert.ok([...dom.window.document.querySelectorAll('.cs-rp-bar button')].some(node => node.textContent.includes('Install')))
   })
+  const loadedFrame = frame()
+  const unreadable = { ok: true, game: { ...games[0], web: null, rom: { sha256: 'native-sha' } } }
+  scenario.gameBuildStatus = answered(unreadable)
+  await studio.rerender()
+  check('an unreadable web ROM never compares the native ROM with the playing web copy', () => {
+    assert.ok(!text().includes('Hermes rebuilt'))
+    assert.equal(frame(), loadedFrame)
+  })
+  const unavailable = { ok: false, code: 'UNAVAILABLE', error: 'Could not read the web build.' }
+  scenario.byMethod['plugin.hermretro.game_build_status'] = unavailable
+  await assert.rejects(scenario.fns.gameBuildStatus(), /Could not read the web build/)
+  scenario.gameBuildStatus = undefined
   const posted = []
   frame().contentWindow.postMessage = message => posted.push(message)
   await key('keydown', 'ArrowLeft', dom.window.document.body); await key('keyup', 'ArrowLeft', dom.window.document.body)

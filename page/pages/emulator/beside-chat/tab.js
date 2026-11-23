@@ -119,7 +119,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   const stageRef = useRef(null)
   const scopeRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = playableSha(game)
+  const currentSha = buildStatus.isError && !buildStatus.data?.game ? null : playableSha(game)
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), scopeRef, visible: live && shown })
   const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled)

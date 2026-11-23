@@ -13,7 +13,8 @@ export function Build({ shell }) {
   return jsx(BuildPage, {
     ctx: shell.ctx,
     games: shell.gameList,
-    loaded: Boolean(shell.games.data),
+    loaded: Boolean(shell.games.data) && !shell.games.isError,
+    libraryError: shell.libraryError,
     localPending: shell.buildPending,
     changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,

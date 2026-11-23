@@ -7,6 +7,8 @@ and the actions. While the hermretro profile is missing it shows `studio-needed.
 `Page`, `build-entry.js`). Descriptor: `index.js` (padding `build`, no footer, its stylesheet last). Its games are the `games` RPC's game
 objects ([.agents/skills/hermretro-dev-architecture/references/contract.md, "The game object"](../../../.agents/skills/hermretro-dev-architecture/references/contract.md#the-game-object)). A game's conversation is
 `BUILD_CHATS.get()[game.session.storedId]` (`chat/store.js`, inside this page); its `busy` is true while a turn runs.
+If the library read fails, the page shows the error and keeps the current selection (`selection.js`) and any cached
+games or conversations. A successful read can confirm that a selection is gone and return the page to New Game.
 
 **Tabs:** none (its areas are subfolders, not tabs).
 

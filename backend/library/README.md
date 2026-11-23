@@ -41,11 +41,15 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
 - `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest `games.MAX_PENDING` are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
-`Registry.load()["games"]` holds raw entries, including games whose folders are gone. `Registry.library()`
-skips entries it cannot read and describes the rest through `shelf.describe` in descending `updatedAt` order.
+`Registry.load()["games"]` holds raw entries, including games whose folders are gone. The registry key determines
+the game id used by the shelf, chat bindings, and thumbnails. After seeding, the `games` RPC reads one snapshot
+for the games, pending conversations, and chat ownership. `Registry.library()` skips unreadable project folders
+and describes the rest through `shelf.describe` in descending `updatedAt` order.
 The emulator checks one game through `game_build_status`, including whether its project is unavailable or gone.
 That RPC reads the build files and chat link, while shelf descriptions also inspect source timestamps and card
-files. Card display validation and image encoding share a cache based on the cover file's identity. Presentation
+files. A recorded native ROM path that cannot be read does not invalidate a healthy web ROM. The shelf keeps a
+game whose web ROM cannot be read, with `web: null`, and `game_build_status` reports `UNAVAILABLE` if the export
+exists but its ROM cannot be read. Card display validation and image encoding share a cache based on the cover file's identity. Presentation
 validates the current cover and checks for copies from `assets/` on every call.
 
 Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).

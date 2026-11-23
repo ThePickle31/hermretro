@@ -98,6 +98,15 @@ await runScenario(async helpers => {
     assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: 'aaa111aaa111' })
     assert.ok(!scenario.queries.some(query => query.key === 'games' && query.queryKey[2] === 'side'))
   })
+  const loadedFrame = sideFrame()
+  const readyGame = library13[0]
+  library13[0] = { ...readyGame, web: null, rom: { ...readyGame.rom, sha256: 'native-sha' } }
+  await side.rerender()
+  check('the tab keeps playing without a rebuild banner when only the native ROM is known', () => {
+    assert.ok(!side.node.textContent.includes('Hermes rebuilt'))
+    assert.equal(sideFrame(), loadedFrame)
+  })
+  library13[0] = readyGame
   await click('Bring it here', studio.node)
   check('Bring it here moves the game back to the page and the tab shows a placeholder', () => {
     assert.ok(pageFrame()); assert.ok(!sideFrame()); assert.match(side.node.textContent, /Playing in hermretro/)

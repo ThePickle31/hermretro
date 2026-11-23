@@ -136,6 +136,11 @@ def _chat_follows_session(entry: dict) -> None:
         entry["chat"] = {"conversationId": stored, "sessionId": stored, "profile": session.get("profile")}
 
 
+def _identified_game(identifier: str, entry: dict) -> dict:
+    """Use the registry key even when a stored record names a different id."""
+    return {**entry, "id": identifier}
+
+
 class Registry:
     """``<dir>/games.json`` plus ``<dir>/thumbs/<id>.png``. Safe across processes: every change is
     a locked read-modify-write and the file is replaced atomically."""
@@ -182,7 +187,9 @@ class Registry:
 
     def get(self, identifier: str) -> dict | None:
         entry = self.load()["games"].get(identifier) if valid_id(identifier) else None
-        return entry if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str) else None
+        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
+            return _identified_game(identifier, entry)
+        return None
 
     @staticmethod
     def _update_project(entry: dict, real: Path, now: float) -> None:
@@ -210,7 +217,7 @@ class Registry:
             data = self.load()
             entry = data["games"].get(identifier)
             if entry is not None and only_if_missing:
-                return entry
+                return _identified_game(identifier, entry) if isinstance(entry, dict) else None
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
             self._update_project(entry, real, now)
             if chat and _takes_chat(entry, chat):
@@ -221,7 +228,7 @@ class Registry:
                 entry["lastWebExport"] = {"t": web_export, **({"sources": sources} if sources else {})}
             data["games"][identifier] = entry
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def present(self, root: str, *, chat: dict | None = None, note: str | None = None) -> dict | None:
         """Record that the agent showed this game to the user (``chromatic_present_game``): the chat
@@ -252,7 +259,7 @@ class Registry:
             }
             data["presentations"] = (data["presentations"] + [record])[-MAX_PRESENTATIONS:]
             self._save(data)
-            return {**entry, "presentation": record}
+            return {**_identified_game(identifier, entry), "presentation": record}
 
     def presentations(self, since: float | None = None) -> list[dict]:
         """Presentations newer than ``since`` (seconds), oldest first."""
@@ -298,24 +305,28 @@ class Registry:
     def binding_for(self, profile: str | None, ids) -> tuple[str | None, dict | None]:
         """``("game", entry)``, ``("pending", record)`` or ``(None, None)`` for a conversation."""
         wanted = {value for value in ids if isinstance(value, str) and value}
-        return self._binding_in(self.load(), profile, wanted) if wanted else (None, None)
+        if not wanted:
+            return None, None
+        kind, identifier, entry = self._binding_in(self.load(), profile, wanted)
+        return kind, _identified_game(identifier, entry) if kind == "game" else entry
 
     def game_around(self, path: str) -> dict | None:
         """The library game whose folder holds ``path`` (not ``path`` itself); None when there is none. Only folders that
         still exist count: a game deleted from disk leaves its folder free."""
         real = Path(os.path.realpath(path))
-        for entry in self.load()["games"].values():
-            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+        for identifier, entry in self.load()["games"].items():
+            if not valid_id(identifier) or not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
                 continue
             root = Path(os.path.realpath(entry["projectRoot"]))
             if root in real.parents and root.is_dir():
-                return entry
+                return _identified_game(identifier, entry)
         return None
 
     def game_for_root(self, root: str) -> dict | None:
         real = os.path.realpath(root)
-        entry = self.load()["games"].get(game_id(real))
-        return entry if isinstance(entry, dict) else None
+        identifier = game_id(real)
+        entry = self.load()["games"].get(identifier)
+        return _identified_game(identifier, entry) if isinstance(entry, dict) else None
 
     def build_start(self, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
         """Record a conversation started on New Game (before its project exists)."""
@@ -323,7 +334,7 @@ class Registry:
             raise BindingError("INVALID", "A stored session id is required.")
         with self._locked():
             data = self.load()
-            kind, _ = self._binding_in(data, profile, {stored})
+            kind, _, _ = self._binding_in(data, profile, {stored})
             if kind == "game":
                 raise BindingError("BOUND", "This conversation already belongs to a game.")
             record = {
@@ -368,7 +379,7 @@ class Registry:
             entry = data["games"].get(identifier)
             if not isinstance(entry, dict):
                 raise BindingError("NO_GAME", "That game is not in the library.")
-            kind, other = self._binding_in(data, profile, {stored})
+            kind, _, other = self._binding_in(data, profile, {stored})
             if kind == "game" and other is not entry:
                 raise BindingError("BOUND", "This conversation already belongs to another game.")
             current = entry.get("session")
@@ -379,7 +390,7 @@ class Registry:
                 if profile is not None and current.get("profile") not in (None, profile):
                     raise BindingError("OTHER_PROFILE", "This game's conversation lives in another Hermes profile.")
                 if current_id == stored:
-                    return entry
+                    return _identified_game(identifier, entry)
                 if current_id != replace:
                     raise BindingError("STALE", "This game's conversation changed since the page last looked.")
             elif replace is not None:
@@ -388,7 +399,7 @@ class Registry:
             _chat_follows_session(entry)
             data["pending"].pop(stored, None)
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def unbind(self, identifier: str, stored: str, profile: str | None) -> bool:
         """Stop editing: the game lets go of its conversation (the session itself is kept). Only the
@@ -427,7 +438,7 @@ class Registry:
             _chat_follows_session(entry)
             data["pending"].pop(record["storedId"], None)
             self._save(data)
-            return entry
+            return _identified_game(identifier, entry)
 
     def note_alias(self, profile: str | None, conversation_id: str, session_id: str) -> None:
         """Remember a bound conversation's live session id (compression rotates it), so a hook that only
@@ -436,7 +447,7 @@ class Registry:
             return
         with self._locked():
             data = self.load()
-            kind, found = self._binding_in(data, profile, {conversation_id})
+            kind, _, found = self._binding_in(data, profile, {conversation_id})
             binding = found.get("session") if kind == "game" else found
             if not isinstance(binding, dict) or session_id in session_aliases(binding):
                 return
@@ -444,16 +455,21 @@ class Registry:
             self._save(data)
 
     @staticmethod
-    def _binding_in(data: dict, profile: str | None, wanted: set) -> tuple[str | None, dict | None]:
-        for entry in data["games"].values():
-            if isinstance(entry, dict) and _session_matches(entry.get("session"), profile, wanted):
-                return "game", entry
+    def _binding_in(data: dict, profile: str | None, wanted: set) -> tuple[str | None, str | None, dict | None]:
+        for identifier, entry in data["games"].items():
+            if (
+                valid_id(identifier)
+                and isinstance(entry, dict)
+                and _session_matches(entry.get("session"), profile, wanted)
+            ):
+                return "game", identifier, entry
         for record in data["pending"].values():
             if _session_matches(record, profile, wanted):
-                return "pending", record
-        return None, None
+                return "pending", None, record
+        return None, None, None
 
-    def pending(self, profile: str | None = None) -> list[dict]:
+    def pending(self, profile: str | None = None, *, snapshot: dict | None = None) -> list[dict]:
+        data = self.load() if snapshot is None else snapshot
         listed = [
             {
                 "storedId": r.get("storedId"),
@@ -461,7 +477,7 @@ class Registry:
                 "createdAt": r.get("createdAt"),
                 "profile": r.get("profile"),
             }
-            for r in self.load()["pending"].values()
+            for r in data["pending"].values()
             if isinstance(r, dict)
             and isinstance(r.get("storedId"), str)
             and (profile is None or r.get("profile") in (None, profile))
@@ -541,20 +557,20 @@ class Registry:
         return None
 
     # -- what the page sees ---------------------------------------------------------
-    def describe(self, entry: dict) -> dict | None:
+    def describe(self, entry: dict, *, identifier: str | None = None) -> dict | None:
         root = shelf.registered_root(entry)
         if root is None:
             return None
-        identifier = entry.get("id")
-        return shelf.describe(entry, identifier if valid_id(identifier) else game_id(root), root, self.thumb)
+        return shelf.describe(entry, identifier if identifier is not None else game_id(root), root, self.thumb)
 
-    def library(self) -> list[dict]:
+    def library(self, *, snapshot: dict | None = None) -> list[dict]:
+        data = self.load() if snapshot is None else snapshot
         games = []
-        for entry in self.load()["games"].values():
-            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+        for identifier, entry in data["games"].items():
+            if not valid_id(identifier) or not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
                 continue
             try:
-                described = self.describe(entry)
+                described = self.describe(entry, identifier=identifier)
             except OSError:
                 described = None
             if described:

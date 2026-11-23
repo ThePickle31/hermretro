@@ -223,6 +223,9 @@ instead of throwing.
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
 | `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
 
+`games` can include an empty `games` array in an error reply. Only `ok: true` supplies shelf and ownership data.
+`game_build_status` also returns `UNAVAILABLE` if an existing web export's ROM cannot be read.
+
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
 Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
 (`engine/modretro-chromatic/dist/web-preview-states.js`), at most 8 kept per build; no RPC reads them

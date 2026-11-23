@@ -148,9 +148,10 @@ def rpc_games(ctx):
                 _seed_library(registry)
             except Exception:
                 logger.debug("hermretro: seeding the library from the broker failed", exc_info=True)
-            listed = registry.library()
-            pending = registry.pending(host._profile_identity())
-            _route_games(listed, registry.load()["games"], pending, lookup_titles=True)
+            snapshot = registry.load()
+            listed = registry.library(snapshot=snapshot)
+            pending = registry.pending(host._profile_identity(), snapshot=snapshot)
+            _route_games(listed, snapshot["games"], pending, lookup_titles=True)
             for game in listed:
                 game.pop("updatedAt", None)
             # The built-in demo cartridge is not part of the library (the Games shelf stays the user's own
@@ -187,7 +188,7 @@ def rpc_game_build_status(ctx):
             root = shelf.registered_root(entry)
             if root is None:
                 return missing
-            artifacts, _ = project.build_artifacts(root, shelf.last_build(entry))
+            artifacts, _ = project.build_artifacts(root, shelf.last_build(entry), require_web_rom=True)
             game = shelf.game_details(entry, identifier, root, artifacts)
             _route_games([game], entries)
             return {

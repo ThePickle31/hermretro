@@ -28,6 +28,6 @@ export function Emulator({ shell }) {
       },
       'bar'
     ),
-    jsx(PlayerNotice, { game: player.game, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, 'notice')
+    jsx(PlayerNotice, { game: player.game, gameError: player.gameError, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, 'notice')
   ]
 }
