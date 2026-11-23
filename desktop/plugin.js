@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 1364e386128541b5033136815b3280a2dd5f4e4290d864ee7eb02368b13b7bb9
- * body: sha256 259d098dbc3dcc611b1ba7746015f109a0b106221c8f4564d570eceec798096d
+ * sources: sha256 286f9f63f0fbae250c575a57616f32dfd98e70529911d5087f09be8cf23205cc
+ * body: sha256 00ff88cedc71b945b4a8b2e7efde9f7c563789c0d80007161c6f709102f60f1a
  */
 // page/sdk.js
 import {
@@ -559,6 +559,7 @@ function stepInfo(name, result) {
   const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
   const text2 = (value) => typeof value === "string" && value ? value : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean).slice(0, 8);
+  const report = String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null;
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
@@ -566,7 +567,8 @@ function stepInfo(name, result) {
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
     images,
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
-    report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
+    report,
+    reportedAt: report && Number.isFinite(parsed.reportedAt) && parsed.reportedAt > 0 ? parsed.reportedAt : null
   };
 }
 function withInfo(chat, info) {
@@ -764,8 +766,9 @@ function historyItems(messages, running = false) {
     agentSinceUser = false;
   };
   const addTool = (call, at) => {
-    if (call.id && tools.has(call.id)) {
-      return;
+    const known = call.id && tools.get(call.id);
+    if (known) {
+      return known;
     }
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: "done", startedAt: at };
     const last = items[items.length - 1];
@@ -777,6 +780,7 @@ function historyItems(messages, running = false) {
     } else {
       items.push({ kind: "tools", tools: [tool] });
     }
+    return tool;
   };
   for (const message of Array.isArray(messages) ? messages : []) {
     if (!message || message.display_kind === "hidden") {
@@ -802,23 +806,20 @@ function historyItems(messages, running = false) {
       }
     } else if (message.role === "tool") {
       agentSinceUser = true;
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === "tool_call" ? tools.get(`${inner.id}:0`) : null));
-        if (known) {
-          known.finishedAt = at;
-          if (at && known.startedAt) {
-            known.duration = Math.max(0, (at - known.startedAt) / 1e3);
-          }
-          known.args = known.args ?? stepArgs(inner.args);
-          const result = text2.trim().startsWith("{") ? text2 : null;
-          if (result) {
-            known.info = stepInfo(known.name, result);
-            if (toolFailed({ result })) {
-              known.state = "failed";
-            }
-          }
-        } else {
-          addTool(inner, at);
+      const name = message.name ?? message.tool_name;
+      for (const inner of unwrapCalls(message.tool_call_id ?? null, name, message.args)) {
+        const wrapped = inner.id && tools.get(`${inner.id}:0`);
+        const known = inner.id && (tools.get(inner.id) ?? (!name || name === "tool_call" || wrapped?.name === name ? wrapped : null));
+        const tool = known || addTool(inner, at);
+        const result = text2 || message.content;
+        tool.finishedAt = at;
+        if (known && at && tool.startedAt) {
+          tool.duration = Math.max(0, (at - tool.startedAt) / 1e3);
+        }
+        tool.args = tool.args ?? stepArgs(inner.args);
+        tool.info = stepInfo(tool.name, result) ?? tool.info;
+        if (toolFailed({ result })) {
+          tool.state = "failed";
         }
       }
     }
@@ -5526,7 +5527,7 @@ function turnParts(turn, root) {
         const reported = short === "build_report" && tool.state !== "failed" ? tool.info?.report ?? tool.report : null;
         if (reported) {
           report = reported;
-          reportAt = tool.finishedAt ?? tool.startedAt ?? null;
+          reportAt = tool.info?.reportedAt ?? tool.finishedAt ?? tool.startedAt ?? null;
         }
         if (!HIDDEN_STEPS.has(short) && !(short === "clarify" && hasCard)) {
           tokens.push({ type: "step", tool });
@@ -5654,22 +5655,26 @@ function madeAssets(parts, root) {
 }
 
 // page/pages/build/viewer/version-history.js
-function useVersionHistory({ path, original, info, refresh, onRefresh, root }) {
-  const [picked, setPicked] = useState(null);
+var LIVE = /* @__PURE__ */ Symbol("live image");
+function useVersionHistory({ path, original, info, onRefresh, root }) {
+  const scope = useMemo(() => ({}), [root, path, original]);
+  const [selection, setSelection] = useState({ scope, picked: null });
   const [restoring, setRestoring] = useState(false);
-  const { state, asset: loaded } = useAsset(path, picked ? `kept:${picked}` : original);
+  if (selection.scope !== scope) {
+    setSelection({ scope, picked: null });
+  }
+  const setPicked = useCallback((picked2) => {
+    setSelection((current) => current.scope === scope ? { scope, picked: picked2 } : current);
+  }, [scope]);
+  const showLive = useCallback(() => setPicked(LIVE), [setPicked]);
+  const picked = selection.scope === scope ? selection.picked : null;
+  const { state, asset: loaded } = useAsset(path, picked === LIVE ? null : picked ? `kept:${picked}` : original);
   const versions = info?.versions ?? [];
   const currentId = versions.find((entry) => entry.current)?.id ?? null;
-  const shownId = picked ?? loaded?.versionId ?? null;
+  const shownId = (picked === LIVE ? null : picked) ?? loaded?.versionId ?? null;
   const shownEntry = versions.find((entry) => entry.id === shownId) ?? null;
   const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null;
-  const older = Boolean(shownEntry && currentId && shownEntry.id !== currentId);
-  useEffect(() => setPicked(null), [path, original]);
-  useEffect(() => {
-    if (refresh && currentId) {
-      setPicked(currentId);
-    }
-  }, [refresh, currentId]);
+  const older = picked !== LIVE && Boolean(shownEntry && currentId && shownEntry.id !== currentId);
   const restore = async () => {
     if (!shownEntry || restoring) {
       return;
@@ -5681,6 +5686,7 @@ function useVersionHistory({ path, original, info, refresh, onRefresh, root }) {
         throw new Error(answer?.error ?? "It could not be restored.");
       }
       forgetAsset(path, answer.path);
+      showLive();
       host.notify({ kind: "success", message: `v${shownNumber} is back in the game. Build again to play it.` });
       onRefresh();
     } catch (error) {
@@ -5689,7 +5695,7 @@ function useVersionHistory({ path, original, info, refresh, onRefresh, root }) {
       setRestoring(false);
     }
   };
-  return { currentId, loaded, older, restore, restoring, setPicked, shownEntry, shownId, shownNumber, state, versions };
+  return { currentId, loaded, older, restore, restoring, setPicked, showLive, shownEntry, shownId, shownNumber, state, versions };
 }
 function versionTime(entry) {
   return entry?.at ? timeOfDay(entry.at) : "";
@@ -6298,11 +6304,10 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     path,
     original: asset?.version,
     info,
-    refresh,
     root,
     onRefresh: () => setRefresh((value) => value + 1)
   });
-  const { state, loaded, shownNumber, setPicked } = version;
+  const { state, loaded, shownNumber, showLive } = version;
   const image = useImage(loaded?.dataUrl);
   const kind = info?.kind ?? (loaded?.sprite ? "sprite" : opened.asset?.kind) ?? "image";
   const sprite2 = info?.sprite ?? null;
@@ -6321,7 +6326,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   const [playing, setPlaying] = useState(true);
   const [onion, setOnion] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
-  const [sentAt, setSentAt] = useState(null);
+  const [sentPath, setSentPath] = useState(null);
   const stageRef = useRef(null);
   const box = useBoxSize(stageRef);
   const dialog = useRef(null);
@@ -6332,7 +6337,8 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   const frames = animation?.frames ?? [];
   const frameMs = spriteFrameMs(sprite2?.animSpeed);
   const colors = gameColours ? info?.palette?.colors : null;
-  const working = Boolean(sentAt && chat?.busy);
+  const changeWorking = Boolean(sentPath && chat?.busy);
+  const working = sentPath === path && changeWorking;
   const asks = [...new Set(assets.filter((entry) => entry.path === path && entry.ask).map((entry) => entry.ask))];
   useEffect(() => {
     setView(null);
@@ -6359,15 +6365,18 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
   }, [shownView, playing, frames.length, frameMs]);
   const wasWorking = useRef(false);
   useEffect(() => {
-    if (working) {
+    if (changeWorking) {
       wasWorking.current = true;
-    } else if (sentAt && wasWorking.current) {
+    } else if (sentPath && wasWorking.current) {
       wasWorking.current = false;
-      setSentAt(null);
-      setPicked(null);
-      setRefresh((value) => value + 1);
+      setSentPath(null);
+      forgetAsset(sentPath);
+      if (sentPath === path) {
+        showLive();
+        setRefresh((value) => value + 1);
+      }
     }
-  }, [working, sentAt, setPicked]);
+  }, [changeWorking, path, sentPath, showLive]);
   useEffect(() => {
     if (side !== "Change") {
       setArea(null);
@@ -6471,7 +6480,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     host.notify({ kind: copied ? "success" : "info", message: copied ? `${color} copied` : color });
   };
   let progress2 = [];
-  if (sentAt && chat?.items?.length) {
+  if (sentPath === path && sentPath && chat?.items?.length) {
     const turns = deriveTurns(chat.items);
     const last = turns[turns.length - 1];
     progress2 = last ? turnParts(last, root).steps.slice(-6) : [];
@@ -6583,11 +6592,11 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
                       onSend,
                       onSent: () => {
                         setArea(null);
-                        setSentAt(Date.now());
+                        setSentPath(path);
                       },
                       path,
                       progress: progress2,
-                      showProgress: Boolean(working || sentAt && progress2.length),
+                      showProgress: Boolean(working || progress2.length),
                       shownView,
                       version
                     })

@@ -90,10 +90,16 @@ class BuildReport(unittest.TestCase):
         emit.assert_called_once_with("library.build_reported", game=None, assets=[])
 
     def test_the_assets_listener_still_keeps_the_reported_images(self):
-        self.assertTrue(self.report(dict(GOOD))["ok"])  # the real emit reaches backend/assets/listeners.py
-        host_assets._keep_paths.assert_called_once_with(
-            [str((self.root / "assets" / "sprites" / "robin.png").resolve())]
-        )
+        def capture_time():
+            host_assets._keep_paths.assert_called_once_with(
+                [str((self.root / "assets" / "sprites" / "robin.png").resolve())]
+            )
+            return 1_000_500_000
+
+        with mock.patch.object(library_tools.time, "time_ns", side_effect=capture_time):
+            answer = self.report(dict(GOOD))  # the real emit reaches backend/assets/listeners.py
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual(answer["reportedAt"], 1000.5)
 
     def test_the_shared_tool_helpers_answer_the_codes_the_tools_use(self):
         answer = json.loads(tool_args.tool_error("no", "X"))

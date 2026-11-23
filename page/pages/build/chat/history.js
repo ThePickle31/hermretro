@@ -37,8 +37,10 @@ export function historyItems(messages, running = false) {
   }
 
   const addTool = (call, at) => {
-    if (call.id && tools.has(call.id)) {
-      return
+    const known = call.id && tools.get(call.id)
+
+    if (known) {
+      return known
     }
 
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
@@ -53,6 +55,8 @@ export function historyItems(messages, running = false) {
     } else {
       items.push({ kind: 'tools', tools: [tool] })
     }
+
+    return tool
   }
 
   for (const message of Array.isArray(messages) ? messages : []) {
@@ -84,33 +88,27 @@ export function historyItems(messages, running = false) {
       }
     } else if (message.role === 'tool') {
       agentSinceUser = true
+      const name = message.name ?? message.tool_name
 
-      for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name, message.args)) {
-        // A deferred call's result row names only the outer tool_call (or nothing: the gateway's resume leaves the
-        // name out): its one call is <id>:0.
-        const known = inner.id && (tools.get(inner.id) ?? (!message.name || message.name === 'tool_call' ? tools.get(`${inner.id}:0`) : null))
+      for (const inner of unwrapCalls(message.tool_call_id ?? null, name, message.args)) {
+        // A deferred call's result can carry the wrapper's id while the assistant row's step is <id>:0.
+        const wrapped = inner.id && tools.get(`${inner.id}:0`)
+        const known = inner.id && (tools.get(inner.id) ?? (!name || name === 'tool_call' || wrapped?.name === name ? wrapped : null))
+        const tool = known || addTool(inner, at)
+        const result = text || message.content
 
-        if (known) {
-          // The result row's time is when the step finished.
-          known.finishedAt = at
+        // The result row's time is when the step finished.
+        tool.finishedAt = at
 
-          if (at && known.startedAt) {
-            known.duration = Math.max(0, (at - known.startedAt) / 1000)
-          }
+        if (known && at && tool.startedAt) {
+          tool.duration = Math.max(0, (at - tool.startedAt) / 1000)
+        }
 
-          known.args = known.args ?? stepArgs(inner.args)
-          // The result row says how the step went: a failed build stays failed after a reload.
-          const result = text.trim().startsWith('{') ? text : null
+        tool.args = tool.args ?? stepArgs(inner.args)
+        tool.info = stepInfo(tool.name, result) ?? tool.info
 
-          if (result) {
-            known.info = stepInfo(known.name, result)
-
-            if (toolFailed({ result })) {
-              known.state = 'failed'
-            }
-          }
-        } else {
-          addTool(inner, at)
+        if (toolFailed({ result })) {
+          tool.state = 'failed'
         }
       }
     }

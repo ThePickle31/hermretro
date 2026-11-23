@@ -180,8 +180,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   it edited, Before → After (the `asset` RPC at the turn's start and end; nothing when the file is
   new), with Keep / Undo on the newest turn (Undo = `asset_restore` of the earlier version, then
   "Rebuild" asks the agent to build again); what changed (+ added, ~ changed, − removed, with a
-  thumbnail that opens the asset at the report's time when the change names one; without a report,
-  the pictures the turn made); a line
+  thumbnail that opens the asset at the report's capture time from its tool result when the change names one;
+  older reports use the recorded tool time, and turns without reports show the pictures they made); a line
   with "✓ N play-tested · ○ N not tested · ⚠ N notes" and Details (the
   lists, and the compiler's words for a failed build, with Ask HermRetro to fix it). With a report
   the reply's words follow the card; without one they come first. The newest reply's suggestions

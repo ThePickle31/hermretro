@@ -47,7 +47,7 @@ export function turnParts(turn, root) {
 
         if (reported) {
           report = reported
-          reportAt = tool.finishedAt ?? tool.startedAt ?? null
+          reportAt = tool.info?.reportedAt ?? tool.finishedAt ?? tool.startedAt ?? null
         }
 
         if (!HIDDEN_STEPS.has(short) && !(short === 'clarify' && hasCard)) {

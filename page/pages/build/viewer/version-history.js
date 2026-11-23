@@ -1,30 +1,34 @@
 // The selected asset version, its history strip and Restore.
-import { host, jsx, jsxs, useEffect, useState } from '#sdk'
+import { host, jsx, jsxs, useCallback, useMemo, useState } from '#sdk'
 import { forgetAsset, useAsset } from '#pages/build/assets/cache.js'
 import { SheetFrame } from '#pages/build/assets/images.js'
 import { callStudioOnly } from '#app/backend.js'
 import { RPC_ASSET_RESTORE } from '#app/rpc.js'
 import { timeOfDay } from '#shared/ui/time.js'
 
-export function useVersionHistory({ path, original, info, refresh, onRefresh, root }) {
-  const [picked, setPicked] = useState(null)
+const LIVE = Symbol('live image')
+
+export function useVersionHistory({ path, original, info, onRefresh, root }) {
+  const scope = useMemo(() => ({}), [root, path, original])
+  const [selection, setSelection] = useState({ scope, picked: null })
   const [restoring, setRestoring] = useState(false)
-  const { state, asset: loaded } = useAsset(path, picked ? `kept:${picked}` : original)
+
+  if (selection.scope !== scope) {
+    setSelection({ scope, picked: null })
+  }
+
+  const setPicked = useCallback(picked => {
+    setSelection(current => current.scope === scope ? { scope, picked } : current)
+  }, [scope])
+  const showLive = useCallback(() => setPicked(LIVE), [setPicked])
+  const picked = selection.scope === scope ? selection.picked : null
+  const { state, asset: loaded } = useAsset(path, picked === LIVE ? null : picked ? `kept:${picked}` : original)
   const versions = info?.versions ?? []
   const currentId = versions.find(entry => entry.current)?.id ?? null
-  const shownId = picked ?? loaded?.versionId ?? null
+  const shownId = (picked === LIVE ? null : picked) ?? loaded?.versionId ?? null
   const shownEntry = versions.find(entry => entry.id === shownId) ?? null
   const shownNumber = shownEntry ? versions.indexOf(shownEntry) + 1 : null
-  const older = Boolean(shownEntry && currentId && shownEntry.id !== currentId)
-
-  useEffect(() => setPicked(null), [path, original])
-
-  // Once the new versions arrive after a change, show the one in the game.
-  useEffect(() => {
-    if (refresh && currentId) {
-      setPicked(currentId)
-    }
-  }, [refresh, currentId])
+  const older = picked !== LIVE && Boolean(shownEntry && currentId && shownEntry.id !== currentId)
 
   const restore = async () => {
     if (!shownEntry || restoring) {
@@ -41,6 +45,7 @@ export function useVersionHistory({ path, original, info, refresh, onRefresh, ro
       }
 
       forgetAsset(path, answer.path)
+      showLive()
       host.notify({ kind: 'success', message: `v${shownNumber} is back in the game. Build again to play it.` })
       onRefresh()
     } catch (error) {
@@ -50,7 +55,7 @@ export function useVersionHistory({ path, original, info, refresh, onRefresh, ro
     }
   }
 
-  return { currentId, loaded, older, restore, restoring, setPicked, shownEntry, shownId, shownNumber, state, versions }
+  return { currentId, loaded, older, restore, restoring, setPicked, showLive, shownEntry, shownId, shownNumber, state, versions }
 }
 
 export function versionTime(entry) {

@@ -134,6 +134,52 @@ class AssetRestore(unittest.TestCase):
         self.assertTrue(undone["ok"], undone)
         self.assertEqual(self.cover.read_bytes(), PNG_B)
 
+    @mock.patch.object(assets_versions, "ASSET_KEEP_VERSIONS", 3)
+    def test_a_later_preview_finishes_capture_and_pruning_without_losing_undo(self):
+        self.write(PNG_A, 1001)
+        selected = self.asset(self.params)["versionId"]
+        for moment in (1002, 1003):
+            self.write(PNG_A + moment.to_bytes(2, "big"), moment)
+            self.assertTrue(self.asset(self.params)["ok"])
+        self.write(PNG_B, 1000)
+        folder = assets_versions._versions_dir(self.cover, self.game)
+        outgoing = str(1000 * 10**9)
+        backup = folder / f"{outgoing}.png"
+        pending = folder / assets_versions._PENDING_RESTORE
+        write_image = assets_versions._write_image
+
+        def fail_capture(path, data, suffix):
+            if path.parent == folder and data == PNG_A:
+                raise OSError("could not capture the restored file")
+            write_image(path, data, suffix)
+
+        with mock.patch.object(assets_versions, "_write_image", side_effect=fail_capture):
+            self.assertTrue(self.restore({**self.params, "version": selected})["ok"])
+        self.assertEqual(self.cover.read_bytes(), PNG_A)
+        self.assertTrue(pending.is_file())
+        self.assertEqual(backup.read_bytes(), PNG_B)
+        self.assertEqual(len(assets_versions._kept_versions(folder)), 4)
+
+        unlink = Path.unlink
+        evicted = folder / f"{1002 * 10**9}.png"
+
+        def fail_pruning(path, *args, **kwargs):
+            if path == evicted:
+                raise PermissionError("could not prune history")
+            return unlink(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "unlink", fail_pruning):
+            self.assertTrue(self.asset(self.params)["ok"])
+        self.assertTrue(pending.is_file())
+        self.assertEqual(backup.read_bytes(), PNG_B)
+
+        self.assertTrue(self.asset(self.params)["ok"])
+        self.assertFalse(pending.exists())
+        self.assertEqual(len(assets_versions._kept_versions(folder)), 3)
+        self.assertEqual(backup.read_bytes(), PNG_B)
+        self.assertTrue(self.restore({**self.params, "version": outgoing})["ok"])
+        self.assertEqual(self.cover.read_bytes(), PNG_B)
+
     def test_restore_leaves_current_bytes_in_place_if_the_restore_record_cannot_be_written(self):
         self.write(PNG_A, 1000)
         selected = self.asset(self.params)["versionId"]

@@ -321,14 +321,14 @@ def _prune_versions(real: Path, folder: Path, protect=()) -> None:
         pending.unlink()
 
 
-def _try_keep_version(real: Path, folder: Path, *, protect=(), prune=False) -> None:
-    saved = None
+def _try_keep_version(real: Path, folder: Path, *, protect=()) -> None:
     try:
-        saved, _ = _save_version(real, folder)
+        saved, _ = _save_version(real, folder, required=(folder / _PENDING_RESTORE).exists())
     except OSError:
         logger.debug("hermretro could not keep an image version", exc_info=True)
-    # An interrupted restore can leave an extra backup even when the live file is already kept.
-    if saved is not None or prune:
+        return
+    # Until the live bytes are kept, pruning must leave the restore record and undo backup in place.
+    if saved is not None:
         try:
             _prune_versions(real, folder, (*protect, saved))
         except (OSError, ValueError):
@@ -354,7 +354,7 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
             return None
         pending = folder / _PENDING_RESTORE
         if pending.exists():
-            _try_keep_version(real, folder, protect=(selected,), prune=True)
+            _try_keep_version(real, folder, protect=(selected,))
             if pending.exists():
                 raise OSError("The previous image restore could not be finished.")
         backup, added = _save_version(real, folder, required=True)
@@ -368,7 +368,7 @@ def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
                 except OSError:
                     logger.debug("hermretro could not clean up a failed image restore", exc_info=True)
             raise
-        _try_keep_version(real, folder, prune=True)
+        _try_keep_version(real, folder)
         return _available_versions(real, folder)
 
 

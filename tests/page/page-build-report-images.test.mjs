@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ act, answered, buildScenario, check, key, mount, page, scenario, settle }) => {
+await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, key, mount, page, scenario, settle }) => {
   const game = 'fff666fff666'
   const projectRoot = '/home/u/games/TinkerShop'
   const player = `${projectRoot}/assets/sprites/workshop_player.png`
@@ -14,6 +14,8 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
       id, function: { name: 'chromatic_build_report', arguments: JSON.stringify({ title: 'Tinker Shop', changes }) }
     }]
   })
+  const roomChange = [{ kind: 'changed', text: 'Workshop room', asset: `file://${room}` }]
+  const reportResult = reportedAt => ({ ok: true, reportedAt, report: { title: 'Tinker Shop', changes: roomChange } })
 
   buildScenario({ selected: game })
   scenario.games = answered({ games: [{ id: game, title: 'Tinker Shop', projectRoot, kind: 'gbstudio', state: 'ready',
@@ -26,27 +28,65 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
     { role: 'tool', tool_call_id: 'r1', timestamp: 1005 },
     { role: 'assistant', content: 'The shop is ready.', timestamp: 1010 },
     { role: 'user', content: 'Edit the workshop room.', timestamp: 2000 },
-    report('r2', 2001, [{ kind: 'changed', text: 'Workshop room', asset: `file://${room}` }]),
-    { role: 'tool', tool_call_id: 'r2', timestamp: 2005 },
+    { role: 'assistant', content: '', timestamp: 2001, tool_calls: [{ id: 'r2', function: {
+      name: 'tool_call', arguments: JSON.stringify({ calls: [{
+        name: 'chromatic_build_report', arguments: { title: 'Tinker Shop', changes: roomChange }
+      }] })
+    } }] },
+    { role: 'tool', tool_call_id: 'r2', tool_name: 'chromatic_build_report', timestamp: 2007, content: JSON.stringify(reportResult(2_005_001.625)) },
     { role: 'assistant', content: `Made the changes.\nMEDIA:${cover}`, timestamp: 2010 }
   ] })
 
   const history = [
     { id: '10', at: 1_004_000 }, { id: '11', at: 1_900_000 }, { id: '12', at: 2_004_000 },
-    { id: '13', at: 2_008_000 }, { id: '14', at: 2_200_000, current: true }
+    { id: '13', at: 2_006_000 }, { id: '14', at: 2_200_000, current: true }
   ]
+  const playerHistory = [{ id: '21', at: 1_004_000 }, { id: '22', at: 2_200_000, current: true }]
+  let liveRoom = history.at(-1)
+  let liveReadsAfterRestore = 0
   const kind = path => path === player ? 'sprite' : path === room ? 'background' : 'cover'
   const imageUrl = (path, id) => `data:image/png;base64,${Buffer.from(`${path}#${id}`).toString('base64')}`
   scenario.byMethod['plugin.hermretro.asset'] = ({ path, root, version, at }) => {
     assert.equal(root, projectRoot)
     assert.ok([player, room, cover].includes(path))
-    const entry = path === room && (version ? history.find(item => item.id === version) : history.findLast(item => !at || item.at <= at))
-    const dataUrl = imageUrl(path, entry?.id ?? '1')
+    const versions = path === room ? history : path === player ? playerHistory : []
+    const live = path === room ? liveRoom : versions.at(-1)
+    const entry = version ? versions.find(item => item.id === version) : at ? versions.findLast(item => item.at <= at) : live
+    const dataUrl = imageUrl(path, entry?.bytesId ?? entry?.id ?? '1')
+
+    if (path === room && liveRoom.id === '15' && !at && !version) {
+      liveReadsAfterRestore += 1
+    }
 
     return { ok: true, path, name: path.split('/').at(-1), kind: kind(path), width: 16, height: 16, dataUrl,
-      versionId: entry?.id ?? '1', earlier: Boolean(entry && !entry.current) }
+      versionId: entry?.id ?? '1', earlier: Boolean(entry && entry !== live) }
   }
-  scenario.byMethod['plugin.hermretro.asset_info'] = ({ path }) => ({ ok: true, path, kind: kind(path), versions: path === room ? history : [] })
+  scenario.byMethod['plugin.hermretro.asset_info'] = ({ path }) => ({
+    ok: true, path, kind: kind(path), versions: path === room ? (liveRoom.id === '15' ? [] : history) : path === player ? playerHistory : []
+  })
+  scenario.byMethod['plugin.hermretro.asset_restore'] = ({ path, version }) => {
+    assert.equal(path, room)
+    assert.equal(version, '10')
+    liveRoom = { id: '15', bytesId: version, current: true }
+
+    return { ok: true, path, versions: [] }
+  }
+
+  // jsdom needs a stand-in for decoding images and drawing the viewer's stage.
+  const imagePrototype = dom.window.HTMLImageElement.prototype
+  const imageSrc = Object.getOwnPropertyDescriptor(imagePrototype, 'src')
+  Object.defineProperties(imagePrototype, {
+    src: { ...imageSrc, set(value) { imageSrc.set.call(this, value); queueMicrotask(() => this.onload?.()) } },
+    naturalWidth: { get: () => 16 },
+    naturalHeight: { get: () => 16 }
+  })
+  dom.window.HTMLCanvasElement.prototype.getContext = function () {
+    return {
+      clearRect() {},
+      drawImage: image => { this.dataset.imageSrc = image.src },
+      getImageData: () => ({ data: [] })
+    }
+  }
 
   const view = await mount(page)
   await settle()
@@ -62,6 +102,7 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
   const close = () => key('keydown', 'Escape', dialog())
   const shownPath = () => dialog()?.querySelector('.cs-v-name')?.title
   const shownVersion = () => dialog()?.querySelector('.cs-v-ver[aria-pressed="true"]')?.textContent
+  const stageImage = () => dialog()?.querySelector('.cs-v-canvas canvas')?.dataset.imageSrc
   const roomLabel = 'Look closer at workshop.png'
 
   check('each report thumbnail shows the room at the report time', () => {
@@ -96,5 +137,39 @@ await runScenario(async ({ act, answered, buildScenario, check, key, mount, page
     })
     await close()
   }
+
+  const session_id = 'rt-of-st-tinker'
+  await act(async () => {
+    emit({ type: 'message.start', session_id })
+    emit({ type: 'tool.complete', session_id, payload: {
+      tool_id: 'late-report', name: 'chromatic_build_report',
+      result: reportResult(2_005_002.625)
+    } })
+    emit({ type: 'message.complete', session_id, payload: { text: 'The delayed report is ready.' } })
+  })
+  await settle()
+  const liveCard = [...view.node.querySelectorAll('.cs-b-bc')].at(-1)
+  check('a delayed completion shows the image from the Hermes report time', () => {
+    assert.equal(thumbnail(liveCard, roomLabel).querySelector('img').src, imageUrl(room, '12'))
+  })
+  await open(liveCard, roomLabel)
+  check('the delayed report opens the same image shown on the card', () => assert.equal(shownVersion(), 'v3'))
+  await close()
+
+  await open(cards[0], roomLabel)
+  await click('Restore v1', dialog())
+  await settle()
+  check('Restore loads and shows the live bytes when refreshed history is empty', () => {
+    assert.ok(liveReadsAfterRestore > 0)
+    assert.equal(stageImage(), imageUrl(room, '10'))
+  })
+  await key('keydown', 'ArrowRight', dialog())
+  await settle()
+  check('moving after Restore opens the other asset at its report version', () => {
+    assert.equal(shownPath(), player)
+    assert.equal(shownVersion(), 'v1')
+    assert.equal(stageImage(), imageUrl(player, '21'))
+  })
+  await close()
   await view.close()
 })

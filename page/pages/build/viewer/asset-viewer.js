@@ -1,6 +1,6 @@
 // The asset viewer.
 import { Button, Codicon, host, jsx, jsxs, useEffect, useLayoutEffect, useMemo, useRef, useState } from '#sdk'
-import { useAsset } from '#pages/build/assets/cache.js'
+import { forgetAsset, useAsset } from '#pages/build/assets/cache.js'
 import { imagePalette, useImage } from '#pages/build/assets/images.js'
 import { canvasImage, paintSheet, spriteAnimations, spriteFrameMs } from '#pages/build/assets/sprite.js'
 import { deriveTurns, turnParts } from '#pages/build/transcript/turns.js'
@@ -23,9 +23,9 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const info = useAssetInfo(path, refresh)
   const opened = useAsset(path, asset?.version)
   const version = useVersionHistory({
-    path, original: asset?.version, info, refresh, root, onRefresh: () => setRefresh(value => value + 1)
+    path, original: asset?.version, info, root, onRefresh: () => setRefresh(value => value + 1)
   })
-  const { state, loaded, shownNumber, setPicked } = version
+  const { state, loaded, shownNumber, showLive } = version
   const image = useImage(loaded?.dataUrl)
   const kind = info?.kind ?? (loaded?.sprite ? 'sprite' : opened.asset?.kind) ?? 'image'
   const sprite = info?.sprite ?? null
@@ -44,7 +44,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const [playing, setPlaying] = useState(true)
   const [onion, setOnion] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
-  const [sentAt, setSentAt] = useState(null)
+  const [sentPath, setSentPath] = useState(null)
   const stageRef = useRef(null)
   const box = useBoxSize(stageRef)
   const dialog = useRef(null)
@@ -55,7 +55,8 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const frames = animation?.frames ?? []
   const frameMs = spriteFrameMs(sprite?.animSpeed)
   const colors = gameColours ? info?.palette?.colors : null
-  const working = Boolean(sentAt && chat?.busy)
+  const changeWorking = Boolean(sentPath && chat?.busy)
+  const working = sentPath === path && changeWorking
   const asks = [...new Set(assets.filter(entry => entry.path === path && entry.ask).map(entry => entry.ask))]
 
   // A new picture starts fresh.
@@ -95,15 +96,19 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   const wasWorking = useRef(false)
 
   useEffect(() => {
-    if (working) {
+    if (changeWorking) {
       wasWorking.current = true
-    } else if (sentAt && wasWorking.current) {
+    } else if (sentPath && wasWorking.current) {
       wasWorking.current = false
-      setSentAt(null)
-      setPicked(null)
-      setRefresh(value => value + 1)
+      setSentPath(null)
+      forgetAsset(sentPath)
+
+      if (sentPath === path) {
+        showLive()
+        setRefresh(value => value + 1)
+      }
     }
-  }, [working, sentAt, setPicked])
+  }, [changeWorking, path, sentPath, showLive])
 
   useEffect(() => {
     if (side !== 'Change') {
@@ -240,7 +245,7 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
   // The steps of the turn the change started, newest last.
   let progress = []
 
-  if (sentAt && chat?.items?.length) {
+  if (sentPath === path && sentPath && chat?.items?.length) {
     const turns = deriveTurns(chat.items)
     const last = turns[turns.length - 1]
 
@@ -351,9 +356,9 @@ export function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, open
                       active: side === 'Change', area, asks, chat, image, kind, loaded, name, onArea: setArea, onSend,
                       onSent: () => {
                         setArea(null)
-                        setSentAt(Date.now())
+                        setSentPath(path)
                       },
-                      path, progress, showProgress: Boolean(working || (sentAt && progress.length)), shownView, version
+                      path, progress, showProgress: Boolean(working || progress.length), shownView, version
                     })
                   ]
                 })
