@@ -177,9 +177,9 @@ class ResultTests(unittest.TestCase):
         self.assertNotIn("studioPlayerUrl", payload)
 
     def test_the_prompt_section_describes_presenting_not_auto_open(self):
-        from backend.hermes import host as hermes_host
+        from backend.hermes import workflow
 
-        section = hermes_host.SYSTEM_PROMPT_SECTION
+        section = workflow.SYSTEM_PROMPT_SECTION
         self.assertLessEqual(len(section), 2000)
         self.assertIn("chromatic_present_game", section)
         self.assertIn("Nothing opens for the user after a build", section)

@@ -9,6 +9,7 @@ Hermes `main` (`nightly.yml`), before users update.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 from pathlib import Path
 
@@ -19,7 +20,15 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
-    ("hermes_cli.config", "read_user_config_raw"),
+    ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
+    ("hermes_cli.profiles", "_bootstrap_profile_dir"),
+    ("hermes_cli.profiles", "seed_profile_skills"),
+    ("hermes_cli.profiles_initialization", "finish_profile_layout"),
+    ("hermes_cli.config_backend", "supports_file_tooling"),
+    ("hermes_constants", "named_profile_has_identity"),
+    ("hermes_constants", "named_profile_is_deleted"),
+    ("hermes_constants", "profile_tombstone_path"),
+    ("hermes_cli.gateway_multiplex_served", "notify_multiplexer_profiles_changed"),
 )
 
 
@@ -28,7 +37,7 @@ def missing() -> list[str]:
     gone = []
     for module, attribute in USED:
         try:
-            if not callable(getattr(importlib.import_module(module), attribute, None)):
+            if not hasattr(importlib.import_module(module), attribute):
                 gone.append(f"{module}.{attribute}")
         except Exception:  # noqa: BLE001 - a module that fails to import is as good as missing
             gone.append(f"{module}.{attribute}")
@@ -79,13 +88,71 @@ def enabled_plugins() -> list[str]:
         return []
 
 
-def profile_config(profile_home: Path) -> dict | None:
-    """A profile's config.yaml exactly as written, for checking a value the plugin pins there (None when it cannot be
-    read)."""
-    try:
-        from hermes_cli.config import read_user_config_raw
+def prepare_profile(staging: Path, *, description: str, soul: str) -> None:
+    """Build a private profile with the same model and sign-in setup as Hermes's profiles.create."""
+    from hermes_cli.config_backend import supports_file_tooling
+    from hermes_cli.profiles import _bootstrap_profile_dir, seed_profile_skills
+    from hermes_cli.profiles_initialization import finish_profile_layout
 
-        config = read_user_config_raw(profile_home / "config.yaml")
-        return config if isinstance(config, dict) else None
-    except Exception:  # noqa: BLE001 - no Hermes here, or an unreadable config: nothing is known
+    if not supports_file_tooling():
+        raise ValueError("Creating the studio profile requires Hermes's local file configuration backend.")
+    _bootstrap_profile_dir(staging, None)
+    finish_profile_layout(staging, no_skills=True, clone_all=False, description=description, soul=soul)
+    seed_profile_skills(staging, quiet=True)
+
+    try:
+        from hermes_cli.profile_provision import inherit_launch_model, mirror_launch_credentials
+    except ModuleNotFoundError as error:
+        if error.name != "hermes_cli.profile_provision":
+            raise
+        # The older split module's functions only work once bound to the gateway's globals.
+        from tui_gateway.server import _inherit_launch_model as inherit_launch_model
+        from tui_gateway.server import _mirror_launch_credentials
+
+        _mirror_launch_credentials(staging, {"share_auth": True})
+    else:
+        mirror_launch_credentials(staging, {}, share_auth=True)
+    # Hermes treats a model it cannot inherit as an optional part of creating the profile.
+    with contextlib.suppress(Exception):
+        inherit_launch_model(staging)
+
+
+def default_soul() -> bytes | None:
+    """The template Hermes CLI commands seed on first use of a home."""
+    try:
+        from hermes_cli.default_soul import DEFAULT_SOUL_MD
+    except ImportError:
         return None
+    return DEFAULT_SOUL_MD.encode("utf-8")
+
+
+def profile_has_identity(profile_home: Path) -> bool:
+    try:
+        from hermes_constants import named_profile_has_identity
+    except ImportError:
+        # Older Hermes and callers outside the host use the same identity checks.
+        markers = ("config.yaml", ".env", "SOUL.md", "profile.yaml", "auth.json", "state.db")
+        return any((profile_home / name).is_file() or (profile_home / name).is_symlink() for name in markers)
+    return named_profile_has_identity(profile_home)
+
+
+def profile_is_deleted(profile_home: Path) -> bool:
+    try:
+        from hermes_constants import named_profile_is_deleted
+    except ImportError:
+        return profile_tombstone(profile_home).exists()
+    return named_profile_is_deleted(profile_home)
+
+
+def profile_tombstone(profile_home: Path) -> Path:
+    try:
+        from hermes_constants import profile_tombstone_path
+    except ImportError:
+        return profile_home.parent / ".deleted" / profile_home.name
+    return profile_tombstone_path(profile_home)
+
+
+def notify_profile_created(profile_home: Path) -> None:
+    from hermes_cli.gateway_multiplex_served import notify_multiplexer_profiles_changed
+
+    notify_multiplexer_profiles_changed(profile_home.name)

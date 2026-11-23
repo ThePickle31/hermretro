@@ -334,31 +334,6 @@ def library_game_for(candidates) -> tuple[str, Path] | None:
     return None
 
 
-# How a game is made, in order: the one statement the prompt section and the Build-page context share (SOUL.md
-# says the same in its own words).
-GAME_STEPS = (
-    "Make a game in this order: agree what to make with the user (a few quick questions, then a short list of what "
-    "you will make that they change until they approve it; or with hermretro:game-planning a brief, kept in the new "
-    "project, that they approve); create the project; author everything agreed with the chromatic_* tools, building "
-    "with chromatic_rom_build as you go (a build is a checkpoint, not a hand-off); once all of it is in, "
-    + results.DELIVER
-)
-# What keeps the game the user's real, buildable project.
-GAME_RULES = (
-    "Change the game only through the chromatic_* tools: draw art as PNG files and bring it in with "
-    "chromatic_asset_import, but never write .gbsres or .gbsproj files or anything under build/ yourself, and never "
-    "build, export or playtest the game with other programs. When no tool can do what the game needs, tell the "
-    "user what is missing. Do not create or change skills unless the user asks."
-)
-
-# The build card's guidance, for the Build conversation's context and the prompt section.
-BUILD_REPORT_GUIDANCE = (
-    "At the end of a turn that changed or built the game (after building, your own playtest and presenting), "
-    "call chromatic_build_report once (title, summary, changes with asset paths, tested/untested, notes, up to 4 "
-    "suggestions), then keep the written reply to one or two short sentences."
-)
-
-
 # -- hooks -------------------------------------------------------------------------
 
 
@@ -393,20 +368,3 @@ def make_pre_tool_call(ctx):
         return {"action": "approve", "message": message, "rule_key": f"hermretro:{tool_name}:{detail}"}
 
     return pre_tool_call
-
-
-SYSTEM_PROMPT_SECTION = (
-    "hermretro is installed: tools named chromatic_* build real Game Boy / Game Boy Color games "
-    "(native GB Studio projects) for the ModRetro Chromatic. For any work on such a game, first load the matching "
-    "skill with skill_view: "
-    "hermretro:setup (any setup or repair), hermretro:game-planning, hermretro:authoring, "
-    "hermretro:pixel-art, hermretro:rom-debugging (build and emulator testing), "
-    "hermretro:deployment (physical Chromatic). Call chromatic_* tools directly, never from execute_code. "
-    "One conversation works on one project folder; use a new chat for a different project. "
-    "New games go in the hermretro games folder: leave out destinationPath unless the user names another "
-    "folder. " + GAME_STEPS + " "
-    "Nothing opens for the user after a build; chromatic_present_game shows the game in the hermretro emulator. "
-    "After chromatic_build_report, keep the written reply to one or two short sentences. "
-    + GAME_RULES
-    + " Hardware tools stay off until the user enables them in Settings > Plugins > hermretro."
-)

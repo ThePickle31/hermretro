@@ -1,5 +1,5 @@
 // The toolchain install driven by the page (no chat): state, polling and the studio profile.
-import { host, useState } from '#sdk'
+import { useState } from '#sdk'
 import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { forgetRoute, routing } from '#app/routing.js'
@@ -10,17 +10,13 @@ import { confirmedInstall, INSTALL_STATUS_UNKNOWN } from './install-status.js'
 const SETUP_PROMPT =
   'Set up hermretro so I can create games, build ROMs, and run automated playtests. Check what is already installed and prepare the missing dependencies.'
 
-/** Hermes creates the profile; the plugin then makes it a hermretro one. */
+/** Create or repair the studio profile. */
 async function createStudioProfile(profile) {
   if (isUpdating()) {
     throw new Error(UPDATING_MESSAGE)
   }
 
-  if (!profile.studio?.exists) {
-    await host.request('profiles.create', profile.create)
-  }
-
-  const { data } = await callBackend(RPC_STUDIO_PROFILE, {}, 240_000)
+  const { data } = await callBackend(RPC_STUDIO_PROFILE, { create: !profile.studio?.exists }, 240_000)
 
   if (!data?.ok) {
     throw new Error(data?.error || 'The profile could not be set up.')
