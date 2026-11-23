@@ -81,7 +81,7 @@ export function watchBuilds(ctx) {
     const name = inner?.name ?? payload.name
 
     if (BUILD_TOOLS.has(name)) {
-      BUILD_TICK.set(BUILD_TICK.get() + 1) // an open tab re-reads the library and shows the rebuilt banner
+      BUILD_TICK.set(BUILD_TICK.get() + 1)
     } else if (name === PRESENT_TOOL) {
       const studio = presentedGame(payload)
 

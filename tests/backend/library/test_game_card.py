@@ -45,6 +45,32 @@ class CoverCheck(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual((result["width"], result["height"], result["colours"]), (160, 144, 4))
 
+    def test_display_status_and_url_share_validation_and_check_replacements(self):
+        cover = self.png("cover.png", COVER)
+        with mock.patch.object(game_cover, "decode_png", wraps=game_cover.decode_png) as decode:
+            for _ in range(3):
+                self.assertTrue(game_card.status(self.base, GOOD)["complete"])
+                self.assertIsNotNone(game_card.cover_data_url(self.base))
+            self.assertEqual(decode.call_count, 1)
+            info = cover.stat()
+            replacement = self.png("replacement", b"x" * info.st_size)
+            os.utime(replacement, ns=(info.st_atime_ns, info.st_mtime_ns))
+            replacement.replace(cover)
+            self.assertFalse(game_card.status(self.base, GOOD)["complete"])
+            self.assertIsNone(game_card.cover_data_url(self.base))
+            self.assertEqual(decode.call_count, 2)
+
+    def test_strict_status_checks_for_new_asset_copies_after_warming_the_display_cache(self):
+        self.png("cover.png", COVER)
+        self.assertTrue(game_card.status(self.base, GOOD)["complete"])
+        self.assertTrue(game_card.status(self.base, GOOD, strict=True)["complete"])
+        (self.base / "assets").mkdir()
+        self.png("assets/copied.png", COVER)
+        self.assertTrue(game_card.status(self.base, GOOD)["complete"])
+        strict = game_card.status(self.base, GOOD, strict=True)
+        self.assertFalse(strict["complete"])
+        self.assertIn("unchanged copy of assets/copied.png", strict["problems"][0])
+
     def test_the_wrong_size_too_many_colours_transparency_and_blank_are_refused(self):
         small = encode_png(80, 72, lambda x, y: (x * 3, y * 3, 0, 255))
         self.assertIn("must be exactly 160x144", game_card.check_cover(self.png("small.png", small))["problem"])

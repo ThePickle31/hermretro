@@ -6,7 +6,9 @@ import base64
 import hashlib
 import struct
 import zlib
+from functools import lru_cache
 from pathlib import Path
+from stat import S_ISREG
 
 COVER_FILE = "cover.png"
 COVER_WIDTH, COVER_HEIGHT = 160, 144
@@ -151,21 +153,39 @@ def check_cover(path: Path) -> dict:
     ``{ok, problem?, width?, height?, colours?, sha256?}``."""
     path = Path(path)
     try:
-        size = path.stat().st_size
+        info = path.stat()
     except OSError:
         return {"ok": False, "problem": f"{path} does not exist."}
-    if size > MAX_COVER_BYTES:
-        return {
-            "ok": False,
-            "problem": f"The cover file is {size // 1024} KB; a 160x144 pixel-art PNG is far "
-            "smaller. Save it as a plain PNG.",
-        }
+    if not S_ISREG(info.st_mode):
+        return {"ok": False, "problem": f"{path} is not a regular file."}
     try:
-        data = path.read_bytes()
+        result, _ = _read_cover(path, info.st_size)
+    except OSError as error:
+        return {"ok": False, "problem": f"The cover cannot be read: {error}."}
+    return result
+
+
+def _size_problem(size: int) -> dict:
+    return {
+        "ok": False,
+        "problem": f"The cover file is {size // 1024} KB; a 160x144 pixel-art PNG is far smaller. Save it as a plain PNG.",
+    }
+
+
+def _read_cover(path: Path, size: int) -> tuple[dict, bytes]:
+    if size > MAX_COVER_BYTES:
+        return _size_problem(size), b""
+    with path.open("rb") as handle:
+        data = handle.read(MAX_COVER_BYTES + 1)
+    return _check_cover_bytes(data), data
+
+
+def _check_cover_bytes(data: bytes) -> dict:
+    if len(data) > MAX_COVER_BYTES:
+        return _size_problem(len(data))
+    try:
         width, height, pixels = decode_png(data)
     except PngError as error:
-        return {"ok": False, "problem": f"The cover cannot be read: {error}."}
-    except OSError as error:
         return {"ok": False, "problem": f"The cover cannot be read: {error}."}
     info = {"width": width, "height": height}
     if (width, height) != (COVER_WIDTH, COVER_HEIGHT):
@@ -218,10 +238,14 @@ def _copy_problem(name: str) -> str:
 def _cover(root: Path, strict: bool) -> dict | None:
     """``check_cover`` of the project's cover (None when there is no cover file); ``strict`` also refuses one
     copied unchanged from the game's assets."""
-    if not cover_path(root).is_file():
+    if not strict:
+        cover, _ = _display_cover(root)
+        return dict(cover) if cover is not None else None
+    path = cover_path(root)
+    if not path.is_file():
         return None
-    cover = check_cover(cover_path(root))
-    if cover["ok"] and strict:
+    cover = check_cover(path)
+    if cover["ok"]:
         copied = copied_asset(root, cover["sha256"])
         if copied:
             cover = {**cover, "ok": False, "problem": _copy_problem(copied)}
@@ -238,24 +262,26 @@ def cover_problem(root: Path, strict: bool = True) -> str | None:
     return None if cover["ok"] else cover["problem"]
 
 
-_cover_cache: dict[str, tuple[tuple[float, int], str | None]] = {}
+@lru_cache(maxsize=128)
+def _cached_display_cover(path: Path, stamp: tuple) -> tuple[dict, str | None]:
+    result, data = _read_cover(path, stamp[-1])
+    url = "data:image/png;base64," + base64.b64encode(data).decode("ascii") if result["ok"] else None
+    return result, url
 
 
-def cover_data_url(root: Path) -> str | None:
-    """The cover as a data URL when it is a valid one (cached by file time and size)."""
+def _display_cover(root: Path) -> tuple[dict | None, str | None]:
     path = cover_path(root)
     try:
         info = path.stat()
+        if S_ISREG(info.st_mode):
+            # Replacement and in-place edits invalidate both the card decision and its displayed image.
+            stamp = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
+            return _cached_display_cover(path, stamp)
     except OSError:
-        return None
-    stamp = (info.st_mtime, info.st_size)
-    cached = _cover_cache.get(str(path))
-    if cached and cached[0] == stamp:
-        return cached[1]
-    value = None
-    if check_cover(path)["ok"]:
-        value = "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-    if len(_cover_cache) > 500:
-        _cover_cache.clear()
-    _cover_cache[str(path)] = (stamp, value)
-    return value
+        pass
+    return None, None
+
+
+def cover_data_url(root: Path) -> str | None:
+    """The cover as a data URL when it is valid for the shelf."""
+    return _display_cover(root)[1]

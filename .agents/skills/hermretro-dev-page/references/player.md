@@ -31,7 +31,7 @@ when the agent is ready to present the game after making it, never for the whole
   `chromatic_present_game` (`result.ok` and `result.studio.gameId`) opens or fronts
   `host.openWorkspace('hermretro.emulator.<game id>', {dock: {pane: 'workspace', pos: 'right'},
   minWidth: '22rem', title: 'Emulator · <studio.title>'})`. `chromatic_rom_build` / `chromatic_web_preview`
-  completions only bump a counter so open players re-read `games` at once.
+  completions bump a counter so open beside-chat tabs check their game at once.
 - **Fallback.** The gateway sends `tool.complete` only while the chat's tool progress is not `off`, so every
   `message.complete` (600 ms later) calls RPC `presentations` with `since` = the backend's `now` from the
   previous answer minus 1 s (first call: plugin start minus 5 s) and presents the newest one per game.
@@ -52,8 +52,14 @@ when the agent is ready to present the game after making it, never for the whole
 - **Tab content.** Same `EmulatorBar`, `PlayerNotice`, `PlayerStage` and annotate / Ask Hermes code as
   the page, in `.cs-page.cs-side` (stage fills the tab; the player inside scales by height and width).
   Page keys reach the game only after the user last clicked inside the tab, so the chat keeps its keys.
-- **Rebuilt check.** Both surfaces compare the player's `romSha256` with `game.web.sha256` (the web
-  export's own ROM; the native build's bytes differ), falling back to `rom.sha256` on older backends.
+- **Rebuilt check.** Both emulators poll `game_build_status` every 5 s while visible and holding playback.
+  The beside-chat tab also checks on taking playback, showing the live tab again, and a build or turn ending
+  while it is active. When the RPC returns method not found (`-32601`), the check uses a successful
+  shelf response from the same profile. The Studio uses its existing 30 s shelf refresh, and the tab
+  reads the shelf on its next check. Other failures keep the last successful game data and hide the rebuild
+  action until a check succeeds. An explicit `web: null` leaves the build comparison unavailable.
+  The Studio still looks up a remembered pick without playback and clears it only when the per-game check
+  confirms it is gone.
 - **Agent side.** `rom_build` / `web_preview` results no longer carry any Studio address
   (`studio`/`studioPlayerUrl`/`studioGameId` are gone) and the engine's own preview address is not offered
   after a build. Their `nextStep`, the system prompt section and the skills say: when the game is ready for
@@ -85,6 +91,7 @@ Params: none. Result:
     "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,
     "error": "<last build error, ≤240 chars>" | null
   } ],
+  "unavailable": [ "<unreadable registered game id>", … ],
   "pending": [ … ],
   "gamesDir": "/abs/…/games",
   "demo": { "id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example" },
@@ -92,7 +99,18 @@ Params: none. Result:
 }
 ```
 `demo` is the built-in demo cartridge. It is never part of `games[]`, so the Games shelf stays the user's library.
-The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM inside that export (named by its `gbstudio.json`): the player loads that file, which is its own compilation and not byte-identical to `rom`, so the rebuilt banner compares against `web.sha256`.
+The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`.
+
+On `ok: false` the page shows the read error and retains any cached result. A nonempty `unavailable` list
+shows the shelf's read notice alongside the cards that loaded. An empty library requires a successful
+answer with no unreadable games.
+The Build page keeps the selected ID if it appears in `unavailable`. With an older shelf that omits the field,
+Build asks `game_build_status` before clearing a missing selection.
+
+### `game_build_status` → check one game's build
+Params `{ "id": "…" }`. Result `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session },
+device: { hardwareEnabled } }`. The result omits shelf images, card data and source state. Errors include
+`NO_GAME` for confirmed removal and `UNAVAILABLE` when the library, project, or an existing export's ROM cannot be read.
 
 ### `game_thumb` → store a title screen
 Params `{ "id": "…", "png": "data:image/png;base64,…" }` (≤ 64 KB). Saves `state_dir/thumbs/<id>.png`; `games` returns it from then on. Result `{ "ok": true }`.

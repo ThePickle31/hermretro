@@ -2,7 +2,7 @@
 import { host, useQuery, useValue } from '#sdk'
 import { ID, STUDIO_PROFILE } from './ids.js'
 import { adoptStudioRoute, findRoute, ROUTE_SCAN_EVERY_MS, routeProfile, routing, StudioProfileMissing, studioTarget } from './routing.js'
-import { RPC_DOCTOR, RPC_STATUS } from './rpc.js'
+import { RPC_DOCTOR, RPC_GAMES, RPC_STATUS } from './rpc.js'
 
 /** A rejected `host.request` (backend not loaded, unknown method, gateway down). */
 export function describeRequestError(error) {
@@ -161,6 +161,16 @@ export function nodeState(node) {
  *  Resolves to the RPC's answer itself (`await callStudio(RPC_GAMES)` is the games list), not `{ data }`. */
 export async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs)
+}
+
+export async function readGamesShelf() {
+  const data = await callStudio(RPC_GAMES)
+
+  if (data?.ok !== true || !Array.isArray(data.games)) {
+    throw new Error(data?.error || 'The games list could not be read.')
+  }
+
+  return data
 }
 
 /** RPCs that read or bind a profile's conversations (build, builds, build_restore, asset*), or read its plugin
