@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 0b29b08ef2cdec2a85ad876341d09abd4ba1e851e9bb7f4c96e0d159074f26e9
- * body: sha256 5ecd2b03a42747f6dee98db1470cc5af8c26f56416a26cab67268d678dcd57ba
+ * sources: sha256 17ea0616d539d8a5217c08049ec0f593257fd58932d59eb0c12afe6dfca8a463
+ * body: sha256 b2944554d14ace6109a30eea947234398ba170ac142caa3325177362d3bfb6ff
  */
 // page/sdk.js
 import {
@@ -5201,29 +5201,48 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
-function selectionState() {
-  const since = atom(null);
+function selectionState(startedChat = null, createdAt = void 0) {
+  const since = atom(Number.isFinite(createdAt) ? createdAt : void 0);
   let pending = null;
   const capture = () => {
-    if (since.get() === null && !pending) {
+    if (since.get() == null && !pending) {
       pending = callStudioOnly(RPC_PRESENTATIONS, { cursorOnly: true }, 3e3).then((answer) => {
-        if (answer?.ok && Number.isFinite(answer.now)) since.set(answer.now);
-      }).catch(() => {
-      }).finally(() => {
+        since.set(answer?.ok && Number.isFinite(answer.now) ? answer.now : null);
+      }).catch((error) => since.set(describeRequestError(error).notLoaded ? -Infinity : null)).finally(() => {
         pending = null;
       });
     }
     return pending;
   };
-  return { openFor: null, seen: BUILD_PRESENTED.get(), since, capture };
+  return { openFor: null, seen: BUILD_PRESENTED.get(), since, capture, startedChat };
 }
-function playerSelection() {
-  const selection = selectionState();
-  void selection.capture();
+async function playerSelection(startedChat, createdAt) {
+  const selection = selectionState(startedChat, createdAt);
+  await selection.capture();
   return selection;
 }
 function createBuildPlayerVisit() {
-  return atom(selectionState());
+  const state = atom(selectionState());
+  let pending = null;
+  const accept = (selection) => {
+    pending = null;
+    state.set(selection);
+  };
+  return {
+    state,
+    accept,
+    async choose(onSelect) {
+      const request = onSelect ? playerSelection() : null;
+      pending = request;
+      if (request) {
+        const selection = await request;
+        if (pending === request) {
+          accept(selection);
+          onSelect();
+        }
+      }
+    }
+  };
 }
 function useInlinePlayer(visit, gameId, chat) {
   const { openFor, since, capture } = useValue(visit);
@@ -5240,12 +5259,14 @@ function useInlinePlayer(visit, gameId, chat) {
     }
     const current = visit.get();
     const unseen = event && event.seq > (current.seen[gameId]?.seq ?? 0);
-    const afterSelection = !fromHistory || selectedAt !== null && fromHistory.t > selectedAt;
-    if (current.since === since && unseen && afterSelection) {
+    const newConversation = current.startedChat && [event?.sessionId, event?.conversationId].some((id) => id === current.startedChat || buildRuntime.get(id) === current.startedChat);
+    const afterSelection = Number.isFinite(event?.t) ? typeof selectedAt === "number" && event.t > selectedAt : !fromHistory && selectedAt !== void 0;
+    if (current.since === since && unseen && (newConversation || afterSelection)) {
       visit.set({ ...current, openFor: gameId, seen: presentations });
     }
   }, [visit, gameId, presentations, event, fromHistory, since, selectedAt, chat?.busy, chat?.opening]);
   return {
+    playerReady: selectedAt !== void 0,
     playerOpen: Boolean(gameId && openFor === gameId),
     onPlay: () => gameId && visit.set({ ...visit.get(), openFor: gameId }),
     onClosePlayer: () => visit.set({ ...visit.get(), openFor: null, seen: BUILD_PRESENTED.get() })
@@ -9562,12 +9583,9 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat);
+  const { onClosePlayer, onPlay, playerOpen, playerReady } = useInlinePlayer(playerVisit.state, game?.id, chat);
   const select = (key) => {
-    if (key !== selected) {
-      playerVisit.set(playerSelection());
-      onSelect(key);
-    }
+    void playerVisit.choose(key === selected ? null : () => onSelect(key));
   };
   const refuseWhileUpdating = () => {
     if (!isUpdating()) {
@@ -9580,14 +9598,11 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     if (refuseWhileUpdating()) {
       return false;
     }
-    const firstTurn = playerSelection();
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
-      const [recorded] = await Promise.all([
-        buildRpc({ action: "start", stored: id, name: name.trim() || null, plan }),
-        firstTurn.capture()
-      ]);
+      const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
+      const firstTurn = await playerSelection(id, recorded?.pending?.createdAt);
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan });
       if (!await sendBuildChat(id, first, idea.trim(), [], { mustLand: true })) {
         void buildRpc({ action: "cancel", stored: id }).catch(() => {
@@ -9599,7 +9614,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
       changePending((current) => [...current, created]);
-      playerVisit.set(firstTurn);
+      playerVisit.accept(firstTurn);
       onSelect(`pending:${id}`);
       onLibraryChanged();
       return true;
@@ -9639,7 +9654,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     if (refuseWhileUpdating()) {
       return false;
     }
-    const cursor = playerVisit.get().capture();
+    const cursor = playerVisit.state.get().capture();
     if (!fresh) {
       if (cursor) await cursor;
       return stored ? sendBuildChat(stored, text2, shown, attachments, options) : false;
@@ -9875,6 +9890,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       }, `composer:${composerKey}`)
     ]
   });
+  if (!playerReady) return jsx(Working, { quiet: true });
   return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx("div", { className: "cs-b", children: main }) });
 }
 
@@ -15993,20 +16009,20 @@ function presentedGame(payload) {
   }
   return studio;
 }
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false, sessionId, conversationId } = {}) {
   const mark = `${gameId}:${presentedAt ?? ""}`;
   if (presentedAt != null && presentationsSeen.has(mark)) {
     return false;
   }
   presentationsSeen.add(mark);
   const shown = PRESENTED.get();
-  if (fromHistory && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+  if (Number.isFinite(presentedAt) && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
     return false;
   }
   const seq = (shown[gameId]?.seq ?? 0) + 1;
   const presentation = { seq, note: typeof note === "string" && note.trim() ? note.trim() : null, t: presentedAt ?? null };
   PRESENTED.set({ ...shown, [gameId]: presentation });
-  emit("emulator.presented", { gameId, ...presentation, fromHistory });
+  emit("emulator.presented", { gameId, ...presentation, fromHistory, sessionId, conversationId });
   BUILD_TICK.set(BUILD_TICK.get() + 1);
   if (fromBuild || buildShowing() === gameId) {
     return false;
@@ -16033,7 +16049,7 @@ function watchBuilds(ctx) {
     } else if (name === PRESENT_TOOL) {
       const studio = presentedGame(payload);
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id) });
+        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id), sessionId: event.session_id });
       }
     }
   });
@@ -16067,7 +16083,11 @@ function watchBuilds(ctx) {
       }
       for (const item of newest.values()) {
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId);
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, fromHistory: true });
+        presentGame(
+          ctx,
+          { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t },
+          { fromBuild, fromHistory: true, sessionId: item.sessionId, conversationId: item.conversationId }
+        );
       }
     };
     const cancel = ctx.setTimeout?.(() => void run(), 600);
@@ -16172,7 +16192,7 @@ var EMULATOR_PAGE = {
     "setup.demoRequested": (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
   },
   events: {
-    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory }. Build compares recovered records against its selection time on the backend."
+    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory, sessionId?, conversationId? }. Build uses the recorded time and the presenting conversation to decide when to play."
   },
   slots: {
     "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."

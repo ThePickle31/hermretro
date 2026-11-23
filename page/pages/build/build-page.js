@@ -140,12 +140,9 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat)
+  const { onClosePlayer, onPlay, playerOpen, playerReady } = useInlinePlayer(playerVisit.state, game?.id, chat)
   const select = key => {
-    if (key !== selected) {
-      playerVisit.set(playerSelection())
-      onSelect(key)
-    }
+    void playerVisit.choose(key === selected ? null : () => onSelect(key))
   }
 
   // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
@@ -165,17 +162,14 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       return false
     }
 
-    const firstTurn = playerSelection()
     let id = null
 
     try {
       id = await createBuildChat(name.trim() || 'New game', draftPick)
       // The backend tells the agent each turn that this is a New Game conversation (and how to start), so
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
-      const [recorded] = await Promise.all([
-        buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan }),
-        firstTurn.capture()
-      ])
+      const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
+      const firstTurn = await playerSelection(id, recorded?.pending?.createdAt)
 
       // Only a first message Hermes accepted starts the game: otherwise New Game keeps the idea to send again.
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan })
@@ -193,7 +187,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }
 
       changePending(current => [...current, created])
-      playerVisit.set(firstTurn)
+      playerVisit.accept(firstTurn)
       onSelect(`pending:${id}`)
       onLibraryChanged()
 
@@ -252,7 +246,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       return false
     }
 
-    const cursor = playerVisit.get().capture()
+    const cursor = playerVisit.state.get().capture()
     if (!fresh) {
       if (cursor) await cursor
       return stored ? sendBuildChat(stored, text, shown, attachments, options) : false
@@ -550,6 +544,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
           ]
         })
 
+  if (!playerReady) return jsx(Working, { quiet: true })
   // The game whose images this page shows (the backend answers no other game's).
   return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx('div', { className: 'cs-b', children: main }) })
 }

@@ -29,7 +29,7 @@ function presentedGame(payload) {
 /** The agent presented a game: note it for the tab (which then loads the newest build) and open or
  *  front the tab beside the chat. Each presentation is acted on once. A game's Build conversation
  *  (or the game the Build page is showing) plays in the Build page's own pane instead. */
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false, sessionId, conversationId } = {}) {
   const mark = `${gameId}:${presentedAt ?? ''}`
 
   if (presentedAt != null && presentationsSeen.has(mark)) {
@@ -39,7 +39,7 @@ function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = fa
   presentationsSeen.add(mark)
 
   const shown = PRESENTED.get()
-  if (fromHistory && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+  if (Number.isFinite(presentedAt) && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
     return false
   }
   const seq = (shown[gameId]?.seq ?? 0) + 1
@@ -47,7 +47,7 @@ function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = fa
   const presentation = { seq, note: typeof note === 'string' && note.trim() ? note.trim() : null, t: presentedAt ?? null }
 
   PRESENTED.set({ ...shown, [gameId]: presentation })
-  emit('emulator.presented', { gameId, ...presentation, fromHistory })
+  emit('emulator.presented', { gameId, ...presentation, fromHistory, sessionId, conversationId })
   BUILD_TICK.set(BUILD_TICK.get() + 1)
 
   if (fromBuild || buildShowing() === gameId) {
@@ -89,7 +89,7 @@ export function watchBuilds(ctx) {
       const studio = presentedGame(payload)
 
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id) })
+        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id), sessionId: event.session_id })
       }
     }
   })
@@ -137,7 +137,8 @@ export function watchBuilds(ctx) {
         // Whether the chat that presented it is the game's Build conversation: that presentation's own chat (as the
         // backend records it, which outlasts a restart), not the chat whose turn just ended.
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId)
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, fromHistory: true })
+        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t },
+          { fromBuild, fromHistory: true, sessionId: item.sessionId, conversationId: item.conversationId })
       }
     }
 

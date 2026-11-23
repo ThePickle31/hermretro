@@ -33,7 +33,7 @@ export const EMULATOR_PAGE = {
   },
   events: {
     'emulator.presented':
-      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory }. Build compares recovered records against its selection time on the backend.'
+      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory, sessionId?, conversationId? }. Build uses the recorded time and the presenting conversation to decide when to play.'
   },
   slots: {
     'emulator.barActions':

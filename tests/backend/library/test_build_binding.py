@@ -413,7 +413,8 @@ class RpcAndContext(unittest.TestCase):
         self.game = games.game_id(self.frog)
 
     def test_start_bind_and_the_games_list(self):
-        self.assertTrue(self.rpc({"action": "start", "stored": "st-new", "name": "Lamplight"})["ok"])
+        started = self.rpc({"action": "start", "stored": "st-new", "name": "Lamplight"})
+        self.assertTrue(started["ok"])
         answer = self.rpc({"action": "bind", "game": self.game, "stored": "st-frog"})
         self.assertEqual((answer["ok"], answer["session"]["storedId"]), (True, "st-frog"))
         again = self.rpc({"action": "bind", "game": self.game, "stored": "st-other"})
@@ -434,6 +435,7 @@ class RpcAndContext(unittest.TestCase):
         self.assertNotIn("profile", listed["games"][0]["session"])
         self.assertIsNone(listed["games"][0]["session"]["exists"])  # no session database in this test
         self.assertEqual([item["storedId"] for item in listed["pending"]], ["st-new"])
+        self.assertEqual(started["pending"]["createdAt"], listed["pending"][0]["createdAt"])
         self.assertTrue(self.rpc({"action": "cancel", "stored": "st-new"})["cancelled"])
         self.assertTrue(self.rpc({"action": "unbind", "game": self.game, "stored": "st-frog"})["unbound"])
         self.assertIsNone(library_hooks.build_context(session_id="st-frog"))

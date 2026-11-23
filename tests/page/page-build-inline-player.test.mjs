@@ -8,6 +8,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   const clock = holdTimers()
   const frog = frogPost({ web: { sha256: 'w1', builtAt: 2100 } })
   buildScenario({ selected: frog.id })
+  scenario.byMethod['plugin.hermretro.presentations'] = { ok: true, now: 98, presentations: [] }
   const showConversation = storedId => {
     scenario.games = answered({ games: [{ ...frog, session: { storedId } }], device: { hardwareEnabled: false, skipped: true } })
   }

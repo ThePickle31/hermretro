@@ -251,6 +251,7 @@ instead of throwing.
 `unavailable` lists the registered game IDs the shelf could not read.
 Each public pending record has `storedId`, `name` (up to 120 characters or null), `createdAt`
 (finite seconds or null), and `exists`.
+The `build` start reply includes `pending.storedId`, `pending.name`, and the registry's `pending.createdAt` before Desktop sends the first message.
 `game_build_status` also returns `UNAVAILABLE` if an existing web export's ROM cannot be read.
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").

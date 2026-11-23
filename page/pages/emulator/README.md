@@ -12,9 +12,9 @@ Padding `flush`, no footer.
 
 **Tabs:** none.
 
-**Events:** emits `emulator.presented` `{ gameId, seq, note, t, fromHistory }` each time the agent presents a game
-(`beside-chat/present.js`). A lookup sets `fromHistory` so Build can compare the record's backend timestamp
-with the time of the selection. Listens to `setup.demoRequested`
+**Events:** emits `emulator.presented` `{ gameId, seq, note, t, fromHistory, sessionId?, conversationId? }` each time
+the agent presents a game (`beside-chat/present.js`). The timestamp uses the registry clock. Session IDs let Build
+recognize presentations from the conversation it just created. Listens to `setup.demoRequested`
 (opens the bundled demo in the tab beside the chat).
 
 **Slots:** declares `emulator.barActions`: buttons in the bar after the keyboard light, for the user's own game

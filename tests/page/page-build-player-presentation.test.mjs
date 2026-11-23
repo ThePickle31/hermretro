@@ -1,225 +1,39 @@
 // A presentation belongs to its game, including when a running New Game first gets a library entry.
 import assert from 'node:assert/strict'
 
+import { buildView, playable, playerUrl, presentation } from './build-player-fixture.mjs'
 import { frogPost, lamplight, resumeConversation } from './frog-post-fixture.mjs'
 import { runScenario } from './harness.mjs'
 
-const playerUrl = gameId => `http://127.0.0.1:4567/tok/${gameId}/index.html`
-const playable = game => ({ ...game, state: 'ready', webExport: true, web: { sha256: `web-${game.id}`, builtAt: Date.now() / 1000 } })
-
-function presentation(game, runtime, presentedAt) {
-  return {
-    type: 'tool.complete',
-    session_id: runtime,
-    payload: {
-      tool_id: `present-${game.id}`,
-      name: 'chromatic_present_game',
-      args: {},
-      result: { ok: true, studio: { gameId: game.id, title: game.title, note: `Try ${game.title}.`, presentedAt, buildConversation: true } }
-    }
-  }
-}
-
-function buildView(node, act, scenario) {
-  const frame = () => node.querySelector('.cs-ip iframe')
-  const frameUrl = () => frame()?.getAttribute('src')?.split('?')[0] ?? null
-  const assertClosed = () => {
-    assert.equal(frameUrl(), null, 'no game frame should be open')
-    assert.equal(Boolean(node.querySelector('.cs-ip')), false, 'the inline player should be closed')
-  }
-  return {
-    assertSelected: (id, title) => {
-      assert.equal(scenario.storage.buildSelected, id)
-      assert.equal(node.querySelector('.cs-b-sw h2')?.textContent, title)
-    },
-    assertBusy: expected => assert.equal(Boolean(node.querySelector('button[aria-label="Stop"]')), expected),
-    assertClosed,
-    assertPlaying: game => {
-      assert.equal(frameUrl(), playerUrl(game.id))
-      assert.equal(frame().getAttribute('title'), `${game.title} in ModRetro's Chromatic player`)
-      assert.equal(node.querySelectorAll('.cs-ip iframe').length, 1)
-    },
-    play: () => act(async () => { node.querySelector('.cs-b-pc-go').click() }),
-    closePlayer: () => act(async () => { node.querySelector('button[aria-label="Close the game"]').click() }),
-    selectGame: async game => {
-      await act(async () => { node.querySelector('.cs-b-sw').click() })
-      const item = [...node.querySelectorAll('.cs-b-sw-list button')].find(button => button.querySelector('b')?.textContent === game.title)
-      assert.ok(item, `the switcher lists ${game.title}`)
-      await act(async () => { item.click() })
-    }
-  }
-}
-
-async function switchAfterPresentation({ act, answered, buildScenario, check, click, emit, mount, page, scenario, settle, typeInto }) {
-  const frog = playable(frogPost({ session: { storedId: 'st-frog' } }))
-  const comet = playable({
-    id: 'abc123abc123', title: 'Comet Drift', kind: 'gbstudio', projectRoot: '/home/u/games/CometDrift', session: { storedId: 'st-comet' }
-  })
-  const runtime = 'rt-of-st-frog'
-  const shown = presentation(frog, runtime, 100)
-  buildScenario({ selected: comet.id })
-  scenario.games = answered({ games: [frog, comet], device: { hardwareEnabled: false, skipped: true } })
-  const view = await mount(page)
-  const build = buildView(view.node, act, scenario)
-  await settle()
-  check('Comet Drift starts as an idle conversation with its player closed', () => {
-    build.assertSelected(comet.id, comet.title)
-    build.assertBusy(false)
-    build.assertClosed()
-    assert.ok(view.node.querySelector('.cs-b-pc-go'))
-  })
-
-  await build.selectGame(frog)
-  await settle()
-  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'show me the game')
-  await click('Send', view.node.querySelector('.cs-b-comp'))
-  await act(async () => { emit(shown) })
-  check('Frog Post receives a presentation while its turn is busy', () => {
-    build.assertSelected(frog.id, frog.title)
-    build.assertBusy(true)
-    build.assertClosed()
-    assert.equal(scenario.paramsByMethod['prompt.submit'].session_id, runtime)
-  })
-  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Here it is.' } }) })
-  await settle()
-  check('Frog Post opens when its turn ends', () => build.assertPlaying(frog))
-
-  await build.selectGame(comet)
-  await settle()
-  check('switching from presented Frog Post to idle Comet Drift leaves Comet Drift closed', () => {
-    build.assertSelected(comet.id, comet.title)
-    build.assertBusy(false)
-    build.assertClosed()
-    assert.ok(view.node.querySelector('.cs-b-pc-go'))
-  })
-  await build.selectGame(frog)
-  await settle()
-  check('returning directly to Frog Post leaves its previously open frame closed', build.assertClosed)
-  await build.selectGame(comet)
-  await settle()
-  await build.play()
-  check('Play still opens Comet Drift by request', () => build.assertPlaying(comet))
-  await build.closePlayer()
-  check('Close returns Comet Drift to its Play card', () => {
-    build.assertClosed()
-    assert.ok(view.node.querySelector('.cs-b-pc-go'))
-  })
-
-  await build.selectGame(frog)
-  await settle()
-  check('returning to closed Frog Post does not open its previously seen presentation', () => {
-    build.assertSelected(frog.id, frog.title)
-    build.assertClosed()
-  })
-  await act(async () => { emit({ ...shown, replayed: true }); emit(shown) })
-  check('gateway replay and duplicate delivery leave Frog Post closed', () => {
-    build.assertClosed()
-    assert.equal(scenario.workspaces.length, 0)
-  })
-
-  await build.selectGame(comet)
-  await settle()
-  const method = 'plugin.hermretro.presentations'
-  let now = 200
-  let cursor = () => ({ ok: true, now, presentations: [] })
-  let lookup
-  let reply
-  const record = { gameId: frog.id, title: frog.title, sessionId: runtime, buildConversation: true }
-  const answer = t => ({ ok: true, now, presentations: [{ ...record, t }] })
-  scenario.byMethod[method] = params => params.cursorOnly ? cursor() : lookup()
-  const holdLookup = async session => {
-    reply = null
-    lookup = () => new Promise(resolve => { reply = resolve })
-    await act(async () => { emit({ type: 'message.complete', session_id: session, payload: {} }) })
-    await settle()
-    assert.equal(typeof reply, 'function', 'the completed turn requested presentations')
-  }
-
-  await holdLookup(runtime)
-  const beforeSwitch = answer(200)
-  now = 201
-  await build.selectGame(frog)
-  await settle()
-  build.assertClosed()
-  await act(async () => { reply(beforeSwitch) })
-  check('a delayed fallback for a turn finished before the switch leaves the player closed', build.assertClosed)
-  now = 202
-  lookup = () => answer(202)
-  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: {} }) })
-  await settle()
-  check('the next presentation found by the fallback opens the selected game', () => build.assertPlaying(frog))
-
-  now = 500
-  await build.selectGame(comet)
-  await build.selectGame(frog)
-  now = 600
-  lookup = () => answer(203)
-  await act(async () => { emit({ type: 'message.complete', session_id: 'rt-elsewhere', payload: {} }) })
-  await settle()
-  check('a later lookup skips a presentation recorded before the selection', build.assertClosed)
-  await build.selectGame(comet)
-  await holdLookup('rt-elsewhere')
-  now = 601
-  await build.selectGame(frog)
-  await settle()
-  now = 602
-  await act(async () => { reply(answer(602)) })
-  check('another session’s pending lookup can deliver a fresh presentation after selection', () => build.assertPlaying(frog))
-
-  await build.selectGame(comet)
-  await holdLookup('rt-elsewhere')
-  now = 603
-  const captured = answer(603)
-  now = 604
-  await build.selectGame(frog)
-  await settle()
-  await act(async () => { reply(captured) })
-  check('another session’s reply captured before the switch cannot replay its presentation', build.assertClosed)
-
-  await build.selectGame(comet)
-  await holdLookup(runtime)
-  now = 605
-  let confirmSelection
-  cursor = () => new Promise(resolve => { confirmSelection = resolve })
-  await build.selectGame(frog)
-  await settle()
-  const submissions = () => scenario.calls.filter(([, method]) => method === 'prompt.submit').length
-  const beforeSend = submissions()
-  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'show the new build')
-  await click('Send', view.node.querySelector('.cs-b-comp'))
-  check('the first Send on a selection lets the backend establish its cutoff before submitting', () => {
-    assert.equal(typeof confirmSelection, 'function')
-    assert.equal(submissions(), beforeSend)
-  })
-  await act(async () => { confirmSelection({ ok: true, now, presentations: [] }) })
-  build.assertBusy(true)
-  now = 606
-  await act(async () => { reply(answer(606)) })
-  build.assertClosed()
-  lookup = () => answer(606)
-  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Done.' } }) })
-  await settle()
-  check('a previous turn’s query can discover the next turn’s presentation and play it once idle', () => build.assertPlaying(frog))
-  scenario.byMethod[method] = { ok: true, presentations: [] }
-  await view.close()
-}
-
-async function presentPendingGame({ act, answered, buildScenario, check, emit, mount, page, scenario, settle, typeInto }) {
+async function presentPendingGame({ act, answered, buildScenario, check, emit, mount, page, scenario, settle, typeInto }, historyOnly = false) {
   const otherGame = playable(frogPost({ session: { storedId: 'st-frog' } }))
   const newGame = playable(lamplight())
+  if (historyOnly) {
+    newGame.id = 'ccc333ccc333'
+    newGame.session = { storedId: 'st-history-first' }
+  }
   const stored = newGame.session.storedId
-  const runtime = 'rt-new-1'
+  const runtime = historyOnly ? 'rt-history-first' : 'rt-new-1'
   const device = { hardwareEnabled: false, skipped: true }
   const idea = 'a lighthouse keeper in a storm'
   buildScenario()
   scenario.games = answered({ games: [otherGame], pending: [], device })
   scenario.byMethod['session.create'] = { session_id: runtime, stored_session_id: stored, messages: [] }
-  scenario.byMethod['plugin.hermretro.build'] = { ok: true }
+  scenario.byMethod['plugin.hermretro.build'] = historyOnly ? { ok: true } : { ok: true, pending: { storedId: stored, name: null, createdAt: 100 } }
+  let cursorAvailable = false
+  if (historyOnly) {
+    scenario.byMethod['plugin.hermretro.presentations'] = params => {
+      if (params.cursorOnly && !cursorAvailable) throw new Error('Studio temporarily offline')
+      return { ok: true, now: 900, presentations: params.cursorOnly ? [] : [{
+        gameId: newGame.id, t: 899, sessionId: runtime, conversationId: stored, buildConversation: true
+      }] }
+    }
+  }
   let acknowledge
   scenario.byMethod['prompt.submit'] = () => {
     emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'first-turn' } })
     emit({ type: 'tool.complete', session_id: runtime, payload: { tool_id: 'first-build', name: 'chromatic_rom_build', args: {}, result: { result: 'Completed.' } } })
-    emit(presentation(newGame, runtime, 101))
+    if (!historyOnly) emit(presentation(newGame, runtime, 101))
     return new Promise(resolve => { acknowledge = resolve })
   }
   const view = await mount(page)
@@ -249,7 +63,7 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
     build.assertClosed()
   })
 
-  check('a presentation delivered before the first Send acknowledgement waits while Lamplight is pending', () => {
+  if (!historyOnly) check('a presentation delivered before the first Send acknowledgement waits while Lamplight is pending', () => {
     build.assertSelected(`pending:${stored}`, 'New game')
     build.assertBusy(true)
     build.assertClosed()
@@ -267,13 +81,14 @@ async function presentPendingGame({ act, answered, buildScenario, check, emit, m
     build.assertClosed()
   })
 
+  cursorAvailable = true
   await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { turn_id: 'first-turn', text: 'Lamplight is ready.' } }) })
   await settle()
-  check('the pending presentation opens exactly Lamplight once its turn completes', () => {
+  check(historyOnly ? 'New Game recovers its own first presentation after the cursor fails' : 'the pending presentation opens exactly Lamplight once its turn completes', () => {
     build.assertSelected(newGame.id, newGame.title)
     build.assertBusy(false)
     build.assertPlaying(newGame)
-    assert.match(view.node.querySelector('.cs-ip')?.textContent ?? '', /Try Lamplight\./)
+    if (!historyOnly) assert.match(view.node.querySelector('.cs-ip')?.textContent ?? '', /Try Lamplight\./)
     assert.equal(scenario.workspaces.length, 0)
   })
   await view.close()
@@ -364,11 +179,11 @@ await runScenario(async env => {
   env.scenario.byMethod['session.resume'] = resumeConversation()
   env.scenario.byMethod['prompt.submit'] = { ok: true }
   // Deliver each presentation once through tool.complete. A turn-end lookup brings nothing newer.
-  env.scenario.byMethod['plugin.hermretro.presentations'] = { ok: true, presentations: [] }
+  env.scenario.byMethod['plugin.hermretro.presentations'] = { ok: true, now: 1, presentations: [] }
   env.scenario.player = ([, , , gameId, sha]) => env.answered({ url: playerUrl(gameId), romSha256: sha })
 
-  await switchAfterPresentation(env)
   await presentPendingGame(env)
   await presentOnFirstEdit(env)
   await reconnectBeforeBinding(env)
+  await presentPendingGame(env, true)
 })
