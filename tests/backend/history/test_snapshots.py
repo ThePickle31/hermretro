@@ -3,9 +3,11 @@
 
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
@@ -35,7 +37,7 @@ def success(root: Path, **extra) -> str:
 class Snapshots(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
+        self.base = Path(self.tmp.name).resolve()
         self.root = make_project(self.base)
         self.store = self.base / "snapshots"
         (self.root / "assets" / "sprites").mkdir(parents=True)
@@ -220,6 +222,7 @@ class BuildHistoryHost(unittest.TestCase):
         connect = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         connect.start()
         self.addCleanup(connect.stop)
+        self.profile = isolated.data.parents[1]
         self.store = isolated.data / "snapshots"
         self.game, self.root = make_library_game(isolated)
         self.outsider = make_project(self.base, name="Not Listed")
@@ -298,30 +301,43 @@ class BuildHistoryHost(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual((self.root / "project" / "scene.gbsres").read_text(), "{}")
 
-    def test_build_call_ids_are_only_exposed_for_the_bound_conversation(self):
+    def test_compact_results_need_exact_occurrence_evidence_in_the_bound_conversation(self):
         stored = "build-chat"
+        segment = "compressed-build-chat"
+        first_ref, other_ref = "1" * 32, "2" * 32
         hermes_host._registry().bind(self.game, stored, hermes_host._profile_identity())
-        self.hook(
-            result=json.dumps({**json.loads(success(self.root)), "buildRef": "before"}),
-            conversation_id=stored,
-            session_id="compressed-build-chat",
-            tool_call_id="call_0",
-        )
+        first = json.dumps({"buildRef": first_ref, **json.loads(success(self.root))})
+        self.hook(result=first, conversation_id=stored, session_id=segment, tool_call_id="call_0")
         (self.root / "project" / "scene.gbsres").write_text("other chat edited the game")
-        self.hook(
-            result=json.dumps({**json.loads(success(self.root)), "buildRef": "concurrent"}),
-            conversation_id="other-chat",
-            session_id="other-chat",
-            tool_call_id="call_0",
-        )
+        other = json.dumps({"buildRef": other_ref, **json.loads(success(self.root))})
+        self.hook(result=other, conversation_id="other-chat", session_id="other-chat", tool_call_id="call_0")
         list_builds = history_rpcs.rpc_builds(None)
-        for selection in ({}, {"stored": "other-chat"}):
+        for selection in ({}, {"stored": "other-chat"}, {"stored": stored}):
             self.assertTrue(
                 all("buildCalls" not in item for item in list_builds({"game": self.game, **selection})["builds"])
             )
-        newest, oldest = list_builds({"game": self.game, "stored": stored})["builds"]
-        self.assertNotIn("buildCalls", newest)
-        self.assertEqual(oldest["buildCalls"], [{"id": "call_0", "ref": "before"}])
+        preview = first[:70]
+        spilled = f"<persisted-output>\nPreview (first {len(preview)} chars):\n{preview}\n...\n</persisted-output>"
+        args = {"game": self.game, "stored": stored}
+        with closing(sqlite3.connect(self.profile / "state.db")) as db:
+            db.executescript("""
+                CREATE TABLE sessions (id TEXT PRIMARY KEY, parent_session_id TEXT);
+                CREATE TABLE messages (
+                    session_id TEXT, role TEXT, tool_name TEXT, tool_call_id TEXT, timestamp REAL, content TEXT
+                );
+            """)
+            db.execute("INSERT INTO sessions VALUES (?, ?)", (segment, stored))
+            db.executemany(
+                "INSERT INTO messages VALUES (?, 'tool', 'tool_call', 'call_0', ?, ?)",
+                [(segment, 1.25, spilled), (segment, 2.5, "{}"), ("other-chat", 1.25, other)],
+            )
+            db.commit()
+            newest, oldest = list_builds(args)["builds"]
+            self.assertNotIn("buildCalls", newest)
+            self.assertEqual(oldest["buildCalls"], [{"id": "call_0", "ref": first_ref, "timestamp": 1.25}])
+            db.execute("INSERT INTO messages VALUES (?, 'tool', 'tool_call', 'call_0', 1.25, '{}')", (segment,))
+            db.commit()
+            self.assertNotIn("buildCalls", list_builds(args)["builds"][-1])
 
     def test_the_hook_never_raises(self):
         with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")) as take:

@@ -59,7 +59,7 @@ def snapshot_after_build(
         build_call = None
         if build_ref and isinstance(tool_call_id, str) and tool_call_id and not host._is_child(session_id):
             # Hermes gives a single deferred local tool its outer call ID. Its resume projection
-            # retains that ID and the arguments even when it drops the entire result body.
+            # retains that ID and the timestamp, which the builds RPC confirms against the stored result.
             bound = host._bound_game(conversation_id, session_id)
             if bound and bound["id"] == game and (stored := bound["session"].get("storedId")):
                 build_call = (stored, tool_call_id)

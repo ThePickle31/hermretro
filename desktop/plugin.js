@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 7224cf3505f776a91d54bdf389f5115dbb13bc8778a9bf3930b4914a2ecbb4e0
- * body: sha256 6b41bbcef11a217f867c7c93bf12df7292fccc34be237b3e7acfd47b7f2cf86e
+ * sources: sha256 ebd5c7445624f5e67bed752544e372f46d18ffa227dea220b4d6ff8046bc7d9c
+ * body: sha256 7dbbc806ff0c21a3ca53319870ee1f4ae0462336097295dcf31917b87a3f270b
  */
 // page/sdk.js
 import {
@@ -495,6 +495,14 @@ function toolResultObject(value) {
   }
   return null;
 }
+function toolBuildRef(value, parsed) {
+  if (typeof parsed?.buildRef === "string" && parsed.buildRef) {
+    return parsed.buildRef;
+  }
+  const output = parsed?.truncated === true ? parsed.output : value;
+  const body2 = typeof output === "string" && output.startsWith("<persisted-output>\n") ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1] : parsed?.truncated === true ? output : null;
+  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body2 ?? "")?.[1] ?? null;
+}
 function jsonValue(value) {
   if (typeof value === "string") {
     try {
@@ -529,7 +537,7 @@ function unwrapCalls(id, name, args) {
 function toolFailed(payload) {
   const result = toolResultObject(payload?.result);
   return Boolean(
-    payload?.error || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
+    payload?.error || payload?.is_error === true || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
   );
 }
 function engineError(parsed, content) {
@@ -556,20 +564,22 @@ function stepArgs(args) {
   }
   return Object.keys(kept).length ? kept : null;
 }
-function stepInfo(name, result) {
-  const parsed = toolResultObject(result);
-  if (!parsed || typeof parsed !== "object") {
+function stepInfo(name, result, exactCall = true) {
+  const value = toolResultObject(result);
+  const buildRef = exactCall && name === "chromatic_rom_build" ? toolBuildRef(result, value) : null;
+  if (!value && !buildRef) {
     return null;
   }
+  const parsed = value ?? {};
   const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
-  const text2 = (value) => typeof value === "string" && value ? value : null;
+  const text2 = (value2) => typeof value2 === "string" && value2 ? value2 : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean).slice(0, 8);
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text2(content.projectRoot),
     assetPath: text2(content.assetPath),
     outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
-    buildRef: String(name ?? "") === "chromatic_rom_build" ? text2(parsed.buildRef) : null,
+    buildRef,
     images,
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
     report: String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
@@ -771,14 +781,8 @@ function historyItems(messages, running = false) {
     tools.clear();
   };
   const addTool = (call, at) => {
-    if (call.id && tools.has(call.id)) {
-      return tools.get(call.id);
-    }
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: "done", startedAt: at };
     const last = items[items.length - 1];
-    if (call.id) {
-      tools.set(call.id, tool);
-    }
     if (last?.kind === "tools") {
       last.tools.push(tool);
     } else {
@@ -791,7 +795,8 @@ function historyItems(messages, running = false) {
       continue;
     }
     const text2 = messageText(message);
-    const at = typeof message.timestamp === "number" && message.timestamp > 0 ? message.timestamp * 1e3 : null;
+    const timestamp = Number.isFinite(message.timestamp) && message.timestamp > 0 ? message.timestamp : null;
+    const at = timestamp === null ? null : timestamp * 1e3;
     if (message.role === "user") {
       if (!text2.trim()) {
         continue;
@@ -805,21 +810,30 @@ function historyItems(messages, running = false) {
       }
       for (const call of Array.isArray(message.tool_calls) ? message.tool_calls : []) {
         for (const inner of unwrapCalls(call?.id ?? null, call?.function?.name ?? call?.name, call?.function?.arguments ?? call?.args)) {
-          addTool(inner, at);
+          const step = addTool(inner, at);
+          if (inner.id) {
+            tools.set(inner.id, step);
+          }
         }
       }
     } else if (message.role === "tool") {
       agentSinceUser = true;
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name ?? message.tool_name, message.args)) {
-        const first = inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null;
-        const step = first && (first.name === inner.name || inner.name === "tool") ? first : addTool(inner, at);
+        const pending = tools.get(inner.id) ?? (inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null);
+        const step = pending && (pending.name === inner.name || inner.name === "tool") ? pending : addTool(inner, at);
+        if (step === pending) {
+          tools.delete(step.id);
+        }
         if (at && step.startedAt) {
           step.duration = Math.max(0, (at - step.startedAt) / 1e3);
         }
         step.args = step.args ?? stepArgs(inner.args);
-        step.resultSeen = typeof message.tool_call_id === "string" && step.id === message.tool_call_id;
+        const exactCall = typeof message.tool_call_id === "string" && step.id === message.tool_call_id;
+        if (exactCall && timestamp !== null) {
+          step.resultCall = { id: message.tool_call_id, timestamp };
+        }
         if (text2) {
-          step.info = stepInfo(step.name, text2);
+          step.info = stepInfo(step.name, text2, exactCall || !message.tool_call_id);
           if (toolFailed({ result: text2 })) {
             step.state = "failed";
           }
@@ -850,19 +864,22 @@ function appendText(chat, text2) {
   return { ...chat, items: [...chat.items, { kind: "assistant", open: true, text: text2 }] };
 }
 function updateTool(chat, id, change) {
-  if (id == null) {
+  if (!id) {
     return chat;
   }
-  const key = String(id);
-  let hit = false;
-  const items = chat.items.map((item) => {
-    if (item.kind !== "tools" || !item.tools.some((tool) => tool.id === key || String(tool.id).startsWith(`${key}:`))) {
-      return item;
+  const matches = (tool) => tool.callId === id && tool.state === "running";
+  for (let index = chat.items.length - 1; index >= 0; index--) {
+    const item = chat.items[index];
+    if (item.kind === "user" || item.kind === "end") {
+      break;
     }
-    hit = true;
-    return { ...item, tools: item.tools.map((tool) => tool.id === key || String(tool.id).startsWith(`${key}:`) ? change(tool) : tool) };
-  });
-  return hit ? { ...chat, items } : chat;
+    if (item.kind === "tools" && item.tools.some(matches)) {
+      const items = [...chat.items];
+      items[index] = { ...item, tools: item.tools.map((tool) => matches(tool) ? change(tool) : tool) };
+      return { ...chat, items };
+    }
+  }
+  return chat;
 }
 function touched(chat, now = Date.now()) {
   return now - (chat.lastEventAt ?? 0) > 500 ? { ...chat, lastEventAt: now } : chat;
@@ -902,6 +919,9 @@ function reduceChat(chat, event) {
     chat = { ...chat, seq: event.seq };
   }
   const now = Date.now();
+  if (event.type?.startsWith("tool.") && payload.turn_id && chat.turn && (payload.turn_id !== chat.turn || !chat.busy && lastItem(chat)?.kind === "end")) {
+    return chat;
+  }
   switch (event.type) {
     case "message.start": {
       const [next, ...rest] = !chat.busy || lastItem(chat)?.kind === "end" ? chat.queued ?? [] : [];
@@ -956,6 +976,7 @@ function reduceChat(chat, event) {
       const sealed = sealText(chat);
       const tools = unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ""), payload.args).map((call) => ({
         id: call.id,
+        callId: payload.tool_id,
         name: call.name,
         args: stepArgs(call.args),
         report: reportOf(call.name, call.args),
@@ -972,16 +993,16 @@ function reduceChat(chat, event) {
       return touched(updateTool(chat, payload.tool_id, (tool) => ({ ...tool, progress: progress2 })), now);
     }
     case "tool.complete": {
+      const calls = unwrapCalls(payload.tool_id || `t${now}`, String(payload.name ?? ""), payload.args);
       const done = (tool) => ({
         ...tool,
         args: tool.args ?? stepArgs(payload.args),
-        report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ""), payload.args)[0]?.args),
+        report: tool.report ?? reportOf(tool.name, calls[0]?.args),
         state: toolFailed(payload) ? "failed" : "done",
-        resultSeen: typeof payload.tool_id === "string" && Boolean(payload.tool_id),
         summary: payload.summary ?? null,
         duration: typeof payload.duration_s === "number" ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1e3 : null,
         image: typeof payload.image_path === "string" ? payload.image_path : null,
-        info: stepInfo(tool.name, payload.result),
+        info: stepInfo(tool.name, payload.result, tool.id === payload.tool_id || !payload.tool_id && calls.length === 1),
         progress: null
       });
       const updated = updateTool(chat, payload.tool_id, done);
@@ -989,7 +1010,7 @@ function reduceChat(chat, event) {
         ...sealText(chat),
         items: [
           ...sealText(chat).items,
-          { kind: "tools", tools: unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ""), payload.args).map((call) => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
+          { kind: "tools", tools: calls.map((call) => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
         ]
       };
       return { ...next, activity: chat.busy ? "thinking" : chat.activity, lastEventAt: now };
@@ -5589,16 +5610,6 @@ function isGameBuild(tool) {
 }
 function buildHistory(turns) {
   const builds = [];
-  const callCounts = /* @__PURE__ */ new Map();
-  for (const turn of turns) {
-    for (const item of turn.items) {
-      for (const tool of item.kind === "tools" ? item.tools : []) {
-        if (tool.resultSeen && tool.id) {
-          callCounts.set(tool.id, (callCounts.get(tool.id) ?? 0) + 1);
-        }
-      }
-    }
-  }
   turns.forEach((turn, index) => {
     const compile = lastCompile(turn);
     const state = compileState(compile);
@@ -5637,7 +5648,7 @@ function buildHistory(turns) {
       startAt,
       endAt,
       buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
-      callId: isGameBuild(compile) && compile.resultSeen && callCounts.get(compile.id) === 1 ? compile.id : null,
+      resultCall: isGameBuild(compile) ? compile.resultCall ?? null : null,
       thumb
     });
   });
@@ -7444,7 +7455,7 @@ function snapshotFor(build, snapshots) {
   const matches = snapshots.flatMap((snap) => {
     const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : [];
     const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : [];
-    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.callId && call.id === build.callId).map((call) => call.ref);
+    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map((call) => call.ref);
     return candidates.filter((ref) => refs.includes(ref)).map((buildRef) => ({ id: String(snap.id), buildRef }));
   });
   return matches.length === 1 ? matches[0] : null;

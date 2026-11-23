@@ -23,10 +23,13 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
       args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } },
     { role: 'assistant', text: 'Done.', timestamp: 1003 },
     ...turn('missing', 2000, 'make it jump higher'),
+    { role: 'user', text: 'build again', timestamp: 2500 },
+    { role: 'tool', name: 'tool_call', tool_call_id: 'first', timestamp: 2502,
+      args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } },
     ...turn('latest', 3000, 'make it jump even higher')
   ] })
   scenario.byMethod['plugin.hermretro.builds'] = { ok: true, builds: [
-    { id: '42', at: 42, builds: [], buildRefs: ['first'], buildCalls: [{ id: 'first', ref: 'first' }], reason: 'before-restore' },
+    { id: '42', at: 42, builds: [], buildRefs: ['first'], buildCalls: [{ id: 'first', ref: 'first', timestamp: 1002 }], reason: 'before-restore' },
     { id: '43', at: 43, builds: [1_001_500, 2_001_500], reason: 'build' }
   ] }
   const asks = []
@@ -57,10 +60,11 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     await click('Restore #1', row)
     await settle(25)
   }
-  const [, missing, first] = await open()
+  const [, reused, missing, first] = await open()
   check('an exact snapshot works outside the old time window and a missing reference never falls back', () => {
     assert.equal([...first.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, false)
     assert.equal([...missing.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, true)
+    assert.equal([...reused.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, true)
   })
   await confirm(first)
   check('preflight failure reports the restore error and sends no rebuild', () => {

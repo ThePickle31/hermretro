@@ -19,6 +19,20 @@ export function toolResultObject(value) {
   return null
 }
 
+/** A ROM result starts with its unique reference, even in Hermes's bounded event or spill preview. */
+export function toolBuildRef(value, parsed) {
+  if (typeof parsed?.buildRef === 'string' && parsed.buildRef) {
+    return parsed.buildRef
+  }
+
+  const output = parsed?.truncated === true ? parsed.output : value
+  const body = typeof output === 'string' && output.startsWith('<persisted-output>\n')
+    ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1]
+    : parsed?.truncated === true ? output : null
+
+  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body ?? '')?.[1] ?? null
+}
+
 function jsonValue(value) {
   if (typeof value === 'string') {
     try {

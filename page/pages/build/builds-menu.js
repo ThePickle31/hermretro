@@ -44,7 +44,7 @@ export function BuildPill({ builds, chat, game }) {
   return jsxs('span', { className: `cs-b-pill ${tone}`, children: [tone === 'quiet' ? null : jsx('i', { className: 'cs-b-pill-dot' }), label] })
 }
 
-/** A ROM build's reference can come directly from the result or its session's persisted call ID. */
+/** A ROM build's reference can come directly from the result or its exact stored result row. */
 function snapshotFor(build, snapshots) {
   if (!Array.isArray(snapshots)) {
     return null
@@ -55,7 +55,7 @@ function snapshotFor(build, snapshots) {
     const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : []
     const candidates = build.buildRef
       ? [build.buildRef]
-      : calls.filter(call => build.callId && call.id === build.callId).map(call => call.ref)
+      : calls.filter(call => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map(call => call.ref)
 
     return candidates.filter(ref => refs.includes(ref)).map(buildRef => ({ id: String(snap.id), buildRef }))
   })

@@ -139,17 +139,6 @@ function isGameBuild(tool) {
  *  card's title (the report's, else the message that asked for it) and when it ran. */
 export function buildHistory(turns) {
   const builds = []
-  const callCounts = new Map()
-
-  for (const turn of turns) {
-    for (const item of turn.items) {
-      for (const tool of item.kind === 'tools' ? item.tools : []) {
-        if (tool.resultSeen && tool.id) {
-          callCounts.set(tool.id, (callCounts.get(tool.id) ?? 0) + 1)
-        }
-      }
-    }
-  }
 
   turns.forEach((turn, index) => {
     const compile = lastCompile(turn)
@@ -196,7 +185,7 @@ export function buildHistory(turns) {
       startAt,
       endAt,
       buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
-      callId: isGameBuild(compile) && compile.resultSeen && callCounts.get(compile.id) === 1 ? compile.id : null,
+      resultCall: isGameBuild(compile) ? compile.resultCall ?? null : null,
       thumb
     })
   })

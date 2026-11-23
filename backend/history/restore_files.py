@@ -6,7 +6,7 @@ import errno
 import hashlib
 import os
 import stat
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
@@ -14,6 +14,7 @@ from uuid import uuid4
 DirectoryId = tuple[int, int]
 FileStamp = tuple[int, int, int, int, int]
 Digest = tuple[int, str]
+PROJECT_SUFFIX = ".gbsproj"
 _CHUNK = 1024 * 1024
 
 
@@ -63,16 +64,37 @@ def file_digest(
     return size, digest.hexdigest()
 
 
+def _check_project_marker(fd: int) -> None:
+    with os.scandir(fd) as entries:
+        for entry in entries:
+            if entry.name.lower().endswith(PROJECT_SUFFIX) and (
+                entry.is_file(follow_symlinks=False) or entry.is_symlink()
+            ):
+                raise OSError("now part of another game")
+
+
 @contextmanager
 def _parent(root: Path, relative: str, live: LiveTree, *, create: bool = False):
-    """Open each ancestor by descriptor so a replaced path or symlink cannot redirect a write."""
+    """Keep each ancestor open and recheck the chain before mutating through its descriptors."""
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY
-    fd = os.open(root, flags)
-    parent = root
-    key = ""
-    try:
-        if directory_id(os.fstat(fd)) != live.directories[""]:
+    with ExitStack() as opened:
+        root_fd = os.open(root, flags)
+        opened.callback(os.close, root_fd)
+        root_id = live.directories[""]
+        if directory_id(os.fstat(root_fd)) != root_id:
             raise OSError("the project folder changed after backup")
+        ancestors = []
+
+        def check():
+            if directory_id(root.lstat()) != root_id or Path(os.path.realpath(root, strict=True)) != root:
+                raise OSError("the project folder changed after backup")
+            for parent, name, child, identity in ancestors:
+                if directory_id(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity:
+                    raise OSError("the parent folder changed after backup")
+                _check_project_marker(child)
+
+        fd = root_fd
+        key = ""
         for part in relative.split("/")[:-1]:
             key = f"{key}/{part}" if key else part
             expected = live.directories.get(key)
@@ -82,6 +104,7 @@ def _parent(root: Path, relative: str, live: LiveTree, *, create: bool = False):
             except FileNotFoundError:
                 if expected is not None or not create:
                     raise OSError("the parent folder changed after backup") from None
+                check()
                 os.mkdir(part, dir_fd=fd)
                 child = os.open(part, flags, dir_fd=fd)
                 created = True
@@ -89,10 +112,8 @@ def _parent(root: Path, relative: str, live: LiveTree, *, create: bool = False):
                 if error.errno in (errno.ELOOP, errno.ENOTDIR):
                     raise OSError("a link or file is in the way") from error
                 raise
-            os.close(fd)
-            fd = child
-            parent /= part
-            identity = directory_id(os.fstat(fd))
+            opened.callback(os.close, child)
+            identity = directory_id(os.fstat(child))
             if identity in live.excluded:
                 raise OSError("a folder is excluded from restores")
             if identity in live.other_games:
@@ -102,14 +123,9 @@ def _parent(root: Path, relative: str, live: LiveTree, *, create: bool = False):
             if expected is None and not created and identity not in live.directories.values():
                 raise OSError("a parent folder appeared after backup")
             live.directories[key] = identity
-        yield fd, parent
-    finally:
-        os.close(fd)
-
-
-def _check_parent(parent: Path, fd: int) -> None:
-    if directory_id(parent.lstat()) != directory_id(os.fstat(fd)):
-        raise OSError("the parent folder changed after backup")
+            ancestors.append((fd, part, child, identity))
+            fd = child
+        yield fd, check
 
 
 def _check_live(fd: int, name: str, backed_up: tuple[FileStamp, Digest] | None) -> None:
@@ -132,15 +148,16 @@ def _check_live(fd: int, name: str, backed_up: tuple[FileStamp, Digest] | None) 
     raise OSError("the live file changed after backup")
 
 
-def _put_file(fd, parent, name, source, expected, backed_up) -> None:
+def _put_file(fd, check, name, source, expected, backed_up) -> None:
+    check()
     partial = f".{uuid4().hex}.hr-restore"
     handle = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=fd)
     try:
         with os.fdopen(handle, "wb") as writer:
             if file_digest(source, expected[0], writer) != expected:
                 raise OSError("the saved file changed during the restore")
-        _check_parent(parent, fd)
         _check_live(fd, name, backed_up)
+        check()
         if backed_up is None:
             # Install a new file only while the name is still free, including alternate spellings.
             os.link(partial, name, src_dir_fd=fd, dst_dir_fd=fd, follow_symlinks=False)
@@ -155,11 +172,11 @@ def _remove_empty_parents(root: Path, relative: str, live: LiveTree) -> None:
     folder = relative.rpartition("/")[0]
     while folder:
         try:
-            with _parent(root, folder, live) as (fd, parent):
+            with _parent(root, folder, live) as (fd, check):
                 name = folder.rsplit("/", 1)[-1]
                 if directory_id(os.stat(name, dir_fd=fd, follow_symlinks=False)) != live.directories.get(folder):
                     return
-                _check_parent(parent, fd)
+                check()
                 os.rmdir(name, dir_fd=fd)
         except OSError:
             return
@@ -174,10 +191,10 @@ def _restore_files(
     problems = []
     for relative in sorted(live.files.keys() - wanted.keys()):
         try:
-            with _parent(root, relative, live) as (fd, parent):
+            with _parent(root, relative, live) as (fd, check):
                 name = relative.rsplit("/", 1)[-1]
-                _check_parent(parent, fd)
                 _check_live(fd, name, live.files[relative])
+                check()
                 os.unlink(name, dir_fd=fd)
                 removed += 1
         except OSError as error:
@@ -191,12 +208,12 @@ def _restore_files(
         expected = digests[relative]
         backed_up = live.files.get(relative)
         try:
-            with _parent(root, relative, live, create=True) as (fd, parent):
+            with _parent(root, relative, live, create=True) as (fd, check):
                 name = relative.rsplit("/", 1)[-1]
                 if backed_up is not None and backed_up[1] == expected:
                     _check_live(fd, name, backed_up)
                 else:
-                    _put_file(fd, parent, name, source, expected, backed_up)
+                    _put_file(fd, check, name, source, expected, backed_up)
                     changed += 1
         except OSError as error:
             problems.append(f"{relative}: {error.strerror or error}")

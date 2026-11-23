@@ -283,15 +283,17 @@ backup protected during a restore.
 - The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`.
   `builds { game, stored? }` returns
   `{ ok, builds: [{ id, at, builds, buildRefs?, buildCalls?, files, bytes, reason, from? }] }`, newest first.
-  `buildCalls: [{ id, ref }]` lists Hermes tool call IDs and their refs for the game's bound conversation
-  when `stored` is that conversation's stored ID in this profile. These IDs let the page match builds
-  whose result bodies the gateway omitted. Historical times remain in `builds`, in milliseconds.
+  `buildCalls: [{ id, ref, timestamp }]` gives the call ID and exact result timestamp in Unix seconds
+  when a stored result in the bound conversation carries the recorded build reference. The page uses
+  these two fields together when the gateway omits a result body. Historical times in `builds` use
+  milliseconds.
 - Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
   against the selected snapshot and checks the saved file count, byte total and fingerprint. It then
-  keeps the current project as a `before-restore` snapshot
-  (`from` is the restored ID), removes project files absent from the saved build and writes back files
-  that differ using a temporary sibling. Each overwrite or deletion checks that the live file still
-  matches the identity and contents backed up. Incomplete restores include the verified backup,
+  rejects redirected project paths and verifies the backup's names and contents before publishing it.
+  The `before-restore` snapshot's `from` field is the restored ID. The restore removes project files
+  absent from the saved build and writes back files that differ using a temporary sibling. Each
+  overwrite or deletion verifies the live file against the backup and checks opened ancestor folders
+  for nested-game markers. Incomplete restores include the verified backup,
   operation counts and up to 20 file problems. A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)

@@ -38,16 +38,8 @@ export function historyItems(messages, running = false) {
   }
 
   const addTool = (call, at) => {
-    if (call.id && tools.has(call.id)) {
-      return tools.get(call.id)
-    }
-
     const tool = { id: call.id ?? `${items.length}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
     const last = items[items.length - 1]
-
-    if (call.id) {
-      tools.set(call.id, tool)
-    }
 
     if (last?.kind === 'tools') {
       last.tools.push(tool)
@@ -64,7 +56,8 @@ export function historyItems(messages, running = false) {
     }
 
     const text = messageText(message)
-    const at = typeof message.timestamp === 'number' && message.timestamp > 0 ? message.timestamp * 1000 : null
+    const timestamp = Number.isFinite(message.timestamp) && message.timestamp > 0 ? message.timestamp : null
+    const at = timestamp === null ? null : timestamp * 1000
 
     if (message.role === 'user') {
       if (!text.trim()) {
@@ -82,7 +75,11 @@ export function historyItems(messages, running = false) {
 
       for (const call of Array.isArray(message.tool_calls) ? message.tool_calls : []) {
         for (const inner of unwrapCalls(call?.id ?? null, call?.function?.name ?? call?.name, call?.function?.arguments ?? call?.args)) {
-          addTool(inner, at)
+          const step = addTool(inner, at)
+
+          if (inner.id) {
+            tools.set(inner.id, step)
+          }
         }
       }
     } else if (message.role === 'tool') {
@@ -90,18 +87,26 @@ export function historyItems(messages, running = false) {
 
       for (const inner of unwrapCalls(message.tool_call_id ?? null, message.name ?? message.tool_name, message.args)) {
         // Compact resume rows carry the name, arguments and call ID even when the result body is omitted.
-        const first = inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null
-        const step = first && (first.name === inner.name || inner.name === 'tool') ? first : addTool(inner, at)
+        const pending = tools.get(inner.id) ?? (inner.id === message.tool_call_id ? tools.get(`${inner.id}:0`) : null)
+        const step = pending && (pending.name === inner.name || inner.name === 'tool') ? pending : addTool(inner, at)
+
+        if (step === pending) {
+          tools.delete(step.id)
+        }
 
         if (at && step.startedAt) {
           step.duration = Math.max(0, (at - step.startedAt) / 1000)
         }
 
         step.args = step.args ?? stepArgs(inner.args)
-        step.resultSeen = typeof message.tool_call_id === 'string' && step.id === message.tool_call_id
+        const exactCall = typeof message.tool_call_id === 'string' && step.id === message.tool_call_id
+
+        if (exactCall && timestamp !== null) {
+          step.resultCall = { id: message.tool_call_id, timestamp }
+        }
 
         if (text) {
-          step.info = stepInfo(step.name, text)
+          step.info = stepInfo(step.name, text, exactCall || !message.tool_call_id)
 
           if (toolFailed({ result: text })) {
             step.state = 'failed'

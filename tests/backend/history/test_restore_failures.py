@@ -1,6 +1,7 @@
 """Restore preflight, integrity and partial failures. Run alone: python -m unittest tests.backend.history.test_restore_failures"""
 
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -74,6 +75,40 @@ class RestoreFailures(unittest.TestCase):
             self.assert_refused("BACKUP_FAILED")
         self.assertEqual(list(self.folder.glob("*.part")), [])
 
+    def test_a_staged_backup_with_different_bytes_or_spelling_is_never_published(self):
+        write_meta = snapshots._write_json
+        for change in ("bytes", "spelling"):
+            with self.subTest(change=change):
+
+                def change_backup(path, meta, change=change):
+                    write_meta(path, meta)
+                    file = path.parent / "files" / "extra.txt"
+                    if change == "bytes":
+                        file.write_text("wrong!!")
+                    else:
+                        file.rename(file.with_name("other.txt")).rename(file.with_name("EXTRA.txt"))
+
+                with mock.patch.object(snapshots, "_write_json", side_effect=change_backup):
+                    self.assert_refused("BACKUP_FAILED")
+                self.assertEqual(list(self.folder.glob("*.part")), [])
+
+    def test_a_registered_root_redirected_by_a_link_is_refused(self):
+        self.assert_redirected_root_refused(self.root)
+
+    def test_a_registered_root_redirected_by_a_link_in_its_path_is_refused(self):
+        self.assert_redirected_root_refused(self.root.parent)
+
+    def assert_redirected_root_refused(self, directory):
+        relative = self.root.relative_to(directory)
+        replacement = self.store / "elsewhere"
+        shutil.copytree(directory, replacement)
+        moved = directory.rename(directory.with_name("original"))
+        directory.symlink_to(replacement, target_is_directory=True)
+        self.assert_refused("NO_GAME")
+        for tree in (replacement, moved):
+            self.assertEqual((tree / relative / "extra.txt").read_text(), "keep me")
+            self.assertEqual((tree / relative / "project" / "scene.gbsres").read_bytes(), b"new")
+
     def test_a_project_over_the_backup_limit_is_untouched(self):
         count = len(snapshots.walk(self.saved, stored=True))
         with mock.patch.object(snapshots, "MAX_FILES", count):
@@ -141,6 +176,51 @@ class RestoreFailures(unittest.TestCase):
         self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 0, 1))
         self.assertEqual(self.keep.read_bytes(), b"editor")
         self.assertIn("project/scene.gbsres: a file appeared after backup", answer["problems"])
+
+    def test_a_project_marker_added_to_an_open_ancestor_during_staging_blocks_the_write(self):
+        child = self.keep.parent / "inner"
+        child.mkdir()
+        file = child / "notes.txt"
+        file.write_text("old")
+        snapshots.take(self.store, self.game, self.root, now_ms=2000)
+        file.write_text("theirs")
+        read = restore_files.file_digest
+        marker = child.parent / "new.GBSPROJ"
+
+        def add_marker(path, limit, writer=None, **kwargs):
+            if writer is not None and path.name == file.name:
+                marker.symlink_to(child.parent / "missing.gbsproj")
+            return read(path, limit, writer, **kwargs)
+
+        with mock.patch.object(restore_files, "file_digest", side_effect=add_marker):
+            answer = self.restore(id="2000")
+
+        self.assertEqual((answer["code"], answer["changed"]), ("PARTIAL", 0))
+        self.assertIn("project/inner/notes.txt: now part of another game", answer["problems"])
+        self.assertEqual(file.read_text(), "theirs")
+        self.assertEqual(list(child.glob("*.hr-restore")), [])
+
+    def test_a_project_marker_added_after_backup_protects_deletions_and_new_folders(self):
+        folder = self.keep.parent
+        historical = folder / "previous"
+        historical.mkdir()
+        (historical / "notes.txt").write_text("old")
+        snapshots.take(self.store, self.game, self.root, now_ms=2000)
+        shutil.rmtree(historical)
+        added = folder / "new.txt"
+        added.write_text("theirs")
+        restore_files_now = snapshots._restore_files
+
+        def add_marker(*args, **kwargs):
+            (folder / "new.gbsproj").write_text("{}")
+            return restore_files_now(*args, **kwargs)
+
+        with mock.patch.object(snapshots, "_restore_files", side_effect=add_marker):
+            answer = self.restore(id="2000")
+
+        self.assertEqual((answer["code"], answer["changed"], answer["removed"]), ("PARTIAL", 0, 0))
+        self.assertEqual(added.read_text(), "theirs")
+        self.assertFalse(historical.exists())
 
     def test_a_nested_game_is_protected_even_when_opened_by_an_alternate_spelling(self):
         original = self.root / "Pond"

@@ -7,6 +7,7 @@ from pathlib import Path
 from ..hermes import host
 from ..hermes.declare import rpc
 from . import snapshots
+from .build_refs import confirm_build_calls
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -29,7 +30,10 @@ def rpc_builds(ctx):
             bound = host._bound_game(stored, None) if isinstance(stored, str) and stored else None
             if not bound or bound["id"] != game or bound["session"]["storedId"] != stored:
                 stored = None
-            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game, stored=stored)}
+            listed = snapshots.list_snapshots(_snapshots_dir(), game, stored=stored)
+            if stored:
+                confirm_build_calls(host._data_dir().parents[1] / "state.db", stored, listed)
+            return {"ok": True, "builds": listed}
         except Exception as error:
             logger.exception("hermretro builds failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}

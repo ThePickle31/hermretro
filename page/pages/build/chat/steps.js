@@ -1,7 +1,7 @@
 // A tool call as a step of the conversation.
 import { PRESENT_TOOL, REPORT_TOOL } from '#app/tools.js'
 import { normalizeReport } from './report.js'
-import { toolResultObject } from './tool-results.js'
+import { toolBuildRef, toolResultObject } from './tool-results.js'
 
 export function toolFailed(payload) {
   const result = toolResultObject(payload?.result)
@@ -9,6 +9,7 @@ export function toolFailed(payload) {
   // An engine operation that ran but did not succeed (a build that stopped) says so in its structured content only.
   return Boolean(
     payload?.error ||
+      payload?.is_error === true ||
       result?.ok === false ||
       result?.isError === true ||
       result?.structuredContent?.success === false ||
@@ -54,12 +55,15 @@ export function stepArgs(args) {
 }
 
 /** What the page keeps of a finished step's result: its error, the paths it made, a presentation. */
-export function stepInfo(name, result) {
-  const parsed = toolResultObject(result)
+export function stepInfo(name, result, exactCall = true) {
+  const value = toolResultObject(result)
+  const buildRef = exactCall && name === 'chromatic_rom_build' ? toolBuildRef(result, value) : null
 
-  if (!parsed || typeof parsed !== 'object') {
+  if (!value && !buildRef) {
     return null
   }
+
+  const parsed = value ?? {}
 
   const content = parsed.structuredContent && typeof parsed.structuredContent === 'object' ? parsed.structuredContent : {}
   const text = value => (typeof value === 'string' && value ? value : null)
@@ -73,7 +77,7 @@ export function stepInfo(name, result) {
     projectRoot: text(content.projectRoot),
     assetPath: text(content.assetPath),
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
-    buildRef: String(name ?? '') === 'chromatic_rom_build' ? text(parsed.buildRef) : null,
+    buildRef,
     images,
     note: String(name ?? '') === PRESENT_TOOL && parsed.ok === true ? text(parsed.studio?.note) : null,
     report: String(name ?? '') === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null

@@ -181,9 +181,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
   first, with Show (scrolls to its card) and Restore (on built ones, except the one already playing
-  when nothing changed since). Restore matches the build result's reference or the conversation's
-  recorded tool call ID to a snapshot from the `builds` RPC. Occurrence times alone leave Restore
-  disabled. It confirms in place and
+  when nothing changed since). Restore matches a snapshot from the `builds` RPC using the build's
+  reference. Compact result rows instead use the call ID and exact result timestamp confirmed for
+  that reference. It confirms in place and
   calls `build_restore` to save the current project and put the earlier files back. A complete restore
   submits a rebuild. An incomplete restore shows the file problem, and a failed rebuild submission
   reports that the files were already restored. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's

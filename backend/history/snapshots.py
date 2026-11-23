@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .build_refs import build_history, public_snapshot, record_build
-from .restore_files import LiveTree, _restore_files, directory_id, file_digest, file_stamp
+from .restore_files import PROJECT_SUFFIX, LiveTree, _restore_files, directory_id, file_digest, file_stamp
 
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
@@ -38,7 +38,6 @@ STALE_PART_SECONDS = 600
 META = "snapshot.json"
 FILES = "files"
 REASONS = ("build", "before-restore")
-PROJECT_SUFFIX = ".gbsproj"
 
 
 class SnapshotError(Exception):
@@ -283,17 +282,19 @@ def _take_locked(
     while os.path.lexists(folder / str(at)) or os.path.lexists(folder / f"{at}.part"):
         at += 1
     partial = folder / f"{at}.part"
+    partial.mkdir(mode=0o700)
     try:
-        (partial / FILES).mkdir(parents=True)
+        stage_id = directory_id(partial.lstat())
+        (partial / FILES).mkdir()
+        files_id = directory_id((partial / FILES).lstat())
         for relative, source in files.items():
             target = partial / FILES / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             expected = digests[relative]
-            with target.open("wb") as writer:
+            with target.open("xb") as writer:
                 stamp = live.files[relative][0] if live is not None else None
                 if file_digest(source, expected[0], writer, expected_stamp=stamp) != expected:
                     raise OSError(f"{relative} changed during the snapshot operation")
-        _check_tree(root, files, live)
         meta = {
             "at": at,
             "game": game,
@@ -309,6 +310,14 @@ def _take_locked(
         if reason == "build":
             record_build(meta, occurrence, build_ref, build_call)
         _write_json(partial / META, meta)
+        staged = walk(partial / FILES, stored=True)
+        # Compare the names enumerated on the destination filesystem. Looking up each source name
+        # separately could succeed through a case-insensitive alias to a different destination entry.
+        if staged.keys() != files.keys() or _measure(staged)[1] != digests:
+            raise OSError("The staged snapshot does not match the project files")
+        _check_tree(root, files, live)
+        if directory_id(partial.lstat()) != stage_id or directory_id((partial / FILES).lstat()) != files_id:
+            raise OSError("The staged snapshot folder changed")
         os.replace(partial, folder / str(at))
     except BaseException:
         shutil.rmtree(partial, ignore_errors=True)
@@ -319,6 +328,8 @@ def _take_locked(
 
 def _check_tree(root: Path, files: dict[str, Path], live: LiveTree | None) -> None:
     seen = LiveTree() if live is not None else None
+    if live is not None and Path(os.path.realpath(root, strict=True)) != root:
+        raise OSError("The registered project folder was redirected")
     if walk(root, live=seen).keys() != files.keys() or (
         live is not None
         and (
@@ -344,11 +355,15 @@ def restore(
     identifier = str(identifier or "")
     if not _snapshot_id(identifier):
         raise SnapshotError("MISSING", "That build is no longer kept.")
-    root = Path(os.path.realpath(root))
-    if not root.is_dir():
-        raise SnapshotError("NO_GAME", f"{root} is not a folder.")
+    root = Path(root).absolute()
     folder = game_dir(base, game)
     with _locked(folder):
+        try:
+            if Path(os.path.realpath(root, strict=True)) != root:
+                raise OSError("the registered path now points to another folder")
+            root_id = directory_id(root.lstat())
+        except OSError as error:
+            raise SnapshotError("NO_GAME", f"The registered project folder could not be opened ({error}).") from error
         meta, wanted, digests = _read_snapshot(folder / identifier, game)
         if (build_ref is not None and build_ref not in build_history(meta, "buildRefs")) or (
             build_at is not None and build_history(meta, "builds").count(build_at) != 1
@@ -357,6 +372,8 @@ def restore(
         live = LiveTree()
         try:
             current = walk(root, live=live)
+            if live.directories[""] != root_id:
+                raise OSError("The registered project folder changed")
             backup = _take_locked(
                 folder, game, root, current, "before-restore", now_ms, KEEP, from_id=identifier, live=live
             )

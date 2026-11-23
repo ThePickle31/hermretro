@@ -69,7 +69,7 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   await view.close()
 
   // While hermretro updates, Restore (which restores files and sends a build request) and the chat box start nothing.
-  snapshots = [{ id: 'snap-1', buildRefs: ['first'], buildCalls: [{ id: 'b1', ref: 'first' }], reason: 'build' }]
+  snapshots = [{ id: 'snap-1', buildRefs: ['first'], buildCalls: [{ id: 'b1', ref: 'first', timestamp: 1020 }], reason: 'build' }]
   scenario.status = answered({ ...scenario.status.data, plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
   scenario['plugin-update'] = answered({ target: { route: null, profile: 'default' }, row: { name: 'hermretro', update_available: true, update_target: 'abc' } })
   scenario['update-busy'] = answered([])

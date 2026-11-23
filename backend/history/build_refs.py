@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import re
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+
+_BUILD_REF_PREFIX = re.compile(r'^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]')
+_SPILL_PREVIEW = re.compile(r"^Preview \(first [0-9]+ chars\):\n", re.MULTILINE)
+
 
 def build_history(meta: dict, key: str) -> list:
     values = meta.get(key)
@@ -52,3 +61,63 @@ def record_build(meta: dict, at: int, build_ref: str | None, build_call: tuple[s
                 meta["buildCalls"] = [*calls, call]
     else:
         meta["builds"] = [*build_history(meta, "builds"), at][-200:]
+
+
+def _result_ref(content: str | None) -> str | None:
+    # Hermes may store only a spill preview. The encoder puts the unique reference first
+    # so both the result and that preview identify the occurrence without opening the spill file.
+    if not isinstance(content, str):
+        return None
+    if content.startswith("<persisted-output>\n"):
+        preview = _SPILL_PREVIEW.search(content)
+        content = content[preview.end() :] if preview else ""
+    match = _BUILD_REF_PREFIX.match(content)
+    return match[1] if match else None
+
+
+def confirm_build_calls(database: Path, stored: str, listed: list[dict]) -> None:
+    """Add a result's exact Hermes timestamp to each corroborated call, dropping unconfirmed associations."""
+    ids = {call["id"] for snapshot in listed for call in snapshot.get("buildCalls", [])}
+    if not ids:
+        return
+
+    results = {}
+    if database.is_file():
+        try:
+            with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as db:
+                rows = db.execute(
+                    """
+                    WITH RECURSIVE lineage(id) AS (
+                        SELECT ?
+                        UNION
+                        SELECT s.id FROM sessions AS s JOIN lineage AS l ON s.parent_session_id = l.id
+                    )
+                    SELECT m.tool_call_id, m.timestamp, m.tool_name, substr(m.content, 1, 8192)
+                    FROM lineage AS l JOIN messages AS m ON m.session_id = l.id
+                    WHERE m.role = 'tool' AND m.tool_call_id IN (SELECT value FROM json_each(?))
+                    """,
+                    (stored, json.dumps(sorted(ids))),
+                )
+                for call_id, timestamp, tool, content in rows:
+                    if not isinstance(timestamp, (float, int)) or not 0 < timestamp < float("inf"):
+                        continue
+                    ref = _result_ref(content) if tool in {"chromatic_rom_build", "tool_call"} else None
+                    key = (call_id, timestamp)
+                    # Rotated segments can contain copies of a row. Conflicting bodies at
+                    # the same timestamp leave no way to tell which one the page received.
+                    results[key] = ref if results.get(key, ref) == ref else None
+        except sqlite3.Error:
+            results.clear()  # older or unreadable stores still support references in tool results
+
+    confirmed = {}
+    for (call_id, timestamp), ref in results.items():
+        if ref:
+            confirmed.setdefault((call_id, ref), []).append(timestamp)
+    for snapshot in listed:
+        calls = [
+            {**call, "timestamp": timestamp}
+            for call in snapshot.pop("buildCalls", [])
+            for timestamp in confirmed.get((call["id"], call["ref"]), [])
+        ]
+        if calls:
+            snapshot["buildCalls"] = calls
