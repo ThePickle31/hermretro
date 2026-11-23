@@ -1,0 +1,270 @@
+"""Independent projects, ROM builds and emulator results on the two chats' worker processes."""
+
+import base64
+import hashlib
+import json
+import struct
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+from backend.broker.engine import EngineProcess
+from backend.system import paths
+from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
+
+
+def png_info(block: dict) -> dict:
+    data = base64.b64decode(block["data"], validate=True)
+    ok = data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR"
+    width, height = struct.unpack(">II", data[16:24]) if ok else (0, 0)
+    return {
+        "png": ok,
+        "width": width,
+        "height": height,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "mimeType": block.get("mimeType"),
+    }
+
+
+def create_and_edit(suite, client_a, client_b):
+    ra = client_a.call(
+        OWNER_A,
+        "project_create",
+        {"name": "S01 Project A", "destinationPath": str(suite.project_a), "template": "starter", "select": True},
+        origin={"session_id": "sess-A-1"},
+    )
+    rb = client_b.call(
+        OWNER_B,
+        "project_create_blank",
+        {
+            "name": "S01 Project B",
+            "destinationPath": str(suite.project_b),
+            "gameType": "TOPDOWN",
+            "colorMode": "color",
+            "select": True,
+        },
+        origin={"session_id": "sess-B-1"},
+    )
+    first_status, sb = client_a.call(OWNER_A, "session_status"), client_b.call(OWNER_B, "session_status")
+    suite.check(
+        "O1",
+        "Each owner gets a private engine process with its own selected project",
+        ra.get("ok")
+        and rb.get("ok")
+        and structured(first_status).get("projectRoot") == str(suite.project_a)
+        and structured(sb).get("projectRoot") == str(suite.project_b)
+        and first_status["lane"]["engine_pid"] != sb["lane"]["engine_pid"],
+        a=first_status.get("lane"),
+        b=sb.get("lane"),
+    )
+    snap_a0, snap_b0 = snapshot(suite.project_a), snapshot(suite.project_b)
+
+    inspect_a = client_a.call(OWNER_A, "variable_inspect")
+    edit_a = client_a.call(
+        OWNER_A,
+        "variable_set",
+        {
+            "name": "S01 marker A",
+            "symbol": "var_s01_marker_a",
+            "expectedRevision": structured(inspect_a).get("revision"),
+        },
+    )
+    edited_source, snap_b1 = snapshot(suite.project_a), snapshot(suite.project_b)
+    suite.check(
+        "O2",
+        "A's native edit changes only project A",
+        edit_a.get("ok")
+        and not edit_a["result"].get("isError")
+        and diff(snap_a0, edited_source) != []
+        and diff(snap_b0, snap_b1) == [],
+        a_changed=diff(snap_a0, edited_source),
+        b_changed=diff(snap_b0, snap_b1),
+        edit=structured(edit_a) if len(json.dumps(structured(edit_a))) < 1500 else "large",
+    )
+    return first_status, edited_source
+
+
+def build_roms(suite, client_a, client_b):
+    builds: dict = {}
+
+    def build(label, client, owner):
+        start = time.time()
+        builds[label] = {"response": client.call(owner, "rom_build", {}), "start": start, "end": time.time()}
+
+    threads = [
+        threading.Thread(target=build, args=("A", client_a, OWNER_A)),
+        threading.Thread(target=build, args=("B", client_b, OWNER_B)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    rom_a = structured(builds["A"]["response"]).get("outputPath")
+    rom_b = structured(builds["B"]["response"]).get("outputPath")
+    overlap = min(builds["A"]["end"], builds["B"]["end"]) - max(builds["A"]["start"], builds["B"]["start"])
+    hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest() if rom_a and Path(rom_a).is_file() else None
+    hash_b = hashlib.sha256(Path(rom_b).read_bytes()).hexdigest() if rom_b and Path(rom_b).is_file() else None
+    suite.check(
+        "O3",
+        "Both owners build genuine distinct ROMs concurrently with the official compiler",
+        bool(
+            hash_a
+            and hash_b
+            and hash_a != hash_b
+            and overlap > 0
+            and structured(builds["A"]["response"]).get("builder") == "gb-studio-cli"
+            and str(rom_a).startswith(str(suite.project_a))
+            and str(rom_b).startswith(str(suite.project_b))
+        ),
+        rom_a=rom_a,
+        rom_b=rom_b,
+        sha256_a=hash_a,
+        sha256_b=hash_b,
+        overlap_seconds=round(overlap, 2),
+        seconds_a=round(builds["A"]["end"] - builds["A"]["start"], 2),
+        seconds_b=round(builds["B"]["end"] - builds["B"]["start"], 2),
+    )
+
+    plain = structured(builds["A"]["response"])
+    live_1 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})
+    live_2 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})
+    player_1, player_2 = live_1.get("player") or {}, live_2.get("player") or {}
+    served = None
+    if player_1.get("url"):
+        try:
+            with urllib.request.urlopen(player_1["url"], timeout=10) as page:
+                served = page.status
+        except OSError as error:
+            served = str(error)
+    suite.check(
+        "V1",
+        "With the live player on, each successful build also refreshes the playable copy at one stable "
+        "address; without it a build starts no player",
+        "player" not in builds["A"]["response"]
+        and plain.get("success") is not False
+        and player_1.get("ready") is True
+        and player_1.get("first") is True
+        and player_2.get("ready") is True
+        and player_2.get("first") is False
+        and player_1.get("url") == player_2.get("url")
+        and served == 200,
+        first=player_1.get("first"),
+        second_first=player_2.get("first"),
+        same_url=player_1.get("url") == player_2.get("url"),
+        http=served,
+    )
+    client_a.call(OWNER_A, "web_preview_close", {})
+    hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest()  # A was rebuilt; later checks use this ROM
+    return rom_a, rom_b, hash_a, hash_b
+
+
+def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):
+    client_a.call(OWNER_A, "emulator_run", {"romPath": rom_a})
+    step_a = client_a.call(OWNER_A, "emulator_step", {"buttons": ["right"], "frames": 45, "sampleCount": 3})
+    blocks = [b for b in step_a["result"].get("content", []) if b.get("type") == "image"]
+    infos = [png_info(b) for b in blocks]
+    samples = structured(step_a).get("samples", [])
+    suite.check(
+        "M1",
+        "Real PNG frame bytes arrive intact and match the engine's own per-sample hashes",
+        len(infos) == 3
+        and all(i["png"] and (i["width"], i["height"]) == (160, 144) for i in infos)
+        and [i["sha256"] for i in infos] == [s.get("sha256") for s in samples]
+        and structured(step_a).get("romSha256") == hash_a
+        and structured(step_a).get("genuineEmulatorFrames") is True,
+        frames=infos,
+        engine_sample_hashes=[s.get("sha256") for s in samples],
+        frame_numbers=[s.get("frame") for s in samples],
+    )
+    frame_dir = suite.work / "frames"
+    frame_dir.mkdir()
+    for index, block in enumerate(blocks):
+        (frame_dir / f"A-step-{index}.png").write_bytes(base64.b64decode(block["data"]))
+    last_frame = structured(step_a).get("frame")
+
+    status_b0 = client_b.call(OWNER_B, "session_status")
+    run_b = client_b.call(OWNER_B, "emulator_run", {"romPath": rom_b})
+    step_b = client_b.call(OWNER_B, "emulator_step", {"buttons": ["down"], "frames": 200, "sampleCount": 1})
+    cross = client_b.call(OWNER_B, "emulator_run", {"romPath": rom_a})  # B asks for A's ROM path
+    status_a = client_a.call(OWNER_A, "emulator_status")
+    sess_a = client_a.call(OWNER_A, "session_status")
+    suite.check(
+        "O4",
+        "B's emulator work never advances, restarts or re-selects A's session",
+        structured(status_b0).get("emulatorActive") is False
+        and structured(run_b).get("romSha256") == hash_b
+        and structured(step_b).get("frame", 0) >= 200
+        and structured(status_a).get("frame") == last_frame
+        and structured(status_a).get("romSha256") == hash_a
+        and structured(status_a).get("activeButtons") == ["right"]
+        and structured(sess_a).get("projectRoot") == str(suite.project_a),
+        a_frame_after_own_step=last_frame,
+        a_frame_after_b_activity=structured(status_a).get("frame"),
+        b_frame=structured(step_b).get("frame"),
+        b_request_for_a_rom={
+            "isError": cross["result"].get("isError") if cross.get("ok") else None,
+            "structured": structured(cross) if cross.get("ok") else cross,
+        },
+    )
+    suite.observations["b_request_for_a_rom_path"] = (
+        "engine refused" if cross.get("ok") and cross["result"].get("isError") else "see O4 detail"
+    )
+    return last_frame
+
+
+def check_result_fidelity(suite, client_a, rom_a):
+    via_broker = client_a.call(OWNER_A, "rom_inspect", {"romPath": rom_a})
+    with EngineProcess(paths.ENGINE_ROOT, node=suite.node, client_name="chromatic-studio-acceptance-direct") as direct:
+        direct.call_tool("project_select", {"projectPath": str(suite.project_a / "project.gbsproj")})
+        direct_result = direct.call_tool("rom_inspect", {"romPath": rom_a})
+        direct_error = direct.call_tool(
+            "project_select", {"projectPath": str(suite.work / "missing" / "project.gbsproj")}
+        )
+    broker_error = client_a.call(
+        OWNER_A, "project_select", {"projectPath": str(suite.work / "missing" / "project.gbsproj")}
+    )
+    suite.check(
+        "M2",
+        "Broker returns byte-equivalent raw results, including a structured engine error",
+        via_broker["result"] == direct_result
+        and broker_error["result"] == direct_error
+        and broker_error["result"].get("isError") is True
+        and bool(structured(broker_error).get("code")),
+        error_code=structured(broker_error).get("code"),
+        result_keys=sorted(via_broker["result"].keys()),
+    )
+    sess_a2 = client_a.call(OWNER_A, "session_status")
+    suite.check(
+        "M3",
+        "A failed select leaves the previous selection and writer lease intact",
+        structured(sess_a2).get("projectRoot") == str(suite.project_a) and sess_a2["lane"]["writer"] is True,
+        lane=sess_a2["lane"],
+    )
+
+
+def check_owner_identity(suite, client_a, client_b, first_status):
+    spoof = client_b.call(OWNER_B, "session_status", {"conversation_id": "conv-A"})
+    sess_b = client_b.call(OWNER_B, "session_status")
+    suite.check(
+        "I2",
+        "Identity placed in tool arguments is rejected by the schema and never reroutes",
+        spoof["result"].get("isError") is True
+        and spoof["lane"]["owner_key"] == sess_b["lane"]["owner_key"]
+        and structured(sess_b).get("projectRoot") == str(suite.project_b),
+        engine_message=spoof["result"]["content"][0].get("text", "")[:200],
+    )
+
+    rot = client_a.call(OWNER_A, "session_status", origin={"session_id": "sess-A-2-after-compaction"})
+    suite.check(
+        "I3",
+        "A rotated runtime session id maps to the same worker, selection and emulator",
+        rot["lane"]["engine_pid"] == first_status["lane"]["engine_pid"]
+        and rot["lane"]["engine_generation"] == first_status["lane"]["engine_generation"]
+        and structured(rot).get("projectRoot") == str(suite.project_a)
+        and structured(rot).get("emulatorActive") is True
+        and rot["lane"]["sessions_seen"] == ["sess-A-1", "sess-A-2-after-compaction"],
+        lane=rot["lane"],
+        note="session ids simulated here; real compaction is layer 2",
+    )
