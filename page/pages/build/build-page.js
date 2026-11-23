@@ -28,41 +28,19 @@ import { BuildPill, BuildsMenu } from './builds-menu.js'
 import { BuildPromptCard } from './transcript/questions.js'
 import { BuildNewGame } from './new-game.js'
 import { Background } from '#app/background.js'
+import { Working } from '#shared/ui/working.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
+import { useBuildSelection, useMissingBuildGame } from './selection.js'
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, released: {} })
-  const [rememberedSelection] = useState(() => {
-    if (selection !== null) {
-      return selection
-    }
-    try {
-      return ctx.storage.get('buildSelected', 'new') || 'new'
-    } catch {
-      return 'new'
-    }
-  })
-
-  const selected = selection ?? rememberedSelection
-
-  // The shell owns the active selection across remounts; storage only remembers it for the next visit.
-  useEffect(() => {
-    if (selection === null) {
-      select(selected)
-      return
-    }
-    try {
-      ctx.storage.set('buildSelected', selection)
-    } catch {
-      // This visit only.
-    }
-  }, [ctx, select, selected, selection])
+  const selected = useBuildSelection(ctx, selection, select)
 
   const rail = useMemo(
     () =>
@@ -104,13 +82,17 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
 
   const game = made ?? rail.find(item => item.id === selected) ?? null
   const pendingItem = pending.find(item => item.storedId === pendingId) ?? null
+  const missingSelection = selected !== 'new' && !game && !pendingItem
+  const missingGame = useMissingBuildGame(loaded && missingSelection && !pendingId ? selected : null, unavailable)
+  const removed = loaded && missingSelection && (pendingId ? !chats[pendingId]?.busy : missingGame.removed)
+  const waitingForSelection = missingSelection && (!loaded || !pendingId)
 
   // A remembered selection that is gone (game removed, New Game discarded elsewhere) falls back to New game.
   useEffect(() => {
-    if (loaded && selected !== 'new' && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
+    if (removed) {
       select('new')
     }
-  }, [loaded, selected, Boolean(game), Boolean(pendingItem)])
+  }, [removed, selected])
 
   // Presentations of the game shown here play in this conversation, not in a tab beside the chat.
   useEffect(() => {
@@ -411,7 +393,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     return statesRef.current.value
   }, [chats, stored])
 
-  const title = game?.title ?? pendingItem?.name ?? 'New game'
+  const title = game?.title ?? pendingItem?.name ?? (waitingForSelection ? 'Build' : 'New game')
   const entries = useMemo(() => switcherEntries(rail, pending, states, selected), [rail, pending, states, selected])
   // Edit a game: the library games with no conversation (the rest are already in the menu).
   const library = useMemo(() => rail.filter(item => !item.buildSession && item.id !== selected), [rail, selected])
@@ -487,9 +469,16 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     })
   })
 
+  const selectionError = libraryError || missingGame.error
+  const libraryNotice = selectionError ? jsx('p', { className: 'cs-error cs-b-library-error', role: 'alert', children: selectionError }, 'library-error') : null
   let body
 
-  if (elsewhere) {
+  if (waitingForSelection) {
+    body = selectionError ? null : jsx('div', {
+      className: 'cs-b-empty',
+      children: jsx(Working, { quiet: true, children: 'Reading your games…' })
+    })
+  } else if (elsewhere) {
     body = jsx('div', {
       className: 'cs-b-empty',
       children: jsx('p', {
@@ -555,6 +544,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           children: [
             jsx(Background, { id: 'platformer' }, 'level'),
             header,
+            libraryNotice,
             jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, 'new'),
             jsx(CartShelf, { entries, onAll: view => setSwitcherRequest(current => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, 'shelf')
           ]
@@ -563,8 +553,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           className: 'cs-b-chat',
           children: [
             header,
+            libraryNotice,
             body,
-            jsx(BuildComposer, {
+            !waitingForSelection && jsx(BuildComposer, {
               busy: Boolean(shownChat?.busy),
               game,
               fresh,
