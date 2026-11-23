@@ -7,7 +7,6 @@ per-user directory that survives restarts. Stdlib only and no Hermes imports: th
 
 from __future__ import annotations
 
-import base64
 import fcntl
 import hashlib
 import json
@@ -41,11 +40,13 @@ from .project import (  # noqa: F401 - existing library imports
 )
 from .shelf import public_session as public_session
 from .shelf import ERROR_CHARS as ERROR_CHARS
+from .thumbnails import MAX_THUMB_BYTES as MAX_THUMB_BYTES
+from .thumbnails import PNG_MAGIC as PNG_MAGIC
+from .thumbnails import decode_png as decode_png
+from .thumbnails import read_thumbnail
 
 VERSION = 1
 SELECTORS = frozenset({"project_select", "project_create", "project_create_blank"})
-MAX_THUMB_BYTES = 64 * 1024
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 MAX_PRESENTATIONS = 100
 MAX_NOTE_CHARS = 300
 
@@ -57,26 +58,6 @@ def game_id(root: str | os.PathLike) -> str:
 
 def valid_id(value) -> bool:
     return isinstance(value, str) and len(value) == 12 and all(c in "0123456789abcdef" for c in value)
-
-
-def decode_png(data_url, limit: int) -> bytes:
-    """A ``data:image/png;base64,`` URL (or bare base64) to PNG bytes, bounded and checked."""
-    if not isinstance(data_url, str) or not data_url:
-        raise ValueError("png must be a data:image/png;base64 URL.")
-    if data_url.startswith("data:") and not data_url[:32].lower().startswith("data:image/png;base64,"):
-        raise ValueError("png must be a data:image/png;base64 URL.")
-    payload = data_url.split(",", 1)[1] if data_url.startswith("data:") else data_url
-    if len(payload) > (limit * 4) // 3 + 8:
-        raise ValueError(f"The image is larger than {limit // 1024} KB.")
-    try:
-        raw = base64.b64decode(payload, validate=True)
-    except (ValueError, TypeError) as error:
-        raise ValueError("png is not valid base64.") from error
-    if len(raw) > limit:
-        raise ValueError(f"The image is larger than {limit // 1024} KB.")
-    if not raw.startswith(PNG_MAGIC):
-        raise ValueError("png is not a PNG image.")
-    return raw
 
 
 def _atomic_write(path: Path, data: bytes, *, replace: bool = True) -> None:
@@ -295,16 +276,7 @@ class Registry:
         if not valid_id(identifier):
             return None
         path = self.thumbs / f"{identifier}.png"
-        try:
-            if not path.is_file():
-                return None
-            with path.open("rb") as handle:
-                raw = handle.read(MAX_THUMB_BYTES + 1)
-        except OSError:
-            return None
-        if not raw.startswith(PNG_MAGIC) or len(raw) > MAX_THUMB_BYTES:
-            return None
-        return "data:image/png;base64," + base64.b64encode(raw).decode()
+        return read_thumbnail(path)
 
     # -- Build: one game, one conversation --------------------------------------------
     # ``games[id].session = {storedId, profile, createdAt, aliases}`` names the one Hermes session that
