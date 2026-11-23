@@ -218,7 +218,7 @@ export function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAs
             ? jsxs('button', {
                 'aria-label': `See the ${made.length === 1 ? 'picture' : `${made.length} pictures`} this made`,
                 className: 'cs-b-wk-assets',
-                onClick: () => onOpenAsset?.(made[0]),
+                onClick: event => onOpenAsset?.(made[0], event.currentTarget),
                 type: 'button',
                 children: [jsx(AssetStack, { assets: made }), jsx('span', { children: `${made.length} ${made.length === 1 ? 'asset' : 'assets'}` })]
               })

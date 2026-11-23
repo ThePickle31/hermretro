@@ -48,7 +48,7 @@ function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
     jsxs('button', {
       'aria-label': `Look closer at ${label.toLowerCase()} version of ${name}`,
       className: now ? 'cs-b-ba-side now' : 'cs-b-ba-side',
-      onClick: () => onOpen?.({ path, version: now ? (to ? `reply:${to}` : null) : `reply:${from}`, kind: assetKind(path), step: label }),
+      onClick: event => onOpen?.({ path, version: now ? (to ? `reply:${to}` : null) : `reply:${from}`, kind: assetKind(path), step: label }, event.currentTarget),
       type: 'button',
       children: [jsx('span', { className: 'cs-b-ba-img', children: jsx(SheetFrame, { loaded }) }), jsx('span', { className: 'cs-b-ba-cap', children: label })]
     })

@@ -115,6 +115,8 @@ project files; nothing is compiled.
 
 `{path, root, version}` (`path` and `root` as for `asset`) → `{ok, path, versions}`: puts a kept version back in
 place, keeping the one it replaces first. Not for saved frames.
+If the backup fails, the current file stays in place. The selected version and the backup survive pruning
+during that restore.
 
 ### `assets` RPC
 
@@ -123,7 +125,8 @@ pictures the Build page's @ picker lists: the game card's cover first, then ever
 `assets/sprites`, `assets/backgrounds`, `assets/ui` and `assets/fonts` (symlinks leaving the game are
 skipped, and so are a nested game's pictures), at most 400. Each is `{path, relative, name, file, kind, modifiedAt, bytes}`; `name` is the
 sidecar's (`.gbsres`) name when there is one, `kind` one of `cover`, `sprite`, `background`, `ui`.
-No image data: the page loads each through `asset`. Failure: `NO_GAME`.
+Within each asset folder, paths are sorted by component. `truncated` is true only when an eligible image
+was left out. The page loads image data through `asset`. Failure: `NO_GAME`.
 
 ### Page
 

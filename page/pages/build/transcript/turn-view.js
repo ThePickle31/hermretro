@@ -42,7 +42,7 @@ function TurnView({ turn, live, turnStartedAt = null, previousModel = null, chat
   viewerRef.current = viewerAssets
 
   // Stable, so the memoised replies do not re-render their markdown on every turn update.
-  const openAsset = useCallback(asset => onOpenAsset(viewerRef.current, asset), [onOpenAsset])
+  const openAsset = useCallback((asset, opener) => onOpenAsset(viewerRef.current, asset, opener), [onOpenAsset])
   const playable = Boolean(game && game.webExport && playableSha(game))
   const frame = [...parts.assets].reverse().find(asset => asset.kind === 'Playtest frame') ?? null
   const report = parts.report

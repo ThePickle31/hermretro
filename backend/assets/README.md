@@ -12,14 +12,20 @@ Game images for the Build page: the asset viewer's RPCs (`rpcs.py`), how a proje
 ## Project files
 
 A game's images live in `<root>/assets/<kind>/` (`sprites/`, `backgrounds/`, `ui/`, `fonts/`, subfolders included): mostly `*.png`, each beside its `<image>.gbsres` sidecar (JSON: `id`, `name`, and for a sprite its frame size and animations; `backend/library/README.md` "Project files"). To count or list them, use `project_images(root, kinds=None)` from `project_files.py`: it yields `(path, resolved path, kind)` for each image (`kind` is `sprite`, `background` or `ui`; `kinds={"sprite"}` keeps only sprites), never one outside `root`, e.g. `sum(1 for _ in project_images(root, kinds={"sprite"}))`. The `assets` RPC lists the game's pictures with it.
+The walk sorts each directory and enters subdirectories as needed. The RPC loads one index of library folders per
+request and matches each image to its deepest owner by filesystem identity, which also handles alternate case
+spellings on case-insensitive disks. It stops after finding the first eligible image beyond the cap.
 
 ## Kept versions
 
 `versions.py` keeps each version of a game image a reply showed or a step looked at, under the plugin data folder's
 `asset-versions/`, filed under the game that owns the image (a folder that later becomes a game of its own starts
-with none of the outer game's), newest `ASSET_KEEP_VERSIONS` per image, images up to `ASSET_MAX_BYTES` only. To
-count an image's older versions, use `older_versions(real, root)` (`real` the resolved path, `root` its game from
-`_image_root(real)`; the current file is not counted); `_versions(real, root)` lists them all, the current one marked.
+with none of the outer game's), up to `ASSET_KEEP_VERSIONS` per image, images up to `ASSET_MAX_BYTES` only.
+Older path-only history is adopted when exactly one root owns the image. Version operations take a per-image
+file lock across Hermes processes. Restore verifies that the current bytes are kept before replacing the file
+and protects both the selected version and the backup when applying the cap. To count an image's older versions,
+use `older_versions(real, root)` (`real` the resolved path, `root` its game from `_image_root(real)`; the current
+file is not counted).
 
 ## Front door
 
@@ -27,11 +33,12 @@ count an image's older versions, use `older_versions(real, root)` (`real` the re
 
 ## Tests
 
-`tests/backend/assets/`.
+`tests/backend/assets/`, including `tests/backend/assets/test_asset_restore.py` (failed backups, the file lock and
+historical reads after a restore) and `tests/backend/assets/test_asset_list_limit.py` (ownership, order and the cap).
 
 ## Adding here
 
-- an RPC: add the `@rpc("<name>")` handler in `rpcs.py` (a factory returning the handler `(params, **kwargs)` that answers `{ok, ...}` and never raises), its test, its `.agents/skills/hermretro-dev-architecture/references/contract.md` section and this README's line, then run `node tools/bundle/bundle.mjs` (it regenerates `page/app/rpc-names.js`). RPC names are global and flat (`plugin.hermretro.<name>`): pick one no other feature uses. An RPC about one game, as `assets` is, takes `game` (the library id) and answers `NO_GAME` unless `host._game_root` finds it.
+- an RPC: add the `@rpc("<name>")` handler in `rpcs.py` (a factory returning the handler `(params, **kwargs)` that answers `{ok, ...}` and never raises), its test, its `.agents/skills/hermretro-dev-architecture/references/contract.md` section and this README's line, then run `node tools/bundle/bundle.mjs` (it regenerates `page/app/rpc-names.js`). RPC names are global and flat (`plugin.hermretro.<name>`): pick one no other feature uses. An RPC about one game, as `assets` is, takes `game` (the library id) and answers `NO_GAME` when the registry has no project folder for it.
 - a tool: add the schema, handler and `Tool(...)` entry (with its `step_words`) in `tools.py`, its test, the `plugin.yaml` line, the Build page's step words, a `.agents/skills/hermretro-dev-architecture/references/contract.md` line and this README's line (`tests/repo/test_lockstep.py`'s opening comment lists what must agree). A tool about the selected game takes a `project` argument and resolves it with `tool_project` from `backend/hermes/tool_args.py` (test it with a temp project and a missing one).
 - a hook: `@hook("post_tool_call")` on a callback in `hooks.py` (`needs_ctx=True` for a factory given the ctx). A hook name other features already use is chained after theirs in `backend/features.py` order; a new name goes under `provides_hooks` in `plugin.yaml`. On `post_tool_call`, assets' `keep_inspected_images` must run before history's `snapshot_after_build` (the images a build looked at are kept before the snapshot): that relative order is the rule, pinned by `tests/backend/history/test_snapshots.py`, and a callback added before, between or after them keeps it. A hook reads an engine tool's result with `host.tool_result_payload(result)` and finds the library game it touched with `host.library_game_for(paths)` (`backend/hermes/host.py`).
 - an event: declare `"assets.<name>"` in this front door's `EVENTS` and a function in `emits.py` that emits it (call it where it happens), its test, the `.agents/skills/hermretro-dev-architecture/references/contract.md` row and this README's line.

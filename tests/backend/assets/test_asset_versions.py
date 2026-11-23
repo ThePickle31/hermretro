@@ -268,7 +268,8 @@ class AssetVersions(unittest.TestCase):
         info = assets_rpcs.rpc_asset_info(None)(pond_page)
         self.assertEqual([entry["current"] for entry in info["versions"]], [True], "only the file as it is now")
         self.assertFalse(assets_rpcs.rpc_asset(None)({**pond_page, "at": 1500 * 1000})["earlier"])
-        older = assets_versions._versions(lily.resolve(), self.game.resolve())[0]["id"]
+        outer_history = assets_versions._versions_dir(lily.resolve(), self.game.resolve())
+        older = assets_versions._versions(lily, outer_history)[0]["id"]
         self.assertEqual(assets_rpcs.rpc_asset(None)({**pond_page, "version": older})["code"], "MISSING")
         self.assertEqual(assets_rpcs.rpc_asset_restore(None)({**pond_page, "version": older})["code"], "MISSING")
         self.assertEqual(lily.read_bytes(), PNG_B)

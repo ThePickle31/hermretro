@@ -4,12 +4,18 @@ kept versions."""
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import os
 import re
+import tempfile
+import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
+from stat import S_ISDIR
 
 from ..hermes import host
+from ..library import valid_id
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -78,29 +84,20 @@ _MEDIA_LINE = re.compile(
 )
 
 
-def _game_roots() -> list[Path]:
-    """Every library game's project folder, straight from the registry: a game whose details cannot be read right now
-    still owns its files."""
-    roots = []
-    for entry in host._registry().load()["games"].values():
-        if isinstance(entry, dict) and isinstance(entry.get("projectRoot"), str):
-            try:
-                roots.append(Path(entry["projectRoot"]).resolve())
-            except (OSError, RuntimeError):
-                continue
-    return roots
-
-
-def _asset_roots() -> list[Path]:
-    return [_frames_dir(), *_game_roots()]
-
-
 def _frames_dir() -> Path:
     """The frames Hermes saved from tool results (content-addressed, shared by every game's chat)."""
     return (host._data_dir() / "frames").resolve()
 
 
-def _same_folder(one, other) -> bool:
+def _folder_id(folder: Path) -> tuple[int, int] | None:
+    try:
+        stat = folder.stat()
+        return (stat.st_dev, stat.st_ino) if S_ISDIR(stat.st_mode) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _same_folder(one: Path, other: Path) -> bool:
     """Whether two paths name the same existing folder (by identity, so a differently cased spelling on a
     case-insensitive disk is the same folder)."""
     try:
@@ -113,33 +110,55 @@ def _is_frames(root: Path) -> bool:
     return _same_folder(root, _frames_dir())
 
 
-def _holders(real: Path) -> list[Path]:
-    """The saved frames or library games whose folders hold an image, deepest first, spelled as in ``real``. Folders
-    are matched by identity, not spelling."""
-    roots = set()
-    for base in _asset_roots():
-        try:
-            found = base.stat()
-        except OSError:
-            continue
-        roots.add((found.st_dev, found.st_ino))
-    holders = []
-    for folder in real.parents:
-        try:
-            found = folder.stat()
-        except OSError:
-            continue
-        if (found.st_dev, found.st_ino) in roots:
-            holders.append(folder)
-    return holders
+class AssetOwners:
+    """A registry snapshot indexed by directory identity, including on case-insensitive disks."""
+
+    def __init__(self):
+        self.games = {}
+        self.game_folders = set()
+        self.frames_folder = _folder_id(_frames_dir())
+        for game, entry in host._registry().load()["games"].items():
+            if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+                continue
+            try:
+                root = Path(entry["projectRoot"]).resolve(strict=True)
+            except (OSError, RuntimeError, ValueError):
+                continue
+            identity = _folder_id(root)
+            if identity is not None:
+                if valid_id(game):
+                    self.games[game] = root
+                self.game_folders.add(identity)
+        self.root_folders = self.game_folders | ({self.frames_folder} if self.frames_folder is not None else set())
+
+    def holders(self, real: Path):
+        """Yield the owning ancestors deepest first, spelled as in the resolved image path."""
+        for folder in real.parents:
+            if _folder_id(folder) in self.root_folders:
+                yield folder
+
+    def image_root(self, real: Path) -> Path | None:
+        return next(self.holders(real), None)
+
+    def list_root(self, game, raw_root) -> Path | None:
+        root = self.games.get(str(game or ""))
+        if root is None and raw_root:
+            try:
+                root = Path(str(raw_root)).expanduser().resolve(strict=True)
+            except (OSError, RuntimeError, ValueError):
+                return None
+        if root is not None:
+            identity = _folder_id(root)
+            if identity != self.frames_folder and identity in self.game_folders:
+                return root
+        return None
 
 
 def _image_root(real: Path) -> Path | None:
     """The folder an image is shown from, spelled as in ``real``: the saved frames, or the library game that most
     closely holds it (the deepest, so an image of a game inside another game's folder belongs to the inner game);
     None for neither."""
-    holders = _holders(real)
-    return holders[0] if holders else None
+    return AssetOwners().image_root(real)
 
 
 def _shown_in(root: Path, game_root) -> bool:
@@ -178,6 +197,18 @@ def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
 
 
+@contextmanager
+def _version_lock(real: Path):
+    """Serialize all keep, adoption and restore operations for one asset across Hermes processes."""
+    locks = host._data_dir() / "asset-version-locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    # Alternate case spellings on macOS can point to the same live file, even after os.replace changes its inode.
+    name = _digest(unicodedata.normalize("NFC", str(real).casefold()))
+    with (locks / name).open("ab") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
 def _versions_dir(real: Path, root: Path) -> Path:
     """Where the kept versions of ``real`` live as an image shown from ``root`` (``_image_root``): filed under the
     game that owns it, so a folder that later becomes a game of its own starts with none of the outer game's."""
@@ -192,54 +223,114 @@ def _adopt_path_versions(old: Path, folder: Path, real: Path, root: Path) -> Non
     """Versions kept by earlier releases were filed by path alone. They move to ``root`` only when it alone (a game or
     the saved frames) holds the image: with a game inside another's folder, the old ones could be either's."""
     try:
-        holders = _holders(real) if old.is_dir() else []
+        holders = list(AssetOwners().holders(real)) if old.is_dir() else []
         if len(holders) == 1 and _same_folder(holders[0], root):
             old.rename(folder)
     except OSError:
         logger.debug("hermretro could not move an image's kept versions", exc_info=True)
 
 
-def _keep_version(real: Path, root: Path) -> None:
-    """Keep this version of a game image (named by its modification time), so a later rewrite of the
-    same file (cover.png made again) does not change what an earlier reply showed."""
+def _kept_versions(folder: Path) -> list[Path]:
     try:
-        stat = real.stat()
-        if stat.st_size > ASSET_MAX_BYTES:
-            return
-        folder = _versions_dir(real, root)
+        return sorted(
+            (item for item in folder.iterdir() if item.stem.isdigit() and item.suffix in ASSET_SUFFIXES),
+            key=lambda item: int(item.stem),
+        )
+    except FileNotFoundError:
+        return []
+
+
+def _write_image(path: Path, data: bytes, suffix: str) -> None:
+    """Atomically write a kept copy or replace the live image, cleaning up on failure."""
+    handle, partial = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=suffix)
+    try:
+        with os.fdopen(handle, "wb") as writer:
+            writer.write(data)
+        os.replace(partial, path)
+    finally:
+        Path(partial).unlink(missing_ok=True)
+
+
+def _save_version(real: Path, folder: Path, *, required=False) -> tuple[Path | None, bool]:
+    """Save the live bytes under the asset lock. Return their kept path and whether it is new."""
+    with real.open("rb") as source:
+        stat = os.fstat(source.fileno())
         target = folder / f"{stat.st_mtime_ns}{real.suffix.lower()}"
-        if target.exists():
-            return
-        folder.mkdir(parents=True, exist_ok=True)
-        data = real.read_bytes()
-        kept = sorted(folder.iterdir(), key=lambda item: item.name)
-        if kept and kept[-1].read_bytes() == data:
-            return
-        partial = target.with_name(target.name + ".part")
-        partial.write_bytes(data)
-        partial.replace(target)
-        for old in kept[: max(0, len(kept) + 1 - ASSET_KEEP_VERSIONS)]:
-            old.unlink(missing_ok=True)
+        if target.is_file() and not required:
+            return target, False
+        if stat.st_size <= ASSET_MAX_BYTES:
+            data = source.read(ASSET_MAX_BYTES + 1)
+            if len(data) <= ASSET_MAX_BYTES:
+                return _save_image_bytes(folder, target, data)
+    if required:
+        raise OSError(f"The current image is larger than {size_text(ASSET_MAX_BYTES)} and could not be backed up.")
+    return None, False
+
+
+def _save_image_bytes(folder: Path, target: Path, data: bytes) -> tuple[Path, bool]:
+    if target.is_file():
+        if target.read_bytes() != data:
+            raise OSError("A different image already has the current image's modification time.")
+        return target, False
+    kept = _kept_versions(folder)
+    if kept and int(kept[-1].stem) < int(target.stem) and kept[-1].read_bytes() == data:
+        return kept[-1], False
+    folder.mkdir(parents=True, exist_ok=True)
+    _write_image(target, data, ".part")
+    return target, True
+
+
+def _prune_versions(folder: Path, protect=()) -> None:
+    kept = _kept_versions(folder)
+    excess = max(0, len(kept) - ASSET_KEEP_VERSIONS)
+    for old in [item for item in kept if item not in protect][:excess]:
+        old.unlink(missing_ok=True)
+
+
+def _try_keep_version(real: Path, folder: Path, *, protect=()) -> None:
+    try:
+        _saved, added = _save_version(real, folder)
+        if added:
+            _prune_versions(folder, protect)
     except OSError:
         logger.debug("hermretro could not keep an image version", exc_info=True)
 
 
-def _version_at(real: Path, root: Path, at_ms) -> Path | None:
+def _keep_version(real: Path, root: Path) -> None:
+    """Best-effort history capture for a hook or build report."""
+    try:
+        with _version_lock(real):
+            _try_keep_version(real, _versions_dir(real, root))
+    except OSError:
+        logger.debug("hermretro could not lock image history", exc_info=True)
+
+
+def _restore_version(real: Path, root: Path, wanted: str) -> list[dict] | None:
+    with _version_lock(real):
+        folder = _versions_dir(real, root)
+        selected = folder / f"{wanted}{real.suffix.lower()}"
+        try:
+            data = selected.read_bytes()
+        except FileNotFoundError:
+            return None
+        backup, _added = _save_version(real, folder, required=True)
+        protect = (selected, backup)
+        _prune_versions(folder, protect)
+        _write_image(real, data, ".restore")
+        _try_keep_version(real, folder, protect=protect)
+        return _versions(real, folder)
+
+
+def _version_at(real: Path, folder: Path, at_ms) -> Path | None:
     """The kept version of ``real`` that was current at ``at_ms`` (a reply's time), when the file has
     been rewritten since; None when the file on disk is still that version (or nothing older was kept)."""
     try:
         at_ns = int(float(at_ms) * 1_000_000)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return None
     if at_ns <= 0 or real.stat().st_mtime_ns <= at_ns:
         return None
-    folder = _versions_dir(real, root)
-    if not folder.is_dir():
-        return None
-    older = [
-        item for item in folder.iterdir() if item.suffix != ".part" and item.stem.isdigit() and int(item.stem) <= at_ns
-    ]
-    return max(older, key=lambda item: int(item.stem)) if older else None
+    return next((item for item in reversed(_kept_versions(folder)) if int(item.stem) <= at_ns), None)
 
 
 def _keep_paths(values) -> None:
@@ -268,17 +359,9 @@ def keep_inspected_images(tool_name=None, args=None, **_kwargs):
         logger.debug("hermretro keep_inspected_images failed", exc_info=True)
 
 
-def _versions(real: Path, root: Path) -> list[dict]:
-    """Every kept version of a file shown from ``root``, oldest first, with the current one marked."""
-    folder = _versions_dir(real, root)
-    kept = (
-        sorted(
-            (item for item in folder.iterdir() if item.stem.isdigit() and item.suffix != ".part"),
-            key=lambda item: int(item.stem),
-        )
-        if folder.is_dir()
-        else []
-    )
+def _versions(real: Path, folder: Path) -> list[dict]:
+    """Every kept version, oldest first, with the current one marked."""
+    kept = _kept_versions(folder)
     current = real.stat().st_mtime_ns
     data = real.read_bytes()
     versions = [
@@ -298,6 +381,7 @@ def older_versions(real: Path, root: Path) -> int:
     """How many kept versions of a game image (shown from ``root``) are older than the file as it is now (the current
     one is not counted); 0 when none are kept or the file cannot be read."""
     try:
-        return sum(1 for version in _versions(real, root) if not version["current"])
+        with _version_lock(real):
+            return sum(1 for version in _versions(real, _versions_dir(real, root)) if not version["current"])
     except OSError:
         return 0

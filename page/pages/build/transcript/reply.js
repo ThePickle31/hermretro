@@ -63,7 +63,7 @@ function ReplyImage({ asset, line, onOpen }) {
     className: 'cs-b-rchip',
     onClick: event => {
       event.stopPropagation()
-      onOpen?.(asset)
+      onOpen?.(asset, event.currentTarget)
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: 'button',

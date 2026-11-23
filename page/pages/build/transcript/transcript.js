@@ -165,7 +165,10 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
 
   // Matched by file and version, not identity: a reply's image is rebuilt for the list it opens in.
   const openAsset = useCallback(
-    (assets, asset) => setViewer({ assets, index: Math.max(0, assets.findIndex(entry => entry === asset || (entry.path === asset.path && entry.version === asset.version))) }),
+    (assets, asset, opener) => setViewer({
+      assets, opener,
+      index: Math.max(0, assets.findIndex(entry => entry === asset || (entry.path === asset.path && entry.version === asset.version)))
+    }),
     []
   )
   const latestBuild = useMemo(() => {
@@ -285,6 +288,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
             onClose: () => setViewer(null),
             onIndex: index => setViewer(current => ({ ...current, index })),
             onSend: stored ? onSend : null,
+            opener: viewer.opener,
             root
           })
         : null

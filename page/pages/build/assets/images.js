@@ -20,7 +20,7 @@ export function AssetThumb({ asset, onOpen, size = 'sm', fresh = false }) {
     className: `cs-b-th ${size}${fresh ? ' fresh' : ''}`,
     onClick: event => {
       event.stopPropagation()
-      onOpen?.(asset)
+      onOpen?.(asset, event.currentTarget)
     },
     title: `${loaded.name} · ${loaded.width}×${loaded.height}`,
     type: 'button',

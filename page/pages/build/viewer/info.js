@@ -8,11 +8,11 @@ export const VIEWER_KIND = { cover: 'Game cover', sprite: 'Sprite', background: 
 
 export function useAssetInfo(path, refresh) {
   const root = useContext(AssetGame)
-  const [info, setInfo] = useState(null)
+  const [result, setResult] = useState(null)
 
   useEffect(() => {
     if (!path) {
-      setInfo(null)
+      setResult(null)
 
       return undefined
     }
@@ -20,15 +20,15 @@ export function useAssetInfo(path, refresh) {
     let live = true
 
     callStudioOnly(RPC_ASSET_INFO, { path, root }, 20_000)
-      .then(answer => live && setInfo(answer?.ok ? answer : null))
-      .catch(() => live && setInfo(null))
+      .then(answer => live && setResult(answer?.ok ? { path, root, answer } : null))
+      .catch(() => live && setResult(null))
 
     return () => {
       live = false
     }
   }, [path, root, refresh])
 
-  return info
+  return result && result.path === path && result.root === root ? result.answer : null
 }
 
 /** Images for several asset paths at once (a scene's background and its actors' sprites). */
